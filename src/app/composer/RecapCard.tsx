@@ -188,7 +188,7 @@ function Sha({ sha }: { sha: string }) {
  * overrides keep BB's paragraph and code styles inside the recap's type
  * scale.
  */
-function RecapText({
+export function RecapText({
   text,
   className = "",
   typeClass,
@@ -246,9 +246,9 @@ function RecapText({
 // Labels sit in a gutter beside their row, and above it on narrow cards.
 const ROW_CLASS =
   "grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3 gap-y-0.5 py-2 @max-[24rem]/recap:grid-cols-1";
-const LABEL_CLASS = `pt-px text-[11px] font-medium leading-[1.6] ${PHONE_SECONDARY}`;
+export const LABEL_CLASS = `pt-px text-[11px] font-medium leading-[1.6] ${PHONE_SECONDARY}`;
 
-function Glyph({
+export function Glyph({
   path,
   className,
   filled = false,
@@ -272,7 +272,7 @@ function Glyph({
     </svg>
   );
 }
-const CHECK = "M3.5 8.5 6.5 11.5 12.5 4.5";
+export const CHECK = "M3.5 8.5 6.5 11.5 12.5 4.5";
 
 function useWaitingCountdown(recap: Recap, cancelled: boolean) {
   const [now, setNow] = useState(Date.now);

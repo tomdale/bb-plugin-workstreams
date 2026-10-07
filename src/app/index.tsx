@@ -1,6 +1,6 @@
 // Workstreams frontend entry: the sidebar thread list, the Workstreams page,
 // thread header actions (parent link, task identity, snooze, archive), the
-// recap and question cards, and the settings sections.
+// recap and question cards, the reply block, and the settings sections.
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import { ServerStateRealtime } from "./serverState.ts";
 import { StickyGoalHeader } from "./StickyGoalHeader.tsx";
@@ -9,6 +9,7 @@ import { ParentThreadLink } from "./header/ParentLink.tsx";
 import { TaskIdentityHeader } from "./header/TaskIdentityHeader.tsx";
 import { ObservedNamesHeader } from "./debug/ObservedNames.tsx";
 import { RecapCard } from "./composer/RecapCard.tsx";
+import { registerReplyBlock } from "./reply/register.ts";
 import {
   QuestionAnchor,
   QuestionInteraction,
@@ -69,6 +70,7 @@ export default definePluginApp((app) => {
     id: "next-up-command",
     component: NextUpCommandBridge,
   });
+  registerReplyBlock(app);
   app.composer.customize({
     id: "recap",
     scopes: ["thread"],
