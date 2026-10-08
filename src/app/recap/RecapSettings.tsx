@@ -8,6 +8,7 @@ import {
 } from "../../domain/recapPrefs.ts";
 import { useRecapPrefs } from "./prefs.ts";
 import { RecapPreview } from "./RecapPreview.tsx";
+import { replyBlocksDrawn } from "../reply/register.ts";
 import {
   SectionRows,
   SettingRow,
@@ -120,6 +121,24 @@ export function RecapSettings() {
           }
         />
       </div>
+      <SettingRow
+        label="Structured replies"
+        description={
+          !replyBlocksDrawn()
+            ? "This version of BB can't draw structured replies."
+            : prefs.replies
+              ? "Agents end each turn with a short reply in labeled sections, drawn like the recap card. Applies to each thread's next session."
+              : "Off: agent replies have no set form."
+        }
+        control={
+          <SettingSwitch
+            label="Structured replies"
+            checked={prefs.replies && replyBlocksDrawn()}
+            disabled={!replyBlocksDrawn()}
+            onChange={(replies) => change({ replies })}
+          />
+        }
+      />
       <div className="space-y-3">
         <p id="ws-recap-layout" className="text-sm font-medium text-foreground">
           Layout

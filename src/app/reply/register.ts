@@ -7,6 +7,13 @@ import {
 } from "../../domain/reply.ts";
 import { ReplyBlock } from "./ReplyBlock.tsx";
 
+let drawn = false;
+
+/** Whether this bb draws reply blocks; false before the app registers. */
+export function replyBlocksDrawn(): boolean {
+  return drawn;
+}
+
 /**
  * Claims `:::reply` blocks in agent messages. A bb without message blocks
  * has no such slot; the plugin then registers nothing and those blocks show
@@ -21,4 +28,5 @@ export function registerReplyBlock(app: PluginAppBuilder): void {
     toText,
     component: ReplyBlock,
   });
+  drawn = true;
 }

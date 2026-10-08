@@ -48,6 +48,8 @@ export const recapPrefsSchema = z.object({
       Math.min(CORRECTIONS.max, Math.max(CORRECTIONS.min, value)),
     ),
   layout: z.enum(RECAP_LAYOUTS).catch("full"),
+  /** Agents end each turn with a `:::reply` block the app draws. */
+  replies: z.boolean().catch(false),
   /** Commit hash colors in recap text: one for digits, one for letters. */
   hashDigits: hashColor,
   hashLetters: hashColor,
@@ -60,6 +62,7 @@ export function parseRecapPrefs(raw: unknown): RecapPrefs {
     required: true,
     corrections: CORRECTIONS.fallback,
     layout: "full",
+    replies: false,
     hashDigits: null,
     hashLetters: null,
     ...value,

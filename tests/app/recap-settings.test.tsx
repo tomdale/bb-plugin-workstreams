@@ -58,6 +58,22 @@ it("disables reminders when agents don't end turns with a recap", async () => {
   ).toHaveProperty("disabled", true);
 });
 
+it("keeps structured replies off until switched on", async () => {
+  const slot = await mount();
+  const toggle = await slot.findByRole("switch", {
+    name: "Structured replies",
+  });
+  expect(toggle.getAttribute("aria-checked")).toBe("false");
+  expect(slot.getByText("Off: agent replies have no set form.")).toBeTruthy();
+  fireEvent.click(toggle);
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.find((c) => c.method === "setRecapPrefs")?.input,
+    ).toEqual({ patch: { replies: true } }),
+  );
+  expect(await slot.findByText(/labeled sections/)).toBeTruthy();
+});
+
 it("previews the recap card in each state and the chosen layout", async () => {
   const slot = await mount();
   const carousel = await slot.findByRole("region", { name: "Recap preview" });
