@@ -83,7 +83,9 @@ recap states map `complete` to `done`, `review` to `review`, and `waiting` to
 `in_progress` (working). The serialized decision state is `needs_decision`;
 “needs you” is its user-facing description. Runtime `error` is a BB thread
 status, not a stored analysis work state. Fresh user input clears the prior
-recap. Recap reminders remain configurable.
+recap. Recap reminders remain configurable. With Structured replies on, agents
+also end each reply with a `:::reply` block of prose (lead, labeled sections,
+folded Details) that the app draws inline; it never feeds the card or status.
 
 ## 4. Organization
 
