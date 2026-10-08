@@ -32,7 +32,7 @@ Run `bb workstreams --help` for argument details.
 
 ## Settings
 
-Quick analysis and Full analysis have separate model settings. The Quick analysis model remains available when typing suggestions are disabled because first-send analysis still uses it. Capacity and collapse threshold control grouping; other settings cover titles, sidebar, recaps, snooze, and display.
+Quick analysis and Full analysis have separate model settings. The Quick analysis model remains available when typing suggestions are disabled because first-send analysis still uses it. Capacity and collapse threshold control grouping; other settings cover titles, sidebar, recaps, snooze, and display. **Structured replies** (off by default, in Recap settings) asks agents to end each turn with a `:::reply` block, which the app draws in the recap card's style next to the card; the recap tool still feeds the card and sidebar.
 
 ## Development
 

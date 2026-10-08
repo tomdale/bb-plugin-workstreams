@@ -796,6 +796,40 @@ describe("agent recaps", () => {
   });
 });
 
+describe("structured replies", () => {
+  const replyText = async (
+    s: Awaited<ReturnType<typeof world>>,
+    origin?: { kind: "fork"; pluginId: string },
+  ) => {
+    await s.configure(origin);
+    return s.w.harness.inspection.registrations.instructionProvider!({
+      threadId: "t1",
+      projectId: "p1",
+    });
+  };
+
+  it("contributes no reply instruction while the setting is off", async () => {
+    expect(await replyText(await world())).toBeNull();
+  });
+
+  it("contributes the reply instruction for a card when recaps are on", async () => {
+    const s = await world({ replies: true });
+    const text = await replyText(s);
+    expect(text).toContain(":::reply");
+    expect(text).toContain("leave Done and those links out of the block");
+    expect((await s.configure()).instructions).not.toContain(":::reply");
+  });
+
+  it("asks for Done in the block when recaps are off, and nothing in side chats", async () => {
+    const off = await world({ required: false, replies: true });
+    expect(await replyText(off)).toContain("Include Done and any commit");
+    const s = await world({ replies: true });
+    expect(
+      await replyText(s, { kind: "fork", pluginId: "side-chat" }),
+    ).toBeNull();
+  });
+});
+
 describe("next actions", () => {
   it("sends a chosen action as the user's message, queued behind any turn", async () => {
     const s = await world();

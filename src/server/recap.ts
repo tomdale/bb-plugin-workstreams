@@ -26,6 +26,7 @@ import {
   RECAP_INSTRUCTIONS,
   RECAP_TOOL,
   RECAP_TOOL_DESCRIPTION,
+  replyInstructions,
   recapInputSchema,
   recapToolSchema,
   recapMarkdown,
@@ -95,6 +96,8 @@ export class AgentRecaps {
     ReturnType<typeof setTimeout>
   >();
   private readonly waitingChecks = new Set<Promise<void>>();
+  /** Per thread, from the latest `configure`: whether the reply block instruction also has a recap card. */
+  private readonly replyModes = new Map<string, boolean>();
 
   constructor(
     private readonly deps: {
@@ -169,14 +172,30 @@ export class AgentRecaps {
    * the session gets the tool. Enrollment follows the latest answer.
    */
   configure(threadId: string, enabled: boolean) {
-    const on = enabled && this.deps.prefs().required;
+    const prefs = this.deps.prefs();
+    const on = enabled && prefs.required;
     this.row(threadId);
     this.deps.db
       .prepare("UPDATE ws_agent_recap SET enrolled = ? WHERE thread_id = ?")
       .run(Number(on), threadId);
+    if (enabled && prefs.replies) this.replyModes.set(threadId, on);
+    else this.replyModes.delete(threadId);
     return on
       ? { tools: [RECAP_TOOL], instructions: RECAP_INSTRUCTIONS }
       : { tools: [], instructions: null };
+  }
+
+  /**
+   * The reply block instruction for the resolution `configure` just decided,
+   * or null. bb calls `contributeInstructions` after `configure` in each
+   * resolution and gives it a budget of its own, so the instruction is not
+   * cut short by the recap and question instructions. The plugin loads only
+   * on a bb whose SDK draws message blocks (engines.bbPluginSdk), so the
+   * setting alone decides.
+   */
+  replyInstructions(threadId: string): string | null {
+    const withRecap = this.replyModes.get(threadId);
+    return withRecap === undefined ? null : replyInstructions(withRecap);
   }
 
   /**

@@ -4,11 +4,8 @@
  * the server, the app, and tests share one definition.
  */
 import { z } from "zod";
-import type {
-  AgentReport,
-  StoredAnalysis,
-  WorkState,
-} from "./analysis.ts";
+import { REPLY_BLOCK, REPLY_LABELS } from "./reply.ts";
+import type { AgentReport, StoredAnalysis, WorkState } from "./analysis.ts";
 
 export const RECAP_TOOL = "WorkstreamsRecap";
 
@@ -496,6 +493,41 @@ For waiting: goal (required) is a short description of the async task whose resu
 links: optional, only in the review state and only for artifacts or pages explicitly being asked to be reviewed, as absolute file paths or HTTPS URLs. A changed source file qualifies only when source review is requested. For complete, omit links or send an empty list.
 For complete and review, \`next\` holds messages the user might send — a follow-up action or question. Prefer { title, message, description? }. Keep title a very short sentence-case button label, at most 28 characters (ideally 2–4 words); validation enforces the limit. Put the exact self-contained plain-text request (at most 120 characters) in message; it is sent verbatim. Use optional description (at most 120 characters) for longer context or why the choice may be useful; it appears on hover and in the action menu. Do not cram the message into the title. Strings remain supported for simple actions and are shown as the full label. Omit closing periods. Do not restate choices elsewhere or offer work you should do yourself. Omit next while waiting.
 The user decides whether to archive the thread from the recap. When a question card is dismissed or expires, treat the question as unanswered and unapproved, and continue only work that does not depend on it.`;
+
+/**
+ * Instructions for the reply block, given only when Structured replies is on.
+ * `withRecap` says whether the session also has the recap tool, whose card
+ * then carries what got done and the commit and PR links.
+ */
+export function replyInstructions(withRecap: boolean): string {
+  const example = withRecap
+    ? `:::${REPLY_BLOCK}
+Settings open in half the time because the font file is cached after the first visit.
+
+### Checked
+12 tests and the type check pass locally. Nothing is pushed.
+:::`
+    : `:::${REPLY_BLOCK}
+Settings open in half the time because the font file is cached after the first visit.
+
+### Done
+- [x] Cached the font file after the first visit
+
+### Checked
+12 tests and the type check pass locally. Nothing is pushed.
+:::`;
+  const mode = withRecap
+    ? `When a turn ends with a ${RECAP_TOOL} card, write the block as well as calling the tool. The card's \`latest\` items carry what got done, with commit hashes and PR links inline, so leave Done and those links out of the block and use the lead for the how or why rather than repeating the card's goal. When a question card ends the turn instead, the block is the only reply: include Done and any commit or PR links in it.`
+    : "Include Done and any commit or PR links in the block.";
+  return `End your final reply of each turn with one reply block, which the app draws as a short labeled reply. Write it at the top level of the message, not inside a list, quote, or code block: \`:::${REPLY_BLOCK}\` alone on the first line with no space after the colons, Markdown inside, and \`:::\` alone on the last line. For example:
+
+${example}
+
+Inside the block, start with a lead of one or two plain sentences before any heading. Then add only the sections that have something to say, as \`###\` headings with these exact labels in this order: ${REPLY_LABELS.join(", ")}. Write Done items as \`- [x]\` and Not done items as \`- [ ]\`. After those, add at most two sections of your own, each with a heading of one to four words in sentence case and at most five list items or three sentences. Put anything longer under a last \`### Details\` heading, which shows folded.
+${mode}
+Lead with what is true now. Put a condition first ("If CI passes, …"). Name who did what. Say what state things are in: pushed or not, checked locally or in CI. Give a reason only when it changes a decision. Use concrete words and leave out filler such as simply, just, easily, and obviously.
+A two-line body is a good body: when a lead and one short section say it, stop there.`;
+}
 
 /** How the agent's report of a turn reads as a status. */
 export function reportedStatus(recap: Recap): {

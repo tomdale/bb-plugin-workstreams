@@ -41,7 +41,7 @@ At turn end, Full analysis receives requests, the latest reply, prior goal and t
 
 Topic application respects source priority: manual never changes; inherited changes only on scope shift; full replaces quick and updates full; quick applies only before a stronger source. Titles follow the current substantive focus using recent requests and findings. When Keep titles current is enabled, current Full analysis results may replace externally edited titles as well; accepted changes have no time-based limit. Opening analysis only fills empty titles.
 
-Question cards and agent reports precede analysis fallback for status. Agent recap states map complete to done, review to review, and waiting to working. Fresh user input clears the prior recap. Recap reminders remain configurable.
+Question cards and agent reports precede analysis fallback for status. Agent recap states map complete to done, review to review, and waiting to working. With Structured replies on, agents also end each turn with a `:::reply` block of prose (lead, labeled sections, folded Details) that the app draws inline; it never feeds the card or status. Fresh user input clears the prior recap. Recap reminders remain configurable.
 
 ## 4. Organization
 
