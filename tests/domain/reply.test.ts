@@ -5,6 +5,7 @@ import {
   type ReplyParseResult,
   toText,
 } from "../../src/domain/reply.ts";
+import { replyInstructions } from "../../src/domain/replyInstructions.ts";
 import { blockInput } from "./replyFixtures.ts";
 import { REPLY_SAMPLES } from "./replySamples.ts";
 
@@ -271,5 +272,29 @@ describe("toText", () => {
   it("returns an empty string for data that is not a reply", () => {
     expect(toText(null)).toBe("");
     expect(toText({ lead: 3 })).toBe("");
+  });
+});
+
+describe("replyInstructions", () => {
+  it("shows a copy-ready example that parses as a reply", () => {
+    for (const withRecap of [true, false]) {
+      const text = replyInstructions(withRecap);
+      const example = /^:::reply\n[\s\S]*?\n:::$/m.exec(text)![0];
+      const data = reply(read(`${example}\n`));
+      expect(data.lead).not.toBe("");
+      expect(data.sections.some((section) => section.label === "Done")).toBe(
+        !withRecap,
+      );
+    }
+  });
+
+  it("names the fixed labels in order and the folded Details section", () => {
+    const text = replyInstructions(true);
+    expect(text).toContain(
+      "these exact labels in this order: Done, Checked, Not done, Needs you, Next, Why",
+    );
+    expect(text).toContain("`### Details`");
+    expect(text).toContain("no space after the colons");
+    expect(text).toContain("A two-line body is a good body");
   });
 });

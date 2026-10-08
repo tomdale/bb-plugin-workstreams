@@ -1,4 +1,4 @@
-/** Question and recap tools and their per-session instructions. */
+/** Question and recap tools, the reply block, and their per-session instructions. */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { isWorkstreamsWorker } from "../domain/worker.ts";
 import type { AgentRecaps } from "./recap.ts";
@@ -30,4 +30,7 @@ export function registerAgentInstructions(
       ...(instructions ? { instructions } : {}),
     };
   });
+  bb.agents.contributeInstructions(({ threadId }) =>
+    recaps.replyInstructions(threadId),
+  );
 }

@@ -82,8 +82,10 @@ Question cards and agent reports precede analysis fallback for status. Agent
 recap states map `complete` to `done`, `review` to `review`, and `waiting` to
 `in_progress` (working). The serialized decision state is `needs_decision`;
 “needs you” is its user-facing description. Runtime `error` is a BB thread
-status, not a stored analysis work state. Fresh user input clears the prior
-recap. Recap reminders remain configurable.
+status, not a stored analysis work state. With Structured replies on, agents
+also end each turn with a reply block of prose (lead, labeled sections, folded
+Details) that the app draws inline; it never feeds the card or status. Fresh
+user input clears the prior recap. Recap reminders remain configurable.
 
 ## 4. Organization
 

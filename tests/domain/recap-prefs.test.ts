@@ -6,6 +6,7 @@ it("fills defaults for missing or invalid preferences", () => {
     required: true,
     corrections: 3,
     layout: "full",
+    replies: false,
     hashDigits: null,
     hashLetters: null,
   });
