@@ -26,7 +26,6 @@ import {
   RECAP_INSTRUCTIONS,
   RECAP_TOOL,
   RECAP_TOOL_DESCRIPTION,
-  replyInstructions,
   recapInputSchema,
   recapToolSchema,
   recapMarkdown,
@@ -35,6 +34,7 @@ import {
   type Recap,
 } from "../domain/recap.ts";
 import type { RecapPrefs } from "../domain/recapPrefs.ts";
+import { replyInstructions } from "../domain/replyInstructions.ts";
 import type { Database } from "./db.ts";
 import { UserError } from "./service.ts";
 import { ASK_USER_QUESTION_RENDERER_ID } from "./questions/contracts.ts";
