@@ -15,9 +15,10 @@ export function replyBlocksDrawn(): boolean {
 }
 
 /**
- * Claims `:::reply` blocks in agent messages. A bb without message blocks
- * has no such slot; the plugin then registers nothing and those blocks show
- * as raw text.
+ * Claims `:::reply` blocks in agent messages. The slot is checked here, not
+ * only through engines.bbPluginSdk, because an SDK version that satisfies the
+ * range may come from a bb without it. Without the slot the plugin registers
+ * nothing and those blocks show as ordinary Markdown between `:::` lines.
  */
 export function registerReplyBlock(app: PluginAppBuilder): void {
   if (typeof app.slots.experimental_messageBlock !== "function") return;
