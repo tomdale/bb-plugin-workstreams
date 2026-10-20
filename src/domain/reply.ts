@@ -1,29 +1,19 @@
 /**
- * The agent's reply body: the prose an agent writes inside a `:::reply` block
- * at the end of a turn, drawn in the recap card's style next to the card.
- * The recap tool stays the only source for the card and the sidebar; this
- * block carries prose only.
+ * The agent's reply body: the prose an agent writes inside a ```` ```reply ````
+ * fenced block at the end of a turn, drawn in the recap card's style next to
+ * the card. The recap tool stays the only source for the card and the
+ * sidebar; this block carries prose only.
  *
- * Pure, so the app's block component, a future server reader, and tests
- * share one definition. The host hands `parse` the block's inside as source
- * text plus its mdast tree, whose node offsets point into that source, so
- * sections are sliced back out of the source as Markdown the app renders.
+ * Pure, so the app's fence renderer, a future server reader, and tests share
+ * one definition. bb hands the renderer the fence body as a string, so
+ * `parse` reads Markdown structure from lines itself: `###` headings split
+ * sections, and lines inside inner code fences are never headings. Sections
+ * are sliced back out of the body as Markdown the app renders.
  */
-import type {
-  Heading,
-  List,
-  ListItem,
-  Nodes,
-  Paragraph,
-  Root,
-  RootContent,
-} from "mdast";
 import { z } from "zod";
 
-/** The container name: `:::reply` … `:::`. */
-export const REPLY_BLOCK = "reply";
-/** Reply versions this plugin draws; a block without `v` is version 1. */
-export const REPLY_VERSIONS = [1] as const;
+/** The fence language: ```` ```reply ```` … ```` ``` ````. */
+export const REPLY_LANGUAGE = "reply";
 
 /** Section labels with a fixed meaning, in the order agents write them. */
 export const REPLY_LABELS = [
@@ -77,31 +67,234 @@ export const replySchema = z
   .strict();
 export type Reply = z.infer<typeof replySchema>;
 
-export type ReplyStatus = "streaming" | "complete" | "unterminated";
+/** The fence's state, as bb's code fence renderer slot reports it. */
+export type ReplyStatus = "streaming" | "closed" | "unclosed";
 export type ReplyParseResult =
   { ok: true; data: Reply } | { ok: false; error: string };
 
-type Span = { start: number; end: number };
+type Line = { text: string; start: number; end: number };
 
-function span(node: { position?: Nodes["position"] }): Span | null {
-  const start = node.position?.start.offset;
-  const end = node.position?.end.offset;
-  return typeof start === "number" && typeof end === "number"
-    ? { start, end }
-    : null;
+/** A list item: its lines, the column its content starts at, and its box. */
+type Item = {
+  start: number;
+  end: number;
+  lines: Line[];
+  contentIndent: number;
+};
+
+/** A top-level Markdown block of the body, with offsets into it. */
+type Block =
+  | { type: "heading"; start: number; end: number; depth: number; text: string }
+  | { type: "paragraph"; start: number; end: number }
+  | {
+      type: "list";
+      start: number;
+      end: number;
+      ordered: boolean;
+      items: Item[];
+    }
+  | { type: "code"; start: number; end: number; closed: boolean }
+  | { type: "other"; start: number; end: number };
+
+const FENCE_OPEN = /^( {0,3})(`{3,}|~{3,})(.*)$/;
+const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
+const LIST_ITEM = /^( {0,3})([-*+]|\d{1,9}[.)])([ \t]+|$)/;
+const QUOTE_OR_TABLE = /^ {0,3}[>|]/;
+const THEMATIC_BREAK = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
+const TASK_BOX = /^\[([ xX])\](?:[ \t]+|$)/;
+
+const isBlank = (line: Line) => line.text.trim() === "";
+const indentOf = (text: string) => text.length - text.trimStart().length;
+
+function splitLines(body: string): Line[] {
+  const lines: Line[] = [];
+  let start = 0;
+  for (const text of body.split("\n")) {
+    lines.push({ text, start, end: start + text.length });
+    start += text.length + 1;
+  }
+  return lines;
 }
 
-/** A node's visible text, for heading labels. */
-function nodeText(node: Nodes): string {
-  if ("value" in node && typeof node.value === "string") return node.value;
-  if ("children" in node)
-    return (node.children as Nodes[]).map(nodeText).join("");
-  return "";
+/** An inner fence opener, or null. A backtick fence's info has no backtick. */
+function fenceOpener(text: string): { char: string; size: number } | null {
+  const match = FENCE_OPEN.exec(text);
+  if (!match) return null;
+  const run = match[2]!;
+  if (run[0] === "`" && match[3]!.includes("`")) return null;
+  return { char: run[0]!, size: run.length };
 }
 
-/** `### Not done:` and `### not  done` both name the Not done label. */
+function closesFence(text: string, fence: { char: string; size: number }) {
+  const trimmed = text.trim();
+  return (
+    indentOf(text) <= 3 &&
+    trimmed.length >= fence.size &&
+    [...trimmed].every((char) => char === fence.char)
+  );
+}
+
+/** Index of the line that closes the fence opened at `open`, or -1. */
+function fenceEnd(lines: Line[], open: number, dedent = 0): number {
+  const fence = fenceOpener(lines[open]!.text.slice(dedent))!;
+  for (let index = open + 1; index < lines.length; index++) {
+    const text = lines[index]!.text;
+    if (closesFence(text.slice(Math.min(dedent, indentOf(text))), fence))
+      return index;
+  }
+  return -1;
+}
+
+/** Lines that end a paragraph or a list item's lazy continuation. */
+const startsBlock = (text: string) =>
+  fenceOpener(text) !== null ||
+  HEADING.test(text) ||
+  LIST_ITEM.test(text) ||
+  QUOTE_OR_TABLE.test(text) ||
+  THEMATIC_BREAK.test(text);
+
+/**
+ * Reads one list starting at `first`: items of the same kind, continuation
+ * lines indented to the item's content, lazy lines, and blank lines that a
+ * further indented line or item follows. Inner fences stay inside an item.
+ */
+function readList(
+  lines: Line[],
+  first: number,
+): { block: Block; next: number } {
+  const ordered = /\d/.test(LIST_ITEM.exec(lines[first]!.text)![2]!);
+  const items: Item[] = [];
+  let index = first;
+  for (;;) {
+    const match = LIST_ITEM.exec(lines[index]!.text)!;
+    const contentIndent =
+      match[3] === "" ? match[0].length + 1 : match[0].length;
+    const itemLines = [lines[index]!];
+    let next = index + 1;
+    while (next < lines.length) {
+      const line = lines[next]!;
+      if (isBlank(line)) {
+        let ahead = next + 1;
+        while (ahead < lines.length && isBlank(lines[ahead]!)) ahead++;
+        if (
+          ahead < lines.length &&
+          indentOf(lines[ahead]!.text) >= contentIndent
+        ) {
+          itemLines.push(...lines.slice(next, ahead));
+          next = ahead;
+          continue;
+        }
+        break;
+      }
+      if (indentOf(line.text) >= contentIndent) {
+        if (fenceOpener(line.text.slice(contentIndent))) {
+          const close = fenceEnd(lines, next, contentIndent);
+          const last = close === -1 ? lines.length - 1 : close;
+          itemLines.push(...lines.slice(next, last + 1));
+          next = last + 1;
+          continue;
+        }
+        itemLines.push(line);
+        next++;
+        continue;
+      }
+      if (startsBlock(line.text) || isBlank(lines[next - 1]!)) break;
+      itemLines.push(line);
+      next++;
+    }
+    items.push({
+      start: itemLines[0]!.start,
+      end: itemLines[itemLines.length - 1]!.end,
+      lines: itemLines,
+      contentIndent,
+    });
+    let ahead = next;
+    while (ahead < lines.length && isBlank(lines[ahead]!)) ahead++;
+    const following =
+      ahead < lines.length ? LIST_ITEM.exec(lines[ahead]!.text) : null;
+    if (following && /\d/.test(following[2]!) === ordered) {
+      index = ahead;
+      continue;
+    }
+    return {
+      block: {
+        type: "list",
+        ordered,
+        items,
+        start: items[0]!.start,
+        end: items[items.length - 1]!.end,
+      },
+      next,
+    };
+  }
+}
+
+/** Splits the body into top-level blocks; headings in code are not blocks. */
+function readBlocks(body: string): Block[] {
+  const lines = splitLines(body);
+  const blocks: Block[] = [];
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index]!;
+    if (isBlank(line)) {
+      index++;
+      continue;
+    }
+    if (fenceOpener(line.text)) {
+      const close = fenceEnd(lines, index);
+      const last = close === -1 ? lines.length - 1 : close;
+      blocks.push({
+        type: "code",
+        start: line.start,
+        end: lines[last]!.end,
+        closed: close !== -1,
+      });
+      index = last + 1;
+      continue;
+    }
+    const heading = HEADING.exec(line.text);
+    if (heading) {
+      blocks.push({
+        type: "heading",
+        start: line.start,
+        end: line.end,
+        depth: heading[1]!.length,
+        text: heading[2] ?? "",
+      });
+      index++;
+      continue;
+    }
+    if (LIST_ITEM.test(line.text) && !THEMATIC_BREAK.test(line.text)) {
+      const { block, next } = readList(lines, index);
+      blocks.push(block);
+      index = next;
+      continue;
+    }
+    const other =
+      QUOTE_OR_TABLE.test(line.text) || THEMATIC_BREAK.test(line.text);
+    let last = index;
+    while (
+      last + 1 < lines.length &&
+      !isBlank(lines[last + 1]!) &&
+      (other
+        ? QUOTE_OR_TABLE.test(lines[last + 1]!.text)
+        : !startsBlock(lines[last + 1]!.text))
+    )
+      last++;
+    blocks.push({
+      type: other ? "other" : "paragraph",
+      start: line.start,
+      end: lines[last]!.end,
+    });
+    index = last + 1;
+  }
+  return blocks;
+}
+
+/** `### Not done:`, `### **not  done**` and `### Not done.` name Not done. */
 function normalizeLabel(text: string): string {
   return text
+    .replace(/[*_`]/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\s*[:.]$/, "");
@@ -111,88 +304,65 @@ const fixedLabel = (label: string): ReplyLabel | undefined =>
   REPLY_LABELS.find((fixed) => fixed.toLowerCase() === label.toLowerCase());
 
 /** Headings at these depths start a section; deeper ones are content. */
-const isSectionHeading = (node: RootContent): node is Heading =>
-  node.type === "heading" && node.depth <= 3;
-
-type RawSection = { label: string; nodes: RootContent[] };
+const isSectionHeading = (block: Block) =>
+  block.type === "heading" && block.depth <= 3;
 
 /**
- * Inline nodes whose text never ends a sentence: a period in code, a link,
- * or math belongs to that span.
+ * Spans whose text never ends a sentence: a period in code, a link, an
+ * autolink, or inline math belongs to that span.
  */
-const OPAQUE_INLINE = new Set([
-  "inlineCode",
-  "link",
-  "linkReference",
-  "image",
-  "imageReference",
-  "html",
-  "inlineMath",
-]);
+const OPAQUE =
+  /(`+)[\s\S]*?\1(?!`)|!?\[[^\]\n]*\]\([^)\n]*\)|<[^>\s]+>|\$[^$\n]+\$/g;
 
 /**
- * Source offsets just after each sentence end inside a paragraph. A sentence
+ * Body offsets just after each sentence end inside a paragraph. A sentence
  * ends at `.`, `!` or `?` (plus closing quotes, brackets or emphasis marks)
  * followed by whitespace and a character that does not start with a
- * lowercase letter, so "e.g. this" stays one sentence. Returns null when an
- * opaque span has no offsets, so the paragraph is never split blindly.
+ * lowercase letter, so "e.g. this" stays one sentence.
  */
-function sentenceEnds(paragraph: Paragraph, source: string): number[] | null {
-  const own = span(paragraph);
-  if (!own) return null;
-  const opaque: Span[] = [];
-  const collect = (node: Nodes): boolean => {
-    if (OPAQUE_INLINE.has(node.type)) {
-      const at = span(node);
-      if (!at) return false;
-      opaque.push(at);
-      return true;
-    }
-    if ("children" in node)
-      return (node.children as Nodes[]).every((child) => collect(child));
-    return true;
-  };
-  if (!paragraph.children.every((child) => collect(child))) return null;
-  const text = source.slice(own.start, own.end);
+function sentenceEnds(body: string, start: number, end: number): number[] {
+  const text = body.slice(start, end);
+  const opaque = [...text.matchAll(OPAQUE)].map((match) => ({
+    start: match.index,
+    end: match.index + match[0].length,
+  }));
   const ends: number[] = [];
   for (const match of text.matchAll(
     /[.!?]+[*_~"'”’)\]]*(?=\s+[^\s\p{Ll}])/gu,
   )) {
-    const at = own.start + match.index;
+    const at = match.index;
     if (opaque.some((range) => at >= range.start && at < range.end)) continue;
-    ends.push(at + match[0].length);
+    ends.push(start + at + match[0].length);
   }
   return ends;
 }
 
-/** A list item's content without its marker or checkbox, dedented. */
-function itemMarkdown(item: ListItem, source: string): string | null {
-  const first = item.children[0];
-  const last = item.children[item.children.length - 1];
-  if (!first || !last) return "";
-  const from = span(first);
-  const to = span(last);
-  if (!from || !to) return null;
-  const indent = from.start - (source.lastIndexOf("\n", from.start - 1) + 1);
-  const continuation = new RegExp(`\\n {0,${indent}}`, "g");
-  return source.slice(from.start, to.end).replace(continuation, "\n").trim();
-}
-
-function listItems(list: List, source: string): ReplyItem[] | null {
-  const items: ReplyItem[] = [];
-  for (const item of list.children) {
-    const markdown = itemMarkdown(item, source);
-    if (markdown === null) return null;
-    items.push({ checked: item.checked ?? null, markdown });
+/** A list item's content without its marker or box, dedented. */
+function itemOf(item: Item): ReplyItem {
+  const [first, ...rest] = item.lines;
+  let content = first!.text.slice(
+    Math.min(item.contentIndent, first!.text.length),
+  );
+  let indent = item.contentIndent;
+  const box = TASK_BOX.exec(content);
+  if (box) {
+    content = content.slice(box[0].length);
+    indent += box[0].length;
   }
-  return items;
+  const continuation = rest.map((line) =>
+    line.text.slice(Math.min(indent, indentOf(line.text))),
+  );
+  return {
+    checked: box ? box[1] !== " " : null,
+    markdown: [content, ...continuation].join("\n").trim(),
+  };
 }
 
 /** Where a section stops in the body, and the overflow that folds. */
 type SectionSplit = {
-  /** Nodes shown at least in part; the last may be cut at `end`. */
-  kept: RootContent[];
-  /** Source offset where the shown part ends, when it is cut. */
+  /** Blocks shown at least in part; the last may be cut at `end`. */
+  kept: Block[];
+  /** Body offset where the shown part ends, when it is cut. */
   end: number | null;
   /** List items shown from a cut list; the rest folded. */
   keptItems: number | null;
@@ -200,89 +370,93 @@ type SectionSplit = {
 };
 
 /**
- * Splits a section's nodes at the first point past the item or sentence
+ * Splits a section's blocks at the first point past the item or sentence
  * limit. Only top-level list items and paragraph sentences count.
  */
-function splitSection(nodes: RootContent[], source: string): SectionSplit {
+function splitSection(blocks: Block[], body: string): SectionSplit {
   let items = MAX_SECTION_ITEMS;
   let sentences = MAX_SECTION_SENTENCES;
-  const sectionEnd = span(nodes[nodes.length - 1]!)!.end;
+  const sectionEnd = blocks[blocks.length - 1]!.end;
   const cut = (index: number, at: number, keptItems: number | null) => {
-    const partial = at > span(nodes[index]!)!.start;
+    const partial = at > blocks[index]!.start;
     return {
-      kept: nodes.slice(0, partial ? index + 1 : index),
+      kept: blocks.slice(0, partial ? index + 1 : index),
       end: at,
       keptItems: partial ? keptItems : null,
-      overflow: source.slice(at, sectionEnd).trim() || null,
+      overflow: body.slice(at, sectionEnd).trim() || null,
     };
   };
-  for (const [index, node] of nodes.entries()) {
-    if (node.type === "list") {
-      if (node.children.length <= items) {
-        items -= node.children.length;
+  for (const [index, block] of blocks.entries()) {
+    if (block.type === "list") {
+      if (block.items.length <= items) {
+        items -= block.items.length;
         continue;
       }
-      const at = span(node.children[items]!)?.start;
-      if (at === undefined) continue;
-      return cut(index, at, items);
+      return cut(index, block.items[items]!.start, items);
     }
-    if (node.type === "paragraph") {
-      const ends = sentenceEnds(node, source);
-      const count = ends === null ? 1 : ends.length + 1;
+    if (block.type === "paragraph") {
+      const ends = sentenceEnds(body, block.start, block.end);
+      const count = ends.length + 1;
       if (count <= sentences) {
         sentences -= count;
         continue;
       }
-      const at = sentences === 0 ? span(node)!.start : ends![sentences - 1]!;
+      const at = sentences === 0 ? block.start : ends[sentences - 1]!;
       return cut(index, at, null);
     }
   }
-  return { kept: nodes, end: null, keptItems: null, overflow: null };
+  return { kept: blocks, end: null, keptItems: null, overflow: null };
 }
 
-function sliceNodes(
-  nodes: RootContent[],
-  source: string,
-  end?: number,
-): string {
-  const first = nodes[0] && span(nodes[0]);
-  const last = nodes[nodes.length - 1] && span(nodes[nodes.length - 1]!);
+function sliceBlocks(blocks: Block[], body: string, end?: number): string {
+  const first = blocks[0];
+  const last = blocks[blocks.length - 1];
   if (!first || !last) return "";
-  return source.slice(first.start, end ?? last.end).trim();
+  return body.slice(first.start, end ?? last.end).trim();
 }
 
 /**
- * Reads a reply block into its lead, labeled sections, and folded details.
+ * Reads a reply fence body into its lead, labeled sections, and folded
+ * details.
  *
  * Rules: the lead (text before the first heading) must be present once the
- * block is complete; at most two sections beyond the fixed labels stay in
- * the body, later ones fold; a section over five list items or three
- * sentences keeps that much and folds the rest. Folded text lands under
- * Details with its section's name. While streaming, a missing lead and an
- * empty last section are accepted so arrived sections can show. An
- * unterminated block is rejected so the host shows the raw text.
+ * fence is closed; at most two sections beyond the fixed labels stay in the
+ * body, later ones fold; a section over five list items or three sentences
+ * keeps that much and folds the rest. Folded text lands under Details with
+ * its section's name. While streaming, a missing lead and an empty last
+ * section are accepted so arrived sections can show. An unclosed fence, or a
+ * closed one with an inner code block left open (the outer fence was too
+ * short, so bb ended it early), is rejected so the app shows bb's code block.
  */
 export function parse(
-  input: { source: string; tree: Root },
-  context: { status: ReplyStatus } = { status: "complete" },
+  body: string,
+  context: { status: ReplyStatus } = { status: "closed" },
 ): ReplyParseResult {
-  if (context.status === "unterminated")
-    return { ok: false, error: "The reply has no closing ::: line." };
-  const { source, tree } = input;
+  if (context.status === "unclosed")
+    return { ok: false, error: "The reply has no closing fence." };
   const streaming = context.status === "streaming";
+  const text = body.replace(/\r\n?/g, "\n");
+  const blocks = readBlocks(text);
+  if (
+    !streaming &&
+    blocks.some((block) => block.type === "code" && !block.closed)
+  )
+    return {
+      ok: false,
+      error:
+        "A code block inside the reply never closes; the reply's fence needs more backticks than any fence inside it.",
+    };
 
-  const lead: RootContent[] = [];
-  const raw: RawSection[] = [];
-  for (const node of tree.children) {
-    if (!span(node))
-      return { ok: false, error: "The reply's tree has no source offsets." };
-    if (isSectionHeading(node)) {
-      raw.push({ label: normalizeLabel(nodeText(node)), nodes: [] });
-    } else if (raw.length) raw[raw.length - 1]!.nodes.push(node);
-    else lead.push(node);
+  const lead: Block[] = [];
+  const raw: { label: string; blocks: Block[] }[] = [];
+  for (const block of blocks) {
+    if (block.type === "heading" && isSectionHeading(block))
+      raw.push({ label: normalizeLabel(block.text), blocks: [] });
+    else if (raw.length) raw[raw.length - 1]!.blocks.push(block);
+    else lead.push(block);
   }
 
-  const leadText = sliceNodes(lead, source);
+  const leadText = sliceBlocks(lead, text);
   if (!leadText && !streaming)
     return {
       ok: false,
@@ -297,30 +471,30 @@ export function parse(
     const isLast = index === raw.length - 1;
     if (!section.label) continue;
     if (section.label.toLowerCase() === DETAILS_LABEL.toLowerCase()) {
-      const body = sliceNodes(section.nodes, source);
-      if (body) ownDetails.push(body);
+      const details = sliceBlocks(section.blocks, text);
+      if (details) ownDetails.push(details);
       continue;
     }
     const fixed = fixedLabel(section.label);
     const label = fixed ?? section.label;
-    if (!section.nodes.length) {
+    if (!section.blocks.length) {
       if (streaming && isLast)
         sections.push({ label, kind: fixed ? "fixed" : "free", markdown: "" });
       continue;
     }
     if (!fixed && ++free > MAX_FREE_SECTIONS) {
-      folded.push(`**${label}**\n\n${sliceNodes(section.nodes, source)}`);
+      folded.push(`**${label}**\n\n${sliceBlocks(section.blocks, text)}`);
       continue;
     }
     const { kept, end, keptItems, overflow } = splitSection(
-      section.nodes,
-      source,
+      section.blocks,
+      text,
     );
-    const markdown = sliceNodes(kept, source, end ?? undefined);
+    const markdown = sliceBlocks(kept, text, end ?? undefined);
     const only = kept.length === 1 ? kept[0] : undefined;
     const items =
       only?.type === "list" && !only.ordered
-        ? listItems(only, source)?.slice(0, keptItems ?? undefined)
+        ? only.items.slice(0, keptItems ?? undefined).map(itemOf)
         : undefined;
     if (markdown)
       sections.push({

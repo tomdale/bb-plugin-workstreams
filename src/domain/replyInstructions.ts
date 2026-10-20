@@ -4,7 +4,7 @@
  * instructions in recap.ts so each can change on its own.
  */
 import { RECAP_TOOL } from "./recap.ts";
-import { REPLY_BLOCK, REPLY_LABELS } from "./reply.ts";
+import { REPLY_LANGUAGE, REPLY_LABELS } from "./reply.ts";
 
 /**
  * Instructions for the reply block, given only when Structured replies is on.
@@ -13,13 +13,13 @@ import { REPLY_BLOCK, REPLY_LABELS } from "./reply.ts";
  */
 export function replyInstructions(withRecap: boolean): string {
   const example = withRecap
-    ? `:::${REPLY_BLOCK}
+    ? `:::${REPLY_LANGUAGE}
 Settings open in half the time because the font file is cached after the first visit.
 
 ### Checked
 12 tests and the type check pass locally. Nothing is pushed.
 :::`
-    : `:::${REPLY_BLOCK}
+    : `:::${REPLY_LANGUAGE}
 Settings open in half the time because the font file is cached after the first visit.
 
 ### Done
@@ -31,7 +31,7 @@ Settings open in half the time because the font file is cached after the first v
   const mode = withRecap
     ? `When a turn ends with a ${RECAP_TOOL} card, write the block as well as calling the tool. The card's \`latest\` items carry what got done, with commit hashes and PR links inline, so leave Done and those links out of the block and use the lead for the how or why rather than repeating the card's goal. When a question card ends the turn instead, the block is the only reply: include Done and any commit or PR links in it.`
     : "Include Done and any commit or PR links in the block.";
-  return `End your final reply of each turn with one reply block, which the app draws as a short labeled reply. Write it at the top level of the message, not inside a list, quote, or code block: \`:::${REPLY_BLOCK}\` alone on the first line with no space after the colons, Markdown inside, and \`:::\` alone on the last line. For example:
+  return `End your final reply of each turn with one reply block, which the app draws as a short labeled reply. Write it at the top level of the message, not inside a list, quote, or code block: \`:::${REPLY_LANGUAGE}\` alone on the first line with no space after the colons, Markdown inside, and \`:::\` alone on the last line. For example:
 
 ${example}
 

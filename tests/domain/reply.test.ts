@@ -6,12 +6,10 @@ import {
   toText,
 } from "../../src/domain/reply.ts";
 import { replyInstructions } from "../../src/domain/replyInstructions.ts";
-import { blockInput } from "./replyFixtures.ts";
 import { REPLY_SAMPLES } from "./replySamples.ts";
 
-function read(message: string, options?: { streaming?: boolean }) {
-  const { status, ...input } = blockInput(message, options);
-  return parse(input, { status });
+function read(body: string, options?: { streaming?: boolean }) {
+  return parse(body, { status: options?.streaming ? "streaming" : "closed" });
 }
 
 function reply(result: ReplyParseResult): Reply {
@@ -20,7 +18,7 @@ function reply(result: ReplyParseResult): Reply {
 }
 
 const sample = (kind: string) =>
-  reply(read(REPLY_SAMPLES.find((entry) => entry.kind === kind)!.message));
+  reply(read(REPLY_SAMPLES.find((entry) => entry.kind === kind)!.body));
 
 const shape = (data: Reply) =>
   data.sections.map(({ label, kind }) => `${kind}:${label}`);
@@ -28,15 +26,15 @@ const shape = (data: Reply) =>
 describe("reply samples", () => {
   it("reads every sample without error", () => {
     for (const entry of REPLY_SAMPLES) {
-      const result = read(entry.message);
+      const result = read(entry.body);
       expect(result, entry.kind).toMatchObject({ ok: true });
       expect(reply(result).lead, entry.kind).not.toBe("");
     }
   });
 
-  it("keeps the whole block in the source and the data JSON-safe", () => {
+  it("keeps the data JSON-safe", () => {
     for (const entry of REPLY_SAMPLES) {
-      const data = reply(read(entry.message));
+      const data = reply(read(entry.body));
       expect(JSON.parse(JSON.stringify(data))).toEqual(data);
     }
   });
@@ -118,31 +116,87 @@ describe("reply samples", () => {
     });
     expect(sample("one-line answer")).toEqual({ lead: "PASS", sections: [] });
   });
+
+  it("with code: an inner fence stays whole and its heading-like line is code", () => {
+    const data = sample("with code");
+    expect(shape(data)).toEqual(["fixed:Done", "free:How to run"]);
+    expect(data.sections[0]!.items!.map((item) => item.checked)).toEqual([
+      true,
+      true,
+      false,
+    ]);
+    expect(data.sections[1]).toEqual({
+      label: "How to run",
+      kind: "free",
+      markdown:
+        "```sh\nnpm run check -- --all\n# a heading-like line inside code stays code:\n### not a section\n```",
+    });
+    expect(data.details).toBe(
+      "It reuses the last build when no source file changed since then.",
+    );
+  });
+
+  it("task list: boxes, a continued item, and plain bullets", () => {
+    const data = sample("task list");
+    expect(shape(data)).toEqual(["fixed:Checked", "fixed:Needs you"]);
+    expect(data.sections[0]!.items).toEqual([
+      {
+        checked: true,
+        markdown:
+          "`sync.test.ts` passes 200 runs in a row\nafter the clock is faked",
+      },
+      {
+        checked: true,
+        markdown: "`upload.test.ts` and `queue.test.ts` pass 200 runs each",
+      },
+      {
+        checked: false,
+        markdown: "`retry.test.ts` still fails about 1 run in 40",
+      },
+    ]);
+    expect(data.sections[1]!.items).toEqual([
+      {
+        checked: null,
+        markdown:
+          "Keep the retry limit at 3, or raise it to 5 so the test can pass",
+      },
+    ]);
+  });
 });
 
 describe("rules", () => {
-  it("rejects a complete reply without a lead", () => {
-    expect(read(":::reply\n### Checked\nTests pass.\n:::\n")).toEqual({
+  it("rejects a closed reply without a lead", () => {
+    expect(read("### Checked\nTests pass.")).toEqual({
       ok: false,
       error: "The reply needs one or two sentences before its first heading.",
     });
   });
 
-  it("rejects an unterminated reply so the host shows the raw text", () => {
-    expect(read(":::reply\nLead.\n\n### Checked\nTests pass.\n")).toMatchObject(
-      {
-        ok: false,
-      },
-    );
+  it("rejects an unclosed reply so the app shows bb's code block", () => {
+    expect(
+      parse("Lead.\n\n### Checked\nTests pass.", { status: "unclosed" }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it("rejects a closed reply whose inner code block never closes", () => {
+    // What bb hands over when the reply's fence is no longer than the one
+    // inside it: the inner closing line ended the reply early.
+    expect(
+      read("Lead.\n\n### Checked\nRun this:\n\n```sh\nnpm test"),
+    ).toMatchObject({ ok: false, error: expect.stringContaining("backticks") });
+    expect(
+      reply(read("Lead.\n\n### Checked\n```sh\nnpm test", { streaming: true }))
+        .sections[0]!.markdown,
+    ).toBe("```sh\nnpm test");
   });
 
   it("shows what has arrived while streaming", () => {
-    expect(reply(read(":::reply\n", { streaming: true }))).toEqual({
+    expect(reply(read("", { streaming: true }))).toEqual({
       lead: "",
       sections: [],
     });
     const data = reply(
-      read(":::reply\nTests pass.\n\n### Checked\n22 tests\n\n### Ne", {
+      read("Tests pass.\n\n### Checked\n22 tests\n\n### Ne", {
         streaming: true,
       }),
     );
@@ -153,20 +207,25 @@ describe("rules", () => {
     ]);
   });
 
-  it("drops empty sections once complete", () => {
+  it("reads every streamed prefix of every sample without throwing", () => {
+    for (const entry of REPLY_SAMPLES)
+      for (let end = 0; end <= entry.body.length; end += 7)
+        expect(
+          read(entry.body.slice(0, end), { streaming: true }),
+          `${entry.kind} @${end}`,
+        ).toMatchObject({ ok: true });
+  });
+
+  it("drops empty sections once closed", () => {
     expect(
-      shape(
-        reply(
-          read(":::reply\nLead.\n\n### Checked\n\n### Why\nBecause.\n:::\n"),
-        ),
-      ),
+      shape(reply(read("Lead.\n\n### Checked\n\n### Why\nBecause."))),
     ).toEqual(["fixed:Why"]);
   });
 
   it("matches fixed labels loosely and keeps their exact text", () => {
     const data = reply(
       read(
-        ":::reply\nLead.\n\n## not  done:\n- [ ] Merge\n\n### NEEDS YOU\nA token.\n:::\n",
+        "Lead.\n\n## not  done:\n- [ ] Merge\n\n### **NEEDS YOU**\nA token.",
       ),
     );
     expect(shape(data)).toEqual(["fixed:Not done", "fixed:Needs you"]);
@@ -176,7 +235,7 @@ describe("rules", () => {
     const items = Array.from({ length: 7 }, (_, n) => `- Item ${n + 1}`).join(
       "\n",
     );
-    const data = reply(read(`:::reply\nLead.\n\n### Checked\n${items}\n:::\n`));
+    const data = reply(read(`Lead.\n\n### Checked\n${items}`));
     expect(data.sections[0]!.markdown).toBe(
       "- Item 1\n- Item 2\n- Item 3\n- Item 4\n- Item 5",
     );
@@ -184,23 +243,21 @@ describe("rules", () => {
     expect(data.details).toBe("**Checked, continued**\n\n- Item 6\n- Item 7");
   });
 
-  it("folds sentences past three, ignoring periods in code and abbreviations", () => {
+  it("folds sentences past three, ignoring periods in code, links and abbreviations", () => {
     const data = reply(
       read(
-        ":::reply\nLead.\n\n### Why\nThe `a.b. C` path breaks, e.g. on Linux. Second one! Third? Fourth sentence. Fifth.\n:::\n",
+        "Lead.\n\n### Why\nThe `a.b. C` path breaks, e.g. on Linux. See [v1.2. Notes](https://x.test/a.b). Third? Fourth sentence. Fifth.",
       ),
     );
     expect(data.sections[0]!.markdown).toBe(
-      "The `a.b. C` path breaks, e.g. on Linux. Second one! Third?",
+      "The `a.b. C` path breaks, e.g. on Linux. See [v1.2. Notes](https://x.test/a.b). Third?",
     );
     expect(data.details).toBe("**Why, continued**\n\nFourth sentence. Fifth.");
   });
 
   it("counts sentences across paragraphs and folds later blocks whole", () => {
     const data = reply(
-      read(
-        ":::reply\nLead.\n\n### Root cause\nOne. Two.\n\nThree.\n\nFour.\n\n- After\n:::\n",
-      ),
+      read("Lead.\n\n### Root cause\nOne. Two.\n\nThree.\n\nFour.\n\n- After"),
     );
     expect(data.sections[0]!.markdown).toBe("One. Two.\n\nThree.");
     expect(data.details).toBe("**Root cause, continued**\n\nFour.\n\n- After");
@@ -209,7 +266,7 @@ describe("rules", () => {
   it("puts the agent's own Details before folded overflow", () => {
     const data = reply(
       read(
-        ":::reply\nLead.\n\n### One\nA.\n\n### Two\nB.\n\n### Three\nC.\n\n### Details\nOwn notes.\n:::\n",
+        "Lead.\n\n### One\nA.\n\n### Two\nB.\n\n### Three\nC.\n\n### Details\nOwn notes.",
       ),
     );
     expect(data.details).toBe("Own notes.\n\n**Three**\n\nC.");
@@ -218,7 +275,7 @@ describe("rules", () => {
   it("keeps deeper headings, ordered lists and code inside a section", () => {
     const data = reply(
       read(
-        ":::reply\nLead.\n\n### Next\n#### Order\n1. First\n2. Second\n\n```sh\nnpm test\n```\n:::\n",
+        "Lead.\n\n### Next\n#### Order\n1. First\n2. Second\n\n```sh\nnpm test\n```",
       ),
     );
     expect(data.sections).toEqual([
@@ -230,29 +287,26 @@ describe("rules", () => {
     ]);
   });
 
-  it("dedents multi-line list items", () => {
+  it("keeps a fence inside a list item with its item", () => {
     const data = reply(
       read(
-        ":::reply\nLead.\n\n### Done\n- [x] First line\n  second line\n:::\n",
+        "Lead.\n\n### Next\n- Run it:\n\n  ```sh\n  ### still code\n  ```\n- Then check",
       ),
+    );
+    expect(shape(data)).toEqual(["fixed:Next"]);
+    expect(data.sections[0]!.items).toEqual([
+      { checked: null, markdown: "Run it:\n\n```sh\n### still code\n```" },
+      { checked: null, markdown: "Then check" },
+    ]);
+  });
+
+  it("dedents multi-line list items and accepts Windows line ends", () => {
+    const data = reply(
+      read("Lead.\r\n\r\n### Done\r\n- [x] First line\r\n  second line"),
     );
     expect(data.sections[0]!.items).toEqual([
       { checked: true, markdown: "First line\nsecond line" },
     ]);
-  });
-
-  it("rejects a tree without source offsets", () => {
-    expect(
-      parse({
-        source: "Lead.",
-        tree: {
-          type: "root",
-          children: [
-            { type: "paragraph", children: [{ type: "text", value: "Lead." }] },
-          ],
-        },
-      }),
-    ).toMatchObject({ ok: false });
   });
 });
 
@@ -279,8 +333,8 @@ describe("replyInstructions", () => {
   it("shows a copy-ready example that parses as a reply", () => {
     for (const withRecap of [true, false]) {
       const text = replyInstructions(withRecap);
-      const example = /^:::reply\n[\s\S]*?\n:::$/m.exec(text)![0];
-      const data = reply(read(`${example}\n`));
+      const example = /^:::reply\n([\s\S]*?)\n:::$/m.exec(text)![1]!;
+      const data = reply(read(example));
       expect(data.lead).not.toBe("");
       expect(data.sections.some((section) => section.label === "Done")).toBe(
         !withRecap,
@@ -294,7 +348,6 @@ describe("replyInstructions", () => {
       "these exact labels in this order: Done, Checked, Not done, Needs you, Next, Why",
     );
     expect(text).toContain("`### Details`");
-    expect(text).toContain("no space after the colons");
     expect(text).toContain("A two-line body is a good body");
   });
 });
