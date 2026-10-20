@@ -56,6 +56,6 @@ export function blockInput(
   return {
     source,
     tree,
-    status: closed ? "complete" : streaming ? "streaming" : "unterminated",
+    status: closed ? "closed" : streaming ? "streaming" : "unclosed",
   };
 }

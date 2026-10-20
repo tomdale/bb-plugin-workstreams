@@ -77,7 +77,8 @@ export const replySchema = z
   .strict();
 export type Reply = z.infer<typeof replySchema>;
 
-export type ReplyStatus = "streaming" | "complete" | "unterminated";
+/** bb's block status: whether the closing `:::` line has arrived. */
+export type ReplyStatus = "streaming" | "closed" | "unclosed";
 export type ReplyParseResult =
   { ok: true; data: Reply } | { ok: false; error: string };
 
@@ -260,16 +261,16 @@ function sliceNodes(
  * sentences keeps that much and folds the rest. Folded text lands under
  * Details with its section's name. While streaming, a missing lead and an
  * empty last section are accepted so arrived sections can show. An
- * unterminated block is rejected so the host shows the raw text.
+ * unclosed block is read the same lenient way: the component shows bb's own
+ * rendering of it, and a failed parse here would add bb's failure note.
  */
 export function parse(
   input: { source: string; tree: Root },
-  context: { status: ReplyStatus } = { status: "complete" },
+  context: { status: ReplyStatus } = { status: "closed" },
 ): ReplyParseResult {
-  if (context.status === "unterminated")
-    return { ok: false, error: "The reply has no closing ::: line." };
   const { source, tree } = input;
-  const streaming = context.status === "streaming";
+  // Without the closing line the body may be cut anywhere.
+  const partial = context.status !== "closed";
 
   const lead: RootContent[] = [];
   const raw: RawSection[] = [];
@@ -283,7 +284,7 @@ export function parse(
   }
 
   const leadText = sliceNodes(lead, source);
-  if (!leadText && !streaming)
+  if (!leadText && !partial)
     return {
       ok: false,
       error: "The reply needs one or two sentences before its first heading.",
@@ -304,7 +305,7 @@ export function parse(
     const fixed = fixedLabel(section.label);
     const label = fixed ?? section.label;
     if (!section.nodes.length) {
-      if (streaming && isLast)
+      if (partial && isLast)
         sections.push({ label, kind: fixed ? "fixed" : "free", markdown: "" });
       continue;
     }

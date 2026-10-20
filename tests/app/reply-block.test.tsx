@@ -3,8 +3,8 @@ import { afterEach, expect, it } from "vitest";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import type {
   PluginAppBuilder,
-  PluginMessageBlockProps,
-  PluginMessageBlockRegistration,
+  ExperimentalMessageBlockProps,
+  ExperimentalMessageBlockRegistration,
 } from "@get-bb/plugin-sdk/app";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { registerReplyBlock } from "../../src/app/reply/register.ts";
@@ -13,7 +13,10 @@ import { REPLY_SAMPLES } from "../domain/replySamples.ts";
 
 afterEach(cleanup);
 
-async function registration(): Promise<PluginMessageBlockRegistration> {
+/** Stands in for bb's own rendering of the block. */
+const Original = () => <div data-original="">bb's rendering</div>;
+
+async function registration(): Promise<ExperimentalMessageBlockRegistration> {
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   const reply = app.messageBlocks.find((block) => block.name === "reply");
   if (!reply) throw new Error("reply block not registered");
@@ -27,7 +30,7 @@ async function draw(message: string, options?: { streaming?: boolean }) {
     { attributes: {}, source, tree },
     { version: 1, status },
   );
-  const props: PluginMessageBlockProps = {
+  const props: ExperimentalMessageBlockProps = {
     data: result.ok ? result.data : null,
     error: result.ok ? null : result.error,
     status,
@@ -37,8 +40,9 @@ async function draw(message: string, options?: { streaming?: boolean }) {
       threadId: "t1",
       turnId: "turn1",
       role: "assistant",
-    } as unknown as PluginMessageBlockProps["message"],
+    } as unknown as ExperimentalMessageBlockProps["message"],
     index: 0,
+    Original,
   };
   return renderSlot(block, props);
 }
@@ -111,8 +115,43 @@ it("draws nothing when a streaming parse has no data yet", async () => {
     error: "not yet",
     status: "streaming",
     source: ":::reply\n",
-    message: {} as PluginMessageBlockProps["message"],
+    message: {} as ExperimentalMessageBlockProps["message"],
     index: 0,
+    Original,
   });
   expect(view.container.querySelector("[data-reply-block]")).toBeNull();
+});
+
+it("shows bb's own rendering when the reply ended without its closing line", async () => {
+  const view = await draw(":::reply\nTests pass.\n\n### Checked\n22 tests\n");
+  expect(view.container.querySelector("[data-original]")).not.toBeNull();
+  expect(view.container.querySelector("[data-reply-block]")).toBeNull();
+});
+
+it("draws a code block inside a section", async () => {
+  const view = await draw(
+    [
+      ":::reply",
+      "The config now sets a timeout.",
+      "",
+      "### Checked",
+      "```ts",
+      "### not a heading",
+      "export const timeout = 30;",
+      "```",
+      "",
+      "### Next",
+      "- Restart the server",
+      ":::",
+    ].join("\n"),
+  );
+  const root = view.container.querySelector("[data-reply-block]")!;
+  expect(
+    [...root.querySelectorAll("h3")].map((heading) => heading.textContent),
+  ).toEqual(["Checked", "Next"]);
+  // The section goes to bb's Markdown whole, fence included.
+  const checked = root.querySelector('[data-reply-section="Checked"]')!;
+  expect(
+    checked.querySelector('[data-testid="bb-markdown"]')?.textContent,
+  ).toBe("```ts\n### not a heading\nexport const timeout = 30;\n```");
 });

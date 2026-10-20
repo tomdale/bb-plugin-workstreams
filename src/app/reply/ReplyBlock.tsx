@@ -2,11 +2,13 @@
  * The `:::reply` block: the agent's reply body, drawn as part of bb's own
  * message in the recap card's type, labels, and markers, but without the
  * card's colored frame (only the docked card has one). It shows prose only;
- * the recap tool stays the source for the card and the sidebar.
+ * the recap tool stays the source for the card and the sidebar. A reply that
+ * ended without its closing `:::` line shows bb's own rendering of the block,
+ * the same Markdown readers see without the plugin.
  */
 import { useId, useState } from "react";
 import { Markdown } from "@get-bb/plugin-sdk/app";
-import type { PluginMessageBlockProps } from "@get-bb/plugin-sdk/app";
+import type { ExperimentalMessageBlockProps } from "@get-bb/plugin-sdk/app";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import {
@@ -142,7 +144,12 @@ function Details({ markdown }: { markdown: string }) {
   );
 }
 
-export function ReplyBlock({ data }: PluginMessageBlockProps) {
+export function ReplyBlock({
+  data,
+  status,
+  Original,
+}: ExperimentalMessageBlockProps) {
+  if (status === "unclosed") return <Original />;
   const reply = replySchema.safeParse(data);
   if (!reply.success) return null;
   const { lead, sections, details } = reply.data;

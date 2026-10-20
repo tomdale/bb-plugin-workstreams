@@ -128,12 +128,12 @@ describe("rules", () => {
     });
   });
 
-  it("rejects an unterminated reply so the host shows the raw text", () => {
-    expect(read(":::reply\nLead.\n\n### Checked\nTests pass.\n")).toMatchObject(
-      {
-        ok: false,
-      },
-    );
+  it("reads an unclosed reply leniently, so bb adds no failure note", () => {
+    const data = reply(read(":::reply\n### Checked\nTests pass.\n"));
+    expect(data.lead).toBe("");
+    expect(data.sections).toEqual([
+      { label: "Checked", kind: "fixed", markdown: "Tests pass." },
+    ]);
   });
 
   it("shows what has arrived while streaming", () => {
@@ -228,6 +228,34 @@ describe("rules", () => {
         markdown: "#### Order\n1. First\n2. Second\n\n```sh\nnpm test\n```",
       },
     ]);
+  });
+
+  it("ignores headings inside a code block", () => {
+    const data = reply(
+      read(
+        ":::reply\nLead.\n\n### Checked\n```md\n### Done\n- [x] not an item\n```\n:::\n",
+      ),
+    );
+    expect(data.sections).toEqual([
+      {
+        label: "Checked",
+        kind: "fixed",
+        markdown: "```md\n### Done\n- [x] not an item\n```",
+      },
+    ]);
+  });
+
+  it("keeps a ::: line inside a code block when the block uses a longer marker", () => {
+    const data = reply(
+      read(
+        "::::reply\nLead.\n\n### Checked\n```md\n:::\n```\n\n### Next\nShip it.\n::::\n",
+      ),
+    );
+    expect(data.sections.map((section) => section.label)).toEqual([
+      "Checked",
+      "Next",
+    ]);
+    expect(data.sections[0]!.markdown).toBe("```md\n:::\n```");
   });
 
   it("dedents multi-line list items", () => {

@@ -189,10 +189,10 @@ export class AgentRecaps {
   /**
    * The reply block instruction for the resolution `configure` just decided,
    * or null. bb calls `contributeInstructions` after `configure` in each
-   * resolution and gives it a budget of its own, so the instruction is not
-   * cut short by the recap and question instructions. The plugin loads only
-   * on a bb whose SDK draws message blocks (engines.bbPluginSdk), so the
-   * setting alone decides.
+   * resolution and gives it a 4,096-character budget of its own. The server
+   * cannot see whether the app draws message blocks; engines.bbPluginSdk
+   * keeps the plugin off older bb, and the Settings row stays disabled where
+   * the app finds no slot.
    */
   replyInstructions(threadId: string): string | null {
     const withRecap = this.replyModes.get(threadId);
