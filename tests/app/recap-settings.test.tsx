@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
+import type { PluginAppBuilder } from "@get-bb/plugin-sdk/app";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { registerReplyBlock } from "../../src/app/reply/register.ts";
 
 afterEach(cleanup);
 
@@ -48,7 +50,22 @@ it("disables reminders when agents don't end turns with a recap", async () => {
   ).toHaveProperty("disabled", true);
 });
 
+it("disables structured replies on a bb that can't draw them", async () => {
+  const slot = await mount();
+  const toggle = await slot.findByRole("switch", {
+    name: "Structured replies",
+  });
+  expect(toggle).toHaveProperty("disabled", true);
+  expect(
+    slot.getByText("This version of BB can't draw structured replies."),
+  ).toBeTruthy();
+});
+
 it("keeps structured replies off until switched on", async () => {
+  // The test harness's SDK has no code fence renderer slot; stand one in.
+  registerReplyBlock({
+    slots: { experimental_codeFenceRenderer: () => {} },
+  } as unknown as PluginAppBuilder);
   const slot = await mount();
   const toggle = await slot.findByRole("switch", {
     name: "Structured replies",
