@@ -850,9 +850,9 @@ describe("structured replies", () => {
   it("contributes the reply instruction for a card when recaps are on", async () => {
     const s = await world({ replies: true });
     const text = await replyText(s);
-    expect(text).toContain(":::reply");
+    expect(text).toContain("```reply");
     expect(text).toContain("leave Done and those links out of the block");
-    expect((await s.configure()).instructions).not.toContain(":::reply");
+    expect((await s.configure()).instructions).not.toContain("```reply");
   });
 
   it("asks for Done in the block when recaps are off, and nothing in side chats", async () => {

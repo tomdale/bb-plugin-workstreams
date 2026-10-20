@@ -333,7 +333,7 @@ describe("replyInstructions", () => {
   it("shows a copy-ready example that parses as a reply", () => {
     for (const withRecap of [true, false]) {
       const text = replyInstructions(withRecap);
-      const example = /^:::reply\n([\s\S]*?)\n:::$/m.exec(text)![1]!;
+      const example = /^```reply\n([\s\S]*?)\n```$/m.exec(text)![1]!;
       const data = reply(read(example));
       expect(data.lead).not.toBe("");
       expect(data.sections.some((section) => section.label === "Done")).toBe(
@@ -349,5 +349,11 @@ describe("replyInstructions", () => {
     );
     expect(text).toContain("`### Details`");
     expect(text).toContain("A two-line body is a good body");
+  });
+
+  it("asks for a longer outer fence around a body with code", () => {
+    expect(replyInstructions(false)).toContain(
+      "more backticks than any fence inside it, at least four (open with ````reply, close with ````)",
+    );
   });
 });
