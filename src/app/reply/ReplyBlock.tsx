@@ -6,7 +6,15 @@
  * ended without its closing `:::` line shows bb's own rendering of the block,
  * the same Markdown readers see without the plugin.
  */
-import { useId, useState } from "react";
+
+/**
+ * How long an `unclosed` status that follows `streaming` keeps the drawn
+ * reply. bb reports `unclosed` as soon as a later timeline row (such as the
+ * recap tool call) follows the message, which can happen before the rest of
+ * the message's text, closer included, has reached the app.
+ */
+const UNCLOSED_GRACE_MS = 3000;
+import { useEffect, useId, useState } from "react";
 import { Markdown } from "@get-bb/plugin-sdk/app";
 import type { ExperimentalMessageBlockProps } from "@get-bb/plugin-sdk/app";
 import { cn } from "@/lib/utils";
@@ -144,12 +152,27 @@ function Details({ markdown }: { markdown: string }) {
   );
 }
 
+/** Whether to show bb's own rendering: the block is unclosed for good. */
+function useUnclosed(status: ExperimentalMessageBlockProps["status"]): boolean {
+  const [streamed, setStreamed] = useState(status === "streaming");
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    if (status === "streaming") setStreamed(true);
+    setWaited(false);
+    if (status !== "unclosed") return;
+    const timer = setTimeout(() => setWaited(true), UNCLOSED_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [status]);
+  return status === "unclosed" && (!streamed || waited);
+}
+
 export function ReplyBlock({
   data,
   status,
   Original,
 }: ExperimentalMessageBlockProps) {
-  if (status === "unclosed") return <Original />;
+  const unclosed = useUnclosed(status);
+  if (unclosed) return <Original />;
   const reply = replySchema.safeParse(data);
   if (!reply.success) return null;
   const { lead, sections, details } = reply.data;
