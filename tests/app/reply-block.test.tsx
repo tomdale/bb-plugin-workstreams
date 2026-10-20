@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import type {
   PluginAppBuilder,
   ExperimentalMessageBlockProps,
@@ -154,4 +154,39 @@ it("draws a code block inside a section", async () => {
   expect(
     checked.querySelector('[data-testid="bb-markdown"]')?.textContent,
   ).toBe("```ts\n### not a heading\nexport const timeout = 30;\n```");
+});
+
+it("keeps the drawn reply through a brief unclosed status after streaming", async () => {
+  vi.useFakeTimers();
+  try {
+    const block = await registration();
+    const message = ":::reply\nTests pass.\n\n### Checked\n22 tests\n";
+    const props = (status: "streaming" | "unclosed") => {
+      const { source, tree } = blockInput(message, {
+        streaming: status === "streaming",
+      });
+      const result = block.parse(
+        { attributes: {}, source, tree },
+        { version: 1, status },
+      );
+      return {
+        data: result.ok ? result.data : null,
+        error: result.ok ? null : result.error,
+        status,
+        source: message,
+        message: {} as ExperimentalMessageBlockProps["message"],
+        index: 0,
+        Original,
+      };
+    };
+    const view = renderSlot(block, props("streaming"));
+    view.lifecycle.rerender(<block.component {...props("unclosed")} />);
+    expect(view.container.querySelector("[data-reply-block]")).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(view.container.querySelector("[data-original]")).not.toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
 });
