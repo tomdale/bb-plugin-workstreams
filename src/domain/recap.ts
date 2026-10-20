@@ -8,7 +8,6 @@ import {
   normalizeRecapFileLinks,
   recapMarkdownSpans,
 } from "./recapFileLinks.ts";
-import { REPLY_BLOCK, REPLY_LABELS } from "./reply.ts";
 import type { AgentReport, StoredAnalysis, WorkState } from "./analysis.ts";
 
 export const RECAP_TOOL = "WorkstreamsRecap";
@@ -501,41 +500,6 @@ waiting: goal is a short description of the async task whose result you need; ti
 links: review state only, for artifacts or pages the user is explicitly asked to review, as absolute file paths or HTTPS URLs. A changed source file qualifies only when source review is requested. Omit for complete.
 next (complete and review): messages the user might send, a follow-up action or question. Prefer { title, message, description? }. title: very short sentence-case button label, at most 28 characters (ideally 2–4 words). message: exact self-contained plain-text request, at most 120 characters, sent verbatim. description: optional context or rationale, at most 120 characters, shown on hover. Never cram the message into the title. A string is shown as the full label. Omit closing periods. Do not restate choices elsewhere or offer work you should do yourself.
 The user decides whether to archive the thread from the recap. A dismissed or expired question card is unanswered and unapproved; continue only work that does not depend on it.`;
-
-/**
- * Instructions for the reply block, given only when Structured replies is on.
- * `withRecap` says whether the session also has the recap tool, whose card
- * then carries what got done and the commit and PR links.
- */
-export function replyInstructions(withRecap: boolean): string {
-  const example = withRecap
-    ? `:::${REPLY_BLOCK}
-Settings open in half the time because the font file is cached after the first visit.
-
-### Checked
-12 tests and the type check pass locally. Nothing is pushed.
-:::`
-    : `:::${REPLY_BLOCK}
-Settings open in half the time because the font file is cached after the first visit.
-
-### Done
-- [x] Cached the font file after the first visit
-
-### Checked
-12 tests and the type check pass locally. Nothing is pushed.
-:::`;
-  const mode = withRecap
-    ? `When a turn ends with a ${RECAP_TOOL} card, write the block as well as calling the tool. The card's \`latest\` items carry what got done, with commit hashes and PR links inline, so leave Done and those links out of the block and use the lead for the how or why rather than repeating the card's goal. When a question card ends the turn instead, the block is the only reply: include Done and any commit or PR links in it.`
-    : "Include Done and any commit or PR links in the block.";
-  return `End your final reply of each turn with one reply block, which the app draws as a short labeled reply. Write it at the top level of the message, not inside a list, quote, or code block: \`:::${REPLY_BLOCK}\` alone on the first line with no space after the colons, Markdown inside, and \`:::\` alone on the last line. For example:
-
-${example}
-
-Inside the block, start with a lead of one or two plain sentences before any heading. Then add only the sections that have something to say, as \`###\` headings with these exact labels in this order: ${REPLY_LABELS.join(", ")}. Write Done items as \`- [x]\` and Not done items as \`- [ ]\`. After those, add at most two sections of your own, each with a heading of one to four words in sentence case and at most five list items or three sentences. Put anything longer under a last \`### Details\` heading, which shows folded.
-${mode}
-Lead with what is true now. Put a condition first ("If CI passes, …"). Name who did what. Say what state things are in: pushed or not, checked locally or in CI. Give a reason only when it changes a decision. Use concrete words and leave out filler such as simply, just, easily, and obviously.
-A two-line body is a good body: when a lead and one short section say it, stop there.`;
-}
 
 /** How the agent's report of a turn reads as a status. */
 export function reportedStatus(recap: Recap): {

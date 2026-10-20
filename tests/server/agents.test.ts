@@ -3,6 +3,7 @@ import { makePluginAgentConfigurationContext } from "@get-bb/plugin-sdk/testing"
 import { fakeWorld } from "./fake-bb.ts";
 import { WORKER_THREAD_MARKER } from "../../src/domain/worker.ts";
 import { RECAP_INSTRUCTIONS } from "../../src/domain/recap.ts";
+import { replyInstructions } from "../../src/domain/replyInstructions.ts";
 import { QUESTION_INSTRUCTIONS } from "../../src/server/questions/tool-definition.ts";
 
 /**
@@ -155,10 +156,31 @@ describe("configure", () => {
     ["a task thread", {}],
     ["a provider with its own question tool", { nativeQuestions: true }],
     ["a side chat", { sideChat: true }],
+    ["a task thread with Structured replies", { replies: true }],
+    [
+      "a thread with Structured replies and no recap",
+      { replies: true, noRecap: true },
+    ],
+    ["a side chat with Structured replies", { replies: true, sideChat: true }],
   ] as const)(
     "keeps each instruction contribution within bb's limit for %s",
-    async (_, options: { nativeQuestions?: boolean; sideChat?: boolean }) => {
+    async (
+      _,
+      options: {
+        nativeQuestions?: boolean;
+        sideChat?: boolean;
+        replies?: boolean;
+        noRecap?: boolean;
+      },
+    ) => {
       const w = await setup();
+      if (options.replies || options.noRecap)
+        await w.harness.behavior.callRpc("setRecapPrefs", {
+          patch: {
+            ...(options.replies ? { replies: true } : {}),
+            ...(options.noRecap ? { required: false } : {}),
+          },
+        });
       const { agentConfigurationProvider, instructionProvider, agentTools } =
         w.harness.inspection.registrations;
       // The plugin's own output, before bb would cut anything.
@@ -192,8 +214,12 @@ describe("configure", () => {
       // Each requirement reaches the agent whole.
       const text = contributions.join("\n\n");
       expect(text).toContain(QUESTION_INSTRUCTIONS);
-      if (options.sideChat) expect(text).not.toContain(RECAP_INSTRUCTIONS);
-      else expect(text).toContain(RECAP_INSTRUCTIONS);
+      const recap = !options.sideChat && !options.noRecap;
+      if (recap) expect(text).toContain(RECAP_INSTRUCTIONS);
+      else expect(text).not.toContain(RECAP_INSTRUCTIONS);
+      if (options.replies && !options.sideChat)
+        expect(text).toContain(replyInstructions(recap));
+      else expect(text).not.toContain(":::reply");
     },
   );
 });

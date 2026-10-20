@@ -5,7 +5,7 @@ import {
   type ReplyParseResult,
   toText,
 } from "../../src/domain/reply.ts";
-import { replyInstructions } from "../../src/domain/recap.ts";
+import { replyInstructions } from "../../src/domain/replyInstructions.ts";
 import { blockInput } from "./replyFixtures.ts";
 import { REPLY_SAMPLES } from "./replySamples.ts";
 
