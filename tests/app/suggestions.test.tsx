@@ -213,28 +213,32 @@ it("leads with the operation and each item's move, from where to where", async (
     lastRunAt: 1,
     error: null,
   });
-  const refile = (await screen.findByRole("heading", { name: "Refile thread" }))
-    .parentElement!.parentElement!;
-  const [row] = within(refile).getAllByRole("listitem");
-  expect(row!.textContent).toBe(
-    "Record demonow in Workstreams › Recap Cardsmoves to PantryPal",
+  const card = (heading: string) =>
+    screen.getByRole("heading", { name: heading }).closest("li")!;
+  await screen.findByRole("heading", { name: "Refile thread" });
+  const refile = card("Refile thread");
+  expect(within(refile).getByText("From").parentElement!.textContent).toBe(
+    "From Workstreams › Recap Cardsto PantryPal",
   );
+  expect(within(refile).getByRole("listitem").textContent).toBe("Record demo");
   expect(
     within(refile).getByText("A demo belongs under PantryPal."),
   ).toBeTruthy();
 
-  const move = screen.getByRole("heading", { name: "Move topic" })
-    .parentElement!.parentElement!;
-  expect(within(move).getByRole("listitem").textContent).toBe(
-    "Topic Workforest2 threadsnow in Top levelmoves to bb",
+  expect(within(card("Move topic")).getByRole("listitem").textContent).toBe(
+    "Topic Workforest· 2 threads",
   );
+  expect(
+    within(card("Move topic")).getByText("From").parentElement!.textContent,
+  ).toBe("From Top levelto bb");
 
-  // A big split shows its first rows, each target marked New, and the rest
-  // on request.
-  const split = screen.getByRole("heading", { name: "Split topic" })
-    .parentElement!.parentElement!;
-  expect(within(split).getAllByRole("listitem")).toHaveLength(5);
-  expect(within(split).getAllByText("New")).toHaveLength(5);
-  fireEvent.click(within(split).getByRole("button", { name: "Show 2 more" }));
+  // A split reads as its destinations, each marked New, with the threads
+  // that go to each.
+  const split = card("Split topic");
+  const moves = within(split).getAllByText("From");
+  expect(moves.map((m) => m.parentElement!.textContent)).toEqual([
+    "From Automationsto Automations › PR UpkeepNew",
+    "From Automationsto Automations › DesignNew",
+  ]);
   expect(within(split).getAllByRole("listitem")).toHaveLength(7);
 });

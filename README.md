@@ -480,10 +480,10 @@ Open **Workstreams** in the main navigation panel to access four tabs:
    - **Suggestions:** Each organizing suggestion is headed by its operation
      (**Refile thread**, **Split topic**, **File threads in subtopics**, **Merge
      topics**, **Move topic**, **Rename topic**, **New topic**, or **New parent
-     topic**). Below it, each thread or topic it would move has a row: the item,
-     the topic holding it now, and the topic it would move to. **New** marks a
-     topic that accepting creates, a moved topic shows how many threads move
-     with it, and rows past the first `5` are behind **Show N more**. The reason
+     topic**). Below it, each move it makes is one line, from the topic holding
+     its items now to the topic they would move to, with the threads and topics
+     making that move listed beneath. **New** marks a topic that accepting
+     creates, and a moved topic shows how many threads move with it. The reason
      follows. Click **Accept**, **Decline**, **Accept all**, or **Ask now** for
      fresh ones. **Recently decided** lists the latest decisions.
    - Assign topics directly to **Threads with no topic** or inspect **Derived
