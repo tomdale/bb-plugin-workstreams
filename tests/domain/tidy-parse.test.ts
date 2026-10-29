@@ -59,6 +59,14 @@ describe("parseTidy", () => {
     ]);
   });
 
+  it("reads a move to where the topic already is as a rename", () => {
+    expect(parse({ topic: "automations", name: "Runs" })[0]!.edit).toEqual({
+      op: "rename",
+      topic: "auto",
+      name: "Runs",
+    });
+  });
+
   it("drops a rename to the name the topic has, or an invalid one", () => {
     for (const name of ["Beacon Code Review", "beacon code review", "A: B"])
       expect(parse({ name })[0]!.edit).toEqual({

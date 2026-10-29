@@ -496,7 +496,11 @@ export function parseTidy(text: string, input: TidyInput): ProposedEdit[] {
         e.name.toLowerCase() !== current?.toLowerCase()
           ? e.name
           : undefined;
-      if (topic && parent !== undefined && topic !== parent)
+      const stays =
+        input.topics.find((t) => t.id === topic)?.parentId === parent;
+      // A move to where the topic already is only renames it.
+      if (topic && stays && name) edit = { op: "rename", topic, name };
+      else if (topic && parent !== undefined && topic !== parent)
         edit = { op: "reparent", topic, parent, ...(name ? { name } : {}) };
     } else if (e.op === "rename") {
       const topic = ref(e.topic);
