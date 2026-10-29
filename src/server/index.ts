@@ -851,6 +851,10 @@ export default async function plugin(bb: BbPluginApi) {
       await questions.recover(threadId, id, value, dismiss);
       return { ok: true as const };
     },
+    reportClient: async ({ messageBlocks }) => {
+      recaps.reportClient({ messageBlocks });
+      return { ok: true as const };
+    },
     recap_dismiss: ({ threadId, recapId }) =>
       userFacing(async () => {
         recaps.dismiss(threadId, recapId);

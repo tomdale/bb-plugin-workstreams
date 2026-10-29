@@ -1,23 +1,36 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
+import type { PluginAppBuilder } from "@get-bb/plugin-sdk/app";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { registerReplyBlock } from "../../src/app/reply/register.ts";
 
 afterEach(cleanup);
 
 const PREFS = { required: true, corrections: 3, layout: "full" };
 
-async function mount() {
+/**
+ * The published SDK's test host has no message-block slot, like upstream
+ * bb. `fork` gives the app one, as the tomdale/bb fork does.
+ */
+async function mount({
+  fork = true,
+  prefs = PREFS,
+}: { fork?: boolean; prefs?: Record<string, unknown> } = {}) {
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
+  if (fork)
+    registerReplyBlock({
+      slots: { experimental_messageBlock: () => {} },
+    } as unknown as PluginAppBuilder);
   const section = app.settingsSections.find((s) => s.id === "recap")!;
   return renderSlot(
     section,
     {},
     {
       rpc: {
-        recapPrefs: () => ({ prefs: PREFS }),
+        recapPrefs: () => ({ prefs }),
         setRecapPrefs: (input: unknown) => ({
-          prefs: { ...PREFS, ...(input as { patch: object }).patch },
+          prefs: { ...prefs, ...(input as { patch: object }).patch },
         }),
       },
     },
@@ -73,6 +86,22 @@ it("keeps structured replies off until switched on", async () => {
   );
   expect(await slot.findByText(/labeled sections/)).toBeTruthy();
 });
+
+it.each([
+  [false, "Needs a BB that draws reply blocks"],
+  [true, "On, but this BB can't draw reply blocks"],
+])(
+  "greys structured replies out on a bb without the slot (on: %s)",
+  async (replies, text) => {
+    const slot = await mount({ fork: false, prefs: { ...PREFS, replies } });
+    const toggle = await slot.findByRole("switch", {
+      name: "Structured replies",
+    });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(toggle).toHaveProperty("disabled", true);
+    expect(await slot.findByText(new RegExp(text))).toBeTruthy();
+  },
+);
 
 it("previews the recap card in each state and the chosen layout", async () => {
   const slot = await mount();

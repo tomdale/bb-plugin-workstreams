@@ -10,6 +10,7 @@ import { TaskIdentityHeader } from "./header/TaskIdentityHeader.tsx";
 import { ObservedNamesHeader } from "./debug/ObservedNames.tsx";
 import { RecapCard } from "./composer/RecapCard.tsx";
 import { registerReplyBlock } from "./reply/register.ts";
+import { ClientReport } from "./reply/ClientReport.tsx";
 import {
   QuestionAnchor,
   QuestionInteraction,
@@ -71,6 +72,10 @@ export default definePluginApp((app) => {
     component: NextUpCommandBridge,
   });
   registerReplyBlock(app);
+  app.slots.experimental_appOverlay({
+    id: "client-report",
+    component: ClientReport,
+  });
   app.composer.customize({
     id: "recap",
     scopes: ["thread"],

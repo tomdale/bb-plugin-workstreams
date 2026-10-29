@@ -125,9 +125,11 @@ export function RecapSettings() {
         label="Structured replies"
         description={
           !replyBlocksDrawn()
-            ? "This version of BB can't draw structured replies."
+            ? prefs.replies
+              ? "On, but this BB can't draw reply blocks, so agents keep using the recap tool. It takes effect on a BB that can, such as the tomdale/bb fork."
+              : "Needs a BB that draws reply blocks, such as the tomdale/bb fork. Agents use the recap tool meanwhile."
             : prefs.replies
-              ? "Agents end each turn with a short reply in labeled sections, drawn like the recap card. Applies to each thread's next session."
+              ? "Agents end each turn with a reply block in labeled sections; its headline and results become the recap card. Applies to each thread's next session."
               : "Off: agent replies have no set form."
         }
         control={

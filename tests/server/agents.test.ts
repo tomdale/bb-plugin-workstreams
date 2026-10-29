@@ -181,6 +181,11 @@ describe("configure", () => {
             ...(options.noRecap ? { required: false } : {}),
           },
         });
+      // A bb that draws reply blocks (the tomdale/bb fork) reports it.
+      if (options.replies)
+        await w.harness.behavior.callRpc("reportClient", {
+          messageBlocks: true,
+        });
       const { agentConfigurationProvider, instructionProvider, agentTools } =
         w.harness.inspection.registrations;
       // The plugin's own output, before bb would cut anything.

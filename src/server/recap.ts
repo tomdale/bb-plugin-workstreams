@@ -117,6 +117,19 @@ export class AgentRecaps {
    * the recap card (the recap is on) or is a reply alone.
    */
   private readonly replyModes = new Map<string, boolean>();
+  /**
+   * Per thread, from the latest `configure`: whether the session got reply
+   * blocks for its recap instead of the recap tool.
+   */
+  private readonly blockSessions = new Map<string, boolean>();
+  /**
+   * Whether the latest client report said this bb draws reply blocks. Only
+   * the tomdale/bb fork does; on upstream bb no client reports it, so
+   * Structured replies stays off and agents keep the recap tool. Kept in
+   * memory: a restart, possibly onto another bb build, waits for a new
+   * report.
+   */
+  private messageBlocks = false;
   /** Each thread's latest idle text, for the coalesced idle work. */
   private readonly idleText = new Map<string, string | null>();
   /** Why the thread's latest turn's block gave no recap, for its correction. */
@@ -207,10 +220,19 @@ export class AgentRecaps {
     this.deps.db
       .prepare("UPDATE ws_agent_recap SET enrolled = ? WHERE thread_id = ?")
       .run(Number(on), threadId);
-    if (enabled && prefs.replies) this.replyModes.set(threadId, on);
+    // Structured replies needs a bb that draws reply blocks.
+    const replies = enabled && prefs.replies && this.messageBlocks;
+    if (replies) this.replyModes.set(threadId, on);
     else this.replyModes.delete(threadId);
     // With Structured replies on, the recap comes from the reply block.
-    return { tools: on && !prefs.replies ? [RECAP_TOOL] : [] };
+    const blocks = on && replies;
+    this.blockSessions.set(threadId, blocks);
+    return { tools: on && !blocks ? [RECAP_TOOL] : [] };
+  }
+
+  /** A client's report of what its bb draws; the latest report wins. */
+  reportClient(report: { messageBlocks: boolean }) {
+    this.messageBlocks = report.messageBlocks;
   }
 
   /**
@@ -218,9 +240,8 @@ export class AgentRecaps {
    * or null. With the recap on it is the whole recap contract, since the
    * session has no recap tool. bb calls `contributeInstructions` after
    * `configure` in each resolution and gives it a 4,096-character budget of
-   * its own. The server cannot see whether the app draws message blocks;
-   * engines.bbPluginSdk keeps the plugin off older bb, and the Settings row
-   * stays disabled where the app finds no slot.
+   * its own. Null while no client has reported that it draws reply
+   * blocks (see `reportClient`).
    */
   replyInstructions(threadId: string): string | null {
     const withRecap = this.replyModes.get(threadId);
@@ -699,7 +720,11 @@ export class AgentRecaps {
 
   /** What a correction asks for: a recap call, or a reply block's missing part. */
   private correctionText(threadId: string, turnId: string): string {
-    if (!this.deps.prefs().replies)
+    // The session's own mode decides; after a restart, the current one.
+    const blocks =
+      this.blockSessions.get(threadId) ??
+      (this.deps.prefs().replies && this.messageBlocks);
+    if (!blocks)
       return `Your turn ended without a recap. Finish any remaining authorized work, then call ${RECAP_TOOL}, or ask the user through a question card if you need their input.`;
     const found = this.blockProblems.get(threadId);
     const problem =
@@ -709,7 +734,9 @@ export class AgentRecaps {
 
   /**
    * With Structured replies on, records the recap a turn's reply block
-   * carries, through the same path as a tool call. The final message comes
+   * carries, through the same path as a tool call. It reads blocks whether
+   * or not a client has reported drawing them, so a session that got the
+   * block instruction keeps its recaps across a restart. The final message comes
    * first; without a block there, the turn's other top-level messages are
    * read, newest first. A turn already ended by a recap or a question card
    * is left alone, so repeated idle events change nothing.

@@ -363,6 +363,14 @@ export const rpcContract = defineRpcContract({
    * Hides the current recap card on every client. Dismissing a waiting card
    * also cancels its status check.
    */
+  /**
+   * What this client's bb can draw. Reply-block recaps start only after a
+   * client reports `messageBlocks` (the tomdale/bb fork's slot).
+   */
+  reportClient: {
+    input: z.object({ messageBlocks: z.boolean() }),
+    output: z.object({ ok: z.literal(true) }),
+  },
   recap_dismiss: {
     input: z.object({ threadId: z.string().min(1), recapId: z.string() }),
     output: z.object({ ok: z.literal(true) }),

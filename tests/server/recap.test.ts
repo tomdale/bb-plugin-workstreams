@@ -21,15 +21,22 @@ const RECAP = {
   latest: ["Moved the recap tool into Workstreams."],
 };
 
+/**
+ * `messageBlocks` (default: whether `replies` is on) is the client report a
+ * bb that draws reply blocks, the tomdale/bb fork, sends.
+ */
 async function world(
-  prefs: Record<string, unknown> = {},
+  prefs: Record<string, unknown> & { messageBlocks?: boolean } = {},
   createdAt = Date.now() + 1_000,
 ) {
+  const { messageBlocks = prefs.replies === true, ...patch } = prefs;
   const w = await fakeWorld();
   worlds.push(w);
   w.addThread("t1", { status: "idle", queuedMessageCount: 0, createdAt });
-  if (Object.keys(prefs).length)
-    await w.harness.behavior.callRpc("setRecapPrefs", { patch: prefs });
+  if (Object.keys(patch).length)
+    await w.harness.behavior.callRpc("setRecapPrefs", { patch });
+  if (messageBlocks)
+    await w.harness.behavior.callRpc("reportClient", { messageBlocks: true });
   const configure = (origin?: { kind: "fork"; pluginId: string }) =>
     w.harness.behavior.resolveAgentConfiguration(
       makePluginAgentConfigurationContext({
@@ -879,6 +886,48 @@ describe("structured replies", () => {
     const resolved = await s.configure();
     expect(resolved.instructions).not.toContain(":::reply");
     expect(resolved.tools.map((tool) => tool.name)).not.toContain(RECAP_TOOL);
+  });
+
+  it("keeps the recap tool while no client draws reply blocks, as on upstream bb", async () => {
+    const s = await world({ replies: true, messageBlocks: false });
+    const resolved = await s.configure();
+    expect(resolved.tools.map((tool) => tool.name)).toContain(RECAP_TOOL);
+    expect(await replyText(s)).toBeNull();
+    s.w.turn("t1");
+    await s.report();
+    expect((await s.card()).recap?.state).toBe("complete");
+  });
+
+  it("follows the latest client report, so a bb without the slot turns block mode off", async () => {
+    const s = await world({ replies: true });
+    expect((await s.configure()).tools.map((tool) => tool.name)).not.toContain(
+      RECAP_TOOL,
+    );
+    await s.w.harness.behavior.callRpc("reportClient", {
+      messageBlocks: false,
+    });
+    expect((await s.configure()).tools.map((tool) => tool.name)).toContain(
+      RECAP_TOOL,
+    );
+    expect(await replyText(s)).toBeNull();
+  });
+
+  it("forgets the report on reload, so a setting turned on under the fork waits for a new report", async () => {
+    const s = await world({ replies: true });
+    const replacement = await s.w.harness.lifecycle.reload(plugin);
+    const resolved =
+      await replacement.harness.behavior.resolveAgentConfiguration(
+        makePluginAgentConfigurationContext({
+          thread: { id: "t1", parentThreadId: null },
+        }),
+      );
+    expect(resolved.tools.map((tool) => tool.name)).toContain(RECAP_TOOL);
+    expect(
+      replacement.harness.inspection.registrations.instructionProvider!({
+        threadId: "t1",
+        projectId: "p1",
+      }),
+    ).toBeNull();
   });
 
   it("keeps the recap tool and its instructions while the setting is off", async () => {
