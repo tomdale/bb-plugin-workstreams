@@ -302,13 +302,9 @@ export default async function plugin(bb: BbPluginApi) {
     model: async () => currentPrefs().analysis.placementModel,
     topics,
     project: projectName,
-    basisOf: (requests, project) =>
-      topicBasis({
-        requests,
-        project,
-        definitions: topics.definitionKey(),
-        model: currentPrefs().analysis.placementModel,
-      }),
+    // Only a new request re-places a thread: topic edits and model changes
+    // leave settled topics alone.
+    basisOf: (requests, project) => topicBasis({ requests, project }),
     apply: (threadId, answer, basis, traceId) =>
       applyTopic(threadId, answer, "full", basis, traceId),
     log: (message) => bb.log.warn(message),

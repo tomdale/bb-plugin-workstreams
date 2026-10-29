@@ -15,16 +15,14 @@ import { getMeta, setMeta, type Database } from "./db.ts";
 export const CLASSIFICATION_VERSION = "topics-v6";
 
 /**
- * The basis of an automatic topic: what it was classified from. Only the
- * user's requests and the project decide a topic, so a retitle never makes a
- * topic stale.
+ * The basis of an automatic topic: what it was placed from. Only the user's
+ * requests and the project decide a topic, so a retitle, a topic edit, or a
+ * model change never makes one stale; a new request does.
  */
 export function topicBasis(input: {
   version?: string;
   requests?: readonly unknown[];
   project?: string | null;
-  definitions?: string;
-  model?: unknown;
 }): string {
   return createHash("sha256")
     .update(
@@ -32,8 +30,6 @@ export function topicBasis(input: {
         version: input.version ?? CLASSIFICATION_VERSION,
         requests: input.requests ?? [],
         project: input.project ?? null,
-        definitions: input.definitions ?? null,
-        model: input.model ?? null,
       }),
     )
     .digest("hex");
