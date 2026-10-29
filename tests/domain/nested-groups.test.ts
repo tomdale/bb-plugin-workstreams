@@ -219,7 +219,37 @@ describe("nestGroups", () => {
     expect(
       outline(nestGroups(projection.all, topics({ sec_a: "gone" }))),
     ).toEqual(["Alpha (1)", "Beta (0)"]);
-    // A section the last pass didn't lay out stands alone in input order.
+    // A section the last pass didn't lay out nests under the nearest topic
+    // the layout draws, or stands alone in input order without one.
+    const emptied = projectWorkstreams(
+      [thread("i1", { sectionId: "sec_alerts" })],
+      [
+        { id: "sec_alerts", name: "Beacon: Automations: Alert Investigations" },
+        { id: "sec_cli", name: "Beacon: Automations: CLI" },
+      ],
+      { now, lastPopulatedAt: { sec_cli: now } },
+    );
+    expect(
+      outline(
+        nestGroups(
+          emptied.all,
+          topics({ sec_alerts: "alerts", sec_cli: "cli" }, [
+            node(
+              "auto",
+              "Automations",
+              [node("alerts", "Alert Investigations")],
+              {
+                prefix: ["Beacon"],
+              },
+            ),
+          ]),
+        ),
+      ),
+    ).toEqual([
+      "Beacon: Automations (1)",
+      "  Alert Investigations (1)",
+      "  CLI (0)",
+    ]);
     expect(
       outline(
         nestGroups(

@@ -132,6 +132,49 @@ export function nestGroups<T extends WorkstreamThread>(
     }
     return names.join(": ");
   };
+  // A section the layout doesn't list (one emptied since the last pass, kept
+  // a few minutes for New work, or one created since) nests under the
+  // nearest topic the layout draws above its own, so it stays in its group.
+  const drawn = new Set<string>();
+  const listed = new Set<string>();
+  const walk = (nodes: readonly LayoutNode[]) => {
+    for (const node of nodes) {
+      drawn.add(node.topicId);
+      if (node.lists) listed.add(node.topicId);
+      walk(node.children);
+    }
+  };
+  walk(topics?.layout ?? []);
+  const strays = new Map<string, Group<T>[]>();
+  for (const group of groups) {
+    const topicId = topics?.bindings[group.id];
+    if (!topicId || listed.has(topicId)) continue;
+    const seen = new Set<string>();
+    for (let at: string | null = topicId; at && !seen.has(at);) {
+      seen.add(at);
+      if (drawn.has(at)) {
+        strays.set(at, [...(strays.get(at) ?? []), group]);
+        break;
+      }
+      at = byId.get(at)?.parentId ?? null;
+    }
+  }
+  /** A topic's name below `ancestor`: "Alert Investigations", "CLI: Commands". */
+  const relative = (topicId: string, ancestor: string) => {
+    const names: string[] = [];
+    const seen = new Set<string>();
+    for (
+      let at: string | null = topicId;
+      at && at !== ancestor && !seen.has(at);
+    ) {
+      seen.add(at);
+      const entity = byId.get(at);
+      if (!entity) break;
+      names.unshift(entity.name);
+      at = entity.parentId;
+    }
+    return names.join(": ");
+  };
   const used = new Set<string>();
   const first = (node: WorkstreamNode<T>) =>
     Math.min(
@@ -143,10 +186,21 @@ export function nestGroups<T extends WorkstreamThread>(
     const label = layoutLabel(node);
     const own = node.lists ? (sectionsOf.get(node.topicId) ?? []) : [];
     for (const group of own) used.add(group.id);
-    const children = node.children
-      .map(build)
-      .filter((child): child is WorkstreamNode<T> => child !== null)
-      .sort((a, b) => first(a) - first(b));
+    const stray = (strays.get(node.topicId) ?? []).map((group) => {
+      used.add(group.id);
+      const topicId = topics!.bindings[group.id]!;
+      return leaf(
+        group,
+        topicId,
+        topicId === node.topicId ? label : relative(topicId, node.topicId),
+      );
+    });
+    const children = [
+      ...node.children
+        .map(build)
+        .filter((child): child is WorkstreamNode<T> => child !== null),
+      ...stray,
+    ].sort((a, b) => first(a) - first(b));
     // A second section bound to the same topic nests as its sibling, not
     // its replacement, so none of its threads disappear.
     const [section, ...extra] = own;
