@@ -851,7 +851,7 @@ describe("structured replies", () => {
     const s = await world({ replies: true });
     const text = await replyText(s);
     expect(text).toContain(":::reply");
-    expect(text).toContain("leave Done and those links out of the block");
+    expect(text).toContain("If the card already says it, leave it out.");
     expect((await s.configure()).instructions).not.toContain(":::reply");
   });
 
