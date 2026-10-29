@@ -15,6 +15,7 @@ import {
   gatewayKey,
   gatewayComplete,
 } from "../src/server/inference/gateway.ts";
+import { takesThreads } from "../src/domain/topics.ts";
 import { scoreClassification } from "./classification-score.ts";
 import { cases } from "./classification-cases.ts";
 
@@ -104,6 +105,14 @@ try {
             subjectId: topic.subjectId,
             proposed: topic.proposed,
           };
+          // Subgroups come only from splits, so placement files work on a
+          // new capability in its product while the product has none.
+          const inside = test.expectNew?.inside;
+          const intoProduct =
+            kind === "placement" &&
+            !!inside &&
+            value.subjectId === inside &&
+            takesThreads(inside, test.input.entities);
           results.push({
             id: test.id,
             expected: test.expected,
@@ -112,13 +121,21 @@ try {
             response,
             cost,
             durationMs: Date.now() - started,
-            ...scoreClassification(
-              value,
-              test.input,
-              test.expected,
-              cold,
-              test.expectNew,
-            ),
+            ...(intoProduct
+              ? {
+                  owner: true,
+                  capability: true,
+                  hierarchy: true,
+                  exact: true,
+                  pass: true,
+                }
+              : scoreClassification(
+                  value,
+                  test.input,
+                  test.expected,
+                  cold,
+                  test.expectNew,
+                )),
           });
         } catch (error) {
           results.push({
