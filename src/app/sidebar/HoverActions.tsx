@@ -44,12 +44,10 @@ export const rowActionClass =
  * A row's actions, at its trailing end just before its details (an age or
  * counts). The row is a flex row with `gap-1.5` and the `group/row` class.
  *
- * Every row type orders its actions the same way: toggles (Focus), then
- * creation (New work), then putting the row away (Archive, then Snooze or
- * Wake, which is always last). Each action takes no room until the row is
- * hovered (see `REVEAL_ON_ROW_HOVER`) unless it is `revealed`, as a focused
- * workstream's Focus mark and an empty one's New work are. While nothing in
- * it shows, the negative margin cancels the row's gap.
+ * Each action takes no room until the row is hovered (see
+ * `REVEAL_ON_ROW_HOVER`) unless it is `revealed`, as a focused workstream's
+ * Focus mark and an empty one's New work are. While nothing in it shows,
+ * the negative margin cancels the row's gap.
  */
 export function RowActions({
   className,

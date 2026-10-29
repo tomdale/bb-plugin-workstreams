@@ -353,19 +353,20 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
   default preset; rest the pointer for `350 ms` to open the snooze menu, or
   click **Wake now** on a snoozed row). Thread rows and workstream headers share
   one set of buttons at the row's end: they appear while the row is hovered,
-  holds keyboard focus, or has a menu open, take no room otherwise, and come in
-  one order everywhere: **Focus**, **New work**, **Archive**, then **Snooze** or
-  **Wake now** last. A focused workstream's **Focus** mark and an empty
-  workstream's `＋` always show. Touch screens, which can't hover, show only
-  those two; the rest stay in the row's long-press menu. Section **⋯** menus
-  always show, dimmed until used.
+  holds keyboard focus, or has a menu open, and take no room otherwise. Thread
+  rows show **Archive** then **Snooze** or **Wake now**; workstream headers show
+  **New work**, **Snooze**, then **Focus**. A focused workstream's **Focus**
+  mark and an empty workstream's `＋` always show, at the trailing edge so
+  revealing other actions doesn't move them. Touch screens, which can't hover,
+  show only those two; the rest stay in the row's long-press menu. Section **⋯**
+  menus always show, dimmed until used.
 - **Right-click context menu:** **Open in split**, **Open parent** (for
   delegates), **Topic** (switch to **Automatic** or assign any topic in the
   tree), **Rename…**, **Pin / Unpin**, **Mark read / Mark unread**, **Inspect
   model calls…** (when Debug mode is on), **Snooze / Change snooze / Wake now**,
   **Archive**, and **Delete…**. A workstream header's menu holds its hover
-  actions in the same order: **Focus / Stop focusing**, **New work**, and
-  **Snooze \<N\> threads**. On touch screens, a long press opens either menu.
+  actions: **Focus / Stop focusing**, **New work**, and **Snooze \<N\>
+  threads**. On touch screens, a long press opens either menu.
 
 ### Phone Home screen
 

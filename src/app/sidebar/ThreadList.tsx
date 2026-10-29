@@ -1592,6 +1592,23 @@ function WorkstreamGroup({
   const { prefs } = usePrefs();
   const shows = (when: "always" | "collapsed" | "never" = "collapsed") =>
     when === "always" || (when === "collapsed" && collapsed);
+  const focusAction = onToggleFocus ? (
+    <HoverAction
+      compact
+      revealed={group.prioritized}
+      pressed={group.prioritized}
+      label={
+        group.prioritized
+          ? `Stop focusing on ${group.name}`
+          : `Focus on ${group.name}`
+      }
+      hint={group.prioritized ? "Stop focusing" : "Focus"}
+      onClick={onToggleFocus}
+      className={group.prioritized ? "text-foreground/70" : undefined}
+    >
+      <FocusIcon filled={group.prioritized} className="size-3.5" />
+    </HoverAction>
+  ) : null;
   return (
     <section
       ref={sectionRef}
@@ -1637,27 +1654,10 @@ function WorkstreamGroup({
               }
             />
           </button>
-          {/* The same actions, look, and order as a thread row's (see
-            `RowActions`): Focus, New work, then Snooze. */}
+          {/* Keep the always-visible action at the trailing edge so revealing
+            other actions cannot move it underneath the pointer. */}
           <RowActions>
-            {onToggleFocus ? (
-              // Also the focus mark, so a focused workstream always shows it.
-              <HoverAction
-                compact
-                revealed={group.prioritized}
-                pressed={group.prioritized}
-                label={
-                  group.prioritized
-                    ? `Stop focusing on ${group.name}`
-                    : `Focus on ${group.name}`
-                }
-                hint={group.prioritized ? "Stop focusing" : "Focus"}
-                onClick={onToggleFocus}
-                className={group.prioritized ? "text-foreground/70" : undefined}
-              >
-                <FocusIcon filled={group.prioritized} className="size-3.5" />
-              </HoverAction>
-            ) : null}
+            {group.total === 0 ? focusAction : null}
             {onNewThread ? (
               // An empty workstream has nothing else to offer, so it shows.
               <HoverAction
@@ -1679,6 +1679,7 @@ function WorkstreamGroup({
                 <SnoozeIcon className="size-3.5" />
               </HoverMenuButton>
             ) : null}
+            {group.total > 0 ? focusAction : null}
           </RowActions>
           {/* The header's details, as a thread row's age. */}
           <span className="flex shrink-0 items-center gap-1 empty:hidden">

@@ -2460,22 +2460,63 @@ describe("row hover buttons", () => {
     slot.lifecycle.unmount();
   });
 
-  it("orders a workstream header's actions like a thread row's, Snooze last", async () => {
-    const slot = await mount(undefined, { settings: { showRecent: false } });
-    const header = (await rowOf(slot))
-      .closest("section")!
-      .querySelector(".group\\/row")!;
-    const actions = within(header as HTMLElement)
-      .getAllByRole("button")
-      .map((b) => b.getAttribute("aria-label"))
-      .slice(1);
-    expect(actions).toEqual([
-      "Focus on Alpha",
-      "New work in Alpha",
-      expect.stringMatching(/^Snooze 2 threads in Alpha until/),
-    ]);
-    slot.lifecycle.unmount();
-  });
+  it.each([false, true])(
+    "keeps a populated workstream's Focus after its hover-only actions (focused: %s)",
+    async (focused) => {
+      const slot = await mount(undefined, {
+        settings: { showRecent: false },
+        order: {
+          workstreams: [],
+          threads: {},
+          prioritized: focused ? ["sec_a"] : [],
+        },
+      });
+      if (focused)
+        await slot.findByRole("button", { name: "Stop focusing on Alpha" });
+      const header = (await rowOf(slot))
+        .closest("section")!
+        .querySelector(".group\\/row")!;
+      const actions = within(header as HTMLElement)
+        .getAllByRole("button")
+        .slice(1);
+      expect(
+        actions.map((button) => button.getAttribute("aria-label")),
+      ).toEqual([
+        "New work in Alpha",
+        expect.stringMatching(/^Snooze 2 threads in Alpha until/),
+        focused ? "Stop focusing on Alpha" : "Focus on Alpha",
+      ]);
+      expect(actions[2]!.hasAttribute("data-revealed")).toBe(focused);
+      slot.lifecycle.unmount();
+    },
+  );
+
+  it.each([false, true])(
+    "keeps an empty workstream's New work after Focus (focused: %s)",
+    async (focused) => {
+      const slot = await mount([], {
+        settings: { showRecent: false, showForYou: false },
+        order: {
+          workstreams: [],
+          threads: {},
+          prioritized: focused ? ["sec_z"] : [],
+        },
+      });
+      const section = await slot.findByRole("region", { name: "Zeta" });
+      const header = section.querySelector(".group\\/row")!;
+      const actions = within(header as HTMLElement)
+        .getAllByRole("button")
+        .slice(1);
+      expect(
+        actions.map((button) => button.getAttribute("aria-label")),
+      ).toEqual([
+        focused ? "Stop focusing on Zeta" : "Focus on Zeta",
+        "New work in Zeta",
+      ]);
+      expect(actions[1]!.hasAttribute("data-revealed")).toBe(true);
+      slot.lifecycle.unmount();
+    },
+  );
 
   it("keeps only a focused workstream's Focus and a recent empty one's New work in view", async () => {
     const slot = await mount(undefined, {
