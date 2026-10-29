@@ -32,25 +32,25 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
 
 ## Core concepts
 
-| Term                 | Meaning                                                                                                                                                                                                                             |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Thread**           | A BB thread; the unit of work shown across the UI.                                                                                                                                                                                  |
-| **Root**             | A visible, non-archived thread with no visible active parent. Roots are the unit Workstreams classifies and organizes.                                                                                                              |
-| **Delegate**         | A child thread created for separable work. Delegates inherit their root's topic and workstream.                                                                                                                                     |
-| **Topic**            | An entry in the topic tree representing a context, product, or capability (`Owner: Capability`), with a description and aliases. A topic holds threads or subtopics, never both.                                                    |
-| **Topic tree**       | Every topic Workstreams knows, whether or not an open thread currently uses it.                                                                                                                                                     |
-| **Topic assignment** | A root's assigned topic (or **No topic**), together with its provenance (`manual`, `inherited`, `full`, or `quick`) and classification basis.                                                                                       |
-| **Workstream**       | A native BB section bound to one topic in the topic tree.                                                                                                                                                                           |
-| **Subgroup**         | A workstream shown inside a busier group. A group shows its subtopics as subgroups above `5` visible roots and one list again at `3` or fewer.                                                                                      |
-| **Group**            | A topic as suggestion review names it: where its threads sit in the sidebar, whether or not it has threads and a workstream yet.                                                                                                    |
-| **Placement**        | The one model call that chooses a root's topic from its requests, when it starts and after each new request.                                                                                                                        |
-| **Suggestion**       | A split of a busy topic, or a tidy edit to the topic tree, that changes nothing until you accept it. A **sidebar change** moves threads between groups; **group tree tidying** moves no thread and decides where future threads go. |
-| **Unfiled**          | Roots that currently have no topic and therefore belong to no workstream.                                                                                                                                                           |
-| **Goal**             | What a thread is for, written as its display title (`3–8` words, up to `60` characters).                                                                                                                                            |
-| **Status**           | How the latest turn ended: `needs you`, `review`, `blocked`, `working` (`in_progress` in JSON/CLI), `done`, or `error`.                                                                                                             |
-| **Agent recap**      | A structured end-of-turn report submitted by the agent with the `WorkstreamsRecap` tool.                                                                                                                                            |
-| **Organization**     | The deterministic process—and Workstreams page tab—that derives workstreams and section membership from topics.                                                                                                                     |
-| **Activity**         | The log of changes Workstreams made or observed, with undo where supported.                                                                                                                                                         |
+| Term                 | Meaning                                                                                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Thread**           | A BB thread; the unit of work shown across the UI.                                                                                                                                                                                         |
+| **Root**             | A visible, non-archived thread with no visible active parent. Roots are the unit Workstreams classifies and organizes.                                                                                                                     |
+| **Delegate**         | A child thread created for separable work. Delegates inherit their root's topic and workstream.                                                                                                                                            |
+| **Topic**            | An entry in the topic tree representing a context, product, or capability (`Owner: Capability`), with a description and aliases. A topic holds threads or subtopics, never both.                                                           |
+| **Topic tree**       | Every topic Workstreams knows, whether or not an open thread currently uses it.                                                                                                                                                            |
+| **Topic assignment** | A root's assigned topic (or **No topic**), together with its provenance (`manual`, `inherited`, `full`, or `quick`) and classification basis.                                                                                              |
+| **Workstream**       | A native BB section bound to one topic in the topic tree.                                                                                                                                                                                  |
+| **Subgroup**         | A workstream shown inside a busier group. A group shows its subtopics as subgroups above `5` visible roots and one list again at `3` or fewer.                                                                                             |
+| **Group**            | A topic as suggestion review names it: where its threads sit in the sidebar, whether or not it has threads and a workstream yet.                                                                                                           |
+| **Placement**        | The one model call that chooses a root's topic from its requests, when it starts and after each new request.                                                                                                                               |
+| **Suggestion**       | A split of a busy topic, or a tidy edit to the topic tree, that changes nothing until you accept it. Review lists those that move threads apart from those that only tidy groups, which move no thread and decide where future threads go. |
+| **Unfiled**          | Roots that currently have no topic and therefore belong to no workstream.                                                                                                                                                                  |
+| **Goal**             | What a thread is for, written as its display title (`3–8` words, up to `60` characters).                                                                                                                                                   |
+| **Status**           | How the latest turn ended: `needs you`, `review`, `blocked`, `working` (`in_progress` in JSON/CLI), `done`, or `error`.                                                                                                                    |
+| **Agent recap**      | A structured end-of-turn report submitted by the agent with the `WorkstreamsRecap` tool.                                                                                                                                                   |
+| **Organization**     | The deterministic process—and Workstreams page tab—that derives workstreams and section membership from topics.                                                                                                                            |
+| **Activity**         | The log of changes Workstreams made or observed, with undo where supported.                                                                                                                                                                |
 
 ### Core rules
 
@@ -235,10 +235,9 @@ accept them, on **Organization** (a sidebar notice links there) or with
 - **Memory:** Tidy sees the topics you filed threads under, the suggestions you
   accepted, and the ones you declined; a suggestion identical to a declined one
   is never proposed again.
-- **Review and undo:** A suggestion that moves threads shows the affected groups
-  now and after accepting; one that only reshapes the tree shows each group's
-  path now and after. `bb workstreams suggestions` lists the same moves. Each
-  shows why it can't apply when the tree changed since. Accepting one records it
+- **Review and undo:** Each suggestion names what moves and where, shows the
+  change in a line or two in the app and in `bb workstreams suggestions`, and
+  says why it can't apply when the tree changed since. Accepting one records it
   in Activity with **Undo**, which restores the topic tree and assignments as
   they were while nothing has changed since.
 
@@ -478,20 +477,23 @@ Open **Workstreams** in the main navigation panel to access four tabs:
      `Organizing stopped`), summary counts (**Active threads**, **Active
      workstreams**, **No topic**, **Done**), and click **Refresh** or
      **Rebuild…**.
-   - **Suggestions:** Each organizing suggestion is one sentence about groups
-     and threads ("Split Automations into 2 subgroups", "Move Workforest under
-     bb"), with its reason below. They come in two lists:
-     - **Sidebar changes** move threads between groups. Each shows the affected
-       groups **Now** and **After accepting**, side by side, as the sidebar
-       would draw them: moving threads highlighted on both sides, groups marked
-       **New**, **Moved**, or **Removed**, a renamed group with its old name,
-       and unchanged threads and subgroups shortened to a few and a count.
-     - **Group tree tidying** moves no thread: it changes how groups nest and
-       are named, which decides where new threads go. Each shows the group's
-       path now and after (`Workforest → bb › Workforest`).
+   - **Suggestions:** Each organizing suggestion is a headline naming what moves
+     and where ("Split Automations into PR Upkeep and Design", "Move “Record
+     demo video” to PantryPal", "Move Workforest under bb"), the change in a
+     line or two, and its reason. They are listed in three parts:
+     - **Moves threads**, biggest change first. A suggestion moving several
+       threads lists each destination group once with the threads going there
+       (`+` marks a new group, and a thread from another group says where from).
+       Any other change is one `group now → group after` line.
+     - **Tidies groups**: changes to how groups nest and are named that move no
+       thread, which decide where new threads go, each one line
+       (`Workforest → bb › Workforest`).
+     - **Out of date**, collapsed: suggestions that no longer fit because the
+       groups changed since, each with why. Decline them or **Ask now** for
+       fresh ones.
 
-     Click **Accept**, **Decline**, **Accept all**, or **Ask now** for fresh
-     ones. **Recently decided** lists the latest decisions.
+     **Accept all N** accepts every suggestion that can apply. **Recently
+     decided** lists the latest decisions.
 
    - Assign topics directly to **Threads with no topic** or inspect **Derived
      Workstreams** with their active/total counts and grouping policy reason.

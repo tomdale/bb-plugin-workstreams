@@ -1,11 +1,10 @@
 /**
  * Organizing suggestions on the Organization tab, in the sidebar's terms:
- * groups and the threads in them. Suggestions that change the sidebar show
- * the affected groups now and after accepting. Those that only reshape the
- * group tree, moving no thread, are listed apart: they decide where future
- * threads are filed. Each says what it does in one sentence, and its reason
- * follows. Nothing changes until you accept one; a declined suggestion isn't
- * proposed again.
+ * groups and the threads in them. Each is a headline naming what moves and
+ * where, the change in a line or two, and its reason in one. They are listed
+ * by what accepting does: moves threads (biggest first), tidies groups
+ * without moving a thread, or can't apply anymore (collapsed). Nothing
+ * changes until you accept one; a declined suggestion isn't proposed again.
  */
 import { useCallback, useEffect, useState } from "react";
 import { useRealtime, type useRpc } from "@get-bb/plugin-sdk/app";
@@ -15,8 +14,8 @@ import type {
 } from "../../server/contract.ts";
 import { relativeAgeLabel } from "../../domain/presentation.ts";
 import { ghostButton, primaryButton, secondaryButton } from "./controls.ts";
-import { SuggestionChangeMoves } from "./SuggestionChange.tsx";
-import { SidebarPreview } from "./SuggestionPreview.tsx";
+import { movesThreads } from "../../domain/suggestion-change.ts";
+import { SuggestionChangeBody } from "./SuggestionChange.tsx";
 
 type Rpc = ReturnType<typeof useRpc<RpcContract>>;
 type Suggestion = SuggestionsStateWire["suggestions"][number];
@@ -89,14 +88,18 @@ export function Suggestions({
     .filter((s) => s.status !== "pending")
     .slice(0, 5);
   const ready = pending.filter((s) => !s.problem);
-  // A thread suggestion stays with the sidebar changes even when its threads
-  // are gone and it has no preview.
-  const reshapes = (s: Suggestion) =>
-    s.preview === null &&
+  const weight = (s: Suggestion) =>
+    s.change?.moves.reduce((n, m) => n + m.threads.length + m.carried, 0) ?? 0;
+  // A thread suggestion whose threads are gone still lists with the moves.
+  const tidies = (s: Suggestion) =>
     s.change !== null &&
-    !["refile", "split", "file"].includes(s.change.op);
-  const sidebar = pending.filter((s) => !reshapes(s));
-  const tree = pending.filter(reshapes);
+    !["refile", "split", "file"].includes(s.change.op) &&
+    !movesThreads(s.change);
+  const moving = ready
+    .filter((s) => !tidies(s))
+    .sort((a, b) => weight(b) - weight(a));
+  const tidying = ready.filter(tidies);
+  const stale = pending.filter((s) => s.problem);
   const running = busy || state.running;
 
   return (
@@ -104,11 +107,11 @@ export function Suggestions({
       aria-label="Organizing suggestions"
       className="rounded-xl border border-border p-4"
     >
-      <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1 basis-64">
           <h2 className="text-sm font-semibold">Suggestions</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Ways to regroup your threads. Nothing changes until you accept one.
+          <p className="text-xs text-muted-foreground">
+            Nothing changes until you accept one.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -124,7 +127,7 @@ export function Suggestions({
                 )
               }
             >
-              Accept all
+              Accept all {ready.length}
             </button>
           ) : null}
           <button
@@ -139,23 +142,54 @@ export function Suggestions({
       </div>
       {pending.length ? (
         <>
-          {sidebar.length ? (
+          {moving.length ? (
             <SuggestionList
-              title="Sidebar changes"
-              description="Threads change groups. Highlighted threads move."
-              suggestions={sidebar}
+              title="Moves threads"
+              suggestions={moving}
               running={running}
               decide={decide}
             />
           ) : null}
-          {tree.length ? (
+          {tidying.length ? (
             <SuggestionList
-              title="Group tree tidying"
-              description="No threads move. These change how groups nest and are named, which decides where new threads go."
-              suggestions={tree}
+              title="Tidies groups"
+              note="no threads move"
+              suggestions={tidying}
               running={running}
               decide={decide}
             />
+          ) : null}
+          {stale.length ? (
+            <details className="group/stale mt-5">
+              <summary className="flex w-fit cursor-pointer list-none items-center gap-1 text-xs font-semibold tracking-wider text-muted-foreground uppercase hover:text-foreground [&::-webkit-details-marker]:hidden">
+                Out of date ({stale.length})
+                <span className="font-normal tracking-normal normal-case">
+                  · the groups changed since; ask again for fresh ones
+                </span>
+              </summary>
+              <ul className="mt-1 divide-y divide-border">
+                {stale.map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex items-center gap-x-4 py-2 text-xs"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-muted-foreground">{s.headline}</p>
+                      <p className="text-muted-foreground/70">{s.problem}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className={ghostButton}
+                      disabled={running}
+                      aria-label={`Decline: ${s.headline}`}
+                      onClick={() => void decide([s.id], "decline")}
+                    >
+                      Decline
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
           ) : null}
         </>
       ) : (
@@ -168,9 +202,9 @@ export function Suggestions({
         </p>
       )}
       {recent.length ? (
-        <details className="group mt-3 text-xs text-muted-foreground">
+        <details className="mt-4 text-xs text-muted-foreground">
           <summary className="w-fit cursor-pointer list-none hover:text-foreground [&::-webkit-details-marker]:hidden">
-            Recently decided
+            Recently decided ({recent.length})
           </summary>
           <ul className="mt-2 space-y-1">
             {recent.map((s) => (
@@ -199,24 +233,29 @@ export function Suggestions({
 
 function SuggestionList({
   title,
-  description,
+  note,
   suggestions,
   running,
   decide,
 }: {
   title: string;
-  description: string;
+  note?: string;
   suggestions: Suggestion[];
   running: boolean;
   decide: (ids: string[], decision: "accept" | "decline") => Promise<void>;
 }) {
   return (
     <section aria-label={title} className="mt-5">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {title}
+      <h3 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+        {title} ({suggestions.length})
+        {note ? (
+          <span className="font-normal tracking-normal normal-case">
+            {" "}
+            · {note}
+          </span>
+        ) : null}
       </h3>
-      <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
-      <ul className="mt-1 divide-y divide-border">
+      <ul className="divide-y divide-border">
         {suggestions.map((s) => (
           <li key={s.id} className="py-3">
             <div className="flex items-center gap-x-4">
@@ -236,7 +275,7 @@ function SuggestionList({
                 <button
                   type="button"
                   className={primaryButton}
-                  disabled={running || s.problem !== null}
+                  disabled={running}
                   aria-label={`Accept: ${s.headline}`}
                   onClick={() => void decide([s.id], "accept")}
                 >
@@ -244,21 +283,14 @@ function SuggestionList({
                 </button>
               </div>
             </div>
-            {s.preview ? (
-              <div className="mt-2">
-                <SidebarPreview preview={s.preview} />
-              </div>
-            ) : s.change ? (
+            {s.change ? (
               <div className="mt-1">
-                <SuggestionChangeMoves change={s.change} />
+                <SuggestionChangeBody change={s.change} />
               </div>
             ) : null}
             {s.reason ? (
-              <p className="mt-2 text-xs text-muted-foreground">{s.reason}</p>
-            ) : null}
-            {s.problem ? (
-              <p className="mt-1 text-xs text-(--ws-needs-you-strong)">
-                Can't apply now: {s.problem}
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/80">
+                {s.reason}
               </p>
             ) : null}
           </li>

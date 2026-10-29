@@ -12,7 +12,6 @@ import type {
   OrganizerState,
   SuggestionsStateWire,
 } from "../../src/server/contract.ts";
-import type { PreviewGroup } from "../../src/domain/suggestion-preview.ts";
 
 afterEach(cleanup);
 
@@ -47,7 +46,6 @@ const suggestion = (
   problem: null,
   change: null,
   headline: summary,
-  preview: null,
   traceId: null,
   ...extra,
 });
@@ -112,17 +110,14 @@ it("lists suggestions with their reasons, and accepts or declines each", async (
   });
   await screen.findByText("Split Automations into Planning, Triggers");
   expect(screen.getByText("Planning apart from triggers")).toBeTruthy();
-  expect(screen.getByText("Can't apply now: That topic is gone.")).toBeTruthy();
+  // One that can't apply waits under Out of date, with no Accept.
+  expect(screen.getByText("That topic is gone.")).toBeTruthy();
   expect(
-    (
-      screen.getByRole("button", {
-        name: "Accept: Merge Alpha into Beta",
-      }) as HTMLButtonElement
-    ).disabled,
-  ).toBe(true);
+    screen.queryByRole("button", { name: "Accept: Merge Alpha into Beta" }),
+  ).toBeNull();
 
   // Accept all takes only the ones that can apply.
-  expect(screen.getByRole("button", { name: "Accept all" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Accept all 2" })).toBeTruthy();
   fireEvent.click(
     screen.getByRole("button", {
       name: "Decline: Rename Gamma to Gamma Two",
@@ -132,7 +127,7 @@ it("lists suggestions with their reasons, and accepts or declines each", async (
     expect(decide).toHaveBeenCalledWith({ ids: ["s3"], decision: "decline" }),
   );
   await waitFor(() =>
-    expect(screen.queryByRole("button", { name: "Accept all" })).toBeNull(),
+    expect(screen.queryByRole("button", { name: /^Accept all/ })).toBeNull(),
   );
   fireEvent.click(
     screen.getByRole("button", {
@@ -145,7 +140,7 @@ it("lists suggestions with their reasons, and accepts or declines each", async (
       decision: "accept",
     }),
   );
-  await screen.findByText("Recently decided");
+  await screen.findByText("Recently decided (2)");
 });
 
 it("says when there is nothing to review", async () => {
@@ -162,67 +157,49 @@ it("says when there is nothing to review", async () => {
 const at = (...names: string[]) =>
   names.map((name) => ({ name, created: false }));
 
-const group = (
-  name: string,
-  extra: Partial<PreviewGroup> = {},
-): PreviewGroup => ({
-  name,
-  context: false,
-  unfiled: false,
-  created: false,
-  removed: false,
-  moved: false,
-  renamedFrom: null,
-  threads: [],
-  more: 0,
-  groups: [],
-  others: 0,
-  collapsed: null,
-  ...extra,
-});
+const thread = (id: string) => ({ id, title: `Thread ${id}` });
 
-it("previews sidebar changes, and lists tree tidying that moves no thread apart", async () => {
+it("lists thread moves biggest first, then tidying, with out-of-date ones collapsed", async () => {
   await mount({
     suggestions: [
-      suggestion("s1", "File Automations' own threads in PR Upkeep", {
-        kind: "split",
-        headline: "Move 1 thread in Automations into subgroups",
-        reason: "Upkeep apart from design.",
-        preview: {
-          before: [
-            group("Vercel Agent", {
-              context: true,
-              groups: [
-                group("Automations", {
-                  threads: [{ id: "t1", title: "Fix PR checks", moved: true }],
-                  groups: [group("Alert Investigations", { collapsed: 2 })],
-                }),
-              ],
-            }),
-          ],
-          after: [
-            group("Vercel Agent", {
-              context: true,
-              groups: [
-                group("Automations", {
-                  groups: [
-                    group("Alert Investigations", { collapsed: 2 }),
-                    group("PR Upkeep", {
-                      created: true,
-                      threads: [
-                        { id: "t1", title: "Fix PR checks", moved: true },
-                      ],
-                    }),
-                  ],
-                }),
-              ],
-            }),
+      suggestion("s1", "Refile", {
+        headline: "Move “Thread p1” to PantryPal",
+        reason: "Demo videos belong with the product.",
+        change: {
+          op: "refile",
+          moves: [
+            {
+              from: at("Workstreams", "Recap Cards"),
+              to: at("PantryPal"),
+              threads: [thread("p1")],
+              carried: 0,
+            },
           ],
         },
       }),
-      suggestion("s2", "Move Workforest under bb", {
+      suggestion("s2", "Split", {
+        kind: "split",
+        headline: "Split Automations into PR Upkeep and Design",
+        change: {
+          op: "split",
+          moves: [
+            {
+              from: at("Automations"),
+              to: [...at("Automations"), { name: "PR Upkeep", created: true }],
+              threads: [thread("a1"), thread("a2")],
+              carried: 0,
+            },
+            {
+              from: at("Color Settings"),
+              to: [...at("Automations"), { name: "Design", created: true }],
+              threads: [thread("a3")],
+              carried: 0,
+            },
+          ],
+        },
+      }),
+      suggestion("s3", "Move Workforest under bb", {
         headline: "Move Workforest under bb",
-        reason: "Workforest is a bb tool.",
         change: {
           op: "reparent",
           moves: [
@@ -235,42 +212,63 @@ it("previews sidebar changes, and lists tree tidying that moves no thread apart"
           ],
         },
       }),
+      suggestion("s4", "Old split", {
+        kind: "split",
+        headline: "Move “Thread e1” to Evals",
+        problem: "Its threads changed since; ask for suggestions again.",
+      }),
     ],
     running: false,
     lastRunAt: 1,
     error: null,
   });
-  const sidebar = await screen.findByRole("region", {
-    name: "Sidebar changes",
-  });
-  const tree = screen.getByRole("region", { name: "Group tree tidying" });
+  const moves = await screen.findByRole("region", { name: "Moves threads" });
+  // The split moves more threads, so it leads.
   expect(
-    within(sidebar).getByRole("heading", {
-      name: "Move 1 thread in Automations into subgroups",
-    }),
+    within(moves)
+      .getAllByRole("heading", { level: 4 })
+      .map((h) => h.textContent),
+  ).toEqual([
+    "Split Automations into PR Upkeep and Design",
+    "Move “Thread p1” to PantryPal",
+  ]);
+  // Each destination is listed once, with its threads; a thread from
+  // elsewhere says where from.
+  const split = within(moves)
+    .getByRole("heading", { name: /^Split/ })
+    .closest("li")!;
+  expect(
+    within(split)
+      .getAllByRole("listitem")
+      .map((row) => row.textContent),
+  ).toEqual([
+    "+PR Upkeep (new group)Thread a1 · Thread a2",
+    "+Design (new group)Thread a3 (from Color Settings)",
+  ]);
+  // A single move is one from → to line.
+  const refile = within(moves)
+    .getByRole("heading", { name: /^Move “/ })
+    .closest("li")!;
+  expect(within(refile).getByText("From").parentElement!.textContent).toBe(
+    "From Workstreams › Recap Cardsto PantryPal",
+  );
+  expect(
+    within(refile).getByText("Demo videos belong with the product."),
   ).toBeTruthy();
-  const now = within(sidebar).getByRole("region", { name: "Now" });
-  const after = within(sidebar).getByRole("region", {
-    name: "After accepting",
-  });
-  // A lone context group folds into its child's dimmed prefix.
-  expect(within(now).getByText("Automations").textContent).toBe(
-    "Vercel Agent › Automations",
-  );
-  expect(within(now).getByText("Fix PR checks").textContent).toBe(
-    "Moves: Fix PR checks",
-  );
-  expect(within(after).getByText("PR Upkeep").nextSibling?.textContent).toBe(
-    "New",
-  );
-  expect(within(after).getByText("· 2 threads")).toBeTruthy();
-  expect(within(sidebar).getByText("Upkeep apart from design.")).toBeTruthy();
 
-  expect(
-    within(tree).getByRole("heading", { name: "Move Workforest under bb" }),
-  ).toBeTruthy();
-  expect(within(tree).getByText("From").parentElement!.textContent).toBe(
+  const tidying = screen.getByRole("region", { name: "Tidies groups" });
+  expect(within(tidying).getByText("From").parentElement!.textContent).toBe(
     "From Workforestto bb › Workforest",
   );
-  expect(within(tree).queryByRole("region", { name: "Now" })).toBeNull();
+
+  // Out-of-date suggestions wait collapsed at the end, and Accept all
+  // counts only the ones that can apply.
+  expect(screen.getByText("Out of date (1)")).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Decline: Move “Thread e1” to Evals" }),
+  ).toBeTruthy();
+  expect(
+    screen.queryByRole("button", { name: "Accept: Move “Thread e1” to Evals" }),
+  ).toBeNull();
+  expect(screen.getByRole("button", { name: "Accept all 3" })).toBeTruthy();
 });

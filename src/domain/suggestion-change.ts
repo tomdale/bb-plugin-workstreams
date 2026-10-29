@@ -260,25 +260,41 @@ export function changeLines(change: SuggestionChange): string[] {
 }
 
 const leaf = (place: TopicPlace) => place.at(-1)?.name ?? "the top level";
-const count = (n: number, noun: string) =>
-  n === 0 ? `${noun}s` : `${n} ${noun}${n === 1 ? "" : "s"}`;
+const list = (names: readonly string[]) =>
+  names.length > 2
+    ? `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`
+    : names.join(" and ");
+
+/** Whether accepting moves any visible thread, by itself or with its group. */
+export function movesThreads(change: SuggestionChange): boolean {
+  return change.moves.some((m) => m.threads.length > 0 || m.carried > 0);
+}
 
 /**
- * What a suggestion does, as a sentence of groups and threads: "Split
- * Automations into 2 subgroups", "Move Workforest under bb".
+ * What a suggestion does, as verb, subject, and destination: "Split
+ * Automations into PR Upkeep and Design", "Move “Fix CI” to Evals", "Move
+ * Workforest under bb". The destination is always named, so a list of
+ * headlines reads as a list of changes.
  */
 export function changeHeadline(change: SuggestionChange): string {
   const [first] = change.moves;
   if (!first) return "Change groups";
-  const threads = change.moves.reduce((n, m) => n + m.threads.length, 0);
+  const threads = change.moves.flatMap((m) => m.threads);
   const group = leaf(first.to.slice(0, -1));
+  const destinations = [...new Set(change.moves.map((m) => leaf(m.to)))];
+  // A suggestion whose threads are gone since names no count.
+  const count = threads.length ? `${threads.length} ` : "";
   switch (change.op) {
     case "refile":
-      return `Move ${count(threads, "thread")} to ${leaf(first.to)}`;
     case "split":
-      return `Split ${group} into ${count(new Set(change.moves.map((m) => leaf(m.to))).size, "subgroup")}`;
     case "file":
-      return `Move ${count(threads, "thread")} in ${group} into subgroups`;
+      if (change.op === "split" && destinations.length > 1)
+        return `Split ${group} into ${list(destinations)}`;
+      if (destinations.length > 1)
+        return `Move ${count}${group} threads into ${list(destinations)}`;
+      return threads.length === 1
+        ? `Move “${threads[0]!.title}” to ${destinations[0]}`
+        : `Move ${count}threads to ${destinations[0]}`;
     case "merge":
       return `Merge ${leaf(first.from ?? [])} into ${leaf(first.to)}`;
     case "reparent":
@@ -287,11 +303,9 @@ export function changeHeadline(change: SuggestionChange): string {
         : `Move ${leaf(first.to)} to the top level`;
     case "rename":
       return `Rename ${leaf(first.from ?? [])} to ${leaf(first.to)}`;
-    case "create": {
-      if (!first.from)
-        return `Create ${leaf(first.to)}${first.to.length > 1 ? ` under ${group}` : ""}`;
-      const names = change.moves.map((m) => leaf(m.to));
-      return `Group ${names.length > 2 ? `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}` : names.join(" and ")} under a new ${group}`;
-    }
+    case "create":
+      return first.from
+        ? `Group ${list(change.moves.map((m) => leaf(m.to)))} under a new ${group}`
+        : `Create ${leaf(first.to)}${first.to.length > 1 ? ` under ${group}` : ""}`;
   }
 }

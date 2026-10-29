@@ -39,10 +39,6 @@ import {
   type ChangeContext,
   type SuggestionChange,
 } from "../domain/suggestion-change.ts";
-import {
-  suggestionPreview,
-  type SuggestionPreview,
-} from "../domain/suggestion-preview.ts";
 import { topicPath } from "../domain/topic-path.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal } from "./journal.ts";
@@ -80,12 +76,6 @@ export type SuggestionView = {
   change: SuggestionChange | null;
   /** What it does in a sentence, while `change` is known; else `summary`. */
   headline: string;
-  /**
-   * The affected sidebar groups now and after accepting, when it moves a
-   * visible thread to a differently named group; null when it changes only
-   * the topic tree.
-   */
-  preview: SuggestionPreview | null;
   traceId: string | null;
 };
 
@@ -228,7 +218,6 @@ export class Suggestions {
               : null,
         change: review?.change ?? null,
         headline: review?.change ? changeHeadline(review.change) : row.summary,
-        preview: review?.preview ?? null,
         traceId: row.trace_id,
       };
     });
@@ -617,7 +606,7 @@ export class Suggestions {
     row: Row,
     tree: TreeState,
     known: { topics: readonly Topic[]; titles: ReadonlyMap<string, string> },
-  ): { change: SuggestionChange | null; preview: SuggestionPreview | null } {
+  ): { change: SuggestionChange | null } {
     const body = JSON.parse(row.body) as TidyEdit | Split;
     const creates = new Map(
       (
@@ -646,10 +635,7 @@ export class Suggestions {
       title: (id) => known.titles.get(id) ?? "Untitled thread",
       creates,
     };
-    return {
-      change: suggestionChange(edit, context),
-      preview: suggestionPreview(edit, context),
-    };
+    return { change: suggestionChange(edit, context) };
   }
 
   private problem(row: Row, tree: TreeState): string | null {

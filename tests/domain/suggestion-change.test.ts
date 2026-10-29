@@ -278,9 +278,9 @@ describe("changeHeadline", () => {
   const headline = (body: Parameters<typeof suggestionChange>[0]) =>
     changeHeadline(suggestionChange(body, context())!);
 
-  it("says what each suggestion does to which groups", () => {
+  it("names what moves and where", () => {
     expect(headline({ op: "move", thread: "t1", topic: "todo" })).toBe(
-      "Move 1 thread to Todo Plugin",
+      "Move “Thread t1” to Todo Plugin",
     );
     expect(
       headline({
@@ -290,14 +290,31 @@ describe("changeHeadline", () => {
           { name: "Sidebar", description: "", threadIds: ["t2"] },
         ],
       }),
-    ).toBe("Split Toolbelt into 2 subgroups");
+    ).toBe("Split Toolbelt into Shell and Sidebar");
     expect(
       headline({
         topicId: "auto",
         repair: true,
         subgroups: [{ name: "Alerts", description: "", threadIds: ["t3"] }],
       }),
-    ).toBe("Move 1 thread in Automations into subgroups");
+    ).toBe("Move “Thread t3” to Alerts");
+    expect(
+      headline({
+        topicId: "toolbelt",
+        repair: true,
+        subgroups: [
+          { name: "Shell", description: "", threadIds: ["t1"] },
+          { name: "Sidebar", description: "", threadIds: ["t2"] },
+        ],
+      }),
+    ).toBe("Move 2 Toolbelt threads into Shell and Sidebar");
+    // Threads gone since leave no count.
+    expect(
+      headline({
+        topicId: "toolbelt",
+        subgroups: [{ name: "Shell", description: "", threadIds: ["gone"] }],
+      }),
+    ).toBe("Move threads to Shell");
     expect(headline({ op: "merge", from: "auto", into: "todo" })).toBe(
       "Merge Automations into Todo Plugin",
     );
