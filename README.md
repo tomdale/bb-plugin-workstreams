@@ -463,6 +463,7 @@ Open **Settings → Workstreams** to configure:
 | **Sidebar**           | **Timestamp**                                      | `Always`                                    | Show each row's age, right after its title, `Always`, `On hover`, or `Never`.                                                                                                  |
 | **Sidebar**           | **Thread count** / **Waiting count**               | `When collapsed`                            | Show workstream counts `Always`, `When collapsed`, or `Never`.                                                                                                                 |
 | **Working indicator** | **Style**, **Color**, **Track**                    | `Spokes`, `Subtle gray`, `Faded color`      | Choose from `7` spinner shapes (`Spokes`, `Sunburst`, `Arc`, `Orbit`, `Ring`, `Braille`, `Dots`), named or custom `#rrggbb` colors, and track styles for `Arc`/`Orbit`/`Ring`. |
+| **Colors**            | Six colors, **Complete** to **Suggestions**        | Workstreams default                         | Each keeps its own shades, follows a BB theme color, or uses a custom `#rrggbb` whose text is lightened or darkened per mode.                                                  |
 | **Threads**           | **Full analysis model**                            | `openai/gpt-6-sol-fast`                     | Model used at turn end to settle goals, topics, and fallback status.                                                                                                           |
 | **Threads**           | **Keep titles current**                            | `On`                                        | Automatically titles new threads and updates titles as focus evolves. Outside manual title edits stay locked until cleared.                                                    |
 | **Threads**           | **Show parent thread link**                        | `Off`                                       | Shows a parent-thread pill in delegate thread headers.                                                                                                                         |
@@ -616,6 +617,10 @@ npm run typecheck
 npx vitest run
 npm run build
 ```
+
+The app draws with its color tokens (`src/app/theme/tokens.css`) and BB's theme
+variables; `tests/app/color-lint.test.ts` fails on Tailwind palette classes and
+color literals in `src/app`.
 
 Then run the repository's `scripts/bb-plugin-smoke` against this package to
 verify activation in an isolated throwaway BB server. Opt-in model evaluations

@@ -29,6 +29,8 @@ import {
 } from "./settings/FeatureSettings.tsx";
 import { WorkstreamsThreadList } from "./sidebar/ThreadList.tsx";
 import { RecapSettings } from "./recap/RecapSettings.tsx";
+import { ColorSettings } from "./settings/ColorSettings.tsx";
+import { ColorTokenStyle } from "./theme/ColorTokenStyle.tsx";
 import {
   SnoozeHeaderAction,
   headerSnoozers,
@@ -39,9 +41,14 @@ import {
   openNextUpThread,
 } from "./upNext/NextUpCommand.tsx";
 import { WORKSTREAM_ICON } from "./workstream-icon.ts";
+import "./theme/tokens.css";
 import "./styles.css";
 
 export default definePluginApp((app) => {
+  app.slots.experimental_appOverlay({
+    id: "color-tokens",
+    component: ColorTokenStyle,
+  });
   app.slots.experimental_appOverlay({
     id: "delivered-questions",
     component: DeliveredQuestionCards,
@@ -153,6 +160,11 @@ export default definePluginApp((app) => {
     id: "working-indicator",
     title: "Working indicator",
     component: WorkingIndicatorSettings,
+  });
+  app.slots.settingsSection({
+    id: "colors",
+    title: "Colors",
+    component: ColorSettings,
   });
   app.slots.settingsSection({
     id: "threads",

@@ -7,6 +7,7 @@
  * Recap, snooze, and working-indicator preferences keep their own stores.
  */
 import { z } from "zod";
+import { colorChoiceSchema, DEFAULT_COLORS } from "./colors.ts";
 
 /**
  * A model Workstreams calls. `gateway` names an AI Gateway model directly
@@ -121,6 +122,15 @@ const GROUPS = {
      * a larger one gets a workstream for each topic with threads.
      */
     collapseAt: [z.number().int().min(0).max(99), 3],
+  },
+  /** Workstreams' color tokens (domain/colors.ts): a BB theme color or a custom color each. */
+  colors: {
+    complete: [colorChoiceSchema, DEFAULT_COLORS.complete],
+    review: [colorChoiceSchema, DEFAULT_COLORS.review],
+    waiting: [colorChoiceSchema, DEFAULT_COLORS.waiting],
+    needsYou: [colorChoiceSchema, DEFAULT_COLORS.needsYou],
+    failure: [colorChoiceSchema, DEFAULT_COLORS.failure],
+    suggestion: [colorChoiceSchema, DEFAULT_COLORS.suggestion],
   },
   advanced: {
     /** The machine whose Pi key runs gateway calls; "" picks the only one. */

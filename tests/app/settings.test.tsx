@@ -3,6 +3,7 @@ import { afterEach, expect, it } from "vitest";
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { parsePrefs, mergePrefs } from "../../src/domain/prefs.ts";
+import { chooseOption } from "./select.ts";
 
 afterEach(cleanup);
 
@@ -49,6 +50,7 @@ it("registers settings in feature order", async () => {
   expect(app.settingsSections.map(({ id, title }) => [id, title])).toEqual([
     ["sidebar", "Sidebar"],
     ["working-indicator", "Working indicator"],
+    ["colors", "Colors"],
     ["threads", "Threads"],
     ["recap", "Recap"],
     ["snooze", "Snooze"],
@@ -369,4 +371,92 @@ it("shows the Analysis machine only when more than one machine is connected", as
       ),
     ).toBe(true),
   );
+});
+
+it("lists every color token with BB's theme colors and a custom color", async () => {
+  const slot = await mount("colors");
+  for (const name of [
+    "Complete",
+    "Review",
+    "Waiting",
+    "Needs you",
+    "Failure",
+    "Suggestions",
+  ])
+    expect(
+      await slot.findByRole("combobox", { name: `${name} color` }),
+    ).toBeTruthy();
+  expect(
+    slot.getByRole("combobox", { name: "Complete color" }).textContent,
+  ).toBe("Workstreams default");
+  expect(slot.queryByRole("textbox")).toBeNull();
+  expect(slot.container.querySelector('input[type="color"]')).toBeNull();
+});
+
+it("saves a theme color and a custom color for one token at a time", async () => {
+  const slot = await mount("colors");
+  chooseOption(
+    await slot.findByRole("combobox", { name: "Review color" }),
+    "Destructive",
+  );
+  chooseOption(
+    slot.getByRole("combobox", { name: "Failure color" }),
+    "Custom color",
+  );
+  const input = await slot.findByLabelText("Failure custom color");
+  fireEvent.change(input, { target: { value: "#AA3366" } });
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
+    ).toHaveLength(3),
+  );
+  chooseOption(
+    slot.getByRole("combobox", { name: "Review color" }),
+    "Workstreams default",
+  );
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
+    ).toHaveLength(4),
+  );
+  expect(
+    slot.inspection.rpcCalls
+      .filter((call) => call.method === "setPrefs")
+      .map((call) => call.input),
+  ).toEqual([
+    { patch: { colors: { review: { kind: "theme", color: "destructive" } } } },
+    // jsdom can't paint, so the picker starts from the neutral fallback.
+    { patch: { colors: { failure: { kind: "custom", color: "#808080" } } } },
+    { patch: { colors: { failure: { kind: "custom", color: "#aa3366" } } } },
+    { patch: { colors: { review: { kind: "default" } } } },
+  ]);
+});
+
+it("writes the chosen colors over the token defaults, and nothing at the defaults", async () => {
+  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
+  const overlay = app.appOverlays.find((entry) => entry.id === "color-tokens")!;
+  const styles = () =>
+    document.head.querySelectorAll("style[data-ws-color-tokens]");
+  let prefs = parsePrefs({});
+  const atDefaults = renderSlot(
+    overlay,
+    {},
+    { rpc: { prefs: () => ({ prefs }) } },
+  );
+  await waitFor(() =>
+    expect(
+      atDefaults.inspection.rpcCalls.some((call) => call.method === "prefs"),
+    ).toBe(true),
+  );
+  expect(styles()).toHaveLength(0);
+  atDefaults.lifecycle.unmount();
+
+  prefs = mergePrefs(prefs, {
+    colors: { complete: { kind: "custom", color: "#228833" } },
+  });
+  const custom = renderSlot(overlay, {}, { rpc: { prefs: () => ({ prefs }) } });
+  await waitFor(() => expect(styles()).toHaveLength(1));
+  expect(styles()[0]!.textContent).toContain("--ws-complete: #228833;");
+  custom.lifecycle.unmount();
+  expect(styles()).toHaveLength(0);
 });

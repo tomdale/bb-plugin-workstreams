@@ -4,6 +4,7 @@ import {
   parsePrefs,
   prefsPatchSchema,
 } from "../../src/domain/prefs.ts";
+import { DEFAULT_COLORS } from "../../src/domain/colors.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import {
   loadPrefs,
@@ -108,6 +109,7 @@ describe("Workstreams prefs", () => {
         fullModel: { kind: "gateway", model: "openai/old-organize" },
       },
       organize: { collapseAt: 3 },
+      colors: DEFAULT_COLORS,
       advanced: { hostId: "host-a", debug: true },
     });
     expect(migrateLegacyPrefs({}).analysis.fullModel).toEqual(

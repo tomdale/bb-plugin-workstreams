@@ -141,7 +141,9 @@ Quick analysis and Full analysis have separate model settings. The Quick
 analysis model remains available when typing suggestions are disabled because
 first-send analysis still uses it. The contraction threshold configures
 grouping; existing title, sidebar, recap, snooze, and display preferences
-remain.
+remain. Six color tokens (complete, review, waiting, needs you, failure,
+suggestions) each keep their Workstreams default, follow a BB theme color, or
+use a custom `#rrggbb`; only those forms are accepted.
 
 Quick analysis defaults to schema-constrained `openai/gpt-6-luna-fast` with
 reasoning disabled. Its title and topic validate independently. Invalid topic
