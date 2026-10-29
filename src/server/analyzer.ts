@@ -1,5 +1,5 @@
 /**
- * Full analysis queue (SPEC §3). A turn's end schedules it after a short
+ * Full analysis queue. A turn's end schedules it after a short
  * debounce, a new turn cancels the pending run, and at most four runs are in
  * flight, each a Full analysis call and, for a root, a placement call. Results are keyed to the thread's revision, so a result from an
  * older turn renders as pending rather than current.
@@ -14,7 +14,7 @@
  *   the settled goal carries forward; without one, only the status is asked.
  *
  * The goal reaches BB, as the thread's title, only through `onResult` and the
- * retitle policy (SPEC §3); the topic only through `topics.apply`.
+ * retitle policy; the topic only through `topics.apply`.
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { createHash } from "node:crypto";
@@ -743,7 +743,7 @@ export class Analyzer {
   }
 
   /**
-   * The thread's workstream is its root's section (SPEC §1), walked through
+   * The thread's workstream is its root's section, walked through
    * the reconciler's snapshot of parent links.
    */
   private placement(threadId: string): {

@@ -1,5 +1,5 @@
 /**
- * Live evaluation of Full analysis, Quick analysis, and placement (SPEC §10).
+ * Live evaluation of Full analysis, Quick analysis, and placement.
  * Opt-in and never part of `npm test`: it calls models through Pi's AI
  * Gateway.
  *

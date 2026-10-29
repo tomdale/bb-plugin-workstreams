@@ -3,7 +3,7 @@
  * workstreams, and the Recent band, then one group per remaining workstream
  * (BB section, in the user's drag-and-drop order, else BB's), Unfiled, a
  * Dormant fold, and a Snoozed fold. Up Next and Recent are overlays: every
- * visible thread appears in exactly one group, or in Snoozed (SPEC §1).
+ * visible thread appears in exactly one group, or in Snoozed.
  *
  * Workstreams nest by topic (see `nestGroups`): a group lists its own
  * threads, then its subgroups, each indented one step.

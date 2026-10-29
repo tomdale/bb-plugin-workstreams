@@ -159,5 +159,4 @@ visible-root counts, the grouping rule, and agent-report coverage.
 `bb workstreams organization --rebuild` runs a fresh pass. `bb workstreams log`
 shows Activity, including a sidebar move and its automatic reversion.
 
-The composer preview is Quick analysis, not an organization preview. See the
-[plugin specification](../SPEC.md) for the lifecycle contract.
+The composer preview is Quick analysis, not an organization preview.

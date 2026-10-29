@@ -1,5 +1,5 @@
 /**
- * The New thread composer’s preview of a draft (SPEC §2): the topic and goal
+ * The New thread composer’s preview of a draft: the topic and goal
  * a new thread would start with, from Quick analysis, or the topic of a
  * workstream the draft mentions. It changes nothing, and it never sends the
  * draft anywhere: the composer creates the thread, and the topic decides its

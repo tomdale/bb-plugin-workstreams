@@ -89,7 +89,6 @@
     "hooks",
     "README.md",
     "PLUGIN_OVERVIEW.md",
-    "SPEC.md",
     "tsconfig.json"
   ]
 }

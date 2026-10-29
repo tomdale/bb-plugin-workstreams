@@ -1,5 +1,5 @@
 /**
- * Placement (SPEC §2–3): one closed-set call settles a root's topic from its
+ * Placement: one closed-set call settles a root's topic from its
  * requests, when the thread starts and again when a turn ends after a new
  * request. The analyzer asks and applies it alongside Full analysis, with the
  * same freshness checks; the first request is placed here directly.

@@ -483,7 +483,7 @@ export function parseFullAnalysis(
 /**
  * A result describes the thread only while it is idle at the revision that
  * was analyzed. A starting or running turn, or a newer completed one, makes it
- * pending. A failed turn gets no analysis (SPEC §3), so a thread in
+ * pending. A failed turn gets no analysis, so a thread in
  * error has no current result either.
  */
 export function isCurrent(

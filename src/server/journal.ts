@@ -28,9 +28,9 @@ export const actionSchema = z.enum([
   /** A retained workstream proposal entry from an earlier plugin version. */
   "proposal",
   "edit-workstream",
-  /** A thread started from the New thread composer (SPEC §2). */
+  /** A thread started from the New thread composer. */
   "route",
-  /** A thread's title kept current by analysis (SPEC §3). */
+  /** A thread's title kept current by analysis. */
   "retitle",
   /** Discovered topics that nothing used any more were removed. */
   "remove-topic",

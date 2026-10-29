@@ -52,7 +52,7 @@ export function gatewayModel(choice: ModelChoice): string | null {
   return null;
 }
 
-/** Eval-tested defaults (see SPEC.md and eval/). */
+/** Eval-tested defaults (see eval/). */
 export const DEFAULT_MODELS = {
   /** Quick analysis: a draft or first request, while you wait. */
   quick: {

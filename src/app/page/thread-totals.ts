@@ -1,7 +1,7 @@
 /**
  * Live task-root and child-thread totals from BB's sidebar list. Organize
  * reports roots and the child threads that follow them separately, since a
- * tree's workstream is its root's section (SPEC §1).
+ * tree's workstream is its root's section.
  */
 import { useMemo } from "react";
 import { experimental_useSidebarThreads } from "@get-bb/plugin-sdk/app";

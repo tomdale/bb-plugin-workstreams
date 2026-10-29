@@ -17,4 +17,4 @@ The sidebar includes Up Next, Recent, workstream groups, snooze, and archive vie
 
 The recap tool's `goal` field remains unchanged for compatibility with running agent sessions.
 
-See [README.md](README.md) for usage and [SPEC.md](SPEC.md) for the product contract.
+See [README.md](README.md) for usage and [docs/organization.md](docs/organization.md) for the organizer.

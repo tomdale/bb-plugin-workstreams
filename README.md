@@ -782,6 +782,5 @@ color literals in `src/app`.
 Then run the repository's `scripts/bb-plugin-smoke` against this package to
 verify activation in an isolated throwaway BB server. Opt-in model evaluations
 live in [eval/README.md](eval/README.md) (they make paid model calls and are not
-part of the unit test suite). See [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md),
-[SPEC.md](SPEC.md), and [docs/organization.md](docs/organization.md) for
-architectural and specification details.
+part of the unit test suite). See [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md) and
+[docs/organization.md](docs/organization.md) for architectural details.
