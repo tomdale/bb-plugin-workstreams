@@ -55,6 +55,8 @@ export type ServerState = {
   snoozes: Record<string, ThreadSnooze>;
   snoozePrefs: SnoozePrefs;
   catalog?: TopicState;
+  /** Organizing suggestions waiting for your decision. */
+  pendingSuggestions?: number;
 };
 
 export type ReorderChange =

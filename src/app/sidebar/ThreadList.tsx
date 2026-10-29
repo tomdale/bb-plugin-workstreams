@@ -36,6 +36,7 @@ import {
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
+import { WORKSTREAM_ICON } from "../workstream-icon.ts";
 import { cn } from "@/lib/utils";
 import {
   UNFILED_NAME,
@@ -978,6 +979,24 @@ export function WorkstreamsThreadList({
               ))}
             </SortableContext>
           </Band>
+        ) : null}
+        {(ws.server.pendingSuggestions ?? 0) > 0 ? (
+          <button
+            type="button"
+            onClick={() =>
+              navigate.toPluginPanel("home", { subPath: "organization" })
+            }
+            className="mx-1 flex h-7 items-center gap-1.5 rounded-md px-2 text-left text-xs text-muted-foreground hover:bg-state-hover hover:text-foreground"
+          >
+            <Icon
+              name={WORKSTREAM_ICON}
+              className="size-3.5 shrink-0"
+              aria-hidden
+            />
+            {ws.server.pendingSuggestions === 1
+              ? "1 organizing suggestion"
+              : `${ws.server.pendingSuggestions} organizing suggestions`}
+          </button>
         ) : null}
       </div>
     </div>

@@ -24,6 +24,7 @@ import { TaskIdentity } from "../task/TaskIdentity.tsx";
 import { WorkstreamName } from "../WorkstreamName.tsx";
 import { TAG_ICON } from "../workstream-icon.ts";
 import { Reclassification } from "./Reclassification.tsx";
+import { Suggestions } from "./Suggestions.tsx";
 
 type Rpc = ReturnType<typeof useRpc<RpcContract>>;
 
@@ -142,6 +143,8 @@ export function Organize({
         onRefresh={() => void read()}
         onShowActivity={onShowActivity}
       />
+
+      <Suggestions rpc={rpc} onChanged={() => void read()} />
 
       {state && state.counts ? <CountsSummary counts={state.counts} /> : null}
 
