@@ -60,7 +60,7 @@ function marker(item: ReplyItem, label: string) {
     return {
       path: CHECK,
       name: "Done",
-      className: "text-emerald-700 dark:text-emerald-300",
+      className: "text-(--ws-complete-text)",
     };
   if (checked === false)
     return {
