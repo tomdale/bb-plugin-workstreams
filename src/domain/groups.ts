@@ -284,6 +284,8 @@ export type GroupArrangement<T extends WorkstreamThread> = {
   readonly tiered: boolean;
   /** There is anything below the focused groups to reveal. */
   readonly hasLower: boolean;
+  /** Counts on the hidden groups' headers, including Unfiled and Dormant. */
+  readonly lowerCounts: { readonly needsYou: number; readonly total: number };
 };
 
 /**
@@ -342,6 +344,13 @@ export function arrangeGroups<T extends WorkstreamThread>(
   }
   const pinned = sortTree(pinnedNodes, sort);
   const other = sortTree(otherNodes, sort);
+  const lowerCounts = [...other, ...dormant, projection.unsorted].reduce(
+    (counts, group) => ({
+      needsYou: counts.needsYou + group.needsYou,
+      total: counts.total + group.total,
+    }),
+    { needsYou: 0, total: 0 },
+  );
   return {
     pinned,
     other,
@@ -350,6 +359,7 @@ export function arrangeGroups<T extends WorkstreamThread>(
     dormant: sortTree(dormant, "manual"),
     unfiled: projection.unsorted,
     tiered: pinned.length > 0,
+    lowerCounts,
     hasLower:
       other.length > 0 || projection.unsorted.total > 0 || dormant.length > 0,
   };

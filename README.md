@@ -282,11 +282,8 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    open another thread. Nested delegates do not appear as separate Up Next
    entries; find them in their workstream's thread tree.
    - **Focus:** While a focused workstream has a thread blocked on you, Up Next
-     applies these rules to focused workstreams' threads only, marks its header
-     with the focus icon, and labels the count on **Show other workstreams** as
-     threads waiting on you elsewhere, not the number of hidden workstreams.
-     Waiting counts use the amber attention treatment on the toggle and group
-     headers; total thread counts are plain grey numbers.
+     applies these rules to focused workstreams' threads only and marks its
+     header with the focus icon.
 
 2. **Workstreams (focused and other tiers):**
    - **Nesting:** Workstreams nest as the organizer laid them out (see
@@ -307,7 +304,9 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    - Click the **Focus** button (viewfinder icon) on any workstream header to
      pin it to the top tier. When at least one workstream is focused, the other
      workstreams, **Unfiled**, and **Dormant** collapse behind **Show/Hide other
-     workstreams**.
+     workstreams**. While collapsed, the toggle sums their waiting and total
+     thread counts, using the same amber and grey treatments and count settings
+     as workstream headers.
    - Click **New work in \<workstream\>** (`＋`) on a header or subgroup header
      to open the composer pre-seeded with that topic.
    - Click **Snooze** (alarm-clock icon) on a header or subgroup header to

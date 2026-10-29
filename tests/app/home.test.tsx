@@ -387,12 +387,14 @@ describe("Home screen", () => {
       expect(regionNames(slot)).toEqual(["Up Next", "Workstreams", "Zeta"]);
       expect(links(region(slot, "Zeta"))).toEqual(["Zeta asks", "Zeta quiet"]);
       const toggle = slot.getByRole("button", {
-        name: "Show other workstreams, 1 waiting on you",
+        name: "Show other workstreams, 1 waiting on you, 3 threads",
       });
-      // The visible label counts blocked threads, not the groups revealed.
-      const count = within(toggle).getByText("1 waiting on you");
-      expect(count.closest('[aria-hidden="true"], .sr-only')).toBeNull();
-      expect(count.classList.contains("ws-needs-you-pill")).toBe(true);
+      const count = toggle.querySelector(".ws-needs-you-pill");
+      expect(count?.textContent).toBe("1");
+      expect(
+        count?.nextElementSibling?.classList.contains("ws-home-total"),
+      ).toBe(true);
+      expect(count?.nextElementSibling?.textContent).toBe("3");
       fireEvent.click(toggle);
       expect(regionNames(slot)).toEqual([
         "Up Next",
@@ -739,6 +741,42 @@ describe("Home screen with a focused workstream", () => {
       slot.queryByRole("button", { name: /other workstreams/ }),
     ).toBeNull();
   });
+
+  it.each([
+    [
+      { waitingCount: "collapsed", threadCount: "collapsed" },
+      "Show other workstreams, 1 waiting on you, 2 threads",
+    ],
+    [
+      { waitingCount: "never", threadCount: "always" },
+      "Show other workstreams, 2 threads",
+    ],
+    [
+      { waitingCount: "always", threadCount: "never" },
+      "Show other workstreams, 1 waiting on you",
+    ],
+    [{ waitingCount: "never", threadCount: "never" }, "Show other workstreams"],
+  ] as const)(
+    "respects count settings on the collapsed toggle: %j",
+    async (prefs, name) => {
+      const slot = await mountHome({
+        threads: [
+          zeta("z", "Focused quiet"),
+          sidebarThread("a1", {
+            sectionId: "sec_a",
+            hasPendingInteraction: true,
+          }),
+          sidebarThread("a2", { sectionId: "sec_a" }),
+        ],
+        prefs,
+        order: { prioritized: ["sec_z"] },
+      });
+      const toggle = await slot.findByRole("button", { name });
+      fireEvent.click(toggle);
+      const hide = slot.getByRole("button", { name: "Hide other workstreams" });
+      expect(hide.querySelector(".ws-home-counts")).toBeNull();
+    },
+  );
 
   it("keeps the attention treatment for waiting counts when Up Next is switched off", async () => {
     const slot = await mountHome({

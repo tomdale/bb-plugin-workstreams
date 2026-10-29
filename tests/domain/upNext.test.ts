@@ -307,7 +307,6 @@ describe("selectUpNext", () => {
     expect(focused.focused).toBe(true);
     // The rules then apply to prioritized threads alone.
     expect(ids(focused.rows)).toEqual(["rr1", "or1"]);
-    expect(ids(focused.elsewhere)).toEqual(["qu1", "ru1"]);
   });
 
   it("doesn't focus while prioritized workstreams have nothing blocked on you", () => {
@@ -326,7 +325,6 @@ describe("selectUpNext", () => {
     });
     expect(selection.focused).toBe(false);
     expect(ids(selection.rows)).toEqual(["qr1", "ou1"]);
-    expect(selection.elsewhere).toEqual([]);
   });
 
   describe("Show more", () => {

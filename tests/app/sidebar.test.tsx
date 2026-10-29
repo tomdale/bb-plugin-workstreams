@@ -554,7 +554,7 @@ describe("thread list", () => {
     await slot.findByRole("region", { name: "Alpha" });
     expect(slot.queryByRole("region", { name: "Zeta" })).toBeNull();
     expect(
-      slot.queryByRole("button", { name: "Show other workstreams" }),
+      slot.queryByRole("button", { name: /^Show other workstreams/ }),
     ).toBeNull();
     slot.lifecycle.unmount();
   });
@@ -2489,7 +2489,7 @@ describe("row hover buttons", () => {
       );
     await waitFor(() => expect(revealed()).toEqual(["Stop focusing on Beta"]));
     fireEvent.click(
-      slot.getByRole("button", { name: "Show other workstreams" }),
+      slot.getByRole("button", { name: /^Show other workstreams/ }),
     );
     await waitFor(() =>
       expect(revealed()).toEqual(["Stop focusing on Beta", "New work in Zeta"]),
@@ -2672,11 +2672,14 @@ describe("focused workstreams", () => {
     // The toggle and revealed groups use the same attention treatment for
     // threads blocked on you.
     const toggle = slot.getByRole("button", {
-      name: "Show other workstreams, 2 waiting on you",
+      name: "Show other workstreams, 2 waiting on you, 4 threads",
     });
-    const count = within(toggle).getByText("2 waiting on you");
-    expect(count.closest('[aria-hidden="true"], .sr-only')).toBeNull();
-    expect(count.classList.contains("ws-needs-you-pill")).toBe(true);
+    const count = toggle.querySelector(".ws-needs-you-pill");
+    expect(count?.textContent).toBe("2");
+    expect(count?.nextElementSibling?.textContent).toBe("4");
+    expect(count?.nextElementSibling?.className).not.toContain(
+      "ws-needs-you-pill",
+    );
     fireEvent.click(toggle);
     expect(slot.getByRole("region", { name: "Alpha" })).toBeTruthy();
     expect(slot.getByRole("region", { name: "Beta" })).toBeTruthy();
@@ -2731,10 +2734,51 @@ describe("focused workstreams", () => {
       ),
     ).toBeNull();
     expect(
-      unfocused.getByRole("button", { name: "Show other workstreams" }),
+      unfocused.getByRole("button", {
+        name: "Show other workstreams, 2 waiting on you, 3 threads",
+      }),
     ).toBeTruthy();
     unfocused.lifecycle.unmount();
   });
+
+  it.each([
+    [
+      { waitingCount: "collapsed", threadCount: "collapsed" },
+      "Show other workstreams, 1 waiting on you, 2 threads",
+    ],
+    [
+      { waitingCount: "never", threadCount: "always" },
+      "Show other workstreams, 2 threads",
+    ],
+    [
+      { waitingCount: "always", threadCount: "never" },
+      "Show other workstreams, 1 waiting on you",
+    ],
+    [{ waitingCount: "never", threadCount: "never" }, "Show other workstreams"],
+  ])(
+    "respects count settings on the collapsed toggle: %j",
+    async (settings, name) => {
+      const slot = await mount(
+        [
+          asking("a1", "sec_a", 100),
+          sidebarThread("a2", { sectionId: "sec_a" }),
+          sidebarThread("z1", { sectionId: "sec_z" }),
+        ],
+        {
+          activeThreadId: null,
+          settings,
+          order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
+        },
+      );
+      const toggle = await slot.findByRole("button", { name });
+      expect(toggle.getAttribute("aria-expanded")).toBe("false");
+      fireEvent.click(toggle);
+      const hide = slot.getByRole("button", { name: "Hide other workstreams" });
+      expect(hide.querySelector(".ws-needs-you-pill")).toBeNull();
+      expect(hide.textContent).toBe("Hide other workstreams");
+      slot.lifecycle.unmount();
+    },
+  );
 
   it("hides other workstreams until revealed, then shows them collapsed", async () => {
     const slot = await mount(
@@ -2751,7 +2795,9 @@ describe("focused workstreams", () => {
     );
     await waitFor(() => expect(regions(slot)).toEqual(["Zeta"]));
     expect(groupRows(slot, "Zeta")).toEqual(["Zeta task"]);
-    const show = slot.getByRole("button", { name: "Show other workstreams" });
+    const show = slot.getByRole("button", {
+      name: "Show other workstreams, 2 threads",
+    });
     expect(show.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(show);
     expect(regions(slot)).toEqual(["Zeta", "Alpha", "Unfiled", "Beta"]);
@@ -2766,7 +2812,7 @@ describe("focused workstreams", () => {
     );
     expect(regions(slot)).toEqual(["Zeta"]);
     fireEvent.click(
-      slot.getByRole("button", { name: "Show other workstreams" }),
+      slot.getByRole("button", { name: "Show other workstreams, 2 threads" }),
     );
     expect(
       within(slot.getByRole("region", { name: "Alpha" })).queryAllByRole(
@@ -2809,16 +2855,17 @@ describe("focused workstreams", () => {
     await waitFor(() =>
       expect(groupRows(slot, "Up Next")).toEqual(["Ask a1", "Ask z1"]),
     );
-    // Held in Up Next, it isn't counted as left out.
+    // Group counts include the held row, irrespective of its Up Next position.
     expect(
-      slot.getByRole("button", { name: "Show other workstreams" }),
+      slot.getByRole("button", {
+        name: "Show other workstreams, 1 waiting on you, 1 thread",
+      }),
     ).toBeTruthy();
-    // Moving on lets focus take it.
     slot.selectThread("z1");
     await waitFor(() => expect(groupRows(slot, "Up Next")).toEqual(["Ask z1"]));
     expect(
       slot.getByRole("button", {
-        name: "Show other workstreams, 1 waiting on you",
+        name: "Show other workstreams, 1 waiting on you, 1 thread",
       }),
     ).toBeTruthy();
     slot.lifecycle.unmount();

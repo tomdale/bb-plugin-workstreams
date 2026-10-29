@@ -71,6 +71,77 @@ describe("arrangeGroups", () => {
     expect(arranged.tiered).toBe(true);
   });
 
+  it("sums hidden group counts once, including nested threads, Unfiled and Dormant", () => {
+    const projection = projectWorkstreams(
+      [
+        thread("focused", {
+          sectionId: "sec_c",
+          hasPendingInteraction: true,
+          latestAttentionAt: now,
+        }),
+        thread("parent", { sectionId: "sec_a", latestAttentionAt: now }),
+        thread("child", {
+          parentThreadId: "parent",
+          hasPendingInteraction: true,
+          latestAttentionAt: now,
+        }),
+        thread("nested", {
+          sectionId: "sec_b",
+          hasPendingInteraction: true,
+          latestAttentionAt: now,
+        }),
+        thread("old", {
+          sectionId: "sec_old",
+          latestAttentionAt: now - 90 * DAY_MS,
+        }),
+        thread("loose", {
+          hasPendingInteraction: true,
+          latestAttentionAt: now,
+        }),
+        thread("snoozed", {
+          sectionId: "sec_a",
+          hasPendingInteraction: true,
+          latestAttentionAt: now,
+        }),
+      ],
+      sections,
+      {
+        now,
+        order: { workstreams: [], threads: {}, prioritized: ["sec_c"] },
+        snoozedUntil: (t) => (t.id === "snoozed" ? now + DAY_MS : undefined),
+      },
+    );
+    const arranged = arrangeGroups(projection, "alphabetical", {
+      entities: [
+        { id: "a", name: "Alpha", parentId: null },
+        { id: "b", name: "Beta", parentId: "a" },
+      ],
+      bindings: { sec_a: "a", sec_b: "b" },
+      layout: [
+        {
+          topicId: "a",
+          name: "Alpha",
+          prefix: [],
+          lists: true,
+          total: 3,
+          children: [
+            {
+              topicId: "b",
+              name: "Beta",
+              prefix: [],
+              lists: true,
+              total: 1,
+              children: [],
+            },
+          ],
+        },
+      ],
+    });
+    expect(arranged.other[0]?.subgroups).toHaveLength(1);
+    expect(arranged.dormant.map((group) => group.name)).toEqual(["Old"]);
+    expect(arranged.lowerCounts).toEqual({ needsYou: 3, total: 5 });
+  });
+
   it("reports nothing to reveal when every group is prioritized", () => {
     const projection = projectWorkstreams(
       [thread("a1", { sectionId: "sec_a" })],

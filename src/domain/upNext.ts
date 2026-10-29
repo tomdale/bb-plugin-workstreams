@@ -120,8 +120,6 @@ export type UpNextSelection<T extends WorkstreamThread> = {
   readonly more: readonly Row<T>[];
   /** Up Next lists only focused workstreams' threads. */
   readonly focused: boolean;
-  /** Threads blocked on the user that focus left out, most urgent first. */
-  readonly elsewhere: readonly Row<T>[];
 };
 
 /** Tier rank, 0 most urgent; see the module comment. */
@@ -207,11 +205,6 @@ export function selectUpNext<T extends UpNextThread>(
       .filter((entry) => !inUpNext.has(entry) && (entry.unread || entry.onYou))
       .map((entry) => entry.row),
     focused,
-    elsewhere: focused
-      ? ranked
-          .filter((entry) => !entry.prioritized && entry.onYou)
-          .map((entry) => entry.row)
-      : [],
   };
 }
 

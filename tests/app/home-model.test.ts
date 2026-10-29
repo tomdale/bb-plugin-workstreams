@@ -107,7 +107,7 @@ describe("planHome", () => {
     expect(startsOpen(plan, plan.populated[0]!)).toBe(false);
   });
 
-  it("reports what Up Next left out under focus", () => {
+  it("counts hidden groups while Up Next focuses", () => {
     const projection = projectWorkstreams(
       [
         thread("pinned", {
@@ -130,14 +130,15 @@ describe("planHome", () => {
         }),
       ],
       sections,
-      { now },
+      { now, order: { workstreams: [], threads: {}, prioritized: ["sec_a"] } },
     );
     const plan = planHome(projection, {
       ...baseOptions,
       prioritized: new Set(["sec_a"]),
     });
     expect(ids(plan.upNext!.rows)).toEqual(["pinned", "pinned-quiet"]);
-    expect(plan.focus).toEqual({ active: true, elsewhere: 1 });
+    expect(plan.focus).toEqual({ active: true });
+    expect(plan.lowerCounts).toEqual({ needsYou: 1, total: 2 });
   });
 
   it("lists every thread in Up Next while there are few", () => {
@@ -169,7 +170,7 @@ describe("planHome", () => {
         }),
       ],
       sections,
-      { now },
+      { now, order: { workstreams: [], threads: {}, prioritized: ["sec_a"] } },
     );
     const plan = planHome(projection, {
       ...baseOptions,
@@ -177,7 +178,8 @@ describe("planHome", () => {
       showUpNext: false,
     });
     expect(plan.upNext).toBeNull();
-    expect(plan.focus).toEqual({ active: true, elsewhere: 1 });
+    expect(plan.focus).toEqual({ active: true });
+    expect(plan.lowerCounts).toEqual({ needsYou: 1, total: 1 });
   });
 
   it("tiers nothing while the prioritized workstream has no active threads", () => {
@@ -505,6 +507,7 @@ describe("planHome with topics", () => {
     ]);
     // The subgroup's thread counts as focused; the other workstream's doesn't.
     expect(ids(plan.upNext!.rows)).toEqual(["ask", "p1"]);
-    expect(plan.focus).toEqual({ active: true, elsewhere: 1 });
+    expect(plan.focus).toEqual({ active: true });
+    expect(plan.lowerCounts).toEqual({ needsYou: 1, total: 1 });
   });
 });

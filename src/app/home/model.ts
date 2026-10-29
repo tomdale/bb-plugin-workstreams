@@ -39,13 +39,10 @@ export type HomePlan<T extends WorkstreamThread> = {
   /**
    * Focus, which holds whether or not Up Next shows: while a focused
    * workstream has a thread blocked on the user, Up Next lists only focused
-   * workstreams' threads, and the count of those blocked elsewhere rides on
-   * the other-workstreams toggle.
+   * workstreams' threads.
    */
   readonly focus: {
     readonly active: boolean;
-    /** How many threads blocked on the user focus left out. */
-    readonly elsewhere: number;
   };
   /** Focused workstreams with threads, in the chosen order. */
   readonly pinned: readonly WorkstreamNode<T>[];
@@ -63,6 +60,8 @@ export type HomePlan<T extends WorkstreamThread> = {
   readonly tiered: boolean;
   /** Anything remains below the focused workstreams. */
   readonly hasLower: boolean;
+  /** The counts on the hidden groups' headers. */
+  readonly lowerCounts: { readonly needsYou: number; readonly total: number };
   readonly snoozed: readonly Row<T>[];
   /** Workstreams (and Unfiled) with threads, outside Dormant. */
   readonly populatedCount: number;
@@ -111,16 +110,14 @@ export function planHome<T extends UpNextThread>(
   const populatedCount = pinned.length + others.length + (unfiled ? 1 : 0);
   return {
     upNext,
-    focus: {
-      active: selection.focused,
-      elsewhere: selection.elsewhere.length,
-    },
+    focus: { active: selection.focused },
     pinned,
     populated: others,
     unfiled,
     dormant,
     tiered: pinned.length > 0,
     hasLower: others.length > 0 || unfiled !== null || dormant.length > 0,
+    lowerCounts: arranged.lowerCounts,
     snoozed,
     populatedCount,
     isEmpty:

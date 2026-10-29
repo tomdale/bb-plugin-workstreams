@@ -81,6 +81,9 @@ export function WorkstreamGroups({
       env={env}
     />
   );
+  const lowerWaiting =
+    env.waitingCount !== "never" && plan.lowerCounts.needsYou > 0;
+  const lowerTotal = env.threadCount !== "never" && plan.lowerCounts.total > 0;
   const hasGroups = visibleGroups.length > 0 || plan.hasLower;
   const snoozedMarks = plan.snoozed.some((row) =>
     hasStatusMark(row.thread, env.work(row.thread)),
@@ -113,8 +116,18 @@ export function WorkstreamGroups({
               className="ws-home-lower-toggle"
               aria-expanded={showLower}
               aria-label={
-                !showLower && plan.focus.elsewhere > 0
-                  ? `Show other workstreams, ${plan.focus.elsewhere} waiting on you`
+                !showLower
+                  ? [
+                      "Show other workstreams",
+                      ...(lowerWaiting
+                        ? [`${plan.lowerCounts.needsYou} waiting on you`]
+                        : []),
+                      ...(lowerTotal
+                        ? [
+                            `${plan.lowerCounts.total} ${plan.lowerCounts.total === 1 ? "thread" : "threads"}`,
+                          ]
+                        : []),
+                    ].join(", ")
                   : undefined
               }
               onClick={() => setShowLower(!showLower)}
@@ -124,9 +137,18 @@ export function WorkstreamGroups({
                   ? "Hide other workstreams"
                   : "Show other workstreams"}
               </span>
-              {!showLower && plan.focus.elsewhere > 0 ? (
-                <span className="ws-home-pill ws-needs-you-pill">
-                  {plan.focus.elsewhere} waiting on you
+              {!showLower && (lowerWaiting || lowerTotal) ? (
+                <span className="ws-home-counts" aria-hidden="true">
+                  {lowerWaiting ? (
+                    <span className="ws-home-pill ws-needs-you-pill">
+                      {plan.lowerCounts.needsYou}
+                    </span>
+                  ) : null}
+                  {lowerTotal ? (
+                    <span className="ws-home-total">
+                      {plan.lowerCounts.total}
+                    </span>
+                  ) : null}
                 </span>
               ) : null}
             </button>

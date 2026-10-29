@@ -452,6 +452,7 @@ section:has(> [data-bb-plugin-root] > [data-ws-home="hidden"]) {
 }
 .ws-home-lower-toggle {
   display: flex;
+  width: 100%;
   min-height: 44px;
   align-items: center;
   gap: 8px;

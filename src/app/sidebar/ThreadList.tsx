@@ -252,7 +252,12 @@ export function WorkstreamsThreadList({
     dormant: dormantGroups,
     tiered,
     hasLower,
+    lowerCounts,
   } = arrangement;
+  const lowerWaiting =
+    prefs?.sidebar.waitingCount !== "never" && lowerCounts.needsYou > 0;
+  const lowerTotal =
+    prefs?.sidebar.threadCount !== "never" && lowerCounts.total > 0;
   const prioritized = focusedSections(arrangement, new Set(prioritizedIds));
 
   // Up Next re-sorts live, except the open thread's row: it holds the place
@@ -296,11 +301,7 @@ export function WorkstreamsThreadList({
   useLayoutEffect(() => {
     shownBefore.current = shownNeedsRows.map((row) => row.thread.id);
   });
-  const focus = {
-    active: upNext.focused,
-    // What focus left out, less a row Up Next holds open.
-    elsewhere: upNext.elsewhere.filter((row) => !shownNeedsRows.includes(row)),
-  };
+  const focus = { active: upNext.focused };
   const recentRows = selectRecent(
     projection,
     ws.showForYou ? shownNeedsRows : [],
@@ -1094,24 +1095,45 @@ export function WorkstreamsThreadList({
                       data-flip-key="lower-toggle"
                       aria-expanded={showLower}
                       aria-label={
-                        !showLower && focus.elsewhere.length > 0
-                          ? `Show other workstreams, ${focus.elsewhere.length} waiting on you`
+                        !showLower
+                          ? [
+                              "Show other workstreams",
+                              ...(lowerWaiting
+                                ? [`${lowerCounts.needsYou} waiting on you`]
+                                : []),
+                              ...(lowerTotal
+                                ? [
+                                    `${lowerCounts.total} ${lowerCounts.total === 1 ? "thread" : "threads"}`,
+                                  ]
+                                : []),
+                            ].join(", ")
                           : undefined
                       }
                       onClick={toggleLower}
                       // A quiet link-style toggle, not a section header:
                       // the workstreams it reveals keep their own headers.
-                      className="group/lower mx-2.5 flex items-center gap-1.5 self-start rounded-sm text-left text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+                      className="group/lower mx-2.5 flex items-center gap-1.5 self-stretch rounded-sm text-left text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
                     >
                       <span className="underline-offset-2 group-hover/lower:underline">
                         {showLower
                           ? "Hide other workstreams"
                           : "Show other workstreams"}
                       </span>
-                      {!showLower && focus.elsewhere.length > 0 ? (
-                        // What Up Next left out, so nothing waits unseen.
-                        <span className="ws-needs-you-pill rounded-full px-1.5 text-[11px] font-medium tabular-nums">
-                          {focus.elsewhere.length} waiting on you
+                      {!showLower && (lowerWaiting || lowerTotal) ? (
+                        <span
+                          className="ml-auto flex shrink-0 items-center gap-1"
+                          aria-hidden="true"
+                        >
+                          {lowerWaiting ? (
+                            <span className="ws-needs-you-pill rounded-full px-1.5 text-[11px] font-medium tabular-nums">
+                              {lowerCounts.needsYou}
+                            </span>
+                          ) : null}
+                          {lowerTotal ? (
+                            <span className="text-[11px] tabular-nums text-muted-foreground/70">
+                              {lowerCounts.total}
+                            </span>
+                          ) : null}
                         </span>
                       ) : null}
                     </button>,
