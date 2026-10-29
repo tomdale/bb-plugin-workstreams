@@ -36,7 +36,7 @@ The cache lives in the service worker, so a hard refresh still downloads the fon
 :::
 
 Before writing, compare each line with your card items and drop any line that says the same thing: with the card item "Cached the font file", the line "The font is now cached" goes.
-For a short answer (a one-line fact, a yes or no, a simple lookup), write no block: reply with one plain sentence, then call the tool with a goal that states the answer and one \`latest\` item.
+For a short answer (a one-line fact, a yes or no, a simple lookup), write no block: reply with one plain sentence, then call the tool with a goal that states the answer and no \`latest\` items.
 When a question card ends the turn instead, write the block before calling the question tool; that block opens with a one- or two-sentence lead, then \`### Done\` (\`- [x]\` items) before the other labels, and includes any commit or PR links.
 Code blocks work inside; a line holding only \`:::\` ends the block even inside one, so a body that holds such a line uses \`::::${REPLY_BLOCK}\` … \`::::\`.
 Say what is true now. ${VOICE(" that the card does not show")}
