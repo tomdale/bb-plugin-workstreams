@@ -9,6 +9,7 @@ BB **workstreams** (sections) from topics.
 Requires **BB 0.44+** and **Plugin SDK 0.6.5+**. From a retained local checkout:
 
 ```sh
+git clone https://github.com/tomdale/bb-plugin-workstreams.git
 cd bb-plugin-workstreams
 npm ci
 npm run build
@@ -16,8 +17,8 @@ bb plugin install "$PWD" --yes
 ```
 
 Path installs load from that directory; do not delete it while installed. In
-Tom's toolbelt checkout, develop in a Workforest task and install only from
-canonical `main` after integration.
+Tom's checkout, develop in a Workforest task and install only from canonical
+`main` after integration.
 
 1. Open **Settings → Workstreams** and choose the Quick and Full analysis
    models. The default Gateway models need a connected BB machine with an AI
