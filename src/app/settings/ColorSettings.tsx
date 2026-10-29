@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import {
@@ -128,6 +128,15 @@ function ColorRow({
   );
 }
 
+type Swatch = {
+  key: string;
+  /** Names the option on its radio and in the picker's name line. */
+  label: string;
+  fill: string;
+  checked: boolean;
+  pick: () => void;
+};
+
 function ColorPicker({
   token,
   name,
@@ -141,17 +150,58 @@ function ColorPicker({
 }) {
   const group = useId();
   const chip = useRef<HTMLButtonElement>(null);
+  const [pointed, setPointed] = useState<string | null>(null);
   const choice = colors[token];
-  const defaultFill =
-    colors.scheme === "theme"
-      ? `var(${THEME_COLORS[THEME_MATCH[token]].base})`
-      : `var(${COLOR_TOKEN_VAR[token]}-original)`;
-  const defaultLabel =
-    colors.scheme === "theme"
-      ? THEME_COLORS[THEME_MATCH[token]].label
-      : "Workstreams";
+  const matched = THEME_COLORS[THEME_MATCH[token]];
+  const defaults: Swatch = {
+    key: "default",
+    label: colors.scheme === "theme" ? `Default · ${matched.label}` : "Default",
+    fill:
+      colors.scheme === "theme"
+        ? `var(${matched.base})`
+        : `var(${COLOR_TOKEN_VAR[token]}-original)`,
+    checked: choice.kind === "default",
+    pick: () => onChange({ kind: "default" }),
+  };
+  const themes: Swatch[] = (Object.keys(THEME_COLORS) as ThemeColor[]).map(
+    (color) => ({
+      key: color,
+      label: THEME_COLORS[color].label,
+      fill: `var(${THEME_COLORS[color].base})`,
+      checked: choice.kind === "theme" && choice.color === color,
+      pick: () => onChange({ kind: "theme", color }),
+    }),
+  );
+  const custom: Swatch = {
+    key: "custom",
+    label: "Custom color",
+    fill: choice.kind === "custom" ? choice.color : WHEEL,
+    checked: choice.kind === "custom",
+    pick: () =>
+      onChange({
+        kind: "custom",
+        // Start from the color the token shows now.
+        color: currentHex(chip.current, token),
+      }),
+  };
+  const all = [defaults, ...themes, custom];
+  const named =
+    all.find((option) => option.key === pointed) ??
+    all.find((option) => option.checked);
+  const swatch = (option: Swatch) => (
+    <SwatchOption
+      key={option.key}
+      group={group}
+      option={option}
+      onPoint={(pointing) =>
+        setPointed((was) =>
+          pointing ? option.key : was === option.key ? null : was,
+        )
+      }
+    />
+  );
   return (
-    <Popover>
+    <Popover onOpenChange={() => setPointed(null)}>
       <PopoverTrigger asChild>
         <button
           ref={chip}
@@ -165,7 +215,7 @@ function ColorPicker({
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-96 p-3"
+        className="w-auto p-2"
         // Focus the current choice, as a radio group does, not the first.
         onOpenAutoFocus={(event) => {
           const checked = (
@@ -176,121 +226,79 @@ function ColorPicker({
           checked.focus({ preventScroll: true });
         }}
       >
-        <div role="radiogroup" aria-label={`${name} color`}>
-          <PickerSection title="Default">
-            <SwatchOption
-              group={group}
-              label={defaultLabel}
-              fill={defaultFill}
-              checked={choice.kind === "default"}
-              onPick={() => onChange({ kind: "default" })}
-            />
-          </PickerSection>
-          <PickerSection title="Theme colors">
-            {(Object.keys(THEME_COLORS) as ThemeColor[]).map((color) => (
-              <SwatchOption
-                key={color}
-                group={group}
-                label={THEME_COLORS[color].label}
-                fill={`var(${THEME_COLORS[color].base})`}
-                checked={choice.kind === "theme" && choice.color === color}
-                onPick={() => onChange({ kind: "theme", color })}
-              />
-            ))}
-          </PickerSection>
-          <PickerSection title="Custom">
-            <SwatchOption
-              group={group}
-              label="Pick a color"
-              fill={choice.kind === "custom" ? choice.color : WHEEL}
-              checked={choice.kind === "custom"}
-              onPick={() =>
-                onChange({
-                  kind: "custom",
-                  // Start from the color the token shows now.
-                  color: currentHex(chip.current, token),
-                })
-              }
-            />
-          </PickerSection>
-          {choice.kind === "custom" ? (
-            <CustomColorFields
-              name={name}
-              value={choice.color}
-              onChange={(color) => onChange({ kind: "custom", color })}
-            />
-          ) : null}
+        <p
+          aria-hidden="true"
+          className="mb-1 px-1 text-xs text-muted-foreground"
+        >
+          <span className="font-medium text-foreground">{name}</span>
+          {named ? ` · ${named.label}` : null}
+        </p>
+        <div
+          role="radiogroup"
+          aria-label={`${name} color`}
+          className="flex items-center"
+        >
+          {swatch(defaults)}
+          <Divider />
+          {themes.map(swatch)}
+          <Divider />
+          {swatch(custom)}
         </div>
+        {choice.kind === "custom" ? (
+          <CustomColorFields
+            name={name}
+            value={choice.color}
+            onChange={(color) => onChange({ kind: "custom", color })}
+          />
+        ) : null}
       </PopoverContent>
     </Popover>
   );
 }
 
-function PickerSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="mb-3 last:mb-0">
-      <h5 className="mb-1.5 text-xs font-medium text-muted-foreground">
-        {title}
-      </h5>
-      <div className="grid grid-cols-4 gap-1">{children}</div>
-    </section>
-  );
+function Divider() {
+  return <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />;
 }
 
 /**
- * One choice as a round swatch over its name. The radio is visually hidden
- * inside the `relative` label so focusing it never scrolls an outer BB
- * container.
+ * One choice as a round swatch; the picker's name line names it while it is
+ * pointed at or focused. The radio is visually hidden inside the `relative`
+ * label so focusing it never scrolls an outer BB container.
  */
 function SwatchOption({
   group,
-  label,
-  fill,
-  checked,
-  onPick,
+  option,
+  onPoint,
 }: {
   group: string;
-  label: string;
-  fill: string;
-  checked: boolean;
-  onPick: () => void;
+  option: Swatch;
+  onPoint: (pointing: boolean) => void;
 }) {
   return (
     <label
-      className={cn(
-        "relative flex min-w-0 cursor-pointer flex-col items-center gap-1 rounded-md px-1 py-1.5 text-xs leading-tight has-focus-visible:outline-2 has-focus-visible:outline-ring",
-        checked
-          ? "bg-accent text-foreground"
-          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-      )}
+      onPointerEnter={() => onPoint(true)}
+      onPointerLeave={() => onPoint(false)}
+      className="relative flex size-7 cursor-pointer items-center justify-center rounded-full has-focus-visible:outline-2 has-focus-visible:outline-ring"
     >
       <input
         type="radio"
         name={group}
-        checked={checked}
-        onChange={onPick}
-        aria-label={label}
+        checked={option.checked}
+        onChange={option.pick}
+        onFocus={() => onPoint(true)}
+        onBlur={() => onPoint(false)}
+        aria-label={option.label}
         className="sr-only"
       />
       <span
         aria-hidden="true"
         className={cn(
-          "flex size-7 items-center justify-center rounded-full border-2",
-          checked ? "border-foreground/70" : "border-transparent",
+          "block size-5 rounded-full border border-border",
+          option.checked &&
+            "ring-2 ring-foreground/70 ring-offset-1 ring-offset-popover",
         )}
-      >
-        <span
-          className="block size-5 rounded-full border border-border"
-          style={{ background: fill }}
-        />
-      </span>
-      <span className="w-full truncate text-center">{label}</span>
+        style={{ background: option.fill }}
+      />
     </label>
   );
 }
@@ -353,7 +361,7 @@ function CustomColorFields({
     } else setText(value);
   };
   return (
-    <div className="mt-2 flex items-center gap-2 border-t border-border pt-3">
+    <div className="mt-2 flex items-center gap-1.5 border-t border-border px-1 pt-2">
       <input
         type="color"
         aria-label={`${name} custom color`}
@@ -369,7 +377,7 @@ function CustomColorFields({
             onChange(next);
           }, SAVE_DELAY_MS);
         }}
-        className="h-8 w-9 shrink-0 cursor-pointer rounded border border-border bg-transparent p-0.5"
+        className="h-7 w-8 shrink-0 cursor-pointer rounded border border-border bg-transparent p-0.5"
       />
       <input
         type="text"
@@ -382,7 +390,7 @@ function CustomColorFields({
         onKeyDown={(event) => {
           if (event.key === "Enter") commitText();
         }}
-        className="h-8 w-24 rounded-md border border-border bg-background px-2 font-mono text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="h-7 w-24 rounded-md border border-border bg-background px-2 font-mono text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring"
       />
     </div>
   );

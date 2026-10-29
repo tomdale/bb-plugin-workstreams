@@ -420,7 +420,7 @@ const setPrefsInputs = (slot: Awaited<ReturnType<typeof mount>>) =>
 it("picks a default, theme, or custom color from a token's swatches", async () => {
   const slot = await mount("colors");
   let picker = await openPicker(slot, "Review");
-  expect(picker.getByRole("radio", { name: "Workstreams" })).toHaveProperty(
+  expect(picker.getByRole("radio", { name: "Default" })).toHaveProperty(
     "checked",
     true,
   );
@@ -432,19 +432,19 @@ it("picks a default, theme, or custom color from a token's swatches", async () =
         ?.textContent,
     ).toBe("Destructive"),
   );
-  fireEvent.click(picker.getByRole("radio", { name: "Pick a color" }));
-  const hex = await picker.findByLabelText("Review hex color");
+  fireEvent.click(picker.getByRole("radio", { name: "Custom color" }));
+  const hex = await screen.findByLabelText("Review hex color");
   fireEvent.change(hex, { target: { value: "AA3366" } });
   fireEvent.keyDown(hex, { key: "Enter" });
   fireEvent.change(hex, { target: { value: "#12" } });
   fireEvent.blur(hex);
   expect((hex as HTMLInputElement).value).toBe("#aa3366");
-  fireEvent.change(picker.getByLabelText("Review custom color"), {
+  fireEvent.change(screen.getByLabelText("Review custom color"), {
     target: { value: "#336699" },
   });
   await waitFor(() => expect(setPrefsInputs(slot)).toHaveLength(4));
   picker = within(screen.getByRole("radiogroup", { name: "Review color" }));
-  fireEvent.click(picker.getByRole("radio", { name: "Workstreams" }));
+  fireEvent.click(picker.getByRole("radio", { name: "Default" }));
   await waitFor(() => expect(setPrefsInputs(slot)).toHaveLength(5));
   expect(setPrefsInputs(slot)).toEqual([
     { patch: { colors: { review: { kind: "theme", color: "destructive" } } } },
@@ -470,11 +470,13 @@ it("switches the default set and names each defaulted token's theme color", asyn
   ]);
   const picker = await openPicker(slot, "Needs you");
   // The Default swatch now names the theme color it stands for.
-  const [byDefault, explicit] = picker.getAllByRole("radio", {
-    name: "Attention",
-  });
-  expect(byDefault).toHaveProperty("checked", true);
-  expect(explicit).toHaveProperty("checked", false);
+  expect(
+    picker.getByRole("radio", { name: "Default · Attention" }),
+  ).toHaveProperty("checked", true);
+  expect(picker.getByRole("radio", { name: "Attention" })).toHaveProperty(
+    "checked",
+    false,
+  );
 });
 
 it("writes the chosen colors over the token defaults, and nothing at the defaults", async () => {
