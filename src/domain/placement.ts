@@ -9,8 +9,8 @@
  * of work. Hints (the topic of the thread this one continues, the checkout's
  * usual topic) are evidence the model weighs, never overrides.
  *
- * Topic IDs are long, so the prompt names topics by short IDs (`t1`, `t2`, …)
- * in tree order, and the parser maps them back from the same input.
+ * Topic IDs are long and opaque, so the prompt names topics by slugs of their
+ * names (`fork-core`), and the parser maps them back from the same input.
  */
 import { z } from "zod";
 import { excerpt, HEADER, redact, stripFence, tagged } from "./analysis.ts";
@@ -54,13 +54,27 @@ export type PlacementInput = {
 
 export type PlacementOutput = TopicAnswer & { scopeShift: boolean };
 
-/** Topic IDs in tree order, each with its short prompt ID. */
+/** A topic name as a prompt ID: "Fork & Core" → "fork-core". */
+const slug = (name: string) =>
+  name
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "topic";
+
+/**
+ * Topic IDs in tree order, each with its prompt ID: the topic's name as a
+ * slug, which a model copies far more reliably than an opaque counter. A name
+ * used twice takes its parent's slug first, then a number.
+ */
 export function placementIds(
   entities: readonly PlacementTopic[],
 ): Map<string, string> {
   const ids = new Map<string, string>();
+  const taken = new Set<string>();
   const known = new Set(entities.map((entity) => entity.id));
-  const visit = (parentId: string | null) => {
+  const visit = (parentId: string | null, parentSlug: string | null) => {
     for (const entity of entities
       .filter(
         (e) =>
@@ -68,12 +82,18 @@ export function placementIds(
             ? e.parentId === null || !known.has(e.parentId)
             : e.parentId === parentId) && !ids.has(e.id),
       )
-      .sort((a, b) => a.name.localeCompare(b.name))) {
-      ids.set(entity.id, `t${ids.size + 1}`);
-      visit(entity.id);
+      .sort(
+        (a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
+      )) {
+      let id = slug(entity.name);
+      if (taken.has(id) && parentSlug) id = `${parentSlug}-${id}`.slice(0, 60);
+      for (let n = 2, base = id; taken.has(id); n++) id = `${base}-${n}`;
+      taken.add(id);
+      ids.set(entity.id, id);
+      visit(entity.id, id);
     }
   };
-  visit(null);
+  visit(null, null);
   return ids;
 }
 

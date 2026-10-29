@@ -173,7 +173,7 @@ describe("idle analysis", () => {
     const placement = w.completions.find((c) =>
       c.prompt.includes("You file one agent thread under a topic"),
     );
-    expect(placement!.prompt).toContain("[t1] Viewer");
+    expect(placement!.prompt).toContain("[viewer] Viewer");
     expect(analyses(w).at(-1)!.prompt).not.toContain(topicId);
     expect(corpus.assignment("t1")).toMatchObject({
       entityId: topicId,

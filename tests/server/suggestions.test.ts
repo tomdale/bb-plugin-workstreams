@@ -144,7 +144,7 @@ describe("tidy suggestions", () => {
       tidy: (prompt) => {
         prompts.push(prompt);
         const id = (name: string) =>
-          prompt.match(new RegExp(`\\[(t\\d+)\\] ${name} `))?.[1] ?? null;
+          prompt.match(new RegExp(`\\[([a-z0-9-]+)\\] ${name} `))?.[1] ?? null;
         return {
           edits: [
             tidyEdit({
@@ -192,13 +192,13 @@ describe("tidy suggestions", () => {
     const { w, topics, run, rpc } = await setup({
       tidy: () => ({
         edits: [
-          tidyEdit({ op: "reparent", topic: "t1", parent: "t2" }),
+          tidyEdit({ op: "reparent", topic: "alpha", parent: "beta" }),
           tidyEdit({
             op: "create",
             name: "Plugins",
             description: "BB plugins",
             parent: null,
-            children: ["t1", "t2"],
+            children: ["alpha", "beta"],
           }),
         ],
       }),
@@ -223,9 +223,9 @@ describe("tidy suggestions", () => {
             name: "Vercel",
             description: "Work",
             parent: null,
-            children: ["t1"],
+            children: ["alpha"],
           }),
-          tidyEdit({ op: "reparent", topic: "t2", parent: "new:Vercel" }),
+          tidyEdit({ op: "reparent", topic: "beta", parent: "new:Vercel" }),
         ],
       }),
     });
@@ -257,9 +257,9 @@ describe("an edit that needs a declined create", () => {
             name: "Vercel",
             description: "Work",
             parent: null,
-            children: ["t1"],
+            children: ["alpha"],
           }),
-          tidyEdit({ op: "reparent", topic: "t2", parent: "new:Vercel" }),
+          tidyEdit({ op: "reparent", topic: "beta", parent: "new:Vercel" }),
         ],
       }),
     });
@@ -282,7 +282,7 @@ describe("suggestions CLI", () => {
   it("lists, runs, and accepts suggestions", async () => {
     const { w, topics, rpc } = await setup({
       tidy: () => ({
-        edits: [tidyEdit({ op: "rename", topic: "t1", name: "Alpha Two" })],
+        edits: [tidyEdit({ op: "rename", topic: "alpha", name: "Alpha Two" })],
       }),
     });
     const a = topics.create("Alpha", "");

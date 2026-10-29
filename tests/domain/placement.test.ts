@@ -38,21 +38,21 @@ const input: PlacementInput = {
 };
 
 describe("placementPrompt", () => {
-  it("lists topics by short ID, marking the ones that can't hold threads", () => {
+  it("lists topics by name slug, marking the ones that can't hold threads", () => {
     const ids = placementIds(entities);
     expect([...ids.entries()]).toEqual([
-      ["vercel", "t1"],
-      ["auto", "t2"],
-      ["planning", "t3"],
-      ["triggers", "t4"],
-      ["review", "t5"],
+      ["vercel", "vercel"],
+      ["auto", "automations"],
+      ["planning", "planning"],
+      ["triggers", "triggers"],
+      ["review", "code-review"],
     ]);
     const prompt = placementPrompt(input);
-    expect(prompt).toContain("- [t1] Vercel (has subtopics)");
+    expect(prompt).toContain("- [vercel] Vercel (has subtopics)");
     expect(prompt).toContain(
-      "    - [t3] Planning — Design and rollout (2 threads)",
+      "    - [planning] Planning — Design and rollout (2 threads)",
     );
-    expect(prompt).toContain("  - [t5] Code Review (0 threads)");
+    expect(prompt).toContain("  - [code-review] Code Review (0 threads)");
     expect(prompt).toContain(
       "<hint>\nIt continues a thread filed under Vercel: Automations: Planning.\n</hint>",
     );
@@ -62,6 +62,21 @@ describe("placementPrompt", () => {
     expect(prompt).not.toContain("current_topic");
   });
 
+  it("tells topics with the same name apart by their parents", () => {
+    const ids = placementIds([
+      topic("a", "Alpha", null),
+      topic("b", "Beta", null),
+      topic("as", "Sidebar", "a"),
+      topic("bs", "Sidebar", "b"),
+    ]);
+    expect([...ids.values()]).toEqual([
+      "alpha",
+      "sidebar",
+      "beta",
+      "beta-sidebar",
+    ]);
+  });
+
   it("constrains the answer to topics that hold threads", () => {
     const schema = placementSchema(input) as {
       properties: {
@@ -69,9 +84,14 @@ describe("placementPrompt", () => {
         propose: { anyOf: { properties?: { parent: { enum: unknown[] } } }[] };
       };
     };
-    expect(schema.properties.topic.enum).toEqual([null, "t3", "t4", "t5"]);
+    expect(schema.properties.topic.enum).toEqual([
+      null,
+      "planning",
+      "triggers",
+      "code-review",
+    ]);
     expect(schema.properties.propose.anyOf[1]!.properties!.parent.enum).toEqual(
-      [null, "t1", "t2", "t3", "t4", "t5"],
+      [null, "vercel", "automations", "planning", "triggers", "code-review"],
     );
   });
 });
@@ -80,8 +100,10 @@ describe("parsePlacement", () => {
   const parse = (answer: object) =>
     parsePlacement(JSON.stringify(answer), input);
 
-  it("maps a short ID back to its topic", () => {
-    expect(parse({ topic: "t3", propose: null, scopeShift: false })).toEqual({
+  it("maps a slug back to its topic", () => {
+    expect(
+      parse({ topic: "planning", propose: null, scopeShift: false }),
+    ).toEqual({
       subjectId: "planning",
       proposed: null,
       scopeShift: false,
@@ -89,15 +111,19 @@ describe("parsePlacement", () => {
   });
 
   it("refuses a topic with subtopics, or one it wasn't shown", () => {
-    expect(() => parse({ topic: "t2", propose: null })).toThrow();
-    expect(() => parse({ topic: "t9", propose: null })).toThrow();
+    expect(() => parse({ topic: "automations", propose: null })).toThrow();
+    expect(() => parse({ topic: "billing", propose: null })).toThrow();
   });
 
   it("anchors a proposal and resolves one that names an existing topic", () => {
     expect(
       parse({
         topic: null,
-        propose: { name: "CLI", description: "Commands", parent: "t2" },
+        propose: {
+          name: "CLI",
+          description: "Commands",
+          parent: "automations",
+        },
       }),
     ).toEqual({
       subjectId: null,
@@ -111,7 +137,7 @@ describe("parsePlacement", () => {
     expect(
       parse({
         topic: null,
-        propose: { name: "triggers", description: "", parent: "t2" },
+        propose: { name: "triggers", description: "", parent: "automations" },
       }).subjectId,
     ).toBe("triggers");
     expect(() =>

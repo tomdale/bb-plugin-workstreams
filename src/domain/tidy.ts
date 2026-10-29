@@ -13,8 +13,8 @@
  *   doesn't reopen them.
  *
  * Nothing here changes anything: suggestions apply only when accepted.
- * Topics and threads appear in prompts by short IDs (`t1`, `r1`), mapped back
- * from the same input.
+ * Topics appear in prompts by slugs of their names (`fork-core`) and threads
+ * by short IDs (`r1`), mapped back from the same input.
  */
 import { z } from "zod";
 import { HEADER, redact, stripFence, tagged } from "./analysis.ts";
@@ -62,6 +62,8 @@ export type TidyEdit =
 
 export type Split = {
   readonly topicId: string;
+  /** It files the threads of a topic that holds them beside subtopics. */
+  readonly repair?: boolean;
   readonly subgroups: readonly {
     readonly name: string;
     readonly description: string;
@@ -146,7 +148,7 @@ export type SplitInput = {
   readonly decisions: readonly string[];
 };
 
-export const SPLIT_RULES = `Propose 2–${SUBGROUPS_MAX} subgroups: the simplest, clearest groups a person would name without effort, each named for an area of work, never a task, pull request, bug, or repository. Clarity beats symmetry: a plain "PR Upkeep" beside "Alert Investigations" is better than a contrived name invented to keep siblings alike, and an "X & Y" name is usually a sign of contrivance. Put work about the whole group in a plainly named subgroup such as "Planning", never a catch-all like "General" or "Other". Prefer at least 2 threads per subgroup; keep a one-thread subgroup only for a genuinely distinct area. Name subgroups in Title Case, keeping product names' own spelling. Judge each thread by what it is about.`;
+export const SUBGROUP_RULES = `Subgroups are the simplest, clearest groups a person would name without effort, each named for an area of work, never a task, pull request, bug, or repository. Clarity beats symmetry: a plain "PR Upkeep" beside "Alert Investigations" is better than a contrived name invented to keep siblings alike, and an "X & Y" name is usually a sign of contrivance. Put work about the whole group in a plainly named subgroup such as "Planning", never a catch-all like "General" or "Other". Prefer at least 2 threads per subgroup; keep a one-thread subgroup only for a genuinely distinct area. Name subgroups in Title Case, keeping product names' own spelling, and don't repeat the group's name in them ("Design", not "Automations Design"). Judge each thread by what it is about.`;
 
 /** The group's subtopics a thread can be filed in: those without subtopics. */
 const fileable = (input: Pick<SplitInput, "topics" | "topicId">) =>
@@ -168,8 +170,8 @@ export function splitPrompt(input: SplitInput): string {
   const repair = input.topics.some((t) => t.parentId === input.topicId);
   const existing = fileable(input);
   const intro = repair
-    ? `This group of agent threads holds threads beside its subgroups, and a group holds threads or subgroups, never both. File each of its own threads below in one of its subgroups (${existing.map((t) => `"${line(t.name, 60)}"`).join(", ")}), using a subgroup's exact name, or in a new subgroup of the same kind when none fits.`
-    : `This group of agent threads has grown past ${SPLIT_ABOVE} threads, so it is splitting into subgroups. Every thread must go into exactly one subgroup; none stays in the group itself. ${SPLIT_RULES}`;
+    ? `This group of agent threads holds threads beside its subgroups, and a group holds threads or subgroups, never both. File each of its own threads below in one of its subgroups${existing.length ? ` (${existing.map((t) => `"${line(t.name, 60)}"`).join(", ")})` : ""}, using a subgroup's exact name, or in a new subgroup when none fits. ${SUBGROUP_RULES}`
+    : `This group of agent threads has grown past ${SPLIT_ABOVE} threads, so it is splitting into subgroups. Every thread must go into exactly one subgroup; none stays in the group itself. Propose 2–${SUBGROUPS_MAX} subgroups. ${SUBGROUP_RULES}`;
   return `${HEADER}
 
 You organize someone's agent threads in a sidebar.
@@ -287,7 +289,7 @@ export function parseSplit(text: string, input: SplitInput): SplitOutput {
   if (subgroups.length > SUBGROUPS_MAX + existing.length)
     throw new Error("The split made too many subgroups.");
   return {
-    split: { topicId: input.topicId, subgroups },
+    split: { topicId: input.topicId, ...(repair ? { repair } : {}), subgroups },
     reason: parsed.reason,
   };
 }
@@ -617,7 +619,9 @@ export function describeEdit(
   },
 ): string {
   if ("subgroups" in edit)
-    return `Split ${names.topic(edit.topicId)} into ${edit.subgroups.map((g) => g.name).join(", ")}`;
+    return edit.repair
+      ? `File ${names.topic(edit.topicId)}'s own threads in ${edit.subgroups.map((g) => g.name).join(", ")}`
+      : `Split ${names.topic(edit.topicId)} into ${edit.subgroups.map((g) => g.name).join(", ")}`;
   switch (edit.op) {
     case "merge":
       return `Merge ${names.topic(edit.from)} into ${names.topic(edit.into)}`;
