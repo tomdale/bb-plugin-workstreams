@@ -100,7 +100,10 @@ asking for a correction when the block, its state or its headline is missing.
 The rest of the block is the body the app draws inline; the inline block leaves
 its card fields to the docked card while that turn's card shows. A short answer
 is a block with only its headline. A block without `state` carries no recap and
-draws as plain text.
+draws as plain text. Structured replies needs the tomdale/bb fork's
+message-block slot: the app reports whether it has the slot, and until a client
+reports it the server keeps the recap tool and the usual recap instructions, as
+on upstream bb.
 
 ## 4. Organization
 
