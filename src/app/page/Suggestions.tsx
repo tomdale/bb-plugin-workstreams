@@ -211,9 +211,11 @@ function SuggestionList({
   decide: (ids: string[], decision: "accept" | "decline") => Promise<void>;
 }) {
   return (
-    <section aria-label={title} className="mt-4">
-      <h3 className="text-xs font-semibold text-foreground">{title}</h3>
-      <p className="text-xs text-muted-foreground">{description}</p>
+    <section aria-label={title} className="mt-5">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h3>
+      <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
       <ul className="mt-1 divide-y divide-border">
         {suggestions.map((s) => (
           <li key={s.id} className="py-3">
