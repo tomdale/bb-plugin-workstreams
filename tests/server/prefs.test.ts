@@ -109,7 +109,7 @@ describe("Workstreams prefs", () => {
         fullModel: { kind: "gateway", model: "openai/old-organize" },
       },
       organize: { collapseAt: 3 },
-      colors: DEFAULT_COLORS,
+      colors: { scheme: "workstreams", ...DEFAULT_COLORS },
       advanced: { hostId: "host-a", debug: true },
     });
     expect(migrateLegacyPrefs({}).analysis.fullModel).toEqual(

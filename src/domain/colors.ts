@@ -63,7 +63,7 @@ export const THEME_COLORS = {
     text: "--destructive-text",
   },
   "pr-merged": {
-    label: "Merged purple",
+    label: "Purple",
     base: "--pr-merged",
     text: "--pr-merged",
   },
@@ -113,7 +113,47 @@ export const DEFAULT_COLORS = {
   suggestion: { kind: "default" },
 } as const satisfies Record<ColorToken, ColorChoice>;
 
-export type ColorPrefs = Record<ColorToken, ColorChoice>;
+/**
+ * What a token left at its default draws with: Workstreams' own shades, or
+ * the BB theme color each token matches ({@link THEME_MATCH}).
+ */
+export const COLOR_SCHEMES = ["workstreams", "theme"] as const;
+export type ColorScheme = (typeof COLOR_SCHEMES)[number];
+export const colorSchemeSchema = z.enum(COLOR_SCHEMES);
+export const DEFAULT_SCHEME: ColorScheme = "workstreams";
+
+/** The BB theme color each token follows when the set matches BB's theme. */
+export const THEME_MATCH: Record<ColorToken, ThemeColor> = {
+  complete: "success",
+  review: "timeline-accent",
+  waiting: "pr-merged",
+  needsYou: "attention",
+  failure: "destructive",
+  suggestion: "pr-merged",
+};
+
+export type ColorPrefs = Record<ColorToken, ColorChoice> & {
+  scheme: ColorScheme;
+};
+
+/** What a token draws with now, after the set's default applies. */
+export type ResolvedColor =
+  | { kind: "workstreams" }
+  | { kind: "theme"; color: ThemeColor; byDefault: boolean }
+  | { kind: "custom"; color: string };
+
+export function resolveColor(
+  colors: ColorPrefs,
+  token: ColorToken,
+): ResolvedColor {
+  const choice = colors[token];
+  if (choice.kind === "custom") return choice;
+  if (choice.kind === "theme")
+    return { kind: "theme", color: choice.color, byDefault: false };
+  return colors.scheme === "theme"
+    ? { kind: "theme", color: THEME_MATCH[token], byDefault: true }
+    : { kind: "workstreams" };
+}
 
 export const sameChoice = (a: ColorChoice, b: ColorChoice): boolean =>
   a.kind === b.kind &&
@@ -154,20 +194,29 @@ export const TOKEN_ROOTS =
 
 /**
  * The declarations that override tokens.css's defaults for the user's
- * choices; tokens left at their Workstreams default are omitted. Every value comes from
- * {@link THEME_COLORS} or a re-validated `#rrggbb`, never from raw input.
+ * choices; tokens drawing with Workstreams' own shades are omitted. Every
+ * value comes from {@link THEME_COLORS} or a re-validated `#rrggbb`, never
+ * from raw input.
  */
 export function colorTokenDeclarations(colors: ColorPrefs): string[] {
+  const scheme = colorSchemeSchema.safeParse(colors.scheme);
   const lines: string[] = [];
   for (const token of COLOR_TOKENS) {
     const parsed = colorChoiceSchema.safeParse(colors[token]);
-    if (!parsed.success || parsed.data.kind === "default") continue;
-    const choice = parsed.data;
+    if (!parsed.success) continue;
+    const resolved = resolveColor(
+      {
+        ...colors,
+        scheme: scheme.success ? scheme.data : DEFAULT_SCHEME,
+        [token]: parsed.data,
+      },
+      token,
+    );
     const name = COLOR_TOKEN_VAR[token];
-    if (choice.kind === "custom")
-      lines.push(...stepDeclarations(name, choice.color, null));
-    else {
-      const theme = THEME_COLORS[choice.color];
+    if (resolved.kind === "custom")
+      lines.push(...stepDeclarations(name, resolved.color, null));
+    else if (resolved.kind === "theme") {
+      const theme = THEME_COLORS[resolved.color];
       lines.push(...stepDeclarations(name, `var(${theme.base})`, theme.text));
     }
   }

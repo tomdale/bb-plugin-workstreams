@@ -6,7 +6,9 @@
  * color instead; ColorTokenStyle then writes every step of that token from
  * one color over these defaults (see colorTokenDeclarations).
  *
- * Steps, as --ws-<token>-<step> (the bare token is the solid color):
+ * Steps, as --ws-<token>-<step> (the bare token is the solid color;
+ * --ws-<token>-original keeps the default solid color for the settings
+ * swatch even while the token is overridden):
  *   (bare)     dots, bars          text      text on a page or card
  *   strong     fills, mid text     on-strong text on a strong fill
  *   soft       quiet text, pills   mark      sidebar and Home glyphs
@@ -34,7 +36,8 @@
   [data-bb-plugin="workstreams"],
   [data-bb-plugin-root]:not([data-bb-plugin])
 ) {
-  --ws-complete: oklch(69.6% 0.17 162.48);
+  --ws-complete-original: oklch(69.6% 0.17 162.48);
+  --ws-complete: var(--ws-complete-original);
   --ws-complete-text: oklch(50.8% 0.118 165.612);
   --ws-complete-strong: oklch(59.6% 0.145 163.225);
   --ws-complete-on-strong: var(--canvas);
@@ -58,7 +61,8 @@
     transparent
   );
 
-  --ws-review: oklch(68.5% 0.169 237.323);
+  --ws-review-original: oklch(68.5% 0.169 237.323);
+  --ws-review: var(--ws-review-original);
   --ws-review-text: oklch(50% 0.134 242.749);
   --ws-review-strong: oklch(58.8% 0.158 241.966);
   --ws-review-on-strong: var(--canvas);
@@ -82,7 +86,8 @@
     transparent
   );
 
-  --ws-waiting: oklch(60.6% 0.25 292.717);
+  --ws-waiting-original: oklch(60.6% 0.25 292.717);
+  --ws-waiting: var(--ws-waiting-original);
   --ws-waiting-text: oklch(49.1% 0.27 292.581);
   --ws-waiting-strong: oklch(54.1% 0.281 293.009);
   --ws-waiting-on-strong: var(--canvas);
@@ -106,7 +111,8 @@
     transparent
   );
 
-  --ws-needs-you: oklch(76.9% 0.188 70.08);
+  --ws-needs-you-original: oklch(76.9% 0.188 70.08);
+  --ws-needs-you: var(--ws-needs-you-original);
   --ws-needs-you-text: oklch(55.5% 0.163 48.998);
   --ws-needs-you-strong: oklch(66.6% 0.179 58.318);
   --ws-needs-you-on-strong: #fff;
@@ -134,7 +140,8 @@
     transparent
   );
 
-  --ws-failure: oklch(63.7% 0.237 25.331);
+  --ws-failure-original: oklch(63.7% 0.237 25.331);
+  --ws-failure: var(--ws-failure-original);
   --ws-failure-text: oklch(50.5% 0.213 27.518);
   --ws-failure-strong: oklch(57.7% 0.245 27.325);
   --ws-failure-on-strong: var(--canvas);
@@ -158,7 +165,8 @@
     transparent
   );
 
-  --ws-suggestion: oklch(60.6% 0.25 292.717);
+  --ws-suggestion-original: oklch(60.6% 0.25 292.717);
+  --ws-suggestion: var(--ws-suggestion-original);
   --ws-suggestion-text: color-mix(
     in oklab,
     oklch(60.6% 0.25 292.717) 70%,
@@ -204,7 +212,8 @@
   .dark [data-bb-plugin="workstreams"],
   .dark [data-bb-plugin-root]:not([data-bb-plugin])
 ) {
-  --ws-complete: oklch(76.5% 0.177 163.223);
+  --ws-complete-original: oklch(76.5% 0.177 163.223);
+  --ws-complete: var(--ws-complete-original);
   --ws-complete-text: oklch(84.5% 0.143 164.978);
   --ws-complete-strong: oklch(76.5% 0.177 163.223);
   --ws-complete-on-strong: var(--canvas);
@@ -232,7 +241,8 @@
     transparent
   );
 
-  --ws-review: oklch(74.6% 0.16 232.661);
+  --ws-review-original: oklch(74.6% 0.16 232.661);
+  --ws-review: var(--ws-review-original);
   --ws-review-text: oklch(82.8% 0.111 230.318);
   --ws-review-strong: oklch(74.6% 0.16 232.661);
   --ws-review-on-strong: var(--canvas);
@@ -260,7 +270,8 @@
     transparent
   );
 
-  --ws-waiting: oklch(70.2% 0.183 293.541);
+  --ws-waiting-original: oklch(70.2% 0.183 293.541);
+  --ws-waiting: var(--ws-waiting-original);
   --ws-waiting-text: oklch(81.1% 0.111 293.571);
   --ws-waiting-strong: oklch(70.2% 0.183 293.541);
   --ws-waiting-on-strong: var(--canvas);
@@ -288,7 +299,8 @@
     transparent
   );
 
-  --ws-needs-you: oklch(82.8% 0.189 84.429);
+  --ws-needs-you-original: oklch(82.8% 0.189 84.429);
+  --ws-needs-you: var(--ws-needs-you-original);
   --ws-needs-you-text: oklch(87.9% 0.169 91.605);
   --ws-needs-you-strong: oklch(82.8% 0.189 84.429);
   --ws-needs-you-on-strong: oklch(27.9% 0.077 45.635);
@@ -320,7 +332,8 @@
     transparent
   );
 
-  --ws-failure: oklch(70.4% 0.191 22.216);
+  --ws-failure-original: oklch(70.4% 0.191 22.216);
+  --ws-failure: var(--ws-failure-original);
   --ws-failure-text: oklch(80.8% 0.114 19.571);
   --ws-failure-strong: oklch(70.4% 0.191 22.216);
   --ws-failure-on-strong: var(--canvas);
@@ -348,7 +361,8 @@
     transparent
   );
 
-  --ws-suggestion: oklch(70.2% 0.183 293.541);
+  --ws-suggestion-original: oklch(70.2% 0.183 293.541);
+  --ws-suggestion: var(--ws-suggestion-original);
   --ws-suggestion-text: color-mix(
     in oklab,
     oklch(60.6% 0.25 292.717) 70%,

@@ -7,7 +7,12 @@
  * Recap, snooze, and working-indicator preferences keep their own stores.
  */
 import { z } from "zod";
-import { colorChoiceSchema, DEFAULT_COLORS } from "./colors.ts";
+import {
+  colorChoiceSchema,
+  colorSchemeSchema,
+  DEFAULT_COLORS,
+  DEFAULT_SCHEME,
+} from "./colors.ts";
 
 /**
  * A model Workstreams calls. `gateway` names an AI Gateway model directly
@@ -125,6 +130,8 @@ const GROUPS = {
   },
   /** Workstreams' color tokens (domain/colors.ts): a BB theme color or a custom color each. */
   colors: {
+    /** What tokens left at their default draw with. */
+    scheme: [colorSchemeSchema, DEFAULT_SCHEME],
     complete: [colorChoiceSchema, DEFAULT_COLORS.complete],
     review: [colorChoiceSchema, DEFAULT_COLORS.review],
     waiting: [colorChoiceSchema, DEFAULT_COLORS.waiting],

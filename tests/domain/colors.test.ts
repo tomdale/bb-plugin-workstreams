@@ -6,6 +6,7 @@ import {
   DEFAULT_COLORS,
   colorChoiceSchema,
   colorTokenCss,
+  resolveColor,
   type ColorPrefs,
 } from "../../src/domain/colors.ts";
 import {
@@ -100,6 +101,10 @@ describe("color choices", () => {
     expect(prefs.colors.complete).toEqual(DEFAULT_COLORS.complete);
     expect(prefs.colors.failure).toEqual({ kind: "custom", color: "#aa0000" });
     expect(prefs.colors.review).toEqual(DEFAULT_COLORS.review);
+    expect(prefs.colors.scheme).toBe("workstreams");
+    expect(parsePrefs({ colors: { scheme: "neon" } }).colors.scheme).toBe(
+      "workstreams",
+    );
   });
 
   it("merges one token without touching the others", () => {
@@ -118,7 +123,7 @@ describe("color choices", () => {
 });
 
 describe("colorTokenCss", () => {
-  const defaults: ColorPrefs = { ...DEFAULT_COLORS };
+  const defaults: ColorPrefs = { ...DEFAULT_COLORS, scheme: "workstreams" };
 
   it("adds nothing while every token is at its default", () => {
     expect(colorTokenCss(defaults)).toBe("");
@@ -147,6 +152,39 @@ describe("colorTokenCss", () => {
     expect(css).toContain("--ws-review-text: var(--destructive-text);");
     expect(css).toContain("--ws-complete: var(--attention);");
     expect(css).toContain("--ws-complete-text: oklch(from var(--ws-complete)");
+  });
+
+  it("draws defaulted tokens in their matching theme colors when the set follows the bb theme", () => {
+    const css = colorTokenCss({
+      ...defaults,
+      scheme: "theme",
+      failure: { kind: "custom", color: "#aa0000" },
+    });
+    expect(css).toContain("--ws-complete: var(--success);");
+    expect(css).toContain("--ws-complete-text: var(--success-foreground);");
+    expect(css).toContain("--ws-review: var(--timeline-accent);");
+    expect(css).toContain("--ws-needs-you: var(--attention);");
+    // A token the user set keeps that choice.
+    expect(css).toContain("--ws-failure: #aa0000;");
+    expect(css).not.toContain("--ws-failure: var(--destructive);");
+  });
+
+  it("resolves what each token draws with for its caption", () => {
+    const colors: ColorPrefs = {
+      ...defaults,
+      review: { kind: "theme", color: "warning" },
+    };
+    expect(resolveColor(colors, "complete")).toEqual({ kind: "workstreams" });
+    expect(resolveColor({ ...colors, scheme: "theme" }, "complete")).toEqual({
+      kind: "theme",
+      color: "success",
+      byDefault: true,
+    });
+    expect(resolveColor(colors, "review")).toEqual({
+      kind: "theme",
+      color: "warning",
+      byDefault: false,
+    });
   });
 
   it("outranks the zero-specificity defaults with a scoped selector", () => {
