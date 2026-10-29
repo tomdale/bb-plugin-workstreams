@@ -28,7 +28,7 @@ import {
   RECAP_TOOL_DESCRIPTION,
   recapInputSchema,
   recapToolSchema,
-  recapToolResult,
+  recapMarkdown,
   recapSchema,
   toRecap,
   type Recap,
@@ -165,7 +165,7 @@ export class AgentRecaps {
           );
         this.scheduleWaiting(ctx.threadId, recap);
         this.deps.onChange();
-        return recapToolResult(recap);
+        return recapMarkdown(recap);
       },
     });
   }

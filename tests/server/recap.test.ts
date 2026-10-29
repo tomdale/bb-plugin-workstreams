@@ -417,12 +417,10 @@ describe("agent recaps", () => {
         links: [],
       });
       expect(output).toContain("**Complete**");
-      expect(
-        typeof output === "string" &&
-          output.endsWith(
-            "\n\nRecorded. This ends your turn: write nothing more.",
-          ),
-      ).toBe(true);
+      // The output is the recap alone, with nothing appended.
+      expect(output).toBe(
+        "**Complete** · Porting handoffs into Workstreams\n- Moved the recap tool into Workstreams",
+      );
       expect(output).not.toContain("**Review:**");
       expect(output).not.toContain("**Next:**");
     },
@@ -532,12 +530,10 @@ describe("agent recaps", () => {
       review: [],
     });
     expect(output).toContain("**Waiting**");
-    expect(
-      typeof output === "string" &&
-        output.endsWith(
-          "\n\nRecorded. This ends your turn: write nothing more now. If nothing else starts a turn first, Workstreams prompts you to check status in 60 seconds.",
-        ),
-    ).toBe(true);
+    // The output is the recap alone, ending with its status check.
+    expect(output).toBe(
+      "**Waiting** · Workers are running\nCheck status in 60s",
+    );
     await s.dispatch();
     expect((await s.card()).recap).toBeNull();
   });
@@ -554,9 +550,7 @@ describe("agent recaps", () => {
       goal: "Python 3.9 or newer is required",
       latest: [],
     });
-    expect(output).toBe(
-      "**Complete** · Python 3.9 or newer is required\n\nRecorded. This ends your turn: write nothing more.",
-    );
+    expect(output).toBe("**Complete** · Python 3.9 or newer is required");
   });
 
   it("requires review steps for review, and real link locations", async () => {
@@ -591,8 +585,8 @@ describe("agent recaps", () => {
       state: "review",
       review: ["Read the report", "Check that each finding has evidence"],
     });
-    // The call's output is the recap the timeline row keeps, then the
-    // line that ends the agent's turn.
+    // The call's output is the recap the timeline row keeps, and nothing
+    // more.
     expect(output).toBe(
       [
         "**Ready for review** · Porting handoffs into Workstreams",
@@ -603,8 +597,6 @@ describe("agent recaps", () => {
         "- Check that each finding has evidence",
         "",
         "[Report](/tmp/report.md)",
-        "",
-        "Recorded. This ends your turn: write nothing more.",
       ].join("\n"),
     );
     // A single step may come as a string, and reads as one line.

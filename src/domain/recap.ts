@@ -481,20 +481,6 @@ export function recapMarkdown(recap: Recap): string {
   return normalizeRecapFileLinks(markdown);
 }
 
-/**
- * What the recap tool returns to the agent: the recap, which the timeline's
- * Recap row shows, then one line telling the agent its turn is over. While
- * waiting, the line says when Workstreams will prompt a status check, which
- * it does once the timeout passes if the turn is still the latest.
- */
-export function recapToolResult(recap: Recap): string {
-  const end =
-    recap.state === "waiting"
-      ? `Recorded. This ends your turn: write nothing more now. If nothing else starts a turn first, Workstreams prompts you to check status in ${recap.timeout} seconds.`
-      : "Recorded. This ends your turn: write nothing more.";
-  return `${recapMarkdown(recap)}\n\n${end}`;
-}
-
 /** The tool's description, as the agent sees it in its tool list. */
 export const RECAP_TOOL_DESCRIPTION =
   "Report the actual end of this turn; the recap drives the thread's visible state and may make it look finished. Recap state describes the responsibilities this thread owns under the user's request. Use complete only when all work this thread owns is finished, not merely because you answered one step, gave examples, or reached a natural pause. Work continuing elsewhere affects this recap only while this thread owns follow-up. If the user wants to work through options or examples together, keep collaborating; if their choice or other required input is needed to continue, ask with the question-card tool and end the turn without calling this tool. Do not use complete or next as a substitute for that question. Use review only for finished work awaiting inspection, testing, merging, or shipping; use waiting only while an async task is running whose result this thread needs to resume work it still owns. The user sees the recap above the composer and its state in the sidebar. Waiting: goal is the card title, and the card counts down to the status check; name each agent waited on in waitingAgents. Complete and review: next holds 1-3 optional follow-up messages, only after this thread's owned work is finished.";
