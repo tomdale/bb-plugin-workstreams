@@ -26,6 +26,8 @@ import {
 
 /** The message's own type, so the body reads as part of the message. */
 const INHERIT = "text-[length:inherit] leading-[inherit]";
+/** A block beside a recap card has no lead, so its first section sits flush. */
+const SECTION_SPACING = "mt-3 first:mt-0";
 const LABEL = cn(LABEL_CLASS, "m-0 text-muted-foreground");
 const DOT = "M8 6.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 1 0 0-3Z";
 const CIRCLE = "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9Z";
@@ -100,7 +102,7 @@ function Items({ items, label }: { items: ReplyItem[]; label: string }) {
 
 function Section({ section }: { section: ReplySection }) {
   return (
-    <section data-reply-section={section.label} className="mt-3">
+    <section data-reply-section={section.label} className={SECTION_SPACING}>
       <h3 className={LABEL}>{section.label}</h3>
       {section.items ? (
         <Items items={section.items} label={section.label} />
@@ -116,7 +118,7 @@ function Details({ markdown }: { markdown: string }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   return (
-    <section data-reply-section={DETAILS_LABEL} className="mt-3">
+    <section data-reply-section={DETAILS_LABEL} className={SECTION_SPACING}>
       <button
         type="button"
         aria-expanded={open}
