@@ -345,6 +345,14 @@ const MIGRATIONS = [
   "UPDATE ws_corpus_subject SET source = 'full' WHERE source = 'classified'",
   // A topic whose subtopics a volume split created keeps its header.
   "ALTER TABLE ws_corpus_entity ADD COLUMN partitioned INTEGER NOT NULL DEFAULT 0",
+  // Each root's checkout, and whether its requests point at other
+  // repositories, for placement's checkout hints.
+  `CREATE TABLE ws_thread_checkout (
+    thread_id TEXT PRIMARY KEY,
+    path TEXT NOT NULL,
+    elsewhere INTEGER NOT NULL DEFAULT 0
+  )`,
+  "CREATE INDEX ws_thread_checkout_path ON ws_thread_checkout(path)",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

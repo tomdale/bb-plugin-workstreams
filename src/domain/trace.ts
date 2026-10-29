@@ -15,6 +15,7 @@ export type Usage = z.infer<typeof usageSchema>;
 export const TRACE_KINDS = [
   "quick-analysis",
   "full-analysis",
+  "placement",
 ] as const;
 export type TraceKind = (typeof TRACE_KINDS)[number];
 
@@ -91,12 +92,14 @@ export type NewTrace = Omit<
 export const TRACE_KIND_TITLE: Record<TraceKind, string> = {
   "quick-analysis": "Quick analysis",
   "full-analysis": "Full analysis",
+  placement: "Placement",
 };
 
 /** Compact labels for narrow columns, such as the Activity log's. */
 export const TRACE_KIND_SHORT: Record<TraceKind, string> = {
   "quick-analysis": "Quick analysis",
   "full-analysis": "Full analysis",
+  placement: "Placement",
 };
 
 export const TRACE_STATUS_TITLE: Record<TraceStatus, string> = {

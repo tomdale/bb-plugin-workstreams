@@ -170,7 +170,11 @@ describe("idle analysis", () => {
     w.converse("t1", ["Add themes to the markdown viewer"]);
     await w.harness.behavior.callRpc("refresh", null);
     await w.harness.behavior.runCli(["analyze", "t1"]);
-    expect(analyses(w).at(-1)!.prompt).toContain("[" + topicId + "]");
+    const placement = w.completions.find((c) =>
+      c.prompt.includes("You file one agent thread under a topic"),
+    );
+    expect(placement!.prompt).toContain("[t1] Viewer");
+    expect(analyses(w).at(-1)!.prompt).not.toContain(topicId);
     expect(corpus.assignment("t1")).toMatchObject({
       entityId: topicId,
       provenance: "full",
@@ -421,11 +425,14 @@ describe("idle analysis", () => {
     expect(w.threads.get("t1")?.title).toBeNull();
   });
 
-  it("keeps at most four calls in flight", async () => {
+  it("keeps at most four runs in flight", async () => {
     let inFlight = 0;
     let peak = 0;
     const release: (() => void)[] = [];
-    const w = await setup(async () => {
+    const w = await setup(async ({ prompt }) => {
+      // Each run's placement call runs beside its Full analysis call.
+      if (!prompt.includes("You describe one agent thread"))
+        return JSON.stringify({ topic: null, propose: null });
       inFlight++;
       peak = Math.max(peak, inFlight);
       await new Promise<void>((resolve) => release.push(resolve));

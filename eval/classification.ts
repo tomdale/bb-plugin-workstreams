@@ -1,13 +1,16 @@
 import { writeFile } from "node:fs/promises";
 import {
-  fullAnalysisPrompt,
-  parseFullAnalysis,
   quickAnalysisPrompt,
   parseQuickAnalysis,
   quickAnalysisSchema,
-  type FullAnalysisInput,
 } from "../src/domain/analysis.ts";
 import type { TopicAnswer } from "../src/domain/classify.ts";
+import {
+  parsePlacement,
+  placementPrompt,
+  placementSchema,
+  type PlacementInput,
+} from "../src/domain/placement.ts";
 import {
   gatewayKey,
   gatewayComplete,
@@ -18,12 +21,13 @@ import { cases } from "./classification-cases.ts";
 /** Paid contract evaluation; it never applies model results to the plugin. */
 const apiKey = await gatewayKey();
 if (!apiKey) throw new Error("AI Gateway authentication required");
-const model = process.env.EVAL_MODEL ?? "google/gemini-3.8-flash";
-const kind = process.env.EVAL_KIND ?? "full";
-const reasoningLevel =
-  process.env.EVAL_REASONING_LEVEL ?? (kind === "quick" ? "none" : undefined);
-if (kind !== "quick" && kind !== "full")
-  throw new Error("EVAL_KIND must be quick or full");
+const kind = process.env.EVAL_KIND ?? "placement";
+if (kind !== "quick" && kind !== "placement")
+  throw new Error("EVAL_KIND must be quick or placement");
+const model =
+  process.env.EVAL_MODEL ??
+  (kind === "quick" ? "openai/gpt-6-luna-fast" : "openai/gpt-6-sol");
+const reasoningLevel = process.env.EVAL_REASONING_LEVEL ?? "none";
 const repetitions = Number(process.env.EVAL_REPETITIONS ?? 1);
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 20)
   throw new Error("EVAL_REPETITIONS must be between 1 and 20");
@@ -47,17 +51,14 @@ try {
         const requests = (test.input.requests ?? [test.input.prompt]).map(
           (text, i) => ({ text, initial: i === 0, id: `request-${i + 1}` }),
         );
-        const full: FullAnalysisInput = {
-          title: test.input.prompt,
-          requests,
-          lastAssistantText: null,
-          report: null,
-          mode: "full",
-          topic: {
-            entities,
-            project: test.input.project ?? null,
-            current: null,
-          },
+        const placement: PlacementInput = {
+          title: null,
+          requests: requests.map((r) => r.text),
+          project: test.input.project ?? null,
+          checkout: null,
+          entities,
+          hints: [],
+          current: null,
         };
         const quick = {
           request: requests.map((r) => r.text).join("\n\n"),
@@ -67,7 +68,7 @@ try {
         const prompt =
           kind === "quick"
             ? quickAnalysisPrompt(quick)
-            : fullAnalysisPrompt(full);
+            : placementPrompt(placement);
         const started = Date.now();
         let response: string | null = null;
         let cost: number | undefined;
@@ -87,22 +88,21 @@ try {
             maxTokens: 4096,
             reasoningLevel,
             outputSchema:
-              kind === "quick" ? quickAnalysisSchema(quick) : undefined,
+              kind === "quick"
+                ? quickAnalysisSchema(quick)
+                : placementSchema(placement),
           });
           response = completion.text;
           cost = completion.usage.cost;
-          const parsed =
-            kind === "quick"
-              ? parseQuickAnalysis(response, quick)
-              : parseFullAnalysis(response, full);
-          if (parsed.topicError) throw new Error(parsed.topicError);
-          const topic =
-            kind === "quick"
-              ? (parsed as TopicAnswer)
-              : (parsed as ReturnType<typeof parseFullAnalysis>).topic;
+          let topic: TopicAnswer;
+          if (kind === "quick") {
+            const parsed = parseQuickAnalysis(response, quick);
+            if (parsed.topicError) throw new Error(parsed.topicError);
+            topic = parsed;
+          } else topic = parsePlacement(response, placement);
           const value: TopicAnswer = {
-            subjectId: topic?.subjectId ?? null,
-            proposed: topic?.proposed ?? null,
+            subjectId: topic.subjectId,
+            proposed: topic.proposed,
           };
           results.push({
             id: test.id,

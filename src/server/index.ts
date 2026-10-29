@@ -11,6 +11,7 @@ import { registerAgentInstructions } from "./agents.ts";
 import { Analyzer } from "./analyzer.ts";
 import { RecapArchive } from "./archive.ts";
 import { Organizer } from "./organizer.ts";
+import { Placement } from "./placement.ts";
 import { Reclassification } from "./reclassification.ts";
 import { sectionMembers } from "./cleanup.ts";
 import { WorkstreamMap } from "./map.ts";
@@ -291,6 +292,24 @@ export default async function plugin(bb: BbPluginApi) {
       bb.log.warn(`Applying a topic to ${threadId} failed: ${String(error)}`);
     }
   };
+  const placement = new Placement({
+    sdk: () => bb.sdk,
+    db,
+    inference,
+    model: async () => currentPrefs().analysis.placementModel,
+    topics,
+    project: projectName,
+    basisOf: (requests, project) =>
+      topicBasis({
+        requests,
+        project,
+        definitions: topics.definitionKey(),
+        model: currentPrefs().analysis.placementModel,
+      }),
+    apply: (threadId, answer, basis, traceId) =>
+      applyTopic(threadId, answer, "full", basis, traceId),
+    log: (message) => bb.log.warn(message),
+  });
   // Set below; the analyzer reads recaps only once events start.
   let recaps: AgentRecaps;
   const analyzer = new Analyzer({
@@ -307,18 +326,11 @@ export default async function plugin(bb: BbPluginApi) {
     topics: {
       entities: () => topics.list(),
       assignment: (threadId) => topics.assignment(threadId),
-      basis: (threadId) => topics.basis(threadId),
-      basisOf: (requests, project) =>
-        topicBasis({
-          requests,
-          project,
-          definitions: topics.definitionKey(),
-          model: currentPrefs().analysis.fullModel,
-        }),
       project: projectName,
       apply: (threadId, answer, basis, traceId) =>
         applyTopic(threadId, answer, "full", basis, traceId),
     },
+    placement,
     onChange: notify,
     onResult: (threadId, result) => {
       // A finished analysis can change whether the thread counts as done,
@@ -477,7 +489,7 @@ export default async function plugin(bb: BbPluginApi) {
       if (topicId && topics.inheritTopic(threadId, topicId)) {
         notify();
         triggerOrganizer(10);
-      }
+      } else if (topicId) placement.hintStart(threadId, topicId, "workstream");
       return;
     }
     if (identity.provenance === "manual") {
@@ -581,7 +593,12 @@ export default async function plugin(bb: BbPluginApi) {
         else service.seeThread(ctx.thread.id, null, ctx.parentThreadId ?? null);
         if (!ctx.parentThreadId) {
           if (from && topics.inherit(ctx.thread.id, from)) notify();
+          else if (from) {
+            const source = topics.assignment(from).entityId;
+            if (source) placement.hintStart(ctx.thread.id, source, "thread");
+          }
           if (identity) fileComposedIdentity(ctx.thread, identity);
+          void placement.onFirstRequest(ctx.thread, ctx.input.text);
         }
         triggerOrganizer(10);
       } catch (error: unknown) {
@@ -699,6 +716,7 @@ export default async function plugin(bb: BbPluginApi) {
     snoozes.clear(thread.id);
     analyzer.forget(thread.id);
     quick.forget(thread.id);
+    placement.forget(thread.id);
     recaps.forget(thread.id);
     service.forget(thread.id);
     topics.forget(thread.id);

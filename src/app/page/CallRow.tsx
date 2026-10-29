@@ -12,12 +12,17 @@ const EVENT: Record<TraceKind, { label: string; description: string }> = {
   "quick-analysis": {
     label: "Quick analysis",
     description:
-      "The model titled a new thread and chose its topic from one request: a draft in the composer, or the thread's first request. Full analysis of the first finished turn settles both.",
+      "The model titled a new thread and chose its topic from one request: a draft in the composer, or the thread's first request. Placement settles the topic, and Full analysis of the first finished turn settles the title.",
   },
   "full-analysis": {
     label: "Full analysis",
     description:
-      "After a turn ended, the model settled the thread's goal and topic, and its status when the agent didn't report one. This is an assessment, not proof that a change was applied.",
+      "After a turn ended, the model settled the thread's goal, and its status when the agent didn't report one. This is an assessment, not proof that a change was applied.",
+  },
+  placement: {
+    label: "Placement",
+    description:
+      "The model chose the thread's topic from its requests, or proposed a new one: when the thread started, or after a new request.",
   },
 };
 const STATES: Record<string, { label: string; description: string }> = {

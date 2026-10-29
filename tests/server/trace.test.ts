@@ -94,14 +94,20 @@ describe("debug mode on", () => {
   it("records an analysis call with its prompt, reasoning, response, and result", async () => {
     const w = await setup(true);
     await analyze(w, "t1");
-    const [summary] = await traces(w, {
+    const recorded = await traces(w, {
       link: { kind: "thread", ref: "t1" },
     });
+    const summary = recorded.find((t) => t.kind === "full-analysis");
     expect(summary).toMatchObject({
-      kind: "full-analysis",
       status: "ok",
       label: "Alpha parser",
-      summary: "review · no topic",
+      summary: "review",
+      threads: ["t1"],
+    });
+    // Placement settles the topic beside it.
+    expect(recorded.find((t) => t.kind === "placement")).toMatchObject({
+      status: "ok",
+      summary: "no topic",
       threads: ["t1"],
     });
     const state = await rpc<{
@@ -110,7 +116,7 @@ describe("debug mode on", () => {
     expect(state.analysis.t1?.traceId).toBe(summary!.id);
 
     const full = (await trace(w, summary!.id))!;
-    expect(full.prompt).toBe(w.completions.at(-1)!.prompt);
+    expect(w.completions.map((c) => c.prompt)).toContain(full.prompt);
     expect(full.system).toContain("Return only the requested JSON");
     expect(full.reasoning).toBe("**Weighing the state**\n\nThe tests pass.");
     expect(full.response).toBe(JSON.stringify(ANALYSIS));

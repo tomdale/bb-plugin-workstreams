@@ -51,18 +51,26 @@ function RootComposer() {
 async function mount(answer: Record<string, unknown>) {
   let seededAlphaId = "";
   world = await fakeWorld({
+    // Placement of the first request fails here, so the composer's own
+    // preview is what files the thread.
     complete: ({ prompt }) =>
-      JSON.stringify(
-        prompt.includes("You name one new agent thread")
-          ? answer.name === "Billing"
-            ? {
-                goal: "Invoice export",
-                subjectId: null,
-                proposed: { name: "Billing", description: "" },
-              }
-            : { goal: "Alpha parser tabs", subjectId: seededAlphaId, proposed: null }
-          : { recap: "r", state: "done" },
-      ),
+      prompt.includes("You file one agent thread under a topic")
+        ? "not json"
+        : JSON.stringify(
+            prompt.includes("You name one new agent thread")
+              ? answer.name === "Billing"
+                ? {
+                    goal: "Invoice export",
+                    subjectId: null,
+                    proposed: { name: "Billing", description: "" },
+                  }
+                : {
+                    goal: "Alpha parser tabs",
+                    subjectId: seededAlphaId,
+                    proposed: null,
+                  }
+              : { recap: "r", state: "done" },
+          ),
   });
   const w = world;
   const alpha = w.addSection("Alpha");
@@ -74,13 +82,7 @@ async function mount(answer: Record<string, unknown>) {
   seededAlphaId = alphaTopic.id;
   w.addThread("a1", { sectionId: alpha.id, title: "Alpha task" });
   await w.harness.behavior.callRpc("refresh", null);
-  const methods = [
-    "prefs",
-    "state",
-    "catalog",
-    "preview",
-    "previewCancel",
-  ];
+  const methods = ["prefs", "state", "catalog", "preview", "previewCancel"];
   const rpc = Object.fromEntries(
     methods.map((method) => [
       method,
@@ -205,7 +207,9 @@ it("submits a new topic picked in the UI through host metadata", async () => {
   fireEvent.click(await screen.findByRole("button", { name: /Topic:/ }));
   const searchInput = screen.getByPlaceholderText("Find a topic");
   fireEvent.change(searchInput, { target: { value: "Billing" } });
-  fireEvent.click(await screen.findByRole("option", { name: /New topic “Billing”/ }));
+  fireEvent.click(
+    await screen.findByRole("option", { name: /New topic “Billing”/ }),
+  );
   await screen.findByRole("button", { name: "Topic: Billing" });
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));

@@ -6,16 +6,16 @@ repository.
 
 ## Classification contracts
 
-Run `node eval/classification.ts` for Full analysis, or
+Run `node eval/classification.ts` for placement, or
 `EVAL_KIND=quick node eval/classification.ts` for the actual Quick prompt,
 output schema, and parser. Quick flattens a synthetic case's requests into one
 opening request; it does not measure conversation trajectories or the production
-repair retry.
+repair retry. Placement sees the requests without hints or a checkout.
 
-- `EVAL_MODEL`: model ID; default `google/gemini-3.8-flash`
-- `EVAL_KIND`: `full` or `quick`
-- `EVAL_REASONING_LEVEL`: explicit gateway effort; Quick defaults to `none`,
-  Full to provider default
+- `EVAL_MODEL`: model ID; default `openai/gpt-6-sol` for placement and
+  `openai/gpt-6-luna-fast` for Quick
+- `EVAL_KIND`: `placement` or `quick`
+- `EVAL_REASONING_LEVEL`: explicit gateway effort; default `none`
 - `EVAL_OUTPUT`: JSON report path; default `/tmp/classification-eval.json`
 - `EVAL_COLD=1`: remove known topics
 - `EVAL_REPETITIONS`: repeat each case 1–20 times

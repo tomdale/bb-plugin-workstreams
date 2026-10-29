@@ -30,11 +30,14 @@ async function setup(
   let call = 0;
   world = await fakeWorld({
     settings,
-    complete: () =>
+    // Placement calls share the model; only Full analysis names goals.
+    complete: ({ prompt }) =>
       JSON.stringify({
         recap: "Working.",
         state: "in_progress",
-        goal: goals[Math.min(call++, goals.length - 1)] ?? null,
+        goal: prompt.includes("You describe one agent thread")
+          ? (goals[Math.min(call++, goals.length - 1)] ?? null)
+          : null,
       }),
   });
   return world;

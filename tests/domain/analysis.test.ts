@@ -47,16 +47,12 @@ describe("Full analysis", () => {
     );
     expect(parsed.status?.needsYou).toHaveLength(80);
   });
-  it("asks for status, goal, and topic after a new request with no report", () => {
-    const prompt = fullAnalysisPrompt({
-      ...base,
-      topic: { entities, project: "Zebracorn", current: null },
-    });
+  it("asks for status and goal, never a topic, after a new request with no report", () => {
+    const prompt = fullAnalysisPrompt(base);
     expect(prompt).toContain('"recap": string');
     expect(prompt).toContain('"goal": string|null');
-    expect(prompt).toContain('"subjectId": string|null');
-    expect(prompt).toContain("[cache]");
-    expect(prompt).not.toContain("scopeShift");
+    expect(prompt).not.toContain("subjectId");
+    expect(prompt).not.toContain("topic_tree");
   });
 
   it("doesn't ask for status the agent already reported", () => {
@@ -75,18 +71,13 @@ describe("Full analysis", () => {
       identity: null,
       names: { products: [], features: [] },
       goal: "Stale build cache",
-      topic: null,
     });
   });
 
   it("asks only for status when no new request arrived", () => {
     const input: FullAnalysisInput = { ...base, mode: "status" };
-    const prompt = fullAnalysisPrompt({
-      ...input,
-      topic: { entities, project: null, current: null },
-    });
+    const prompt = fullAnalysisPrompt(input);
     expect(prompt).not.toContain('"goal"');
-    expect(prompt).not.toContain('"subjectId"');
     expect(
       parseFullAnalysis('{"recap":"Waiting on CI","state":"blocked"}', input),
     ).toEqual({
@@ -94,11 +85,10 @@ describe("Full analysis", () => {
       names: { products: [], features: [] },
       status: { recap: "Waiting on CI", state: "blocked", needsYou: null },
       goal: null,
-      topic: null,
     });
   });
 
-  it("observes names in full and status calls without requiring topic classification", () => {
+  it("observes names in full and status calls", () => {
     const names = {
       products: ["Lumen"],
       features: [
@@ -150,54 +140,6 @@ describe("Full analysis", () => {
     expect(names({ products: ["Lumen"], features: ["Cache", 5] })).toEqual({
       products: ["Lumen"],
       features: [],
-    });
-  });
-
-  it("asks whether scope shifted only for an inherited topic", () => {
-    const prompt = fullAnalysisPrompt({
-      ...base,
-      topic: {
-        entities,
-        project: null,
-        current: { id: "lumen", label: "Lumen", inherited: true },
-      },
-    });
-    expect(prompt).toContain("scopeShift");
-    expect(prompt).toContain(
-      "<current_topic>\nLumen [lumen]\n</current_topic>",
-    );
-  });
-
-  it("parses a topic, anchors a proposal, and rejects an unknown one", () => {
-    const input: FullAnalysisInput = {
-      ...base,
-      topic: { entities, project: null, current: null },
-    };
-    const answer = (fields: object) =>
-      JSON.stringify({
-        recap: "Done",
-        state: "done",
-        goal: "Cache",
-        ...fields,
-      });
-    expect(
-      parseFullAnalysis(answer({ subjectId: "cache" }), input).topic,
-    ).toEqual({ subjectId: "cache", proposed: null, scopeShift: false });
-    expect(
-      parseFullAnalysis(
-        answer({
-          proposed: { name: "Cache", parentId: "lumen", description: "" },
-        }),
-        input,
-      ).topic,
-    ).toEqual({ subjectId: "cache", proposed: null, scopeShift: false });
-    expect(
-      parseFullAnalysis(answer({ subjectId: "invented" }), input),
-    ).toMatchObject({
-      goal: "Cache",
-      status: { state: "done" },
-      topic: null,
-      topicError: expect.any(String),
     });
   });
 

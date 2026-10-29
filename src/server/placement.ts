@@ -1,0 +1,344 @@
+/**
+ * Placement (SPEC §2–3): one closed-set call settles a root's topic from its
+ * requests, when the thread starts and again when a turn ends after a new
+ * request. The analyzer asks and applies it alongside Full analysis, with the
+ * same freshness checks; the first request is placed here directly.
+ *
+ * Its evidence is the generated title, the first, second, and latest
+ * substantive requests, the project, and the checkout, plus hints:
+ *
+ * - the topic of the thread it continues or was started from, and of the
+ *   workstream whose ＋ started it when that topic holds subtopics;
+ * - the topic most threads in its checkout have, unless the checkout is a
+ *   coordination workspace, one whose threads point at other repositories
+ *   (at least two of them name a GitHub repository or a `~/Code` path
+ *   outside it), where location says nothing about the work.
+ */
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import type { ModelChoice } from "../domain/prefs.ts";
+import type { PlacementInput, PlacementOutput } from "../domain/placement.ts";
+import { topicPath } from "../domain/topic-path.ts";
+import type { Database } from "./db.ts";
+import type { Inference } from "./model.ts";
+import { isSubstantiveRequest } from "./requests.ts";
+import type { TopicStore } from "./topics.ts";
+
+type Sdk = BbPluginApi["sdk"];
+
+/** What placement reads from a BB thread. */
+export type PlacementThread = {
+  readonly id: string;
+  readonly title: string | null;
+  readonly projectId: string;
+  readonly environmentId?: string | null;
+  readonly sourceThreadId?: string | null;
+  readonly parentThreadId?: string | null;
+};
+
+export type PlacementQuestion = {
+  input: PlacementInput;
+  basis: string;
+  /** The answer when no call is needed: a root with nothing to place by. */
+  settled?: PlacementOutput;
+};
+
+/** First-send placement gives up after this; the turn's end places it. */
+const FIRST_REQUEST_TIMEOUT_MS = 15_000;
+/** Roots that point at other repositories before a checkout coordinates. */
+export const COORDINATION_AT = 2;
+
+const ROUTED = /^\[bb message from thread:[^\]]*\]\s*/i;
+const GITHUB_REPO = /github\.com\/([\w.-]+)\/([\w.-]+)/gi;
+const CODE_PATH = /(?:~|\/Users\/[\w.-]+)\/Code\/[\w./+-]+/g;
+
+/** Whether a request names a repository other than the checkout's own. */
+export function pointsElsewhere(text: string, checkout: string): boolean {
+  const segments = new Set(checkout.toLowerCase().split("/").filter(Boolean));
+  for (const match of text.matchAll(GITHUB_REPO)) {
+    const repo = match[2]!.replace(/\.git$/, "").toLowerCase();
+    if (!segments.has(repo)) return true;
+  }
+  const home = checkout.match(/^\/Users\/[\w.-]+/)?.[0];
+  for (const match of text.matchAll(CODE_PATH)) {
+    const path = home ? match[0].replace(/^~/, home) : match[0];
+    if (!path.startsWith(checkout)) return true;
+  }
+  return false;
+}
+
+/** First, second, and latest substantive requests, oldest first. */
+export function placementRequests(requests: readonly string[]): string[] {
+  const substantive = requests
+    .map((text) => text.replace(ROUTED, "").trim())
+    .filter(isSubstantiveRequest);
+  return [
+    ...new Set([substantive[0], substantive[1], substantive.at(-1)]),
+  ].filter((text): text is string => Boolean(text));
+}
+
+export class Placement {
+  /** Hints recorded before a thread's first request is placed. */
+  private readonly startHints = new Map<string, string>();
+  private readonly checkouts = new Map<string, string | null>();
+
+  constructor(
+    private readonly deps: {
+      sdk: () => Sdk;
+      db: Database;
+      inference: Inference;
+      model: () => Promise<ModelChoice>;
+      topics: TopicStore;
+      project: (projectId: string) => Promise<string | null>;
+      /** The basis an automatic topic is settled from. */
+      basisOf: (requests: readonly string[], project: string | null) => string;
+      /** Applies an answer under the source priority. */
+      apply: (
+        threadId: string,
+        answer: PlacementOutput,
+        basis: string,
+        traceId: string | null,
+      ) => void;
+      log: (message: string) => void;
+    },
+  ) {}
+
+  /**
+   * Remembers where a new thread was started from when that topic couldn't
+   * be inherited (it holds subtopics), so placement weighs it.
+   */
+  hintStart(threadId: string, topicId: string, from: "thread" | "workstream") {
+    const label = this.label(topicId);
+    if (!label) return;
+    this.startHints.set(
+      threadId,
+      from === "workstream"
+        ? `It was started from the ${label} workstream.`
+        : `It was started from a thread filed under ${label}.`,
+    );
+    if (this.startHints.size > 200)
+      this.startHints.delete(this.startHints.keys().next().value!);
+  }
+
+  forget(threadId: string): void {
+    this.startHints.delete(threadId);
+    this.deps.db
+      .prepare("DELETE FROM ws_thread_checkout WHERE thread_id = ?")
+      .run(threadId);
+  }
+
+  /**
+   * What placing a root from these requests would ask, or null when there is
+   * nothing to settle: you set its topic, or it was settled from these
+   * requests.
+   */
+  async question(
+    thread: PlacementThread,
+    rawRequests: readonly string[],
+    options: { force?: boolean } = {},
+  ): Promise<PlacementQuestion | null> {
+    const topics = this.deps.topics;
+    const assignment = topics.assignment(thread.id);
+    if (assignment.provenance === "manual") return null;
+    const requests = placementRequests(rawRequests);
+    // With neither a substantive request nor a title there is nothing to
+    // place by; settling "no topic" keeps the root from being asked again
+    // until a request arrives.
+    const blank = requests.length === 0 && !thread.title;
+    if (blank && assignment.provenance !== null) return null;
+    const project = await this.deps.project(thread.projectId);
+    const basis = this.deps.basisOf(rawRequests, project);
+    if (
+      !options.force &&
+      assignment.provenance !== null &&
+      assignment.provenance !== "quick" &&
+      topics.basis(thread.id) === basis
+    )
+      return null;
+    const checkout = await this.checkout(thread.environmentId ?? null);
+    if (checkout) this.observe(thread.id, checkout, rawRequests);
+    const entities = topics.list();
+    return {
+      basis,
+      ...(blank
+        ? { settled: { subjectId: null, proposed: null, scopeShift: false } }
+        : {}),
+      input: {
+        title: thread.title,
+        requests,
+        project,
+        checkout,
+        entities,
+        counts: this.counts(),
+        hints: this.hints(thread, rawRequests, checkout),
+        current: assignment.label
+          ? {
+              label: assignment.label,
+              inherited: assignment.provenance === "inherited",
+            }
+          : null,
+      },
+    };
+  }
+
+  /** Asks the model; throws when the call fails or its answer is invalid. */
+  async ask(
+    threadId: string,
+    question: PlacementQuestion,
+    options: { label: string; timeoutMs?: number },
+  ): Promise<{ answer: PlacementOutput; traceId: string | null }> {
+    if (question.settled) return { answer: question.settled, traceId: null };
+    const { value, traceId } = await this.deps.inference.run(
+      "placement",
+      question.input,
+      {
+        model: await this.deps.model(),
+        threadId,
+        label: options.label,
+        links: [{ kind: "thread", ref: threadId }],
+        timeoutMs: options.timeoutMs,
+      },
+    );
+    return { answer: value, traceId };
+  }
+
+  /**
+   * Places a root from its first request, right after it was filed from
+   * where it started. Never rejects; the turn's end places it otherwise.
+   */
+  async onFirstRequest(thread: PlacementThread, text: string): Promise<void> {
+    try {
+      if (thread.parentThreadId) return;
+      const question = await this.question(thread, [text]);
+      if (!question) return;
+      const { answer, traceId } = await this.ask(thread.id, question, {
+        label: thread.title ?? text.slice(0, 60),
+        timeoutMs: FIRST_REQUEST_TIMEOUT_MS,
+      });
+      // The thread may have been settled or corrected while the call ran.
+      const now = this.deps.topics.assignment(thread.id);
+      if (now.provenance === "manual" || this.deps.topics.basis(thread.id))
+        return;
+      this.deps.apply(thread.id, answer, question.basis, traceId);
+    } catch (error) {
+      this.deps.log(`Placing ${thread.id} failed: ${String(error)}`);
+    } finally {
+      this.startHints.delete(thread.id);
+    }
+  }
+
+  /** Whether threads in a checkout point at other repositories. */
+  coordinates(checkout: string): boolean {
+    return (
+      (
+        this.deps.db
+          .prepare(
+            "SELECT COUNT(*) AS n FROM ws_thread_checkout WHERE path = ? AND elsewhere = 1",
+          )
+          .get(checkout) as { n: number }
+      ).n >= COORDINATION_AT
+    );
+  }
+
+  /** Checkouts that coordinate work in other repositories. */
+  coordinationWorkspaces(): string[] {
+    return (
+      this.deps.db
+        .prepare(
+          "SELECT path FROM ws_thread_checkout WHERE elsewhere = 1 GROUP BY path HAVING COUNT(*) >= ?",
+        )
+        .all(COORDINATION_AT) as { path: string }[]
+    ).map((row) => row.path);
+  }
+
+  private label(topicId: string): string | null {
+    try {
+      return topicPath(topicId, this.deps.topics.list());
+    } catch {
+      return null;
+    }
+  }
+
+  private async checkout(environmentId: string | null): Promise<string | null> {
+    if (!environmentId) return null;
+    if (this.checkouts.has(environmentId))
+      return this.checkouts.get(environmentId)!;
+    const path = await this.deps
+      .sdk()
+      .environments.get({ environmentId })
+      .then((environment) => environment?.path ?? null)
+      .catch(() => null);
+    this.checkouts.set(environmentId, path);
+    return path;
+  }
+
+  private observe(
+    threadId: string,
+    checkout: string,
+    requests: readonly string[],
+  ): void {
+    const elsewhere = requests.some((text) => pointsElsewhere(text, checkout));
+    this.deps.db
+      .prepare(
+        `INSERT INTO ws_thread_checkout(thread_id, path, elsewhere) VALUES (?, ?, ?)
+         ON CONFLICT(thread_id) DO UPDATE SET path = excluded.path,
+           elsewhere = MAX(ws_thread_checkout.elsewhere, excluded.elsewhere)`,
+      )
+      .run(threadId, checkout, elsewhere ? 1 : 0);
+  }
+
+  /** Visible roots assigned to each topic. */
+  private counts(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const row of this.deps.db
+      .prepare(
+        `SELECT s.entity_id AS id, COUNT(*) AS n FROM ws_corpus_subject s
+         JOIN ws_seen_thread t ON t.thread_id = s.thread_id
+         WHERE s.entity_id IS NOT NULL GROUP BY s.entity_id`,
+      )
+      .all() as { id: string; n: number }[])
+      out[row.id] = row.n;
+    return out;
+  }
+
+  private hints(
+    thread: PlacementThread,
+    requests: readonly string[],
+    checkout: string | null,
+  ): string[] {
+    const hints: string[] = [];
+    const started = this.startHints.get(thread.id);
+    if (started) hints.push(started);
+    const referenced =
+      [...requests]
+        .reverse()
+        .map((text) => text.match(/@thread:([\w-]+)/)?.[1])
+        .find(Boolean) ?? thread.sourceThreadId;
+    if (referenced && referenced !== thread.id) {
+      const source = this.deps.topics.assignment(referenced);
+      if (source.label)
+        hints.push(`It continues a thread filed under ${source.label}.`);
+    }
+    if (checkout && !this.coordinates(checkout)) {
+      const usual = this.usualTopic(checkout, thread.id);
+      if (usual)
+        hints.push(`Threads in its checkout are usually filed under ${usual}.`);
+    }
+    return hints;
+  }
+
+  /** The topic most of a checkout's other threads have, when one clearly leads. */
+  private usualTopic(checkout: string, threadId: string): string | null {
+    const rows = this.deps.db
+      .prepare(
+        `SELECT s.entity_id AS id, COUNT(*) AS n FROM ws_thread_checkout c
+         JOIN ws_corpus_subject s ON s.thread_id = c.thread_id
+         WHERE c.path = ? AND c.thread_id != ? AND s.entity_id IS NOT NULL
+         GROUP BY s.entity_id ORDER BY n DESC`,
+      )
+      .all(checkout, threadId) as { id: string; n: number }[];
+    const total = rows.reduce((sum, row) => sum + row.n, 0);
+    const lead = rows[0];
+    if (!lead || lead.n < 2 || lead.n * 2 <= total) return null;
+    return this.label(lead.id);
+  }
+}

@@ -9,6 +9,9 @@ import {
 } from "@get-bb/plugin-sdk/testing";
 import plugin from "../../src/server/index.ts";
 import { migrateLegacyPrefs, savePrefs } from "../../src/server/prefs.ts";
+import { openDatabase } from "../../src/server/db.ts";
+import { TopicStore } from "../../src/server/topics.ts";
+import { placementIds } from "../../src/domain/placement.ts";
 
 type Thread = ReturnType<typeof makeThreadResponse>;
 type Section = {
@@ -26,6 +29,46 @@ export type FakeCompletion = (call: {
   /** The host call's abort signal. */
   signal?: AbortSignal;
 }) => FakeAnswer | Promise<FakeAnswer>;
+
+/** How the placement prompt opens, so a fake can tell it apart. */
+const PLACEMENT = "You file one agent thread under a topic";
+
+/**
+ * Tests answer every call with one JSON shape, naming a topic by its ID as
+ * `subjectId` or proposing one as `proposed`. Placement names topics by short
+ * IDs and proposes with `propose`, so translate a test's answer for it.
+ */
+function asPlacement(
+  answer: string,
+  entities: Parameters<typeof placementIds>[0],
+) {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(answer) as Record<string, unknown>;
+  } catch {
+    return answer;
+  }
+  if (!parsed || typeof parsed !== "object" || "topic" in parsed) return answer;
+  const ids = placementIds(entities);
+  const short = (id: unknown) =>
+    typeof id === "string" ? (ids.get(id) ?? id) : null;
+  const proposed = parsed.proposed as {
+    name: string;
+    description?: string;
+    parentId?: string | null;
+  } | null;
+  return JSON.stringify({
+    topic: short(parsed.subjectId),
+    propose: proposed
+      ? {
+          name: proposed.name,
+          description: proposed.description ?? "",
+          parent: short(proposed.parentId ?? null),
+        }
+      : null,
+    scopeShift: parsed.scopeShift ?? false,
+  });
+}
 
 const DEFAULT_ANSWER = JSON.stringify({
   recap: "Fixed the bug; tests pass.",
@@ -101,14 +144,19 @@ export async function fakeWorld(
     experimental_callHostRpc: async (call) => {
       const input = call.input as { prompt: string; model: string };
       completions.push(input);
-      const answer = await (options.complete?.({
+      const given = await (options.complete?.({
         ...input,
         signal: call.signal,
       }) ?? DEFAULT_ANSWER);
       const usage = { input: 100, output: 20, cost: 0.0001 };
-      return typeof answer === "string"
-        ? { text: answer, usage }
-        : { ...answer, usage, stopReason: "stop" };
+      const placing = input.prompt.includes(PLACEMENT);
+      const translate = (text: string) =>
+        placing
+          ? asPlacement(text, new TopicStore(openDatabase(host.bb)).list())
+          : text;
+      return typeof given === "string"
+        ? { text: translate(given), usage }
+        : { ...given, text: translate(given.text), usage, stopReason: "stop" };
     },
     sdk: {
       plugins: {

@@ -55,7 +55,10 @@ it("uses the worker path only when gatewayModel returns null", async () => {
     },
   });
   const recorded = await w.harness.behavior.runCli(["trace", "--json"]);
-  const { traces } = JSON.parse(recorded.stdout);
-  expect(traces).toHaveLength(1);
-  expect(traces[0].usage).toBeNull();
+  const { traces } = JSON.parse(recorded.stdout) as {
+    traces: { kind: string; usage: unknown }[];
+  };
+  const analysis = traces.filter((t) => t.kind === "full-analysis");
+  expect(analysis).toHaveLength(1);
+  expect(analysis[0]!.usage).toBeNull();
 });

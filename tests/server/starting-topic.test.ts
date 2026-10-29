@@ -19,8 +19,14 @@ afterEach(async () => {
 
 const isQuick = (prompt: string) =>
   prompt.includes("You name one new agent thread");
+const isPlacement = (prompt: string) =>
+  prompt.includes("You file one agent thread under a topic");
 
-async function setup() {
+/**
+ * Placement of the first request settles the topic a moment later. Unless a
+ * test asks for its answer, it fails, so the starting topic stands.
+ */
+async function setup(placed?: () => string | null) {
   let topicId = "";
   world = await fakeWorld({
     complete: ({ prompt }) =>
@@ -30,7 +36,11 @@ async function setup() {
             subjectId: topicId,
             proposed: null,
           })
-        : JSON.stringify({ recap: "r", state: "in_progress" }),
+        : isPlacement(prompt)
+          ? placed
+            ? JSON.stringify({ subjectId: placed(), proposed: null })
+            : "not json"
+          : JSON.stringify({ recap: "r", state: "in_progress" }),
   });
   const w = world;
   const corpus = new TopicStore(openDatabase(w.bb));
@@ -66,6 +76,45 @@ async function setup() {
 }
 
 describe("a new root's first topic", () => {
+  it("is settled by placement of the first request", async () => {
+    let docsId = "";
+    const { w, corpus, docs, dispatch, settle } = await setup(() => docsId);
+    docsId = docs.id;
+    await dispatch("t1", "Make the parser handle tabs");
+    await settle();
+    expect(
+      w.completions.filter((c) => isPlacement(c.prompt)).map((c) => c.prompt),
+    ).toEqual([expect.stringContaining("Make the parser handle tabs")]);
+    // Placement outranks Quick analysis's guess.
+    expect(corpus.assignment("t1")).toMatchObject({
+      entityId: docs.id,
+      provenance: "full",
+    });
+  });
+
+  it("weighs the workstream it was started from when that topic has subtopics", async () => {
+    const { w, corpus, parser, dispatch, settle } = await setup(() => null);
+    corpus.create("Tabs", "Tab handling", parser.id);
+    const section = w.addSection("Parser");
+    corpus.bindGroup(section.id, parser.id);
+    await w.harness.behavior.callRpc("draftIdentity", {
+      draftKey: "d1",
+      text: "Make the parser handle tabs",
+      identity: {
+        entityId: null,
+        proposal: null,
+        provenance: "inherited",
+        sectionId: section.id,
+      },
+    });
+    await dispatch("t1", "Make the parser handle tabs");
+    await settle();
+    const prompt = w.completions.find((c) => isPlacement(c.prompt))!.prompt;
+    expect(prompt).toContain("It was started from the Parser workstream.");
+    expect(prompt).toContain("Tabs — Tab handling");
+    expect(corpus.assignment("t1").entityId).not.toBe(parser.id);
+  });
+
   it("comes from Quick analysis of the first request, with its title", async () => {
     const { w, corpus, parser, dispatch, settle, quickCalls } = await setup();
     await dispatch("t1", "Make the parser handle tabs");

@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { fakeWorld } from "./fake-bb.ts";
-import type {
-  TopicAssignment,
-  TopicState,
-} from "../../src/domain/topics.ts";
+import type { TopicAssignment, TopicState } from "../../src/domain/topics.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 let world: World | null = null;

@@ -1,27 +1,20 @@
 import { expect, it } from "vitest";
 import { cases } from "../../eval/classification-cases.ts";
 import {
-  fullAnalysisPrompt,
-  parseFullAnalysis,
-  type FullAnalysisInput,
+  parseQuickAnalysis,
+  quickAnalysisPrompt,
 } from "../../src/domain/analysis.ts";
 import { parseTopic, topicFieldsSchema } from "../../src/domain/classify.ts";
 
-it("renders the synthetic ownership fixtures in Full analysis and parses their expected topics", () => {
+it("renders the synthetic ownership fixtures in Quick analysis and parses their expected topics", () => {
   expect(cases).toHaveLength(25);
   for (const c of cases) {
-    const input: FullAnalysisInput = {
-      title: c.input.prompt,
-      requests: (c.input.requests ?? []).map((text, i) => ({
-        text,
-        initial: i === 0,
-      })),
-      lastAssistantText: c.input.prompt,
-      report: { state: "complete", headline: "Done", latest: [] },
-      mode: "full",
-      topic: { entities: c.input.entities, project: null, current: null },
+    const input = {
+      request: (c.input.requests ?? [c.input.prompt]).join("\n\n"),
+      entities: c.input.entities,
+      project: null,
     };
-    const prompt = fullAnalysisPrompt(input);
+    const prompt = quickAnalysisPrompt(input);
     expect(prompt).toContain(c.input.requests![0]);
     expect(prompt).toContain("User requests and explicit diagnoses");
     expect(prompt).toContain(
@@ -34,10 +27,10 @@ it("renders the synthetic ownership fixtures in Full analysis and parses their e
       "a topic beneath a different owner does not fit however closely its description matches",
     );
     expect(
-      parseFullAnalysis(
+      parseQuickAnalysis(
         JSON.stringify({ goal: "Goal", subjectId: c.expected, proposed: null }),
         input,
-      ).topic?.subjectId ?? null,
+      ).subjectId ?? null,
     ).toBe(c.expected);
   }
 });

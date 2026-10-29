@@ -13,6 +13,12 @@ import {
   type QuickAnalysisInput,
 } from "../domain/analysis.ts";
 import {
+  parsePlacement,
+  placementPrompt,
+  placementSchema,
+  type PlacementInput,
+} from "../domain/placement.ts";
+import {
   TRACE_KIND_TITLE,
   type Trace,
   type TraceKind,
@@ -38,17 +44,27 @@ export const MODEL_CALLS = {
     prompt: (input: QuickAnalysisInput) => quickAnalysisPrompt(input),
     parse: (text: string, input: QuickAnalysisInput) =>
       parseQuickAnalysis(text, input),
+    schema: (input: QuickAnalysisInput) => quickAnalysisSchema(input),
   },
   "full-analysis": {
     prompt: (input: FullAnalysisInput) => fullAnalysisPrompt(input),
     parse: (text: string, input: FullAnalysisInput) =>
       parseFullAnalysis(text, input),
   },
+  placement: {
+    prompt: (input: PlacementInput) => placementPrompt(input),
+    parse: (text: string, input: PlacementInput) => parsePlacement(text, input),
+    schema: (input: PlacementInput) => placementSchema(input),
+  },
 } satisfies Record<
   TraceKind,
   {
     prompt: (input: never) => string;
     parse: (text: string, input: never) => unknown;
+    /** Constrains the answer at generation, when the model supports it. */
+    schema?: (input: never) => Record<string, unknown>;
+    /** Output budget, when the default is too small. */
+    maxTokens?: number;
   }
 >;
 
@@ -102,16 +118,16 @@ export function summarize(
         .filter(Boolean)
         .join(" · ");
     }
+    case "placement": {
+      const p = value as OutputOf<"placement">;
+      return `${topicOf(p, (input as PlacementInput).entities) ?? "no topic"}${p.scopeShift ? " (scope shift)" : ""}`;
+    }
     case "full-analysis": {
       const a = value as OutputOf<"full-analysis">;
       return [
         a.status ? a.status.state.replace("_", " ") : "reported",
         a.goal ? `goal “${a.goal}”` : null,
         a.identity ? `identity ${a.identity.change}` : null,
-        a.topicError ? "invalid topic (other fields retained)" : null,
-        a.topic
-          ? `${topicOf(a.topic, (input as FullAnalysisInput).topic?.entities)}${a.topic.scopeShift ? " (scope shift)" : ""}`
-          : null,
       ]
         .filter(Boolean)
         .join(" · ");
@@ -121,6 +137,8 @@ export function summarize(
 type Spec = {
   prompt: (input: unknown) => string;
   parse: (text: string, input: unknown) => unknown;
+  schema?: (input: unknown) => Record<string, unknown>;
+  maxTokens?: number;
 };
 
 export type Complete = (
@@ -215,10 +233,8 @@ export class Inference {
       record: await this.deps.debug(),
       signal: options.signal,
       timeoutMs: options.timeoutMs,
-      outputSchema:
-        kind === "quick-analysis"
-          ? quickAnalysisSchema(input as QuickAnalysisInput)
-          : undefined,
+      outputSchema: spec.schema?.(input),
+      maxTokens: spec.maxTokens,
     });
     const topicError = result.ok
       ? (result.value as { topicError?: string }).topicError
@@ -285,6 +301,8 @@ export class Inference {
         modelChoiceSchema.parse({ kind: "gateway", model: original.model }),
       label: original.label,
       links: [],
+      outputSchema: spec.schema?.(original.input),
+      maxTokens: spec.maxTokens,
       replayOf: original.id,
       record: true,
     });
@@ -365,6 +383,7 @@ export class Inference {
       signal?: AbortSignal;
       timeoutMs?: number;
       outputSchema?: Record<string, unknown>;
+      maxTokens?: number;
     },
   ): Promise<
     | { ok: true; value: unknown; traceId: string | null }
@@ -441,7 +460,7 @@ export class Inference {
         request.prompt,
         request.model,
         signal,
-        undefined,
+        request.maxTokens,
         {
           ...(request.threadId ? { threadId: request.threadId } : {}),
           ...(request.outputSchema

@@ -42,7 +42,8 @@ describe("inference application freshness", () => {
       w.addThread("t", { status: "idle", latestAttentionAt: 10 });
       w.converse("t", ["Fix the pipeline"]);
       const running = w.harness.behavior.runCli(["analyze", "t"]);
-      await vi.waitFor(() => expect(w.completions).toHaveLength(1));
+      // Full analysis and placement are both waiting on the model.
+      await vi.waitFor(() => expect(w.completions).toHaveLength(2));
       if (kind === "project id")
         w.threads.set("t", { ...w.threads.get("t")!, projectId: "proj_other" });
       else name = "Renamed";
@@ -66,7 +67,8 @@ describe("inference application freshness", () => {
     w.converse("t", ["Build Alpha"]);
     topics.assign("t", a.id, { provenance: "full" });
     const running = w.harness.behavior.runCli(["analyze", "t"]);
-    await vi.waitFor(() => expect(w.completions).toHaveLength(1));
+    // Full analysis and placement are both waiting on the model.
+    await vi.waitFor(() => expect(w.completions).toHaveLength(2));
     w.threads.set("t", {
       ...w.threads.get("t")!,
       status: "active",
@@ -95,7 +97,8 @@ describe("inference application freshness", () => {
     w.addThread("t", { status: "idle", latestAttentionAt: 10 });
     w.converse("t", ["Build Alpha"]);
     const running = w.harness.behavior.runCli(["analyze", "t"]);
-    await vi.waitFor(() => expect(w.completions).toHaveLength(1));
+    // Full analysis and placement are both waiting on the model.
+    await vi.waitFor(() => expect(w.completions).toHaveLength(2));
     topics.assign("t", b.id, { provenance: "full" });
     pending.release(answer(a.id));
     await running;

@@ -1,12 +1,13 @@
 /**
- * Live evaluation of Full analysis and Quick analysis (SPEC §10). Opt-in and
- * never part of `npm test`: it calls models through Pi's AI Gateway.
+ * Live evaluation of Full analysis, Quick analysis, and placement (SPEC §10).
+ * Opt-in and never part of `npm test`: it calls models through Pi's AI
+ * Gateway.
  *
  *   node eval/run.ts [model ...]
  *
- * Every case goes through the production prompts and parsers, with an empty
- * topic tree, so the topic a case gets is the one the model proposes; it is
- * scored against the fixture's expected product names. Fixtures may carry a
+ * Every case goes through the production prompts and parsers. Placement sees
+ * an empty topic tree, so the topic a case gets is the one the model
+ * proposes; it is scored against the fixture's expected product names. Fixtures may carry a
  * `project` field for provenance; it is never sent. See README.md.
  */
 import { readFile, writeFile } from "node:fs/promises";
@@ -20,6 +21,11 @@ import {
   type FullAnalysisInput,
   type WorkState,
 } from "../src/domain/analysis.ts";
+import {
+  parsePlacement,
+  placementPrompt,
+  type PlacementInput,
+} from "../src/domain/placement.ts";
 import {
   gatewayComplete,
   gatewayKey,
@@ -103,7 +109,6 @@ export function toInput(c: Case): FullAnalysisInput {
     title: c.title,
     mode: "full",
     report: null,
-    topic: { entities: [], project: null, current: null },
     // Keep the most recent two requests, as production does.
     requests: [
       ...requests.filter((r) => r.initial).slice(0, 1),
@@ -328,20 +333,32 @@ for (const model of models) {
           cost,
         };
       }
-      const { text, cost } = await complete(
-        model,
-        fullAnalysisPrompt(job.input),
-      );
-      const parsed = parseFullAnalysis(text, job.input);
+      const placement: PlacementInput = {
+        title: job.input.title,
+        requests: job.input.requests.map((r) => r.text),
+        project: null,
+        checkout: null,
+        entities: [],
+        hints: [],
+        current: null,
+      };
+      const [full, placed] = await Promise.all([
+        complete(model, fullAnalysisPrompt(job.input)),
+        job.mode === "cold"
+          ? complete(model, placementPrompt(placement))
+          : Promise.resolve(null),
+      ]);
+      const parsed = parseFullAnalysis(full.text, job.input);
+      const topic = placed ? parsePlacement(placed.text, placement) : null;
       return {
         ...base,
         output: {
           state: parsed.status?.state ?? null,
           goal: parsed.goal,
-          subject: parsed.topic?.proposed?.name ?? null,
+          subject: topic?.proposed?.name ?? null,
         },
         seconds: (performance.now() - started) / 1000,
-        cost,
+        cost: full.cost + (placed?.cost ?? 0),
       };
     } catch (error) {
       return {

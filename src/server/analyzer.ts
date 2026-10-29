@@ -1,13 +1,14 @@
 /**
  * Full analysis queue (SPEC §3). A turn's end schedules it after a short
- * debounce, a new turn cancels the pending run, and at most four calls are in
- * flight. Results are keyed to the thread's revision, so a result from an
+ * debounce, a new turn cancels the pending run, and at most four runs are in
+ * flight, each a Full analysis call and, for a root, a placement call. Results are keyed to the thread's revision, so a result from an
  * older turn renders as pending rather than current.
  *
  * What a run asks depends on what changed:
  *
- * - After a new request from you, Full analysis settles the goal and, for a
- *   root, its topic, and describes the turn when the agent didn't report.
+ * - After a new request from you, Full analysis settles the goal and
+ *   describes the turn when the agent didn't report, and placement settles a
+ *   root's topic alongside it (see `Placement`).
  * - After a turn with no new request (a waiting check, a bare "continue"),
  *   only the turn's status is new: with an agent report nothing is asked and
  *   the settled goal carries forward; without one, only the status is asked.
@@ -26,14 +27,15 @@ import type {
   AgentReport,
   FullAnalysisInput,
   StoredAnalysis,
-  TopicQuestion,
 } from "../domain/analysis.ts";
+import type { PlacementOutput } from "../domain/placement.ts";
+import type { PlacementQuestion, PlacementThread } from "./placement.ts";
 import type { Entity } from "../domain/classify.ts";
 import type { TopicAssignment } from "../domain/topics.ts";
 import type { ModelChoice } from "../domain/prefs.ts";
 import type { Database } from "./db.ts";
 import { displayTitle, type InventoryThread } from "./inventory.ts";
-import { modelLabel, type Inference, type OutputOf } from "./model.ts";
+import { modelLabel, type Inference } from "./model.ts";
 import { inputText, isSubstantiveRequest, openingOf } from "./requests.ts";
 import {
   IDENTITY_VERSION,
@@ -105,16 +107,26 @@ export class Analyzer {
       topics?: {
         entities(): Entity[];
         assignment(threadId: string): TopicAssignment;
-        basis(threadId: string): string | null;
-        /** The basis an automatic topic is settled from. */
-        basisOf(requests: readonly string[], project: string | null): string;
         project(projectId: string): Promise<string | null>;
         apply(
           threadId: string,
-          answer: NonNullable<FullAnalysisOutputTopic>,
+          answer: PlacementOutput,
           basis: string,
           traceId: string | null,
         ): void;
+      };
+      /** Asks where a root belongs (see `Placement`). */
+      placement?: {
+        question(
+          thread: PlacementThread,
+          requests: readonly string[],
+          options?: { force?: boolean },
+        ): Promise<PlacementQuestion | null>;
+        ask(
+          threadId: string,
+          question: PlacementQuestion,
+          options: { label: string },
+        ): Promise<{ answer: PlacementOutput; traceId: string | null }>;
       };
       /** Incremental evidence is optional; failure leaves triage available. */
       onChange: () => void;
@@ -296,12 +308,18 @@ export class Analyzer {
     return this.run(threadId, true);
   }
 
-  /** A classifier preview shares production evidence and parsing but writes no facts. */
+  /** A placement preview shares production evidence and parsing but writes no facts. */
   async previewTopic(threadId: string) {
     const sdk = this.deps.sdk();
     const thread = await sdk.threads.get({ threadId });
     const topics = this.deps.topics;
-    if (!topics || thread.archivedAt !== null || thread.visibility === "hidden")
+    const placement = this.deps.placement;
+    if (
+      !topics ||
+      !placement ||
+      thread.archivedAt !== null ||
+      thread.visibility === "hidden"
+    )
       throw new Error("That thread is unavailable for classification.");
     const evidence = threadEvidence(thread);
     const assignment = topics.assignment(threadId);
@@ -309,54 +327,29 @@ export class Analyzer {
       throw new Error("Manual topics are preserved.");
     const assignmentKey = assignmentEvidence(assignment);
     const context = await this.context(thread);
-    const project = await topics.project(thread.projectId);
-    const input: FullAnalysisInput = {
-      title: displayTitle(thread),
-      previousGoal: this.get(threadId)?.goal ?? null,
-      previousObjective: this.get(threadId)?.objective ?? null,
-      continuation: await this.continuation(thread, context.requests),
-      requests: context.requests,
-      lastAssistantText: context.lastAssistantText,
-      report: this.deps.report?.(threadId)?.report ?? null,
-      mode: "full",
-      topic: {
-        entities: topics.entities(),
-        project,
-        current: {
-          id: assignment.entityId,
-          label: assignment.label,
-          inherited: assignment.provenance === "inherited",
-        },
-      },
-    };
-    const { value, traceId } = await this.deps.inference.run(
-      "full-analysis",
-      input,
-      {
-        model: await this.deps.model(),
-        threadId,
-        label: `Topic preview: ${input.title}`,
-        links: [{ kind: "thread", ref: threadId }],
-      },
+    const question = await placement.question(
+      thread,
+      context.requests.map((r) => r.text),
+      { force: true },
     );
+    if (!question) throw new Error("The thread has no request to place.");
+    const title = displayTitle(thread);
+    const { answer, traceId } = await placement.ask(threadId, question, {
+      label: `Topic preview: ${title}`,
+    });
     this.deps.inference.annotate(traceId, {
       application: "preview only: no facts changed",
     });
-    if (!value.topic || value.topicError)
-      throw new Error(value.topicError ?? "No topic result.");
     return {
       threadId,
-      title: input.title,
+      title,
       from: assignment.label,
       evidence,
       assignmentKey,
       traceId,
-      projectHint: project,
-      basis: topics.basisOf(
-        context.requests.map((r) => r.text),
-        project,
-      ),
-      answer: value.topic,
+      projectHint: question.input.project,
+      basis: question.basis,
+      answer,
     };
   }
 
@@ -444,13 +437,37 @@ export class Analyzer {
       const reported = this.deps.report?.(threadId) ?? null;
       const settled =
         previous?.requestsKey === context.requestsKey && previous.goal !== null;
-      const topic = await this.topicQuestion(thread, context);
-      const full = force || !settled || topic !== null;
+      const placing =
+        this.deps.placement && this.placement(thread.id).isTask
+          ? await this.deps.placement.question(
+              thread,
+              context.requests.map((r) => r.text),
+            )
+          : null;
+      // Placement runs beside Full analysis; it fails on its own.
+      const placed = placing
+        ? this.deps
+            .placement!.ask(threadId, placing, {
+              label: displayTitle(thread),
+            })
+            .then(
+              (value) => ({ ok: true as const, ...value }),
+              (error: unknown) => ({
+                ok: false as const,
+                error: error instanceof Error ? error.message : String(error),
+              }),
+            )
+        : null;
+      const full = force || !settled;
       let result: StoredAnalysis;
-      let topicAnswer: FullAnalysisOutputTopic = null;
+      let topicAnswer: PlacementOutput | null = null;
+      let topicTraceId: string | null = null;
       let names: NameObservations | null = null;
       let identityDecision = "kept: no substantive request";
-      if (!full && reported && previous) {
+      if (topicOnly && previous) {
+        // Only the topic was missing; the turn's goal and status stand.
+        result = { ...previous };
+      } else if (!full && reported && previous) {
         // Nothing new to settle, and the agent said how the turn ended.
         result = {
           ...previous,
@@ -473,7 +490,6 @@ export class Analyzer {
           lastAssistantText: context.lastAssistantText,
           report: reported?.report ?? null,
           mode: full ? "full" : "status",
-          topic: topic?.question ?? null,
         };
         const model = await this.deps.model();
         const asked = this.now();
@@ -520,7 +536,6 @@ export class Analyzer {
               : (previous?.goal ?? null),
           objective: topicOnly ? (previous?.objective ?? null) : objective,
           identityVersion: IDENTITY_VERSION,
-          ...(output.topicError ? { topicError: output.topicError } : {}),
           reported: reported !== null,
           requestsKey: full
             ? context.requestsKey
@@ -530,15 +545,27 @@ export class Analyzer {
           model: modelLabel(model),
           traceId,
         };
-        topicAnswer = output.topic;
         names = output.names;
+      }
+      const placement = await placed;
+      // A failed placement is retried with backoff; a result carried over
+      // keeps no older failure.
+      const { topicError: _carried, ...current } = result;
+      void _carried;
+      result =
+        placement && !placement.ok
+          ? { ...current, topicError: placement.error }
+          : current;
+      if (placement?.ok) {
+        topicAnswer = placement.answer;
+        topicTraceId = placement.traceId;
       }
       if (this.disposed || this.forgotten.has(threadId)) return null;
       const projectIsCurrent =
-        !topic ||
+        !placing ||
         !this.deps.topics ||
         (await this.deps.topics.project(thread.projectId)) ===
-          topic.question.project;
+          placing.input.project;
       const live = await sdk.threads.get({ threadId }).catch(() => null);
       if (
         !live ||
@@ -552,11 +579,12 @@ export class Analyzer {
             assignment ||
             JSON.stringify(this.deps.topics.entities()) !== catalog))
       ) {
-        this.deps.inference.annotate(result.traceId, {
-          application:
-            "discarded: thread, assignment, or catalog evidence changed",
-          evidenceRevision: revision,
-        });
+        for (const id of [result.traceId, topicTraceId])
+          this.deps.inference.annotate(id, {
+            application:
+              "discarded: thread, assignment, or catalog evidence changed",
+            evidenceRevision: revision,
+          });
         if (
           live?.status === "idle" &&
           !this.disposed &&
@@ -591,19 +619,19 @@ export class Analyzer {
             }
           : { stored: "no: a newer turn's analysis was already stored" },
       );
-      if (stored.changes > 0 && topicAnswer && topic)
+      if (stored.changes > 0 && topicAnswer && placing)
         this.deps.topics?.apply(
           threadId,
           topicAnswer,
-          topic.basis,
-          result.traceId ?? null,
+          placing.basis,
+          topicTraceId,
         );
       if (result.topicError) {
         const failed = this.failures.get(threadId);
         const count = failed?.revision === revision ? failed.count + 1 : 1;
         this.failures.set(threadId, { revision, count, at: this.now() });
         this.deps.inference.annotate(result.traceId, {
-          topic: "not applied: invalid topic; bounded backoff retry",
+          topic: "not settled: placement failed; bounded backoff retry",
         });
         if (count < MAX_ATTEMPTS)
           this.schedule(threadId, RETRY_AFTER_MS * 2 ** (count - 1));
@@ -715,47 +743,6 @@ export class Analyzer {
   }
 
   /**
-   * The topic part of a root's run, or null when there is nothing to settle:
-   * the thread is a delegate, you set its topic, or its topic was already
-   * settled from these requests.
-   */
-  private async topicQuestion(
-    thread: Awaited<ReturnType<Sdk["threads"]["get"]>>,
-    context: { requests: FullAnalysisInput["requests"] },
-  ): Promise<{ question: TopicQuestion; basis: string } | null> {
-    const topics = this.deps.topics;
-    if (!topics || !this.placement(thread.id).isTask) return null;
-    const assignment = topics.assignment(thread.id);
-    if (assignment.provenance === "manual") return null;
-    const project = await topics.project(thread.projectId);
-    const basis = topics.basisOf(
-      context.requests.map((r) => r.text),
-      project,
-    );
-    if (
-      assignment.provenance !== null &&
-      assignment.provenance !== "quick" &&
-      topics.basis(thread.id) === basis
-    )
-      return null;
-    return {
-      basis,
-      question: {
-        entities: topics.entities(),
-        project,
-        current:
-          assignment.provenance === null
-            ? null
-            : {
-                id: assignment.entityId,
-                label: assignment.label,
-                inherited: assignment.provenance === "inherited",
-              },
-      },
-    };
-  }
-
-  /**
    * The thread's workstream is its root's section (SPEC §1), walked through
    * the reconciler's snapshot of parent links.
    */
@@ -784,5 +771,3 @@ export class Analyzer {
     return { sectionId: current.section_id, isTask };
   }
 }
-
-type FullAnalysisOutputTopic = OutputOf<"full-analysis">["topic"];
