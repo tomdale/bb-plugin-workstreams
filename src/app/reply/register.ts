@@ -18,7 +18,7 @@ export function replyBlocksDrawn(): boolean {
  * Claims `:::reply` blocks in agent messages. Only the tomdale/bb fork has
  * the message-block slot, and no SDK version tells the fork apart, so the
  * slot is detected here. Without it the plugin registers nothing, those
- * blocks show as ordinary Markdown between `:::` lines, and the server keeps
+ * blocks show as ordinary Markdown, and the server keeps
  * the recap tool (see `reportClient` in server/recap.ts).
  */
 export function registerReplyBlock(app: PluginAppBuilder): void {

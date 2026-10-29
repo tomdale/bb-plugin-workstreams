@@ -371,7 +371,7 @@ Workstreams detects the slot when its app loads and reports it to the server.
 Without the slot, the Structured replies setting is greyed out with an
 explanation, agents keep the recap tool, and a setting turned on under the fork
 waits until a client with the slot reports again. Reply blocks written earlier
-show as plain Markdown between their `:::` lines.
+show as plain Markdown.
 
 ### Structured question card (`AskUserQuestion`)
 
