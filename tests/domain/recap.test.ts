@@ -11,6 +11,7 @@ import {
   recapSchema,
   toRecap,
   reportedAnalysis,
+  reportedStatus,
 } from "../../src/domain/recap.ts";
 
 it("counts only rendered thread mentions as chips for visible length", () => {
@@ -90,10 +91,13 @@ it("validates state-specific fields at execution", () => {
   for (const state of ["complete", "review"]) {
     expect(branch(state).properties).toHaveProperty("timeout");
     expect(branch(state).properties).not.toHaveProperty("task");
-    expect(branch(state).properties.latest?.minItems).toBe(1);
-    expect(branch(state).required).toContain("latest");
     expect(branch(state).additionalProperties).toBe(false);
   }
+  // Review needs results; a short answer's complete recap may have none.
+  expect(branch("review").properties.latest?.minItems).toBe(1);
+  expect(branch("review").required).toContain("latest");
+  expect(branch("complete").properties.latest?.minItems).toBeUndefined();
+  expect(branch("complete").required).not.toContain("latest");
   expect(branch("review").required).toContain("review");
   expect(branch("waiting").required).not.toContain("task");
   expect(branch("waiting").required).toContain("timeout");
@@ -186,9 +190,6 @@ it("rejects substantive unused fields and unknown keys", () => {
   };
   for (const patch of [
     { timeout: 60 },
-    { latest: [] },
-    { timeout: 60 },
-    { latest: [] },
     { review: ["Inspect the fix"] },
     { review: "Inspect the fix" },
     { extra: [] },
@@ -265,9 +266,32 @@ it("uses the goal as the Waiting title and requires a timeout", () => {
     recapInputSchema.safeParse({ ...input, state: "complete", latest: ["x"] })
       .success,
   ).toBe(false);
+});
+
+it("accepts a complete recap with no results, and writes only its title", () => {
+  for (const input of [
+    { state: "complete", goal: "Python 3.9 or newer is required" },
+    { state: "complete", goal: "Python 3.9 or newer is required", latest: [] },
+  ]) {
+    const recap = toRecap(recapInputSchema.parse(input), {
+      id: "r",
+      turnId: "t",
+      at: 1,
+    });
+    expect(recap.latest).toEqual([]);
+    expect(recapMarkdown(recap)).toBe(
+      "**Complete** · Python 3.9 or newer is required",
+    );
+    // The sidebar's status line falls back to the title.
+    expect(reportedStatus(recap).recap).toBe("Python 3.9 or newer is required");
+  }
   expect(
-    recapInputSchema.safeParse({ state: "complete", goal: "Goal", latest: [] })
-      .success,
+    recapInputSchema.safeParse({
+      state: "review",
+      goal: "Goal",
+      latest: [],
+      review: "Check it",
+    }).success,
   ).toBe(false);
 });
 

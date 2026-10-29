@@ -201,7 +201,7 @@ const recapFields = z
       .max(3)
       .default([])
       .describe(
-        "Completed results for complete and review. Items can be strings or { text, detail } objects with optional secondary text.",
+        "Completed results: required for review, optional for complete (a short answer needs none). Items can be strings or { text, detail } objects with optional secondary text.",
       ),
     timeout: z
       .number()
@@ -256,7 +256,8 @@ export const recapInputSchema = z
         .union([z.array(z.never()).max(0), z.literal("")])
         .nullable()
         .optional(),
-      latest: recapFields.shape.latest.removeDefault().min(1),
+      // A short answer's goal states the answer and needs no results.
+      latest: recapFields.shape.latest,
       links: z
         .array(linkSchema)
         .max(0, "Links are review targets and belong only in a review recap.")

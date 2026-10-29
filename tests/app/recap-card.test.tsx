@@ -647,6 +647,25 @@ it("shows the goal, results, and an icon-only Archive in the compact complete ca
   );
 });
 
+it.each(["full", "minimal"])(
+  "shows a short answer's complete recap as its title alone in %s",
+  async (layout) => {
+    const slot = await mount({
+      layout,
+      archivable: true,
+      recap: { goal: "Python 3.9 or newer is required", latest: [] },
+    });
+    const region = await slot.findByRole("region", { name: "Latest recap" });
+    expect(
+      slot.getByRole("heading", { name: "Python 3.9 or newer is required" }),
+    ).toBeTruthy();
+    // No empty results list or row under the title.
+    expect(region.querySelector("ul")).toBeNull();
+    expect(region.querySelector("section")).toBeNull();
+    expect(await slot.findByRole("button", { name: "Archive" })).toBeTruthy();
+  },
+);
+
 it("sets the card's text in BB's phone type tokens", async () => {
   const slot = await mount({
     layout: "minimal",
