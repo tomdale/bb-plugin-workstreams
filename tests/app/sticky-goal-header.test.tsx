@@ -36,7 +36,10 @@ function paneFixture({ recap }: { recap: boolean }) {
         </header>
         <div data-thread-window>
           <div class="thread-scrollbar" data-test="messages">
-            <div><div data-test="column"></div></div>
+            <div>
+              <div data-test="sentinel" class="invisible w-px"></div>
+              <div data-test="column" data-scroll-attached></div>
+            </div>
           </div>
           <div data-app-composer>
             ${
@@ -75,6 +78,20 @@ const overlay = () => document.querySelector("[data-workstreams-goal-overlay]");
 
 it("attaches to the message scroller although a recap card scrolls its own text", async () => {
   paneFixture({ recap: true });
+  const slot = await mountHeading();
+  await waitFor(() => expect(root()).not.toBeNull());
+  expect(document.querySelector('[data-test="column"]')!.contains(root())).toBe(
+    true,
+  );
+  slot.lifecycle.unmount();
+});
+
+it("falls back to the first column when BB does not mark it", async () => {
+  paneFixture({ recap: false });
+  document.querySelector('[data-test="sentinel"]')!.remove();
+  document
+    .querySelector('[data-test="column"]')!
+    .removeAttribute("data-scroll-attached");
   const slot = await mountHeading();
   await waitFor(() => expect(root()).not.toBeNull());
   expect(document.querySelector('[data-test="column"]')!.contains(root())).toBe(

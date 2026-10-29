@@ -28,10 +28,13 @@ const COMPOSER = "[data-app-composer]";
  */
 const INSET = '[data-sidebar="inset"]';
 
-// The heading is laid out in the same column as the messages so it shares
-// their left edge and type. BB's scroller wraps that column in one extra div.
+// The heading shares the message column's left edge and type. BB may place a
+// scroll sentinel before that column, so prefer its data attribute to its position.
 function messageColumn(scroller: HTMLElement): HTMLElement | null {
-  const column = scroller.firstElementChild?.firstElementChild;
+  const wrapper = scroller.firstElementChild;
+  const column =
+    wrapper?.querySelector(":scope > [data-scroll-attached]") ??
+    wrapper?.firstElementChild;
   return column instanceof HTMLElement ? column : null;
 }
 
