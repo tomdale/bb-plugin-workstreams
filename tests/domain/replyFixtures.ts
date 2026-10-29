@@ -34,7 +34,12 @@ function shift(node: unknown, delta: number): void {
 export function blockInput(
   message: string,
   { streaming = false }: { streaming?: boolean } = {},
-): { source: string; tree: Root; status: ReplyStatus } {
+): {
+  source: string;
+  tree: Root;
+  status: ReplyStatus;
+  attributes: Record<string, string>;
+} {
   const root = processor.runSync(processor.parse(message)) as Root;
   const node = root.children.find(
     (child): child is RootContent & { type: "containerDirective" } =>
@@ -53,7 +58,11 @@ export function blockInput(
   const source = block.slice(innerStart, Math.max(innerStart, innerEnd));
   const tree: Root = { type: "root", children: node.children as RootContent[] };
   shift(tree, start + innerStart);
+  const attributes: Record<string, string> = {};
+  for (const [key, value] of Object.entries(node.attributes ?? {}))
+    if (typeof value === "string") attributes[key] = value;
   return {
+    attributes,
     source,
     tree,
     status: closed ? "closed" : streaming ? "streaming" : "unclosed",

@@ -245,64 +245,89 @@ const recapFields = z
  */
 export const recapToolSchema = recapFields;
 
-/** The state-specific contract checked before accepting a recap. */
-export const recapInputSchema = z
-  .discriminatedUnion("state", [
-    recapFields.extend({
-      state: z.literal("complete"),
-      timeout: z.null().optional(),
-      waitingAgents: z.array(z.never()).max(0).default([]),
-      review: z
-        .union([z.array(z.never()).max(0), z.literal("")])
-        .nullable()
-        .optional(),
-      // A short answer's goal states the answer and needs no results.
-      latest: recapFields.shape.latest,
-      links: z
-        .array(linkSchema)
-        .max(0, "Links are review targets and belong only in a review recap.")
-        .default([]),
-    }),
-    recapFields.extend({
-      state: z.literal("review"),
-      timeout: z.null().optional(),
-      waitingAgents: z.array(z.never()).max(0).default([]),
-      latest: recapFields.shape.latest.removeDefault().min(1),
-      review: z.union([
-        z.array(reviewStepSchema).min(1).max(3),
-        z.string().trim().min(1),
-      ]),
-    }),
-    recapFields.extend({
-      state: z.literal("waiting"),
-      timeout: z.number().int().min(1).max(86400),
-      latest: z.array(z.never()).max(0).default([]),
-      next: z.array(z.never()).max(0).default([]),
-      review: z
-        .union([z.array(z.never()).max(0), z.literal("")])
-        .nullable()
-        .optional(),
-      links: z
-        .array(linkSchema)
-        .max(0, "Links are review targets and belong only in a review recap.")
-        .default([]),
-    }),
-  ])
-  .refine(
-    (recap) => {
-      const steps = reviewSteps(
-        recap.state === "review" ? recap.review : undefined,
-      );
-      return (
-        steps.length <= 3 && steps.every((step) => recapItemWithin(step, 160))
-      );
-    },
-    {
-      message: "Review takes one to three steps of 160 characters or fewer.",
-      path: ["review"],
-    },
-  );
+/**
+ * The state-specific contract checked before accepting a recap.
+ * `reviewResults` is the fewest results a review recap needs: one from the
+ * tool, none from a reply block, whose review steps can stand alone.
+ */
+const inputSchema = (reviewResults: 0 | 1) =>
+  z
+    .discriminatedUnion("state", [
+      recapFields.extend({
+        state: z.literal("complete"),
+        timeout: z.null().optional(),
+        waitingAgents: z.array(z.never()).max(0).default([]),
+        review: z
+          .union([z.array(z.never()).max(0), z.literal("")])
+          .nullable()
+          .optional(),
+        // A short answer's goal states the answer and needs no results.
+        latest: recapFields.shape.latest,
+        links: z
+          .array(linkSchema)
+          .max(0, "Links are review targets and belong only in a review recap.")
+          .default([]),
+      }),
+      recapFields.extend({
+        state: z.literal("review"),
+        timeout: z.null().optional(),
+        waitingAgents: z.array(z.never()).max(0).default([]),
+        latest:
+          reviewResults === 1
+            ? recapFields.shape.latest.removeDefault().min(1)
+            : recapFields.shape.latest,
+        review: z.union([
+          z.array(reviewStepSchema).min(1).max(3),
+          z.string().trim().min(1),
+        ]),
+      }),
+      recapFields.extend({
+        state: z.literal("waiting"),
+        timeout: z.number().int().min(1).max(86400),
+        latest: z.array(z.never()).max(0).default([]),
+        next: z.array(z.never()).max(0).default([]),
+        review: z
+          .union([z.array(z.never()).max(0), z.literal("")])
+          .nullable()
+          .optional(),
+        links: z
+          .array(linkSchema)
+          .max(0, "Links are review targets and belong only in a review recap.")
+          .default([]),
+      }),
+    ])
+    .refine(
+      (recap) => {
+        const steps = reviewSteps(
+          recap.state === "review" ? recap.review : undefined,
+        );
+        return (
+          steps.length <= 3 && steps.every((step) => recapItemWithin(step, 160))
+        );
+      },
+      {
+        message: "Review takes one to three steps of 160 characters or fewer.",
+        path: ["review"],
+      },
+    );
+export const recapInputSchema = inputSchema(1);
+/** A reply block's recap: the same contract, except review results are optional. */
+export const blockRecapInputSchema = inputSchema(0);
 export type RecapInput = z.infer<typeof recapInputSchema>;
+
+/**
+ * One line clipped to `max` visible characters for a reply block's recap,
+ * which is clipped rather than rejected. A line over the limit loses its
+ * Markdown and ends in an ellipsis at a word boundary.
+ */
+export function clipVisible(markdown: string, max: number): string {
+  const text = markdown.replace(/\s+/g, " ").trim();
+  if (visibleLength(text) <= max) return text;
+  let cut = plainText(text).slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  if (space > max * 0.6) cut = cut.slice(0, space);
+  return `${cut.trimEnd()}…`;
+}
 
 /** A stored recap, tied to the turn that reported it. */
 export const recapSchema = z
