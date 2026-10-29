@@ -12,6 +12,7 @@ import type {
   OrganizerState,
   SuggestionsStateWire,
 } from "../../src/server/contract.ts";
+import type { PreviewGroup } from "../../src/domain/suggestion-preview.ts";
 
 afterEach(cleanup);
 
@@ -45,6 +46,8 @@ const suggestion = (
   decidedAt: null,
   problem: null,
   change: null,
+  headline: summary,
+  preview: null,
   traceId: null,
   ...extra,
 });
@@ -159,24 +162,67 @@ it("says when there is nothing to review", async () => {
 const at = (...names: string[]) =>
   names.map((name) => ({ name, created: false }));
 
-it("leads with the operation and each move, from where to where", async () => {
+const group = (
+  name: string,
+  extra: Partial<PreviewGroup> = {},
+): PreviewGroup => ({
+  name,
+  context: false,
+  unfiled: false,
+  created: false,
+  removed: false,
+  moved: false,
+  renamedFrom: null,
+  threads: [],
+  more: 0,
+  groups: [],
+  others: 0,
+  collapsed: null,
+  ...extra,
+});
+
+it("previews sidebar changes, and lists tree tidying that moves no thread apart", async () => {
   await mount({
     suggestions: [
-      suggestion("s1", "Refile “Record demo” into PantryPal", {
-        reason: "A demo belongs under PantryPal.",
-        change: {
-          op: "refile",
-          moves: [
-            {
-              from: at("Workstreams", "Recap Cards"),
-              to: at("PantryPal"),
-              threads: [{ id: "t1", title: "Record demo" }],
-              carried: 0,
-            },
+      suggestion("s1", "File Automations' own threads in PR Upkeep", {
+        kind: "split",
+        headline: "Move 1 thread in Automations into subgroups",
+        reason: "Upkeep apart from design.",
+        preview: {
+          before: [
+            group("Vercel Agent", {
+              context: true,
+              groups: [
+                group("Automations", {
+                  threads: [{ id: "t1", title: "Fix PR checks", moved: true }],
+                  groups: [group("Alert Investigations", { collapsed: 2 })],
+                }),
+              ],
+            }),
+          ],
+          after: [
+            group("Vercel Agent", {
+              context: true,
+              groups: [
+                group("Automations", {
+                  groups: [
+                    group("Alert Investigations", { collapsed: 2 }),
+                    group("PR Upkeep", {
+                      created: true,
+                      threads: [
+                        { id: "t1", title: "Fix PR checks", moved: true },
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            }),
           ],
         },
       }),
       suggestion("s2", "Move Workforest under bb", {
+        headline: "Move Workforest under bb",
+        reason: "Workforest is a bb tool.",
         change: {
           op: "reparent",
           moves: [
@@ -184,24 +230,9 @@ it("leads with the operation and each move, from where to where", async () => {
               from: at("Workforest"),
               to: at("bb", "Workforest"),
               threads: [],
-              carried: 2,
+              carried: 0,
             },
           ],
-        },
-      }),
-      suggestion("s3", "Split Automations into PR Upkeep, Design", {
-        kind: "split",
-        change: {
-          op: "split",
-          moves: ["PR Upkeep", "Design"].map((name, g) => ({
-            from: at("Automations"),
-            to: [...at("Automations"), { name, created: true }],
-            threads: [1, 2, 3].map((n) => ({
-              id: `a${g}${n}`,
-              title: `Automation task ${g}${n}`,
-            })),
-            carried: 0,
-          })),
         },
       }),
     ],
@@ -209,38 +240,37 @@ it("leads with the operation and each move, from where to where", async () => {
     lastRunAt: 1,
     error: null,
   });
-  await screen.findByRole("heading", { name: "Refile thread" });
-  const card = (heading: string) =>
-    screen.getByRole("heading", { name: heading }).closest("li")!;
-  const moves = (heading: string) =>
-    within(card(heading))
-      .getAllByText("From")
-      .map((from) => from.parentElement!.textContent);
-
-  expect(moves("Refile thread")).toEqual([
-    "From Workstreams › Recap Cardsto PantryPal",
-  ]);
+  const sidebar = await screen.findByRole("region", {
+    name: "Sidebar changes",
+  });
+  const tree = screen.getByRole("region", { name: "Group tree tidying" });
   expect(
-    within(card("Refile thread")).getByRole("list", { name: "Threads" })
-      .textContent,
-  ).toBe("Record demo");
-  expect(
-    within(card("Refile thread")).getByText("A demo belongs under PantryPal."),
+    within(sidebar).getByRole("heading", {
+      name: "Move 1 thread in Automations into subgroups",
+    }),
   ).toBeTruthy();
+  const now = within(sidebar).getByRole("region", { name: "Now" });
+  const after = within(sidebar).getByRole("region", {
+    name: "After accepting",
+  });
+  // A lone context group folds into its child's dimmed prefix.
+  expect(within(now).getByText("Automations").textContent).toBe(
+    "Vercel Agent › Automations",
+  );
+  expect(within(now).getByText("Fix PR checks").textContent).toBe(
+    "Moves: Fix PR checks",
+  );
+  expect(within(after).getByText("PR Upkeep").nextSibling?.textContent).toBe(
+    "New",
+  );
+  expect(within(after).getByText("· 2 threads")).toBeTruthy();
+  expect(within(sidebar).getByText("Upkeep apart from design.")).toBeTruthy();
 
-  expect(moves("Move topic")).toEqual([
-    "From Workforestto bb › Workforestwith 2 threads",
-  ]);
-
-  // A split reads as its destinations, each marked New, with the threads
-  // that go to each.
-  expect(moves("Split topic")).toEqual([
-    "From Automationsto Automations › PR UpkeepNew",
-    "From Automationsto Automations › DesignNew",
-  ]);
   expect(
-    within(card("Split topic"))
-      .getAllByRole("list", { name: "Threads" })
-      .map((list) => within(list).getAllByRole("listitem").length),
-  ).toEqual([3, 3]);
+    within(tree).getByRole("heading", { name: "Move Workforest under bb" }),
+  ).toBeTruthy();
+  expect(within(tree).getByText("From").parentElement!.textContent).toBe(
+    "From Workforestto bb › Workforest",
+  );
+  expect(within(tree).queryByRole("region", { name: "Now" })).toBeNull();
 });

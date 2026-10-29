@@ -1,5 +1,9 @@
 import type { LayoutNode } from "../domain/layout.ts";
 import type { SuggestionChange } from "../domain/suggestion-change.ts";
+import type {
+  PreviewGroup,
+  SuggestionPreview,
+} from "../domain/suggestion-preview.ts";
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { questionHistorySchema } from "./questions/history.ts";
 import {
@@ -255,6 +259,30 @@ const suggestionChangeSchema: z.ZodType<SuggestionChange> = z.object({
   ),
 });
 
+const previewGroupSchema: z.ZodType<PreviewGroup> = z.lazy(() =>
+  z.object({
+    name: z.string(),
+    context: z.boolean(),
+    unfiled: z.boolean(),
+    created: z.boolean(),
+    removed: z.boolean(),
+    moved: z.boolean(),
+    renamedFrom: z.string().nullable(),
+    threads: z.array(
+      z.object({ id: z.string(), title: z.string(), moved: z.boolean() }),
+    ),
+    more: z.number(),
+    groups: z.array(previewGroupSchema),
+    others: z.number(),
+    collapsed: z.number().nullable(),
+  }),
+);
+
+const suggestionPreviewSchema: z.ZodType<SuggestionPreview> = z.object({
+  before: z.array(previewGroupSchema),
+  after: z.array(previewGroupSchema),
+});
+
 const suggestionsStateSchema = z.object({
   suggestions: z.array(
     z.object({
@@ -267,6 +295,8 @@ const suggestionsStateSchema = z.object({
       decidedAt: z.number().nullable(),
       problem: z.string().nullable(),
       change: suggestionChangeSchema.nullable(),
+      headline: z.string(),
+      preview: suggestionPreviewSchema.nullable(),
       traceId: z.string().nullable(),
     }),
   ),

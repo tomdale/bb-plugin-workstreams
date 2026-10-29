@@ -34,9 +34,15 @@ import {
   type TreeState,
 } from "../domain/tidy.ts";
 import {
+  changeHeadline,
   suggestionChange,
+  type ChangeContext,
   type SuggestionChange,
 } from "../domain/suggestion-change.ts";
+import {
+  suggestionPreview,
+  type SuggestionPreview,
+} from "../domain/suggestion-preview.ts";
 import { topicPath } from "../domain/topic-path.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal } from "./journal.ts";
@@ -72,6 +78,14 @@ export type SuggestionView = {
    * still exists.
    */
   change: SuggestionChange | null;
+  /** What it does in a sentence, while `change` is known; else `summary`. */
+  headline: string;
+  /**
+   * The affected sidebar groups now and after accepting, when it moves a
+   * visible thread to a differently named group; null when it changes only
+   * the topic tree.
+   */
+  preview: SuggestionPreview | null;
   traceId: string | null;
 };
 
@@ -195,23 +209,29 @@ export class Suggestions {
       topics: this.deps.topics.list(),
       titles: new Map(this.deps.roots().map((r) => [r.id, r.title])),
     };
-    return rows.map((row) => ({
-      id: row.id,
-      kind: row.kind,
-      summary: row.summary,
-      reason: row.reason,
-      status: row.status,
-      at: row.at,
-      decidedAt: row.decided_at,
-      problem:
-        row.status === "pending"
-          ? this.problem(row, tree)
-          : row.status === "stale"
-            ? row.detail
-            : null,
-      change: row.status === "pending" ? this.change(row, tree, known) : null,
-      traceId: row.trace_id,
-    }));
+    return rows.map((row) => {
+      const review =
+        row.status === "pending" ? this.review(row, tree, known) : null;
+      return {
+        id: row.id,
+        kind: row.kind,
+        summary: row.summary,
+        reason: row.reason,
+        status: row.status,
+        at: row.at,
+        decidedAt: row.decided_at,
+        problem:
+          row.status === "pending"
+            ? this.problem(row, tree)
+            : row.status === "stale"
+              ? row.detail
+              : null,
+        change: review?.change ?? null,
+        headline: review?.change ? changeHeadline(review.change) : row.summary,
+        preview: review?.preview ?? null,
+        traceId: row.trace_id,
+      };
+    });
   }
 
   pendingCount(): number {
@@ -592,12 +612,12 @@ export class Suggestions {
     }
   }
 
-  /** What accepting a waiting suggestion would move, against `tree`. */
-  private change(
+  /** What accepting a waiting suggestion would change, against `tree`. */
+  private review(
     row: Row,
     tree: TreeState,
     known: { topics: readonly Topic[]; titles: ReadonlyMap<string, string> },
-  ): SuggestionChange | null {
+  ): { change: SuggestionChange | null; preview: SuggestionPreview | null } {
     const body = JSON.parse(row.body) as TidyEdit | Split;
     const creates = new Map(
       (
@@ -619,15 +639,17 @@ export class Suggestions {
             : [],
         ),
     );
-    return suggestionChange(
-      "subgroups" in body ? body : this.resolve(body, row.pass_id),
-      {
-        topics: known.topics,
-        threadTopic: tree.threadTopic,
-        title: (id) => known.titles.get(id) ?? "Untitled thread",
-        creates,
-      },
-    );
+    const edit = "subgroups" in body ? body : this.resolve(body, row.pass_id);
+    const context: ChangeContext = {
+      topics: known.topics,
+      threadTopic: tree.threadTopic,
+      title: (id) => known.titles.get(id) ?? "Untitled thread",
+      creates,
+    };
+    return {
+      change: suggestionChange(edit, context),
+      preview: suggestionPreview(edit, context),
+    };
   }
 
   private problem(row: Row, tree: TreeState): string | null {

@@ -92,6 +92,19 @@ describe("split suggestions", () => {
       reason: "Planning apart from triggers",
       problem: null,
     });
+    expect(split!.headline).toBe("Split Automations into 2 subgroups");
+    // The sidebar preview shows the group's threads leaving for the new
+    // subgroups.
+    expect(
+      split!.preview?.after[0]?.groups.map((g) => [
+        g.name,
+        g.created,
+        g.threads.map((t) => t.id),
+      ]),
+    ).toEqual([
+      ["Planning", true, ["t1", "t2", "t3"]],
+      ["Triggers", true, ["t4", "t5", "t6"]],
+    ]);
     // Review shows each new subgroup and the threads that go to it.
     expect(split!.change).toEqual({
       op: "split",
@@ -266,6 +279,8 @@ describe("tidy suggestions", () => {
     await rpc("refresh");
     const [create, reparent] = (await run()).suggestions;
     expect(reparent!.summary).toBe("Move Beta under Vercel");
+    // Beta holds no threads, so moving it changes only the group tree.
+    expect(reparent!.preview).toBeNull();
     // The topic the create would make reads as new until it exists.
     expect(reparent!.change?.moves).toEqual([
       {

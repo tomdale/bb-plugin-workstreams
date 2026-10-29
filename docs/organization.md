@@ -103,9 +103,12 @@ provenance and remains eligible for future automatic updates.
 
 Suggestions change nothing until you accept them, on Organization or with
 `bb workstreams suggestions`; a sidebar notice counts the ones waiting. Review
-shows each waiting suggestion's operation and every move it would make, from a
-topic path now to the path after, with the threads making it, before its reason
-(`src/domain/suggestion-change.ts`).
+names each one in a sentence of groups and threads
+(`src/domain/suggestion-change.ts`). A suggestion that moves a visible thread to
+a differently named group is a sidebar change, shown as the affected groups now
+and after accepting, computed by applying it to a copy of the tree
+(`src/domain/suggestion-preview.ts`); one that moves no thread is group tree
+tidying, shown as each group's path now and after.
 
 - **Split.** A topic without subtopics that passes 5 visible roots gets one call
   that partitions all of its roots into 2–5 subgroups: plain areas a person

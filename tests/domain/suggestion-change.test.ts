@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  changeHeadline,
   changeLines,
   suggestionChange,
   type ChangeContext,
@@ -270,5 +271,62 @@ describe("changeLines", () => {
       "Agent → bb › Agent (with 2 threads)",
       "Plugins (new)",
     ]);
+  });
+});
+
+describe("changeHeadline", () => {
+  const headline = (body: Parameters<typeof suggestionChange>[0]) =>
+    changeHeadline(suggestionChange(body, context())!);
+
+  it("says what each suggestion does to which groups", () => {
+    expect(headline({ op: "move", thread: "t1", topic: "todo" })).toBe(
+      "Move 1 thread to Todo Plugin",
+    );
+    expect(
+      headline({
+        topicId: "toolbelt",
+        subgroups: [
+          { name: "Shell", description: "", threadIds: ["t1"] },
+          { name: "Sidebar", description: "", threadIds: ["t2"] },
+        ],
+      }),
+    ).toBe("Split Toolbelt into 2 subgroups");
+    expect(
+      headline({
+        topicId: "auto",
+        repair: true,
+        subgroups: [{ name: "Alerts", description: "", threadIds: ["t3"] }],
+      }),
+    ).toBe("Move 1 thread in Automations into subgroups");
+    expect(headline({ op: "merge", from: "auto", into: "todo" })).toBe(
+      "Merge Automations into Todo Plugin",
+    );
+    expect(headline({ op: "reparent", topic: "agent", parent: "bb" })).toBe(
+      "Move Agent under bb",
+    );
+    expect(headline({ op: "reparent", topic: "todo", parent: null })).toBe(
+      "Move Todo Plugin to the top level",
+    );
+    expect(headline({ op: "rename", topic: "todo", name: "Todos" })).toBe(
+      "Rename Todo Plugin to Todos",
+    );
+    expect(
+      headline({
+        op: "create",
+        name: "Work",
+        description: "",
+        parent: null,
+        children: ["agent", "toolbelt", "bb"],
+      }),
+    ).toBe("Group Agent, Toolbelt, and bb under a new Work");
+    expect(
+      headline({
+        op: "create",
+        name: "Plugins",
+        description: "",
+        parent: "bb",
+        children: [],
+      }),
+    ).toBe("Create Plugins under bb");
   });
 });

@@ -1,10 +1,9 @@
 /**
- * What accepting a suggestion would change: one line per move, "topic now →
- * topic after", with the threads making that move listed beneath it.
+ * A suggestion's moves without a sidebar preview: one line per move, "group
+ * now → group after", with any threads making that move listed beneath it.
  */
 import type {
   ChangeMove,
-  ChangeOp,
   SuggestionChange,
   TopicPlace,
 } from "../../domain/suggestion-change.ts";
@@ -12,33 +11,13 @@ import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import { ActivityThreadLink } from "./ActivityThreadLink.tsx";
 
-const OPERATION: Record<ChangeOp, string> = {
-  refile: "Refile thread",
-  split: "Split topic",
-  file: "File threads in subtopics",
-  merge: "Merge topics",
-  reparent: "Move topic",
-  rename: "Rename topic",
-  create: "New topic",
-};
-
-/** The operation a suggestion performs, as its heading. */
-export function changeHeading(change: SuggestionChange): string {
-  if (change.op === "create" && change.moves.some((move) => move.from))
-    return "New parent topic";
-  return OPERATION[change.op];
-}
-
 export function SuggestionChangeMoves({
   change,
 }: {
   change: SuggestionChange;
 }) {
   return (
-    <ul
-      aria-label="Changes"
-      className="space-y-2.5 rounded-lg bg-muted/40 px-3 py-2.5"
-    >
+    <ul aria-label="Changes" className="space-y-1.5">
       {change.moves.map((move, index) => (
         <li key={index}>
           <MoveLine move={move} />

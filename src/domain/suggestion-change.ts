@@ -258,3 +258,40 @@ export function changeLines(change: SuggestionChange): string[] {
     ...move.threads.map((t) => `  “${t.title}”`),
   ]);
 }
+
+const leaf = (place: TopicPlace) => place.at(-1)?.name ?? "the top level";
+const count = (n: number, noun: string) =>
+  n === 0 ? `${noun}s` : `${n} ${noun}${n === 1 ? "" : "s"}`;
+
+/**
+ * What a suggestion does, as a sentence of groups and threads: "Split
+ * Automations into 2 subgroups", "Move Workforest under bb".
+ */
+export function changeHeadline(change: SuggestionChange): string {
+  const [first] = change.moves;
+  if (!first) return "Change groups";
+  const threads = change.moves.reduce((n, m) => n + m.threads.length, 0);
+  const group = leaf(first.to.slice(0, -1));
+  switch (change.op) {
+    case "refile":
+      return `Move ${count(threads, "thread")} to ${leaf(first.to)}`;
+    case "split":
+      return `Split ${group} into ${count(new Set(change.moves.map((m) => leaf(m.to))).size, "subgroup")}`;
+    case "file":
+      return `Move ${count(threads, "thread")} in ${group} into subgroups`;
+    case "merge":
+      return `Merge ${leaf(first.from ?? [])} into ${leaf(first.to)}`;
+    case "reparent":
+      return first.to.length > 1
+        ? `Move ${leaf(first.to)} under ${group}`
+        : `Move ${leaf(first.to)} to the top level`;
+    case "rename":
+      return `Rename ${leaf(first.from ?? [])} to ${leaf(first.to)}`;
+    case "create": {
+      if (!first.from)
+        return `Create ${leaf(first.to)}${first.to.length > 1 ? ` under ${group}` : ""}`;
+      const names = change.moves.map((m) => leaf(m.to));
+      return `Group ${names.length > 2 ? `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}` : names.join(" and ")} under a new ${group}`;
+    }
+  }
+}

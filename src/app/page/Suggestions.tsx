@@ -1,9 +1,11 @@
 /**
- * Organizing suggestions on the Organization tab: splits of busy topics and
- * tidy edits to the topic tree. Each one leads with its operation and the
- * threads or topics it would move, from where to where, then its reason.
- * Nothing changes until you accept one; a declined suggestion isn't proposed
- * again.
+ * Organizing suggestions on the Organization tab, in the sidebar's terms:
+ * groups and the threads in them. Suggestions that change the sidebar show
+ * the affected groups now and after accepting. Those that only reshape the
+ * group tree, moving no thread, are listed apart: they decide where future
+ * threads are filed. Each says what it does in one sentence, and its reason
+ * follows. Nothing changes until you accept one; a declined suggestion isn't
+ * proposed again.
  */
 import { useCallback, useEffect, useState } from "react";
 import { useRealtime, type useRpc } from "@get-bb/plugin-sdk/app";
@@ -13,7 +15,8 @@ import type {
 } from "../../server/contract.ts";
 import { relativeAgeLabel } from "../../domain/presentation.ts";
 import { ghostButton, primaryButton, secondaryButton } from "./controls.ts";
-import { SuggestionChangeMoves, changeHeading } from "./SuggestionChange.tsx";
+import { SuggestionChangeMoves } from "./SuggestionChange.tsx";
+import { SidebarPreview } from "./SuggestionPreview.tsx";
 
 type Rpc = ReturnType<typeof useRpc<RpcContract>>;
 type Suggestion = SuggestionsStateWire["suggestions"][number];
@@ -77,7 +80,7 @@ export function Suggestions({
       setState(result.state);
       return result.state.suggestions.some((s) => s.status === "pending")
         ? null
-        : "No suggestions: your topics look tidy.";
+        : "No suggestions: your groups look tidy.";
     });
 
   if (!state) return null;
@@ -86,6 +89,14 @@ export function Suggestions({
     .filter((s) => s.status !== "pending")
     .slice(0, 5);
   const ready = pending.filter((s) => !s.problem);
+  // A thread suggestion stays with the sidebar changes even when its threads
+  // are gone and it has no preview.
+  const reshapes = (s: Suggestion) =>
+    s.preview === null &&
+    s.change !== null &&
+    !["refile", "split", "file"].includes(s.change.op);
+  const sidebar = pending.filter((s) => !reshapes(s));
+  const tree = pending.filter(reshapes);
   const running = busy || state.running;
 
   return (
@@ -97,8 +108,7 @@ export function Suggestions({
         <div className="min-w-0 flex-1 basis-64">
           <h2 className="text-sm font-semibold">Suggestions</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Splits for busy topics and tidy edits to your topics. Nothing
-            changes until you accept one.
+            Ways to regroup your threads. Nothing changes until you accept one.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -128,50 +138,26 @@ export function Suggestions({
         </div>
       </div>
       {pending.length ? (
-        <ul className="mt-3 divide-y divide-border">
-          {pending.map((s) => (
-            <li key={s.id} className="py-3">
-              <div className="flex items-center gap-x-4">
-                <h3 className="min-w-0 flex-1 text-[13px] font-medium">
-                  {s.change ? changeHeading(s.change) : s.summary}
-                </h3>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    className={ghostButton}
-                    disabled={running}
-                    aria-label={`Decline: ${s.summary}`}
-                    onClick={() => void decide([s.id], "decline")}
-                  >
-                    Decline
-                  </button>
-                  <button
-                    type="button"
-                    className={primaryButton}
-                    disabled={running || s.problem !== null}
-                    aria-label={`Accept: ${s.summary}`}
-                    onClick={() => void decide([s.id], "accept")}
-                  >
-                    Accept
-                  </button>
-                </div>
-              </div>
-              {s.change ? (
-                <div className="mt-2">
-                  <SuggestionChangeMoves change={s.change} />
-                </div>
-              ) : null}
-              {s.reason ? (
-                <p className="mt-2 text-xs text-muted-foreground">{s.reason}</p>
-              ) : null}
-              {s.problem ? (
-                <p className="mt-1 text-xs text-(--ws-needs-you-strong)">
-                  Can't apply now: {s.problem}
-                </p>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        <>
+          {sidebar.length ? (
+            <SuggestionList
+              title="Sidebar changes"
+              description="Threads change groups. Highlighted threads move."
+              suggestions={sidebar}
+              running={running}
+              decide={decide}
+            />
+          ) : null}
+          {tree.length ? (
+            <SuggestionList
+              title="Group tree tidying"
+              description="No threads move. These change how groups nest and are named, which decides where new threads go."
+              suggestions={tree}
+              running={running}
+              decide={decide}
+            />
+          ) : null}
+        </>
       ) : (
         <p className="mt-3 text-xs text-muted-foreground">
           No suggestions right now
@@ -207,6 +193,75 @@ export function Suggestions({
           {error ?? `The last run failed: ${state.error}`}
         </p>
       ) : null}
+    </section>
+  );
+}
+
+function SuggestionList({
+  title,
+  description,
+  suggestions,
+  running,
+  decide,
+}: {
+  title: string;
+  description: string;
+  suggestions: Suggestion[];
+  running: boolean;
+  decide: (ids: string[], decision: "accept" | "decline") => Promise<void>;
+}) {
+  return (
+    <section aria-label={title} className="mt-4">
+      <h3 className="text-xs font-semibold text-foreground">{title}</h3>
+      <p className="text-xs text-muted-foreground">{description}</p>
+      <ul className="mt-1 divide-y divide-border">
+        {suggestions.map((s) => (
+          <li key={s.id} className="py-3">
+            <div className="flex items-center gap-x-4">
+              <h4 className="min-w-0 flex-1 text-[13px] font-medium">
+                {s.headline}
+              </h4>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  className={ghostButton}
+                  disabled={running}
+                  aria-label={`Decline: ${s.headline}`}
+                  onClick={() => void decide([s.id], "decline")}
+                >
+                  Decline
+                </button>
+                <button
+                  type="button"
+                  className={primaryButton}
+                  disabled={running || s.problem !== null}
+                  aria-label={`Accept: ${s.headline}`}
+                  onClick={() => void decide([s.id], "accept")}
+                >
+                  Accept
+                </button>
+              </div>
+            </div>
+            {s.preview ? (
+              <div className="mt-2">
+                <SidebarPreview preview={s.preview} />
+              </div>
+            ) : s.change ? (
+              <div className="mt-1">
+                <SuggestionChangeMoves change={s.change} />
+              </div>
+            ) : null}
+            {s.reason ? (
+              <p className="mt-2 text-xs text-muted-foreground">{s.reason}</p>
+            ) : null}
+            {s.problem ? (
+              <p className="mt-1 text-xs text-(--ws-needs-you-strong)">
+                Can't apply now: {s.problem}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
