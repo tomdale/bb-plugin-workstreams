@@ -77,7 +77,9 @@ it("keeps structured replies off until switched on", async () => {
     name: "Structured replies",
   });
   expect(toggle.getAttribute("aria-checked")).toBe("false");
-  expect(slot.getByText("Off: agent replies have no set form.")).toBeTruthy();
+  expect(
+    slot.getByText("Off: agents report each turn through the recap tool."),
+  ).toBeTruthy();
   fireEvent.click(toggle);
   await waitFor(() =>
     expect(
@@ -87,19 +89,16 @@ it("keeps structured replies off until switched on", async () => {
   expect(await slot.findByText(/labeled sections/)).toBeTruthy();
 });
 
-it.each([
-  [false, "Needs a BB that draws reply blocks"],
-  [true, "On, but this BB can't draw reply blocks"],
-])(
-  "greys structured replies out on a bb without the slot (on: %s)",
-  async (replies, text) => {
+it.each([false, true])(
+  "leaves structured replies out on a bb without the slot (stored on: %s)",
+  async (replies) => {
     const slot = await mount({ fork: false, prefs: { ...PREFS, replies } });
-    const toggle = await slot.findByRole("switch", {
-      name: "Structured replies",
-    });
-    expect(toggle.getAttribute("aria-checked")).toBe("false");
-    expect(toggle).toHaveProperty("disabled", true);
-    expect(await slot.findByText(new RegExp(text))).toBeTruthy();
+    await slot.findByRole("switch", { name: "End turns with a recap" });
+    expect(
+      slot.queryByRole("switch", { name: "Structured replies" }),
+    ).toBeNull();
+    expect(slot.queryByText(/Structured replies/)).toBeNull();
+    expect(slot.queryByText(/reply blocks/)).toBeNull();
   },
 );
 

@@ -368,10 +368,9 @@ which adds a message-block slot, you also get **Structured replies**:
   docked card while that turn's card shows.
 
 Workstreams detects the slot when its app loads and reports it to the server.
-Without the slot, the Structured replies setting is greyed out with an
-explanation, agents keep the recap tool, and a setting turned on under the fork
-waits until a client with the slot reports again. Reply blocks written earlier
-show as plain Markdown.
+Without the slot, Settings has no Structured replies row and agents use the
+recap tool; a setting turned on under the fork stays stored but has no effect.
+Reply blocks written earlier show as plain Markdown.
 
 ### Structured question card (`AskUserQuestion`)
 
@@ -534,7 +533,7 @@ Open **Settings → Workstreams** to configure:
 | **Threads**           | **Show archive button**                            | `On`                                        | Shows an Archive button in thread headers.                                                                                                                                     |
 | **Recap**             | **End turns with a recap**                         | `On`                                        | Gives agents `WorkstreamsRecap` and displays the recap card above the composer.                                                                                                |
 | **Recap**             | **Reminders**                                      | `3` (`0–10`)                                | Maximum turn-end reminders sent when an enrolled agent omits a recap (`0` disables reminders).                                                                                 |
-| **Recap**             | **Structured replies**                             | `Off`                                       | Agents end each turn with a `:::reply` block whose card fields become the recap, instead of calling the recap tool. Needs the tomdale/bb fork.                                 |
+| **Recap**             | **Structured replies**                             | `Off`                                       | Agents end each turn with a `:::reply` block whose card fields become the recap, instead of calling the recap tool. Shown only with the tomdale/bb fork.                       |
 | **Recap**             | **Layout**                                         | `Full` (`Full` / `Compact`)                 | Card layout on desktop (`Compact` is always used on phones), with a live preview carousel.                                                                                     |
 | **Recap**             | **Commit hash colors**                             | Theme default                               | Custom `#rrggbb` colors for commit-hash digits and letters, with **Reset**.                                                                                                    |
 | **Snooze**            | **Presets**                                        | `4` presets, **Tomorrow morning** default   | `1–6` presets every snooze menu lists before **Custom…**: add, edit, delete, drag to reorder, and choose the **Default** a click uses.                                         |

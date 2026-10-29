@@ -121,26 +121,25 @@ export function RecapSettings() {
           }
         />
       </div>
-      <SettingRow
-        label="Structured replies"
-        description={
-          !replyBlocksDrawn()
-            ? prefs.replies
-              ? "On, but this BB can't draw reply blocks, so agents keep using the recap tool. It takes effect on a BB that can, such as the tomdale/bb fork."
-              : "Needs a BB that draws reply blocks, such as the tomdale/bb fork. Agents use the recap tool meanwhile."
-            : prefs.replies
+      {/* Only a bb that draws reply blocks (the tomdale/bb fork) offers
+          Structured replies; elsewhere agents use the recap tool. */}
+      {replyBlocksDrawn() ? (
+        <SettingRow
+          label="Structured replies"
+          description={
+            prefs.replies
               ? "Agents end each turn with a reply block in labeled sections; its headline and results become the recap card. Applies to each thread's next session."
-              : "Off: agent replies have no set form."
-        }
-        control={
-          <SettingSwitch
-            label="Structured replies"
-            checked={prefs.replies && replyBlocksDrawn()}
-            disabled={!replyBlocksDrawn()}
-            onChange={(replies) => change({ replies })}
-          />
-        }
-      />
+              : "Off: agents report each turn through the recap tool."
+          }
+          control={
+            <SettingSwitch
+              label="Structured replies"
+              checked={prefs.replies}
+              onChange={(replies) => change({ replies })}
+            />
+          }
+        />
+      ) : null}
       <div className="space-y-3">
         <p id="ws-recap-layout" className="text-sm font-medium text-foreground">
           Layout
