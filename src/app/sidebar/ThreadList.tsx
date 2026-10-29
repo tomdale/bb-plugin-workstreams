@@ -733,7 +733,6 @@ export function WorkstreamsThreadList({
           toggle={() => toggleGroup(sub.id, false, sub.topicId)}
           onNewThread={newThreadIn(sub)}
           snooze={groupSnoozeOf(sub)}
-          quietCount={focus.active && !sub.prioritized}
         >
           {renderGroupBody(sub)}
         </WorkstreamGroup>
@@ -768,7 +767,6 @@ export function WorkstreamsThreadList({
           {...props}
           group={group}
           snooze={groupSnoozeOf(group)}
-          quietCount={focus.active && !group.prioritized}
           sectionRef={ref}
           style={style}
           handle={handle}
@@ -938,7 +936,6 @@ export function WorkstreamsThreadList({
                 collapsed={lowerCollapsed(projection.unsorted.id)}
                 toggle={() => lowerToggle(projection.unsorted.id)}
                 snooze={groupSnoozeOf(projection.unsorted)}
-                quietCount={focus.active}
                 muted
               >
                 {renderTrees(projection.unsorted)}
@@ -1113,7 +1110,7 @@ export function WorkstreamsThreadList({
                       </span>
                       {!showLower && focus.elsewhere.length > 0 ? (
                         // What Up Next left out, so nothing waits unseen.
-                        <span className="rounded-full bg-muted-foreground/15 px-1.5 text-[11px] font-medium tabular-nums">
+                        <span className="ws-needs-you-pill rounded-full px-1.5 text-[11px] font-medium tabular-nums">
                           {focus.elsewhere.length} waiting on you
                         </span>
                       ) : null}
@@ -1548,8 +1545,6 @@ type GroupProps = {
   /** Snoozes every thread the group lists; absent while it lists none. */
   snooze?: GroupSnooze;
   muted?: boolean;
-  /** Up Next is focused elsewhere, so the waiting count recedes. */
-  quietCount?: boolean;
   /** Drag-and-drop wiring: the section moves, the header drags it. */
   sectionRef?: (element: HTMLElement | null) => void;
   style?: CSSProperties;
@@ -1567,7 +1562,6 @@ function WorkstreamGroup({
   onToggleFocus,
   snooze,
   muted,
-  quietCount,
   sectionRef,
   style,
   handle,
@@ -1668,12 +1662,7 @@ function WorkstreamGroup({
           <span className="flex shrink-0 items-center gap-1 empty:hidden">
             {shows(prefs?.sidebar.waitingCount) && group.needsYou > 0 ? (
               <span
-                className={cn(
-                  "rounded-full px-1.5 text-[11px] font-medium tabular-nums transition-colors duration-300",
-                  quietCount
-                    ? "bg-muted-foreground/15 text-muted-foreground"
-                    : "ws-needs-you-pill",
-                )}
+                className="ws-needs-you-pill rounded-full px-1.5 text-[11px] font-medium tabular-nums transition-colors duration-300"
                 title={`${group.needsYou} waiting on you`}
               >
                 {group.needsYou}

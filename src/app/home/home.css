@@ -443,10 +443,6 @@ section:has(> [data-bb-plugin-root] > [data-ws-home="hidden"]) {
   font-variant-numeric: tabular-nums;
   line-height: 1.375rem;
 }
-.ws-home-pill-quiet {
-  background: color-mix(in oklab, var(--muted-foreground) 15%, transparent);
-  color: var(--muted-foreground);
-}
 .ws-home-total {
   min-width: 1.5ch;
   text-align: right;

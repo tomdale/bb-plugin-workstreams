@@ -2669,13 +2669,14 @@ describe("focused workstreams", () => {
     expect(
       within(band).getByRole("img", { name: "Showing focused workstreams" }),
     ).toBeTruthy();
-    // The threads blocked on you that Up Next leaves out are counted on the
-    // toggle, and wait in their workstreams with a neutral count.
+    // The toggle and revealed groups use the same attention treatment for
+    // threads blocked on you.
     const toggle = slot.getByRole("button", {
       name: "Show other workstreams, 2 waiting on you",
     });
     const count = within(toggle).getByText("2 waiting on you");
     expect(count.closest('[aria-hidden="true"], .sr-only')).toBeNull();
+    expect(count.classList.contains("ws-needs-you-pill")).toBe(true);
     fireEvent.click(toggle);
     expect(slot.getByRole("region", { name: "Alpha" })).toBeTruthy();
     expect(slot.getByRole("region", { name: "Beta" })).toBeTruthy();
@@ -2689,9 +2690,11 @@ describe("focused workstreams", () => {
         .getByRole("button", { name: "Alpha" })
         .getAttribute("aria-expanded"),
     ).toBe("false");
-    expect(alpha.getByTitle("1 waiting on you").className).not.toContain(
-      "ws-needs-you-pill",
-    );
+    const waiting = alpha.getByTitle("1 waiting on you");
+    expect(waiting.className).toContain("ws-needs-you-pill");
+    const total = waiting.nextElementSibling;
+    expect(total?.textContent).toBe("1");
+    expect(total?.className).not.toContain("ws-needs-you-pill");
 
     // With nothing in a focused workstream blocked on you, Up Next shows
     // every workstream.

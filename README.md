@@ -285,6 +285,8 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      applies these rules to focused workstreams' threads only, marks its header
      with the focus icon, and labels the count on **Show other workstreams** as
      threads waiting on you elsewhere, not the number of hidden workstreams.
+     Waiting counts use the amber attention treatment on the toggle and group
+     headers; total thread counts are plain grey numbers.
 
 2. **Workstreams (focused and other tiers):**
    - **Nesting:** Workstreams nest as the organizer laid them out (see

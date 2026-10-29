@@ -392,6 +392,7 @@ describe("Home screen", () => {
       // The visible label counts blocked threads, not the groups revealed.
       const count = within(toggle).getByText("1 waiting on you");
       expect(count.closest('[aria-hidden="true"], .sr-only')).toBeNull();
+      expect(count.classList.contains("ws-needs-you-pill")).toBe(true);
       fireEvent.click(toggle);
       expect(regionNames(slot)).toEqual([
         "Up Next",
@@ -739,7 +740,7 @@ describe("Home screen with a focused workstream", () => {
     ).toBeNull();
   });
 
-  it("keeps the focus count and neutral pills when Up Next is switched off", async () => {
+  it("keeps the attention treatment for waiting counts when Up Next is switched off", async () => {
     const slot = await mountHome({
       threads: [
         zeta("zask", "Zeta asks", { hasPendingInteraction: true }),
@@ -761,11 +762,14 @@ describe("Home screen with a focused workstream", () => {
     });
     expect(toggle.textContent).toContain("1");
     fireEvent.click(toggle);
-    // ...and the other workstream's waiting count recedes.
+    // ...and the other workstream's waiting count uses the same treatment.
     const pill = within(region(slot, "Beta")).getByText(
       /waiting on you/,
     ).parentElement!;
-    expect(pill.classList.contains("ws-home-pill-quiet")).toBe(true);
+    expect(pill.classList.contains("ws-needs-you-pill")).toBe(true);
+    const total = pill.nextElementSibling;
+    expect(total?.classList.contains("ws-home-total")).toBe(true);
+    expect(total?.classList.contains("ws-needs-you-pill")).toBe(false);
   });
 });
 

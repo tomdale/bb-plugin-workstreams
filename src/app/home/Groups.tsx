@@ -71,8 +71,6 @@ export function WorkstreamGroups({
   const allOpen = visibleGroups.every((group) =>
     env.isOpen(groupKey(group.id), startsOpen(plan, group)),
   );
-  const quiet = (group: Group<Thread>) =>
-    plan.focus.active && !group.prioritized;
   const renderGroup = (group: Group<Thread>, muted = false) => (
     <GroupSection
       key={group.id}
@@ -80,7 +78,6 @@ export function WorkstreamGroups({
       open={env.isOpen(groupKey(group.id), startsOpen(plan, group))}
       onToggle={() => env.toggle(groupKey(group.id), startsOpen(plan, group))}
       muted={muted}
-      quietCount={quiet(group)}
       env={env}
     />
   );
@@ -128,7 +125,7 @@ export function WorkstreamGroups({
                   : "Show other workstreams"}
               </span>
               {!showLower && plan.focus.elsewhere > 0 ? (
-                <span className="ws-home-pill ws-home-pill-quiet">
+                <span className="ws-home-pill ws-needs-you-pill">
                   {plan.focus.elsewhere} waiting on you
                 </span>
               ) : null}
@@ -153,7 +150,6 @@ export function WorkstreamGroups({
                       open={env.isOpen(groupKey(group.id), false)}
                       onToggle={() => env.toggle(groupKey(group.id), false)}
                       muted
-                      quietCount={false}
                       env={env}
                     />
                   ))}
@@ -207,7 +203,6 @@ function GroupSection({
   open,
   onToggle,
   muted,
-  quietCount,
   env,
   nested = false,
 }: {
@@ -215,7 +210,6 @@ function GroupSection({
   open: boolean;
   onToggle: () => void;
   muted: boolean;
-  quietCount: boolean;
   env: HomeEnv;
   /** A subgroup: indented, without a dot, and not sticky. */
   nested?: boolean;
@@ -272,13 +266,7 @@ function GroupSection({
           ) : null}
           <span className="ws-home-counts">
             {showsCount(env.waitingCount, !open) && group.needsYou > 0 ? (
-              <span
-                className={
-                  quietCount
-                    ? "ws-home-pill ws-home-pill-quiet"
-                    : "ws-home-pill ws-needs-you-pill"
-                }
-              >
+              <span className="ws-home-pill ws-needs-you-pill">
                 <span aria-hidden="true">{group.needsYou}</span>
                 <span className="sr-only">
                   , {group.needsYou} waiting on you
@@ -332,7 +320,6 @@ function GroupSection({
               open={env.isOpen(groupKey(sub.id), true)}
               onToggle={() => env.toggle(groupKey(sub.id), true)}
               muted={muted}
-              quietCount={quietCount}
               env={env}
               nested
             />
