@@ -6,6 +6,8 @@ import {
   toText,
 } from "../../src/domain/reply.ts";
 import { replyInstructions } from "../../src/domain/replyInstructions.ts";
+import { recapInputFromCard } from "../../src/domain/replyRecap.ts";
+import { lastReplyBlock } from "../../src/domain/replyText.ts";
 import { blockInput } from "./replyFixtures.ts";
 import { REPLY_SAMPLES } from "./replySamples.ts";
 
@@ -327,46 +329,59 @@ describe("toText", () => {
 
 describe("replyInstructions", () => {
   const example = (text: string) =>
-    reply(read(`${/^:::reply\n[\s\S]*?\n:::$/m.exec(text)![0]}\n`));
+    /^:{3}reply(\{[^}\n]*\})?\n[\s\S]*?\n:::$/m.exec(text)![0];
 
-  it("beside a card, the example starts at a section and leaves out Done", () => {
-    const data = example(replyInstructions(true));
+  it("with the recap on, the example carries a card the server can store", () => {
+    const block = lastReplyBlock(`${example(replyInstructions(true))}\n`)!;
+    const data = reply(parse(block, { status: block.status }));
     expect(data.lead).toBeUndefined();
-    expect(data.sections.map((section) => section.label)).toEqual([
-      "Checked",
-      "Why",
-    ]);
+    expect(data.card?.headline).toBe("Fixed the percent coupon math");
+    expect(data.sections.map((section) => section.label)).toEqual(["Checked"]);
+    expect(recapInputFromCard(data.card!)).toMatchObject({
+      ok: true,
+      input: {
+        state: "review",
+        review: ["Run the cart tests and check the 10% case"],
+      },
+    });
   });
 
-  it("without a card, the example has a lead and Done", () => {
-    const data = example(replyInstructions(false));
+  it("without the recap, the example has a lead and Done", () => {
+    const data = reply(read(`${example(replyInstructions(false))}\n`));
+    expect(data.card).toBeUndefined();
     expect(data.lead).not.toBeUndefined();
     expect(data.sections[0]!.label).toBe("Done");
   });
 
-  it("beside a card: whole reply, labels without Done, the no-repeat check, short answers", () => {
+  it("with the recap on: final message, states, card fields, body order, short answers, question cards", () => {
     const text = replyInstructions(true);
-    expect(text).toContain(
-      "with these labels in order: Checked, Not done, Needs you, Next, Why",
-    );
-    expect(text).toContain("The block is the whole reply");
-    expect(text).toContain(
-      "compare each line with your card items and drop any line that says the same thing",
-    );
-    expect(text).toContain("For a short answer");
-    expect(text).toContain("write the block before calling the question tool");
-    expect(text).toContain("`### Details`");
-    expect(text).toContain("no space after the colons");
-    expect(text).toContain("A two-line body is a good body");
+    for (const phrase of [
+      "End every turn with one reply block as your final message",
+      "no space after the colons or before the `{`",
+      "`::::reply{…}`",
+      'timeout="<seconds>"',
+      "`### Review` (review only)",
+      "`### Links` (review only)",
+      "`### Waiting on` (waiting only)",
+      "`Title: message`",
+      "in this order: Checked, Not done, Needs you, Why",
+      "Checked names what was run and where",
+      "A short answer",
+      "write the block without `state`",
+      "then call the question tool",
+      "A two-line body is a good body",
+    ])
+      expect(text).toContain(phrase);
+    expect(text).not.toContain("WorkstreamsRecap");
   });
 
-  it("without a card: the fixed labels in order, and the block before a question card", () => {
+  it("without the recap: the fixed labels in order, and the block before a question card", () => {
     const text = replyInstructions(false);
     expect(text).toContain(
       "these exact labels in this order: Done, Checked, Not done, Needs you, Next, Why",
     );
     expect(text).toContain("write the block before calling the question tool");
-    expect(text).not.toContain("card items");
+    expect(text).not.toContain("state=");
     expect(text).toContain("A two-line body is a good body");
   });
 });
