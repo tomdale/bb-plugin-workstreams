@@ -29,6 +29,7 @@ import {
   describeEdit,
   editKey,
   mootEdit,
+  prefixMoves,
   refusal,
   splitNow,
   type Held,
@@ -277,8 +278,13 @@ export class Suggestions {
     const run = (async () => {
       try {
         this.error = null;
-        await this.splits(options.manual);
-        await this.tidy(options.manual);
+        try {
+          await this.splits(options.manual);
+          await this.tidy(options.manual);
+        } finally {
+          // After tidy, whose fresh pass replaces the edits still waiting.
+          this.prefixes();
+        }
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         this.deps.log(`Organizing suggestions failed: ${this.error}`);
@@ -506,6 +512,13 @@ export class Suggestions {
     for (const { edit, reason } of value)
       if (!refusal(edit, tree))
         this.propose(pass, "edit", edit, reason, traceId);
+  }
+
+  /** Proposes the moves topic names imply (see `prefixMoves`). */
+  private prefixes(): void {
+    const pass = randomUUID();
+    for (const { edit, reason } of prefixMoves(this.tree()))
+      this.propose(pass, "edit", edit, reason, null);
   }
 
   // Shared ----------------------------------------------------------------
@@ -854,9 +867,17 @@ export class Suggestions {
           case "merge":
             topics.merge(edit.from, edit.into);
             break;
-          case "reparent":
-            topics.reparent(edit.topic, edit.parent);
+          case "reparent": {
+            const moved = topics.reparent(edit.topic, edit.parent);
+            // The old name stays an alias, so a proposal that uses it still
+            // finds the topic.
+            if (edit.name !== undefined && edit.name !== moved.name)
+              topics.edit(moved.id, {
+                name: edit.name,
+                aliases: [...moved.aliases, moved.name],
+              });
             break;
+          }
           case "rename":
             topics.rename(edit.topic, edit.name);
             break;

@@ -91,7 +91,7 @@ export function layoutLabel(node: Pick<LayoutNode, "prefix" | "name">): string {
 const sortKey = (node: LayoutNode) => [...node.prefix, node.name].join(" ");
 
 /** Whether `name` begins with `word`, at a word boundary, ignoring case. */
-const startsWith = (name: string, word: string) => {
+export const startsWith = (name: string, word: string) => {
   const a = name.toLowerCase();
   const b = word.toLowerCase();
   return a === b || a.startsWith(`${b} `);

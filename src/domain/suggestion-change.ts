@@ -201,11 +201,20 @@ function describe(
         ],
       };
     }
-    case "reparent":
+    case "reparent": {
+      const to = under(place(body.parent), body.topic);
       return {
         op: "reparent",
-        moves: [topicMove(body.topic, under(place(body.parent), body.topic))],
+        moves: [
+          topicMove(
+            body.topic,
+            body.name === undefined
+              ? to
+              : [...to.slice(0, -1), { ...to.at(-1)!, name: body.name }],
+          ),
+        ],
       };
+    }
     case "rename": {
       const own = place(body.topic);
       return {
@@ -297,10 +306,13 @@ export function changeHeadline(change: SuggestionChange): string {
         : `Move ${count}threads to ${destinations[0]}`;
     case "merge":
       return `Merge ${leaf(first.from ?? [])} into ${leaf(first.to)}`;
-    case "reparent":
+    case "reparent": {
+      const name = leaf(first.from ?? first.to);
+      const as = name === leaf(first.to) ? "" : ` as ${leaf(first.to)}`;
       return first.to.length > 1
-        ? `Move ${leaf(first.to)} under ${group}`
-        : `Move ${leaf(first.to)} to the top level`;
+        ? `Move ${name} under ${group}${as}`
+        : `Move ${name} to the top level${as}`;
+    }
     case "rename":
       return `Rename ${leaf(first.from ?? [])} to ${leaf(first.to)}`;
     case "create":

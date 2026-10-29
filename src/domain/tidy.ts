@@ -20,7 +20,7 @@ import { z } from "zod";
 import { HEADER, redact, stripFence, tagged } from "./analysis.ts";
 import { placementIds } from "./placement.ts";
 import { takesThreads, topicAncestors } from "./topics.ts";
-import { SPLIT_ABOVE } from "./layout.ts";
+import { SPLIT_ABOVE, startsWith } from "./layout.ts";
 
 export const TIDY_EDITS_MAX = 8;
 /** A split makes at most this many subgroups. */
@@ -49,7 +49,13 @@ export type TopicRef = string;
 
 export type TidyEdit =
   | { op: "merge"; from: TopicRef; into: TopicRef }
-  | { op: "reparent"; topic: TopicRef; parent: TopicRef | null }
+  | {
+      op: "reparent";
+      topic: TopicRef;
+      parent: TopicRef | null;
+      /** Its name under the new parent, when that changes too. */
+      name?: string;
+    }
   | { op: "rename"; topic: TopicRef; name: string }
   | {
       op: "create";
@@ -532,7 +538,11 @@ export function mootEdit(edit: TidyEdit, state: TreeState): string | null {
     case "reparent":
       if (!exists(edit.topic) || !exists(edit.parent))
         return "A topic it names is gone.";
-      if (!isNew(edit.topic) && byId.get(edit.topic)?.parentId === edit.parent)
+      if (
+        !isNew(edit.topic) &&
+        byId.get(edit.topic)?.parentId === edit.parent &&
+        (edit.name === undefined || byId.get(edit.topic)?.name === edit.name)
+      )
         return "The topic is already there.";
       return null;
     case "merge":
@@ -590,6 +600,16 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
         (edit.parent === edit.topic || within(edit.parent, edit.topic))
       )
         return "It would put a topic inside itself.";
+      if (
+        edit.name !== undefined &&
+        state.topics.some(
+          (t) =>
+            t.parentId === edit.parent &&
+            t.id !== edit.topic &&
+            t.name.toLowerCase() === edit.name!.trim().toLowerCase(),
+        )
+      )
+        return `A topic there is already named ${edit.name}.`;
       return null;
     case "merge": {
       const threads = (holds(edit.from) ? 1 : 0) + (holds(edit.into) ? 1 : 0);
@@ -608,6 +628,45 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
   }
 }
 
+/**
+ * Top-level topics named as if they belonged under another topic: "Vercel
+ * Agent Code Review" beside "Vercel Agent". Each becomes a move under the
+ * topic with subtopics its name begins with (the longest, when several do),
+ * renamed without the shared words. Topics already under a parent keep it; moves that would
+ * break a rule of the tree aren't proposed. No model is asked, so these are
+ * found whenever the tree changes.
+ */
+export function prefixMoves(state: TreeState): ProposedEdit[] {
+  const out: ProposedEdit[] = [];
+  for (const topic of state.topics) {
+    if (topic.parentId !== null) continue;
+    const parent = state.topics
+      .filter(
+        (other) =>
+          other.id !== topic.id &&
+          other.name.length < topic.name.length &&
+          startsWith(topic.name, other.name) &&
+          state.topics.some((t) => t.parentId === other.id),
+      )
+      .sort((a, b) => b.name.length - a.name.length)[0];
+    if (!parent) continue;
+    const name = topic.name.slice(parent.name.length).trim();
+    if (!validName(name)) continue;
+    const edit: TidyEdit = {
+      op: "reparent",
+      topic: topic.id,
+      parent: parent.id,
+      name,
+    };
+    if (refusal(edit, state)) continue;
+    out.push({
+      edit,
+      reason: `Its name begins with ${parent.name}, so it belongs under that topic.`,
+    });
+  }
+  return out;
+}
+
 /** A stable identity for an edit, so a declined one isn't proposed again. */
 export function editKey(edit: TidyEdit | Split): string {
   if ("subgroups" in edit)
@@ -623,7 +682,12 @@ export function editKey(edit: TidyEdit | Split): string {
     case "merge":
       return JSON.stringify([edit.op, edit.from, edit.into]);
     case "reparent":
-      return JSON.stringify([edit.op, edit.topic, edit.parent]);
+      return JSON.stringify([
+        edit.op,
+        edit.topic,
+        edit.parent,
+        ...(edit.name === undefined ? [] : [edit.name.toLowerCase()]),
+      ]);
     case "rename":
       return JSON.stringify([edit.op, edit.topic, edit.name.toLowerCase()]);
     case "create":
@@ -654,9 +718,11 @@ export function describeEdit(
     case "merge":
       return `Merge ${names.topic(edit.from)} into ${names.topic(edit.into)}`;
     case "reparent":
-      return edit.parent
-        ? `Move ${names.topic(edit.topic)} under ${names.topic(edit.parent)}`
-        : `Move ${names.topic(edit.topic)} to the top level`;
+      return `${
+        edit.parent
+          ? `Move ${names.topic(edit.topic)} under ${names.topic(edit.parent)}`
+          : `Move ${names.topic(edit.topic)} to the top level`
+      }${edit.name === undefined ? "" : ` as ${edit.name}`}`;
     case "rename":
       return `Rename ${names.topic(edit.topic)} to ${edit.name}`;
     case "create":

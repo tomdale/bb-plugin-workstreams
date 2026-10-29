@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mootEdit, refusal, type TreeState } from "../../src/domain/tidy.ts";
+import {
+  mootEdit,
+  prefixMoves,
+  refusal,
+  type TreeState,
+} from "../../src/domain/tidy.ts";
 
 const state: TreeState = {
   topics: [
@@ -47,5 +52,84 @@ describe("mootEdit", () => {
     expect(refusal(edit, state)).toBe(
       "The new parent holds threads, so it can't take subtopics.",
     );
+  });
+});
+
+describe("prefixMoves", () => {
+  const tree = (
+    topics: TreeState["topics"],
+    held: TreeState["held"] = {},
+  ): TreeState => ({ topics, held, threadTopic: {} });
+
+  it("moves a top-level topic under the topic its name begins with", () => {
+    const moves = prefixMoves(
+      tree([
+        { id: "va", name: "Vercel Agent", parentId: null },
+        { id: "auto", name: "Automations", parentId: "va" },
+        { id: "cr", name: "Vercel Agent Code Review", parentId: null },
+        // A topic without subtopics isn't a group to move under.
+        { id: "v", name: "Vercel", parentId: null },
+      ]),
+    );
+    expect(moves).toEqual([
+      {
+        edit: {
+          op: "reparent",
+          topic: "cr",
+          parent: "va",
+          name: "Code Review",
+        },
+        reason:
+          "Its name begins with Vercel Agent, so it belongs under that topic.",
+      },
+    ]);
+  });
+
+  it("moves under the longest name that matches", () => {
+    const moves = prefixMoves(
+      tree([
+        { id: "va", name: "Vercel Agent", parentId: null },
+        { id: "auto", name: "Automations", parentId: "va" },
+        { id: "v", name: "Vercel", parentId: null },
+        { id: "iv", name: "Inside Vercel", parentId: "v" },
+        { id: "cr", name: "Vercel Agent Code Review", parentId: null },
+      ]),
+    );
+    expect(moves.map((m) => m.edit)).toEqual([
+      { op: "reparent", topic: "va", parent: "v", name: "Agent" },
+      { op: "reparent", topic: "cr", parent: "va", name: "Code Review" },
+    ]);
+  });
+
+  it("matches whole words and leaves nested topics where they are", () => {
+    expect(
+      prefixMoves(
+        tree([
+          { id: "bb", name: "bb", parentId: null },
+          { id: "fx", name: "bb-plugin-fx-provider", parentId: null },
+          { id: "bb-todo", name: "Todo", parentId: "bb" },
+          { id: "w", name: "Workstreams", parentId: null },
+          { id: "w-ui", name: "UI", parentId: "w" },
+          { id: "x", name: "Other", parentId: null },
+          { id: "wp", name: "Workstreams Plugin", parentId: "x" },
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("doesn't move a topic under one that holds threads", () => {
+    expect(
+      prefixMoves(
+        tree(
+          [
+            { id: "w", name: "Workstreams", parentId: null },
+            { id: "w-ui", name: "UI", parentId: "w" },
+            { id: "wp", name: "Workstreams Plugin", parentId: null },
+          ],
+          // A legacy topic holding threads beside its subtopics.
+          { w: 2 },
+        ),
+      ),
+    ).toEqual([]);
   });
 });

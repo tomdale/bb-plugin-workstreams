@@ -334,6 +334,14 @@ describe("changeHeadline", () => {
     expect(headline({ op: "reparent", topic: "todo", parent: null })).toBe(
       "Move Todo Plugin to the top level",
     );
+    expect(
+      headline({
+        op: "reparent",
+        topic: "agent",
+        parent: "bb",
+        name: "Agents",
+      }),
+    ).toBe("Move Agent under bb as Agents");
     expect(headline({ op: "rename", topic: "todo", name: "Todos" })).toBe(
       "Rename Todo Plugin to Todos",
     );

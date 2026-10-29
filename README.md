@@ -232,6 +232,11 @@ accept them, on **Organization** (a sidebar notice links there) or with
   or when Unfiled roots plus one-thread groups reach `4` and that set changed.
   It doesn't run on its own while earlier tidy edits wait for review. **Ask
   now** runs splits and a pass right away.
+- **Names:** A top-level topic whose name begins with the whole name of a topic
+  with subtopics ("Vercel Agent Code Review" beside "Vercel Agent") gets a
+  suggestion to move under it, renamed without the shared words ("Code Review");
+  the old name stays as an alias. These need no model call, so they appear
+  whenever the tree changes.
 - **Memory:** Tidy sees the topics you filed threads under, the suggestions you
   accepted, and the ones you declined; a suggestion identical to a declined one
   is never proposed again.

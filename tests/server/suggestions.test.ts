@@ -448,6 +448,40 @@ describe("retiring", () => {
   });
 });
 
+describe("moves topic names imply", () => {
+  it("proposes one without a model call, and applies it with the old name as an alias", async () => {
+    let tidyCalls = 0;
+    const { w, topics, run, decide, rpc } = await setup({
+      tidy: () => {
+        tidyCalls++;
+        return { edits: [] };
+      },
+    });
+    const agent = topics.create("Vercel Agent", "");
+    const auto = topics.create("Automations", "", agent.id);
+    const review = topics.create("Vercel Agent Code Review", "");
+    w.addThread("t1", { title: "Alert triage" });
+    topics.assign("t1", auto.id);
+    w.addThread("t2", { title: "Approve PRs" });
+    topics.assign("t2", review.id);
+    await rpc("refresh");
+    const state = await run();
+    const move = state.suggestions.find((s) => s.status === "pending");
+    expect(move).toMatchObject({
+      summary:
+        "Move Vercel Agent Code Review under Vercel Agent as Code Review",
+      reason:
+        "Its name begins with Vercel Agent, so it belongs under that topic.",
+    });
+    expect(tidyCalls).toBe(1);
+    expect((await decide([move!.id], "accept")).applied).toEqual([move!.id]);
+    const moved = topics.getById(review.id)!;
+    expect(moved).toMatchObject({ name: "Code Review", parentId: agent.id });
+    expect(moved.aliases).toContain("Vercel Agent Code Review");
+    expect(topics.assignment("t2").entityId).toBe(review.id);
+  });
+});
+
 describe("suggestions CLI", () => {
   it("lists, runs, and accepts suggestions", async () => {
     const { w, topics, rpc } = await setup({

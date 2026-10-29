@@ -118,6 +118,11 @@ names each one by what moves and where, and lists those that move threads
   a day, after 3 new topics or 5 new roots since the last pass, or when Unfiled
   roots plus one-thread groups reach 4 and that set changed; never while earlier
   tidy edits wait for review. Asking for suggestions runs splits and a pass now.
+- **Names.** A top-level topic whose name begins with the whole name of a topic
+  with subtopics ("Vercel Agent Code Review" beside "Vercel Agent") gets a
+  suggestion to move under it as "Code Review", keeping the old name as an alias
+  (`prefixMoves` in `src/domain/tidy.ts`). No model is asked, so these appear
+  whenever the tree changes, and they wait for review like tidy edits.
 - **Memory.** Tidy sees the topics you filed threads under, the suggestions you
   accepted, and the ones you declined. An edit identical to a declined one is
   never proposed again.
