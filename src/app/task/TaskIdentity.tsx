@@ -7,7 +7,11 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { useSharedServerState } from "../serverState.ts";
-import type { TopicAssignment, Topic } from "../../domain/topics.ts";
+import {
+  takesThreads,
+  type TopicAssignment,
+  type Topic,
+} from "../../domain/topics.ts";
 import { topicPath } from "../../domain/topic-path.ts";
 import { compareGroupNames } from "../../domain/group-name-order.ts";
 import { TAG_ICON } from "../workstream-icon.ts";
@@ -126,9 +130,12 @@ export function TopicPicker({
     const needle = search.trim().toLowerCase();
     return entities
       .filter((entity) => {
+        if (!takesThreads(entity.id, entities)) return false;
         if (!needle) return true;
         return (
-          displayTopicPath(entity.id, entities).toLowerCase().includes(needle) ||
+          displayTopicPath(entity.id, entities)
+            .toLowerCase()
+            .includes(needle) ||
           entity.description.toLowerCase().includes(needle) ||
           entity.aliases.some((a) => a.toLowerCase().includes(needle))
         );
@@ -279,7 +286,9 @@ export function TaskIdentity({
   const currentEntity = assignment?.entityId
     ? (entities.find((e) => e.id === assignment.entityId) ?? null)
     : null;
-  const label = currentEntity ? displayTopicPath(currentEntity.id, entities) : null;
+  const label = currentEntity
+    ? displayTopicPath(currentEntity.id, entities)
+    : null;
   const isFork = Boolean(assignment?.inheritedFrom);
   const automatic = isAutomaticTopic(assignment);
 

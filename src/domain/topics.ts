@@ -69,6 +69,15 @@ export type ActiveGroup = {
   readonly entityId: string;
 };
 
+/**
+ * Whether a topic can hold threads: a topic holds threads or subtopics,
+ * never both, so only one without subtopics can be chosen.
+ */
+export const takesThreads = (
+  id: string,
+  entities: readonly { parentId: string | null }[],
+) => !entities.some((entity) => entity.parentId === id);
+
 /** Returns ancestor entity IDs from nearest up to root. */
 export function topicAncestors(
   id: string,

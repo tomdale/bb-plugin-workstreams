@@ -23,7 +23,7 @@ import {
 import { useRpc } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../../server/contract.ts";
 import { topicPath } from "../../domain/topic-path.ts";
-import type { Topic } from "../../domain/topics.ts";
+import { takesThreads, type Topic } from "../../domain/topics.ts";
 import {
   Command,
   CommandGroup,
@@ -204,12 +204,12 @@ export function IdentityOptions({
   const needle = query.trim().toLowerCase();
   const visibleEntities = useMemo(() => {
     return entities
-      .filter((e) => matchesEntity(e, entities, needle))
+      .filter(
+        (e) =>
+          takesThreads(e.id, entities) && matchesEntity(e, entities, needle),
+      )
       .sort((a, b) =>
-        compareGroupNames(
-          topicPath(a.id, entities),
-          topicPath(b.id, entities),
-        ),
+        compareGroupNames(topicPath(a.id, entities), topicPath(b.id, entities)),
       );
   }, [entities, needle]);
   const exact = entities.some((e) => e.name.toLowerCase() === needle);
