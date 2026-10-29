@@ -44,8 +44,9 @@ const suggestion = (
 
 async function mount(state: SuggestionsStateWire) {
   let current = state;
-  const decide = vi.fn(
-    async ({ ids, decision }: { ids: string[]; decision: string }) => {
+  const decide = vi.fn(async (input: unknown) => {
+    const { ids, decision } = input as { ids: string[]; decision: string };
+    {
       current = {
         ...current,
         suggestions: current.suggestions.map((s) =>
@@ -59,8 +60,8 @@ async function mount(state: SuggestionsStateWire) {
         ),
       };
       return { applied: ids, failed: [], state: current };
-    },
-  );
+    }
+  });
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   const slot = renderSlot(
     app.navPanels[0]!,
