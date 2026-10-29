@@ -16,9 +16,22 @@ afterEach(cleanup);
 /** Stands in for bb's own rendering of the block. */
 const Original = () => <div data-original="">bb's rendering</div>;
 
+/**
+ * The reply block's registration on a bb with the fork's message-block slot.
+ * The published SDK's test harness has no such slot, so the test hands the
+ * registrar an app whose slot captures what it registers.
+ */
 async function registration(): Promise<ExperimentalMessageBlockRegistration> {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  const reply = app.messageBlocks.find((block) => block.name === "reply");
+  let reply: ExperimentalMessageBlockRegistration | null = null;
+  registerReplyBlock({
+    slots: {
+      experimental_messageBlock: (
+        registration: ExperimentalMessageBlockRegistration,
+      ) => {
+        reply = registration;
+      },
+    },
+  } as unknown as PluginAppBuilder);
   if (!reply) throw new Error("reply block not registered");
   return reply;
 }
@@ -79,6 +92,17 @@ it("registers the reply block for version 1", async () => {
 it("registers nothing on a bb without message blocks", () => {
   const app = { slots: {} } as unknown as PluginAppBuilder;
   expect(() => registerReplyBlock(app)).not.toThrow();
+});
+
+it("loads the whole app on upstream bb, which has no message-block slot", async () => {
+  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
+  // The upstream test host collects the slots it has; the recap card and
+  // question card still register.
+  expect(app.composerCustomizations.map((entry) => entry.id)).toContain(
+    "recap",
+  );
+  const { replyBlocksDrawn } = await import("../../src/app/reply/register.ts");
+  expect(replyBlocksDrawn()).toBe(false);
 });
 
 it("draws the lead, quiet labels, and drawn markers instead of checkboxes", async () => {
