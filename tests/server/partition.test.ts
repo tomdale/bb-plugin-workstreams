@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { openDatabase } from "../../src/server/db.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import {
+  restoreTopics,
+  snapshotTopics,
+  TopicStore,
+} from "../../src/server/topics.ts";
 
 const hosts: ReturnType<typeof createFakePluginHost>[] = [];
 const store = () => {
@@ -152,5 +156,45 @@ describe("split", () => {
       ]),
     ).toThrow(/exactly one subgroup/);
     expect(topics.subtopics(product.id)).toBe(0);
+  });
+});
+
+describe("restoreTopics", () => {
+  it("puts the tree back with foreign keys enforced and workstreams bound", () => {
+    const { db, see, topics } = store();
+    db.prepare("PRAGMA foreign_keys = ON").run();
+    const alpha = topics.create("Alpha");
+    const beta = topics.create("Beta");
+    const child = topics.create("Child", "", beta.id);
+    see("t1", "t2");
+    topics.assign("t1", alpha.id);
+    topics.assign("t2", child.id);
+    topics.bindGroup("sec_a", alpha.id);
+    topics.bindGroup("sec_c", child.id);
+    const snapshot = snapshotTopics(db, 1);
+    topics.merge(alpha.id, child.id);
+    topics.rename(beta.id, "Alpha");
+    topics.create("Gamma", "", null);
+    expect(restoreTopics(db, snapshot, topics.revision())).toBe(true);
+    expect(
+      topics
+        .list()
+        .map((t) => t.name)
+        .sort(),
+    ).toEqual(["Alpha", "Beta", "Child"]);
+    expect(topics.assignment("t1").entityId).toBe(alpha.id);
+    expect(topics.getById(child.id)?.parentId).toBe(beta.id);
+    expect(topics.groups().get("sec_c")).toBe(child.id);
+  });
+
+  it("restores nothing once the catalog changed again", () => {
+    const { db, topics } = store();
+    const alpha = topics.create("Alpha");
+    const snapshot = snapshotTopics(db, 1);
+    topics.rename(alpha.id, "Beta");
+    const after = topics.revision();
+    topics.create("Gamma");
+    expect(restoreTopics(db, snapshot, after)).toBe(false);
+    expect(topics.getById(alpha.id)?.name).toBe("Beta");
   });
 });

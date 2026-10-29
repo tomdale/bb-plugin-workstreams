@@ -82,6 +82,11 @@ export function snapshotTopics(db: Database, at: number): string {
  * catalog is still at `revision`: any later topic or assignment change means
  * undoing would discard it, so nothing is restored. Workstreams bound to
  * topics the snapshot lacks are unbound. Returns whether it restored.
+ *
+ * Rows are updated in place rather than replaced, so foreign keys from
+ * workstream bindings and parent links hold at every step, and every topic
+ * takes a placeholder name first so no intermediate state repeats a name
+ * within one parent.
  */
 export function restoreTopics(
   db: Database,
@@ -95,7 +100,17 @@ export function restoreTopics(
     const current = parseInt(getMeta(db, "catalog_revision") ?? "1", 10) || 1;
     if (!row || current !== revision) return false;
     const entities = JSON.parse(row.entities) as Row[];
-    const kept = new Set(entities.map((entity) => entity.id));
+    const kept = new Set(entities.map((entity) => entity.id as string));
+    const now = new Map(
+      (
+        db.prepare("SELECT id, parent_id FROM ws_corpus_entity").all() as {
+          id: string;
+          parent_id: string | null;
+        }[]
+      ).map((r) => [r.id, r.parent_id]),
+    );
+    db.prepare("UPDATE ws_corpus_entity SET name = char(0) || id").run();
+    db.prepare("DELETE FROM ws_corpus_subject").run();
     for (const group of db
       .prepare("SELECT section_id, entity_id FROM ws_corpus_group")
       .all() as { section_id: string; entity_id: string }[])
@@ -103,21 +118,40 @@ export function restoreTopics(
         db.prepare("DELETE FROM ws_corpus_group WHERE section_id = ?").run(
           group.section_id,
         );
-    db.prepare("DELETE FROM ws_corpus_subject").run();
-    db.prepare("DELETE FROM ws_corpus_entity").run();
-    // Parents first, so every parent reference resolves as it is written.
-    const placed = new Set<unknown>([null]);
-    let pending = entities;
-    while (pending.length) {
-      const ready = pending.filter(
-        (entity) => placed.has(entity.parent_id) || !kept.has(entity.parent_id),
-      );
-      if (!ready.length)
-        throw new Error("The snapshot's topic tree has a cycle.");
-      insertRows(db, "ws_corpus_entity", ready);
-      for (const entity of ready) placed.add(entity.id);
-      pending = pending.filter((entity) => !ready.includes(entity));
+    // Missing topics come back unattached; the next step attaches them.
+    insertRows(
+      db,
+      "ws_corpus_entity",
+      entities
+        .filter((entity) => !now.has(entity.id as string))
+        .map((entity) => ({
+          ...entity,
+          name: `\u0000${String(entity.id)}`,
+          parent_id: null,
+        })),
+    );
+    for (const entity of entities) {
+      const columns = Object.keys(entity).filter((column) => column !== "id");
+      db.prepare(
+        `UPDATE ws_corpus_entity SET ${columns.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`,
+      ).run(...columns.map((c) => entity[c]), entity.id);
     }
+    // Topics the snapshot lacks go, children first; no kept topic points at
+    // them any more.
+    const depth = (id: string) => {
+      let n = 0;
+      for (
+        let at = now.get(id) ?? null;
+        at && n < 100;
+        at = now.get(at) ?? null
+      )
+        n++;
+      return n;
+    };
+    for (const id of [...now.keys()]
+      .filter((id) => !kept.has(id))
+      .sort((a, b) => depth(b) - depth(a)))
+      db.prepare("DELETE FROM ws_corpus_entity WHERE id = ?").run(id);
     insertRows(db, "ws_corpus_subject", JSON.parse(row.subjects) as Row[]);
     setMeta(db, "catalog_revision", String(current + 1));
     return true;
