@@ -67,8 +67,42 @@ const replySectionSchema = z
   .strict();
 export type ReplySection = z.infer<typeof replySectionSchema>;
 
+/**
+ * Section labels that carry recap card fields in a block whose opener sets
+ * `state`. They leave the body: the server stores them as the turn's recap.
+ */
+export const CARD_LABELS = {
+  review: "Review",
+  next: "Next",
+  waitingOn: "Waiting on",
+  links: "Links",
+} as const;
+
+/**
+ * The recap card a block with a `state` attribute carries, as written: raw
+ * attribute strings and one Markdown string per list item. `replyRecap.ts`
+ * turns it into recap input.
+ */
+const replyCardSchema = z
+  .object({
+    state: z.string(),
+    timeout: z.string().optional(),
+    /** The `# ` line's inline Markdown. */
+    headline: z.string().optional(),
+    /** The list right under the headline. */
+    results: z.array(replyItemSchema),
+    review: z.array(z.string()),
+    next: z.array(z.string()),
+    waitingOn: z.array(z.string()),
+    links: z.array(z.string()),
+  })
+  .strict();
+export type ReplyCard = z.infer<typeof replyCardSchema>;
+
 export const replySchema = z
   .object({
+    /** Present when the opener sets `state`: the block also carries the recap card. */
+    card: replyCardSchema.optional(),
     /** Text before the first heading; absent when the block starts at a section. */
     lead: z.string().optional(),
     sections: z.array(replySectionSchema),
@@ -185,7 +219,14 @@ function listItems(list: List, source: string): ReplyItem[] | null {
   for (const item of list.children) {
     const markdown = itemMarkdown(item, source);
     if (markdown === null) return null;
-    items.push({ checked: item.checked ?? null, markdown });
+    const checked = item.checked ?? null;
+    // A task item's paragraph can start at its box, depending on the list's
+    // position in the block.
+    items.push({
+      checked,
+      markdown:
+        checked === null ? markdown : markdown.replace(/^\[[ xX]\]\s+/, ""),
+    });
   }
   return items;
 }
@@ -253,9 +294,45 @@ function sliceNodes(
   return source.slice(first.start, end ?? last.end).trim();
 }
 
+/** A heading's inline content as written, without its `#` marker. */
+function inlineMarkdown(heading: Heading, source: string): string {
+  const first = heading.children[0];
+  const last = heading.children[heading.children.length - 1];
+  const from = first && span(first);
+  const to = last && span(last);
+  return from && to ? source.slice(from.start, to.end).trim() : "";
+}
+
+function cardField(label: string): keyof typeof CARD_LABELS | undefined {
+  return (Object.keys(CARD_LABELS) as (keyof typeof CARD_LABELS)[]).find(
+    (key) => CARD_LABELS[key].toLowerCase() === label.toLowerCase(),
+  );
+}
+
+/** A card section's lines: one per list item, else one per paragraph. */
+function sectionLines(nodes: RootContent[], source: string): string[] {
+  const lines: string[] = [];
+  for (const node of nodes) {
+    if (node.type === "list")
+      lines.push(
+        ...(listItems(node, source) ?? []).map((item) => item.markdown),
+      );
+    else {
+      const text = sliceNodes([node], source);
+      if (text) lines.push(text);
+    }
+  }
+  return lines.filter(Boolean);
+}
+
 /**
- * Reads a reply block into its optional lead, labeled sections, and folded
- * details.
+ * Reads a reply block into its optional card, optional lead, labeled
+ * sections, and folded details.
+ *
+ * A block whose opener sets `state` also carries the turn's recap card: a
+ * first `# ` line is its headline, a list right under it its results, and
+ * the Review, Next, Waiting on and Links sections its other fields. Those
+ * leave the body; `replyRecap.ts` reads them as recap input.
  *
  * Rules: the lead is the text before the first heading, if any; a block
  * beside a recap card starts at its first section. A closed block needs a
@@ -268,25 +345,63 @@ function sliceNodes(
  * rendering of it, and a failed parse here would add bb's failure note.
  */
 export function parse(
-  input: { source: string; tree: Root },
+  input: {
+    source: string;
+    tree: Root;
+    attributes?: Readonly<Record<string, string>>;
+  },
   context: { status: ReplyStatus } = { status: "closed" },
 ): ReplyParseResult {
   const { source, tree } = input;
   // Without the closing line the body may be cut anywhere.
   const partial = context.status !== "closed";
+  const state = input.attributes?.state;
+  const carded = state !== undefined;
 
+  let headline: string | undefined;
+  let results: ReplyItem[] = [];
   const lead: RootContent[] = [];
   const raw: RawSection[] = [];
   for (const node of tree.children) {
     if (!span(node))
       return { ok: false, error: "The reply's tree has no source offsets." };
-    if (isSectionHeading(node)) {
+    if (
+      carded &&
+      headline === undefined &&
+      !raw.length &&
+      node.type === "heading" &&
+      node.depth === 1
+    ) {
+      headline = inlineMarkdown(node, source);
+    } else if (
+      carded &&
+      headline !== undefined &&
+      !raw.length &&
+      !results.length &&
+      node.type === "list"
+    ) {
+      results = listItems(node, source) ?? [];
+    } else if (isSectionHeading(node)) {
       raw.push({ label: normalizeLabel(nodeText(node)), nodes: [] });
     } else if (raw.length) raw[raw.length - 1]!.nodes.push(node);
     else lead.push(node);
   }
 
   const leadText = sliceNodes(lead, source);
+  const card: ReplyCard | undefined = carded
+    ? {
+        state,
+        ...(input.attributes?.timeout !== undefined
+          ? { timeout: input.attributes.timeout }
+          : {}),
+        ...(headline ? { headline } : {}),
+        results,
+        review: [],
+        next: [],
+        waitingOn: [],
+        links: [],
+      }
+    : undefined;
 
   const sections: ReplySection[] = [];
   const ownDetails: string[] = [];
@@ -298,6 +413,11 @@ export function parse(
     if (section.label.toLowerCase() === DETAILS_LABEL.toLowerCase()) {
       const body = sliceNodes(section.nodes, source);
       if (body) ownDetails.push(body);
+      continue;
+    }
+    const field = card && cardField(section.label);
+    if (card && field) {
+      card[field].push(...sectionLines(section.nodes, source));
       continue;
     }
     const fixed = fixedLabel(section.label);
@@ -332,11 +452,12 @@ export function parse(
   }
 
   const details = [...ownDetails, ...folded].join("\n\n");
-  if (!leadText && !sections.length && !details && !partial)
+  if (!card?.headline && !leadText && !sections.length && !details && !partial)
     return { ok: false, error: "The reply is empty." };
   return {
     ok: true,
     data: {
+      ...(card ? { card } : {}),
       ...(leadText ? { lead: leadText } : {}),
       sections,
       ...(details ? { details } : {}),
