@@ -239,7 +239,18 @@ export function splitSchema(input: SplitInput): Record<string, unknown> {
 }
 
 const splitOutput = z.object({
-  reason: z.string().trim().max(300).catch(""),
+  // A reason is prose; anything from a brace or tag on is the model writing
+  // past it.
+  reason: z
+    .string()
+    .transform((r) =>
+      r
+        .split(/[{}<]/)[0]!
+        .replace(/[\s'",]+$/, "")
+        .trim()
+        .slice(0, 300),
+    )
+    .catch(""),
   subgroups: z.array(
     z.object({
       name: z.string().trim(),
@@ -316,11 +327,11 @@ export const TIDY_RULES = `You maintain the topic tree that groups someone's age
 
 Good trees: top-level topics are contexts (an employer, a personal toolbox, personal life) once there is evidence for at least two; below them, products or areas; below those, capabilities. Names are areas, never tasks, questions, pull requests, or bugs. One home per area: merge duplicates and near-duplicates. A topic that belongs to a larger product goes under it. Topics side by side that are parts of one larger product or area get a new parent: create it, listing them as children. Refile threads that sit under the wrong product. A repository or workspace used to route or coordinate work is not a product. Name topics in Title Case, keeping product names' own spelling.
 
-A topic holds threads or subtopics, never both: never move a topic under one that holds threads, never refile a thread into a topic with subtopics, and never merge a topic that holds threads with one that has subtopics. Busy topics split into subgroups on their own, so don't propose splits.
+A topic holds threads or subtopics, never both: never move a topic under one that holds threads, never refile a thread into a topic with subtopics, and never merge a topic that holds threads with one that has subtopics. To give such a topic one home with a topic that has subtopics, move it under that topic instead, renamed for its area. Busy topics split into subgroups on their own, so don't propose splits.
 
 Edits:
 - merge {from, into}: move every thread and subtopic of \`from\` into \`into\` and delete \`from\`
-- reparent {topic, parent}: move a topic under another; parent null makes it top-level
+- reparent {topic, parent, name}: move a topic under another; parent null makes it top-level. name is its new name, or null to keep it. When its name repeats the new parent's, drop the repeated words: "Beacon Code Review" under "Beacon" becomes "Code Review".
 - rename {topic, name}
 - create {name, description, parent, children}: a new topic, adopting existing topics as its children
 - move {thread, topic}: refile one thread
@@ -364,7 +375,7 @@ ${TIDY_RULES}
 
 ${sections.join("\n\n")}
 
-Return {"edits": [...]} where each edit is {"op", "reason", "from", "into", "topic", "parent", "name", "description", "children", "thread"} and unused fields are null. reason is one sentence the user reads before accepting.`;
+Return {"edits": [...]} where each edit is {"op", "from", "into", "topic", "parent", "name", "description", "children", "thread", "reason"} and unused fields are null. reason is one sentence the user reads before accepting, about this edit's own topics and threads only.`;
 }
 
 const OPS = ["merge", "reparent", "rename", "create", "move"] as const;
@@ -380,9 +391,10 @@ export function tidySchema(): Record<string, unknown> {
         items: {
           type: "object",
           additionalProperties: false,
+          // The reason comes last, so it's written about the edit already
+          // chosen rather than steering which topics the edit names.
           properties: {
             op: { type: "string", enum: [...OPS] },
-            reason: { type: "string" },
             from: ref,
             into: ref,
             topic: ref,
@@ -391,10 +403,10 @@ export function tidySchema(): Record<string, unknown> {
             description: ref,
             children: { type: ["array", "null"], items: { type: "string" } },
             thread: ref,
+            reason: { type: "string" },
           },
           required: [
             "op",
-            "reason",
             "from",
             "into",
             "topic",
@@ -403,6 +415,7 @@ export function tidySchema(): Record<string, unknown> {
             "description",
             "children",
             "thread",
+            "reason",
           ],
         },
       },
@@ -413,7 +426,18 @@ export function tidySchema(): Record<string, unknown> {
 
 const rawEdit = z.object({
   op: z.enum(OPS),
-  reason: z.string().trim().max(300).catch(""),
+  // A reason is prose; anything from a brace or tag on is the model writing
+  // past it.
+  reason: z
+    .string()
+    .transform((r) =>
+      r
+        .split(/[{}<]/)[0]!
+        .replace(/[\s'",]+$/, "")
+        .trim()
+        .slice(0, 300),
+    )
+    .catch(""),
   from: z.string().nullish(),
   into: z.string().nullish(),
   topic: z.string().nullish(),
@@ -464,8 +488,16 @@ export function parseTidy(text: string, input: TidyInput): ProposedEdit[] {
       const topic = ref(e.topic);
       const parent =
         e.parent === null || e.parent === undefined ? null : ref(e.parent);
+      // A rename to the name it has is no rename.
+      const current = input.topics.find((t) => t.id === topic)?.name;
+      const name =
+        e.name &&
+        validName(e.name) &&
+        e.name.toLowerCase() !== current?.toLowerCase()
+          ? e.name
+          : undefined;
       if (topic && parent !== undefined && topic !== parent)
-        edit = { op: "reparent", topic, parent };
+        edit = { op: "reparent", topic, parent, ...(name ? { name } : {}) };
     } else if (e.op === "rename") {
       const topic = ref(e.topic);
       if (topic && e.name && validName(e.name))
@@ -681,13 +713,9 @@ export function editKey(edit: TidyEdit | Split): string {
   switch (edit.op) {
     case "merge":
       return JSON.stringify([edit.op, edit.from, edit.into]);
+    // A move is the same suggestion whatever it renames the topic to.
     case "reparent":
-      return JSON.stringify([
-        edit.op,
-        edit.topic,
-        edit.parent,
-        ...(edit.name === undefined ? [] : [edit.name.toLowerCase()]),
-      ]);
+      return JSON.stringify([edit.op, edit.topic, edit.parent]);
     case "rename":
       return JSON.stringify([edit.op, edit.topic, edit.name.toLowerCase()]);
     case "create":

@@ -482,6 +482,46 @@ describe("moves topic names imply", () => {
   });
 });
 
+describe("a follow-up tidy pass", () => {
+  it("runs once you've decided every suggestion and accepted one", async () => {
+    let tidyCalls = 0;
+    const { w, topics, run, decide, rpc } = await setup({
+      tidy: (prompt) => {
+        tidyCalls++;
+        const id = (name: string) =>
+          prompt.match(new RegExp(`\\[([a-z0-9-]+)\\] ${name} `))?.[1] ?? null;
+        return {
+          edits:
+            tidyCalls === 1
+              ? [
+                  tidyEdit({
+                    op: "rename",
+                    topic: id("Alpha"),
+                    name: "Alpha Two",
+                  }),
+                ]
+              : [],
+        };
+      },
+    });
+    topics.create("Alpha", "");
+    w.addThread("t1", { title: "Alpha task" });
+    topics.assign("t1", topics.resolve("Alpha")!.id);
+    await rpc("refresh");
+    const [rename] = (await run()).suggestions;
+    expect(tidyCalls).toBe(1);
+    await decide([rename!.id], "accept");
+    // The accepted edit's organizer pass checks for suggestions shortly.
+    for (let i = 0; i < 60 && tidyCalls < 2; i++)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(tidyCalls).toBe(2);
+    // Nothing new was accepted since, so no further pass follows.
+    await rpc("organization", { action: "rebuild" });
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    expect(tidyCalls).toBe(2);
+  }, 15_000);
+});
+
 describe("suggestions CLI", () => {
   it("lists, runs, and accepts suggestions", async () => {
     const { w, topics, rpc } = await setup({

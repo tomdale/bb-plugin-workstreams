@@ -226,12 +226,16 @@ accept them, on **Organization** (a sidebar notice links there) or with
   areas of work ("Planning", "PR Upkeep"), never a catch-all. A topic that holds
   threads beside subtopics, from before this rule, gets the same call to file
   each of its threads in a subgroup. At most once a day per topic.
-- **Tidy passes:** At most `8` edits (merge, move under, rename, create a parent
-  for related topics, refile a thread), each with a one-line reason. A pass runs
-  at most once a day, after `3` new topics or `5` new roots since the last one,
-  or when Unfiled roots plus one-thread groups reach `4` and that set changed.
-  It doesn't run on its own while earlier tidy edits wait for review. **Ask
-  now** runs splits and a pass right away.
+- **Tidy passes:** At most `8` edits (merge, move under, possibly renamed,
+  rename, create a parent for related topics, refile a thread), each with a
+  one-line reason. A move under a parent drops the words the names share:
+  "Vercel Agent Code Review" moves under "Vercel Agent" as "Code Review". A pass
+  runs at most once a day, after `3` new topics or `5` new roots since the last
+  one, or when Unfiled roots plus one-thread groups reach `4` and that set
+  changed. It doesn't run on its own while earlier tidy edits wait for review.
+  Once you've decided every waiting suggestion and accepted at least one, a
+  follow-up pass runs even within the day, because accepted changes can make new
+  edits possible. **Ask now** runs splits and a pass right away.
 - **Names:** A top-level topic whose name begins with the whole name of a topic
   with subtopics ("Vercel Agent Code Review" beside "Vercel Agent") gets a
   suggestion to move under it, renamed without the shared words ("Code Review");

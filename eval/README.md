@@ -31,6 +31,21 @@ changing a prompt or model. Measure latency against the 15-second first-send
 budget. A small perfect synthetic run is not a production accuracy estimate. See
 [classification.md](classification.md) for scoring limitations.
 
+## Tidy passes
+
+`node eval/tidy.ts` runs the tidy prompt, schema, and parser on synthetic topic
+trees, dropping edits the tree's rules refuse, as production does. Each case
+lists edits that must appear (a move under the product a top-level topic is part
+of, one home for a near-duplicate) and edits that must not (moving a personal
+tool under a work product it's named like). It also counts reasons that don't
+name their own edit's topics, and checks renames on moves.
+
+- `EVAL_MODEL`: model ID; default `anthropic/claude-sonnet-5.5`
+- `EVAL_REASONING_LEVEL`: default `medium`
+- `EVAL_REPETITIONS`: repeat each case 1–20 times; default `3`
+- `EVAL_CASE`: run one case by ID
+- `EVAL_OUTPUT`: JSON report path; default `/tmp/tidy-eval.json`
+
 ## Identity trajectories
 
 `node eval/identity.ts` evaluates establishment, refinement, subtask stability,

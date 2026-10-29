@@ -462,6 +462,18 @@ export class Suggestions {
         newTopics >= TIDY_NEW_TOPICS ||
         newRoots >= TIDY_NEW_ROOTS ||
         (mess.count >= MESSY_AT && mess.key !== memo.mess);
+      // Accepted suggestions change the tree, and can make edits possible
+      // that the last pass couldn't propose, such as a move under a topic
+      // that held threads then. Once you've decided every waiting
+      // suggestion, one follow-up pass runs, even within the day.
+      const followUp =
+        memo.at !== null &&
+        this.pendingCount() === 0 &&
+        this.deps.db
+          .prepare(
+            "SELECT 1 FROM ws_suggestion WHERE status = 'accepted' AND decided_at > ? LIMIT 1",
+          )
+          .get(memo.at) !== undefined;
       // Edits that stopped fitting the tree don't hold up a new pass.
       const tree = this.tree();
       const waiting = (
@@ -471,12 +483,8 @@ export class Suggestions {
           )
           .all() as Row[]
       ).filter((row) => !this.problem(row, tree)).length;
-      if (
-        !due ||
-        waiting > 0 ||
-        (memo.at !== null && this.now() - memo.at < DAY_MS)
-      )
-        return;
+      const capped = memo.at !== null && this.now() - memo.at < DAY_MS;
+      if (!followUp && (!due || waiting > 0 || capped)) return;
     } else
       // A fresh pass replaces the edits still waiting from an older one.
       for (const row of this.deps.db

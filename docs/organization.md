@@ -113,11 +113,18 @@ names each one by what moves and where, and lists those that move threads
   subgroup such as "Planning", never a catch-all. A topic that holds threads
   beside subtopics gets the same call to file each of its threads in a subgroup.
   At most once a day per topic.
-- **Tidy.** At most 8 edits (merge, move under, rename, create a parent for
-  related topics, refile a thread), each with a reason. A pass runs at most once
+- **Tidy.** At most 8 edits (merge, move under, possibly renamed, rename, create
+  a parent for related topics, refile a thread), each with a reason written
+  after the edit it explains. A move under a parent drops the words the names
+  share, and a topic holding threads that belongs with a topic that has
+  subtopics moves under it rather than merging into it. A pass runs at most once
   a day, after 3 new topics or 5 new roots since the last pass, or when Unfiled
   roots plus one-thread groups reach 4 and that set changed; never while earlier
-  tidy edits wait for review. Asking for suggestions runs splits and a pass now.
+  tidy edits wait for review. Once every waiting suggestion is decided and at
+  least one was accepted since the last pass, a follow-up pass runs regardless
+  of the daily limit: accepted edits can unblock others, such as a move under a
+  topic that held threads during the last pass. Asking for suggestions runs
+  splits and a pass now. `node eval/tidy.ts` measures the prompt.
 - **Names.** A top-level topic whose name begins with the whole name of a topic
   with subtopics ("Vercel Agent Code Review" beside "Vercel Agent") gets a
   suggestion to move under it as "Code Review", keeping the old name as an alias
