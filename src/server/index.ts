@@ -961,6 +961,7 @@ export default async function plugin(bb: BbPluginApi) {
       workstreams: Object.fromEntries(map.list().map((r) => [r.sectionId, r])),
       analysis: analyzer.all(),
       recaps: recaps.all(),
+      dismissedRecaps: recaps.dismissedIds(),
       bootstrapped: organizerInstance.isDone(),
       organization: organizerInstance.state(),
       order: loadOrder(db),

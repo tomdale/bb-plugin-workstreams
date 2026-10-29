@@ -46,6 +46,8 @@ export type ServerState = {
   analysis: Record<string, StoredAnalysis>;
   /** Agent recaps for each thread's latest turn. */
   recaps: Record<string, Recap>;
+  /** Ids of the recaps above whose docked card is dismissed. */
+  dismissedRecaps?: string[];
   bootstrapped: boolean;
   lastReconciledAt: number | null;
   lastPopulatedAt?: LastPopulatedAt;

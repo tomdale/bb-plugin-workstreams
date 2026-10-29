@@ -898,6 +898,29 @@ describe("structured replies", () => {
   });
 });
 
+describe("shared state", () => {
+  it("lists dismissed recaps so blocks can tell whether their card is docked", async () => {
+    const s = await world();
+    s.w.turn("t1");
+    await s.report();
+    const { recap } = await s.card();
+    const state = () =>
+      s.w.harness.behavior.callRpc("state", null) as Promise<{
+        recaps: Record<string, { id: string }>;
+        dismissedRecaps: string[];
+      }>;
+    expect((await state()).dismissedRecaps).toEqual([]);
+    await s.w.harness.behavior.callRpc("recap_dismiss", {
+      threadId: "t1",
+      recapId: recap!.id,
+    });
+    expect(await state()).toMatchObject({
+      recaps: { t1: { id: recap!.id } },
+      dismissedRecaps: [recap!.id],
+    });
+  });
+});
+
 describe("recaps from reply blocks", () => {
   const COMPLETE =
     ':::reply{state="complete"}\n# Added the count_items helper\n- [x] `count_items()` counts nested carts\n\n### Checked\nRan `python3 -m unittest` locally.\n:::\n';

@@ -1,5 +1,10 @@
-import { useRealtime, useRpc, useSdk } from "@get-bb/plugin-sdk/app";
-import { useSyncExternalStore } from "react";
+import {
+  useRealtime,
+  useRealtimeConnectionState,
+  useRpc,
+  useSdk,
+} from "@get-bb/plugin-sdk/app";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import type { RpcContract } from "../server/contract.ts";
 import type { ManualOrder } from "../domain/order.ts";
 import {
@@ -19,6 +24,7 @@ function emptyState(): ServerState {
     workstreams: {},
     analysis: {},
     recaps: {},
+    dismissedRecaps: [],
     bootstrapped: false,
     lastReconciledAt: null,
     lastPopulatedAt: {},
@@ -315,9 +321,20 @@ export function useSharedServerState() {
   };
 }
 
-/** BB mounts this once per app window and disposes its subscription on unload. */
+/**
+ * BB mounts this once per app window and disposes its subscription on unload.
+ * Broadcasts sent while the realtime link is down are not replayed, so the
+ * store re-reads each time the link comes back.
+ */
 export function ServerStateRealtime(): null {
   const { refresh } = useSharedServerState();
   useRealtime("changed", refresh);
+  const connection = useRealtimeConnectionState();
+  const previous = useRef(connection);
+  useEffect(() => {
+    const was = previous.current;
+    previous.current = connection;
+    if (connection === "connected" && was !== "connected") void refresh();
+  }, [connection, refresh]);
   return null;
 }

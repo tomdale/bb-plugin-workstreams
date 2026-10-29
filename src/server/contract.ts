@@ -502,6 +502,8 @@ export const rpcContract = defineRpcContract({
       analysis: z.record(z.string(), analysisSchema),
       /** Agent recaps for each thread's latest turn, dismissed ones included. */
       recaps: z.record(z.string(), recapSchema).default({}),
+      /** Ids of the recaps above whose docked card is dismissed. */
+      dismissedRecaps: z.array(z.string()).default([]),
       bootstrapped: z.boolean(),
       lastReconciledAt: z.number().nullable(),
       /** Recent visible population, shared across clients and reloads. */

@@ -427,6 +427,19 @@ export class AgentRecaps {
     return out;
   }
 
+  /** Ids of stored recaps whose card is dismissed. */
+  dismissedIds(): string[] {
+    return (
+      this.deps.db
+        .prepare(
+          "SELECT json_extract(recap, '$.id') AS id FROM ws_agent_recap WHERE dismissed = 1 AND recap IS NOT NULL",
+        )
+        .all() as { id: string | null }[]
+    )
+      .map((row) => row.id)
+      .filter((id): id is string => typeof id === "string");
+  }
+
   /** Whether corrections ran out for this thread's latest turn. */
   capped(threadId: string): { capped: boolean; corrections: number } {
     const row = this.row(threadId);

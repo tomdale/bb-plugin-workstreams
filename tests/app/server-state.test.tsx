@@ -239,6 +239,20 @@ describe("shared server state", () => {
     expect(consumers.get(0)!.server.snoozePrefs.default).toBe("activity");
   });
 
+  it("re-reads when the realtime link comes back, since missed broadcasts are not replayed", async () => {
+    const read = vi
+      .fn()
+      .mockImplementationOnce(async () => state(1))
+      .mockImplementation(async () => state(2));
+    const { slot, assertRevision } = mount({ read });
+    await assertRevision(1);
+    await slot.behavior.setRealtimeConnectionState("reconnecting");
+    expect(read).toHaveBeenCalledTimes(1);
+    await slot.behavior.setRealtimeConnectionState("connected");
+    await assertRevision(2);
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
   it("re-reads a realtime change consumed during an active mutation", async () => {
     const firstRead = deferred<ServerState>();
     const secondRead = deferred<ServerState>();
