@@ -326,38 +326,47 @@ describe("toText", () => {
 });
 
 describe("replyInstructions", () => {
-  it("shows a copy-ready example that parses as a reply", () => {
-    for (const withRecap of [true, false]) {
-      const text = replyInstructions(withRecap);
-      const example = /^:::reply\n[\s\S]*?\n:::$/m.exec(text)![0];
-      const data = reply(read(`${example}\n`));
-      expect(data.lead).not.toBe("");
-      expect(data.sections.some((section) => section.label === "Done")).toBe(
-        !withRecap,
-      );
-    }
+  const example = (text: string) =>
+    reply(read(`${/^:::reply\n[\s\S]*?\n:::$/m.exec(text)![0]}\n`));
+
+  it("beside a card, the example starts at a section and leaves out Done", () => {
+    const data = example(replyInstructions(true));
+    expect(data.lead).toBeUndefined();
+    expect(data.sections.map((section) => section.label)).toEqual([
+      "Checked",
+      "Why",
+    ]);
   });
 
-  it("names the fixed labels in order and the folded Details section", () => {
+  it("without a card, the example has a lead and Done", () => {
+    const data = example(replyInstructions(false));
+    expect(data.lead).not.toBeUndefined();
+    expect(data.sections[0]!.label).toBe("Done");
+  });
+
+  it("beside a card: whole reply, labels without Done, the no-repeat check, short answers", () => {
     const text = replyInstructions(true);
     expect(text).toContain(
-      "these exact labels in this order: Done, Checked, Not done, Needs you, Next, Why",
+      "with these labels in order: Checked, Not done, Needs you, Next, Why",
     );
+    expect(text).toContain("The block is the whole reply");
+    expect(text).toContain(
+      "compare each line with your card items and drop any line that says the same thing",
+    );
+    expect(text).toContain("For a short answer");
+    expect(text).toContain("write the block before calling the question tool");
     expect(text).toContain("`### Details`");
     expect(text).toContain("no space after the colons");
     expect(text).toContain("A two-line body is a good body");
   });
 
-  it("asks a block beside a card not to repeat it, and keeps the rule out otherwise", () => {
-    const card = "Cached the font file after the first visit";
-    const withCard = replyInstructions(true);
-    const example = /^:::reply\n[\s\S]*?\n:::$/m.exec(withCard)![0];
-    expect(withCard).toContain(`a card whose item reads "${card}"`);
-    expect(example).not.toContain(card);
-    expect(example).not.toMatch(/pushed|committed/i);
-    expect(withCard).toContain("If the card already says it, leave it out.");
-    expect(replyInstructions(false)).not.toContain(
-      "If the card already says it",
+  it("without a card: the fixed labels in order, and the block before a question card", () => {
+    const text = replyInstructions(false);
+    expect(text).toContain(
+      "these exact labels in this order: Done, Checked, Not done, Needs you, Next, Why",
     );
+    expect(text).toContain("write the block before calling the question tool");
+    expect(text).not.toContain("card items");
+    expect(text).toContain("A two-line body is a good body");
   });
 });
