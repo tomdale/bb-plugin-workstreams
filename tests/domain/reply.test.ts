@@ -325,4 +325,17 @@ describe("replyInstructions", () => {
     expect(text).toContain("no space after the colons");
     expect(text).toContain("A two-line body is a good body");
   });
+
+  it("asks a block beside a card not to repeat it, and keeps the rule out otherwise", () => {
+    const card = "Cached the font file after the first visit";
+    const withCard = replyInstructions(true);
+    const example = /^:::reply\n[\s\S]*?\n:::$/m.exec(withCard)![0];
+    expect(withCard).toContain(`a card whose item reads "${card}"`);
+    expect(example).not.toContain(card);
+    expect(example).not.toMatch(/pushed|committed/i);
+    expect(withCard).toContain("If the card already says it, leave it out.");
+    expect(replyInstructions(false)).not.toContain(
+      "If the card already says it",
+    );
+  });
 });
