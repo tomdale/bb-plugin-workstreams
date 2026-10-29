@@ -203,7 +203,7 @@ function CountsSummary({ counts }: { counts: OrganizerState["counts"] }) {
           className={cn(
             "mt-0.5 text-lg font-semibold tabular-nums",
             counts.unresolvedRoots > 0
-              ? "text-amber-600 dark:text-amber-400"
+              ? "text-(--ws-needs-you-strong)"
               : "text-foreground",
           )}
         >
@@ -278,7 +278,7 @@ function StatusPanel({
               <Icon
                 name="Check"
                 aria-hidden
-                className="size-3.5 text-emerald-600 dark:text-emerald-400"
+                className="size-3.5 text-(--ws-complete-strong)"
               />
             ) : null}
             {heading}
@@ -358,11 +358,11 @@ function UnresolvedSection({
   renderTaskAction?: (task: { id: string; title: string }) => ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+    <div className="rounded-xl border border-[color-mix(in_oklab,var(--ws-needs-you)_20%,transparent)] bg-[color-mix(in_oklab,var(--ws-needs-you)_5%,transparent)] p-4">
       <div className="flex items-center gap-2">
         <Icon
           name="HelpCircle"
-          className="size-4 text-amber-600 dark:text-amber-400"
+          className="size-4 text-(--ws-needs-you-strong)"
           aria-hidden="true"
         />
         <h2 className="text-xs font-semibold text-foreground">

@@ -16,7 +16,7 @@ export function QuestionHistoryCard({ record }: { record: QuestionHistory }) {
   return (
     <div
       data-ws-question-history=""
-      className="my-2 rounded-lg border border-amber-400/50 bg-background p-3 text-foreground"
+      className="my-2 rounded-lg border border-[color-mix(in_oklab,var(--ws-needs-you)_50%,transparent)] bg-background p-3 text-foreground"
     >
       <p className="mb-3 text-xs font-medium text-muted-foreground">
         Question ·{" "}

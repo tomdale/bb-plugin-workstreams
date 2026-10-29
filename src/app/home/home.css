@@ -270,7 +270,7 @@ section:has(> [data-bb-plugin-root] > [data-ws-home="hidden"]) {
   transform: rotate(90deg);
 }
 
-/* Up Next: the sidebar's amber block, on the page background. */
+/* Up Next: the sidebar's block, on the page background. */
 .ws-home .ws-needs {
   margin: 0;
   padding: 4px;

@@ -7,8 +7,8 @@ import { FocusIcon } from "../sidebar/FocusIcon.tsx";
 import { HomeRow } from "./HomeRow.tsx";
 
 /**
- * Up Next on Home: the rows `selectUpNext` chose, in the sidebar's amber
- * block, with Show more for the trimmed threads still unread or blocked on
+ * Up Next on Home: the rows `selectUpNext` chose, in the sidebar's Up
+ * Next block, with Show more for the trimmed threads still unread or blocked on
  * the user. Each row names its workstream in the workstream's hue.
  */
 export function UpNextBlock({
@@ -83,7 +83,7 @@ export function UpNextBlock({
       {more.length > 0 ? (
         <button
           type="button"
-          className="ws-home-more ws-amber-text"
+          className="ws-home-more ws-needs-you-text"
           aria-expanded={showMore}
           onClick={() => setShowMore(!showMore)}
         >

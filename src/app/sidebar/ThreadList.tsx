@@ -1043,7 +1043,7 @@ export function WorkstreamsThreadList({
                         type="button"
                         aria-expanded={showMore}
                         onClick={() => setShowMore((more) => !more)}
-                        className={bandControlClass("ws-amber-text")}
+                        className={bandControlClass("ws-needs-you-text")}
                       >
                         {showMore
                           ? "Show less"
@@ -1258,7 +1258,7 @@ export const UP_NEXT = "Up Next";
 /**
  * An overlay band. A plain band collapses from its header. A boxed band is an
  * always-open block spanning the column, with its header inside: `attention`
- * is the amber Up Next card (`.ws-needs`), `neutral` the
+ * is the Up Next card (`.ws-needs`), `neutral` the
  * quieter Recent block (`.ws-band-neutral`). Both set their rows apart from
  * the workstream list below.
  */
@@ -1654,7 +1654,7 @@ function WorkstreamGroup({
                   "rounded-full px-1.5 text-[11px] font-medium tabular-nums transition-colors duration-300",
                   quietCount
                     ? "bg-muted-foreground/15 text-muted-foreground"
-                    : "ws-amber-pill",
+                    : "ws-needs-you-pill",
                 )}
                 title={`${group.needsYou} waiting on you`}
               >

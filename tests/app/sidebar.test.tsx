@@ -2590,7 +2590,7 @@ describe("focused workstreams", () => {
         .getAttribute("aria-expanded"),
     ).toBe("false");
     expect(alpha.getByTitle("1 waiting on you").className).not.toContain(
-      "ws-amber-pill",
+      "ws-needs-you-pill",
     );
 
     // With nothing in a focused workstream blocked on you, Up Next shows

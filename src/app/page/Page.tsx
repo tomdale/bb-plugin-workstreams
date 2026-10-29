@@ -295,7 +295,7 @@ function WorkstreamCard({
           <WorkstreamName name={group.name} />
         </h2>
         {group.needsYou ? (
-          <span className="ws-amber-pill rounded-full px-1.5 text-[11px] font-medium tabular-nums">
+          <span className="ws-needs-you-pill rounded-full px-1.5 text-[11px] font-medium tabular-nums">
             {group.needsYou}
           </span>
         ) : null}
@@ -401,7 +401,7 @@ function WhereItStopped({
   const ownAsk = view.kind === "current" ? view.analysis.needsYou : null;
   if (ownAsk)
     return (
-      <span className="block truncate text-xs text-amber-600 dark:text-amber-400">
+      <span className="block truncate text-xs text-(--ws-needs-you-strong)">
         {ownAsk}
         {folded?.length ? ` (via ${folded[0]!.displayTitle})` : ""}
       </span>
@@ -411,7 +411,7 @@ function WhereItStopped({
     const ask =
       childView.kind === "current" ? childView.analysis.needsYou : null;
     return (
-      <span className="block truncate text-xs text-amber-600 dark:text-amber-400">
+      <span className="block truncate text-xs text-(--ws-needs-you-strong)">
         via {child.displayTitle}: {ask ?? "waiting for you"}
       </span>
     );

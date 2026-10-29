@@ -1304,7 +1304,7 @@ it("shows a short sentence-case action label with neutral styling", async () => 
   const button = slot.getByRole("button", { name: "Run tests" });
   expect(button.textContent).toBe("Run tests");
   expect(button.className).toContain("text-foreground");
-  expect(button.className).not.toContain("text-emerald-700");
+  expect(button.className).not.toContain("text-(--ws-complete-text)");
   expect(button.className).toContain("border-border");
   expect(button.className).toContain("bg-transparent");
   expect(button.getAttribute("aria-description")).toBeNull();

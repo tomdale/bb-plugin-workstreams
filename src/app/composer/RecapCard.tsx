@@ -59,37 +59,31 @@ const CARD_CLASS =
   "@container/recap relative mx-auto mb-3 w-full min-w-0 max-w-4xl rounded-lg border text-foreground";
 
 /**
- * Each state's accent colors the card's border, background, state line, row
- * labels, and row rules; everything else stays neutral. Dark backgrounds mix
- * the accent's 950 shade into the page background.
+ * Each state's color token (src/app/theme/tokens.css) colors the card's
+ * border, background, state line, row labels, and row rules; everything else
+ * stays neutral.
  */
 const ACCENT: Record<
   Recap["state"],
   { card: string; text: string; rules: string; footer: string }
 > = {
   waiting: {
-    card: "border-violet-400 bg-violet-50/40 dark:border-violet-500/70 dark:bg-violet-950/20",
-    text: "text-violet-700 dark:text-violet-300",
-    rules:
-      "[&>section+section]:border-violet-900/10 dark:[&>section+section]:border-violet-200/15",
-    footer:
-      "border-violet-900/10 bg-violet-500/[0.05] dark:border-violet-200/15 dark:bg-violet-300/[0.04]",
+    card: "border-(--ws-waiting-border) bg-(--ws-waiting-surface)",
+    text: "text-(--ws-waiting-text)",
+    rules: "[&>section+section]:border-(--ws-waiting-rule)",
+    footer: "border-(--ws-waiting-rule) bg-(--ws-waiting-footer)",
   },
   review: {
-    card: "border-sky-400 bg-sky-50/40 dark:border-sky-500/80 dark:bg-[color-mix(in_oklab,var(--background)_85%,oklch(29.3%_0.066_243.157))]",
-    text: "text-sky-700 dark:text-sky-300",
-    rules:
-      "[&>section+section]:border-sky-900/10 dark:[&>section+section]:border-sky-200/15",
-    footer:
-      "border-sky-900/10 bg-sky-500/[0.05] dark:border-sky-200/15 dark:bg-sky-300/[0.04]",
+    card: "border-(--ws-review-border) bg-(--ws-review-surface)",
+    text: "text-(--ws-review-text)",
+    rules: "[&>section+section]:border-(--ws-review-rule)",
+    footer: "border-(--ws-review-rule) bg-(--ws-review-footer)",
   },
   complete: {
-    card: "border-emerald-400 bg-emerald-50/40 dark:border-emerald-500/70 dark:bg-[color-mix(in_oklab,var(--background)_85%,oklch(26.2%_0.051_172.552))]",
-    text: "text-emerald-700 dark:text-emerald-300",
-    rules:
-      "[&>section+section]:border-emerald-900/10 dark:[&>section+section]:border-emerald-200/15",
-    footer:
-      "border-emerald-900/10 bg-emerald-500/[0.05] dark:border-emerald-200/15 dark:bg-emerald-300/[0.04]",
+    card: "border-(--ws-complete-border) bg-(--ws-complete-surface)",
+    text: "text-(--ws-complete-text)",
+    rules: "[&>section+section]:border-(--ws-complete-rule)",
+    footer: "border-(--ws-complete-rule) bg-(--ws-complete-footer)",
   },
 };
 
@@ -157,7 +151,7 @@ function Sha({ sha }: { sha: string }) {
       }}
       className={cn(
         "group/sha inline-flex cursor-pointer items-baseline gap-0.5 font-mono text-[0.923em]",
-        !colors.digits && "text-sky-900/75 dark:text-sky-100/75",
+        !colors.digits && "text-(--ws-hash-digits)",
       )}
       style={colors.digits ? { color: colors.digits } : undefined}
     >
@@ -167,9 +161,7 @@ function Sha({ sha }: { sha: string }) {
             <span
               key={index}
               className={
-                colors.letters
-                  ? undefined
-                  : "text-violet-800/70 dark:text-violet-200/70"
+                colors.letters ? undefined : "text-(--ws-hash-letters)"
               }
               style={colors.letters ? { color: colors.letters } : undefined}
             >
@@ -458,18 +450,18 @@ function useAgentViews(
 }
 
 const AGENT_DOT: Record<AgentTone, string> = {
-  running: "bg-violet-500 dark:bg-violet-400",
-  input: "bg-amber-500 dark:bg-amber-400",
-  error: "bg-red-500 dark:bg-red-400",
-  done: "bg-emerald-500 dark:bg-emerald-400",
+  running: "bg-(--ws-waiting)",
+  input: "bg-(--ws-needs-you)",
+  error: "bg-(--ws-failure)",
+  done: "bg-(--ws-complete)",
   unknown: "bg-muted-foreground/50",
 };
 
 const AGENT_LABEL: Record<AgentTone, string> = {
-  running: "text-violet-700 dark:text-violet-300",
-  input: "text-amber-700 dark:text-amber-300",
-  error: "text-red-700 dark:text-red-300",
-  done: "text-emerald-700 dark:text-emerald-300",
+  running: "text-(--ws-waiting-text)",
+  input: "text-(--ws-needs-you-text)",
+  error: "text-(--ws-failure-text)",
+  done: "text-(--ws-complete-text)",
   unknown: "text-muted-foreground",
 };
 
@@ -566,7 +558,7 @@ function WaitingFooter({
           on it stays clipped within the card's side borders. */}
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-violet-900/10 dark:bg-violet-200/15"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-(--ws-waiting-rule)"
       />
       <span>
         {cancelled ? (
@@ -591,7 +583,7 @@ function WaitingFooter({
         <span
           aria-hidden
           data-testid="status-check-progress"
-          className="pointer-events-none absolute left-0 top-0 h-px bg-violet-400 transition-[width] duration-1000 ease-linear motion-reduce:transition-none dark:bg-violet-500/70"
+          className="pointer-events-none absolute left-0 top-0 h-px bg-(--ws-waiting-border) transition-[width] duration-1000 ease-linear motion-reduce:transition-none"
           style={{ width: `${Math.min(100, (remaining / total) * 100)}%` }}
         />
       ) : null}
@@ -1043,9 +1035,9 @@ function nextActionTitle(action: NextAction): string {
 const FOOTER_BUTTON = `h-7 max-w-none shrink-0 whitespace-nowrap border-border bg-transparent px-2.5 text-[11.5px] font-medium text-foreground hover:bg-transparent hover:text-foreground ${PHONE_SECONDARY} max-md:pointer-coarse:h-9`;
 
 const NEXT_ACTION_ACCENT: Record<Recap["state"], string> = {
-  waiting: "text-violet-700 dark:text-violet-300",
-  review: "text-sky-700 dark:text-sky-300",
-  complete: "text-emerald-700 dark:text-emerald-300",
+  waiting: "text-(--ws-waiting-text)",
+  review: "text-(--ws-review-text)",
+  complete: "text-(--ws-complete-text)",
 };
 
 function NextActionItem({
@@ -1364,7 +1356,7 @@ function CardBody({
             <p
               role="alert"
               className={cn(
-                "min-w-0 text-[11px] text-red-700 dark:text-red-300",
+                "min-w-0 text-[11px] text-(--ws-failure-text)",
                 PHONE_SECONDARY,
                 recap.next.length > 0 ? "ml-auto" : "mr-auto",
               )}

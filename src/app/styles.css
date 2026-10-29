@@ -55,10 +55,10 @@
   position: relative;
 }
 .ws-mark-waiting {
-  color: var(--warning-text, #e0a84f);
+  color: var(--ws-needs-you-mark);
 }
 .ws-mark-error {
-  color: var(--destructive, #e5484d);
+  color: var(--ws-failure-mark);
 }
 .ws-mark-unread::before {
   content: "";
@@ -204,24 +204,18 @@
   }
 }
 
-/* The Up Next amber. Every surface that means "this thread is waiting on
-   you" uses it: the Up Next block, its header and Show more, the group count
-   pill, and the decision mark. It is
-   amber pulled a quarter of the way toward the foreground, soft enough that
-   BB's blue unread dot doesn't clash with it. */
-:root {
-  --ws-amber: color-mix(
+/* Quiet "waiting on you" text in the Needs you color: Up Next's header and
+   Show more, the group count pill, and the decision mark. */
+.ws-needs-you-text {
+  color: color-mix(in oklab, var(--ws-needs-you-soft) 90%, transparent);
+}
+.ws-needs-you-pill {
+  color: var(--ws-needs-you-soft);
+  background-color: color-mix(
     in oklab,
-    var(--color-amber-500, oklch(76.9% 0.188 70.08)) 75%,
-    var(--foreground, #ededed)
+    var(--ws-needs-you-soft) 20%,
+    transparent
   );
-}
-.ws-amber-text {
-  color: color-mix(in oklab, var(--ws-amber) 90%, transparent);
-}
-.ws-amber-pill {
-  color: var(--ws-amber);
-  background-color: color-mix(in oklab, var(--ws-amber) 20%, transparent);
 }
 
 /* Keep Up Next visible while workstreams scroll beneath it. The list is the
@@ -236,12 +230,11 @@
 
 /* The Up Next block: the threads waiting on Tom, and the sidebar's most
    important element. It follows the Geist warning note: a flat card tinted
-   with BB's theme attention color, and a hairline border in that color. Colors come from theme tokens (`--attention`,
-   `--sidebar`, `--foreground`), so every BB theme restyles it. A slow shimmer
+   with the Needs you color, and a hairline border in that color. A slow shimmer
    keeps it alive; on arrival the border brightens
    once and a new row rises in with a short blur. */
 .ws-needs {
-  --ws-needs-tone: var(--attention, var(--ws-amber));
+  --ws-needs-tone: var(--ws-needs-you-band);
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -262,7 +255,7 @@
 .ws-needs-heading {
   color: var(--foreground);
 }
-/* The waiting-thread count, as a Geist badge in the attention color. */
+/* The waiting-thread count, as a Geist badge in the Needs you color. */
 .ws-needs-count {
   display: inline-flex;
   min-width: 18px;
@@ -339,8 +332,8 @@
 .ws-band-neutral {
   background-image: linear-gradient(
     160deg,
-    color-mix(in oklab, var(--foreground, #ededed) 6%, transparent) 0%,
-    color-mix(in oklab, var(--foreground, #ededed) 3%, transparent) 45%,
+    color-mix(in oklab, var(--foreground) 6%, transparent) 0%,
+    color-mix(in oklab, var(--foreground) 3%, transparent) 45%,
     transparent 100%
   );
 }
@@ -409,17 +402,17 @@
   line-height: 1;
 }
 .ws-work-needs_decision {
-  color: var(--ws-amber);
+  color: var(--ws-needs-you-soft);
 }
 .ws-work-review {
-  color: var(--primary, #3e63dd);
+  color: var(--ws-review-mark);
 }
 .ws-work-blocked,
 .ws-work-done {
   color: var(--muted-foreground);
 }
 .ws-work-complete {
-  color: var(--ws-complete, #30a46c);
+  color: var(--ws-complete-mark);
   font-weight: 600;
 }
 
@@ -428,20 +421,20 @@
   font-family: var(--font-mono, ui-monospace, monospace);
 }
 .ws-pr-open {
-  color: var(--success-foreground, #46a758);
+  color: var(--success-foreground);
 }
 .ws-pr-merged {
-  color: #8e4ec6;
+  color: var(--ws-pr-merged);
 }
 .ws-pr-closed,
 .ws-pr-draft {
   color: var(--muted-foreground);
 }
 .ws-pr-failed {
-  color: var(--destructive, #e5484d);
+  color: var(--destructive);
 }
 .ws-pr-attention {
-  color: var(--warning-text, #e0a84f);
+  color: var(--warning-text);
 }
 
 /* Sticky thread goal, set in the same type as the timeline text. Two parts:
@@ -658,29 +651,13 @@
   white-space: nowrap;
 }
 
-/*
- * The magic tint: the classifier's color, for its suggestions and its
- * automatic destinations. Defined on the plugin's roots and on the
- * suggestion itself, because the Workstream field can render inside BB's own
- * picker row, outside any plugin wrapper.
- */
-.ws-native-new-thread-routing,
-[data-ws-workstream-slot],
-[data-ws-identity-control] {
-  --ws-magic: color-mix(
-    in oklab,
-    var(--color-violet-500, oklch(60.6% 0.25 292.717)) 70%,
-    var(--foreground, #ededed)
-  );
-}
-
-/* The identity field shows classifier-owned values in the same magic color. */
+/* The identity field shows classifier-owned values in the Suggestions color. */
 [data-ws-identity-control][data-ws-auto] {
-  color: var(--ws-magic);
+  color: var(--ws-suggestion-text);
   font-weight: 500;
 }
 [data-ws-identity-control][data-ws-auto] .ws-spark {
-  color: var(--ws-magic);
+  color: var(--ws-suggestion-text);
 }
 
 .ws-suggestion-error {
@@ -727,10 +704,10 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
 .ws-delivered-question-preview {
   display: inline-flex;
   align-items: center;
-  border: 1px dashed hsl(var(--border));
+  border: 1px dashed var(--border);
   border-radius: calc(var(--radius) - 2px);
   padding: 0.15rem 0.45rem;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   font-size: 0.8rem;
 }
 

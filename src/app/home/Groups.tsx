@@ -274,7 +274,7 @@ function GroupSection({
                 className={
                   quietCount
                     ? "ws-home-pill ws-home-pill-quiet"
-                    : "ws-home-pill ws-amber-pill"
+                    : "ws-home-pill ws-needs-you-pill"
                 }
               >
                 <span aria-hidden="true">{group.needsYou}</span>

@@ -2,7 +2,7 @@
  * The phone Home screen. On a phone BB's new-thread view is the composer
  * pinned to the bottom with a flat list of recent threads above it. This
  * section, registered as BB's `homepageSection`, replaces that list with Up
- * Next, in the sidebar's amber block, over the threads grouped by workstream.
+ * Next, styled like the sidebar's Up Next block, over the threads grouped by workstream.
  * See `layout.ts` for how it takes BB's list's place, and `home.css` for the
  * rules that do. Wide windows render nothing: the sidebar is there.
  */

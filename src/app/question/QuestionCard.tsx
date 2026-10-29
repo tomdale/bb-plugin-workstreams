@@ -25,9 +25,9 @@ import { usePendingQuestion } from "./pending.ts";
 import type { RpcContract } from "../../server/contract.ts";
 import type { JsonValue } from "@get-bb/plugin-sdk";
 
-/** The recap card's frame (see RecapCard.tsx) in the attention accent. */
+/** The recap card's frame (see RecapCard.tsx) in the Needs you color. */
 const CARD_CLASS =
-  "@container/question relative mx-auto mb-3 w-full min-w-0 max-w-4xl rounded-lg border border-amber-500 bg-amber-50/40 px-4 py-3 text-foreground dark:border-amber-500/70 dark:bg-[color-mix(in_oklab,var(--background)_85%,oklch(27.9%_0.077_45.635))]";
+  "@container/question relative mx-auto mb-3 w-full min-w-0 max-w-4xl rounded-lg border border-(--ws-needs-you-border) bg-(--ws-needs-you-surface) px-4 py-3 text-foreground";
 
 /** Banner anchors by thread; one composer per thread shows banners. */
 const anchors = new Map<string, HTMLElement>();
@@ -138,7 +138,7 @@ export function QuestionInteraction({
       .finally(() => setBusy(false));
   };
   const alert = error ? (
-    <p role="alert" className="mt-2 text-xs text-red-700 dark:text-red-300">
+    <p role="alert" className="mt-2 text-xs text-(--ws-failure-text)">
       {error}
     </p>
   ) : null;

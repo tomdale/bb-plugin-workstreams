@@ -50,7 +50,7 @@ const MAX_FREE_TEXT_LENGTH = 4096;
 // rest `text-sm`. The answer field must be at least 16px or iOS zooms the page
 // when it takes focus.
 const PROMPT_CLASS =
-  "text-[20px] leading-[1.3] text-amber-700 dark:text-amber-300 max-md:pointer-coarse:text-[22px] [text-wrap:pretty]";
+  "text-[20px] leading-[1.3] text-(--ws-needs-you-text) max-md:pointer-coarse:text-[22px] [text-wrap:pretty]";
 // The renderer's root sets its own size and color, so the root takes the
 // prompt's here, and code chips stay in the foreground color for legibility.
 const MARKDOWN_CLASS =
@@ -112,7 +112,7 @@ function QuestionOptionRow({
           "mt-[2.5px] flex size-3.5 shrink-0 items-center justify-center border transition-colors duration-150 motion-reduce:transition-none max-md:pointer-coarse:mt-[2px] max-md:pointer-coarse:size-[18px]",
           multiSelect ? "rounded" : "rounded-full",
           checked
-            ? "border-amber-600 bg-amber-600 text-white dark:border-amber-400 dark:bg-amber-400 dark:text-amber-950"
+            ? "border-(--ws-needs-you-strong) bg-(--ws-needs-you-strong) text-(--ws-needs-you-on-strong)"
             : "border-foreground/55 group-hover:border-foreground/80",
         )}
       >
@@ -254,9 +254,9 @@ function QuestionTabs({
                 className={cn(
                   "block h-[7px] rounded-full transition-all duration-150 motion-reduce:transition-none",
                   active
-                    ? "w-[18px] bg-amber-600 dark:bg-amber-400"
+                    ? "w-[18px] bg-(--ws-needs-you-strong)"
                     : answered
-                      ? "w-[7px] bg-amber-600/70 dark:bg-amber-500/70"
+                      ? "w-[7px] bg-[color-mix(in_oklab,var(--ws-needs-you-strong)_70%,transparent)]"
                       : "w-[7px] bg-foreground/20 group-hover:bg-foreground/40",
                 )}
               />
@@ -268,7 +268,7 @@ function QuestionTabs({
             <Icon
               name="Check"
               aria-hidden
-              className="size-3 shrink-0 text-amber-700 dark:text-amber-300"
+              className="size-3 shrink-0 text-(--ws-needs-you-text)"
             />
           ) : null}
           <span className="truncate">{current?.question.shortLabel}</span>
@@ -291,7 +291,7 @@ function QuestionTabs({
           className={cn(
             "-mb-px flex min-w-0 max-w-[180px] shrink cursor-pointer items-center gap-1 border-b-2 pb-1.5 pt-0.5 text-[12.5px] font-medium leading-[1.6] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
             active
-              ? "border-amber-600 text-foreground dark:border-amber-400"
+              ? "border-(--ws-needs-you-strong) text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
@@ -299,7 +299,7 @@ function QuestionTabs({
             <Icon
               name="Check"
               aria-hidden
-              className="size-3 shrink-0 text-amber-700 dark:text-amber-300"
+              className="size-3 shrink-0 text-(--ws-needs-you-text)"
             />
           ) : null}
           <span className="truncate">{question.shortLabel}</span>
@@ -942,7 +942,7 @@ export function QuestionForm({
       {/* An edge-to-edge footer strip like the recap card's, offset by the
           card's px-4 py-3 padding; its controls sit on the content's 16px
           insets (the ghost Cancel's padding is pulled back to match). */}
-      <div className="-mx-4 -mb-3 mt-1.5 flex shrink-0 items-center justify-between gap-2 rounded-b-[calc(var(--radius-lg,0.5rem)-1px)] border-t border-amber-900/10 bg-amber-500/[0.05] px-4 py-1.5 dark:border-amber-200/15 dark:bg-amber-300/[0.04]">
+      <div className="-mx-4 -mb-3 mt-1.5 flex shrink-0 items-center justify-between gap-2 rounded-b-[calc(var(--radius-lg,0.5rem)-1px)] border-t border-(--ws-needs-you-rule) bg-(--ws-needs-you-footer) px-4 py-1.5">
         <Button
           type="button"
           size="sm"
@@ -957,7 +957,7 @@ export function QuestionForm({
           <p
             role="alert"
             title={error}
-            className="line-clamp-2 min-w-0 flex-1 text-xs leading-snug text-red-700 dark:text-red-300"
+            className="line-clamp-2 min-w-0 flex-1 text-xs leading-snug text-(--ws-failure-text)"
           >
             {error}
           </p>

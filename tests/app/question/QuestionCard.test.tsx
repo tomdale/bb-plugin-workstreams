@@ -358,7 +358,7 @@ describe("question interaction adapter", () => {
     expect(slot.queryByRole("status")).toBeNull();
     expect(slot.queryByText("Needs your answer")).toBeNull();
     expect(slot.getByRole("heading", { level: 2 }).className).toContain(
-      "text-amber-700",
+      "text-(--ws-needs-you-text)",
     );
   });
 
