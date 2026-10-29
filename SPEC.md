@@ -95,8 +95,9 @@ recap. Recap reminders remain configurable. With Structured replies on, agents
 write each final reply as a `:::reply` block that the app draws inline. Beside a
 recap card the block has no lead and holds only what the card cannot (labeled
 sections such as Checked and Why, folded Details); before a question card it
-opens with a lead and includes Done. Short answers have no block. The block
-never feeds the card or status.
+opens with a lead and includes Done. Short answers have no block; their recap's
+goal states the answer and has no results. The block never feeds the card or
+status.
 
 ## 4. Organization
 

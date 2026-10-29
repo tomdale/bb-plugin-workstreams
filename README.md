@@ -326,11 +326,12 @@ When **End turns with a recap** is enabled (default), agents report the outcome
 of each turn using `WorkstreamsRecap`, rendered as a card above the composer:
 
 - **States and accents:**
-  - **Complete** (emerald): Shows the turn's goal, completed `latest` bullets,
-    optional follow-up action buttons, and an **Archive** suggestion when the
-    thread and all of its delegates, goals, and todos are finished and idle.
-    Archiving opens the top Up Next thread when it is blocked on you or unread,
-    and otherwise the next thread in the same workstream.
+  - **Complete** (emerald): Shows the turn's goal, completed `latest` bullets
+    (none for a short answer, whose goal states the answer), optional follow-up
+    action buttons, and an **Archive** suggestion when the thread and all of its
+    delegates, goals, and todos are finished and idle. Archiving opens the top
+    Up Next thread when it is blocked on you or unread, and otherwise the next
+    thread in the same workstream.
   - **Ready for Review** (sky): Adds numbered **Review** steps (`1–3`) and up to
     `8` clickable **Links** (HTTPS URLs or absolute workspace/host file paths,
     including paths with spaces).
