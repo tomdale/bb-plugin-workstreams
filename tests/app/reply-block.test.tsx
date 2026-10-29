@@ -188,3 +188,11 @@ it("draws a streaming reply through to closed without showing bb's rendering", a
     expect(view.container.querySelector("[data-reply-block]")).not.toBeNull();
   }
 });
+
+it("starts a block with no lead at its first section, with no gap above", async () => {
+  const view = await draw(sample("finished work"));
+  const root = view.container.querySelector("[data-reply-block]")!;
+  const first = root.firstElementChild!;
+  expect(first.getAttribute("data-reply-section")).toBe("Checked");
+  expect(first.className).toContain("first:mt-0");
+});
