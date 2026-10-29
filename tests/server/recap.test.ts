@@ -420,9 +420,10 @@ describe("agent recaps", () => {
       });
       expect(output).toContain("**Complete**");
       expect(
-        output.endsWith(
-          "\n\nRecorded. This ends your turn: write nothing more.",
-        ),
+        typeof output === "string" &&
+          output.endsWith(
+            "\n\nRecorded. This ends your turn: write nothing more.",
+          ),
       ).toBe(true);
       expect(output).not.toContain("**Review:**");
       expect(output).not.toContain("**Next:**");
@@ -534,9 +535,10 @@ describe("agent recaps", () => {
     });
     expect(output).toContain("**Waiting**");
     expect(
-      output.endsWith(
-        "\n\nRecorded. This ends your turn: write nothing more now. If nothing else starts a turn first, Workstreams prompts you to check status in 60 seconds.",
-      ),
+      typeof output === "string" &&
+        output.endsWith(
+          "\n\nRecorded. This ends your turn: write nothing more now. If nothing else starts a turn first, Workstreams prompts you to check status in 60 seconds.",
+        ),
     ).toBe(true);
     await s.dispatch();
     expect((await s.card()).recap).toBeNull();
@@ -864,7 +866,7 @@ describe("structured replies", () => {
     const s = await world({ replies: true });
     const text = await replyText(s);
     expect(text).toContain(":::reply");
-    expect(text).toContain("If the card already says it, leave it out.");
+    expect(text).toContain("The block is the whole reply");
     expect((await s.configure()).instructions).not.toContain(":::reply");
   });
 
