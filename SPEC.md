@@ -92,14 +92,15 @@ recap states map `complete` to `done`, `review` to `review`, and `waiting` to
 “needs you” is its user-facing description. Runtime `error` is a BB thread
 status, not a stored analysis work state. Fresh user input clears the prior
 recap. Recap reminders remain configurable. With Structured replies on, agents
-get no recap tool: they end each turn with a `:::reply{state="…"}` block whose
-card fields (a `#` headline, results, Review, Next, Waiting on, Links) the
-server reads on idle and stores as the turn's recap through the tool's path,
+get no recap tool: they end each turn with a `:::reply{state="…"}` block, or a
+question card when they need the user's answer, which is then the reply. The
+block's card fields (a `#` headline, results, Review, Next, Waiting on, Links)
+the server reads on idle and stores as the turn's recap through the tool's path,
 asking for a correction when the block, its state or its headline is missing.
 The rest of the block is the body the app draws inline; the inline block leaves
 its card fields to the docked card while that turn's card shows. A short answer
-is a block with only its headline. A block without `state`, written before a
-question card, carries no recap.
+is a block with only its headline. A block without `state` carries no recap and
+draws as plain text.
 
 ## 4. Organization
 
