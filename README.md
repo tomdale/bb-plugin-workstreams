@@ -551,11 +551,11 @@ You keep between `1` and `6` presets in **Settings → Workstreams → Snooze**.
 Each preset has an optional label (an empty label names it by its rule) and one
 rule, which resolves to a wake time at the moment you choose it:
 
-| Rule                  | Wakes                                                                                                                                                                          |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Duration**          | That many minutes or hours from now (up to `999`), or that many days from now at the same clock time (up to `365`).                                                            |
-| **Time**              | At a clock time on **Today** (tomorrow once that time has passed), **Tomorrow**, **Next workday** (Friday through Sunday wake on Monday), or the coming weekday (never today). |
-| **Until it needs me** | At the first wake event (below), with no time (`until: null`).                                                                                                                 |
+| Rule                        | Wakes                                                                                                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Duration**                | That many minutes or hours from now (up to `999`), or that many days from now at the same clock time (up to `365`).                                                            |
+| **Time**                    | At a clock time on **Today** (tomorrow once that time has passed), **Tomorrow**, **Next workday** (Friday through Sunday wake on Monday), or the coming weekday (never today). |
+| **Until there's an update** | At the first wake event (below), with no time (`until: null`).                                                                                                                 |
 
 A **Duration** or **Time** preset also has **Wake early on events**: when on,
 the thread wakes at its time or at the first wake event, whichever comes first.
@@ -564,13 +564,13 @@ time (work put away until then); a duration preset saved before this setting
 existed wakes early until you turn it off.
 
 The defaults are **1 hour** (wakes early), **Tomorrow morning** (tomorrow at
-`9 AM`, the default), **Next week** (Monday at `9 AM`), and **Until it needs
-me**.
+`9 AM`, the default), **Next week** (Monday at `9 AM`), and **Until there's an
+update**.
 
 **Custom…** opens a dialog for a one-off snooze. It lists the same rules
-(**Duration**, **Time**, **Until it needs me**) plus **Date** as radio buttons,
-and the chosen one shows its fields just beneath it, with **Wake early on
-events** below for the timed ones (on for a duration, off for a time or date,
+(**Duration**, **Time**, **Until there's an update**) plus **Date** as radio
+buttons, and the chosen one shows its fields just beneath it, with **Wake early
+on events** below for the timed ones (on for a duration, off for a time or date,
 until you change it). It opens on **Date**, which picks any date and time up to
 `366` days out. Editing a preset never moves a thread that is already snoozed: a
 snooze stores only its wake time and whether it wakes on events.
@@ -579,8 +579,8 @@ snooze stores only its wake time and whether it wakes on events.
 
 A snooze that wakes on events ends at the first of these that happens after it
 was set and is turned on in **Settings → Workstreams → Snooze** (all are on by
-default; with every one off, **Until it needs me** never wakes on its own). The
-thread returns marked unread.
+default; with every one off, **Until there's an update** never wakes on its
+own). The thread returns marked unread.
 
 | Group            | Event                        | Happens when                                                                                                                             |
 | ---------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |

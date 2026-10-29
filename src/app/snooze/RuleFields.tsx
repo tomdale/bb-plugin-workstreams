@@ -46,7 +46,7 @@ export type SnoozeDraft = {
 };
 
 /**
- * Whether a draft wakes early on events: always for "Until it needs me",
+ * Whether a draft wakes early on events: always for "Until there's an update",
  * else the user's choice, else the kind's default.
  */
 export function draftWakesOnEvents(draft: SnoozeDraft): boolean {
@@ -150,7 +150,7 @@ const KIND_LABELS: Readonly<Record<SnoozeDraftKind, string>> = {
   duration: "Duration",
   time: "Time",
   date: "Date",
-  activity: "Until it needs me",
+  activity: "Until there's an update",
 };
 
 /** Weekdays from Monday, the order a week reads in. */
@@ -272,7 +272,7 @@ export function SnoozeRuleFields({
   );
 }
 
-/** The chosen kind's own fields; Until it needs me has none. */
+/** The chosen kind's own fields; Until there's an update has none. */
 function KindFields({
   draft,
   set,

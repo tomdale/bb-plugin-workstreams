@@ -1,6 +1,6 @@
 /**
  * Wake events: what can end a snooze before its time. A snooze that wakes on
- * events (every "Until it needs me" snooze, and a timed one whose preset or
+ * events (every "Until there's an update" snooze, and a timed one whose preset or
  * Custom… choice says so) ends at the first enabled event that happens after
  * it was set, or at its time, whichever comes first.
  *

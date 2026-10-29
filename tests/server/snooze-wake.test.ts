@@ -67,7 +67,7 @@ async function endTurn(
   await refresh(w);
 }
 
-it("wakes an Until it needs me snooze when the turn ends ready for review", async () => {
+it("wakes an Until there's an update snooze when the turn ends ready for review", async () => {
   const w = await world();
   await snooze(w, null);
   await endTurn(w, "t1", "review");

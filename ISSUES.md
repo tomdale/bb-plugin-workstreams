@@ -83,9 +83,9 @@ policies apply to conversation excerpts sent for analysis.
 - **Human labels versus JSON states:** “Working” / “needs you” are prose;
   `in_progress` / `needs_decision` are serialized work states. Runtime `error`
   is a BB thread status, not an inferred `WorkState` value.
-- **Short labels:** “When needed” is the sidebar row's compact version of “Until
-  it needs me”; “New threads” names a settings section while “New work…” is an
-  action. These are not separate features or state values.
+- **Short labels:** “On update” is the sidebar row's compact version of “Until
+  there's an update”; “New threads” names a settings section while “New work…”
+  is an action. These are not separate features or state values.
 - **Snooze dates:** A weekday rule is always a future day: Saturday at 9 AM
   chosen on a Saturday means next Saturday. Use a Today rule or Custom… for the
   current day.

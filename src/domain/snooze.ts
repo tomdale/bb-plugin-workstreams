@@ -4,7 +4,7 @@
  * back on its own.
  *
  * A snooze has a wake time, wakes on events (see domain/wake.ts), or both:
- * "Until it needs me" (`until: null`) waits only for an event, and a timed
+ * "Until there's an update" (`until: null`) waits only for an event, and a timed
  * snooze set to wake early on events ends at whichever comes first. A
  * time-only snooze ignores agent activity, so a long run finishing overnight
  * doesn't undo "tomorrow morning". Every snooze ends when the user sends the
@@ -96,7 +96,7 @@ export type SnoozeDay = (typeof SNOOZE_DAYS)[number];
 
 /**
  * How a preset picks a wake time: a span from now, a clock time on a chosen
- * day, or none, waiting for a wake event ("Until it needs me").
+ * day, or none, waiting for a wake event ("Until there's an update").
  */
 export const snoozeRuleSchema = z
   .discriminatedUnion("kind", [
@@ -438,10 +438,10 @@ const UNIT_NAMES: Readonly<Record<SnoozeUnit, [string, string]>> = {
 
 /**
  * What a rule does, in words: "30 minutes", "Tomorrow at 9 AM", "Monday at
- * 1 PM", "Until it needs me". A preset without its own label shows this.
+ * 1 PM", "Until there's an update". A preset without its own label shows this.
  */
 export function ruleLabel(rule: SnoozeRule): string {
-  if (rule.kind === "activity") return "Until it needs me";
+  if (rule.kind === "activity") return "Until there's an update";
   if (rule.kind === "duration")
     return `${rule.amount} ${UNIT_NAMES[rule.unit][rule.amount === 1 ? 0 : 1]}`;
   return `${dayLabel(rule.day)} at ${clockLabel(rule.hour, rule.minute)}`;
@@ -452,16 +452,16 @@ export const presetLabel = (preset: SnoozePreset) =>
 
 /**
  * When a snooze ends, for menus and tooltips: "until 3:30 PM", "until
- * tomorrow, 9 AM", "until Mon, 9 AM", "until Oct 7, 9 AM", or "until it
- * needs you". With `events`, a timed snooze adds "or it needs you".
+ * tomorrow, 9 AM", "until Mon, 9 AM", "until Oct 7, 9 AM", or "until
+ * there's an update". With `events`, a timed snooze adds "or an update".
  */
 export function describeWake(
   until: number | null,
   now: number,
   events = false,
 ): string {
-  if (until === null) return "until it needs you";
-  const suffix = events ? " or it needs you" : "";
+  if (until === null) return "until there's an update";
+  const suffix = events ? " or an update" : "";
   const date = new Date(until);
   const today = new Date(now);
   const days = dayOffset(today, date);
@@ -525,10 +525,10 @@ export function wakeHint(until: number | null, now: number): string {
 
 /**
  * A compact wake label for a sidebar row: "3:30 PM" today, a weekday within
- * the week, else a date; "When needed" for an "Until it needs me" snooze.
+ * the week, else a date; "On update" for an "Until there's an update" snooze.
  */
 export function shortWake(until: number | null, now: number): string {
-  if (until === null) return "When needed";
+  if (until === null) return "On update";
   const date = new Date(until);
   const today = new Date(now);
   if (sameDay(date, today)) return timeOf(date);

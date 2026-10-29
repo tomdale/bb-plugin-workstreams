@@ -50,7 +50,7 @@ describe("CustomSnoozeDialog", () => {
       within(kinds)
         .getAllByRole("radio")
         .map((radio) => radio.parentElement!.textContent),
-    ).toEqual(["Duration", "Time", "Date", "Until it needs me"]);
+    ).toEqual(["Duration", "Time", "Date", "Until there's an update"]);
     // Each radio sits in a row with its label; its fields follow the row.
     const fieldsUnder = (kind: string) =>
       screen.getByRole("radio", { name: kind }).parentElement!
@@ -71,8 +71,10 @@ describe("CustomSnoozeDialog", () => {
     // The new fields leave focus on the radio, for arrow keys.
     expect(document.activeElement).toBe(duration);
 
-    fireEvent.click(screen.getByRole("radio", { name: "Until it needs me" }));
-    expect(fieldsUnder("Until it needs me")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("radio", { name: "Until there's an update" }),
+    );
+    expect(fieldsUnder("Until there's an update")).toBeNull();
     expect(screen.queryByLabelText("Amount")).toBeNull();
     // It always wakes on events, so it has no switch for it.
     expect(
@@ -90,7 +92,7 @@ describe("CustomSnoozeDialog", () => {
     expect(wakeEarly().getAttribute("aria-checked")).toBe("false");
     fireEvent.click(screen.getByRole("radio", { name: "Duration" }));
     expect(wakeEarly().getAttribute("aria-checked")).toBe("true");
-    expect(screen.getByText(/or it needs you$/)).toBeTruthy();
+    expect(screen.getByText(/or an update$/)).toBeTruthy();
     fireEvent.click(screen.getByRole("radio", { name: "Time" }));
     expect(wakeEarly().getAttribute("aria-checked")).toBe("false");
     // Once set, the choice holds across kinds.

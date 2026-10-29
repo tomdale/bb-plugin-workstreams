@@ -88,7 +88,7 @@ it("offers every preset and Custom… from the arrow", async () => {
     expect.stringMatching(/^1 hour/),
     expect.stringMatching(/^Tomorrow morning/),
     expect.stringMatching(/^Next week\(default\)/),
-    "Until it needs me",
+    "Until there's an update",
     "Custom…",
   ]);
   fireEvent.click(within(menu).getByRole("menuitem", { name: "Custom…" }));
@@ -125,7 +125,9 @@ it("shows a snoozed thread's wake time and hides for threads not in the sidebar"
     snoozes: { t1: { until: null, attentionAt: Date.now() + 1, at: 0 } },
   });
   expect(
-    await slot.findByRole("button", { name: /^Snoozed until it needs you/ }),
+    await slot.findByRole("button", {
+      name: /^Snoozed until there's an update/,
+    }),
   ).toBeTruthy();
   slot.lifecycle.unmount();
   const hidden = await mount({ threads: [] });

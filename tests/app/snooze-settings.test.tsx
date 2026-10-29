@@ -68,7 +68,7 @@ it("lists the presets in menu order with the default chosen", async () => {
       "1 hour",
       "Tomorrow morning",
       "Next week",
-      "Until it needs me",
+      "Until there's an update",
     ]),
   );
   expect(

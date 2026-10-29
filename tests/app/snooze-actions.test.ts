@@ -27,7 +27,7 @@ it("names a batch in its toast, and Undo gives each thread back its earlier snoo
     string,
     { action: { onClick: () => void } },
   ];
-  expect(message).toBe("Snoozed 3 threads in Alpha until it needs you");
+  expect(message).toBe("Snoozed 3 threads in Alpha until there's an update");
   setSnoozes.mockClear();
   options.action.onClick();
   expect(setSnoozes.mock.calls).toEqual([
@@ -44,9 +44,7 @@ it("says when a timed snooze may end sooner", async () => {
   vi.setSystemTime(new Date(2026, 0, 14, 12));
   snoozeThreads(setSnoozes, [{ id: "a" }], { until, events: true });
   await vi.waitFor(() => expect(toast).toHaveBeenCalled());
-  expect(toast.mock.calls[0]![0]).toMatch(
-    /^Snoozed until 5 PM or it needs you$/,
-  );
+  expect(toast.mock.calls[0]![0]).toMatch(/^Snoozed until 5 PM or an update$/);
   vi.useRealTimers();
 });
 

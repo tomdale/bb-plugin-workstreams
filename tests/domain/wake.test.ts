@@ -26,7 +26,7 @@ const thread = (overrides: Partial<WakeThread> = {}): WakeThread => ({
 const snooze = { until: null, attentionAt: AT - 1, at: AT };
 
 describe("wakesOnEvents", () => {
-  it("is always on for Until it needs me, and opt-in for a timed snooze", () => {
+  it("is always on for Until there's an update, and opt-in for a timed snooze", () => {
     expect(wakesOnEvents({ ...snooze, until: null })).toBe(true);
     expect(wakesOnEvents({ ...snooze, until: AT + 1 })).toBe(false);
     expect(wakesOnEvents({ ...snooze, until: AT + 1, events: true })).toBe(
