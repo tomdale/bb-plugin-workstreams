@@ -49,6 +49,85 @@ const cleanAliases = (aliases: readonly string[]) => [
   ...new Set(aliases.map((alias) => alias.trim()).filter(Boolean)),
 ];
 
+type Row = Record<string, unknown>;
+
+/** Inserts rows as they were read, by column name. */
+function insertRows(db: Database, table: string, rows: readonly Row[]) {
+  for (const row of rows) {
+    const columns = Object.keys(row);
+    db.prepare(
+      `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`,
+    ).run(...columns.map((column) => row[column]));
+  }
+}
+
+/**
+ * Records the topic tree and every topic assignment, so an accepted
+ * suggestion can be undone. The latest 50 are kept.
+ */
+export function snapshotTopics(db: Database, at: number): string {
+  const id = randomUUID();
+  db.prepare(
+    "INSERT INTO ws_topic_snapshot(id, at, entities, subjects) VALUES (?, ?, ?, ?)",
+  ).run(
+    id,
+    at,
+    JSON.stringify(db.prepare("SELECT * FROM ws_corpus_entity").all()),
+    JSON.stringify(db.prepare("SELECT * FROM ws_corpus_subject").all()),
+  );
+  db.prepare(
+    "DELETE FROM ws_topic_snapshot WHERE id NOT IN (SELECT id FROM ws_topic_snapshot ORDER BY at DESC LIMIT 50)",
+  ).run();
+  return id;
+}
+
+/**
+ * Puts back the topic tree and assignments a snapshot recorded, while the
+ * catalog is still at `revision`: any later topic or assignment change means
+ * undoing would discard it, so nothing is restored. Workstreams bound to
+ * topics the snapshot lacks are unbound. Returns whether it restored.
+ */
+export function restoreTopics(
+  db: Database,
+  snapshotId: string,
+  revision: number,
+): boolean {
+  return db.transaction(() => {
+    const row = db
+      .prepare("SELECT entities, subjects FROM ws_topic_snapshot WHERE id = ?")
+      .get(snapshotId) as { entities: string; subjects: string } | undefined;
+    const current = parseInt(getMeta(db, "catalog_revision") ?? "1", 10) || 1;
+    if (!row || current !== revision) return false;
+    const entities = JSON.parse(row.entities) as Row[];
+    const kept = new Set(entities.map((entity) => entity.id));
+    for (const group of db
+      .prepare("SELECT section_id, entity_id FROM ws_corpus_group")
+      .all() as { section_id: string; entity_id: string }[])
+      if (!kept.has(group.entity_id))
+        db.prepare("DELETE FROM ws_corpus_group WHERE section_id = ?").run(
+          group.section_id,
+        );
+    db.prepare("DELETE FROM ws_corpus_subject").run();
+    db.prepare("DELETE FROM ws_corpus_entity").run();
+    // Parents first, so every parent reference resolves as it is written.
+    const placed = new Set<unknown>([null]);
+    let pending = entities;
+    while (pending.length) {
+      const ready = pending.filter(
+        (entity) => placed.has(entity.parent_id) || !kept.has(entity.parent_id),
+      );
+      if (!ready.length)
+        throw new Error("The snapshot's topic tree has a cycle.");
+      insertRows(db, "ws_corpus_entity", ready);
+      for (const entity of ready) placed.add(entity.id);
+      pending = pending.filter((entity) => !ready.includes(entity));
+    }
+    insertRows(db, "ws_corpus_subject", JSON.parse(row.subjects) as Row[]);
+    setMeta(db, "catalog_revision", String(current + 1));
+    return true;
+  })();
+}
+
 export class TopicStore {
   constructor(private readonly db: Database) {}
 

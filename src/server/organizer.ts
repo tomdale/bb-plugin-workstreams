@@ -41,6 +41,8 @@ export type OrganizerDeps = {
   /** Records each pass's section changes in Activity. */
   journal?: Journal;
   onChange: () => void;
+  /** A pass applied; organizing suggestions may be due. */
+  onPass?: () => void;
   now?: () => number;
 };
 
@@ -586,7 +588,9 @@ export class Organizer {
         appliedSectionIds,
       );
 
-      return this.save(finalState);
+      const saved = this.save(finalState);
+      this.deps.onPass?.();
+      return saved;
     } catch (err) {
       if (signal.aborted || this.disposed) return this.state();
       if (err instanceof SupersededPlan) {

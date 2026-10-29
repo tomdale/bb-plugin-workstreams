@@ -42,6 +42,7 @@ const ACTION_LABEL: Record<Entry["action"], string> = {
   route: "New thread",
   retitle: "Updated title",
   "remove-topic": "Removed topic",
+  suggestion: "Suggestion",
 };
 
 const ACTION_HELP: Record<Entry["action"], string> = {
@@ -58,6 +59,8 @@ const ACTION_HELP: Record<Entry["action"], string> = {
     "A thread was given its goal as its title, from its opening request or after a turn.",
   "remove-topic":
     "Topics Workstreams had discovered were removed because no thread or workstream used them.",
+  suggestion:
+    "You accepted an organizing suggestion, which changed the topic tree or a thread's topic.",
 };
 const ENTRY_STATUS: Record<
   Entry["status"],

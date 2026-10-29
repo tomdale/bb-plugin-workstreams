@@ -6,6 +6,7 @@
  * to the reconciler's last-seen snapshot, so the reconciler never mistakes a
  * Workstreams change for one made elsewhere.
  */
+import { restoreTopics } from "./topics.ts";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { Database } from "./db.ts";
 import { getMeta, setMeta } from "./db.ts";
@@ -54,6 +55,8 @@ export class WorkstreamService {
       thread: InventoryThread,
       now: number,
     ) => number | null | undefined = () => undefined,
+    /** Undo put the topic tree back, so workstreams must follow it. */
+    private readonly onTopicsRestored: () => void = () => {},
   ) {}
 
   /** Runs `task` after every earlier mutation or reconcile has settled. */
@@ -378,6 +381,12 @@ export class WorkstreamService {
       this.db
         .prepare("DELETE FROM ws_seen_section WHERE section_id = ?")
         .run(step.sectionId);
+      return { done: 1, skipped: 0 };
+    }
+    if (step.kind === "restore-topics") {
+      if (!restoreTopics(this.db, step.snapshotId, step.revision))
+        return { done: 0, skipped: 1 };
+      this.onTopicsRestored();
       return { done: 1, skipped: 0 };
     }
     if (step.kind === "metadata") {

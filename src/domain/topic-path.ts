@@ -1,10 +1,7 @@
 import type { Topic } from "./topics.ts";
 
 /** Full ancestry distinguishes same-named features in different component scopes. */
-export function topicPath(
-  id: string,
-  entities: readonly Topic[],
-): string {
+export function topicPath(id: string, entities: readonly Topic[]): string {
   const parts: string[] = [];
   const seen = new Set<string>();
   let current: string | null = id;

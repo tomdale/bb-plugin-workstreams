@@ -13,6 +13,16 @@ import {
   type QuickAnalysisInput,
 } from "../domain/analysis.ts";
 import {
+  parseSplit,
+  parseTidy,
+  splitPrompt,
+  splitSchema,
+  tidyPrompt,
+  tidySchema,
+  type SplitInput,
+  type TidyInput,
+} from "../domain/tidy.ts";
+import {
   parsePlacement,
   placementPrompt,
   placementSchema,
@@ -55,6 +65,18 @@ export const MODEL_CALLS = {
     prompt: (input: PlacementInput) => placementPrompt(input),
     parse: (text: string, input: PlacementInput) => parsePlacement(text, input),
     schema: (input: PlacementInput) => placementSchema(input),
+  },
+  split: {
+    prompt: (input: SplitInput) => splitPrompt(input),
+    parse: (text: string, input: SplitInput) => parseSplit(text, input),
+    schema: (input: SplitInput) => splitSchema(input),
+    maxTokens: 8_000,
+  },
+  tidy: {
+    prompt: (input: TidyInput) => tidyPrompt(input),
+    parse: (text: string, input: TidyInput) => parseTidy(text, input),
+    schema: () => tidySchema(),
+    maxTokens: 12_000,
   },
 } satisfies Record<
   TraceKind,
@@ -117,6 +139,18 @@ export function summarize(
       ]
         .filter(Boolean)
         .join(" · ");
+    }
+    case "split": {
+      const { split } = value as OutputOf<"split">;
+      return split.subgroups
+        .map((g) => `${g.name} (${g.threadIds.length})`)
+        .join(", ");
+    }
+    case "tidy": {
+      const edits = value as OutputOf<"tidy">;
+      return edits.length
+        ? edits.map(({ edit }) => edit.op).join(", ")
+        : "no edits";
     }
     case "placement": {
       const p = value as OutputOf<"placement">;

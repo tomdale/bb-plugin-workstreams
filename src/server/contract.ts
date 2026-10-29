@@ -230,6 +230,26 @@ const catalogStateSchema = z.object({
   layout: z.array(layoutNodeSchema).optional(),
 });
 
+const suggestionsStateSchema = z.object({
+  suggestions: z.array(
+    z.object({
+      id: z.string(),
+      kind: z.enum(["split", "edit"]),
+      summary: z.string(),
+      reason: z.string(),
+      status: z.enum(["pending", "accepted", "declined", "stale"]),
+      at: z.number(),
+      decidedAt: z.number().nullable(),
+      problem: z.string().nullable(),
+      traceId: z.string().nullable(),
+    }),
+  ),
+  running: z.boolean(),
+  lastRunAt: z.number().nullable(),
+  error: z.string().nullable(),
+});
+export type SuggestionsStateWire = z.infer<typeof suggestionsStateSchema>;
+
 const idList = z.array(z.string().min(1)).max(5000);
 const spinnerColorSchema = z.union([
   z.enum(SPINNER_COLORS),
@@ -536,6 +556,8 @@ export const rpcContract = defineRpcContract({
       snoozes: z.record(z.string(), snoozeSchema).default({}),
       /** The snooze presets every menu lists, and which one a click uses. */
       snoozePrefs: snoozePrefsSchema,
+      /** Organizing suggestions waiting for your decision. */
+      pendingSuggestions: z.number().default(0),
       catalog: catalogStateSchema.default({
         entities: [],
         groups: {},
@@ -629,6 +651,26 @@ export const rpcContract = defineRpcContract({
       .nullable()
       .default(null),
     output: z.object({ state: organizerStateSchema }),
+  },
+  suggestions: {
+    input: z.null().default(null),
+    output: z.object({ state: suggestionsStateSchema }),
+  },
+  /** Asks for splits and a tidy pass now. */
+  suggestionsRun: {
+    input: z.null().default(null),
+    output: z.object({ state: suggestionsStateSchema }),
+  },
+  suggestionsDecide: {
+    input: z.object({
+      ids: z.array(z.string().min(1)).min(1).max(100),
+      decision: z.enum(["accept", "decline"]),
+    }),
+    output: z.object({
+      applied: z.array(z.string()),
+      failed: z.array(z.object({ id: z.string(), reason: z.string() })),
+      state: suggestionsStateSchema,
+    }),
   },
   journal: {
     input: z

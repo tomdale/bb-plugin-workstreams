@@ -11,7 +11,9 @@ import { registerAgentInstructions } from "./agents.ts";
 import { Analyzer } from "./analyzer.ts";
 import { RecapArchive } from "./archive.ts";
 import { Organizer } from "./organizer.ts";
+import { buildForest } from "../domain/tree.ts";
 import { Placement } from "./placement.ts";
+import { Suggestions } from "./suggestions.ts";
 import { Reclassification } from "./reclassification.ts";
 import { sectionMembers } from "./cleanup.ts";
 import { WorkstreamMap } from "./map.ts";
@@ -88,6 +90,7 @@ export default async function plugin(bb: BbPluginApi) {
       const snooze = snoozes.get(thread.id);
       return isSnoozed(snooze, now) ? snooze!.until : undefined;
     },
+    () => triggerOrganizer(10),
   );
   const markUnread = async (threadIds: readonly string[]) => {
     for (const threadId of threadIds)
@@ -433,9 +436,31 @@ export default async function plugin(bb: BbPluginApi) {
     members: (sectionId) => sectionMembers(bb.sdk, sectionId),
     journal,
     onChange: notify,
+    onPass: () => suggestions.check(),
   });
   organizer = organizerInstance;
   bb.onDispose(() => organizerInstance.dispose());
+  const suggestions = new Suggestions({
+    db,
+    inference,
+    topics,
+    journal,
+    model: async () => currentPrefs().organize.tidyModel,
+    enabled: () => currentPrefs().organize.suggestions,
+    roots: () =>
+      buildForest(service.threads())
+        .roots.map((root) => root.thread)
+        .filter((thread) => !thread.isHidden && !thread.isArchived),
+    checkout: (threadId) => placement.checkoutOf(threadId),
+    coordination: () => placement.coordinationWorkspaces(),
+    layout: () => organizerInstance.layout(),
+    onChange: (topicsChanged) => {
+      notify();
+      if (topicsChanged) triggerOrganizer(10);
+    },
+    log: (message) => bb.log.warn(message),
+  });
+  bb.onDispose(() => suggestions.dispose());
   const reclassification = new Reclassification({
     db,
     sdk: () => bb.sdk,
@@ -992,6 +1017,7 @@ export default async function plugin(bb: BbPluginApi) {
       snoozes: snoozes.all(),
       snoozePrefs: loadSnoozePrefs(db),
       catalog: { ...topics.state(), layout: organizerInstance.layout() },
+      pendingSuggestions: suggestions.pendingCount(),
     }),
     setSnoozePrefs: ({ patch }) =>
       userFacing(async () => {
@@ -1075,6 +1101,17 @@ export default async function plugin(bb: BbPluginApi) {
     archiveStatus: ({ threadId }) => archives.status(threadId),
     archive: ({ threadId, recapId }) =>
       userFacing(() => archives.archive(threadId, recapId)),
+    suggestions: async () => ({ state: suggestions.state() }),
+    suggestionsRun: () =>
+      userFacing(async () => {
+        await suggestions.run({ manual: true });
+        return { state: suggestions.state() };
+      }),
+    suggestionsDecide: ({ ids, decision }) =>
+      userFacing(async () => {
+        const result = await suggestions.decide(ids, decision);
+        return { ...result, state: suggestions.state() };
+      }),
     organization: async (input) => {
       if (input?.action === "rebuild") {
         const state = await organizerInstance.rebuild();

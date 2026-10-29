@@ -226,6 +226,17 @@ export class Placement {
     }
   }
 
+  /** The checkout a root ran in when it was last placed. */
+  checkoutOf(threadId: string): string | null {
+    return (
+      (
+        this.deps.db
+          .prepare("SELECT path FROM ws_thread_checkout WHERE thread_id = ?")
+          .get(threadId) as { path: string } | undefined
+      )?.path ?? null
+    );
+  }
+
   /** Whether threads in a checkout point at other repositories. */
   coordinates(checkout: string): boolean {
     return (

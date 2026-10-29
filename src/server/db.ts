@@ -353,6 +353,28 @@ const MIGRATIONS = [
     elsewhere INTEGER NOT NULL DEFAULT 0
   )`,
   "CREATE INDEX ws_thread_checkout_path ON ws_thread_checkout(path)",
+  // Organizing suggestions, and the topic tree before each accepted one.
+  `CREATE TABLE ws_suggestion (
+    id TEXT PRIMARY KEY,
+    pass_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    body TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    key TEXT NOT NULL,
+    status TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    decided_at INTEGER,
+    detail TEXT,
+    trace_id TEXT
+  )`,
+  "CREATE INDEX ws_suggestion_status ON ws_suggestion(status, at)",
+  `CREATE TABLE ws_topic_snapshot (
+    id TEXT PRIMARY KEY,
+    at INTEGER NOT NULL,
+    entities TEXT NOT NULL,
+    subjects TEXT NOT NULL
+  )`,
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

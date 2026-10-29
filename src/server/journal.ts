@@ -34,6 +34,8 @@ export const actionSchema = z.enum([
   "retitle",
   /** Discovered topics that nothing used any more were removed. */
   "remove-topic",
+  /** An organizing suggestion you accepted changed the topic tree. */
+  "suggestion",
 ]);
 export type Action = z.infer<typeof actionSchema>;
 
@@ -107,6 +109,13 @@ const stepSchema = z.discriminatedUnion("kind", [
     sectionId: z.string(),
     from: z.string(),
     to: z.string(),
+  }),
+  z.object({
+    /** Puts the topic tree back as a snapshot recorded it. */
+    kind: z.literal("restore-topics"),
+    snapshotId: z.string(),
+    /** The catalog revision the change left; any later change blocks undo. */
+    revision: z.number(),
   }),
 ]);
 export type UndoStep = z.infer<typeof stepSchema>;
