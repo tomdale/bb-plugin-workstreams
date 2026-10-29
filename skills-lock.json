@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "bb-plugin-guidelines": {
+      "source": "tomdale/bb-plugins",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/bb-plugin-guidelines/SKILL.md",
+      "computedHash": "a46dff89234dda721b57fed7aa68ad36810860be6429185e5e476412497db12e"
+    }
+  }
+}
