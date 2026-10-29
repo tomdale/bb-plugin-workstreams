@@ -368,25 +368,26 @@ describe("CLI thread topic commands", () => {
 
   it("thread assign manually sets identity and updates root for child threads", async () => {
     const { w, corpus, childThread, rootThread, storage } = await setup();
+    const docks = corpus.create("Docks", "Docks feature", storage.id);
 
     // Assign via child thread -> must mutate root task!
     const assignRes = await w.harness.behavior.runCli([
       "thread",
       "assign",
       childThread.id,
-      "Storage",
+      docks.id,
     ]);
     expect(assignRes.exitCode).toBe(0);
     expect(assignRes.stdout).toContain(
-      `Assigned @thread:${childThread.id} to "Storage"`,
+      `Assigned @thread:${childThread.id} to "Docks" (Storage: Docks).`,
     );
 
     const rootAssign = corpus.assignment(rootThread.id);
-    expect(rootAssign.entityId).toBe(storage.id);
+    expect(rootAssign.entityId).toBe(docks.id);
     expect(rootAssign.provenance).toBe("manual");
 
     const childAssign = corpus.assignment(childThread.id);
-    expect(childAssign.entityId).toBe(storage.id);
+    expect(childAssign.entityId).toBe(docks.id);
     expect(childAssign.inheritedFrom).toBe(rootThread.id);
   });
 
@@ -427,7 +428,8 @@ describe("CLI thread topic commands", () => {
   });
 
   it("thread mutations notify realtime views", async () => {
-    const { w, rootThread, storage } = await setup();
+    const { w, corpus, rootThread, storage } = await setup();
+    const docks = corpus.create("Docks", "Docks feature", storage.id);
 
     const count0 = w.harness.inspection.realtimeSignals.length;
 
@@ -436,7 +438,7 @@ describe("CLI thread topic commands", () => {
       "thread",
       "assign",
       rootThread.id,
-      storage.id,
+      docks.id,
     ]);
     expect(assignRes.exitCode).toBe(0);
     expect(w.harness.inspection.realtimeSignals.length).toBeGreaterThan(count0);

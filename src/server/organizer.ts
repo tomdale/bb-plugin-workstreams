@@ -7,7 +7,15 @@ import type { Analyzer } from "./analyzer.ts";
 import type { CleanupMember } from "./cleanup.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { TopicStore } from "./topics.ts";
-import { activeHome, deriveActiveEntityIds } from "../domain/regroup.ts";
+import { activeHome } from "../domain/regroup.ts";
+import {
+  EMPTY_LAYOUT_STATE,
+  layoutGroups,
+  MERGE_AT,
+  SPLIT_ABOVE,
+  type LayoutNode,
+  type LayoutState,
+} from "../domain/layout.ts";
 import { assignmentEvidence } from "./evidence.ts";
 import { topicPath } from "../domain/topic-path.ts";
 import type { TopicAssignment, Topic } from "../domain/topics.ts";
@@ -32,12 +40,15 @@ export type OrganizerDeps = {
   members: (sectionId: string) => Promise<CleanupMember[]>;
   /** Records each pass's section changes in Activity. */
   journal?: Journal;
-  policy?: () => { collapseAt: number };
   onChange: () => void;
   now?: () => number;
 };
 
 const KEY = "live_organization";
+/** The last applied layout: its state for the thresholds' gaps, and its groups. */
+const LAYOUT_KEY = "layout";
+
+type StoredLayout = { state: LayoutState; nodes: LayoutNode[] };
 class SupersededPlan extends Error {}
 
 const DEFAULT_COUNTS: OrganizerStateCounts = {
@@ -175,8 +186,22 @@ export class Organizer {
     return runPromise;
   }
 
-  private policy() {
-    return this.deps.policy?.() ?? { collapseAt: 3 };
+  private storedLayout(): StoredLayout {
+    const raw = getMeta(this.deps.db, LAYOUT_KEY);
+    if (raw)
+      try {
+        const parsed = JSON.parse(raw) as Partial<StoredLayout>;
+        if (parsed.state && Array.isArray(parsed.nodes))
+          return parsed as StoredLayout;
+      } catch {
+        // A damaged record starts the gaps over.
+      }
+    return { state: EMPTY_LAYOUT_STATE, nodes: [] };
+  }
+
+  /** The groups the last pass applied, which the sidebar and Home draw. */
+  layout(): LayoutNode[] {
+    return this.storedLayout().nodes;
   }
 
   private completed(roots: readonly InventoryThread[]): Map<string, boolean> {
@@ -208,7 +233,7 @@ export class Organizer {
       .update(
         JSON.stringify({
           catalogRevision: this.deps.topics.revision(),
-          policy: this.policy(),
+          layout: this.storedLayout().state,
           retainedEmpty: [
             ...this.deps.service.retainedEmptyWorkstreams(),
           ].sort(),
@@ -288,35 +313,12 @@ export class Organizer {
           counts[assignment.entityId] = (counts[assignment.entityId] ?? 0) + 1;
       }
 
-      const policy = this.policy();
-      const rawSelectedEntityIds = deriveActiveEntityIds({
-        entities,
+      const layout = layoutGroups({
+        topics: entities,
         counts,
-        collapseAt: policy.collapseAt,
+        previous: this.storedLayout().state,
       });
-
-      // Filter to only groups that receive tasks (active or completed retention)
-      const groupLoads = new Map<string, number>();
-      for (const root of roots) {
-        const assignment = assignments[root.id];
-        if (
-          assignment &&
-          assignment.status === "assigned" &&
-          assignment.entityId
-        ) {
-          const home = activeHome(
-            assignment.entityId,
-            rawSelectedEntityIds,
-            entities,
-          );
-          if (home) {
-            groupLoads.set(home, (groupLoads.get(home) ?? 0) + 1);
-          }
-        }
-      }
-      const selectedEntityIds = rawSelectedEntityIds.filter(
-        (id) => (groupLoads.get(id) ?? 0) > 0,
-      );
+      const selectedEntityIds = [...layout.listed];
 
       // 3. Sync Native Section Projection
       const entityToSection = new Map<string, string>();
@@ -335,7 +337,6 @@ export class Organizer {
 
       const planEvidence = JSON.stringify({
         entities,
-        policy,
         completed: [...isCompletedMap],
         assignments: roots.map((root) =>
           assignmentEvidence(assignments[root.id]!),
@@ -348,7 +349,6 @@ export class Organizer {
           this.factRevision !== factRevision ||
           JSON.stringify({
             entities: this.deps.topics.list(),
-            policy: this.policy(),
             completed: [...this.completed(roots)],
             assignments: roots.map((root) =>
               assignmentEvidence(this.deps.topics.assignment(root.id)),
@@ -574,6 +574,11 @@ export class Organizer {
       });
 
       setMeta(this.deps.db, "bootstrapped", "1");
+      setMeta(
+        this.deps.db,
+        LAYOUT_KEY,
+        JSON.stringify({ state: layout.state, nodes: layout.nodes }),
+      );
 
       this.lastSyncedHash = this.fingerprint(
         roots,
@@ -747,12 +752,11 @@ export class Organizer {
       }
     }
 
-    const policy = this.policy();
     const finalGroups = Array.from(groupsMap.values())
       .filter((g) => g.totalCount > 0)
       .map((group) => ({
         ...group,
-        policyReason: `${group.totalCount} visible roots filed here (${group.activeCount} active, ${group.completedCount} completed). A product with more than ${policy.collapseAt} visible roots gets a workstream for each topic with threads; a smaller one gets one workstream.`,
+        policyReason: `${group.totalCount} visible roots filed here (${group.activeCount} active, ${group.completedCount} completed). A group shows its subtopics as subgroups above ${SPLIT_ABOVE} visible roots, and one list again at ${MERGE_AT} or fewer.`,
       }));
 
     return {

@@ -86,6 +86,23 @@ describe("recent empty workstreams", () => {
         })),
       ],
       bindings: { a: "a", b: "b", c: "c", d: "d", old: "old" },
+      layout: [
+        {
+          topicId: "product",
+          name: "Product",
+          prefix: [],
+          lists: false,
+          total: 1,
+          children: ["a", "b", "c", "d", "old"].map((id) => ({
+            topicId: id,
+            name: id,
+            prefix: [],
+            lists: true,
+            total: 0,
+            children: [],
+          })),
+        },
+      ],
     });
     expect(arranged.pinned).toHaveLength(1);
     expect(arranged.pinned[0]!.subgroups.map((g) => g.id)).toEqual([
@@ -109,6 +126,26 @@ describe("recent empty workstreams", () => {
         { id: "child", name: "Child", parentId: "product" },
       ],
       bindings: { a: "product", b: "child" },
+      // A legacy topic that lists threads beside its subgroup.
+      layout: [
+        {
+          topicId: "product",
+          name: "Product",
+          prefix: [],
+          lists: true,
+          total: 1,
+          children: [
+            {
+              topicId: "child",
+              name: "Child",
+              prefix: [],
+              lists: true,
+              total: 1,
+              children: [],
+            },
+          ],
+        },
+      ],
     });
     expect(arranged.populated[0]!.total).toBe(1);
     expect(arranged.populated[0]!.subgroups[0]!.total).toBe(1);

@@ -7,19 +7,18 @@
  * surfaces agree.
  *
  * Workstreams nest by topic. Each workstream is a BB section bound to one
- * topic, and BB keeps sections flat, so the nesting is drawn here: the
- * workstreams of one product form a single top-level group headed by the
- * most specific topic they all share, and a workstream sits under the
- * nearest topic it shares with another. A shared topic with no workstream of
- * its own becomes a header with no threads of its own. Focus, dormancy, and
- * ordering apply to the top-level group as a whole.
+ * topic, and BB keeps sections flat, so the nesting comes from the layout the
+ * organizer last applied (see `layoutGroups`): which topics list threads,
+ * which only head subgroups, and the names dimmed before each header.
+ * Focus, dormancy, and ordering apply to the top-level group as a whole.
  */
+import { layoutLabel, type LayoutNode } from "./layout.ts";
 import type { Group, Projection, WorkstreamThread } from "./project.ts";
 
 /** How workstream groups are ordered: by name, by recent activity, or as dragged. */
 export type GroupSort = "alphabetical" | "activity" | "manual";
 
-/** The topic tree and the topic each workstream's section is bound to. */
+/** The topic tree, the topic each workstream's section is bound to, and the layout. */
 export type WorkstreamTopics = {
   readonly entities: readonly {
     readonly id: string;
@@ -28,6 +27,8 @@ export type WorkstreamTopics = {
   }[];
   /** Section id → topic id. */
   readonly bindings: Readonly<Record<string, string>>;
+  /** The groups the organizer last applied; absent before its first pass. */
+  readonly layout?: readonly LayoutNode[];
 };
 
 /**
@@ -40,22 +41,23 @@ export type WorkstreamNode<T extends WorkstreamThread> = Group<T> & {
   /** The topic it shows; null for a section bound to no known topic. */
   readonly topicId: string | null;
   /**
-   * The name to show: the full name at the top level, else the topic path
-   * below the enclosing group ("Alert Investigations").
+   * The name to show, "Prefix: Name" with the prefix dimmed: the names of
+   * collapsed contexts and families, or a promoted group's ancestors.
    */
   readonly label: string;
-  /** False for a shared topic's header, which no BB section backs. */
+  /** False for a header that only heads subgroups, which no BB section backs. */
   readonly hasSection: boolean;
   readonly subgroups: readonly WorkstreamNode<T>[];
   /** Every section in the subtree, in the input order. */
   readonly sectionIds: readonly string[];
 };
 
-/** Id of a header drawn for a shared topic that has no section. */
+/** Id of a header drawn for a topic that has no section. */
 export const sharedTopicId = (topicId: string) => `topic:${topicId}`;
 
+/** Sorts by the whole name, prefix first: "BB Fork & Core" before "BB Plugins". */
 const labelOf = (group: { name: string; label?: string }) =>
-  group.label ?? group.name;
+  (group.label ?? group.name).replace(/:\s*/g, " ");
 
 export function sortGroups<G extends Group<WorkstreamThread>>(
   groups: readonly G[],
@@ -89,155 +91,112 @@ function sortTree<T extends WorkstreamThread>(
 const leaf = <T extends WorkstreamThread>(
   group: Group<T>,
   topicId: string | null,
+  label = group.name,
 ): WorkstreamNode<T> => ({
   ...group,
   topicId,
-  label: group.name,
+  label,
   hasSection: true,
   subgroups: [],
   sectionIds: [group.id],
 });
 
 /**
- * Nests workstreams by topic, keeping the input order: top-level groups by
- * their first workstream, subgroups likewise within their parent. Without
- * topics, or for a section whose topic is unknown, each workstream stands
- * alone.
+ * Nests workstreams by the organizer's layout. Top-level groups keep the
+ * input order of their first workstream, and subgroups likewise within their
+ * parent. A section the layout doesn't list (bound to an unknown topic, or
+ * created since the last pass) stands alone.
  */
 export function nestGroups<T extends WorkstreamThread>(
   groups: readonly Group<T>[],
   topics?: WorkstreamTopics,
 ): WorkstreamNode<T>[] {
-  if (!topics) return groups.map((group) => leaf(group, null));
-  const byId = new Map(topics.entities.map((entity) => [entity.id, entity]));
-  /** Root-first topic path, or null for an unknown topic or a cycle. */
-  const pathOf = (topicId: string): string[] | null => {
-    const path: string[] = [];
-    let current: string | null = topicId;
-    while (current) {
-      if (path.includes(current)) return null;
-      const entity = byId.get(current);
-      if (!entity) return null;
-      path.unshift(current);
-      current = entity.parentId;
+  const index = new Map(groups.map((group, i) => [group.id, i]));
+  const sectionsOf = new Map<string, Group<T>[]>();
+  if (topics)
+    for (const group of groups) {
+      const topicId = topics.bindings[group.id];
+      if (!topicId) continue;
+      sectionsOf.set(topicId, [...(sectionsOf.get(topicId) ?? []), group]);
     }
-    return path;
+  const byId = new Map((topics?.entities ?? []).map((e) => [e.id, e]));
+  const pathName = (topicId: string) => {
+    const names: string[] = [];
+    const seen = new Set<string>();
+    for (let at: string | null = topicId; at && !seen.has(at);) {
+      seen.add(at);
+      const entity = byId.get(at);
+      if (!entity) break;
+      names.unshift(entity.name);
+      at = entity.parentId;
+    }
+    return names.join(": ");
   };
-  const nameOf = (topicId: string) => byId.get(topicId)!.name;
+  const used = new Set<string>();
+  const first = (node: WorkstreamNode<T>) =>
+    Math.min(
+      ...node.sectionIds.map((id) => index.get(id) ?? Infinity),
+      Infinity,
+    );
 
-  type Member = { group: Group<T>; path: string[]; index: number };
-  type Slot = { standalone: WorkstreamNode<T> } | { cluster: Member[] };
-  const slots: Slot[] = [];
-  const clusters = new Map<string, Member[]>();
-  groups.forEach((group, index) => {
-    const topicId = topics.bindings[group.id];
-    const path = topicId ? pathOf(topicId) : null;
-    if (!path) {
-      slots.push({ standalone: leaf(group, null) });
-      return;
-    }
-    const cluster = clusters.get(path[0]!);
-    if (cluster) cluster.push({ group, path, index });
-    else {
-      const members = [{ group, path, index }];
-      clusters.set(path[0]!, members);
-      slots.push({ cluster: members });
-    }
-  });
-
-  const build = (members: Member[]): WorkstreamNode<T> => {
-    if (members.length === 1)
-      return leaf(members[0]!.group, members[0]!.path.at(-1)!);
-    // The topics that head a node: each workstream's own, and every topic
-    // two of them share most specifically. Pairwise sharing is enough; in a
-    // tree, the topic three workstreams share is one two of them share.
-    const pathOfNode = new Map<string, string[]>();
-    for (const member of members)
-      pathOfNode.set(member.path.at(-1)!, member.path);
-    for (const [i, a] of members.entries())
-      for (const b of members.slice(i + 1)) {
-        let depth = 0;
-        while (
-          depth < a.path.length &&
-          depth < b.path.length &&
-          a.path[depth] === b.path[depth]
-        )
-          depth++;
-        const shared = a.path.slice(0, depth);
-        pathOfNode.set(shared.at(-1)!, shared);
-      }
-    /** The node a topic nests under: its nearest ancestor that heads one. */
-    const parentOf = (topicId: string) =>
-      pathOfNode
-        .get(topicId)!
-        .slice(0, -1)
-        .reverse()
-        .find((ancestor) => pathOfNode.has(ancestor)) ?? null;
-    const firstIndex = new Map<string, number>();
-    for (const member of members)
-      for (const topicId of member.path)
-        if (pathOfNode.has(topicId) && !firstIndex.has(topicId))
-          firstIndex.set(topicId, member.index);
-
-    const node = (
-      topicId: string,
-      parent: string | null,
-    ): WorkstreamNode<T> => {
-      const path = pathOfNode.get(topicId)!;
-      const label = path
-        .slice(parent ? path.indexOf(parent) + 1 : 0)
-        .map(nameOf)
-        .join(": ");
-      const own = members.filter((member) => member.path.at(-1) === topicId);
-      const children = [...pathOfNode.keys()]
-        .filter((child) => parentOf(child) === topicId)
-        .sort((a, b) => firstIndex.get(a)! - firstIndex.get(b)!)
-        .map((child) => node(child, topicId));
-      // A second section bound to the same topic nests as its sibling, not
-      // its replacement, so none of its threads disappear.
-      const [first, ...extra] = own;
-      const subgroups = [
-        ...extra.map((member) => ({
-          ...leaf(member.group, topicId),
-          label,
-        })),
-        ...children,
-      ];
-      const ownGroup = first?.group;
-      const sectionIds = members
-        .filter((member) => member.path.includes(topicId))
-        .map((member) => member.group.id);
-      return {
-        id: ownGroup?.id ?? sharedTopicId(topicId),
-        name: ownGroup?.name ?? path.map(nameOf).join(": "),
-        rows: ownGroup?.rows ?? [],
-        total:
-          (ownGroup?.total ?? 0) +
-          subgroups.reduce((sum, sub) => sum + sub.total, 0),
-        needsYou:
-          (ownGroup?.needsYou ?? 0) +
-          subgroups.reduce((sum, sub) => sum + sub.needsYou, 0),
-        lastActiveAt: Math.max(
-          ownGroup?.lastActiveAt ?? 0,
-          ...subgroups.map((sub) => sub.lastActiveAt),
-        ),
-        prioritized:
-          (ownGroup?.prioritized ?? false) ||
-          subgroups.some((sub) => sub.prioritized),
-        topicId,
-        label: parent ? label : (ownGroup?.name ?? label),
-        hasSection: ownGroup !== undefined,
-        subgroups,
-        sectionIds,
-      };
+  const build = (node: LayoutNode): WorkstreamNode<T> | null => {
+    const label = layoutLabel(node);
+    const own = node.lists ? (sectionsOf.get(node.topicId) ?? []) : [];
+    for (const group of own) used.add(group.id);
+    const children = node.children
+      .map(build)
+      .filter((child): child is WorkstreamNode<T> => child !== null)
+      .sort((a, b) => first(a) - first(b));
+    // A second section bound to the same topic nests as its sibling, not
+    // its replacement, so none of its threads disappear.
+    const [section, ...extra] = own;
+    const subgroups = [
+      ...extra.map((group) => leaf(group, node.topicId, label)),
+      ...children,
+    ];
+    if (!section && subgroups.length === 0) return null;
+    return {
+      id: section?.id ?? sharedTopicId(node.topicId),
+      name: section?.name ?? pathName(node.topicId),
+      rows: section?.rows ?? [],
+      total:
+        (section?.total ?? 0) +
+        subgroups.reduce((sum, sub) => sum + sub.total, 0),
+      needsYou:
+        (section?.needsYou ?? 0) +
+        subgroups.reduce((sum, sub) => sum + sub.needsYou, 0),
+      lastActiveAt: Math.max(
+        section?.lastActiveAt ?? 0,
+        ...subgroups.map((sub) => sub.lastActiveAt),
+      ),
+      prioritized:
+        (section?.prioritized ?? false) ||
+        subgroups.some((sub) => sub.prioritized),
+      topicId: node.topicId,
+      label,
+      hasSection: section !== undefined,
+      subgroups,
+      sectionIds: [
+        ...own.map((group) => group.id),
+        ...children.flatMap((child) => child.sectionIds),
+      ],
     };
-    const top = [...pathOfNode.keys()].find((topicId) => !parentOf(topicId))!;
-    return node(top, null);
   };
 
-  return slots.map((slot) =>
-    "standalone" in slot ? slot.standalone : build(slot.cluster),
-  );
+  const nested = (topics?.layout ?? [])
+    .map(build)
+    .filter((node): node is WorkstreamNode<T> => node !== null);
+  const alone = groups
+    .filter((group) => !used.has(group.id))
+    .map((group) =>
+      leaf(
+        group,
+        topics?.bindings[group.id] && byId.has(topics.bindings[group.id]!)
+          ? topics.bindings[group.id]!
+          : null,
+      ),
+    );
+  return [...nested, ...alone].sort((a, b) => first(a) - first(b));
 }
 
 /**

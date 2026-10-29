@@ -418,7 +418,6 @@ export default async function plugin(bb: BbPluginApi) {
     topics,
     analyzer,
     recaps: () => recaps.all(),
-    policy: () => ({ collapseAt: currentPrefs().organize.collapseAt }),
     members: (sectionId) => sectionMembers(bb.sdk, sectionId),
     journal,
     onChange: notify,
@@ -904,7 +903,10 @@ export default async function plugin(bb: BbPluginApi) {
       reclassification.preview(threadIds),
     reclassificationApply: async ({ planId }) => reclassification.apply(planId),
     observedNames: async ({ threadId }) => analyzer.observedNames(threadId),
-    catalog: async () => topics.state(),
+    catalog: async () => ({
+      ...topics.state(),
+      layout: organizerInstance.layout(),
+    }),
     catalogCreate: ({ name, description, parentId, aliases }) =>
       userFacing(async () => {
         const entity = topics.create(
@@ -971,7 +973,7 @@ export default async function plugin(bb: BbPluginApi) {
       order: loadOrder(db),
       snoozes: snoozes.all(),
       snoozePrefs: loadSnoozePrefs(db),
-      catalog: topics.state(),
+      catalog: { ...topics.state(), layout: organizerInstance.layout() },
     }),
     setSnoozePrefs: ({ patch }) =>
       userFacing(async () => {

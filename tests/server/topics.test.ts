@@ -8,7 +8,8 @@ const hosts: ReturnType<typeof createFakePluginHost>[] = [];
 const store = () => {
   const host = createFakePluginHost({ pluginId: `corpus-${hosts.length}` });
   hosts.push(host);
-  return { host, corpus: new TopicStore(openDatabase(host.bb)) };
+  const db = openDatabase(host.bb);
+  return { host, db, corpus: new TopicStore(db) };
 };
 
 afterEach(async () => {
@@ -129,7 +130,10 @@ describe("TopicStore", () => {
         return migrate(db, migrations.slice(0, boundary));
       });
     const db = openDatabase(host.bb);
-    const entity = new TopicStore(db).create("Alpha", "");
+    const entity = { id: "alpha" };
+    db.prepare(
+      "INSERT INTO ws_corpus_entity(id, name, description, parent_id, aliases) VALUES ('alpha', 'Alpha', '', NULL, '[]')",
+    ).run();
     const insert = db.prepare(
       "INSERT INTO ws_corpus_subject(thread_id, entity_id, evidence, source) VALUES (?, ?, ?, ?)",
     );
@@ -257,9 +261,10 @@ describe("TopicStore", () => {
       "LegacyAlpha",
     ]);
     const target = corpus.create("NewBeta", "New beta feature");
-    const child = corpus.create("ChildFeature", "Child of alpha", source.id);
-
+    // Legacy storage: a thread filed beside a subtopic, which no visible
+    // thread makes invalid here.
     corpus.assign("t-alpha", source.id);
+    const child = corpus.create("ChildFeature", "Child of alpha", source.id);
     corpus.bindGroup("sec-alpha", source.id);
 
     const initialRev = corpus.revision();
@@ -469,7 +474,7 @@ describe("TopicStore", () => {
   });
 
   it("nested merge recursively merges matching children, reparents grandchildren, and preserves all references", () => {
-    const { corpus } = store();
+    const { corpus, db } = store();
     // Structure:
     // Target:
     //   TargetRoot
@@ -492,9 +497,16 @@ describe("TopicStore", () => {
     const sourceMigrations = corpus.create("Migrations", "", sourceDb.id);
     const sourceQueue = corpus.create("Queue", "", sourceBackend.id);
 
-    corpus.assign("t-source-root", sourceRoot.id);
-    corpus.assign("t-source-backend", sourceBackend.id);
-    corpus.assign("t-source-db", sourceDb.id);
+    // Legacy storage that files threads beside subtopics.
+    const legacy = (threadId: string, entityId: string) =>
+      db
+        .prepare(
+          "INSERT INTO ws_corpus_subject(thread_id, entity_id, source) VALUES (?, ?, 'manual')",
+        )
+        .run(threadId, entityId);
+    legacy("t-source-root", sourceRoot.id);
+    legacy("t-source-backend", sourceBackend.id);
+    legacy("t-source-db", sourceDb.id);
     corpus.assign("t-migrations", sourceMigrations.id);
     corpus.assign("t-queue", sourceQueue.id);
 
@@ -630,7 +642,6 @@ describe("TopicStore", () => {
   it("lets Full analysis narrow an inherited topic without a scope shift", () => {
     const { corpus } = store();
     const product = corpus.create("Product", "");
-    const feature = corpus.create("Feature", "", product.id);
     const other = corpus.create("Other", "");
     const answer = (
       subjectId: string | null,
@@ -641,6 +652,10 @@ describe("TopicStore", () => {
       scopeShift: false,
     });
     corpus.assign("i", product.id, { provenance: "inherited" });
+    corpus.assign("j", product.id, { provenance: "inherited" });
+    // Legacy storage: threads filed beside the subtopic, which no visible
+    // thread makes invalid here.
+    const feature = corpus.create("Feature", "", product.id);
     // A sibling or the same topic is no narrowing.
     expect(corpus.applyAnalysis("i", answer(other.id), "full", "k1")).toBe(
       false,
@@ -660,7 +675,6 @@ describe("TopicStore", () => {
       provenance: "full",
     });
     // So does a new topic proposed beneath it.
-    corpus.assign("j", product.id, { provenance: "inherited" });
     expect(
       corpus.applyAnalysis(
         "j",

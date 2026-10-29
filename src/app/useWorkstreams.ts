@@ -103,7 +103,11 @@ export function useWorkstreams() {
   const topics: WorkstreamTopics | undefined = useMemo(
     () =>
       catalog
-        ? { entities: catalog.entities, bindings: catalog.groups }
+        ? {
+            entities: catalog.entities,
+            bindings: catalog.groups,
+            layout: catalog.layout,
+          }
         : undefined,
     [catalog],
   );

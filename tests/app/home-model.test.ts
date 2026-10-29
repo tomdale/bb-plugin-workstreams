@@ -470,6 +470,33 @@ describe("planHome with topics", () => {
           { id: "o", name: "Other", parentId: null },
         ],
         bindings: { sec_p: "p", sec_f: "f", sec_o: "o" },
+        layout: [
+          {
+            topicId: "p",
+            name: "Product",
+            prefix: [],
+            lists: true,
+            total: 2,
+            children: [
+              {
+                topicId: "f",
+                name: "Feature",
+                prefix: [],
+                lists: true,
+                total: 1,
+                children: [],
+              },
+            ],
+          },
+          {
+            topicId: "o",
+            name: "Other",
+            prefix: [],
+            lists: true,
+            total: 1,
+            children: [],
+          },
+        ],
       },
     });
     expect(plan.pinned.map((group) => group.name)).toEqual(["Product"]);

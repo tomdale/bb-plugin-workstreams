@@ -11,6 +11,7 @@ import {
 import { DAY_MS, projectWorkstreams } from "../../src/domain/project.ts";
 import { planDrop } from "../../src/app/sidebar/drop.ts";
 import { EMPTY_ORDER } from "../../src/domain/order.ts";
+import type { LayoutNode } from "../../src/domain/layout.ts";
 import { thread, type TestThread } from "./fixtures.ts";
 
 const now = 100 * DAY_MS;
@@ -22,9 +23,43 @@ const entities = [
   { id: "review", name: "Code Review", parentId: "va" },
   { id: "ws", name: "Workstreams", parentId: null },
 ];
-const topics = (bindings: Record<string, string>): WorkstreamTopics => ({
+const node = (
+  topicId: string,
+  name: string,
+  children: LayoutNode[] = [],
+  options: { lists?: boolean; prefix?: string[] } = {},
+): LayoutNode => ({
+  topicId,
+  name,
+  prefix: options.prefix ?? [],
+  lists: options.lists ?? children.length === 0,
+  total: 0,
+  children,
+});
+/** A legacy Automations that lists threads beside its subgroup. */
+const LEGACY = [
+  node("auto", "Automations", [node("alerts", "Alert Investigations")], {
+    lists: true,
+    prefix: ["Beacon"],
+  }),
+  node("ws", "Workstreams"),
+];
+const SPLIT = [
+  node(
+    "auto",
+    "Automations",
+    [node("alerts", "Alert Investigations"), node("cli", "CLI")],
+    { prefix: ["Beacon"] },
+  ),
+  node("ws", "Workstreams"),
+];
+const topics = (
+  bindings: Record<string, string>,
+  layout: LayoutNode[] = LEGACY,
+): WorkstreamTopics => ({
   entities,
   bindings,
+  layout,
 });
 
 /** Labels as an indented outline, so a test reads like the sidebar. */
@@ -38,7 +73,7 @@ function outline(nodes: readonly WorkstreamNode<TestThread>[], depth = 0) {
 }
 
 describe("nestGroups", () => {
-  it("nests a workstream under the workstream of its parent topic", () => {
+  it("nests a workstream under the group the layout puts it in", () => {
     const projection = projectWorkstreams(
       [
         thread("a1", { sectionId: "sec_auto" }),
@@ -72,7 +107,7 @@ describe("nestGroups", () => {
     expect(nodes[0]!.sectionIds).toEqual(["sec_auto", "sec_alerts"]);
   });
 
-  it("heads sibling workstreams with the topic they share", () => {
+  it("heads subgroups with a topic no section backs", () => {
     const projection = projectWorkstreams(
       [
         thread("i1", { sectionId: "sec_alerts" }),
@@ -90,7 +125,7 @@ describe("nestGroups", () => {
     );
     const [top, ...rest] = nestGroups(
       projection.all,
-      topics({ sec_alerts: "alerts", sec_cli: "cli" }),
+      topics({ sec_alerts: "alerts", sec_cli: "cli" }, SPLIT),
     );
     expect(rest).toEqual([]);
     expect(outline([top!])).toEqual([
@@ -104,7 +139,7 @@ describe("nestGroups", () => {
     expect(top!.rows).toEqual([]);
   });
 
-  it("follows the topic tree past one level and labels skipped topics", () => {
+  it("follows the layout's depth and dimmed prefixes", () => {
     const projection = projectWorkstreams(
       [
         thread("i1", { sectionId: "sec_alerts" }),
@@ -122,11 +157,22 @@ describe("nestGroups", () => {
       outline(
         nestGroups(
           projection.all,
-          topics({
-            sec_alerts: "alerts",
-            sec_cli: "cli",
-            sec_review: "review",
-          }),
+          topics(
+            {
+              sec_alerts: "alerts",
+              sec_cli: "cli",
+              sec_review: "review",
+            },
+            [
+              node("va", "Beacon", [
+                node("auto", "Automations", [
+                  node("alerts", "Alert Investigations"),
+                  node("cli", "CLI"),
+                ]),
+                node("review", "Code Review"),
+              ]),
+            ],
+          ),
         ),
       ),
     ).toEqual([
@@ -140,7 +186,14 @@ describe("nestGroups", () => {
       outline(
         nestGroups(
           projection.all.filter((group) => group.id !== "sec_cli"),
-          topics({ sec_alerts: "alerts", sec_review: "review" }),
+          topics({ sec_alerts: "alerts", sec_review: "review" }, [
+            node("va", "Beacon", [
+              node("alerts", "Alert Investigations", [], {
+                prefix: ["Automations"],
+              }),
+              node("review", "Code Review"),
+            ]),
+          ]),
         ),
       ),
     ).toEqual([
@@ -166,6 +219,15 @@ describe("nestGroups", () => {
     expect(
       outline(nestGroups(projection.all, topics({ sec_a: "gone" }))),
     ).toEqual(["Alpha (1)", "Beta (0)"]);
+    // A section the last pass didn't lay out stands alone in input order.
+    expect(
+      outline(
+        nestGroups(
+          projection.all,
+          topics({ sec_a: "ws", sec_b: "cli" }, [node("ws", "Workstreams")]),
+        ),
+      ),
+    ).toEqual(["Workstreams (1)", "Beta (0)"]);
   });
 });
 
@@ -269,7 +331,7 @@ describe("arrangeGroups with topics", () => {
       ],
       { now },
     );
-    const nested = topics({ sec_cli: "cli", sec_alerts: "alerts" });
+    const nested = topics({ sec_cli: "cli", sec_alerts: "alerts" }, SPLIT);
     expect(
       outline(arrangeGroups(projection, "alphabetical", nested).populated),
     ).toEqual([
@@ -345,7 +407,7 @@ describe("planDrop with nested groups", () => {
         projection,
         sections,
         EMPTY_ORDER,
-        topics({ sec_ws: "ws", sec_alerts: "alerts", sec_cli: "cli" }),
+        topics({ sec_ws: "ws", sec_alerts: "alerts", sec_cli: "cli" }, SPLIT),
       ),
     ).toEqual({
       reorder: {

@@ -60,8 +60,20 @@ export const DEFAULT_MODELS = {
     model: "openai/gpt-6-luna-fast",
     reasoningLevel: "none",
   },
-  /** Full analysis: the settled goal, topic, and status at a turn's end. */
+  /** Full analysis: the settled goal and status at a turn's end. */
   full: { kind: "gateway", model: "openai/gpt-6-sol-fast" },
+  /** Placement: the topic a root's requests belong to, in about a second. */
+  placement: {
+    kind: "gateway",
+    model: "openai/gpt-6-sol",
+    reasoningLevel: "none",
+  },
+  /** Suggestions: splits and tidy edits to the topic tree, for review. */
+  tidy: {
+    kind: "gateway",
+    model: "anthropic/claude-sonnet-5.5",
+    reasoningLevel: "medium",
+  },
 } as const satisfies Record<string, ModelChoice>;
 
 export const RECENT_LIMIT = { min: 1, max: 20, fallback: 5 } as const;
@@ -118,15 +130,16 @@ const GROUPS = {
   analysis: {
     /** Quick analysis: a draft's or first request's goal and topic, in seconds. */
     quickModel: [modelChoiceSchema, DEFAULT_MODELS.quick],
-    /** Full analysis: settles goal, topic, and status when a turn ends. */
+    /** Full analysis: settles goal and status when a turn ends. */
     fullModel: [modelChoiceSchema, DEFAULT_MODELS.full],
+    /** Placement: settles a root's topic from its requests. */
+    placementModel: [modelChoiceSchema, DEFAULT_MODELS.placement],
   },
   organize: {
-    /**
-     * A product with this many visible roots or fewer gets one workstream;
-     * a larger one gets a workstream for each topic with threads.
-     */
-    collapseAt: [z.number().int().min(0).max(99), 3],
+    /** Suggest splits and tidy edits to the topic tree for review. */
+    suggestions: [z.boolean(), true],
+    /** The model that writes those suggestions. */
+    tidyModel: [modelChoiceSchema, DEFAULT_MODELS.tidy],
   },
   /** Workstreams' color tokens (domain/colors.ts): a BB theme color or a custom color each. */
   colors: {

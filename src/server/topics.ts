@@ -73,7 +73,7 @@ export class TopicStore {
   list(): Topic[] {
     const rows = this.db
       .prepare(
-        "SELECT id, name, description, parent_id, aliases FROM ws_corpus_entity ORDER BY id",
+        "SELECT id, name, description, parent_id, aliases, partitioned FROM ws_corpus_entity ORDER BY id",
       )
       .all() as {
       id: string;
@@ -81,6 +81,7 @@ export class TopicStore {
       description: string;
       parent_id: string | null;
       aliases: string;
+      partitioned: number;
     }[];
     return rows.map((row) => ({
       id: row.id,
@@ -88,7 +89,57 @@ export class TopicStore {
       description: row.description,
       parentId: row.parent_id,
       aliases: JSON.parse(row.aliases) as string[],
+      partitioned: row.partitioned === 1,
     }));
+  }
+
+  /** How many topics sit directly beneath `entityId`. */
+  subtopics(entityId: string): number {
+    return (
+      this.db
+        .prepare(
+          "SELECT COUNT(*) AS n FROM ws_corpus_entity WHERE parent_id = ?",
+        )
+        .get(entityId) as { n: number }
+    ).n;
+  }
+
+  /** Visible, non-archived roots assigned to `entityId` itself. */
+  heldThreads(entityId: string): number {
+    return (
+      this.db
+        .prepare(
+          `SELECT COUNT(*) AS n FROM ws_corpus_subject s
+           JOIN ws_seen_thread t ON t.thread_id = s.thread_id
+           WHERE s.entity_id = ?`,
+        )
+        .get(entityId) as { n: number }
+    ).n;
+  }
+
+  /**
+   * A topic holds threads or subtopics, never both (docs/organization.md).
+   * Refuses to give `parentId` a subtopic while it holds threads.
+   */
+  private assertTakesSubtopics(parentId: string | null): void {
+    if (parentId === null) return;
+    const held = this.heldThreads(parentId);
+    if (held > 0)
+      throw new Error(
+        `${this.pathOf(parentId)} holds ${held === 1 ? "a thread" : `${held} threads`}, and a topic holds threads or subtopics, never both. Move its threads first, or accept a suggestion that splits it.`,
+      );
+  }
+
+  /** Refuses to file a thread in a topic that has subtopics. */
+  private assertTakesThreads(entityId: string): void {
+    if (this.subtopics(entityId) > 0)
+      throw new Error(
+        `${this.pathOf(entityId)} has subtopics, and a topic holds threads or subtopics, never both. Choose one of its subtopics.`,
+      );
+  }
+
+  private pathOf(entityId: string): string {
+    return topicPath(entityId, this.list());
   }
 
   getById(id: string): Topic | null {
@@ -141,6 +192,7 @@ export class TopicStore {
       description: cleanDescription,
       parentId,
       aliases: cleanAliasList,
+      partitioned: false,
     };
     this.db
       .prepare(
@@ -168,6 +220,7 @@ export class TopicStore {
       if (parentId !== null && !this.getById(parentId))
         throw new Error(`Unknown topic parent: ${parentId}`);
       this.assertParentChainAcyclic(parentId);
+      this.assertTakesSubtopics(parentId);
 
       const existing = this.resolve(cleanName, parentId);
       if (existing) {
@@ -198,6 +251,7 @@ export class TopicStore {
         description: cleanDescription,
         parentId,
         aliases: cleanAliasList,
+        partitioned: false,
       };
 
       this.db
@@ -231,6 +285,10 @@ export class TopicStore {
       if (resolved.subjectId !== null) return this.getById(resolved.subjectId)!;
       const proposal = resolved.proposed;
       let parent = proposal.parentId ?? null;
+      // Subgroups come only from splits, so a new topic beneath one that
+      // holds threads files the thread in that topic instead.
+      if (parent !== null && this.heldThreads(parent) > 0)
+        return this.getById(parent)!;
       for (const ancestor of proposal.ancestors ?? [])
         parent = this.insertDiscovered(
           ancestor.name,
@@ -484,6 +542,8 @@ export class TopicStore {
       ) {
         return this.assignment(threadId);
       }
+      if (entityId !== null && existing?.entity_id !== entityId)
+        this.assertTakesThreads(entityId);
 
       const isInitialClear =
         !existing && entityId === null && provenance === "manual";
@@ -561,6 +621,9 @@ export class TopicStore {
       }
       if (kind === "quick" && current !== null && current !== "quick")
         return false;
+      // Only a topic without subtopics holds threads.
+      if (answer.subjectId && this.subtopics(answer.subjectId) > 0)
+        return false;
       const entity = answer.subjectId
         ? this.getById(answer.subjectId)
         : answer.proposed
@@ -631,12 +694,79 @@ export class TopicStore {
    * guess, the topic `entityId` as inherited.
    */
   inheritTopic(threadId: string, entityId: string): boolean {
-    if (!this.getById(entityId)) return false;
+    // A topic with subtopics holds no threads; placement settles the thread
+    // with this topic as its hint.
+    if (!this.getById(entityId) || this.subtopics(entityId) > 0) return false;
     const current = this.assignment(threadId);
     if (current.provenance !== null && current.provenance !== "quick")
       return false;
     this.assign(threadId, entityId, { provenance: "inherited" });
     return true;
+  }
+
+  /**
+   * Splits a topic into subgroups: files each of its visible threads in one
+   * of `subgroups`, creating the ones it lacks beneath it (a name that
+   * matches an existing subtopic reuses it), and marks it partitioned so it
+   * keeps its header. Every visible thread it holds must be listed exactly
+   * once; threads keep their provenance. Returns the subgroups in order.
+   */
+  split(
+    entityId: string,
+    subgroups: readonly {
+      name: string;
+      description: string;
+      threadIds: readonly string[];
+    }[],
+  ): Topic[] {
+    return this.db.transaction(() => {
+      const entity = this.getById(entityId);
+      if (!entity) throw new Error(`Unknown topic: ${entityId}`);
+      if (subgroups.length === 0)
+        throw new Error("A split needs at least one subgroup.");
+      const held = (
+        this.db
+          .prepare(
+            `SELECT s.thread_id FROM ws_corpus_subject s
+             JOIN ws_seen_thread t ON t.thread_id = s.thread_id
+             WHERE s.entity_id = ?`,
+          )
+          .all(entityId) as { thread_id: string }[]
+      ).map((row) => row.thread_id);
+      const listed = subgroups.flatMap((group) => group.threadIds);
+      if (
+        listed.length !== new Set(listed).size ||
+        listed.length !== held.length ||
+        held.some((id) => !listed.includes(id))
+      )
+        throw new Error(
+          `A split of ${this.pathOf(entityId)} must file each of its threads in exactly one subgroup.`,
+        );
+      const names = subgroups.map((group) => normalize(group.name));
+      if (
+        names.some((name) => !name || name.includes(":")) ||
+        new Set(names).size !== names.length
+      )
+        throw new Error("Subgroups need distinct names without colons.");
+      const result: Topic[] = [];
+      for (const group of subgroups) {
+        const topic =
+          this.resolve(group.name, entityId) ??
+          this.insertDiscovered(group.name, group.description, entityId);
+        for (const threadId of group.threadIds)
+          this.db
+            .prepare(
+              "UPDATE ws_corpus_subject SET entity_id = ? WHERE thread_id = ?",
+            )
+            .run(topic.id, threadId);
+        result.push(topic);
+      }
+      this.db
+        .prepare("UPDATE ws_corpus_entity SET partitioned = 1 WHERE id = ?")
+        .run(entityId);
+      this.bumpRevision();
+      return result;
+    })();
   }
 
   /** The basis the thread's automatic topic was settled from, if any. */
@@ -788,6 +918,7 @@ export class TopicStore {
       if (newParentId !== null) {
         const parent = this.getById(newParentId);
         if (!parent) throw new Error(`Unknown topic parent: ${newParentId}`);
+        this.assertTakesSubtopics(newParentId);
         const parentAncestors = topicAncestors(newParentId, this.list());
         if (parentAncestors.includes(entityId)) {
           throw new Error(
@@ -849,6 +980,20 @@ export class TopicStore {
       const entities = this.list();
       const targetAncestors = topicAncestors(target.id, entities);
       const targetIsDescendantOfSource = targetAncestors.includes(source.id);
+
+      // The merged topic holds both topics' threads and subtopics, so one
+      // side's threads can't land beside the other's subtopics.
+      const mergedSubtopics = entities.filter(
+        (e) =>
+          (e.parentId === target.id || e.parentId === source.id) &&
+          e.id !== target.id,
+      ).length;
+      const mergedThreads =
+        this.heldThreads(source.id) + this.heldThreads(target.id);
+      if (mergedSubtopics > 0 && mergedThreads > 0)
+        throw new Error(
+          `Merging ${this.pathOf(source.id)} into ${this.pathOf(target.id)} would put threads beside subtopics, and a topic holds threads or subtopics, never both.`,
+        );
 
       const newTargetParentId = targetIsDescendantOfSource
         ? source.parentId

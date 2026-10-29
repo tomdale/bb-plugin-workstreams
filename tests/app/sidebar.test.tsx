@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { LayoutNode } from "../../src/domain/layout.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
@@ -91,6 +92,7 @@ async function mount(
         aliases: string[];
       }[];
       groups: Record<string, string>;
+      layout?: LayoutNode[];
     };
     archived?: {
       status: "loading" | "ready" | "error";
@@ -1728,6 +1730,35 @@ describe("nested workstreams", () => {
       sec_alerts: "alerts",
       sec_cli: "cli",
     },
+    // Automations lists its own thread beside its subgroups, as a topic
+    // from before the partition rule does.
+    layout: [
+      {
+        topicId: "auto",
+        name: "Automations",
+        prefix: ["Beacon"],
+        lists: true,
+        total: 3,
+        children: [
+          {
+            topicId: "alerts",
+            name: "Alert Investigations",
+            prefix: [],
+            lists: true,
+            total: 1,
+            children: [],
+          },
+          {
+            topicId: "cli",
+            name: "CLI",
+            prefix: [],
+            lists: true,
+            total: 1,
+            children: [],
+          },
+        ],
+      },
+    ],
   };
   const nestedSections = [
     section("sec_auto", "Beacon: Automations"),

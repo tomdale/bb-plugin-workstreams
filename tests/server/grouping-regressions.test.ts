@@ -10,68 +10,70 @@ const rebuild = (w: NonNullable<typeof world>) =>
   w.harness.behavior.callRpc("organization", {
     action: "rebuild",
   }) as Promise<any>;
+const DONE = JSON.stringify({
+  revision: 10,
+  state: "done",
+  recap: "Done",
+  goal: null,
+  needsYou: null,
+  at: 10,
+  model: "test",
+});
 describe("grouping regressions", () => {
   it.each([1, 4])(
-    "counts %i done roots toward the contraction threshold",
+    "counts %i done roots toward splitting and merging back",
     async (doneCount) => {
       world = await fakeWorld();
       const w = world;
       const db = openDatabase(w.bb);
       const topics = new TopicStore(db);
       const p = topics.create("Product", "Product");
-      const f = topics.create("Feature", "Feature", p.id);
-      for (let i = 0; i < 4; i++) {
+      const a = topics.create("Planning", "Planning", p.id);
+      const b = topics.create("Triggers", "Triggers", p.id);
+      // A split made these subgroups, so Product keeps its header rather
+      // than collapsing into a prefix like a context.
+      db.prepare(
+        "UPDATE ws_corpus_entity SET partitioned = 1 WHERE id = ?",
+      ).run(p.id);
+      for (let i = 0; i < 6; i++) {
         w.addThread(`t${i}`, {
           status: "idle",
           latestAttentionAt: 10,
-          archivedAt: i === 3 ? 20 : null,
+          archivedAt: i === 5 ? 20 : null,
         });
-        topics.assign(`t${i}`, i < 2 ? p.id : f.id);
-        if (i >= 4 - doneCount) {
+        topics.assign(`t${i}`, i % 2 === 0 ? a.id : b.id);
+        if (i >= 6 - doneCount)
           db.prepare(
             "INSERT INTO ws_analysis(thread_id, revision, at, result) VALUES (?,10,10,?)",
-          ).run(
-            `t${i}`,
-            JSON.stringify({
-              revision: 10,
-              state: "done",
-              recap: "Done",
-              goal: null,
-              needsYou: null,
-              at: 10,
-              model: "test",
-            }),
-          );
-        }
+          ).run(`t${i}`, DONE);
       }
       const atThreshold = (await rebuild(w)).state;
-      expect(atThreshold.counts.totalRoots).toBe(3);
+      expect(atThreshold.counts.totalRoots).toBe(5);
       expect(atThreshold.groups).toEqual([
-        expect.objectContaining({ name: "Product", totalCount: 3 }),
+        expect.objectContaining({ name: "Product", totalCount: 5 }),
       ]);
 
-      // A fourth visible root splits the product, whether or not it's done.
-      w.threads.get("t3")!.archivedAt = null;
-      const expanded = (await rebuild(w)).state;
-      expect(expanded.groups).toHaveLength(2);
-      expect(expanded.counts).toMatchObject({
-        totalRoots: 4,
-        activeRoots: 4 - doneCount,
+      // A sixth visible root splits the group, whether or not it's done.
+      w.threads.get("t5")!.archivedAt = null;
+      const split = (await rebuild(w)).state;
+      expect(split.groups.map((g: { name: string }) => g.name).sort()).toEqual([
+        "Product: Planning",
+        "Product: Triggers",
+      ]);
+      expect(split.counts).toMatchObject({
+        totalRoots: 6,
+        activeRoots: 6 - doneCount,
         completedRoots: doneCount,
       });
-      expect(
-        expanded.groups.map((g: { sectionId: string }) => g.sectionId).sort(),
-      ).toEqual(
-        (await rebuild(w)).state.groups
-          .map((g: { sectionId: string }) => g.sectionId)
-          .sort(),
-      );
 
-      // Archiving back to the threshold folds the groups again.
+      // It stays split down to 4, and shows one list again at 3.
       w.threads.get("t0")!.archivedAt = 20;
-      const contracted = (await rebuild(w)).state;
-      expect(contracted.counts.totalRoots).toBe(3);
-      expect(contracted.groups).toEqual([
+      w.threads.get("t1")!.archivedAt = 20;
+      expect((await rebuild(w)).state.groups).toHaveLength(2);
+      w.threads.get("t2")!.archivedAt = 20;
+      const merged = (await rebuild(w)).state;
+      expect(merged.counts.totalRoots).toBe(3);
+      expect(merged.groups).toEqual([
         expect.objectContaining({ name: "Product", totalCount: 3 }),
       ]);
     },
@@ -82,10 +84,11 @@ describe("grouping regressions", () => {
     const db = openDatabase(w.bb);
     const topics = new TopicStore(db);
     const p = topics.create("Product", "Product");
-    const f = topics.create("Feature", "Feature", p.id);
-    for (let i = 0; i < 4; i++) {
+    const a = topics.create("Planning", "Planning", p.id);
+    const b = topics.create("Triggers", "Triggers", p.id);
+    for (let i = 0; i < 6; i++) {
       w.addThread(`t${i}`, { status: "idle", latestAttentionAt: 10 });
-      topics.assign(`t${i}`, i < 2 ? p.id : f.id);
+      topics.assign(`t${i}`, i < 3 ? a.id : b.id);
     }
     let completed = false;
     w.harness.inspection.sdk.stub(
@@ -93,28 +96,14 @@ describe("grouping regressions", () => {
       async (args: { threadId: string }) => {
         if (!completed) {
           completed = true;
-          for (let i = 0; i < 4; i++)
+          for (let i = 0; i < 6; i++)
             db.prepare(
               "INSERT INTO ws_analysis(thread_id, revision, at, result) VALUES (?,10,10,?)",
-            ).run(
-              `t${i}`,
-              JSON.stringify({
-                revision: 10,
-                state: "done",
-                recap: "Done",
-                goal: null,
-                needsYou: null,
-                at: 10,
-                model: "test",
-              }),
-            );
+            ).run(`t${i}`, DONE);
         }
         return w.threads.get(args.threadId)!;
       },
     );
-    await w.harness.behavior.callRpc("setPrefs", {
-      patch: { organize: { collapseAt: 1 } },
-    });
     await rebuild(w);
     await vi.waitFor(async () => {
       const { state } = (await w.harness.behavior.callRpc(
@@ -125,13 +114,13 @@ describe("grouping regressions", () => {
       expect(state.groups).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            name: "Product",
-            completedCount: 2,
+            name: "Product: Planning",
+            completedCount: 3,
             activeCount: 0,
           }),
           expect.objectContaining({
-            name: "Product: Feature",
-            completedCount: 2,
+            name: "Product: Triggers",
+            completedCount: 3,
             activeCount: 0,
           }),
         ]),
@@ -140,73 +129,38 @@ describe("grouping regressions", () => {
     const writes = w.harness.inspection.sdk
       .callsTo("threads.update")
       .map((args) => (args[0] as { sectionId?: string }).sectionId);
-    expect(writes).toHaveLength(4);
-    for (let i = 0; i < 4; i++) {
-      const name = i < 2 ? "Product" : "Product: Feature";
+    expect(writes).toHaveLength(6);
+    for (let i = 0; i < 6; i++) {
+      const name = i < 3 ? "Product: Planning" : "Product: Triggers";
       expect(w.threads.get(`t${i}`)?.sectionId).toBe(
         w.sections.find((s) => s.name === name)!.id,
       );
     }
   });
-  it("applies a policy-only preference change without a forced rebuild", async () => {
-    world = await fakeWorld();
-    const w = world;
-    const topics = new TopicStore(openDatabase(w.bb));
-    const p = topics.create("Product", "Product");
-    const f = topics.create("Feature", "Feature", p.id);
-    await w.harness.behavior.callRpc("setPrefs", {
-      patch: { organize: { collapseAt: 4 } },
-    });
-    for (let i = 0; i < 4; i++) {
-      w.addThread(`t${i}`);
-      topics.assign(`t${i}`, i < 2 ? p.id : f.id);
-    }
-    expect((await rebuild(w)).state.groups).toHaveLength(1);
-    await w.harness.behavior.callRpc("setPrefs", {
-      patch: { organize: { collapseAt: 3 } },
-    });
-    await vi.waitFor(async () => {
-      const { state } = (await w.harness.behavior.callRpc(
-        "organization",
-        null,
-      )) as any;
-      expect(state.groups).toHaveLength(2);
-    });
-  });
-  it("counts completed roots in each workstream of a split product", async () => {
+  it("counts completed roots in each workstream of a split group", async () => {
     world = await fakeWorld();
     const w = world;
     const db = openDatabase(w.bb);
     const topics = new TopicStore(db);
     const p = topics.create("Product", "Product");
+    const a = topics.create("Planning", "Planning", p.id);
     const f = topics.create("Feature", "Feature", p.id);
-    topics.bindGroup(w.addSection("Product").id, p.id);
+    topics.bindGroup(w.addSection("Product: Planning").id, a.id);
     topics.bindGroup(w.addSection("Product: Feature").id, f.id);
     for (let i = 0; i < 8; i++) {
       w.addThread(`t${i}`, { status: "idle", latestAttentionAt: 10 });
-      topics.assign(`t${i}`, i === 0 ? p.id : f.id);
+      topics.assign(`t${i}`, i === 0 ? a.id : f.id);
       if (i === 0 || i > 4)
         db.prepare(
           "INSERT INTO ws_analysis(thread_id, revision, at, result) VALUES (?,10,10,?)",
-        ).run(
-          `t${i}`,
-          JSON.stringify({
-            revision: 10,
-            state: "done",
-            recap: "Done",
-            goal: null,
-            needsYou: null,
-            at: 10,
-            model: "test",
-          }),
-        );
+        ).run(`t${i}`, DONE);
     }
     const { state } = await rebuild(w);
     expect(state.groups).toHaveLength(2);
     expect(state.groups).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          name: "Product",
+          name: "Product: Planning",
           activeCount: 0,
           completedCount: 1,
           totalCount: 1,

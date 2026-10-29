@@ -1,3 +1,4 @@
+import type { LayoutNode } from "../domain/layout.ts";
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { questionHistorySchema } from "./questions/history.ts";
 import {
@@ -207,13 +208,26 @@ const entitySchema = z.object({
   description: z.string(),
   parentId: z.string().nullable(),
   aliases: z.array(z.string()),
+  partitioned: z.boolean().optional(),
 });
+
+const layoutNodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
+  z.object({
+    topicId: z.string(),
+    prefix: z.array(z.string()),
+    name: z.string(),
+    lists: z.boolean(),
+    total: z.number(),
+    children: z.array(layoutNodeSchema),
+  }),
+);
 
 const catalogStateSchema = z.object({
   entities: z.array(entitySchema),
   groups: z.record(z.string(), z.string()),
   assignments: z.record(z.string(), topicAssignmentSchema),
   revision: z.number(),
+  layout: z.array(layoutNodeSchema).optional(),
 });
 
 const idList = z.array(z.string().min(1)).max(5000);

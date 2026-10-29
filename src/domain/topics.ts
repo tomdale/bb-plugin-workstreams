@@ -1,9 +1,16 @@
+import type { LayoutNode } from "./layout.ts";
+
 export type Topic = {
   id: string;
   name: string;
   description: string;
   parentId: string | null;
   aliases: string[];
+  /**
+   * Its subtopics are subgroups a volume split created, so it always keeps
+   * its header (see `layoutGroups`).
+   */
+  partitioned?: boolean;
 };
 
 /**
@@ -41,6 +48,8 @@ export type TopicState = {
   groups: Record<string, string>;
   assignments: Record<string, TopicAssignment>;
   revision: number;
+  /** The groups the organizer last applied (see `layoutGroups`). */
+  layout?: readonly LayoutNode[];
 };
 
 export type DraftAncestor = {

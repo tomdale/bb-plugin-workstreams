@@ -126,6 +126,12 @@ describe("Catalog and Task Identity RPC Contract", () => {
       }),
     ).rejects.toThrow(/cycle/);
 
+    // Move Alpha back out, so Beta holds no subtopics and can take threads
+    await w.harness.behavior.callRpc("catalogReparent", {
+      entityId: alpha.id,
+      parentId: null,
+    });
+
     // Assign thread to Alpha
     const thread = w.addThread("t-target");
     await w.harness.behavior.callRpc("taskAssign", {

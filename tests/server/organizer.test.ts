@@ -169,7 +169,7 @@ describe("automatic update coordinator lifecycle", () => {
     const lantern = corpus.create("Lantern", "Product");
     const shelves = corpus.create("Shelves", "Feature", lantern.id);
 
-    // 4 tasks on Shelves (exceeds collapse threshold 3)
+    // 4 tasks on Shelves
     for (let i = 1; i <= 4; i++) {
       w.addThread(`t${i}`, { title: `Shelves task ${i}` });
       await w.harness.behavior.callRpc("taskAssign", {
@@ -179,7 +179,6 @@ describe("automatic update coordinator lifecycle", () => {
     }
 
     let state = await rebuildOrg(w);
-    // Active count 4 > collapseAt 3 -> expanded or product
     expect(state.counts.activeRoots).toBe(4);
     expect(state.counts.completedRoots).toBe(0);
 
@@ -245,8 +244,10 @@ describe("automatic update coordinator lifecycle", () => {
       threadId: "t1",
       entityId: feat.id,
     });
+    // A root topic with no threads of its own is a context, so the feature
+    // lists its thread under its own name.
     let state = await rebuildOrg(w);
-    expect(state.groups[0]!.name).toBe("ProductOne");
+    expect(state.groups[0]!.name).toBe("ProductOne: FeatureX");
 
     // Reparent feat to p2
     await w.harness.behavior.callRpc("catalogReparent", {
@@ -254,8 +255,8 @@ describe("automatic update coordinator lifecycle", () => {
       parentId: p2.id,
     });
     state = await rebuildOrg(w);
-    expect(state.groups[0]!.name).toBe("ProductTwo");
-    const p2Sec = w.sections.find((s) => s.name === "ProductTwo")!;
+    expect(state.groups[0]!.name).toBe("ProductTwo: FeatureX");
+    const p2Sec = w.sections.find((s) => s.name === "ProductTwo: FeatureX")!;
     expect(w.threads.get("t1")?.sectionId).toBe(p2Sec.id);
   });
 
@@ -452,6 +453,7 @@ describe("automatic update coordinator lifecycle", () => {
     const corpus = new TopicStore(openDatabase(w.bb));
     const prodA = corpus.create("ProductAlpha", "Product A");
     const featA = corpus.create("FeatureA", "Feature under A", prodA.id);
+    const otherA = corpus.create("OtherA", "Other under A", prodA.id);
     const prodB = corpus.create("ProductBeta", "Product B");
     const featB = corpus.create("FeatureB", "Feature under B", prodB.id);
 
@@ -462,16 +464,19 @@ describe("automatic update coordinator lifecycle", () => {
     w.addThread("t-b2", { title: "Task B2" });
 
     corpus.assign("t-a1", featA.id, { provenance: "manual" });
-    corpus.assign("t-a2", prodA.id, { provenance: "manual" });
+    corpus.assign("t-a2", otherA.id, { provenance: "manual" });
     corpus.assign("t-b1", featB.id, { provenance: "manual" });
-    corpus.assign("t-b2", prodB.id, { provenance: "manual" });
+    corpus.assign("t-b2", featB.id, { provenance: "manual" });
 
     const state = await rebuildOrg(w);
     expect(state.status).toBe("idle");
     expect(state.error).toBeNull();
     const groupNames = state.groups.map((g) => g.name);
-    expect(groupNames).toContain("ProductAlpha");
-    expect(groupNames).toContain("ProductBeta");
+    expect(groupNames.sort()).toEqual([
+      "ProductAlpha: FeatureA",
+      "ProductAlpha: OtherA",
+      "ProductBeta: FeatureB",
+    ]);
   });
 
   it("no topic set yourself stays: analysis never gives that thread one", async () => {
@@ -544,9 +549,9 @@ describe("automatic update coordinator lifecycle", () => {
       corpus.assign(`ui-${i}`, f2.id, { provenance: "manual" });
     }
 
-    // 1 completed task on Lantern root, 1 completed task on Docs (f3)
+    // 1 completed task on Core, 1 completed task on Docs (f3)
     w.addThread("done-root", { title: "Lantern initial setup" });
-    corpus.assign("done-root", prod.id, { provenance: "manual" });
+    corpus.assign("done-root", f1.id, { provenance: "manual" });
     w.turn("done-root", "completed");
     await w.harness.behavior.emitThreadEvent("thread.idle", {
       thread: w.threads.get("done-root")!,
@@ -579,8 +584,8 @@ describe("automatic update coordinator lifecycle", () => {
     expect(doneDocsThread?.sectionId).not.toBeNull();
 
     // Each completed root keeps its own topic's workstream.
-    const lanternGroup = state.groups.find((g) => g.name === "Lantern");
-    expect(lanternGroup?.roots.some((r) => r.id === "done-root")).toBe(true);
+    const coreGroup = state.groups.find((g) => g.name === "Lantern: Core");
+    expect(coreGroup?.roots.some((r) => r.id === "done-root")).toBe(true);
     const docsGroup = state.groups.find((g) => g.name === "Lantern: Docs");
     expect(docsGroup?.roots.some((r) => r.id === "done-docs")).toBe(true);
   });

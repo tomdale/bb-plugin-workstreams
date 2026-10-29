@@ -174,7 +174,7 @@ export function ThreadsSettings() {
       <SectionRows>
         <ModelField
           label="Full analysis model"
-          description="When a turn ends after a new request, settles the thread's goal (its title, while Keep titles current is on) and its topic, and its status when the agent didn't report one."
+          description="When a turn ends after a new request, settles the thread's goal (its title, while Keep titles current is on), and its status when the agent didn't report one."
           choice={prefs.analysis.fullModel}
           onChange={(fullModel) => update({ analysis: { fullModel } })}
         />
@@ -282,18 +282,30 @@ export function OrganizeSettings() {
     <div className="space-y-3">
       <SettingsSaveError error={error} />
       <SectionRows>
+        <ModelField
+          label="Placement model"
+          description="Picks each thread's topic from its requests: when it starts, and again after a new request."
+          choice={prefs.analysis.placementModel}
+          onChange={(placementModel) =>
+            update({ analysis: { placementModel } })
+          }
+        />
         <SettingRow
-          label="Contraction threshold"
-          description="A top-level topic with this many visible root threads or fewer, including completed threads, gets one workstream for all its subtopics. A larger one gets a subgroup for each subtopic with threads."
+          label="Organizing suggestions"
+          description="Suggest splitting busy topics and tidying the topic tree. Nothing changes until you accept a suggestion."
           control={
-            <Stepper
-              label="Contraction threshold"
-              value={prefs.organize.collapseAt}
-              min={0}
-              max={99}
-              onChange={(collapseAt) => update({ organize: { collapseAt } })}
+            <SettingSwitch
+              label="Organizing suggestions"
+              checked={prefs.organize.suggestions}
+              onChange={(suggestions) => update({ organize: { suggestions } })}
             />
           }
+        />
+        <ModelField
+          label="Suggestions model"
+          description="Writes organizing suggestions, at most once a day unless you ask for them."
+          choice={prefs.organize.tidyModel}
+          onChange={(tidyModel) => update({ organize: { tidyModel } })}
         />
       </SectionRows>
     </div>

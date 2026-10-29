@@ -107,8 +107,9 @@ describe("Workstreams prefs", () => {
       analysis: {
         quickModel: { kind: "gateway", model: "google/old-model" },
         fullModel: { kind: "gateway", model: "openai/old-organize" },
+        placementModel: DEFAULT_MODELS.placement,
       },
-      organize: { collapseAt: 3 },
+      organize: { suggestions: true, tidyModel: DEFAULT_MODELS.tidy },
       colors: { scheme: "workstreams", ...DEFAULT_COLORS },
       advanced: { hostId: "host-a", debug: true },
     });
@@ -166,6 +167,7 @@ describe("Workstreams prefs", () => {
     expect(prefs.analysis).toEqual({
       quickModel: { kind: "gateway", model: "google/quick" },
       fullModel: { kind: "gateway", model: "openai/full" },
+      placementModel: DEFAULT_MODELS.placement,
     });
   });
 });

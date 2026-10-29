@@ -343,6 +343,8 @@ const MIGRATIONS = [
   "UPDATE ws_corpus_subject SET source = 'manual' WHERE source = 'selected'",
   // `classified` is the earlier name for an automatic topic, which is `full`.
   "UPDATE ws_corpus_subject SET source = 'full' WHERE source = 'classified'",
+  // A topic whose subtopics a volume split created keeps its header.
+  "ALTER TABLE ws_corpus_entity ADD COLUMN partitioned INTEGER NOT NULL DEFAULT 0",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {
