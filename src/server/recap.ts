@@ -704,7 +704,7 @@ export class AgentRecaps {
     const found = this.blockProblems.get(threadId);
     const problem =
       BLOCK_PROBLEMS[found?.turnId === turnId ? found.problem : "block"];
-    return `Your turn ended without a recap: ${problem}. Finish any remaining authorized work, then end with a \`:::reply{state="…"}\` block that starts with a \`# \` headline. If you need the user's input instead, write the block without \`state\`, then ask through a question card.`;
+    return `Your turn ended without a recap: ${problem}. Finish any remaining authorized work, then end with a \`:::reply{state="…"}\` block that starts with a \`# \` headline. If you need the user's input instead, ask through a question card; it is then the reply.`;
   }
 
   /**

@@ -25,16 +25,16 @@ function withCard(): string {
   const body = REPLY_LABELS.filter(
     (label) => label !== "Done" && label !== "Next",
   );
-  return `End every turn with one reply block as your final message, after you finish the work you were authorized to do. The block is the whole reply: write nothing before it or after it, and make no tool call after it except a question card (below). Its card fields become the recap above the composer and the thread's state in the sidebar.
+  return `End every turn with one reply block as your final message, after you finish the work you were authorized to do, unless the turn ends with a question card, which is then the reply. The block is the whole reply: write nothing before it or after it, and make no tool call after it. Its card fields become the recap above the composer and the thread's state in the sidebar.
 Open it with \`:::${REPLY_BLOCK}{state="…"}\` alone on a line (the states are below), with no space after the colons or before the \`{\`, and close it with \`:::\` alone on a line, at the top level of the message. Code blocks work inside; a line holding only \`:::\` ends the block even inside one, so a body that holds such a line uses \`::::${REPLY_BLOCK}{…}\` … \`::::\`. For example, with illustrative details:
 
 :::${REPLY_BLOCK}{state="review"}
-# Fixed the percent coupon math
+# Percent coupons apply a percentage
 - [x] \`apply_percent_coupon\` applies a percentage
 - [x] Committed \`e69d1dd\` locally; nothing pushed
 
 ### Checked
-Ran \`python3 -m unittest\` in the repo: 5 of 5 pass.
+Ran \`python3 -m unittest\`: 5 of 5 pass.
 
 ### Review
 - Run the cart tests and check the 10% case
@@ -45,15 +45,19 @@ Ran \`python3 -m unittest\` in the repo: 5 of 5 pass.
 
 state: complete when all work this thread owns is finished; review when a finished result waits on the user to inspect, test, merge, or ship; waiting only while an async task runs whose result this thread needs, with \`timeout="<seconds>"\` (1-86400, a realistic polling interval), after which Workstreams prompts you to check status if no other turn has started. The state covers the work this thread owns under the user's request; work continuing elsewhere counts only while this thread owns follow-up. Keep working while there is authorized work you can do, and before a complete or review block check for concrete blockers and obvious continuations.
 Card fields, as terse inline Markdown without closing periods:
-- \`# \` headline (required, up to 80 characters): the thread's purpose, past tense for complete and review, -ing for waiting
+- \`# \` headline (required, up to 80 characters): one short present-tense sentence saying what is true now, not the task's name ("1 of 5 tests fails", not "Repo status checked"); -ing for waiting
 - a \`- [x]\` list right under it: one to three results, about 12 words each, most important first, with commit hashes and PR links inline
 - \`### Review\` (review only): one to three steps saying how to try the result and what to expect
 - \`### Links\` (review only): \`[title](location)\` items, absolute paths or HTTPS URLs the user is asked to review
 - \`### Waiting on\` (waiting only): one \`@thread:<id> task\` item per agent you wait for
 - \`### Next\` (complete and review): one to three \`Title: message\` items the user might send, whenever they can take or request a next step; a title of at most 28 characters, a self-contained message sent verbatim; never work you should do yourself
-Then the body, only sections with something to say, in this order: ${body.join(", ")}. Checked names what was run and where ("Ran \`npm test\` locally"); Not done items are \`- [ ]\`; Why gives the how or why. Then up to two sections of your own (a one-to-four-word heading; at most five items or three sentences) and \`### Details\` (shown folded) for anything longer. Never repeat a card line in the body.
-A short answer (a one-line fact, a yes or no, a simple lookup) is the block with only a headline that states the answer: \`# Python 3.9 or newer\`.
-When you need the user's answer, write the block without \`state\`, with a lead of one or two plain sentences, \`### Done\` as \`- [x]\` items and any commit or PR links, then call the question tool.
+Then the body, only sections with something to say, in this order: ${body.join(", ")}. Checked says what was run and its result ("Ran \`python3 -m unittest\`: 5 of 5 pass", not "Ran tests"); Not done items are \`- [ ]\`; Why gives the how or why. Then up to two sections of your own (a one-to-four-word heading; at most five items or three sentences) and \`### Details\` (shown folded) for anything longer. Never repeat a card line in the body.
+A short answer (a one-line fact, a yes or no, a simple lookup) is a block with only its headline, which states the answer:
+
+:::${REPLY_BLOCK}{state="complete"}
+# Python 3.9 or newer
+:::
+
 ${VOICE("")}
 A two-line body is a good body: stop when one or two short sections say it.`;
 }

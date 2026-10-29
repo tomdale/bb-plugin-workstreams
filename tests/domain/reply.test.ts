@@ -335,7 +335,7 @@ describe("replyInstructions", () => {
     const block = lastReplyBlock(`${example(replyInstructions(true))}\n`)!;
     const data = reply(parse(block, { status: block.status }));
     expect(data.lead).toBeUndefined();
-    expect(data.card?.headline).toBe("Fixed the percent coupon math");
+    expect(data.card?.headline).toBe("Percent coupons apply a percentage");
     expect(data.sections.map((section) => section.label)).toEqual(["Checked"]);
     expect(recapInputFromCard(data.card!)).toMatchObject({
       ok: true,
@@ -343,6 +343,19 @@ describe("replyInstructions", () => {
         state: "review",
         review: ["Run the cart tests and check the 10% case"],
       },
+    });
+  });
+
+  it("with the recap on, the short-answer example is a complete recap with no results", () => {
+    const text = replyInstructions(true);
+    const short = /^:::reply\{state="complete"\}\n# [^\n]+\n:::$/m.exec(
+      text,
+    )![0];
+    const block = lastReplyBlock(`${short}\n`)!;
+    const data = reply(parse(block, { status: block.status }));
+    expect(recapInputFromCard(data.card!)).toMatchObject({
+      ok: true,
+      input: { state: "complete", goal: "Python 3.9 or newer", latest: [] },
     });
   });
 
@@ -365,14 +378,17 @@ describe("replyInstructions", () => {
       "`### Waiting on` (waiting only)",
       "`Title: message`",
       "in this order: Checked, Not done, Needs you, Why",
-      "Checked names what was run and where",
+      "Checked says what was run and its result",
+      'not "Ran tests"',
+      "not the task's name",
       "A short answer",
-      "write the block without `state`",
-      "then call the question tool",
+      ':::reply{state="complete"}\n# Python 3.9 or newer\n:::',
+      "unless the turn ends with a question card, which is then the reply",
       "A two-line body is a good body",
     ])
       expect(text).toContain(phrase);
     expect(text).not.toContain("WorkstreamsRecap");
+    expect(text).not.toContain("without `state`");
   });
 
   it("without the recap: the fixed labels in order, and the block before a question card", () => {
