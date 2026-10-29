@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type {
   PluginAppBuilder,
   ExperimentalMessageBlockProps,
@@ -23,11 +23,17 @@ async function registration(): Promise<ExperimentalMessageBlockRegistration> {
   return reply;
 }
 
-async function draw(message: string, options?: { streaming?: boolean }) {
+async function draw(
+  message: string,
+  options?: {
+    streaming?: boolean;
+    docked?: { turnId: string; dismissed?: boolean };
+  },
+) {
   const block = await registration();
-  const { status, source, tree } = blockInput(message, options);
+  const { status, source, tree, attributes } = blockInput(message, options);
   const result = block.parse(
-    { attributes: {}, source, tree },
+    { attributes, source, tree },
     { version: 1, status },
   );
   const props: ExperimentalMessageBlockProps = {
@@ -44,7 +50,21 @@ async function draw(message: string, options?: { streaming?: boolean }) {
     index: 0,
     Original,
   };
-  return renderSlot(block, props);
+  const docked = options?.docked;
+  return renderSlot(
+    block,
+    props,
+    docked
+      ? {
+          rpc: {
+            recap_get: () => ({
+              recap: { id: "r1", turnId: docked.turnId },
+              dismissed: docked.dismissed ?? false,
+            }),
+          },
+        }
+      : undefined,
+  );
 }
 
 const sample = (kind: string) =>
@@ -195,4 +215,75 @@ it("starts a block with no lead at its first section, with no gap above", async 
   const first = root.firstElementChild!;
   expect(first.getAttribute("data-reply-section")).toBe("Checked");
   expect(first.className).toContain("first:mt-0");
+});
+
+const CARD = `:::reply{state="review"}
+# Fixed the percent coupon math
+- [x] \`apply_percent_coupon\` applies a percentage
+
+### Checked
+Ran \`python3 -m unittest\` locally.
+
+### Review
+- Run the cart tests
+
+### Next
+- Push the fix: Push the coupon fix
+:::
+`;
+
+it("draws a past turn's card fields in the block, without next actions", async () => {
+  const view = await draw(CARD);
+  const root = view.container.querySelector("[data-reply-block]")!;
+  expect(root.querySelector("[data-reply-headline]")?.textContent).toBe(
+    "Fixed the percent coupon math",
+  );
+  expect(
+    root.querySelector('[data-reply-results] [data-reply-item="Done"]')
+      ?.textContent,
+  ).toContain("applies a percentage");
+  expect(
+    [...root.querySelectorAll("h3")].map((heading) => heading.textContent),
+  ).toEqual(["Review", "Checked"]);
+  expect(root.textContent).not.toContain("Push the fix");
+});
+
+it("leaves the card fields to the docked card for its own turn", async () => {
+  const view = await draw(CARD, { docked: { turnId: "turn1" } });
+  await waitFor(() =>
+    expect(view.container.querySelector("[data-reply-docked]")).not.toBeNull(),
+  );
+  const root = view.container.querySelector("[data-reply-block]")!;
+  expect(root.querySelector("[data-reply-headline]")).toBeNull();
+  expect(root.querySelector("[data-reply-results]")).toBeNull();
+  expect(
+    [...root.querySelectorAll("h3")].map((heading) => heading.textContent),
+  ).toEqual(["Checked"]);
+});
+
+it("shows the card fields again once the card is dismissed or belongs to another turn", async () => {
+  for (const docked of [
+    { turnId: "turn1", dismissed: true },
+    { turnId: "turn2" },
+  ]) {
+    const view = await draw(CARD, { docked });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(
+      view.container.querySelector("[data-reply-headline]"),
+    ).not.toBeNull();
+    view.lifecycle.unmount();
+  }
+});
+
+it("draws nothing for a short answer while its card is docked", async () => {
+  const short = ':::reply{state="complete"}\n# Python 3.9 or newer\n:::\n';
+  const shown = await draw(short);
+  expect(
+    shown.container.querySelector("[data-reply-headline]")?.textContent,
+  ).toBe("Python 3.9 or newer");
+  shown.lifecycle.unmount();
+  const view = await draw(short, { docked: { turnId: "turn1" } });
+  await waitFor(() =>
+    expect(view.container.querySelector("[data-reply-block]")).toBeNull(),
+  );
 });

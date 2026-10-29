@@ -18,11 +18,14 @@ import {
   RecapText,
 } from "../composer/RecapCard.tsx";
 import {
+  CARD_LABELS,
   DETAILS_LABEL,
   replySchema,
+  type ReplyCard,
   type ReplyItem,
   type ReplySection,
 } from "../../domain/reply.ts";
+import { useDockedTurn } from "./useDockedTurn.ts";
 
 /** The message's own type, so the body reads as part of the message. */
 const INHERIT = "text-[length:inherit] leading-[inherit]";
@@ -146,17 +149,81 @@ function Details({ markdown }: { markdown: string }) {
   );
 }
 
+/** One card field drawn as a quiet section of plain lines. */
+function CardLines({ label, lines }: { label: string; lines: string[] }) {
+  if (!lines.length) return null;
+  return (
+    <Section
+      section={{
+        label,
+        kind: "fixed",
+        markdown: lines.join("\n"),
+        items: lines.map((markdown) => ({ checked: null, markdown })),
+      }}
+    />
+  );
+}
+
+/**
+ * The card fields as part of the message, in the card's type but without
+ * its frame. Next actions are buttons on the docked card only.
+ */
+function CardPart({ card }: { card: ReplyCard }) {
+  return (
+    <>
+      {card.headline ? (
+        <div
+          data-reply-headline=""
+          role="heading"
+          aria-level={3}
+          className={cn(SECTION_SPACING, "font-medium text-foreground")}
+        >
+          <RecapText text={card.headline} typeClass={INHERIT} />
+        </div>
+      ) : null}
+      {card.results.length ? (
+        <div data-reply-results="" className="mt-1">
+          <Items
+            items={card.results.map((item) => ({
+              checked: item.checked ?? true,
+              markdown: item.markdown,
+            }))}
+            label="Done"
+          />
+        </div>
+      ) : null}
+      <CardLines label={CARD_LABELS.review} lines={card.review} />
+      <CardLines label={CARD_LABELS.waitingOn} lines={card.waitingOn} />
+      <CardLines label={CARD_LABELS.links} lines={card.links} />
+    </>
+  );
+}
+
 export function ReplyBlock({
   data,
   status,
+  message,
   Original,
 }: ExperimentalMessageBlockProps) {
+  const docked = useDockedTurn(
+    message.threadId ?? null,
+    message.turnId ?? null,
+  );
   if (status === "unclosed") return <Original />;
   const reply = replySchema.safeParse(data);
   if (!reply.success) return null;
-  const { lead, sections, details } = reply.data;
+  const { card, lead, sections, details } = reply.data;
+  // While this turn's card is docked it shows the card fields; the block
+  // keeps only the body, and a short answer's block shows nothing.
+  const showCard = card && !docked;
+  if (!showCard && !lead && !sections.length && !details) return null;
   return (
-    <div data-reply-block="" className="my-1 min-w-0 text-foreground">
+    <div
+      data-reply-block=""
+      data-reply-docked={card && docked ? "" : undefined}
+      className="my-1 min-w-0 text-foreground"
+    >
+      {showCard ? <CardPart card={card} /> : null}
       {lead ? <ReplyText markdown={lead} /> : null}
       {sections.map((section, index) => (
         <Section key={`${index}-${section.label}`} section={section} />
