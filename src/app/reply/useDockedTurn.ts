@@ -2,30 +2,24 @@
  * Whether a message's turn is the one the docked recap card shows. The card
  * reads the thread's stored recap, which a reply block's card fields wrote,
  * so while it is docked the block leaves its headline and results to it.
+ *
+ * Read from the plugin's shared server state, so every block on screen
+ * shares one read. Null until that state has loaded: the block then draws
+ * the docked layout, so its card fields never appear and then vanish.
  */
-import { useEffect, useRef, useState } from "react";
-import { useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
-import type { RpcContract } from "../../server/contract.ts";
+import { useSharedServerState } from "../serverState.ts";
 
 export function useDockedTurn(
   threadId: string | null,
   turnId: string | null,
-): boolean {
-  const rpc = useRpc<RpcContract>();
-  const [docked, setDocked] = useState(false);
-  const version = useRef(0);
-  const load = () => {
-    const current = ++version.current;
-    if (!threadId || !turnId) return setDocked(false);
-    void rpc
-      .call("recap_get", { threadId })
-      .then(({ recap, dismissed }) => {
-        if (current === version.current)
-          setDocked(!!recap && !dismissed && recap.turnId === turnId);
-      })
-      .catch(() => {});
-  };
-  useEffect(load, [rpc, threadId, turnId]);
-  useRealtime("changed", load);
-  return docked;
+): boolean | null {
+  const { server } = useSharedServerState();
+  if (!threadId || !turnId) return false;
+  if (!server.ready) return null;
+  const recap = server.recaps[threadId];
+  return (
+    !!recap &&
+    recap.turnId === turnId &&
+    !(server.dismissedRecaps ?? []).includes(recap.id)
+  );
 }

@@ -57,9 +57,9 @@ async function draw(
     docked
       ? {
           rpc: {
-            recap_get: () => ({
-              recap: { id: "r1", turnId: docked.turnId },
-              dismissed: docked.dismissed ?? false,
+            state: () => ({
+              recaps: { t1: { id: "r1", turnId: docked.turnId } },
+              dismissedRecaps: docked.dismissed ? ["r1"] : [],
             }),
           },
         }
@@ -234,6 +234,11 @@ Ran \`python3 -m unittest\` locally.
 
 it("draws a past turn's card fields in the block, without next actions", async () => {
   const view = await draw(CARD);
+  await waitFor(() =>
+    expect(
+      view.container.querySelector("[data-reply-headline]"),
+    ).not.toBeNull(),
+  );
   const root = view.container.querySelector("[data-reply-block]")!;
   expect(root.querySelector("[data-reply-headline]")?.textContent).toBe(
     "Fixed the percent coupon math",
@@ -251,7 +256,11 @@ it("draws a past turn's card fields in the block, without next actions", async (
 it("leaves the card fields to the docked card for its own turn", async () => {
   const view = await draw(CARD, { docked: { turnId: "turn1" } });
   await waitFor(() =>
-    expect(view.container.querySelector("[data-reply-docked]")).not.toBeNull(),
+    expect(
+      view.container
+        .querySelector("[data-reply-block]")
+        ?.getAttribute("data-reply-docked"),
+    ).toBe(""),
   );
   const root = view.container.querySelector("[data-reply-block]")!;
   expect(root.querySelector("[data-reply-headline]")).toBeNull();
@@ -267,10 +276,11 @@ it("shows the card fields again once the card is dismissed or belongs to another
     { turnId: "turn2" },
   ]) {
     const view = await draw(CARD, { docked });
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(
-      view.container.querySelector("[data-reply-headline]"),
-    ).not.toBeNull();
+    await waitFor(() =>
+      expect(
+        view.container.querySelector("[data-reply-headline]"),
+      ).not.toBeNull(),
+    );
     view.lifecycle.unmount();
   }
 });
@@ -278,12 +288,159 @@ it("shows the card fields again once the card is dismissed or belongs to another
 it("draws nothing for a short answer while its card is docked", async () => {
   const short = ':::reply{state="complete"}\n# Python 3.9 or newer\n:::\n';
   const shown = await draw(short);
-  expect(
-    shown.container.querySelector("[data-reply-headline]")?.textContent,
-  ).toBe("Python 3.9 or newer");
+  await waitFor(() =>
+    expect(
+      shown.container.querySelector("[data-reply-headline]")?.textContent,
+    ).toBe("Python 3.9 or newer"),
+  );
   shown.lifecycle.unmount();
   const view = await draw(short, { docked: { turnId: "turn1" } });
   await waitFor(() =>
     expect(view.container.querySelector("[data-reply-block]")).toBeNull(),
   );
+});
+
+it("draws the docked layout until the docked state is known, so card fields never flash", async () => {
+  let answer: (value: unknown) => void = () => {};
+  const block = await registration();
+  const { status, source, tree, attributes } = blockInput(CARD);
+  const result = block.parse(
+    { attributes, source, tree },
+    { version: 1, status },
+  );
+  const view = renderSlot(
+    block,
+    {
+      data: result.ok ? result.data : null,
+      error: null,
+      status,
+      source: CARD,
+      message: {
+        id: "m1",
+        threadId: "t1",
+        turnId: "turn1",
+      } as unknown as ExperimentalMessageBlockProps["message"],
+      index: 0,
+      Original,
+    },
+    {
+      rpc: {
+        state: () =>
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+      },
+    },
+  );
+  const root = () => view.container.querySelector("[data-reply-block]")!;
+  expect(root().getAttribute("data-reply-docked")).toBe("pending");
+  expect(root().querySelector("[data-reply-headline]")).toBeNull();
+  expect(root().textContent).toContain("Ran");
+  answer({ recaps: {}, dismissedRecaps: [] });
+  await waitFor(() =>
+    expect(root().querySelector("[data-reply-headline]")).not.toBeNull(),
+  );
+});
+
+it("keeps the last good reply while a streaming update fails to parse", async () => {
+  const block = await registration();
+  const message = {
+    id: "m1",
+    threadId: "t1",
+    turnId: "turn1",
+  } as unknown as ExperimentalMessageBlockProps["message"];
+  const good = blockInput(":::reply\nTests pass.\n\n### Checked\n22 tests\n", {
+    streaming: true,
+  });
+  const parsed = block.parse(
+    { attributes: {}, source: good.source, tree: good.tree },
+    { version: 1, status: "streaming" },
+  );
+  const base = {
+    source: "",
+    message,
+    index: 0,
+    Original,
+  };
+  const view = renderSlot(block, {
+    ...base,
+    data: parsed.ok ? parsed.data : null,
+    error: null,
+    status: "streaming" as const,
+  });
+  const text = () =>
+    view.container.querySelector("[data-reply-block]")?.textContent;
+  expect(text()).toContain("22 tests");
+  for (const next of [
+    { data: null, error: "not yet" },
+    { data: { not: "a reply" }, error: null },
+  ]) {
+    view.lifecycle.rerender(
+      <block.component {...base} {...next} status="streaming" />,
+    );
+    expect(text()).toContain("22 tests");
+  }
+  // Once closed, only the fresh parse counts.
+  view.lifecycle.rerender(
+    <block.component
+      {...base}
+      data={{ not: "a reply" }}
+      error={null}
+      status="closed"
+    />,
+  );
+  expect(view.container.querySelector("[data-reply-block]")).toBeNull();
+});
+
+it("fades in a section that arrives mid-stream, and keeps existing ones in place", async () => {
+  const block = await registration();
+  const message = {
+    id: "m1",
+    threadId: "t1",
+    turnId: "turn1",
+  } as unknown as ExperimentalMessageBlockProps["message"];
+  const props = (text: string, status: "streaming" | "closed") => {
+    const input = blockInput(text, { streaming: status === "streaming" });
+    const parsed = block.parse(
+      { attributes: {}, source: input.source, tree: input.tree },
+      { version: 1, status },
+    );
+    return {
+      data: parsed.ok ? parsed.data : null,
+      error: null,
+      status,
+      source: text,
+      message,
+      index: 0,
+      Original,
+    };
+  };
+  const view = renderSlot(
+    block,
+    props(":::reply\nLead.\n\n### Checked\n22 tests\n", "closed"),
+  );
+  const first = view.container.querySelector('[data-reply-section="Checked"]')!;
+  expect(first.className).not.toContain("ws-reply-enter");
+  view.lifecycle.rerender(
+    <block.component
+      {...props(
+        ":::reply\nLead.\n\n### Checked\n22 tests\n\n### Ne",
+        "streaming",
+      )}
+    />,
+  );
+  view.lifecycle.rerender(
+    <block.component
+      {...props(
+        ":::reply\nLead.\n\n### Checked\n22 tests\n\n### Next\nShip",
+        "streaming",
+      )}
+    />,
+  );
+  // The same node, not remounted, and the new one fading in.
+  expect(view.container.querySelector('[data-reply-section="Checked"]')).toBe(
+    first,
+  );
+  const added = view.container.querySelector('[data-reply-section="Next"]')!;
+  expect(added.className).toContain("ws-reply-enter");
 });

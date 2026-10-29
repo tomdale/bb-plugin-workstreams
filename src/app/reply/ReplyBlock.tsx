@@ -6,7 +6,7 @@
  * ended without its closing `:::` line shows bb's own rendering of the block,
  * the same Markdown readers see without the plugin.
  */
-import { useId, useState } from "react";
+import { createContext, useContext, useId, useRef, useState } from "react";
 import { Markdown } from "@get-bb/plugin-sdk/app";
 import type { ExperimentalMessageBlockProps } from "@get-bb/plugin-sdk/app";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ import {
   CARD_LABELS,
   DETAILS_LABEL,
   replySchema,
+  type Reply,
   type ReplyCard,
   type ReplyItem,
   type ReplySection,
@@ -103,9 +104,18 @@ function Items({ items, label }: { items: ReplyItem[]; label: string }) {
   );
 }
 
+/** Whether the reply is still streaming, for sections that mount meanwhile. */
+const StreamingContext = createContext(false);
+
 function Section({ section }: { section: ReplySection }) {
+  // Only a section that arrives mid-stream fades in; one present when the
+  // block mounts, as on reload, draws at once.
+  const [entering] = useState(useContext(StreamingContext));
   return (
-    <section data-reply-section={section.label} className={SECTION_SPACING}>
+    <section
+      data-reply-section={section.label}
+      className={cn(SECTION_SPACING, entering && "ws-reply-enter")}
+    >
       <h3 className={LABEL}>{section.label}</h3>
       {section.items ? (
         <Items items={section.items} label={section.label} />
@@ -209,26 +219,44 @@ export function ReplyBlock({
     message.threadId ?? null,
     message.turnId ?? null,
   );
+  // While the reply streams, an update that doesn't parse keeps the last
+  // reply that did, so the block never blanks for a frame. Once closed, only
+  // the fresh parse counts.
+  const lastGood = useRef<Reply | null>(null);
+  const parsed = replySchema.safeParse(data);
+  if (parsed.success) lastGood.current = parsed.data;
   if (status === "unclosed") return <Original />;
-  const reply = replySchema.safeParse(data);
-  if (!reply.success) return null;
-  const { card, lead, sections, details } = reply.data;
+  const reply = parsed.success
+    ? parsed.data
+    : status === "streaming"
+      ? lastGood.current
+      : null;
+  if (!reply) return null;
+  const { card, lead, sections, details } = reply;
   // While this turn's card is docked it shows the card fields; the block
-  // keeps only the body, and a short answer's block shows nothing.
-  const showCard = card && !docked;
+  // keeps only the body, and a short answer's block shows nothing. Until the
+  // docked state is known, the block draws that docked layout, so card
+  // fields never appear and then vanish.
+  const showCard = card && docked === false;
   if (!showCard && !lead && !sections.length && !details) return null;
   return (
-    <div
-      data-reply-block=""
-      data-reply-docked={card && docked ? "" : undefined}
-      className="my-1 min-w-0 text-foreground"
-    >
-      {showCard ? <CardPart card={card} /> : null}
-      {lead ? <ReplyText markdown={lead} /> : null}
-      {sections.map((section, index) => (
-        <Section key={`${index}-${section.label}`} section={section} />
-      ))}
-      {details ? <Details markdown={details} /> : null}
-    </div>
+    <StreamingContext.Provider value={status === "streaming"}>
+      <div
+        data-reply-block=""
+        data-reply-docked={
+          card && docked !== false ? (docked ? "" : "pending") : undefined
+        }
+        className="my-1 min-w-0 text-foreground"
+      >
+        {showCard ? <CardPart card={card} /> : null}
+        {lead ? <ReplyText markdown={lead} /> : null}
+        {sections.map((section, index) => (
+          // Keyed by position: the last section's label grows while it
+          // streams, and a new key would remount it.
+          <Section key={index} section={section} />
+        ))}
+        {details ? <Details markdown={details} /> : null}
+      </div>
+    </StreamingContext.Provider>
   );
 }
