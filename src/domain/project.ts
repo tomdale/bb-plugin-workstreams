@@ -12,6 +12,10 @@
  */
 import { applyOrder, type ManualOrder } from "./order.ts";
 import {
+  retainedEmptyWorkstreams,
+  type LastPopulatedAt,
+} from "./empty-workstreams.ts";
+import {
   buildForest,
   flatten,
   type TreeNode,
@@ -96,6 +100,8 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 export type ProjectionOptions<T extends WorkstreamThread> = {
   readonly now: number;
   readonly dormantAfterMs?: number;
+  /** Empty rows survive briefly after their last visible thread leaves. */
+  readonly lastPopulatedAt?: LastPopulatedAt;
   /** Whether a thread needs Tom. Defaults to a live pending interaction. */
   readonly needsYou?: (thread: T) => boolean;
   /**
@@ -251,9 +257,15 @@ export function projectWorkstreams<T extends WorkstreamThread>(
     (section) => section.id,
     "last",
   );
-  for (const section of orderedSections) {
-    const g = group(section.id, section.name);
-    allGroups.push(g);
+  for (const section of orderedSections)
+    allGroups.push(group(section.id, section.name));
+  const retained = retainedEmptyWorkstreams(
+    allGroups.filter((g) => g.total === 0).map((g) => g.id),
+    options.lastPopulatedAt ?? {},
+    options.now,
+  );
+  for (const g of allGroups) {
+    if (g.total === 0 && !retained.has(g.id)) continue;
     const quiet = options.now - g.lastActiveAt > dormantAfterMs;
     if (g.prioritized) pinned.push(g);
     else if (g.total === 0) empty.push(g);

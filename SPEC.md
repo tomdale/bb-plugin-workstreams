@@ -113,6 +113,14 @@ A shared topic without a workstream becomes a header with no threads of its own.
 Focus covers a top-level group's sections; dragging a header moves them
 together.
 
+Empty workstreams remain in the sidebar and Home only while they had a visible,
+non-archived, unsnoozed thread within the last ten minutes, with a shared
+maximum of three, selected by most recent population. Focus and nesting do not
+bypass this rule. Population timestamps persist across reloads; observing an
+empty workstream never renews them. Expiry does not require another thread event
+and does not delete threads or topics. The organizer keeps their sections and
+topic bindings during the grace period so New work remains scoped correctly.
+
 The Organization page shows current organizer state, workstreams, counts, and
 agent-report coverage. `bb workstreams organization [--rebuild]` reports or
 rebuilds the projection. Topics are managed in the Topics tab or with

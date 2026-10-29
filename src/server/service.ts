@@ -10,6 +10,12 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { Database } from "./db.ts";
 import { getMeta, setMeta } from "./db.ts";
 import { buildForest } from "../domain/tree.ts";
+import { projectWorkstreams, type Section } from "../domain/project.ts";
+import {
+  EMPTY_WORKSTREAM_GRACE_MS,
+  retainedEmptyWorkstreams,
+  type LastPopulatedAt,
+} from "../domain/empty-workstreams.ts";
 import {
   displayTitle,
   listActiveThreads,
@@ -35,6 +41,7 @@ export class WorkstreamService {
   private queue: Promise<unknown> = Promise.resolve();
   private lastReconciledAt: number | null = null;
   private lastThreads: InventoryThread[] = [];
+  private lastSections: Section[] = [];
 
   constructor(
     private readonly sdk: () => Sdk,
@@ -43,6 +50,10 @@ export class WorkstreamService {
     private readonly onChange: () => void,
     private readonly now: () => number = Date.now,
     private readonly titlesEnabled: () => boolean = () => true,
+    private readonly snoozedUntil: (
+      thread: InventoryThread,
+      now: number,
+    ) => number | null | undefined = () => undefined,
   ) {}
 
   /** Runs `task` after every earlier mutation or reconcile has settled. */
@@ -66,6 +77,7 @@ export class WorkstreamService {
   state(): {
     workstreams: Record<string, WorkstreamRecord>;
     lastReconciledAt: number | null;
+    lastPopulatedAt: LastPopulatedAt;
   } {
     const workstreams: Record<string, WorkstreamRecord> = {};
     for (const row of this.db
@@ -83,7 +95,11 @@ export class WorkstreamService {
         descriptionSource: row.description_source,
         createdBy: row.created_by,
       };
-    return { workstreams, lastReconciledAt: this.lastReconciledAt };
+    return {
+      workstreams,
+      lastReconciledAt: this.lastReconciledAt,
+      lastPopulatedAt: this.lastPopulatedAt(),
+    };
   }
 
   /**
@@ -598,9 +614,67 @@ export class WorkstreamService {
       tx();
       this.lastReconciledAt = at;
       this.lastThreads = threads;
-      if (changed) this.onChange();
+      this.lastSections = sections;
+      const populationChanged = this.observePopulation();
+      if (changed || populationChanged) this.onChange();
       return changed;
     });
+  }
+
+  /** Durable last-visible times, not thread attention or title-update times. */
+  lastPopulatedAt(): LastPopulatedAt {
+    try {
+      const value: unknown = JSON.parse(
+        getMeta(this.db, "last-populated-workstreams") ?? "{}",
+      );
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        return {};
+      return Object.fromEntries(
+        Object.entries(value).filter(
+          ([, at]) => typeof at === "number" && Number.isFinite(at) && at >= 0,
+        ),
+      );
+    } catch {
+      return {};
+    }
+  }
+
+  /** Also used by section cleanup, so a new-thread target survives archival. */
+  retainedEmptyWorkstreams(): Set<string> {
+    const now = this.now();
+    const projection = projectWorkstreams(this.lastThreads, this.lastSections, {
+      now,
+      snoozedUntil: (thread) => this.snoozedUntil(thread, now),
+    });
+    return retainedEmptyWorkstreams(
+      projection.all
+        .filter((group) => group.total === 0)
+        .map((group) => group.id),
+      this.lastPopulatedAt(),
+      now,
+    );
+  }
+
+  /** Observes actual visible rows, including snooze pruning, without reviving old empties. */
+  observePopulation(): boolean {
+    const now = this.now();
+    const previous = this.lastPopulatedAt();
+    const projection = projectWorkstreams(this.lastThreads, this.lastSections, {
+      now,
+      snoozedUntil: (thread) => this.snoozedUntil(thread, now),
+    });
+    const next: Record<string, number> = {};
+    for (const group of projection.all) {
+      if (group.total > 0) next[group.id] = now;
+      else if (
+        previous[group.id] !== undefined &&
+        now - previous[group.id]! < EMPTY_WORKSTREAM_GRACE_MS
+      )
+        next[group.id] = previous[group.id]!;
+    }
+    if (JSON.stringify(next) === JSON.stringify(previous)) return false;
+    setMeta(this.db, "last-populated-workstreams", JSON.stringify(next));
+    return true;
   }
 
   /** Visible, non-archived threads as of the last reconcile. */

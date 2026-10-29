@@ -502,6 +502,8 @@ export const rpcContract = defineRpcContract({
       recaps: z.record(z.string(), recapSchema).default({}),
       bootstrapped: z.boolean(),
       lastReconciledAt: z.number().nullable(),
+      /** Recent visible population, shared across clients and reloads. */
+      lastPopulatedAt: z.record(z.string(), z.number()).default({}),
       /** The sidebar's drag-and-drop order. */
       order: orderSchema,
       /** Snoozed threads, by id (see domain/snooze.ts). */

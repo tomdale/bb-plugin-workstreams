@@ -27,7 +27,11 @@ function project(prioritized: string[] = []) {
       thread("loose", { latestAttentionAt: now - 4 }),
     ],
     sections,
-    { now, order: { workstreams: [], threads: {}, prioritized } },
+    {
+      now,
+      lastPopulatedAt: { sec_empty: now - 1 },
+      order: { workstreams: [], threads: {}, prioritized },
+    },
   );
 }
 

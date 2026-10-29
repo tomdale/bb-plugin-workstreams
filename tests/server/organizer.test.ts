@@ -125,7 +125,9 @@ describe("automatic update coordinator lifecycle", () => {
     expect(state.groups.find((g) => g.name === "Compass")).toBeDefined();
   });
 
-  it("archive: removes archived thread from active navigation and cleans up empty section", async () => {
+  it("archive: keeps an empty section briefly, then cleans it up after ten minutes", async () => {
+    let now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
     world = await fakeWorld();
     const w = world;
     const corpus = new TopicStore(openDatabase(w.bb));
@@ -147,8 +149,16 @@ describe("automatic update coordinator lifecycle", () => {
     const state = await rebuildOrg(w);
     expect(state.counts.activeRoots).toBe(0);
     expect(state.groups).toHaveLength(0);
-    // Unused empty section cleaned up
-    expect(w.sections.some((s) => s.name === "Lantern")).toBe(false);
+    // Its scoped New work action remains available briefly.
+    expect(w.sections.some((s) => s.name === "Lantern")).toBe(true);
+    now += 10 * 60_000;
+    try {
+      await rebuildOrg(w);
+      expect(w.sections.some((s) => s.name === "Lantern")).toBe(false);
+      expect(w.threads.get("t1")?.archivedAt).not.toBeNull();
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it("done and return-to-active: completion updates status counts without changing visible load", async () => {

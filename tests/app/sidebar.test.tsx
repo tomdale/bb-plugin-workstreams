@@ -69,6 +69,7 @@ async function mount(
     onNavigate?: () => void;
     analysis?: Record<string, unknown>;
     recaps?: Record<string, unknown>;
+    lastPopulatedAt?: Record<string, number>;
     order?: {
       workstreams: string[];
       threads: Record<string, string[]>;
@@ -107,6 +108,13 @@ async function mount(
     prioritized: [] as string[],
     ...(options.order ?? { workstreams: [], threads: {} }),
   };
+  // The default fixture includes recently emptied sections; expiry tests supply
+  // their own history rather than relying on permanent empty rows.
+  const lastPopulatedAt =
+    options.lastPopulatedAt ??
+    Object.fromEntries(
+      (options.sections ?? sections).map((section) => [section.id, Date.now()]),
+    );
   const list = app.threadLists[0]!;
   const props = {
     activeThreadId:
@@ -174,6 +182,7 @@ async function mount(
         ...emptyState(),
         analysis: options.analysis ?? {},
         recaps: options.recaps ?? {},
+        lastPopulatedAt,
         order: {
           workstreams: [...order.workstreams],
           threads: { ...order.threads },
@@ -534,10 +543,49 @@ describe("thread list", () => {
     slot.lifecycle.unmount();
   });
 
-  it("shows Unfiled, then empty workstreams, after populated ones; empty ones get a scoped New work action and no zero count", async () => {
+  it("omits empty workstreams without recent population, even if focused", async () => {
+    const slot = await mount(undefined, {
+      settings: { showRecent: false, showForYou: false },
+      lastPopulatedAt: {},
+      order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
+    });
+    await slot.findByRole("region", { name: "Alpha" });
+    expect(slot.queryByRole("region", { name: "Zeta" })).toBeNull();
+    expect(
+      slot.queryByRole("button", { name: "Show other workstreams" }),
+    ).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps at most three recent empty workstreams in the actual sidebar", async () => {
+    const at = Date.now();
+    const slot = await mount([], {
+      settings: { showRecent: false, showForYou: false, showArchived: false },
+      sections: ["A", "B", "C", "D", "Stale"].map((name) =>
+        section(name, name),
+      ),
+      lastPopulatedAt: {
+        A: at - 4,
+        B: at - 3,
+        C: at - 2,
+        D: at - 1,
+        Stale: at - 600_000,
+      },
+    });
+    await slot.findByRole("region", { name: "D" });
+    expect(
+      slot
+        .getAllByRole("region")
+        .map((node) => node.getAttribute("aria-label")),
+    ).toEqual(["B", "C", "D"]);
+    slot.lifecycle.unmount();
+  });
+
+  it("shows Unfiled, then recent empty workstreams; empty ones get a scoped New work action and no zero count", async () => {
     const slot = await mount(undefined, {
       settings: { showRecent: false, showForYou: false, groupSort: "manual" },
       order: { workstreams: ["sec_z", "sec_b", "sec_a"], threads: {} },
+      lastPopulatedAt: { sec_z: Date.now() },
     });
     await waitFor(() =>
       expect(
@@ -1770,11 +1818,19 @@ describe("nested workstreams", () => {
     );
     await waitFor(() =>
       expect(
-        within(top()).queryByRole("region", {
-          name: "Beacon: Automations: CLI",
-        }),
-      ).toBeNull(),
+        within(top())
+          .getByRole("region", {
+            name: "Beacon: Automations: CLI",
+          })
+          .querySelectorAll("a"),
+      ).toHaveLength(0),
     );
+    // Recently emptied subgroups retain their scoped New work action too.
+    expect(
+      within(top()).getByRole("button", {
+        name: "New work in Beacon: Automations: CLI",
+      }),
+    ).toBeTruthy();
     fireEvent.click(
       within(top()).getByRole("button", {
         name: /^Snooze 2 threads in Beacon: Automations until/,
@@ -2386,9 +2442,10 @@ describe("row hover buttons", () => {
     slot.lifecycle.unmount();
   });
 
-  it("keeps only a focused workstream's Focus and an empty one's New work in view", async () => {
+  it("keeps only a focused workstream's Focus and a recent empty one's New work in view", async () => {
     const slot = await mount(undefined, {
       settings: { showRecent: false, showForYou: false },
+      lastPopulatedAt: { sec_z: Date.now() },
       order: { workstreams: [], threads: {}, prioritized: ["sec_b"] },
     });
     const revealed = () =>

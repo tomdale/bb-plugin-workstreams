@@ -10,6 +10,10 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import type { MapRecord } from "../server/map.ts";
 import { projectWorkstreams, type Projection } from "../domain/project.ts";
+import {
+  EMPTY_WORKSTREAM_GRACE_MS,
+  type LastPopulatedAt,
+} from "../domain/empty-workstreams.ts";
 import type { Recap } from "../domain/recap.ts";
 import { needsAttention, upNextKind, workView } from "../domain/status.ts";
 import type { ManualOrder } from "../domain/order.ts";
@@ -44,6 +48,7 @@ export type ServerState = {
   recaps: Record<string, Recap>;
   bootstrapped: boolean;
   lastReconciledAt: number | null;
+  lastPopulatedAt?: LastPopulatedAt;
   order: ManualOrder;
   snoozes: Record<string, ThreadSnooze>;
   snoozePrefs: SnoozePrefs;
@@ -62,13 +67,17 @@ export function useServerState() {
 
 export { workView, type WorkView } from "../domain/status.ts";
 
-/** Re-renders once a minute so ages and dormancy stay current. */
-export function useNow(intervalMs = 60_000): number {
+/** Refreshes ages each minute, or at an earlier visibility deadline. */
+export function useNow(intervalMs = 60_000, deadline?: number): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(timer);
-  }, [intervalMs]);
+    const delay =
+      deadline !== undefined && deadline > Date.now()
+        ? Math.min(intervalMs, deadline - Date.now())
+        : intervalMs;
+    const timer = setTimeout(() => setNow(Date.now()), delay);
+    return () => clearTimeout(timer);
+  }, [intervalMs, deadline, now]);
   return now;
 }
 
@@ -76,10 +85,18 @@ export function useWorkstreams() {
   const { status, threads, sections, projects } =
     experimental_useSidebarThreads();
   const { prefs } = usePrefs();
-  const now = useNow();
   const { rpc, server, refresh, reorder, setSnoozes } = useServerState();
 
-  const { analysis, recaps, order, snoozes, catalog } = server;
+  const { analysis, recaps, order, snoozes, catalog, lastPopulatedAt } = server;
+  const deadline = Math.min(
+    ...Object.values(lastPopulatedAt ?? {})
+      .map((at) => at + EMPTY_WORKSTREAM_GRACE_MS)
+      .filter((at) => at > Date.now()),
+  );
+  const now = Math.max(
+    useNow(60_000, Number.isFinite(deadline) ? deadline : undefined),
+    Date.now(),
+  );
   /** What nests the workstreams (see `nestGroups`). */
   const topics: WorkstreamTopics | undefined = useMemo(
     () =>
@@ -97,12 +114,13 @@ export function useWorkstreams() {
           return needsAttention(thread, work);
         },
         order,
+        lastPopulatedAt,
         snoozedUntil: (thread) => {
           const snooze = snoozes[thread.id];
           return isSnoozed(snooze, thread, now) ? snooze!.until : undefined;
         },
       }),
-    [threads, sections, now, analysis, recaps, order, snoozes],
+    [threads, sections, now, analysis, recaps, order, snoozes, lastPopulatedAt],
   );
   /**
    * What Up Next ranks threads by (see `selectUpNext`), less the focused

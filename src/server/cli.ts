@@ -266,6 +266,7 @@ export function registerCli(
         now,
         needsYou: (thread) => needsAttention(thread, work.get(thread.id)!),
         order: arrangement.load(),
+        lastPopulatedAt: service.lastPopulatedAt(),
       }),
     };
   };
@@ -335,9 +336,7 @@ export function registerCli(
                       code: "workstream_not_found",
                       hint: "Run `bb workstreams list` to see workstream names and ids.",
                     });
-                  return [...projection.groups, ...projection.dormant].find(
-                    (g) => g.id === section.id,
-                  )!;
+                  return projection.all.find((g) => g.id === section.id)!;
                 })();
             const rows = group.rows.slice(0, SHOW_LIMIT);
             const hasMore = group.rows.length > rows.length;

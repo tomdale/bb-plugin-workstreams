@@ -35,7 +35,6 @@ describe("projectWorkstreams", () => {
     expect(p.groups.map((g) => [g.id, rowIds(g)])).toEqual([
       ["sec_a", ["root", "child"]],
       ["sec_b", ["beta"]],
-      ["sec_empty", []],
     ]);
     expect(p.rowOf.get("child")?.workstreamId).toBe("sec_a");
     expect(p.rowOf.get("child")?.depth).toBe(1);
@@ -50,6 +49,7 @@ describe("projectWorkstreams", () => {
       sections,
       {
         now,
+        lastPopulatedAt: { sec_empty: now - 1 },
         order: {
           workstreams: ["sec_empty", "sec_b", "sec_a"],
           threads: {},
@@ -75,7 +75,7 @@ describe("projectWorkstreams", () => {
       sections,
       { now },
     );
-    expect(p.groups.map((g) => g.id)).toEqual(["sec_b", "sec_empty"]);
+    expect(p.groups.map((g) => g.id)).toEqual(["sec_b"]);
     expect(p.dormant.map((g) => g.id)).toEqual(["sec_a"]);
   });
 
@@ -171,11 +171,7 @@ describe("projectWorkstreams", () => {
       sections,
       { now },
     );
-    expect(rankGroups(p.groups).map((g) => g.id)).toEqual([
-      "sec_b",
-      "sec_a",
-      "sec_empty",
-    ]);
+    expect(rankGroups(p.groups).map((g) => g.id)).toEqual(["sec_b", "sec_a"]);
   });
 });
 
@@ -301,7 +297,8 @@ describe("snoozed threads", () => {
     expect(rowIds(p.groups[0]!)).toEqual(["root", "kid", "grandkid"]);
     expect(p.groups[0]!.needsYou).toBe(0);
     expect(p.needsYou).toEqual([]);
-    expect(p.groups.find((g) => g.id === "sec_b")?.total).toBe(0);
+    expect(p.groups.find((g) => g.id === "sec_b")).toBeUndefined();
+    expect(p.all.find((g) => g.id === "sec_b")?.total).toBe(0);
     expect(p.dormant).toEqual([]);
     expect(ids(p.snoozed)).toEqual(["asks", "beta"]);
     expect(p.snoozed[0]!.workstreamId).toBe("sec_a");
@@ -359,7 +356,6 @@ describe("prioritized workstreams", () => {
     });
     expect(p.groups.map((g) => [g.id, g.prioritized])).toEqual([
       ["sec_b", true],
-      ["sec_empty", true],
       ["sec_old", true],
       ["sec_a", false],
     ]);

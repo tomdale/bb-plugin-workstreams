@@ -71,11 +71,7 @@ export function sortGroups<G extends Group<WorkstreamThread>>(
   );
 }
 
-/**
- * Sorts each level of the tree. A subgroup with no threads to show (all of
- * them snoozed, say) is left out; an empty top-level group still shows, so
- * its New work action stays within reach.
- */
+/** Sorts each level after the projection applies the shared empty-workstream budget. */
 function sortTree<T extends WorkstreamThread>(
   nodes: readonly WorkstreamNode<T>[],
   sort: GroupSort,
@@ -84,10 +80,7 @@ function sortTree<T extends WorkstreamThread>(
     node.subgroups.length > 0
       ? {
           ...node,
-          subgroups: sortTree(
-            node.subgroups.filter((sub) => sub.total > 0),
-            sort,
-          ),
+          subgroups: sortTree(node.subgroups, sort),
         }
       : node,
   );
@@ -306,7 +299,22 @@ export function arrangeGroups<T extends WorkstreamThread>(
   const active = new Set(
     projection.groups.filter((group) => group.total > 0).map((g) => g.id),
   );
-  const nodes = nestGroups(projection.all, topics);
+  const retained = new Set(projection.groups.map((group) => group.id));
+  // Nest before pruning so focus and topic identity still cover hidden sections.
+  const prune = (node: WorkstreamNode<T>): WorkstreamNode<T> => ({
+    ...node,
+    subgroups: node.subgroups
+      .filter(
+        (sub) => sub.total > 0 || sub.sectionIds.some((id) => retained.has(id)),
+      )
+      .map(prune),
+  });
+  const nodes = nestGroups(projection.all, topics)
+    .filter(
+      (node) =>
+        node.total > 0 || node.sectionIds.some((id) => retained.has(id)),
+    )
+    .map(prune);
   const pinnedNodes: WorkstreamNode<T>[] = [];
   const otherNodes: WorkstreamNode<T>[] = [];
   const dormant: WorkstreamNode<T>[] = [];

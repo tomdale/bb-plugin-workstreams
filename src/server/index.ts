@@ -45,7 +45,7 @@ import {
   saveSnoozePrefs,
   type StoredSnoozes,
 } from "./snooze.ts";
-import { MAX_SNOOZE_MS } from "../domain/snooze.ts";
+import { isSnoozed, MAX_SNOOZE_MS } from "../domain/snooze.ts";
 import { hasPrefs, loadPrefs, savePrefs, seedPrefs } from "./prefs.ts";
 import { gatewayModel, type ModelChoice } from "../domain/prefs.ts";
 import { runWorker as completeWithWorker } from "./inference/worker.ts";
@@ -72,6 +72,7 @@ export default async function plugin(bb: BbPluginApi) {
   }
   const journal = new Journal(db);
   const notify = () => bb.realtime.publish("changed", {});
+  const snoozes = new ThreadSnoozes(db);
   const service = new WorkstreamService(
     () => bb.sdk,
     db,
@@ -79,8 +80,11 @@ export default async function plugin(bb: BbPluginApi) {
     notify,
     Date.now,
     () => loadPrefs(db).threads.autoTitle,
+    (thread, now) => {
+      const snooze = snoozes.get(thread.id);
+      return isSnoozed(snooze, thread, now) ? snooze!.until : undefined;
+    },
   );
-  const snoozes = new ThreadSnoozes(db);
   /**
    * Drops snoozes that ended, against the reconciler's fresh thread list.
    * A thread whose wake time came returns marked unread.
@@ -916,7 +920,10 @@ export default async function plugin(bb: BbPluginApi) {
             };
         if (!Object.keys(stored).length)
           throw new UserError("Only active threads can be snoozed.");
+        // Record the visible state before hiding rows, even before the first poll.
+        await service.reconcile();
         snoozes.set(stored);
+        service.observePopulation();
         notify();
         return { snoozes: stored };
       }),

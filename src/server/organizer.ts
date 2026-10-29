@@ -209,6 +209,9 @@ export class Organizer {
         JSON.stringify({
           catalogRevision: this.deps.topics.revision(),
           policy: this.policy(),
+          retainedEmpty: [
+            ...this.deps.service.retainedEmptyWorkstreams(),
+          ].sort(),
           roots: roots.map((root) => [
             root.id,
             root.title,
@@ -489,10 +492,15 @@ export class Organizer {
 
           // Clean up unused empty sections that belonged to Workstreams
           const activeSectionIds = new Set(entityToSection.values());
+          const retainedEmpty = this.deps.service.retainedEmptyWorkstreams();
 
           for (const section of liveSections) {
             // Selected sections retain their bindings.
-            if (activeSectionIds.has(section.id)) continue;
+            if (
+              activeSectionIds.has(section.id) ||
+              retainedEmpty.has(section.id)
+            )
+              continue;
 
             const boundEntityId = groupBindings.get(section.id);
             if (boundEntityId && !selectedEntityIds.includes(boundEntityId)) {
@@ -531,6 +539,9 @@ export class Organizer {
           this.record(changes, failed);
         }
       });
+
+      // Seed visible population after derived moves, before an immediate archive.
+      await this.deps.service.reconcile();
 
       // Topics Workstreams discovered that nothing uses any more go away.
       const pruned = this.deps.topics.prune();
