@@ -94,6 +94,39 @@ describe("suggestionChange", () => {
     });
   });
 
+  it("shows a split's threads from where they are now, and drops gone ones", () => {
+    const change = suggestionChange(
+      {
+        topicId: "toolbelt",
+        subgroups: [
+          { name: "Shell", description: "", threadIds: ["t1", "t3"] },
+          { name: "Sidebar", description: "", threadIds: ["gone"] },
+        ],
+      },
+      context(),
+    );
+    expect(change?.moves).toEqual([
+      {
+        from: at("Toolbelt"),
+        to: [...at("Toolbelt"), made("Shell")],
+        threads: listed("t1"),
+        carried: 0,
+      },
+      {
+        from: at("Agent", "Automations"),
+        to: [...at("Toolbelt"), made("Shell")],
+        threads: listed("t3"),
+        carried: 0,
+      },
+      {
+        from: at("Toolbelt"),
+        to: [...at("Toolbelt"), made("Sidebar")],
+        threads: [],
+        carried: 0,
+      },
+    ]);
+  });
+
   it("files threads beside subtopics in existing subtopics by name or alias", () => {
     const change = suggestionChange(
       {

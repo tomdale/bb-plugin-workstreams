@@ -140,15 +140,29 @@ function describe(
       );
     return {
       op: body.repair ? "file" : "split",
-      moves: body.subgroups.map((subgroup) => ({
-        from: group,
-        to: [
+      moves: body.subgroups.flatMap((subgroup) => {
+        const to = [
           ...group,
           { name: subgroup.name, created: !exists(subgroup.name) },
-        ],
-        threads: subgroup.threadIds.map(thread),
-        carried: 0,
-      })),
+        ];
+        // A thread that left the topic since moves from where it is now,
+        // and a gone one drops out; the suggestion's problem says so.
+        const moves = new Map<string | null, ChangeMove>();
+        for (const id of subgroup.threadIds) {
+          if (!(id in threadTopic)) continue;
+          const topic = threadTopic[id] ?? null;
+          const move = moves.get(topic);
+          moves.set(topic, {
+            from: move?.from ?? (topic ? place(topic) : null),
+            to,
+            threads: [...(move?.threads ?? []), thread(id)],
+            carried: 0,
+          });
+        }
+        return moves.size
+          ? [...moves.values()]
+          : [{ from: group, to, threads: [], carried: 0 }];
+      }),
     };
   }
 
