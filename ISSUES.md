@@ -22,6 +22,29 @@ usage. The requested completion API is recorded in the repository's
 [BB SDK wishlist](../docs/bb-sdk-wishlist.md#plugins-call-the-users-ai-service-and-model-catalog).
 Do not infer total spend from the sum of reported costs when worker calls exist.
 
+### Topics from before the partition rule
+
+**Evidence:** `src/domain/layout.ts`, `src/server/suggestions.ts`.
+
+A topic that held threads beside subtopics before the rule keeps both until a
+repair suggestion is accepted, and the sidebar lists its own threads beside its
+subgroups meanwhile. Archived threads keep their topic when it later gets
+subtopics; unarchived, they sit beside the subgroups until repaired.
+
+**Workaround:** Accept the repair suggestion, or refile the threads into
+subtopics yourself.
+
+### Placement and suggestion evidence
+
+**Evidence:** `src/server/placement.ts`, `src/domain/tidy.ts`.
+
+Placement reads requests, title, project, and checkout; it doesn't read the
+titles or changed files of pull requests a thread names, since the plugin has no
+GitHub client. Checkout hints and the coordination check know only the checkouts
+placement has recorded, so threads placed before checkouts were recorded
+contribute nothing until they're placed again. Tidy sees threads by title and
+checkout, at most 12 per topic.
+
 ### User-selected colors
 
 **Evidence:** `src/domain/spinner.ts`, `src/app/settings/SpinnerSettings.tsx`,
@@ -43,9 +66,9 @@ policies apply to conversation excerpts sent for analysis.
 
 ## Audit findings that are not defects
 
-- **Completed roots in grouping:** Completed roots count toward the contraction
-  threshold just like other visible roots, so finishing work never regroups a
-  product; see `tests/server/grouping-regressions.test.ts`.
+- **Completed roots in grouping:** Completed roots count toward the split and
+  merge-back thresholds just like other visible roots, so finishing work never
+  regroups a topic; see `tests/server/grouping-regressions.test.ts`.
 - **Nested Up Next / archive destinations:** Up Next contains only roots, so
   delegates cannot become separate archive destinations in that band. See
   `tests/domain/upNext.test.ts` and `tests/domain/archiveNavigation.test.ts`.

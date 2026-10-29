@@ -7,20 +7,21 @@ behavior.
 
 ## 1. Concepts and invariants
 
-| Concept              | Definition                                                                                   | Owner                                     |
-| -------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| **Thread**           | A BB thread; the unit named in the UI                                                        | BB                                        |
-| **Root**             | A visible, non-archived thread with no visible active parent; the unit Workstreams organizes | Derived from BB links                     |
-| **Delegate**         | A child thread created for separable work; it uses its root's topic and workstream           | BB parent link                            |
-| **Topic**            | An entry in the topic tree, representing a product or capability                             | SQLite topic tables                       |
-| **Topic assignment** | A root's topic or no topic, with its source and automatic-classification basis               | SQLite topic fact                         |
-| **Workstream**       | A BB section bound to a topic; workstreams nest by topic in the sidebar and Home             | BB section and SQLite binding             |
-| **Unfiled**          | Roots without a topic and therefore without a workstream                                     | Derived                                   |
-| **Objective**        | Durable user intent, scope, and supporting request IDs                                       | Stored analysis identity                  |
-| **Goal/title**       | Concise display name for the accepted objective                                              | BB title and title metadata               |
-| **Status**           | The latest state: needs you, review, blocked, working, done, or error                        | Question, report, error, or Full analysis |
-| **Organization**     | The page tab showing current organizer state                                                 | Derived                                   |
-| **Activity**         | Changes Workstreams made or observed                                                         | SQLite journal                            |
+| Concept              | Definition                                                                                    | Owner                                     |
+| -------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| **Thread**           | A BB thread; the unit named in the UI                                                         | BB                                        |
+| **Root**             | A visible, non-archived thread with no visible active parent; the unit Workstreams organizes  | Derived from BB links                     |
+| **Delegate**         | A child thread created for separable work; it uses its root's topic and workstream            | BB parent link                            |
+| **Topic**            | An entry in the topic tree, representing a context, product, or capability                    | SQLite topic tables                       |
+| **Topic assignment** | A root's topic or no topic, with its source and automatic-classification basis                | SQLite topic fact                         |
+| **Workstream**       | A BB section bound to a topic; workstreams nest by the organizer's layout in sidebar and Home | BB section and SQLite binding             |
+| **Suggestion**       | A split or tidy edit to the topic tree that applies only when accepted                        | SQLite suggestion table                   |
+| **Unfiled**          | Roots without a topic and therefore without a workstream                                      | Derived                                   |
+| **Objective**        | Durable user intent, scope, and supporting request IDs                                        | Stored analysis identity                  |
+| **Goal/title**       | Concise display name for the accepted objective                                               | BB title and title metadata               |
+| **Status**           | The latest state: needs you, review, blocked, working, done, or error                         | Question, report, error, or Full analysis |
+| **Organization**     | The page tab showing current organizer state                                                  | Derived                                   |
+| **Activity**         | Changes Workstreams made or observed                                                          | SQLite journal                            |
 
 Invariants:
 
@@ -28,18 +29,24 @@ Invariants:
    reverted; assign another topic to change workstream.
 2. Delegates inherit their root's topic and section.
 3. The organizer reads stored facts and makes no model calls.
-4. Quick analysis supplies a new thread's initial goal and topic. Full analysis
-   settles the goal and topic at turn end and fills recap/status/needs-you only
+4. Quick analysis supplies a new thread's initial goal and topic. Placement
+   settles the topic from the first request and after each new request. Full
+   analysis settles the goal at turn end and fills recap/status/needs-you only
    when the agent did not report.
 5. Topic sources have priority `manual` > `inherited` > `full` > `quick` for
-   automatic updates. An inherited topic changes on a Full-analysis scope shift,
-   a Full-analysis topic beneath it, or an explicitly user-approved repair;
-   manual assignments stay protected.
+   automatic updates. An inherited topic changes on a placement scope shift, a
+   placement topic beneath it, or an explicitly user-approved repair or
+   suggestion; manual assignments stay protected.
 6. Automatic changes and observed outside changes are recorded in Activity, with
    undo where supported.
 7. The bound topic supplies a workstream's name, description, and aliases.
 8. The agent recap tool's `goal` field remains its current contract for
    compatibility with running sessions.
+9. A topic holds threads or subtopics, never both. Every write that would put
+   visible threads beside subtopics is refused, whoever makes it.
+10. A thread changes group only through your action, an accepted suggestion, or
+    placement after a new request. Counts, time, and display rules change how
+    groups are drawn, never which topic a thread has.
 
 ## 2. Starting topics
 
@@ -47,7 +54,9 @@ A new root takes the first applicable topic: a topic selected in the composer
 (`manual`); the topic of a source thread when forked, spawned, or started from
 that thread (`inherited`); the topic bound to the workstream's ＋ (`inherited`);
 otherwise the result of Quick analysis on the first request (`quick`), or no
-topic. Delegates use their root's assignment.
+topic. A source or workstream topic that has subtopics can't be inherited;
+placement weighs it as a hint instead. Placement of the first request follows
+within seconds (§3). Delegates use their root's assignment.
 
 Quick analysis runs on a composer draft to preview a goal and topic. The
 matching result is reused on first send; otherwise the sent text is analyzed. A
@@ -55,18 +64,23 @@ quick topic files the thread immediately.
 
 ## 3. Full analysis and status
 
-At turn end, Full analysis receives requests, the latest reply, prior goal and
-topic, project context, the topic tree, and an agent report when available. It
-returns goal, topic, and scope shift. Only without a report does it supply
-fallback recap, status, and needs-you. Full analysis runs after a substantive
-new request; a Workstreams status-check turn runs it only if no report was made.
-Failed turns are marked error without analysis.
+At turn end, Full analysis receives requests, the latest reply, the prior goal
+and objective, and an agent report when available. It returns the goal. Only
+without a report does it supply fallback recap, status, and needs-you. Full
+analysis runs after a substantive new request; a Workstreams status-check turn
+runs it only if no report was made. Failed turns are marked error without
+analysis.
 
-Classification chooses the most specific topic covering the work. A broad topic
-(a product or platform spanning several capabilities) holds work on it as a
-whole and work whose capability is unclear; work on one of its capabilities
-belongs to that capability's topic, which Full analysis proposes when it does
-not exist. A single-capability topic holds its own fixes and small additions.
+Placement settles a root's topic with one closed-set call, on the first request
+and beside Full analysis after a new substantive request. It reads the generated
+title, the first, second, and latest substantive requests, the project, and the
+checkout, with hints: the topic of a continued or source thread, a start topic
+that has subtopics, and the checkout's usual topic unless the checkout
+coordinates work in other repositories. Only topics without subtopics can be
+chosen; it may propose one new topic named for a lasting area. A proposed
+subtopic of a topic that holds threads files the thread in that topic. Its basis
+is the requests, project, and classifier version, so topic edits and model
+changes never re-place a thread.
 
 Automatic topic application respects source priority: manual never changes;
 inherited changes only on scope shift or to a topic beneath it; full replaces
@@ -107,23 +121,34 @@ usual recap instructions, as on upstream bb.
 
 ## 4. Organization
 
-The organizer runs after relevant facts or policy settings change. A product
-whose visible, non-archived roots are at or below the contraction threshold gets
-one workstream; a larger product gets a workstream for every topic with a
-visible root. The organizer binds BB sections to those topics, files roots
-accordingly, records outside moves and reverts them, and prunes unused
-discovered topics. The contraction setting participates in both snapshot
-fingerprints. Completed roots count just like other visible roots. Mutations
-validate their topic/policy plan, run through the serialized service queue, and
-are journaled. Visual collapse is separate per-client state keyed by stable
+The organizer runs after relevant facts change. It lays out groups from the
+topic tree and visible-root counts (completed roots count like any other) and
+binds a BB section to each group that lists threads, files roots accordingly,
+records outside moves and reverts them, and prunes unused discovered topics.
+Mutations validate their topic plan, run through the serialized service queue,
+and are journaled. Visual collapse is separate per-client state keyed by stable
 topic identity.
 
-BB keeps sections flat, so the sidebar and Home nest them by topic: a product's
-workstreams form one top-level group headed by the most specific topic they
-share, and each workstream sits under the nearest topic it shares with another.
-A shared topic without a workstream becomes a header with no threads of its own.
-Focus covers a top-level group's sections; dragging a header moves them
-together.
+The layout follows these rules, fixed rather than configured:
+
+1. A group shows its subtopics as subgroups above 5 visible roots and one list
+   again at 3 or fewer; the organizer persists which groups show split.
+2. A top-level topic with subtopics and no threads is a context, and a topic
+   with no threads and two or three subtopics with threads is a family; neither
+   gets a header, and its name is dimmed before its children's. A topic whose
+   subtopics a split created (partitioned) always keeps its header.
+3. A topic with no threads and one subtopic with threads shows that subtopic,
+   the parent dimmed first. A dimmed name the next name starts with is dropped.
+4. A group showing subgroups that covers 40% or more of its parent's visible
+   roots moves to the top level with its ancestors dimmed, and its roots leave
+   the parent's count; it moves back below 30% or on showing one list. Only a
+   parent with its own header promotes.
+5. At most three header levels; a group that would show subgroups at the third
+   level moves to the top.
+
+BB keeps sections flat, so the sidebar and Home draw the layout the last pass
+published. Focus covers a top-level group's sections; dragging a header moves
+them together.
 
 Empty workstreams remain in the sidebar and Home only while they had a visible,
 non-archived, unsnoozed thread within the last ten minutes, with a shared
@@ -133,10 +158,21 @@ empty workstream never renews them. Expiry does not require another thread event
 and does not delete threads or topics. The organizer keeps their sections and
 topic bindings during the grace period so New work remains scoped correctly.
 
-The Organization page shows current organizer state, workstreams, counts, and
-agent-report coverage. `bb workstreams organization [--rebuild]` reports or
-rebuilds the projection. Topics are managed in the Topics tab or with
-`bb workstreams topics …`.
+The Organization page shows organizing suggestions, current organizer state,
+workstreams, counts, and agent-report coverage.
+`bb workstreams organization [--rebuild]` reports or rebuilds the projection.
+Topics are managed in the Topics tab or with `bb workstreams topics …`.
+
+Organizing suggestions are made apart from the organizer and change nothing
+until accepted. A split partitions a topic without subtopics that passes 5
+visible roots, or files the threads of a topic that holds threads beside
+subtopics, at most once a day per topic. A tidy pass proposes at most 8 edits
+with reasons, at most once a day, after 3 new topics or 5 new roots or when
+Unfiled roots plus one-thread groups reach 4 and changed, and not while earlier
+edits wait. Tidy sees your manual filings, accepted suggestions, and declined
+ones, and an edit identical to a declined one is dropped. Accepting applies
+through the topic store and journals an undo that restores the topic tree and
+assignments while the catalog revision is unchanged.
 
 ## 5. Composer, storage, and architecture
 
@@ -149,21 +185,22 @@ history, agent reports, questions, traces, reconciler snapshots, preferences,
 and Activity. Migrations retain the established topic-table names and remove
 obsolete placement, drift, and project-shape state.
 
-`src/domain/` owns classification, status, grouping, and projections.
-`src/server/quick.ts` performs Quick analysis; `analyzer.ts` performs Full
-analysis; `topics.ts` persists topics; `organizer.ts` derives membership;
-`preview.ts` serves composer previews. The app uses the RPC schemas in
-`contract.ts`; the CLI uses the same services.
+`src/domain/` owns classification, placement and suggestion prompts, layout,
+status, grouping, and projections. `src/server/quick.ts` performs Quick
+analysis; `analyzer.ts` performs Full analysis; `placement.ts` places roots;
+`suggestions.ts` makes and applies suggestions; `topics.ts` persists topics;
+`organizer.ts` derives membership; `preview.ts` serves composer previews. The
+app uses the RPC schemas in `contract.ts`; the CLI uses the same services.
 
 ## 6. Settings and CLI
 
-Quick analysis and Full analysis have separate model settings. The Quick
-analysis model remains available when typing suggestions are disabled because
-first-send analysis still uses it. The contraction threshold configures
-grouping; existing title, sidebar, recap, snooze, and display preferences
-remain. Six color tokens (complete, review, waiting, needs you, failure,
-suggestions) each keep their Workstreams default, follow a BB theme color, or
-use a custom `#rrggbb`; only those forms are accepted.
+Quick analysis, Full analysis, placement, and suggestions have separate model
+settings. The Quick analysis model remains available when typing suggestions are
+disabled because first-send analysis still uses it. Automatic suggestions can be
+turned off; asking for them still works. Existing title, sidebar, recap, snooze,
+and display preferences remain. Six color tokens (complete, review, waiting,
+needs you, failure, suggestions) each keep their Workstreams default, follow a
+BB theme color, or use a custom `#rrggbb`; only those forms are accepted.
 
 Quick analysis defaults to schema-constrained `openai/gpt-6-luna-fast` with
 reasoning disabled. Its title and topic validate independently. Invalid topic
@@ -178,9 +215,7 @@ read-only repair plan using current classification evidence.
 retain unprocessed rows so retries preserve the applied prefix. Plans expire
 after 30 minutes, reject changed catalog definitions, and skip threads with
 newer evidence or manual corrections. Preview and apply preserve titles and
-status. Automatic classification bases include classifier version, catalog
-definitions, and model choice. Catalog definition keys exclude assignment and
-section-binding changes.
+status. Catalog definition keys exclude assignment and section-binding changes.
 
 The CLI uses `topics`, `thread`, and `organization` vocabulary. See
 `bb workstreams --help` for current commands.

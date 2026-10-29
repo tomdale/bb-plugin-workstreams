@@ -32,21 +32,24 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
 
 ## Core concepts
 
-| Term                 | Meaning                                                                                                                                       |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Thread**           | A BB thread; the unit of work shown across the UI.                                                                                            |
-| **Root**             | A visible, non-archived thread with no visible active parent. Roots are the unit Workstreams classifies and organizes.                        |
-| **Delegate**         | A child thread created for separable work. Delegates inherit their root's topic and workstream.                                               |
-| **Topic**            | An entry in the topic tree representing a product or capability (`Owner: Capability`), with a description and aliases.                        |
-| **Topic tree**       | Every topic Workstreams knows, whether or not an open thread currently uses it.                                                               |
-| **Topic assignment** | A root's assigned topic (or **No topic**), together with its provenance (`manual`, `inherited`, `full`, or `quick`) and classification basis. |
-| **Workstream**       | A native BB section bound to one topic in the topic tree.                                                                                     |
-| **Unfiled**          | Roots that currently have no topic and therefore belong to no workstream.                                                                     |
-| **Goal**             | What a thread is for, written as its display title (`3–8` words, up to `60` characters).                                                      |
-| **Status**           | How the latest turn ended: `needs you`, `review`, `blocked`, `working` (`in_progress` in JSON/CLI), `done`, or `error`.                       |
-| **Agent recap**      | A structured end-of-turn report submitted by the agent with the `WorkstreamsRecap` tool.                                                      |
-| **Organization**     | The deterministic process—and Workstreams page tab—that derives workstreams and section membership from topics.                               |
-| **Activity**         | The log of changes Workstreams made or observed, with undo where supported.                                                                   |
+| Term                 | Meaning                                                                                                                                                                          |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Thread**           | A BB thread; the unit of work shown across the UI.                                                                                                                               |
+| **Root**             | A visible, non-archived thread with no visible active parent. Roots are the unit Workstreams classifies and organizes.                                                           |
+| **Delegate**         | A child thread created for separable work. Delegates inherit their root's topic and workstream.                                                                                  |
+| **Topic**            | An entry in the topic tree representing a context, product, or capability (`Owner: Capability`), with a description and aliases. A topic holds threads or subtopics, never both. |
+| **Topic tree**       | Every topic Workstreams knows, whether or not an open thread currently uses it.                                                                                                  |
+| **Topic assignment** | A root's assigned topic (or **No topic**), together with its provenance (`manual`, `inherited`, `full`, or `quick`) and classification basis.                                    |
+| **Workstream**       | A native BB section bound to one topic in the topic tree.                                                                                                                        |
+| **Subgroup**         | A workstream shown inside a busier group. A group shows its subtopics as subgroups above `5` visible roots and one list again at `3` or fewer.                                   |
+| **Placement**        | The one model call that chooses a root's topic from its requests, when it starts and after each new request.                                                                     |
+| **Suggestion**       | A split of a busy topic, or a tidy edit to the topic tree, that changes nothing until you accept it.                                                                             |
+| **Unfiled**          | Roots that currently have no topic and therefore belong to no workstream.                                                                                                        |
+| **Goal**             | What a thread is for, written as its display title (`3–8` words, up to `60` characters).                                                                                         |
+| **Status**           | How the latest turn ended: `needs you`, `review`, `blocked`, `working` (`in_progress` in JSON/CLI), `done`, or `error`.                                                          |
+| **Agent recap**      | A structured end-of-turn report submitted by the agent with the `WorkstreamsRecap` tool.                                                                                         |
+| **Organization**     | The deterministic process—and Workstreams page tab—that derives workstreams and section membership from topics.                                                                  |
+| **Activity**         | The log of changes Workstreams made or observed, with undo where supported.                                                                                                      |
 
 ### Core rules
 
@@ -62,17 +65,22 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
    - `manual` (chosen by you in the composer, thread header, sidebar,
      Organization tab, or CLI) is never overwritten by automatic analysis.
    - `inherited` (from a parent/source thread or a workstream's **＋** button)
-     changes automatically only when Full analysis reports a scope shift or
-     settles a more specific topic beneath it, or when you explicitly apply a
-     reviewed topic-repair plan.
-   - `full` (settled by Full analysis at turn end) replaces `quick` and updates
-     prior `full` assignments.
+     changes automatically only when placement reports a scope shift or settles
+     a more specific topic beneath it, or when you explicitly apply a reviewed
+     topic-repair plan or accept a suggestion.
+   - `full` (settled by placement from the thread's requests) replaces `quick`
+     and updates prior `full` assignments.
    - `quick` (initial guess from Quick analysis) fills only threads without a
      stronger source.
 4. **Agent reports outrank fallback status.** Structured questions
    (`AskUserQuestion`) and agent recaps (`WorkstreamsRecap`) take precedence
    over Full analysis for thread status, recap text, and `needs you` prompts.
    Full analysis supplies those fields only when the agent did not report.
+5. **A topic holds threads or subtopics, never both.** Once a topic has
+   subtopics, every thread in it is in one of them. Assignments, new subtopics,
+   moves, and merges that would put threads beside subtopics are refused,
+   whoever makes them; topic pickers list only topics without subtopics. A busy
+   topic gets subtopics from an accepted split suggestion.
 
 ---
 
@@ -97,7 +105,8 @@ phones):
   shortcut, not a separate destination-workstream control.
 - **Workstream `＋` button:** Clicking **New work in \<workstream\>** in a
   sidebar group header seeds the composer with that workstream's topic
-  (`inherited` provenance).
+  (`inherited` provenance). A header whose topic has subtopics can't hold the
+  thread, so placement chooses one of its subtopics, told where it started.
 - **Forked or spawned threads:** Inherit their source thread's topic
   (`inherited` provenance).
 - **Manual topic selection:** Opening the Topic picker lets you search the topic
@@ -111,6 +120,9 @@ attempt within the remaining time budget and never blocks a valid opening title
 or clears an existing assignment. Opening titles only fill threads that do not
 yet have a title while the first turn is still running.
 
+A new root's first request is also **placed** right away (see below), so Quick
+analysis's topic is a guess that placement settles within a few seconds.
+
 ### 2. Turn end & Full analysis
 
 When a visible, non-archived thread goes idle after a turn (`5 s` debounce, up
@@ -120,9 +132,8 @@ to `4` concurrent runs), **Full analysis** runs with:
   replies such as `continue`, `yes`, or `ok` do not redefine the thread's
   objective), referenced continuation threads (`@thread:`), and the latest
   assistant reply.
-- The thread's current durable objective, title, topic assignment, project
-  context, the topic tree (up to `500` topics), and the latest agent recap if
-  one was recorded.
+- The thread's current durable objective and title, and the latest agent recap
+  if one was recorded.
 
 Full analysis settles:
 
@@ -133,15 +144,6 @@ Full analysis settles:
   characters; titles exceeding `60` characters are dropped rather than clipped).
   If you rename a thread outside Workstreams, that title is locked and preserved
   until cleared.
-- **Topic assignment:** Settles the root's topic (or proposes a new topic path
-  in the topic tree) subject to provenance priority
-  (`manual > inherited > full > quick`). Classification chooses the most
-  specific capability the work concerns: work on one capability of a product or
-  platform files under that capability's topic, which Full analysis proposes as
-  a new subtopic when none exists. Work on the whole product, or work whose
-  capability is unclear, stays with the broader topic. Every inferred update
-  re-validates live thread evidence, assignment state, and topic-tree freshness
-  before writing so superseded runs never overwrite newer state.
 - **Fallback recap and status:** Only when the agent did not call
   `WorkstreamsRecap`, Full analysis supplies a one-line recap, work state
   (`needs_decision`, `review`, `blocked`, `in_progress`, or `done`), and a short
@@ -152,26 +154,90 @@ Full analysis settles:
   independent of topic assignments. Observations persist across model-trace
   pruning and are deleted when the thread is deleted.
 
-### 3. Deterministic organization
+### 3. Placement
 
-The **Organizer** runs automatically after topic assignments, thread lifecycle
-state, or organization settings change. It is completely deterministic and makes
-**no model calls**:
+A root's topic is settled by **placement**: one schema-constrained call (default
+`openai/gpt-6-sol`, reasoning `none`) when the thread starts, and again beside
+Full analysis when a turn ends after a new substantive request. Topic edits,
+model changes, and turns without a new request never re-place a thread.
 
-- **Contraction:** Driven by **Contraction threshold** (default `3`, range
-  `0–99`), counting **visible, non-archived roots**, including `done` roots:
-  - When a top-level topic's total visible roots are at or below the threshold,
-    it gets one workstream for all of its subtopics.
-  - Above the threshold, every topic with a visible root gets its own workstream
-    (`Owner: Capability`), and the sidebar nests those workstreams by topic.
-  - The same counts always give the same workstreams; completion alone never
-    regroups, because done roots count too.
+- **Evidence:** the thread's generated title; its first, second, and latest
+  substantive requests (a routed request is read without its
+  `[bb message from thread:…]` wrapper); its project; and its checkout.
+- **Closed choice:** only topics without subtopics can be chosen. When none
+  fits, placement may propose one new topic named for a lasting area of work,
+  never for a task, pull request, or bug. A proposed subtopic of a topic that
+  holds threads files the thread in that topic instead: subgroups come only from
+  splits.
+- **Hints, not rules:** the topic of the thread it continues (`@thread:` or a
+  fork's source); the workstream or thread it was started from when that topic
+  has subtopics; and the topic most threads in its checkout have. A checkout
+  whose threads point at other repositories (at least two of them name a GitHub
+  repository or a `~/Code` path outside it) coordinates work elsewhere, so it
+  gives no hint.
+- **Provenance:** placement writes `full` topics under the priority above, and
+  every update re-validates live thread evidence, assignment state, and
+  topic-tree freshness before writing.
+
+### 4. Deterministic organization
+
+The **Organizer** runs automatically after topic assignments or thread lifecycle
+state change. It is completely deterministic and makes **no model calls**. It
+counts **visible, non-archived roots**, including `done` roots, so completion
+alone never regroups:
+
+- **Subgroups:** A group shows its subtopics as subgroups once it covers more
+  than `5` visible roots, and one list again at `3` or fewer. The gap keeps a
+  group from flipping back and forth, so the organizer remembers which groups it
+  showed split.
+- **Contexts and families:** A top-level topic with subtopics and no threads of
+  its own is a context: it never gets a header, and its name is dimmed before
+  its children's (**Vercel** Inside Vercel). A topic with no threads of its own
+  and two or three subtopics with threads collapses the same way (**Vercel
+  Agent** Automations, **Vercel Agent** Code Review), unless a split created its
+  subtopics, in which case it keeps its header. A topic with one subtopic with
+  threads shows that subtopic under its own name, the parent dimmed first. A
+  dimmed name the next name starts with is dropped.
+- **Promotion and depth:** A group showing subgroups that covers `40%` or more
+  of its parent's visible roots moves to the top level, its ancestors dimmed
+  before its name (**BB Plugins** Workstreams), and its roots leave the parent's
+  count. It moves back below `30%` or when it shows one list again. At most
+  three header levels show; a group that would show subgroups at the third level
+  moves to the top whatever its share.
+- **Workstreams:** Each group that lists threads is one workstream (a BB section
+  named by its topic path); headers above them have no section.
 - **Section sync and cleanup:** Creates, renames, or removes Workstreams-owned
   BB sections, moves roots into their derived workstream, logs and reverts
   outside section moves, and prunes unused, childless discovered topics.
 - **Stable visual collapse:** Expanding or collapsing a workstream in the
   sidebar follows its bound topic identity across windows and across section
   recreation.
+
+### 5. Organizing suggestions
+
+Workstreams proposes changes to the topic tree and applies them only when you
+accept them, on **Organization** (a sidebar notice links there) or with
+`bb workstreams suggestions`. Suggestions use the **Suggestions model** (default
+`anthropic/claude-sonnet-5.5`, reasoning `medium`).
+
+- **Splits:** A topic without subtopics that passes `5` visible roots gets one
+  call that partitions all of its roots into `2–5` subgroups, named for plain
+  areas of work ("Planning", "PR Upkeep"), never a catch-all. A topic that holds
+  threads beside subtopics, from before this rule, gets the same call to file
+  each of its threads in a subgroup. At most once a day per topic.
+- **Tidy passes:** At most `8` edits (merge, move under, rename, create a parent
+  for related topics, refile a thread), each with a one-line reason. A pass runs
+  at most once a day, after `3` new topics or `5` new roots since the last one,
+  or when Unfiled roots plus one-thread groups reach `4` and that set changed.
+  It doesn't run on its own while earlier tidy edits wait for review. **Ask
+  now** runs splits and a pass right away.
+- **Memory:** Tidy sees the topics you filed threads under, the suggestions you
+  accepted, and the ones you declined; a suggestion identical to a declined one
+  is never proposed again.
+- **Review and undo:** Each suggestion shows why it can't apply when the tree
+  changed since. Accepting one records it in Activity with **Undo**, which
+  restores the topic tree and assignments as they were while nothing has changed
+  since.
 
 ---
 
@@ -219,14 +285,14 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      **Show other workstreams** toggle.
 
 2. **Workstreams (focused and other tiers):**
-   - **Nesting:** Workstreams nest by topic. A product's workstreams form one
-     group headed by the most specific topic they share; each more specific
-     workstream is a subgroup under the topic it shares with another, with its
-     name shown below its parent's (**Beacon Automations** → **Alert
-     Investigations**). A shared topic with no workstream of its own appears as
-     a header with no threads of its own. A group lists its own threads first,
-     then its subgroups, which collapse independently. Focus, ordering, and
-     Dormant apply to a top-level group as a whole.
+   - **Nesting:** Workstreams nest as the organizer laid them out (see
+     [Deterministic organization](#4-deterministic-organization)): a busy
+     group's subgroups sit under its header, contexts and small families show as
+     dimmed names before their children's (**Vercel Agent** Automations), and a
+     dominant group moves to the top level (**BB Plugins** Workstreams). A
+     header above subgroups has no threads of its own. Subgroups collapse
+     independently. Focus, ordering, and Dormant apply to a top-level group as a
+     whole.
    - **Empty workstreams:** Keep at most `3` empty workstreams, and only while
      they had a visible, non-archived, unsnoozed thread within the last `10`
      minutes. The most recently populated win; focused and nested workstreams
@@ -251,7 +317,8 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    - Drag root threads within a workstream to set manual thread order (newly
      created roots appear at the top of their workstream; newly created
      workstreams appear at the bottom).
-3. **Unfiled:** Roots with no topic assignment.
+3. **Unfiled:** Roots with no topic assignment. Below the groups, a notice
+   counts organizing suggestions waiting for you and opens them.
 4. **Dormant:** Unfocused workstreams with no activity in the last `30` days and
    nothing waiting on you.
 5. **Recent, Snoozed, and Archived bands:**
@@ -408,6 +475,9 @@ Open **Workstreams** in the main navigation panel to access four tabs:
      `Organizing stopped`), summary counts (**Active threads**, **Active
      workstreams**, **No topic**, **Done**), and click **Refresh** or
      **Rebuild…**.
+   - **Suggestions:** Review organizing suggestions, each with its reason:
+     **Accept**, **Decline**, **Accept all**, or **Ask now** for fresh ones.
+     **Recently decided** lists the latest decisions.
    - Assign topics directly to **Threads with no topic** or inspect **Derived
      Workstreams** with their active/total counts and grouping policy reason.
    - **Review automatic topics:** After editing topic definitions, click
@@ -419,9 +489,10 @@ Open **Workstreams** in the main navigation panel to access four tabs:
      whose evidence changed since the preview.
 4. **Activity:** Day-grouped log of automatic and outside changes. Filter by
    workstream, action (`Move`, `New workstream`, `Rename`, `Delete`, `Undo`,
-   `Reorganize`, `Edit`, `New thread`, `Updated title`, `Removed topic`),
-   **Needs review**, or **Outside changes**. Hover or focus any reversible entry
-   and click **Undo** to revert its effect when current BB state still matches.
+   `Reorganize`, `Edit`, `New thread`, `Updated title`, `Removed topic`,
+   `Suggestion`), **Needs review**, or **Outside changes**. Hover or focus any
+   reversible entry and click **Undo** to revert its effect when current BB
+   state still matches.
 
 ---
 
@@ -527,7 +598,7 @@ Open **Settings → Workstreams** to configure:
 | **Sidebar**           | **Thread count** / **Waiting count**               | `When collapsed`                            | Show workstream counts `Always`, `When collapsed`, or `Never`.                                                                                                                 |
 | **Working indicator** | **Style**, **Color**, **Track**                    | `Spokes`, `Subtle gray`, `Faded color`      | Choose from `7` spinner shapes (`Spokes`, `Sunburst`, `Arc`, `Orbit`, `Ring`, `Braille`, `Dots`), named or custom `#rrggbb` colors, and track styles for `Arc`/`Orbit`/`Ring`. |
 | **Colors**            | **Default colors**, then six colors                | `Workstreams`                               | **Default colors** picks Workstreams' own shades or matching bb theme colors; each color's swatches can override it with a theme color or a custom `#rrggbb`.                  |
-| **Threads**           | **Full analysis model**                            | `openai/gpt-6-sol-fast`                     | Model used at turn end to settle goals, topics, and fallback status.                                                                                                           |
+| **Threads**           | **Full analysis model**                            | `openai/gpt-6-sol-fast`                     | Model used at turn end to settle goals and fallback status.                                                                                                                    |
 | **Threads**           | **Keep titles current**                            | `On`                                        | Automatically titles new threads and updates titles as focus evolves. Outside manual title edits stay locked until cleared.                                                    |
 | **Threads**           | **Show parent thread link**                        | `Off`                                       | Shows a parent-thread pill in delegate thread headers.                                                                                                                         |
 | **Threads**           | **Show archive button**                            | `On`                                        | Shows an Archive button in thread headers.                                                                                                                                     |
@@ -541,7 +612,9 @@ Open **Settings → Workstreams** to configure:
 | **New threads**       | **Home project**                                   | `Don't work in a project`                   | Default project used for background worker fallback when a thread has no project.                                                                                              |
 | **New threads**       | **Suggestions while typing**                       | `On`                                        | Runs Quick analysis on composer drafts while typing.                                                                                                                           |
 | **New threads**       | **Quick analysis model**                           | `openai/gpt-6-luna-fast` (reasoning `none`) | Model used for composer draft previews and first-send Quick analysis (remains active when typing suggestions are off because first-send analysis still uses it).               |
-| **Organization**      | **Contraction threshold**                          | `3` (`0–99`)                                | Visible-root count (including done roots) at or below which a top-level topic gets one workstream; above it, each topic with threads gets its own. Applies immediately.        |
+| **Organization**      | **Placement model**                                | `openai/gpt-6-sol` (reasoning `none`)       | Model that chooses each root's topic from its requests, when it starts and after a new request.                                                                                |
+| **Organization**      | **Organizing suggestions**                         | `On`                                        | Suggests splits of busy topics and tidy edits to the topic tree on their own. **Ask now** works either way.                                                                    |
+| **Organization**      | **Suggestions model**                              | `anthropic/claude-sonnet-5.5` (`medium`)    | Model that writes split and tidy suggestions.                                                                                                                                  |
 | **Advanced**          | **Analysis machine**                               | Automatic                                   | Enrolled BB machine used for gateway model calls when multiple machines are connected.                                                                                         |
 | **Advanced**          | **Debug mode**                                     | `Off`                                       | Records redacted model traces (`7` days / `1,000` records) and reveals **Observed names**, **Inspect** buttons, composer diagnostics, and Activity model-call rows.            |
 
@@ -588,7 +661,15 @@ bb workstreams log [--limit 1..500] [--since <duration, e.g. 90m or 7d>] [--exte
 # Undo a logged activity entry when current BB state still matches
 bb workstreams undo <entry-id> [--json]
 
-# Inspect recorded Debug-mode model traces (kinds: quick-analysis, full-analysis)
+# List organizing suggestions waiting for you (--all adds recent decisions), or ask for them now
+bb workstreams suggestions [--all] [--json]
+bb workstreams suggestions run [--json]
+
+# Accept or decline suggestions by id, or all waiting ones
+bb workstreams suggestions accept <id...|all> [--json]
+bb workstreams suggestions decline <id...|all> [--json]
+
+# Inspect recorded Debug-mode model traces (kinds: quick-analysis, full-analysis, placement, split, tidy)
 bb workstreams trace [<trace-id>] [--thread <id>] [--entry <id>] [--kind <kind>] [--limit 1..500] [--json]
 ```
 
@@ -631,7 +712,7 @@ bb workstreams thread assign <thread-id> <topic-name-or-id> [--json]
 # Manually clear a thread's topic so it stays Unfiled (sets manual provenance)
 bb workstreams thread clear <thread-id> [--json]
 
-# Hand a thread back to automatic classification and run Full analysis immediately
+# Hand a thread back to automatic classification and place it again now
 bb workstreams thread reclassify <thread-id> [--json]
 ```
 
@@ -642,16 +723,17 @@ bb workstreams thread reclassify <thread-id> [--json]
 Enabling **Settings → Workstreams → Advanced → Debug mode** turns on trace
 recording and unlocks diagnostic tools across the UI:
 
-- **Trace recording & redaction:** Every Quick analysis and Full analysis model
-  call records its redacted input, prompt, raw response, reasoning summary,
-  parsed output, token usage, cost, duration, and applied outcome. Common secret
-  patterns (`sk-…`, `ghp_…`, `github_pat_…`, `xoxb-…`, `Bearer …`, and
-  `api_key`/`token`/`password`/`secret` assignments) are masked before prompts
-  reach a model or trace store. Redaction is best effort, not a security
-  boundary; do not put secrets in requests or assume diagnostics are safe to
-  share without inspection. Conversation excerpts go to your selected model
-  provider under that provider's policies. Traces are retained for `7` days or
-  `1,000` records and pruned automatically even after Debug mode is turned off.
+- **Trace recording & redaction:** Every Quick analysis, Full analysis,
+  placement, split, and tidy model call records its redacted input, prompt, raw
+  response, reasoning summary, parsed output, token usage, cost, duration, and
+  applied outcome. Common secret patterns (`sk-…`, `ghp_…`, `github_pat_…`,
+  `xoxb-…`, `Bearer …`, and `api_key`/`token`/`password`/`secret` assignments)
+  are masked before prompts reach a model or trace store. Redaction is best
+  effort, not a security boundary; do not put secrets in requests or assume
+  diagnostics are safe to share without inspection. Conversation excerpts go to
+  your selected model provider under that provider's policies. Traces are
+  retained for `7` days or `1,000` records and pruned automatically even after
+  Debug mode is turned off.
 - **Thread Inspector:** Click the bug (`Inspect`) button on an Overview row,
   Activity row, or trace entry to open the side-pane inspector. Inspect every
   recorded call for a thread, copy the full trace JSON, or click **Run again**
@@ -662,9 +744,10 @@ recording and unlocks diagnostic tools across the UI:
   all product and feature names accumulated from Full analysis runs on that
   thread, with run counts and first/last-seen timestamps.
 - **Activity model calls:** Filter the **Activity** tab by **Model calls**
-  (`quick-analysis` or `full-analysis`) and **Failures only**, view total
-  reported cost for the filtered calls, or click **Clear traces…** to delete
-  recorded model traces while keeping the Activity log intact.
+  (`quick-analysis`, `full-analysis`, `placement`, `split`, or `tidy`) and
+  **Failures only**, view total reported cost for the filtered calls, or click
+  **Clear traces…** to delete recorded model traces while keeping the Activity
+  log intact.
 - **Composer routing diagnostics:** Expand the **Debug** disclosure in the
   new-thread composer to inspect live Quick-analysis confidence, inputs, token
   usage, reasoning, and copyable JSON diagnostics.

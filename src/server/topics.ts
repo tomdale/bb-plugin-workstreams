@@ -704,6 +704,8 @@ export class TopicStore {
         : answer.proposed
           ? this.rememberProposal(answer.proposed)
           : null;
+      // A proposal can resolve to a topic that already has subtopics.
+      if (entity && this.subtopics(entity.id) > 0) return false;
       const entityId = entity?.id ?? null;
       if (
         row &&

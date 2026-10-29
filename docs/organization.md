@@ -10,58 +10,119 @@ The organizer is deterministic and makes no model calls. After relevant fact or
 lifecycle changes it:
 
 1. Reads visible, non-archived roots, stored topic assignments, and statuses.
-2. Chooses workstream topics from visible-root counts and the contraction
-   threshold.
-3. Creates, renames, or removes topic-bound sections and files roots to match.
+2. Lays out the groups from the topic tree, visible-root counts, and the
+   previous layout (`src/domain/layout.ts`): which topics list threads, which
+   only head subgroups, and the names dimmed before each header.
+3. Creates, renames, or removes a topic-bound section for each group that lists
+   threads, and files roots to match.
 4. Logs outside section changes, then restores topic-derived membership.
 5. Prunes discovered topics that have no assigned roots, workstream, or child
    topics.
 
-A pass fingerprints both policy and facts, validates its topic/policy plan
+A pass fingerprints its facts and the previous layout, validates its topic plan
 before mutations, and uses the service's serial queue so reconciliation and
-section mutations cannot interleave. Superseded plans schedule a fresh pass. A
-product (a root topic) whose visible roots are at or below the contraction
-threshold gets one workstream. A larger product gets a workstream for every
-topic with a visible root. Every visible, non-archived root counts, including
-completed roots, so completion alone never regroups, and the same counts always
-give the same workstreams. Contraction changes trigger organization immediately.
+section mutations cannot interleave. Superseded plans schedule a fresh pass.
+Every visible, non-archived root counts, including completed roots, so
+completion alone never regroups. The pass stores the layout it applied, which
+the sidebar and phone Home draw.
 
-BB sections are flat; the sidebar and phone Home nest them by topic. A product's
-workstreams form one top-level group headed by the most specific topic they
-share, and each workstream sits under the nearest topic it shares with another,
-named relative to it. A shared topic with no workstream becomes a header without
-threads of its own. A group lists its own threads, then its subgroups. At most
-three empty workstreams remain visible, newest first for eligibility, and only
-while each had an unsnoozed visible thread within the last ten minutes. Focus
-and nesting do not exempt a workstream. Empty rows expire without thread events;
-stored population timestamps survive reloads and are never renewed by empty
-reads. Cleanup retains the matching topic-bound sections during this grace
-period, so their New work action still starts in the right topic. Focus,
-Dormant, and manual order apply to the top-level group: focus names every
-section in it, and dragging its header moves its sections together. Persistent
-collapse preferences use stable topic IDs and synchronize mounted surfaces and
-windows independently of automatic grouping. In the tiered sidebar (any
-workstream focused), revealing and expanding the other workstreams is temporary
-per-view state; hiding and revealing that block starts it collapsed. Each pass
-that changes sections or membership is recorded as one Activity entry. Topic
-edits and assignments are recorded too. Undo is available where it can preserve
-the topic-only rule; the organizer restores derived membership when a later pass
-runs.
+## Layout
 
-## Starting topics
+A topic holds threads or subtopics, never both: once a topic has subtopics,
+every thread in it is in one of them. The layout then decides how much of the
+tree to show:
+
+- **Subgroups by volume.** A group shows its subtopics as subgroups once it
+  covers more than 5 visible roots, and one list again at 3 or fewer. Between
+  those it keeps its previous shape, so it doesn't flip back and forth.
+- **Contexts.** A top-level topic with subtopics and no threads of its own (an
+  employer, a personal toolbox) never gets a header; its name is dimmed before
+  its children's ("[Vercel] Inside Vercel").
+- **Families.** A topic with no threads of its own and two or three subtopics
+  with threads collapses the same way ("[Vercel Agent] Automations", "[Vercel
+  Agent] Code Review"). A topic whose subtopics a split created is partitioned
+  and always keeps its header.
+- **Only children.** A topic with no threads of its own and one subtopic with
+  threads shows that subtopic under its own name, the parent dimmed first.
+- **Prefix words.** A dimmed name that the next name starts with is dropped, so
+  "Vercel" and "Vercel Agent" read "Vercel Agent".
+- **Promotion.** A group showing subgroups that covers 40% or more of its
+  parent's visible roots moves to the top level with its ancestors dimmed ("[BB
+  Plugins] Workstreams"), and its roots leave the parent's count. It moves back
+  below 30%, or when it shows one list again. Only a parent that shows its own
+  header promotes.
+- **Depth.** At most three header levels show; a group that would show subgroups
+  at the third level moves to the top whatever its share.
+
+A topic from before the partition rule that holds threads beside subtopics lists
+its own threads and still shows its subgroups, so no thread disappears; a split
+suggestion repairs it.
+
+BB sections are flat; each group that lists threads is one section, named by its
+topic path, and headers above them have no section. At most three empty
+workstreams remain visible, newest first for eligibility, and only while each
+had an unsnoozed visible thread within the last ten minutes. Focus and nesting
+do not exempt a workstream. Empty rows expire without thread events; stored
+population timestamps survive reloads and are never renewed by empty reads.
+Cleanup retains the matching topic-bound sections during this grace period, so
+their New work action still starts in the right topic. Focus, Dormant, and
+manual order apply to the top-level group: focus names every section in it, and
+dragging its header moves its sections together. Persistent collapse preferences
+use stable topic IDs and synchronize mounted surfaces and windows independently
+of automatic grouping. In the tiered sidebar (any workstream focused), revealing
+and expanding the other workstreams is temporary per-view state; hiding and
+revealing that block starts it collapsed. Each pass that changes sections or
+membership is recorded as one Activity entry. Topic edits and assignments are
+recorded too. Undo is available where it can preserve the topic-only rule; the
+organizer restores derived membership when a later pass runs.
+
+## Starting topics and placement
 
 A root spawned from another thread inherits that thread's topic. A root started
-from a workstream's ＋ inherits the bound topic. Otherwise Quick analysis of the
-first request supplies a topic or leaves the root Unfiled. Explicit composer
-choices have manual priority. Automatic Full analysis may replace an inherited
-topic only when it reports a scope shift or settles a topic beneath it.
+from a workstream's ＋ inherits the bound topic. A topic with subtopics can't be
+inherited; placement weighs it as a hint instead. Otherwise Quick analysis of
+the first request supplies a guess or leaves the root Unfiled. Explicit composer
+choices have manual priority.
 
-Classification prefers the most specific capability. Work on one capability of a
-product or platform files under that capability, which Full analysis proposes as
-a new subtopic when none exists; work on the whole product, or whose capability
-is unclear, stays with the broader topic. Explicit user approval of a repair
-plan can also correct an inherited assignment; that correction has Full
+Placement settles the topic with one closed-set call on the first request, and
+again beside Full analysis after a new substantive request. It reads the
+generated title, the first, second, and latest substantive requests, the
+project, and the checkout. Hints are the topic of the thread it continues, the
+start topic it couldn't inherit, and the topic most threads in its checkout
+have, unless the checkout coordinates work in other repositories (at least two
+of its threads name a GitHub repository or `~/Code` path outside it). Only
+topics without subtopics can be chosen. When none fits, placement may propose
+one new topic named for a lasting area; a proposed subtopic of a topic that
+holds threads files the thread in that topic, since subgroups come only from
+splits. Placement may replace an inherited topic only when it reports a scope
+shift or settles a topic beneath it. Explicit user approval of a repair plan or
+a suggestion can also correct an inherited assignment; that correction has Full
 provenance and remains eligible for future automatic updates.
+
+## Organizing suggestions
+
+Suggestions change nothing until you accept them, on Organization or with
+`bb workstreams suggestions`; a sidebar notice counts the ones waiting.
+
+- **Split.** A topic without subtopics that passes 5 visible roots gets one call
+  that partitions all of its roots into 2–5 subgroups: plain areas a person
+  would name without effort, with work about the whole group in a plainly named
+  subgroup such as "Planning", never a catch-all. A topic that holds threads
+  beside subtopics gets the same call to file each of its threads in a subgroup.
+  At most once a day per topic.
+- **Tidy.** At most 8 edits (merge, move under, rename, create a parent for
+  related topics, refile a thread), each with a reason. A pass runs at most once
+  a day, after 3 new topics or 5 new roots since the last pass, or when Unfiled
+  roots plus one-thread groups reach 4 and that set changed; never while earlier
+  tidy edits wait for review. Asking for suggestions runs splits and a pass now.
+- **Memory.** Tidy sees the topics you filed threads under, the suggestions you
+  accepted, and the ones you declined. An edit identical to a declined one is
+  never proposed again.
+- **Guards.** An edit that would put threads beside subtopics is dropped when
+  proposed and refused when accepted. A suggestion that stopped fitting the tree
+  says why.
+- **Undo.** Each accepted suggestion is one Activity entry whose undo restores
+  the topic tree and assignments as they were, while nothing has changed since.
 
 ## Topic tree
 
@@ -90,7 +151,7 @@ previous preview.
 ## Observability
 
 The Organization page reports organizer state, active and completed counts,
-visible-root counts, the contraction policy, and agent-report coverage.
+visible-root counts, the grouping rule, and agent-report coverage.
 `bb workstreams organization` reads current state;
 `bb workstreams organization --rebuild` runs a fresh pass. `bb workstreams log`
 shows Activity, including a sidebar move and its automatic reversion.
