@@ -2646,6 +2646,7 @@ describe("focused workstreams", () => {
       [
         asking("a1", "sec_a", 300),
         asking("b1", "sec_b", 200),
+        sidebarThread("loose", { title: "Unfiled quiet" }),
         asking("z1", "sec_z", 100),
         sidebarThread("z2", {
           sectionId: "sec_z",
@@ -2670,11 +2671,18 @@ describe("focused workstreams", () => {
     ).toBeTruthy();
     // The threads blocked on you that Up Next leaves out are counted on the
     // toggle, and wait in their workstreams with a neutral count.
-    fireEvent.click(
-      slot.getByRole("button", {
-        name: "Show other workstreams, 2 waiting on you",
-      }),
-    );
+    const toggle = slot.getByRole("button", {
+      name: "Show other workstreams, 2 waiting on you",
+    });
+    const count = within(toggle).getByText("2 waiting on you");
+    expect(count.closest('[aria-hidden="true"], .sr-only')).toBeNull();
+    fireEvent.click(toggle);
+    expect(slot.getByRole("region", { name: "Alpha" })).toBeTruthy();
+    expect(slot.getByRole("region", { name: "Beta" })).toBeTruthy();
+    expect(slot.getByRole("region", { name: "Unfiled" })).toBeTruthy();
+    expect(
+      slot.getByRole("button", { name: "Hide other workstreams" }),
+    ).toBeTruthy();
     const alpha = within(slot.getByRole("region", { name: "Alpha" }));
     expect(
       alpha

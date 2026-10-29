@@ -1096,6 +1096,11 @@ export function WorkstreamsThreadList({
                       type="button"
                       data-flip-key="lower-toggle"
                       aria-expanded={showLower}
+                      aria-label={
+                        !showLower && focus.elsewhere.length > 0
+                          ? `Show other workstreams, ${focus.elsewhere.length} waiting on you`
+                          : undefined
+                      }
                       onClick={toggleLower}
                       // A quiet link-style toggle, not a section header:
                       // the workstreams it reveals keep their own headers.
@@ -1108,16 +1113,8 @@ export function WorkstreamsThreadList({
                       </span>
                       {!showLower && focus.elsewhere.length > 0 ? (
                         // What Up Next left out, so nothing waits unseen.
-                        <span
-                          title={`${focus.elsewhere.length} waiting on you`}
-                          className="rounded-full bg-muted-foreground/15 px-1.5 text-[11px] font-medium tabular-nums"
-                        >
-                          <span aria-hidden="true">
-                            {focus.elsewhere.length}
-                          </span>
-                          <span className="sr-only">
-                            , {focus.elsewhere.length} waiting on you
-                          </span>
+                        <span className="rounded-full bg-muted-foreground/15 px-1.5 text-[11px] font-medium tabular-nums">
+                          {focus.elsewhere.length} waiting on you
                         </span>
                       ) : null}
                     </button>,

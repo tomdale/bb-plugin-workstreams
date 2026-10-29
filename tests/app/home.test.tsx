@@ -372,6 +372,7 @@ describe("Home screen", () => {
             latestAttentionAt: minutes(4),
           }),
           sidebarThread("a1", { sectionId: "sec_a", title: "Alpha one" }),
+          sidebarThread("loose", { title: "Unfiled quiet" }),
         ],
         order: { prioritized: ["sec_z"] },
       });
@@ -386,10 +387,11 @@ describe("Home screen", () => {
       expect(regionNames(slot)).toEqual(["Up Next", "Workstreams", "Zeta"]);
       expect(links(region(slot, "Zeta"))).toEqual(["Zeta asks", "Zeta quiet"]);
       const toggle = slot.getByRole("button", {
-        name: /Show other workstreams/,
+        name: "Show other workstreams, 1 waiting on you",
       });
-      // What Up Next left out stays counted, so nothing waits unseen.
-      expect(toggle.textContent).toContain("1");
+      // The visible label counts blocked threads, not the groups revealed.
+      const count = within(toggle).getByText("1 waiting on you");
+      expect(count.closest('[aria-hidden="true"], .sr-only')).toBeNull();
       fireEvent.click(toggle);
       expect(regionNames(slot)).toEqual([
         "Up Next",
@@ -397,6 +399,7 @@ describe("Home screen", () => {
         "Zeta",
         "Alpha",
         "Beta",
+        "Unfiled",
       ]);
       // Revealed workstreams start closed.
       expect(links(region(slot, "Alpha"))).toEqual([]);

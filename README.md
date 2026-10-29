@@ -283,8 +283,8 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    entries; find them in their workstream's thread tree.
    - **Focus:** While a focused workstream has a thread blocked on you, Up Next
      applies these rules to focused workstreams' threads only, marks its header
-     with the focus icon, and counts the threads blocked on you elsewhere on the
-     **Show other workstreams** toggle.
+     with the focus icon, and labels the count on **Show other workstreams** as
+     threads waiting on you elsewhere, not the number of hidden workstreams.
 
 2. **Workstreams (focused and other tiers):**
    - **Nesting:** Workstreams nest as the organizer laid them out (see

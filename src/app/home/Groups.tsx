@@ -115,6 +115,11 @@ export function WorkstreamGroups({
               type="button"
               className="ws-home-lower-toggle"
               aria-expanded={showLower}
+              aria-label={
+                !showLower && plan.focus.elsewhere > 0
+                  ? `Show other workstreams, ${plan.focus.elsewhere} waiting on you`
+                  : undefined
+              }
               onClick={() => setShowLower(!showLower)}
             >
               <span>
@@ -124,10 +129,7 @@ export function WorkstreamGroups({
               </span>
               {!showLower && plan.focus.elsewhere > 0 ? (
                 <span className="ws-home-pill ws-home-pill-quiet">
-                  <span aria-hidden="true">{plan.focus.elsewhere}</span>
-                  <span className="sr-only">
-                    , {plan.focus.elsewhere} waiting on you
-                  </span>
+                  {plan.focus.elsewhere} waiting on you
                 </span>
               ) : null}
             </button>
