@@ -509,10 +509,52 @@ export type TreeState = {
 };
 
 /**
- * Why an edit can't apply to `state`, or null when it can. Topics created
+ * Why an edit would change nothing, now or ever: something it names is gone,
+ * or the tree already has it. Topics created earlier in the pass (`new:`
+ * references) can't be checked until they exist.
+ */
+export function mootEdit(edit: TidyEdit, state: TreeState): string | null {
+  const byId = new Map(state.topics.map((t) => [t.id, t]));
+  const exists = (ref: string | null) =>
+    ref === null || isNew(ref) || byId.has(ref);
+  switch (edit.op) {
+    case "move":
+      if (!(edit.thread in state.threadTopic)) return "That thread is gone.";
+      if (!exists(edit.topic)) return "That topic is gone.";
+      if (state.threadTopic[edit.thread] === edit.topic)
+        return "The thread is already there.";
+      return null;
+    case "create":
+      if (!exists(edit.parent)) return "Its parent is gone.";
+      if (edit.children.length && !edit.children.some(exists))
+        return "The topics it would hold are gone.";
+      return null;
+    case "reparent":
+      if (!exists(edit.topic) || !exists(edit.parent))
+        return "A topic it names is gone.";
+      if (!isNew(edit.topic) && byId.get(edit.topic)?.parentId === edit.parent)
+        return "The topic is already there.";
+      return null;
+    case "merge":
+      if (!exists(edit.from) || !exists(edit.into))
+        return "A topic it names is gone.";
+      return null;
+    case "rename":
+      if (!exists(edit.topic)) return "That topic is gone.";
+      if (!isNew(edit.topic) && byId.get(edit.topic)?.name === edit.name.trim())
+        return "It already has that name.";
+      return null;
+  }
+}
+
+/**
+ * Why an edit can't apply to `state`, or null when it can: it would change
+ * nothing (`mootEdit`), or it would break a rule of the tree. Topics created
  * earlier in the pass (`new:` references) can't be checked until they exist.
  */
 export function refusal(edit: TidyEdit, state: TreeState): string | null {
+  const moot = mootEdit(edit, state);
+  if (moot) return moot;
   const byId = new Map(state.topics.map((t) => [t.id, t]));
   const exists = (ref: string | null) =>
     ref === null || isNew(ref) || byId.has(ref);
@@ -525,16 +567,11 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
     topicAncestors(id, state.topics).includes(ancestor);
   switch (edit.op) {
     case "move":
-      if (!(edit.thread in state.threadTopic)) return "That thread is gone.";
-      if (!exists(edit.topic)) return "That topic is gone.";
       if (!isNew(edit.topic) && hasKids(edit.topic))
         return "That topic has subtopics, so it can't hold threads.";
-      if (state.threadTopic[edit.thread] === edit.topic)
-        return "The thread is already there.";
       return null;
     case "create":
-      if (!exists(edit.parent) || !edit.children.every(exists))
-        return "A topic it names is gone.";
+      if (!edit.children.every(exists)) return "A topic it names is gone.";
       if (holds(edit.parent))
         return "Its parent holds threads, so it can't take subtopics.";
       if (
@@ -546,8 +583,6 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
         return "It would put a topic inside itself.";
       return null;
     case "reparent":
-      if (!exists(edit.topic) || !exists(edit.parent))
-        return "A topic it names is gone.";
       if (holds(edit.parent))
         return "The new parent holds threads, so it can't take subtopics.";
       if (
@@ -555,12 +590,8 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
         (edit.parent === edit.topic || within(edit.parent, edit.topic))
       )
         return "It would put a topic inside itself.";
-      if (!isNew(edit.topic) && byId.get(edit.topic)?.parentId === edit.parent)
-        return "The topic is already there.";
       return null;
     case "merge": {
-      if (!exists(edit.from) || !exists(edit.into))
-        return "A topic it names is gone.";
       const threads = (holds(edit.from) ? 1 : 0) + (holds(edit.into) ? 1 : 0);
       // `from` itself leaves `into`'s subtopics when it merges into its parent.
       const kids =
@@ -573,9 +604,6 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
       return null;
     }
     case "rename":
-      if (!exists(edit.topic)) return "That topic is gone.";
-      if (!isNew(edit.topic) && byId.get(edit.topic)?.name === edit.name.trim())
-        return "It already has that name.";
       return null;
   }
 }
@@ -649,6 +677,8 @@ export type SplitNow = {
   readonly arrivals: readonly string[];
   /** Why it no longer makes sense or can't apply; null when it can. */
   readonly problem: string | null;
+  /** It would change nothing, now or ever: its group or threads are gone. */
+  readonly moot: boolean;
 };
 
 /**
@@ -664,6 +694,7 @@ export function splitNow(split: Split, state: TreeState): SplitNow {
     split,
     arrivals: [],
     problem,
+    moot: true,
   });
   if (!group) return stop("Its group is gone.");
   const inGroup = new Set(
@@ -700,6 +731,7 @@ export function splitNow(split: Split, state: TreeState): SplitNow {
       split: now,
       arrivals,
       problem: `${arrivals.length} threads joined ${group.name} since; ask again to include them.`,
+      moot: false,
     };
   if (
     !split.repair &&
@@ -709,6 +741,7 @@ export function splitNow(split: Split, state: TreeState): SplitNow {
       split: now,
       arrivals,
       problem: "Only one of its subgroups still has threads.",
+      moot: false,
     };
-  return { split: now, arrivals, problem: null };
+  return { split: now, arrivals, problem: null, moot: false };
 }

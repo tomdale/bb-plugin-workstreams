@@ -22,7 +22,7 @@ describe("splitNow", () => {
   it("applies as proposed when nothing changed", () => {
     expect(
       splitNow(split, tree({ a1: "auto", a2: "auto", a3: "auto", a4: "auto" })),
-    ).toEqual({ split, arrivals: [], problem: null });
+    ).toEqual({ split, arrivals: [], problem: null, moot: false });
   });
 
   it("drops threads that moved or closed since, and still applies", () => {
@@ -52,12 +52,14 @@ describe("splitNow", () => {
   });
 
   it("stops when none of its threads remain, or the split leaves one subgroup", () => {
-    expect(splitNow(split, tree({ n1: "auto" })).problem).toBe(
-      "None of its threads are in Automations anymore.",
-    );
-    expect(splitNow(split, tree({ a1: "auto", a2: "auto" })).problem).toBe(
-      "Only one of its subgroups still has threads.",
-    );
+    expect(splitNow(split, tree({ n1: "auto" }))).toMatchObject({
+      problem: "None of its threads are in Automations anymore.",
+      moot: true,
+    });
+    expect(splitNow(split, tree({ a1: "auto", a2: "auto" }))).toMatchObject({
+      problem: "Only one of its subgroups still has threads.",
+      moot: false,
+    });
     expect(splitNow(split, tree({}, [])).problem).toBe(
       "None of its threads are in Automations anymore.",
     );

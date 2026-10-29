@@ -28,6 +28,7 @@ import type { Topic } from "../domain/topics.ts";
 import {
   describeEdit,
   editKey,
+  mootEdit,
   refusal,
   splitNow,
   type Held,
@@ -243,9 +244,14 @@ export class Suggestions {
     ).n;
   }
 
-  /** Something changed; see whether a suggestion is due, shortly. */
+  /**
+   * Something changed: retires waiting suggestions that would no longer
+   * change anything, then sees whether a suggestion is due, shortly.
+   */
   check(): void {
-    if (this.disposed || !this.deps.enabled()) return;
+    if (this.disposed) return;
+    this.retire();
+    if (!this.deps.enabled()) return;
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.timer = null;
@@ -265,6 +271,7 @@ export class Suggestions {
       }
       await this.running.catch(() => {});
     }
+    this.retire();
     const before = this.pendingCount();
     const hadError = this.error !== null;
     const run = (async () => {
@@ -310,6 +317,8 @@ export class Suggestions {
     const failed: { id: string; reason: string }[] = [];
     if (decision === "decline") {
       for (const row of rows) this.settle(row.id, "declined", null);
+      // An edit needing a topic a declined one would create is moot now.
+      this.retire();
       this.deps.onChange(false);
       return { applied: rows.map((row) => row.id), failed };
     }
@@ -324,6 +333,8 @@ export class Suggestions {
         failed.push({ id: row.id, reason });
       }
     }
+    // What was accepted may leave others with nothing left to change.
+    this.retire();
     this.deps.onChange(applied.length > 0);
     return { applied, failed };
   }
@@ -658,32 +669,66 @@ export class Suggestions {
     };
   }
 
-  private problem(row: Row, tree: TreeState): string | null {
-    if (row.kind === "split")
-      return splitNow(JSON.parse(row.body) as Split, tree).problem;
+  /**
+   * Settles waiting suggestions that would change nothing, now or ever: a
+   * split none of whose threads remain, an edit naming something gone or
+   * already done, or one needing a topic its pass will no longer create.
+   * Ones that break a rule only for now stay waiting, out of date.
+   */
+  private retire(): void {
+    const tree = this.tree();
+    let retired = 0;
+    for (const row of this.deps.db
+      .prepare(
+        "SELECT * FROM ws_suggestion WHERE status = 'pending' ORDER BY at, rowid",
+      )
+      .all() as Row[]) {
+      const reason = this.moot(row, tree);
+      if (!reason) continue;
+      this.settle(row.id, "stale", `Nothing left to change: ${reason}`);
+      retired++;
+    }
+    if (retired) this.deps.onChange(false);
+  }
+
+  private moot(row: Row, tree: TreeState): string | null {
+    if (row.kind === "split") {
+      const now = splitNow(JSON.parse(row.body) as Split, tree);
+      return now.moot ? now.problem : null;
+    }
     const edit = this.resolve(JSON.parse(row.body) as TidyEdit, row.pass_id);
-    // A topic another suggestion of the pass would create, while that one
-    // still waits; once it's declined or stale, this one can't apply.
+    return this.uncreated(edit, row.pass_id) ?? mootEdit(edit, tree);
+  }
+
+  /** Why an edit can't apply: a topic it needs won't be created anymore. */
+  private uncreated(edit: TidyEdit, pass: string): string | null {
     const creating = new Set(
       (
         this.deps.db
           .prepare(
             "SELECT body FROM ws_suggestion WHERE pass_id = ? AND status = 'pending' AND kind = 'edit'",
           )
-          .all(row.pass_id) as { body: string }[]
+          .all(pass) as { body: string }[]
       )
         .map((r) => JSON.parse(r.body) as TidyEdit)
         .filter((e) => e.op === "create")
         .map((e) => (e as { name: string }).name.toLowerCase()),
     );
-    if (
-      refs(edit).some(
-        (ref) =>
-          ref?.startsWith("new:") && !creating.has(ref.slice(4).toLowerCase()),
-      )
+    return refs(edit).some(
+      (ref) =>
+        ref?.startsWith("new:") && !creating.has(ref.slice(4).toLowerCase()),
     )
-      return "It needs a topic another suggestion would have created.";
-    return refusal(edit, tree);
+      ? "It needs a topic another suggestion would have created."
+      : null;
+  }
+
+  private problem(row: Row, tree: TreeState): string | null {
+    if (row.kind === "split")
+      return splitNow(JSON.parse(row.body) as Split, tree).problem;
+    const edit = this.resolve(JSON.parse(row.body) as TidyEdit, row.pass_id);
+    // A topic another suggestion of the pass would create, while that one
+    // still waits; once it's declined or stale, this one can't apply.
+    return this.uncreated(edit, row.pass_id) ?? refusal(edit, tree);
   }
 
   /** Replaces `new:` references with topics accepted suggestions created. */

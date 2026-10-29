@@ -347,7 +347,7 @@ describe("tidy suggestions", () => {
 });
 
 describe("an edit that needs a declined create", () => {
-  it("says it can't apply, and doesn't hold up the next pass", async () => {
+  it("is retired with the create it needs", async () => {
     const { w, topics, run, decide, rpc } = await setup({
       tidy: () => ({
         edits: [
@@ -368,12 +368,83 @@ describe("an edit that needs a declined create", () => {
     const [create] = (await run()).suggestions;
     await decide([create!.id], "decline");
     const { state } = await rpc<{ state: SuggestionsStateWire }>("suggestions");
-    expect(state.suggestions.find((s) => s.status === "pending")).toMatchObject(
-      {
-        summary: "Move Beta under Vercel",
-        problem: "It needs a topic another suggestion would have created.",
+    expect(state.suggestions.filter((s) => s.status === "pending")).toEqual([]);
+    expect(
+      state.suggestions.find((s) => s.summary === "Move Beta under Vercel"),
+    ).toMatchObject({
+      status: "stale",
+      problem:
+        "Nothing left to change: It needs a topic another suggestion would have created.",
+    });
+  });
+});
+
+describe("retiring", () => {
+  it("retires suggestions that would change nothing, and keeps ones blocked for now", async () => {
+    const { w, topics, run, rpc } = await setup({
+      tidy: (prompt) => {
+        const id = (name: string) =>
+          prompt.match(new RegExp(`\\[([a-z0-9-]+)\\] ${name} `))?.[1] ?? null;
+        const thread = prompt.match(/\[(r\d+)\] Gamma task/)?.[1] ?? null;
+        return {
+          edits: [
+            tidyEdit({ op: "rename", topic: id("Alpha"), name: "Alpha Two" }),
+            tidyEdit({ op: "move", thread, topic: id("Beta") }),
+            tidyEdit({
+              op: "reparent",
+              topic: id("Delta"),
+              parent: id("Beta"),
+            }),
+          ],
+        };
       },
-    );
+    });
+    const a = topics.create("Alpha", "");
+    const b = topics.create("Beta", "");
+    const g = topics.create("Gamma", "");
+    topics.create("Delta", "");
+    w.addThread("t1", { title: "Gamma task" });
+    topics.assign("t1", g.id);
+    await rpc("refresh");
+    const pending = (await run()).suggestions;
+    expect(pending.map((s) => s.summary)).toEqual([
+      "Rename Alpha to Alpha Two",
+      "Refile “Gamma task” into Beta",
+      "Move Delta under Beta",
+    ]);
+    // Done by hand since: the rename and the refile change nothing now.
+    // Beta now holds a thread, so moving Delta under it is blocked, but only
+    // for now.
+    topics.rename(a.id, "Alpha Two");
+    topics.assign("t1", b.id);
+    await rpc("organization", { action: "rebuild" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const { state } = await rpc<{ state: SuggestionsStateWire }>("suggestions");
+    expect(
+      state.suggestions
+        .map((s) => [s.summary, s.status, s.problem])
+        .sort(
+          (x, y) =>
+            String(x[1]).localeCompare(String(y[1])) ||
+            String(x[0]).localeCompare(String(y[0])),
+        ),
+    ).toEqual([
+      [
+        "Move Delta under Beta",
+        "pending",
+        "The new parent holds threads, so it can't take subtopics.",
+      ],
+      [
+        "Refile “Gamma task” into Beta",
+        "stale",
+        "Nothing left to change: The thread is already there.",
+      ],
+      [
+        "Rename Alpha to Alpha Two",
+        "stale",
+        "Nothing left to change: It already has that name.",
+      ],
+    ]);
   });
 });
 

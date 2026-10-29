@@ -126,8 +126,9 @@ names each one by what moves and where, and lists those that move threads
   was made (`splitNow` in `src/domain/tidy.ts`): threads that moved or closed
   are left out, and threads that joined are filed by one split call on accept.
   It stops only when its group is gone, none of its threads remain, more threads
-  joined than remain, or it would leave one subgroup. A suggestion that stopped
-  fitting says why.
+  joined than remain, or it would leave one subgroup. A suggestion that would
+  change nothing, now or ever (`mootEdit` and `splitNow`'s `moot`), is retired
+  after each organizer pass and decision; one blocked only for now says why.
 - **Undo.** Each accepted suggestion is one Activity entry whose undo restores
   the topic tree and assignments as they were, while nothing has changed since.
 

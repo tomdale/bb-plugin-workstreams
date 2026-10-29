@@ -488,8 +488,15 @@ Open **Workstreams** in the main navigation panel to access four tabs:
      - **Tidies groups**: changes to how groups nest and are named that move no
        thread, which decide where new threads go, each one line
        (`Workforest → bb › Workforest`).
-     - **Out of date**, collapsed: suggestions that no longer make sense or
-       can't apply, each with why. Decline them or **Ask now** for fresh ones.
+     - **Out of date**, collapsed: suggestions blocked for now, such as moving a
+       group under one that holds threads, each with why. Decline them or **Ask
+       now** for fresh ones.
+
+     A suggestion that would no longer change anything (none of a split's
+     threads remain, something it names is gone, the change was already made, or
+     it needs a group another declined suggestion would have made) is retired on
+     its own after each organizer pass and decision, and shows under **Recently
+     decided** as "Nothing left to change".
 
      Small changes since a split was suggested don't stop it: threads that moved
      or closed are left out, and threads that joined its group are filed too
