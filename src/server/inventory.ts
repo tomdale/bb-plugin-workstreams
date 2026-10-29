@@ -19,6 +19,13 @@ export type InventoryThread = WorkstreamThread & {
   readonly isUnread: boolean;
   /** Set on forks: the thread this one was forked from. */
   readonly sourceThreadId: string | null;
+  readonly environmentId: string | null;
+  /** `status` refined by machine state, e.g. "waiting-for-host". */
+  readonly runtimeStatus: string;
+  /** A message is queued ("waiting") or failed to send ("failed"). */
+  readonly queuedWork: string;
+  /** A background agent, command, or workflow is running. */
+  readonly busy: boolean;
 };
 
 const PAGE = 100;
@@ -54,6 +61,15 @@ export function toInventoryThread(thread: ThreadResponse): InventoryThread {
     ),
     latestAttentionAt: thread.latestAttentionAt ?? thread.updatedAt,
     createdAt: thread.createdAt,
+    environmentId: thread.environmentId ?? null,
+    runtimeStatus: thread.runtime?.displayStatus ?? thread.status,
+    queuedWork: thread.queuedWork ?? "none",
+    busy: Boolean(
+      thread.activity &&
+      (thread.activity.activeBackgroundAgentCount > 0 ||
+        thread.activity.activeBackgroundCommandCount > 0 ||
+        thread.activity.activeWorkflowCount > 0),
+    ),
   };
 }
 

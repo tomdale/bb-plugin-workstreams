@@ -491,7 +491,11 @@ describe("shared server state", () => {
     }
     committed = {
       ...state(2),
-      snoozePrefs: { presets: trimmedPresets, default: "activity" },
+      snoozePrefs: {
+        presets: trimmedPresets,
+        default: "activity",
+        events: DEFAULT_SNOOZE_PREFS.events,
+      },
     };
     await act(async () => {
       older.resolve({ prefs: committed.snoozePrefs });
@@ -600,7 +604,7 @@ describe("shared server state", () => {
           { id: "t1", latestAttentionAt: 42 },
           { id: "t2", latestAttentionAt: 43 },
         ],
-        null,
+        { until: null, events: true },
       );
     });
     for (const value of consumers.values())
@@ -648,7 +652,9 @@ describe("shared server state", () => {
             ? value.reorder({ kind: "workstreams", ids: ["a"] })
             : value.setSnoozes(
                 [{ id: "t1" }],
-                method === "snooze" ? 1000 : "wake",
+                method === "snooze"
+                  ? { until: Date.now() + 1000, events: false }
+                  : "wake",
               );
         await expect(result).rejects.toBe(cause);
       });

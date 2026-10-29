@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SNOOZE_PREFS,
   MAX_SNOOZE_PRESETS,
+  applySnoozePrefsPatch,
+  describeWake,
   isSnoozed,
   parseSnoozePrefs,
+  presetWhen,
   presetLabel,
   ruleLabel,
   shortWake,
@@ -81,22 +84,19 @@ describe("wakeTime", () => {
 });
 
 describe("isSnoozed", () => {
-  const thread = { latestAttentionAt: 1_000 };
-
-  it("holds a timed snooze until its time, whatever the thread does", () => {
+  it("holds a timed snooze until its time", () => {
     const snooze = { until: 5_000, attentionAt: 1_000, at: 1_000 };
-    expect(isSnoozed(snooze, { latestAttentionAt: 4_000 }, 4_999)).toBe(true);
-    expect(isSnoozed(snooze, thread, 5_000)).toBe(false);
+    expect(isSnoozed(snooze, 4_999)).toBe(true);
+    expect(isSnoozed(snooze, 5_000)).toBe(false);
   });
 
-  it("holds an activity snooze until the thread has new attention", () => {
+  it("holds an Until it needs me snooze until the server ends it", () => {
     const snooze = { until: null, attentionAt: 1_000, at: 1_000 };
-    expect(isSnoozed(snooze, thread, 9_999_999)).toBe(true);
-    expect(isSnoozed(snooze, { latestAttentionAt: 1_001 }, 2_000)).toBe(false);
+    expect(isSnoozed(snooze, 9_999_999)).toBe(true);
   });
 
   it("is false with no snooze", () => {
-    expect(isSnoozed(undefined, thread, 0)).toBe(false);
+    expect(isSnoozed(undefined, 0)).toBe(false);
   });
 });
 
@@ -123,7 +123,7 @@ describe("rules", () => {
     expect(ruleLabel(time("tomorrow", 9))).toMatch(/^Tomorrow at 9/);
     expect(ruleLabel(time("workday", 9))).toMatch(/^Next workday at 9/);
     expect(ruleLabel(time("monday", 13, 30))).toMatch(/^Monday at 1:30/);
-    expect(ruleLabel({ kind: "activity" })).toBe("Until it updates");
+    expect(ruleLabel({ kind: "activity" })).toBe("Until it needs me");
   });
 
   it("prefers a preset's own label", () => {
@@ -188,11 +188,67 @@ describe("preferences", () => {
       }),
     ).toEqual({
       presets: [
-        { id: "a", label: "", rule: { kind: "activity" } },
-        { id: "b", label: "x".repeat(40), rule: { kind: "activity" } },
+        { id: "a", label: "", rule: { kind: "activity" }, wakeOnEvents: true },
+        {
+          id: "b",
+          label: "x".repeat(40),
+          rule: { kind: "activity" },
+          wakeOnEvents: true,
+        },
       ],
       default: "b",
+      events: DEFAULT_SNOOZE_PREFS.events,
     });
+  });
+
+  it("gives each preset a wake-on-events choice, by its rule unless set", () => {
+    const prefs = parseSnoozePrefs({
+      presets: [
+        { id: "a", rule: { kind: "duration", amount: 1, unit: "hours" } },
+        { id: "b", rule: time("tomorrow", 9) },
+        { id: "c", rule: time("tomorrow", 9), wakeOnEvents: true },
+        {
+          id: "d",
+          rule: { kind: "duration", amount: 1, unit: "hours" },
+          wakeOnEvents: false,
+        },
+        { id: "e", rule: { kind: "activity" }, wakeOnEvents: false },
+      ],
+      default: "a",
+    });
+    expect(prefs.presets.map((p) => [p.id, p.wakeOnEvents])).toEqual([
+      ["a", true],
+      ["b", false],
+      ["c", true],
+      ["d", false],
+      ["e", true],
+    ]);
+    expect(presetWhen(prefs.presets[0]!, wednesday)).toEqual({
+      until: at(2026, 9, 30, 15, 15),
+      events: true,
+    });
+    expect(presetWhen(prefs.presets[4]!, wednesday)).toEqual({
+      until: null,
+      events: true,
+    });
+  });
+
+  it("turns every wake event on unless stored off", () => {
+    const prefs = parseSnoozePrefs({
+      presets: [preset("a")],
+      default: "a",
+      events: { done: false, review: "yes" },
+    });
+    expect(prefs.events.done).toBe(false);
+    expect(prefs.events.review).toBe(true);
+    expect(prefs.events["checks-failed"]).toBe(true);
+    // A change names only the events it turns on or off.
+    const changed = applySnoozePrefsPatch(prefs, { events: { error: false } });
+    expect(changed.events.done).toBe(false);
+    expect(changed.events.error).toBe(false);
+    expect(
+      snoozePrefsPatchSchema.safeParse({ events: { someday: true } }).success,
+    ).toBe(false);
   });
 
   it("turns settings from before presets into the presets they showed", () => {
@@ -205,7 +261,7 @@ describe("preferences", () => {
     expect(prefs.presets.map((p) => [p.id, presetLabel(p)])).toEqual([
       ["3h", "3 hours"],
       ["weekend", "This weekend"],
-      ["activity", "Until it updates"],
+      ["activity", "Until it needs me"],
     ]);
     expect(prefs.presets[1]!.rule).toEqual(time("saturday", 7));
     expect(prefs.default).toBe("3h");
@@ -235,17 +291,24 @@ describe("preferences", () => {
 
   it("resolves every preset at the moment of choosing, in order", () => {
     const choices = snoozeChoices(DEFAULT_SNOOZE_PREFS.presets, wednesday);
-    expect(choices.map((c) => [c.label, c.until])).toEqual([
-      ["1 hour", at(2026, 9, 30, 15, 15)],
-      ["Tomorrow morning", at(2026, 10, 1, 9)],
-      ["Next week", at(2026, 10, 5, 9)],
-      ["Until it updates", null],
+    expect(choices.map((c) => [c.label, c.until, c.events])).toEqual([
+      ["1 hour", at(2026, 9, 30, 15, 15), true],
+      ["Tomorrow morning", at(2026, 10, 1, 9), false],
+      ["Next week", at(2026, 10, 5, 9), false],
+      ["Until it needs me", null, true],
     ]);
     expect(choices.at(-1)!.hint).toBe("");
   });
 
+  it("says a timed snooze that wakes on events may end sooner", () => {
+    expect(describeWake(null, wednesday)).toBe("until it needs you");
+    expect(describeWake(at(2026, 9, 30, 17), wednesday, true)).toMatch(
+      /^until 5 PM or it needs you$/,
+    );
+  });
+
   it("labels rows compactly", () => {
-    expect(shortWake(null, wednesday)).toBe("On update");
+    expect(shortWake(null, wednesday)).toBe("When needed");
     expect(shortWake(at(2026, 10, 1, 9), wednesday)).toBe("Tomorrow");
   });
 });

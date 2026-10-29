@@ -431,27 +431,66 @@ You keep between `1` and `6` presets in **Settings → Workstreams → Snooze**.
 Each preset has an optional label (an empty label names it by its rule) and one
 rule, which resolves to a wake time at the moment you choose it:
 
-| Rule          | Wakes                                                                                                                                                                          |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Duration**  | That many minutes or hours from now (up to `999`), or that many days from now at the same clock time (up to `365`).                                                            |
-| **Time**      | At a clock time on **Today** (tomorrow once that time has passed), **Tomorrow**, **Next workday** (Friday through Sunday wake on Monday), or the coming weekday (never today). |
-| **On update** | On the thread's next activity (`until: null`).                                                                                                                                 |
+| Rule                  | Wakes                                                                                                                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Duration**          | That many minutes or hours from now (up to `999`), or that many days from now at the same clock time (up to `365`).                                                            |
+| **Time**              | At a clock time on **Today** (tomorrow once that time has passed), **Tomorrow**, **Next workday** (Friday through Sunday wake on Monday), or the coming weekday (never today). |
+| **Until it needs me** | At the first wake event (below), with no time (`until: null`).                                                                                                                 |
 
-The defaults are **1 hour**, **Tomorrow morning** (tomorrow at `9 AM`, the
-default), **Next week** (Monday at `9 AM`), and **Until it updates**.
+A **Duration** or **Time** preset also has **Wake early on events**: when on,
+the thread wakes at its time or at the first wake event, whichever comes first.
+It starts on for a duration (a short break while something runs) and off for a
+time (work put away until then); a duration preset saved before this setting
+existed wakes early until you turn it off.
+
+The defaults are **1 hour** (wakes early), **Tomorrow morning** (tomorrow at
+`9 AM`, the default), **Next week** (Monday at `9 AM`), and **Until it needs
+me**.
 
 **Custom…** opens a dialog for a one-off snooze. It lists the same rules
-(**Duration**, **Time**, **On update**) plus **Date** as radio buttons, and the
-chosen one shows its fields just beneath it. It opens on **Date**, which picks
-any date and time up to `366` days out. Editing a preset never moves a thread
-that is already snoozed: a snooze stores only its wake time.
+(**Duration**, **Time**, **Until it needs me**) plus **Date** as radio buttons,
+and the chosen one shows its fields just beneath it, with **Wake early on
+events** below for the timed ones (on for a duration, off for a time or date,
+until you change it). It opens on **Date**, which picks any date and time up to
+`366` days out. Editing a preset never moves a thread that is already snoozed: a
+snooze stores only its wake time and whether it wakes on events.
+
+### Wake events
+
+A snooze that wakes on events ends at the first of these that happens after it
+was set and is turned on in **Settings → Workstreams → Snooze** (all are on by
+default; with every one off, **Until it needs me** never wakes on its own). The
+thread returns marked unread.
+
+| Group            | Event                        | Happens when                                                                                                                             |
+| ---------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Thread**       | **Needs you**                | A question card or approval is pending, or a turn ends needing your decision.                                                            |
+|                  | **Ready for review**         | A turn ends ready for your review.                                                                                                       |
+|                  | **Done**                     | A turn ends complete.                                                                                                                    |
+|                  | **Error**                    | A turn fails and stays failed for a minute with no retry queued.                                                                         |
+|                  | **Message fails to send**    | A queued message fails to send.                                                                                                          |
+|                  | **Machine restart stops it** | The thread or a delegate has waited `5` minutes for its machine.                                                                         |
+| **Delegate**     | **Needs you**                | A delegate has a question card or approval pending, or its turn ends needing a decision or review.                                       |
+|                  | **Fails and work stops**     | A delegate failed and, for `5` minutes, nothing in the tree runs, queues, or asks you anything while the thread's last turn waits on it. |
+| **Pull request** | **Changes requested**        | The thread's pull request moves to changes requested.                                                                                    |
+|                  | **Checks failed**            | Its checks move to failed.                                                                                                               |
+|                  | **Ready to merge**           | It moves to approved, green, and mergeable.                                                                                              |
+
+A turn that ends still waiting or blocked on something else, a turn starting, an
+automatic retry, a background job, a retitle or move, and Workstreams
+re-summarizing a thread never wake it: a turn counts by how it first read. A
+snoozed thread's pull request is looked up when you snooze and then every `5`
+minutes, while the snooze wakes on events and a pull request event is on. Only a
+change counts: a pull request already failing its checks when you snooze doesn't
+wake the thread. Likewise a question, failed send, or machine wait already there
+when you snooze never wakes it.
 
 - Snoozing a root removes the root and its entire delegate subtree from its
   workstream and from **Up Next** / **Recent**, placing them in the **Snoozed**
   section until wake.
-- **Time-based snoozes ignore background agent activity** so an overnight run
-  does not wake a thread before morning; when a timed snooze expires,
-  Workstreams wakes the thread and marks it unread.
+- **Time-only snoozes ignore agent activity** so an overnight run does not wake
+  a thread before morning; when a timed snooze expires, Workstreams wakes the
+  thread and marks it unread.
 - Sending a message to a snoozed thread or clicking **Wake now** wakes it
   immediately.
 
@@ -479,6 +518,7 @@ Open **Settings → Workstreams** to configure:
 | **Recap**             | **Layout**                                         | `Full` (`Full` / `Compact`)                 | Card layout on desktop (`Compact` is always used on phones), with a live preview carousel.                                                                                     |
 | **Recap**             | **Commit hash colors**                             | Theme default                               | Custom `#rrggbb` colors for commit-hash digits and letters, with **Reset**.                                                                                                    |
 | **Snooze**            | **Presets**                                        | `4` presets, **Tomorrow morning** default   | `1–6` presets every snooze menu lists before **Custom…**: add, edit, delete, drag to reorder, and choose the **Default** a click uses.                                         |
+| **Snooze**            | **Wake on …events** (three groups)                 | All `On`                                    | Which wake events end a snooze that wakes on events (see [Wake events](#wake-events)).                                                                                         |
 | **New threads**       | **Home project**                                   | `Don't work in a project`                   | Default project used for background worker fallback when a thread has no project.                                                                                              |
 | **New threads**       | **Suggestions while typing**                       | `On`                                        | Runs Quick analysis on composer drafts while typing.                                                                                                                           |
 | **New threads**       | **Quick analysis model**                           | `openai/gpt-6-luna-fast` (reasoning `none`) | Model used for composer draft previews and first-send Quick analysis (remains active when typing suggestions are off because first-send analysis still uses it).               |

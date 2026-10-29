@@ -1,8 +1,9 @@
 /**
  * The Snooze settings section: the presets every snooze menu lists, in
- * order, and which one a click on a snooze button uses. Presets are added,
- * edited, made the default, deleted, and dragged into order here; there are
- * between one and `MAX_SNOOZE_PRESETS` of them.
+ * order, which one a click on a snooze button uses, and which wake events
+ * end a snooze early. Presets are added, edited, made the default, deleted,
+ * and dragged into order here; there are between one and
+ * `MAX_SNOOZE_PRESETS` of them.
  */
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import {
@@ -34,8 +35,19 @@ import {
   type SnoozePrefsPatch,
   type SnoozeRule,
 } from "../../domain/snooze.ts";
+import {
+  WAKE_EVENTS,
+  WAKE_EVENT_GROUPS,
+  type WakeEvent,
+} from "../../domain/wake.ts";
 import { Hint } from "../Hint.tsx";
-import { SectionRows, SettingRow } from "../settings/ui.tsx";
+import {
+  CompactSettingRow,
+  SectionRows,
+  SettingRow,
+  SettingSwitch,
+  SettingsGroup,
+} from "../settings/ui.tsx";
 import { useServerState } from "../useWorkstreams.ts";
 import { GripIcon, TrashIcon } from "./icons.tsx";
 import { PresetDialog } from "./PresetDialog.tsx";
@@ -90,7 +102,7 @@ export function SnoozeSettings() {
   };
   const save = (
     preset: SnoozePreset | undefined,
-    edit: { label: string; rule: SnoozeRule },
+    edit: { label: string; rule: SnoozeRule; wakeOnEvents: boolean },
   ) =>
     change({
       presets: preset
@@ -167,84 +179,122 @@ export function SnoozeSettings() {
     );
 
   return (
-    <SectionRows>
-      <div>
-        <SettingRow
-          label="Presets"
-          description="Shown in snooze menus, in this order."
-        />
-        <p id={instructionsId} className="sr-only">
-          Drag to reorder, or press the up and down arrow keys.
-        </p>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={onDragEnd}
-          accessibility={{ announcements }}
-        >
-          <SortableContext
-            items={presets.map((p) => p.id)}
-            strategy={verticalListSortingStrategy}
+    <div className="space-y-4">
+      <SectionRows>
+        <div>
+          <SettingRow
+            label="Presets"
+            description="Shown in snooze menus, in this order."
+          />
+          <p id={instructionsId} className="sr-only">
+            Drag to reorder, or press the up and down arrow keys.
+          </p>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={onDragEnd}
+            accessibility={{ announcements }}
           >
-            <ul
-              ref={list}
-              aria-label="Snooze presets"
-              className="mt-2 space-y-0.5"
+            <SortableContext
+              items={presets.map((p) => p.id)}
+              strategy={verticalListSortingStrategy}
             >
-              {presets.map((preset, index) => (
-                <PresetRow
-                  key={preset.id}
-                  preset={preset}
-                  isDefault={preset.id === defaultId}
-                  defaultName={defaultName}
-                  instructionsId={instructionsId}
-                  canDelete={presets.length > 1}
-                  onMove={(step) => {
-                    setRefocus({ id: preset.id, control: "handle" });
-                    move(index, index + step);
-                  }}
-                  onMakeDefault={() => change({ default: preset.id })}
-                  onEdit={() => setDialog({ open: true, preset })}
-                  onDelete={() => remove(preset)}
-                />
-              ))}
-            </ul>
-          </SortableContext>
-        </DndContext>
-        <div className="mt-2 flex items-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={full}
-            onClick={() => setDialog({ open: true })}
-          >
-            <Icon name="Plus" />
-            Add preset
-          </Button>
-          {full ? (
-            <span className="text-xs text-muted-foreground">
-              Up to {MAX_SNOOZE_PRESETS} presets
-            </span>
-          ) : null}
+              <ul
+                ref={list}
+                aria-label="Snooze presets"
+                className="mt-2 space-y-0.5"
+              >
+                {presets.map((preset, index) => (
+                  <PresetRow
+                    key={preset.id}
+                    preset={preset}
+                    isDefault={preset.id === defaultId}
+                    defaultName={defaultName}
+                    instructionsId={instructionsId}
+                    canDelete={presets.length > 1}
+                    onMove={(step) => {
+                      setRefocus({ id: preset.id, control: "handle" });
+                      move(index, index + step);
+                    }}
+                    onMakeDefault={() => change({ default: preset.id })}
+                    onEdit={() => setDialog({ open: true, preset })}
+                    onDelete={() => remove(preset)}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
+          <div className="mt-2 flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={full}
+              onClick={() => setDialog({ open: true })}
+            >
+              <Icon name="Plus" />
+              Add preset
+            </Button>
+            {full ? (
+              <span className="text-xs text-muted-foreground">
+                Up to {MAX_SNOOZE_PRESETS} presets
+              </span>
+            ) : null}
+          </div>
+          <p aria-live="polite" className="sr-only">
+            {announcement}
+          </p>
         </div>
-        <p aria-live="polite" className="sr-only">
-          {announcement}
-        </p>
-      </div>
-      {error ? (
-        <p role="alert" className="py-2 text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
-      <PresetDialog
-        open={dialog.open}
-        preset={dialog.preset}
-        onClose={() => setDialog((current) => ({ ...current, open: false }))}
-        onSave={(edit) => save(dialog.preset, edit)}
+        {error ? (
+          <p role="alert" className="py-2 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+        <PresetDialog
+          open={dialog.open}
+          preset={dialog.preset}
+          onClose={() => setDialog((current) => ({ ...current, open: false }))}
+          onSave={(edit) => save(dialog.preset, edit)}
+        />
+      </SectionRows>
+      <WakeEventSettings
+        events={server.snoozePrefs.events}
+        onChange={(event, on) => change({ events: { [event]: on } })}
       />
-    </SectionRows>
+    </div>
   );
+}
+
+/** A switch for each wake event, in groups. */
+function WakeEventSettings({
+  events,
+  onChange,
+}: {
+  events: Readonly<Record<WakeEvent, boolean>>;
+  onChange: (event: WakeEvent, on: boolean) => void;
+}) {
+  return WAKE_EVENT_GROUPS.map((group) => (
+    <SettingsGroup key={group.id} title={group.label}>
+      <SectionRows compact>
+        {WAKE_EVENTS.filter((event) => event.group === group.id).map(
+          (event) => (
+            <CompactSettingRow
+              key={event.id}
+              label={event.label}
+              control={
+                <SettingSwitch
+                  size="sm"
+                  label={`${group.label}: ${event.label}`}
+                  checked={events[event.id]}
+                  onChange={(on) => onChange(event.id, on)}
+                />
+              }
+            />
+          ),
+        )}
+      </SectionRows>
+    </SettingsGroup>
+  ));
 }
 
 const iconButtonClass =

@@ -60,12 +60,23 @@ policies apply to conversation excerpts sent for analysis.
 - **Human labels versus JSON states:** “Working” / “needs you” are prose;
   `in_progress` / `needs_decision` are serialized work states. Runtime `error`
   is a BB thread status, not an inferred `WorkState` value.
-- **Short labels:** “On update” is the compact version of “Until it updates”;
-  “New threads” names a settings section while “New work…” is an action. These
-  are not separate features or state values.
+- **Short labels:** “When needed” is the sidebar row's compact version of “Until
+  it needs me”; “New threads” names a settings section while “New work…” is an
+  action. These are not separate features or state values.
 - **Snooze dates:** A weekday rule is always a future day: Saturday at 9 AM
   chosen on a Saturday means next Saturday. Use a Today rule or Custom… for the
   current day.
+- **Wake event timing:** Turn-end events are checked when BB reports the turn
+  idle, when its recap or Full analysis lands, and on the minute-long reconcile.
+  Lasting conditions (a pending question, failed send, machine wait) are dated
+  by the inventory read before the one that showed them, so one that began
+  within a minute before or after a snooze may be taken as older and not wake
+  it; a question card's own event still wakes it at once. Pull request state is
+  polled every 5 minutes. A delegate cut off without failing (an interrupted
+  turn that ends idle) is not seen as failed. A server restart forgets failure
+  times (a failed turn then counts when its attention moved after the snooze)
+  and how each turn first read, so a turn re-analyzed after a restart counts by
+  its new reading.
 - **Activity compatibility values:** Old proposal action/link kinds remain
   readable because retained Activity rows and traces can still use them.
 - **Retitle enablement checks:** Re-checking title settings after awaited SDK
@@ -83,6 +94,7 @@ policies apply to conversation excerpts sent for analysis.
 - Snooze rules, preset repair, and valid custom snoozes:
   `tests/domain/snooze.test.ts`, `tests/app/custom-snooze-dialog.test.tsx`,
   `tests/app/snooze-settings.test.tsx`.
+- Wake events: `tests/domain/wake.test.ts`, `tests/server/snooze-wake.test.ts`.
 - Question answer limits and attachment availability: `tests/app/question/`.
 - Sidebar ordering/drop affordances and shared band preferences:
   `tests/app/drop.test.ts`, `tests/app/sidebar.test.tsx`.

@@ -46,6 +46,9 @@ import {
   type StoredSnoozes,
 } from "./snooze.ts";
 import { isSnoozed, MAX_SNOOZE_MS } from "../domain/snooze.ts";
+import { wakesOnEvents, type WakeEvent } from "../domain/wake.ts";
+import { workView } from "../domain/status.ts";
+import { SnoozeWaker } from "./snoozeWake.ts";
 import { hasPrefs, loadPrefs, savePrefs, seedPrefs } from "./prefs.ts";
 import { gatewayModel, type ModelChoice } from "../domain/prefs.ts";
 import { runWorker as completeWithWorker } from "./inference/worker.ts";
@@ -82,24 +85,54 @@ export default async function plugin(bb: BbPluginApi) {
     () => loadPrefs(db).threads.autoTitle,
     (thread, now) => {
       const snooze = snoozes.get(thread.id);
-      return isSnoozed(snooze, thread, now) ? snooze!.until : undefined;
+      return isSnoozed(snooze, now) ? snooze!.until : undefined;
     },
   );
-  /**
-   * Drops snoozes that ended, against the reconciler's fresh thread list.
-   * A thread whose wake time came returns marked unread.
-   */
-  const sweepSnoozes = async () => {
-    const { ended, timed } = snoozes.sweep(service.threads(), Date.now());
-    if (!ended.length) return;
-    notify();
-    for (const threadId of timed)
+  const markUnread = async (threadIds: readonly string[]) => {
+    for (const threadId of threadIds)
       await bb.sdk.threads
         .markUnread({ threadId })
         .catch((error: unknown) =>
           bb.log.warn(`Marking ${threadId} unread failed: ${String(error)}`),
         );
   };
+  /** Ends snoozes a wake event ended; the threads return marked unread. */
+  const wakeOnEvent = async (
+    set: { id: string; at: number }[],
+    event: WakeEvent,
+  ) => {
+    const woke = snoozes.clearSet(set);
+    if (!woke.length) return;
+    bb.log.info(`Woke ${woke.length} snoozed thread(s): ${event}`);
+    notify();
+    await markUnread(woke);
+  };
+  // Set below, once analysis and recaps exist.
+  let waker: SnoozeWaker | null = null;
+  const checkWakeEvents = () =>
+    waker
+      ?.check()
+      .catch((error: unknown) =>
+        bb.log.warn(`Checking snooze wake events failed: ${String(error)}`),
+      );
+  /**
+   * Drops snoozes that ended, against the reconciler's fresh thread list,
+   * then checks wake events. A thread whose wake time came returns marked
+   * unread.
+   */
+  const sweepSnoozes = async () => {
+    // Before the first reconcile there's no inventory to judge against, and
+    // every snooze would look like one on a thread that's gone.
+    if (service.reconciledAt() === null) return;
+    const { ended, timed } = snoozes.sweep(service.threads(), Date.now());
+    if (ended.length) {
+      notify();
+      await markUnread(timed);
+    }
+    await checkWakeEvents();
+  };
+  /** Whether any snooze waits on wake events, so turn ends are worth a look. */
+  const awaitingEvents = () => Object.values(snoozes.all()).some(wakesOnEvents);
 
   // Set once the organizer exists; earlier triggers have nothing to start.
   let organizer: Organizer | null = null;
@@ -288,8 +321,10 @@ export default async function plugin(bb: BbPluginApi) {
     },
     onChange: notify,
     onResult: (threadId, result) => {
-      // A finished analysis can change whether the thread counts as done.
+      // A finished analysis can change whether the thread counts as done,
+      // and settle how a snoozed thread's turn ended.
       triggerOrganizer();
+      if (awaitingEvents()) void checkWakeEvents();
       // A goal carried over from before goals were capped can be too long for
       // a title.
       if (result.goal && result.goal.length <= GOAL_MAX)
@@ -333,11 +368,40 @@ export default async function plugin(bb: BbPluginApi) {
       notify();
       // A reported or cleared recap can change whether the thread is done.
       triggerOrganizer(200);
+      if (awaitingEvents()) void checkWakeEvents();
     },
   });
   recapToolSince(db);
   recaps.register();
   bb.onDispose(() => recaps.dispose());
+  waker = new SnoozeWaker({
+    db,
+    snoozes,
+    prefs: () => loadSnoozePrefs(db),
+    threads: () => service.threads(),
+    inventoryAt: () => service.reconciledAt(),
+    workOf: () => {
+      const analyzed = analyzer.all();
+      const reported = recaps.all();
+      return (thread) => {
+        const work = workView(thread, analyzed[thread.id], reported[thread.id]);
+        return work.kind === "current" ? work.analysis.state : null;
+      };
+    },
+    pullRequest: async (environmentId) => {
+      try {
+        const result = await bb.sdk.environments.pullRequest({
+          environmentId,
+        });
+        if (result.outcome === "available") return result.pullRequest.attention;
+        return result.outcome === "absent" ? null : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    wake: wakeOnEvent,
+    now: Date.now,
+  });
   const archives = new RecapArchive({
     sdk: () => bb.sdk,
     recaps,
@@ -616,6 +680,14 @@ export default async function plugin(bb: BbPluginApi) {
     if (snoozes.clear(thread.id)) notify();
   });
   bb.events.on("interaction.pending", ({ thread, interaction }) => {
+    void waker
+      ?.onInteraction({
+        id: thread.id,
+        parentThreadId: thread.parentThreadId ?? null,
+      })
+      .catch((error: unknown) =>
+        bb.log.warn(`Waking on a question failed: ${String(error)}`),
+      );
     if (
       interaction.origin?.kind === "plugin" &&
       interaction.origin.pluginId === bb.pluginId &&
@@ -632,13 +704,19 @@ export default async function plugin(bb: BbPluginApi) {
     service.forget(thread.id);
     topics.forget(thread.id);
   });
+  bb.events.on("thread.failed", ({ thread }) => {
+    waker?.onFailed(thread.id);
+    if (awaitingEvents()) reconcileSoon();
+  });
   bb.events.on("thread.idle", ({ thread, lastAssistantText }) => {
+    if (awaitingEvents()) reconcileSoon();
     if (thread.visibility === "hidden") return;
     analyzer.onIdle(thread, lastAssistantText);
     triggerOrganizer(200);
     return recaps.onIdle(thread.id);
   });
   bb.events.on("thread.active", ({ thread }) => {
+    waker?.onActive(thread.id);
     analyzer.onActive(thread.id);
     triggerOrganizer(200);
     // Covers a thread whose first request this run didn't see dispatched.
@@ -896,7 +974,7 @@ export default async function plugin(bb: BbPluginApi) {
         notify();
         return { prefs };
       }),
-    snooze: ({ threadIds, until }) =>
+    snooze: ({ threadIds, until, events }) =>
       userFacing(async () => {
         const now = Date.now();
         if (until !== null && until <= now)
@@ -915,6 +993,7 @@ export default async function plugin(bb: BbPluginApi) {
           if (thread && thread.archivedAt === null)
             stored[thread.id] = {
               until,
+              ...(until !== null && events ? { events: true } : {}),
               attentionAt: thread.latestAttentionAt ?? thread.updatedAt,
               at: now,
             };
@@ -925,6 +1004,9 @@ export default async function plugin(bb: BbPluginApi) {
         snoozes.set(stored);
         service.observePopulation();
         notify();
+        // Records each new snooze's pull request state right away, so a
+        // change soon after counts.
+        void checkWakeEvents();
         return { snoozes: stored };
       }),
     unsnooze: async ({ threadIds }) => {

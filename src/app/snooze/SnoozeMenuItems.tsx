@@ -5,6 +5,7 @@ import {
   snoozeChoices,
   wakeTime,
   type SnoozePrefs,
+  type SnoozeWhen,
   type ThreadSnooze,
 } from "../../domain/snooze.ts";
 
@@ -38,7 +39,7 @@ export function SnoozeMenuItems({
    * `onWake`, the menu also says when it wakes and offers Wake now.
    */
   snooze?: ThreadSnooze;
-  onSnooze: (until: number | null) => void;
+  onSnooze: (when: SnoozeWhen) => void;
   onWake?: () => void;
   /** Opens the Custom… dialog (see `CustomSnoozeDialog`). */
   onCustom: () => void;
@@ -49,7 +50,9 @@ export function SnoozeMenuItems({
       {heading ? <Label>{heading}</Label> : null}
       {snooze && onWake ? (
         <>
-          <Label>Snoozed {describeWake(snooze.until, now)}</Label>
+          <Label>
+            Snoozed {describeWake(snooze.until, now, snooze.events)}
+          </Label>
           <MenuItem onSelect={onWake}>Wake now</MenuItem>
           <Separator />
         </>
@@ -57,7 +60,12 @@ export function SnoozeMenuItems({
       {snoozeChoices(prefs.presets, now).map((choice) => (
         <MenuItem
           key={choice.id}
-          onSelect={() => onSnooze(wakeTime(choice.rule, Date.now()))}
+          onSelect={() =>
+            onSnooze({
+              until: wakeTime(choice.rule, Date.now()),
+              events: choice.events,
+            })
+          }
         >
           <span className="flex-1">
             {choice.label}

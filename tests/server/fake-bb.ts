@@ -58,6 +58,8 @@ export async function fakeWorld(
   );
   const workerCalls: Record<string, unknown>[] = [];
   const markedUnread: string[] = [];
+  /** Each environment's pull request attention; null or absent: none. */
+  const pullRequests = new Map<string, string | null>();
   /** Each thread's latest agent turn: its number and how it ended. */
   const turns = new Map<string, { n: number; status: string }>();
   const sections: Section[] = [];
@@ -137,6 +139,15 @@ export async function fakeWorld(
         }),
       },
       environments: {
+        pullRequest: async ({ environmentId }: { environmentId: string }) => {
+          const attention = pullRequests.get(environmentId) ?? null;
+          return attention === null
+            ? { outcome: "absent" }
+            : {
+                outcome: "available",
+                pullRequest: { attention, number: 1, state: "open" },
+              };
+        },
         get: async ({ environmentId }: { environmentId: string }) => ({
           id: environmentId,
           hostId: "host_1",
@@ -372,5 +383,6 @@ export async function fakeWorld(
     workerCalls,
     sent,
     markedUnread,
+    pullRequests,
   };
 }

@@ -117,10 +117,10 @@ it("sweeps ended snoozes, marking timed ones unread", async () => {
     until: null,
   });
   await new Promise((resolve) => setTimeout(resolve, 40));
-  // t2 had new activity; t1's time came.
+  // t1's time came. t2 waits for a wake event; activity alone isn't one.
   w.threads.set("t2", { ...w.threads.get("t2")!, latestAttentionAt: 900 });
   await w.harness.behavior.callRpc("refresh", null);
-  expect(await snoozes(w)).toEqual({});
+  expect(Object.keys(await snoozes(w))).toEqual(["t2"]);
   expect(w.markedUnread).toEqual(["t1"]);
 });
 
@@ -172,14 +172,30 @@ it("stores snooze presets, rejects bad changes, and returns them in state", asyn
   const { prefs } = (await w.harness.behavior.callRpc("setSnoozePrefs", {
     patch: { presets, default: "nap" },
   })) as { prefs: unknown };
-  expect(prefs).toEqual({ presets, default: "nap" });
+  // Each preset's wake-on-events choice is stored explicitly.
+  const stored = [
+    { ...presets[0]!, wakeOnEvents: false },
+    { ...presets[1]!, wakeOnEvents: true },
+  ];
+  const events = DEFAULT_SNOOZE_PREFS.events;
+  expect(prefs).toEqual({ presets: stored, default: "nap", events });
   // Dropping the default preset moves the default to the first.
   await w.harness.behavior.callRpc("setSnoozePrefs", {
     patch: { presets: presets.slice(0, 1) },
   });
   expect(await state()).toEqual({
-    presets: presets.slice(0, 1),
+    presets: stored.slice(0, 1),
     default: "evening",
+    events,
+  });
+  // A wake event change keeps the presets and the other events.
+  await w.harness.behavior.callRpc("setSnoozePrefs", {
+    patch: { events: { done: false } },
+  });
+  expect(await state()).toEqual({
+    presets: stored.slice(0, 1),
+    default: "evening",
+    events: { ...events, done: false },
   });
   await expect(
     w.harness.behavior.callRpc("setSnoozePrefs", {
@@ -190,7 +206,8 @@ it("stores snooze presets, rejects bad changes, and returns them in state", asyn
     w.harness.behavior.callRpc("setSnoozePrefs", { patch: { presets: [] } }),
   ).rejects.toThrow();
   expect(await state()).toEqual({
-    presets: presets.slice(0, 1),
+    presets: stored.slice(0, 1),
     default: "evening",
+    events: { ...events, done: false },
   });
 });

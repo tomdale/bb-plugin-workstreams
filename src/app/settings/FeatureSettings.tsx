@@ -11,6 +11,7 @@ import {
   SettingRow,
   SettingSwitch,
   SegmentedControl,
+  SettingsGroup,
   SettingsPicker,
   Stepper,
 } from "./ui.tsx";
@@ -75,7 +76,7 @@ export function SidebarSettings() {
   return (
     <div className="space-y-4">
       <SettingsSaveError error={error} />
-      <SidebarGroup title="Sections">
+      <SettingsGroup title="Sections">
         <SectionRows compact>
           {row("Up Next", prefs.sidebar.showForYou, (showForYou) =>
             update({ sidebar: { showForYou } }),
@@ -102,8 +103,8 @@ export function SidebarSettings() {
             update({ sidebar: { showArchived } }),
           )}
         </SectionRows>
-      </SidebarGroup>
-      <SidebarGroup title="Home screen">
+      </SettingsGroup>
+      <SettingsGroup title="Home screen">
         <SectionRows compact>
           <SettingRow
             label="Up Next and workstreams on phones"
@@ -118,8 +119,8 @@ export function SidebarSettings() {
             }
           />
         </SectionRows>
-      </SidebarGroup>
-      <SidebarGroup title="Details">
+      </SettingsGroup>
+      <SettingsGroup title="Details">
         <SectionRows compact>
           {choice(
             "Timestamp",
@@ -144,25 +145,8 @@ export function SidebarSettings() {
             (waitingCount) => update({ sidebar: { waitingCount } }),
           )}
         </SectionRows>
-      </SidebarGroup>
+      </SettingsGroup>
     </div>
-  );
-}
-
-function SidebarGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section aria-label={title}>
-      <h4 className="mb-1.5 text-xs font-medium text-muted-foreground">
-        {title}
-      </h4>
-      {children}
-    </section>
   );
 }
 

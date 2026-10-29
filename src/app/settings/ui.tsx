@@ -303,6 +303,24 @@ export function SettingsPicker({
   );
 }
 
+/** A titled run of setting rows within a section. */
+export function SettingsGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section aria-label={title}>
+      <h4 className="mb-1.5 text-xs font-medium text-muted-foreground">
+        {title}
+      </h4>
+      {children}
+    </section>
+  );
+}
+
 export function CompactSettingRow({
   label,
   control,

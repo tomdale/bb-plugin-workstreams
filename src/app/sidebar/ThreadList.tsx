@@ -78,8 +78,9 @@ import { setComposerPreset } from "../composer/preset.ts";
 import {
   defaultPreset,
   describeWake,
+  presetWhen,
   shortWake,
-  wakeTime,
+  type SnoozeWhen,
 } from "../../domain/snooze.ts";
 import { snoozeThreads, wakeThreads } from "../snooze/actions.ts";
 import { CustomSnoozeDialog } from "../snooze/CustomSnoozeDialog.tsx";
@@ -124,8 +125,8 @@ type GroupSnooze = {
   run: () => void;
   /** The hover menu's choices. */
   menu: ReactNode;
-  /** Snoozes the batch until a time, or (null) each until it updates. */
-  snooze: (until: number | null) => void;
+  /** Snoozes the batch until a time, a wake event, or whichever is first. */
+  snooze: (when: SnoozeWhen) => void;
   /** Opens the Custom… snooze dialog for the batch. */
   custom: () => void;
 };
@@ -397,8 +398,8 @@ export function WorkstreamsThreadList({
     onDrop,
   });
 
-  const applySnooze = (request: SnoozeRequest, until: number | null) =>
-    snoozeThreads(ws.setSnoozes, request.threads, until, {
+  const applySnooze = (request: SnoozeRequest, when: SnoozeWhen) =>
+    snoozeThreads(ws.setSnoozes, request.threads, when, {
       previous: ws.snoozeOf,
       subject: request.subject,
     });
@@ -417,16 +418,17 @@ export function WorkstreamsThreadList({
       }
     },
     inspect: (thread) => setInspecting(thread),
-    snooze: (thread, until) => applySnooze({ threads: [thread] }, until),
+    snooze: (thread, when) => applySnooze({ threads: [thread] }, when),
     customSnooze: (thread) => setCustomSnooze({ threads: [thread] }),
     wake: (thread) => wakeThreads(ws.setSnoozes, [thread]),
   };
   const snoozePrefs = ws.snoozePrefs;
-  const defaultRule = defaultPreset(snoozePrefs).rule;
-  const defaultWakeText = describeWake(wakeTime(defaultRule, now), now);
+  const preset = defaultPreset(snoozePrefs);
+  const shownWhen = presetWhen(preset, now);
+  const defaultWakeText = describeWake(shownWhen.until, now, shownWhen.events);
   const defaultSnoozeTitle = `Snooze ${defaultWakeText}`;
-  /** The default preset's wake time, from the moment of the click. */
-  const defaultWake = () => wakeTime(defaultRule, Date.now());
+  /** When the default preset wakes, from the moment of the click. */
+  const defaultWake = () => presetWhen(preset, Date.now());
   /**
    * A workstream row's snooze button, while the row lists threads: it
    * snoozes every one of them (see `groupRoots`) with the default preset,
@@ -441,7 +443,7 @@ export function WorkstreamsThreadList({
       threads: groupRoots(group),
       subject: `${count} in ${group.name}`,
     };
-    const snooze = (until: number | null) => applySnooze(request, until);
+    const snooze = (when: SnoozeWhen) => applySnooze(request, when);
     const custom = () => setCustomSnooze(request);
     return {
       label: `Snooze ${count}`,
@@ -505,7 +507,7 @@ export function WorkstreamsThreadList({
         now={now}
         prefs={snoozePrefs}
         snooze={snooze}
-        onSnooze={(until) => handlers.snooze(row.thread, until)}
+        onSnooze={(when) => handlers.snooze(row.thread, when)}
         onWake={() => handlers.wake(row.thread)}
         onCustom={() => handlers.customSnooze(row.thread)}
       />
@@ -519,7 +521,7 @@ export function WorkstreamsThreadList({
       };
     return {
       kind: "wake" as const,
-      title: `Wake now (snoozed ${describeWake(snooze!.until, now)})`,
+      title: `Wake now (snoozed ${describeWake(snooze!.until, now, snooze!.events)})`,
       run: () => handlers.wake(row.thread),
       menu,
     };
@@ -1235,8 +1237,8 @@ export function WorkstreamsThreadList({
         <CustomSnoozeDialog
           open={customSnooze !== null}
           onClose={() => setCustomSnooze(null)}
-          onSubmit={(until) => {
-            if (customSnooze) applySnooze(customSnooze, until);
+          onSubmit={(when) => {
+            if (customSnooze) applySnooze(customSnooze, when);
           }}
         />
         {inspecting ? (

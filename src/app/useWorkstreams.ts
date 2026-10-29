@@ -117,7 +117,7 @@ export function useWorkstreams() {
         lastPopulatedAt,
         snoozedUntil: (thread) => {
           const snooze = snoozes[thread.id];
-          return isSnoozed(snooze, thread, now) ? snooze!.until : undefined;
+          return isSnoozed(snooze, now) ? snooze!.until : undefined;
         },
       }),
     [threads, sections, now, analysis, recaps, order, snoozes, lastPopulatedAt],
@@ -155,7 +155,7 @@ export function useWorkstreams() {
     setSnoozes,
     snoozeOf: (thread: PluginSidebarThread) => {
       const snooze = snoozes[thread.id];
-      return isSnoozed(snooze, thread, now) ? snooze : undefined;
+      return isSnoozed(snooze, now) ? snooze : undefined;
     },
     snoozePrefs: server.snoozePrefs,
     showForYou: prefs?.sidebar.showForYou ?? true,

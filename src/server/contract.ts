@@ -232,8 +232,10 @@ const snoozeIds = z.array(z.string().min(1)).min(1).max(500);
 
 const snoozeSchema = z.object({
   until: z.number().nullable(),
+  events: z.boolean().optional(),
   attentionAt: z.number(),
   at: z.number(),
+  pr: z.string().nullable().optional(),
 });
 
 const orderSchema = z.object({
@@ -534,8 +536,8 @@ export const rpcContract = defineRpcContract({
     }),
   },
   /**
-   * Snoozes threads until a time, or (`until: null`) each until its next
-   * activity, with one change notification. Snoozing again replaces the
+   * Snoozes threads until a time, until a wake event (`until: null`), or
+   * (`events`) until whichever comes first, with one change notification. Snoozing again replaces the
    * earlier snooze. A thread that is archived or gone is skipped; the call
    * fails only when none of them can be snoozed. Returns the snoozes stored.
    */
@@ -543,6 +545,8 @@ export const rpcContract = defineRpcContract({
     input: z.object({
       threadIds: snoozeIds,
       until: z.number().int().positive().nullable(),
+      /** A timed snooze also ends at the first enabled wake event. */
+      events: z.boolean().optional(),
     }),
     output: z.object({ snoozes: z.record(z.string(), snoozeSchema) }),
   },

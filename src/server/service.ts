@@ -682,6 +682,11 @@ export class WorkstreamService {
     return this.lastThreads;
   }
 
+  /** When the threads `threads()` returns were read; null before the first. */
+  reconciledAt(): number | null {
+    return this.lastReconciledAt;
+  }
+
   /** Drops per-thread records once BB has deleted the thread. */
   forget(threadId: string): void {
     this.db

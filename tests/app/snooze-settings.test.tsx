@@ -11,8 +11,10 @@ import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { emptyState } from "./fixtures.ts";
 import {
   DEFAULT_SNOOZE_PREFS,
+  applySnoozePrefsPatch,
   type SnoozePreset,
   type SnoozePrefs,
+  type SnoozePrefsPatch,
 } from "../../src/domain/snooze.ts";
 import { chooseOption } from "./select.ts";
 
@@ -35,7 +37,10 @@ async function mount(
           return { ...emptyState(), snoozes: {}, snoozePrefs: prefs };
         },
         setSnoozePrefs: (input: unknown) => {
-          prefs = { ...prefs, ...(input as { patch: object }).patch };
+          prefs = applySnoozePrefsPatch(
+            prefs,
+            (input as { patch: SnoozePrefsPatch }).patch,
+          );
           return { prefs };
         },
       },
@@ -63,7 +68,7 @@ it("lists the presets in menu order with the default chosen", async () => {
       "1 hour",
       "Tomorrow morning",
       "Next week",
-      "Until it updates",
+      "Until it needs me",
     ]),
   );
   expect(
@@ -120,8 +125,55 @@ it("edits a preset, keeping its place and id", async () => {
       id: "1h",
       label: "",
       rule: { kind: "duration", amount: 2, unit: "hours" },
+      wakeOnEvents: true,
     }),
   );
+});
+
+it("sets whether a preset wakes early on events, following its kind until set", async () => {
+  const slot = await mount();
+  fireEvent.click(await slot.findByRole("button", { name: "Edit 1 hour" }));
+  const dialog = await screen.findByRole("dialog");
+  const wakeEarly = () =>
+    within(dialog).getByRole("switch", { name: "Wake early on events" });
+  expect(wakeEarly().getAttribute("aria-checked")).toBe("true");
+  fireEvent.click(within(dialog).getByRole("radio", { name: "Time" }));
+  expect(wakeEarly().getAttribute("aria-checked")).toBe("false");
+  fireEvent.click(wakeEarly());
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(lastPatch(slot)?.presets?.[0]).toMatchObject({
+      id: "1h",
+      rule: { kind: "time" },
+      wakeOnEvents: true,
+    }),
+  );
+});
+
+it("turns wake events on and off, one at a time", async () => {
+  const slot = await mount();
+  const checksFailed = await slot.findByRole("switch", {
+    name: "Wake on pull request events: Checks failed",
+  });
+  expect(checksFailed.getAttribute("aria-checked")).toBe("true");
+  fireEvent.click(checksFailed);
+  await waitFor(() =>
+    expect(lastPatch(slot)).toEqual({ events: { "checks-failed": false } }),
+  );
+  await waitFor(() =>
+    expect(
+      slot
+        .getByRole("switch", {
+          name: "Wake on pull request events: Checks failed",
+        })
+        .getAttribute("aria-checked"),
+    ).toBe("false"),
+  );
+  expect(
+    slot
+      .getByRole("switch", { name: "Wake on thread events: Done" })
+      .getAttribute("aria-checked"),
+  ).toBe("true");
 });
 
 it("reorders presets from the keyboard, keeping focus on the moved one", async () => {
@@ -185,6 +237,7 @@ it("moves the default to the first preset when it is deleted", async () => {
 
 it("keeps the last preset, and stops adding at six", async () => {
   const only: SnoozePrefs = {
+    ...DEFAULT_SNOOZE_PREFS,
     presets: [DEFAULT_SNOOZE_PREFS.presets[0]!],
     default: "1h",
   };
@@ -198,6 +251,7 @@ it("keeps the last preset, and stops adding at six", async () => {
   slot.lifecycle.unmount();
 
   const six: SnoozePrefs = {
+    ...DEFAULT_SNOOZE_PREFS,
     presets: Array.from({ length: 6 }, (_, i) => ({
       id: `p${i}`,
       label: `Preset ${i}`,

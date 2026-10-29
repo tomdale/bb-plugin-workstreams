@@ -50,7 +50,7 @@ describe("CustomSnoozeDialog", () => {
       within(kinds)
         .getAllByRole("radio")
         .map((radio) => radio.parentElement!.textContent),
-    ).toEqual(["Duration", "Time", "Date", "On update"]);
+    ).toEqual(["Duration", "Time", "Date", "Until it needs me"]);
     // Each radio sits in a row with its label; its fields follow the row.
     const fieldsUnder = (kind: string) =>
       screen.getByRole("radio", { name: kind }).parentElement!
@@ -71,9 +71,36 @@ describe("CustomSnoozeDialog", () => {
     // The new fields leave focus on the radio, for arrow keys.
     expect(document.activeElement).toBe(duration);
 
-    fireEvent.click(screen.getByRole("radio", { name: "On update" }));
-    expect(fieldsUnder("On update")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "Until it needs me" }));
+    expect(fieldsUnder("Until it needs me")).toBeNull();
     expect(screen.queryByLabelText("Amount")).toBeNull();
+    // It always wakes on events, so it has no switch for it.
+    expect(
+      screen.queryByRole("switch", { name: "Wake early on events" }),
+    ).toBeNull();
+  });
+
+  it("wakes early on events for a duration unless switched off, and not for a date or time unless switched on", () => {
+    const onSubmit = vi.fn();
+    render(
+      <CustomSnoozeDialog open onClose={() => undefined} onSubmit={onSubmit} />,
+    );
+    const wakeEarly = () =>
+      screen.getByRole("switch", { name: "Wake early on events" });
+    expect(wakeEarly().getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(screen.getByRole("radio", { name: "Duration" }));
+    expect(wakeEarly().getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByText(/or it needs you$/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Time" }));
+    expect(wakeEarly().getAttribute("aria-checked")).toBe("false");
+    // Once set, the choice holds across kinds.
+    fireEvent.click(wakeEarly());
+    fireEvent.click(screen.getByRole("radio", { name: "Date" }));
+    expect(wakeEarly().getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Snooze" }));
+    expect(onSubmit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ events: true }),
+    );
   });
 
   it("snoozes for a duration or until a time, judged on submit", () => {
@@ -89,9 +116,10 @@ describe("CustomSnoozeDialog", () => {
     expect(screen.getByText(/^Until 7:15/)).toBeTruthy();
     vi.setSystemTime(new Date("2025-01-15T18:40:00"));
     fireEvent.click(screen.getByRole("button", { name: "Snooze" }));
-    expect(onSubmit).toHaveBeenLastCalledWith(
-      new Date("2025-01-15T19:25:00").getTime(),
-    );
+    expect(onSubmit).toHaveBeenLastCalledWith({
+      until: new Date("2025-01-15T19:25:00").getTime(),
+      events: true,
+    });
 
     rerender(
       <CustomSnoozeDialog
@@ -110,9 +138,10 @@ describe("CustomSnoozeDialog", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Snooze" }));
     // Wednesday's next workday is Thursday.
-    expect(onSubmit).toHaveBeenLastCalledWith(
-      new Date("2025-01-16T08:30:00").getTime(),
-    );
+    expect(onSubmit).toHaveBeenLastCalledWith({
+      until: new Date("2025-01-16T08:30:00").getTime(),
+      events: false,
+    });
   });
 
   it("asks for a usable duration", () => {
@@ -151,9 +180,10 @@ describe("CustomSnoozeDialog", () => {
     const button = screen.getByRole("button", { name: "Snooze" });
     expect(button).toHaveProperty("disabled", false);
     fireEvent.click(button);
-    expect(onSubmit).toHaveBeenCalledWith(
-      new Date("2026-01-17T12:00").getTime(),
-    );
+    expect(onSubmit).toHaveBeenCalledWith({
+      until: new Date("2026-01-17T12:00").getTime(),
+      events: false,
+    });
   });
 
   it("rechecks a formerly future wake time when submitting a long-lived form", () => {

@@ -10,6 +10,8 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   MAX_PRESET_LABEL,
+  defaultWakeOnEvents,
+  presetWakesOnEvents,
   ruleLabel,
   type SnoozePreset,
   type SnoozeRule,
@@ -27,7 +29,8 @@ const PRESET_KINDS = ["duration", "time", "activity"] as const;
 
 /**
  * Adds a snooze preset (`preset` absent) or edits one. `onSave` receives the
- * label, empty to label the preset by its rule, and the rule.
+ * label, empty to label the preset by its rule, the rule, and whether it
+ * wakes early on events.
  */
 export function PresetDialog({
   open,
@@ -38,7 +41,11 @@ export function PresetDialog({
   open: boolean;
   preset?: SnoozePreset;
   onClose: () => void;
-  onSave: (change: { label: string; rule: SnoozeRule }) => void;
+  onSave: (change: {
+    label: string;
+    rule: SnoozeRule;
+    wakeOnEvents: boolean;
+  }) => void;
 }) {
   const [label, setLabel] = useState("");
   const [draft, setDraft] = useState<SnoozeDraft>(() =>
@@ -51,6 +58,13 @@ export function PresetDialog({
       draftOf(
         preset?.rule ?? { kind: "duration", amount: 2, unit: "hours" },
         Date.now(),
+        undefined,
+        // A choice that matches its kind's default follows the kind, so
+        // changing the kind brings that kind's default.
+        preset &&
+          presetWakesOnEvents(preset) !== defaultWakeOnEvents(preset.rule.kind)
+          ? presetWakesOnEvents(preset)
+          : null,
       ),
     );
   }, [open, preset]);
@@ -63,7 +77,11 @@ export function PresetDialog({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!result.ok || !result.rule) return;
-    onSave({ label: label.trim(), rule: result.rule });
+    onSave({
+      label: label.trim(),
+      rule: result.rule,
+      wakeOnEvents: result.events,
+    });
     onClose();
   };
 
@@ -97,7 +115,9 @@ export function PresetDialog({
           </div>
           {!result.ok || result.until !== null ? (
             <p className="text-xs text-muted-foreground" aria-live="polite">
-              {result.ok ? wakeSentence(result.until, now) : result.message}
+              {result.ok
+                ? wakeSentence(result.until, now, result.events)
+                : result.message}
             </p>
           ) : null}
           <DialogFooter>

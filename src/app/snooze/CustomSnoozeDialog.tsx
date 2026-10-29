@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { wakeSentence } from "../../domain/snooze.ts";
+import { wakeSentence, type SnoozeWhen } from "../../domain/snooze.ts";
 import {
   SnoozeRuleFields,
   draftOf,
@@ -27,7 +27,7 @@ export const CUSTOM_SNOOZE_KINDS: readonly SnoozeDraftKind[] = [
 /**
  * A one-off snooze from a snooze menu's Custom… item, with the same
  * choices a preset has plus a date and time. Opens on a date, the one choice
- * no preset offers; `onSubmit` receives the wake time, judged when the user
+ * no preset offers; `onSubmit` receives when it wakes, judged when the user
  * submits.
  */
 export function CustomSnoozeDialog({
@@ -37,7 +37,7 @@ export function CustomSnoozeDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (until: number | null) => void;
+  onSubmit: (when: SnoozeWhen) => void;
 }) {
   const [draft, setDraft] = useState<SnoozeDraft>(() =>
     draftOf(undefined, Date.now(), "date"),
@@ -51,7 +51,7 @@ export function CustomSnoozeDialog({
     event.preventDefault();
     const final = resolveDraft(draft, Date.now());
     if (!final.ok) return;
-    onSubmit(final.until);
+    onSubmit({ until: final.until, events: final.events });
     onClose();
   };
 
@@ -71,7 +71,7 @@ export function CustomSnoozeDialog({
           />
           <p className="text-xs text-muted-foreground" aria-live="polite">
             {result.ok
-              ? wakeSentence(result.until, Date.now())
+              ? wakeSentence(result.until, Date.now(), result.events)
               : result.message}
           </p>
           <DialogFooter>

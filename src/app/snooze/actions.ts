@@ -1,15 +1,19 @@
 import { toast } from "sonner";
-import { describeWake, type ThreadSnooze } from "../../domain/snooze.ts";
+import {
+  describeWake,
+  type SnoozeWhen,
+  type ThreadSnooze,
+} from "../../domain/snooze.ts";
 
 type SnoozeTarget = { id: string; latestAttentionAt?: number };
 
 /**
- * `useServerState().setSnoozes`: snooze threads together until a time or
- * each one's next activity, or wake them.
+ * `useServerState().setSnoozes`: snooze threads together until `when`, or
+ * wake them.
  */
 export type SetSnoozes = (
   threads: readonly SnoozeTarget[],
-  until: number | null | "wake",
+  when: SnoozeWhen | "wake",
 ) => Promise<void>;
 
 const message = (cause: unknown) =>
@@ -25,7 +29,7 @@ const message = (cause: unknown) =>
 export function snoozeThreads<T extends SnoozeTarget>(
   setSnoozes: SetSnoozes,
   threads: readonly T[],
-  until: number | null,
+  when: SnoozeWhen,
   {
     previous,
     subject,
@@ -34,22 +38,30 @@ export function snoozeThreads<T extends SnoozeTarget>(
     subject?: string;
   } = {},
 ): void {
-  const earlier = new Map<number | null | "wake", SnoozeTarget[]>();
+  const earlier = new Map<
+    string,
+    { restore: SnoozeWhen | "wake"; group: SnoozeTarget[] }
+  >();
   for (const thread of threads) {
     const snooze = previous?.(thread);
-    const key = snooze ? snooze.until : "wake";
-    earlier.set(key, [...(earlier.get(key) ?? []), thread]);
+    const restore: SnoozeWhen | "wake" = snooze
+      ? { until: snooze.until, events: snooze.events === true }
+      : "wake";
+    const key = JSON.stringify(restore);
+    const entry = earlier.get(key) ?? { restore, group: [] };
+    entry.group.push(thread);
+    earlier.set(key, entry);
   }
   const undo = () => {
-    for (const [restore, group] of earlier)
+    for (const { restore, group } of earlier.values())
       setSnoozes(group, restore).catch((cause: unknown) =>
         toast.error(message(cause)),
       );
   };
-  setSnoozes(threads, until).then(
+  setSnoozes(threads, when).then(
     () =>
       toast(
-        `Snoozed ${subject ? `${subject} ` : ""}${describeWake(until, Date.now())}`,
+        `Snoozed ${subject ? `${subject} ` : ""}${describeWake(when.until, Date.now(), when.events)}`,
         { action: { label: "Undo", onClick: undo } },
       ),
     (cause: unknown) => toast.error(message(cause)),

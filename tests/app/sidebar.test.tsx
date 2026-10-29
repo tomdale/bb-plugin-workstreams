@@ -1938,7 +1938,7 @@ describe("snoozing", () => {
     ]);
     expect(
       within(slot.getByRole("region", { name: "Snoozed" })).getByText(
-        "On update",
+        "When needed",
       ),
     ).toBeTruthy();
     slot.lifecycle.unmount();
@@ -2088,11 +2088,11 @@ describe("snoozing a workstream row", () => {
         .map((item) => item.textContent),
     ).toEqual([
       expect.stringMatching(/^30 minutes\(default\)/),
-      "Until it updates",
+      "Until it needs me",
       "Custom…",
     ]);
     fireEvent.click(
-      within(menu).getByRole("menuitem", { name: "Until it updates" }),
+      within(menu).getByRole("menuitem", { name: "Until it needs me" }),
     );
     await waitFor(() => expect(snoozeCalls(slot)).toHaveLength(1));
     expect(snoozeCalls(slot)[0]).toMatchObject({ until: null });
@@ -2182,11 +2182,11 @@ describe("snoozing a workstream row", () => {
     });
     expect(items(submenu)).toEqual([
       expect.stringMatching(/^3 hours\(default\)/),
-      expect.stringMatching(/^Until it updates/),
+      expect.stringMatching(/^Until it needs me/),
       "Custom…",
     ]);
     fireEvent.click(
-      within(submenu).getByRole("menuitem", { name: /^Until it updates/ }),
+      within(submenu).getByRole("menuitem", { name: /^Until it needs me/ }),
     );
     await waitFor(() => expect(snoozeCalls(slot)).toHaveLength(1));
     expect(snoozeCalls(slot)[0]).toMatchObject({ until: null });
@@ -2349,7 +2349,7 @@ describe("row hover buttons", () => {
     slot.lifecycle.unmount();
   });
 
-  it("opens the Custom… dialog from the hover menu and snoozes until an update", async () => {
+  it("opens the Custom… dialog from the hover menu and snoozes until it needs me", async () => {
     const slot = await mount(undefined, {
       settings: { showRecent: false },
       snoozePrefs: snoozeSettings(thirtyMinutes),
@@ -2365,7 +2365,9 @@ describe("row hover buttons", () => {
     fireEvent.click(custom);
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("radio", { name: "On update" }));
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Until it needs me" }),
+    );
     fireEvent.click(within(dialog).getByRole("button", { name: "Snooze" }));
     await waitFor(() =>
       expect(

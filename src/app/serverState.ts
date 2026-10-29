@@ -4,9 +4,11 @@ import type { RpcContract } from "../server/contract.ts";
 import type { ManualOrder } from "../domain/order.ts";
 import {
   DEFAULT_SNOOZE_PREFS,
+  applySnoozePrefsPatch,
   parseSnoozePrefs,
   type SnoozePrefs,
   type SnoozePrefsPatch,
+  type SnoozeWhen,
 } from "../domain/snooze.ts";
 import type { ServerState, ReorderChange } from "./useWorkstreams.ts";
 
@@ -179,34 +181,40 @@ class ServerStore {
   private overlayPrefs(prefs: SnoozePrefs): SnoozePrefs {
     let next = prefs;
     for (const patch of this.pendingPrefs.values())
-      next = parseSnoozePrefs({ ...next, ...patch });
+      next = applySnoozePrefsPatch(next, patch);
     return next;
   }
 
   /**
-   * Snoozes these threads together, or wakes them: `until: null` waits for
-   * each one's next activity; `wake` removes their snoozes at once.
+   * Snoozes these threads together until `when`, or wakes them (`wake`
+   * removes their snoozes at once).
    */
   setSnoozes = async (
     threads: readonly { id: string; latestAttentionAt?: number }[],
-    until: number | null | "wake",
+    when: SnoozeWhen | "wake",
   ): Promise<void> => {
     if (!threads.length) return;
     this.beginMutation();
     const snoozes = { ...this.value.snoozes };
     for (const thread of threads)
-      if (until === "wake") delete snoozes[thread.id];
+      if (when === "wake") delete snoozes[thread.id];
       else
         snoozes[thread.id] = {
-          until,
+          until: when.until,
+          ...(when.until !== null && when.events ? { events: true } : {}),
           attentionAt: thread.latestAttentionAt ?? Date.now(),
           at: Date.now(),
         };
     this.publish({ ...this.value, snoozes });
     const threadIds = threads.map((thread) => thread.id);
     try {
-      if (until === "wake") await this.rpc.call("unsnooze", { threadIds });
-      else await this.rpc.call("snooze", { threadIds, until });
+      if (when === "wake") await this.rpc.call("unsnooze", { threadIds });
+      else
+        await this.rpc.call("snooze", {
+          threadIds,
+          until: when.until,
+          events: when.events,
+        });
     } catch (cause) {
       this.mutationNeedsReconcile = true;
       throw cause;
@@ -221,7 +229,7 @@ class ServerStore {
     this.pendingPrefs.set(mutationVersion, patch);
     this.publish({
       ...this.value,
-      snoozePrefs: parseSnoozePrefs({ ...this.value.snoozePrefs, ...patch }),
+      snoozePrefs: applySnoozePrefsPatch(this.value.snoozePrefs, patch),
     });
     try {
       const { prefs } = await this.rpc.call("setSnoozePrefs", { patch });
@@ -238,9 +246,9 @@ class ServerStore {
                 version > mutationVersion || !Object.hasOwn(patch, key),
             ),
           );
-          merged = { ...merged, ...overlay };
+          merged = applySnoozePrefsPatch(merged, overlay);
         }
-        this.publish({ ...this.value, snoozePrefs: parseSnoozePrefs(merged) });
+        this.publish({ ...this.value, snoozePrefs: merged });
       }
     } catch (cause) {
       this.pendingPrefs.delete(mutationVersion);

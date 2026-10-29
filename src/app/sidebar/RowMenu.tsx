@@ -9,7 +9,11 @@ import { Icon } from "@/components/ui/icon";
 import { usePortalScopeProps } from "@/lib/portal-scope";
 import { cn } from "@/lib/utils";
 import { useDebugMode } from "../debug/debug.ts";
-import type { SnoozePrefs, ThreadSnooze } from "../../domain/snooze.ts";
+import type {
+  SnoozePrefs,
+  SnoozeWhen,
+  ThreadSnooze,
+} from "../../domain/snooze.ts";
 import { compareGroupNames } from "../../domain/group-name-order.ts";
 import { topicPath } from "../../domain/topic-path.ts";
 import { useSharedServerState } from "../serverState.ts";
@@ -19,8 +23,8 @@ import { SnoozeMenuItems, type MenuKit } from "../snooze/SnoozeMenuItems.tsx";
 export type RowMenuHandlers = {
   rename: (thread: PluginSidebarThread) => void;
   openParent: (thread: PluginSidebarThread) => void;
-  /** Snoozes until a time, or (null) until the thread's next activity. */
-  snooze: (thread: PluginSidebarThread, until: number | null) => void;
+  /** Snoozes until a time, a wake event, or whichever comes first. */
+  snooze: (thread: PluginSidebarThread, when: SnoozeWhen) => void;
   /** Opens the Custom… snooze dialog. */
   customSnooze: (thread: PluginSidebarThread) => void;
   wake: (thread: PluginSidebarThread) => void;
@@ -216,7 +220,7 @@ export function RowMenu({
                   now={Date.now()}
                   prefs={snoozePrefs}
                   snooze={snooze}
-                  onSnooze={(until) => handlers.snooze(thread, until)}
+                  onSnooze={(when) => handlers.snooze(thread, when)}
                   onCustom={() => handlers.customSnooze(thread)}
                 />
               </ContextMenu.SubContent>
@@ -253,7 +257,7 @@ export function HeaderMenu({
   snooze?: {
     /** Names the batch: "Snooze 3 threads". */
     label: string;
-    snooze: (until: number | null) => void;
+    snooze: (when: SnoozeWhen) => void;
     custom: () => void;
   };
   children: ReactNode;

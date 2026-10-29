@@ -3,6 +3,7 @@
  * and the Custom… dialog, so an ad hoc snooze offers the same choices as a
  * preset. The form edits a draft that keeps every kind's fields, so
  * switching kinds and back loses nothing, and validates it only when read.
+ * A timed kind also offers waking early on events (see domain/wake.ts).
  */
 import { useEffect, useId, useRef } from "react";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import {
   SNOOZE_UNITS,
   WEEKDAYS,
   dayLabel,
+  defaultWakeOnEvents,
   snoozeRuleSchema,
   wakeTime,
   type SnoozeDay,
@@ -20,7 +22,7 @@ import {
   type SnoozeRuleKind,
   type SnoozeUnit,
 } from "../../domain/snooze.ts";
-import { SegmentedControl } from "../settings/ui.tsx";
+import { SegmentedControl, SettingSwitch } from "../settings/ui.tsx";
 import { SelectField } from "../SelectField.tsx";
 
 /** A rule kind, or a one-off date and time (Custom… only). */
@@ -36,7 +38,21 @@ export type SnoozeDraft = {
   readonly time: string;
   /** An `<input type="datetime-local">` value. */
   readonly date: string;
+  /**
+   * A timed snooze also wakes on events; null follows the kind's default
+   * (see `draftWakesOnEvents`) until the user sets it.
+   */
+  readonly events: boolean | null;
 };
+
+/**
+ * Whether a draft wakes early on events: always for "Until it needs me",
+ * else the user's choice, else the kind's default.
+ */
+export function draftWakesOnEvents(draft: SnoozeDraft): boolean {
+  if (draft.kind === "activity") return true;
+  return draft.events ?? defaultWakeOnEvents(draft.kind);
+}
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -49,11 +65,13 @@ export function toLocalInput(time: number): string {
 /**
  * A draft showing `rule`, or a fresh one of `kind`. Fields the rule doesn't
  * set start on an hour, a time of 9 AM, and a date of tomorrow at 9 AM.
+ * `events` is the wake-on-events choice; absent follows the kind's default.
  */
 export function draftOf(
   rule: SnoozeRule | undefined,
   now: number,
   kind: SnoozeDraftKind = rule?.kind ?? "duration",
+  events: boolean | null = null,
 ): SnoozeDraft {
   const tomorrow = wakeTime(
     { kind: "time", day: "tomorrow", hour: 9, minute: 0 },
@@ -67,6 +85,7 @@ export function draftOf(
     time:
       rule?.kind === "time" ? `${pad(rule.hour)}:${pad(rule.minute)}` : "09:00",
     date: toLocalInput(tomorrow),
+    events,
   };
 }
 
@@ -74,6 +93,8 @@ export type DraftResult =
   | {
       readonly ok: true;
       readonly until: number | null;
+      /** Also wake at the first enabled wake event. */
+      readonly events: boolean;
       readonly rule?: SnoozeRule;
     }
   | { readonly ok: false; readonly message: string };
@@ -95,7 +116,7 @@ export function resolveDraft(draft: SnoozeDraft, now: number): DraftResult {
       return { ok: false, message: "Pick a time in the future." };
     if (until > now + MAX_SNOOZE_MS)
       return { ok: false, message: "Pick a time in the next year." };
-    return { ok: true, until };
+    return { ok: true, until, events: draftWakesOnEvents(draft) };
   }
   let candidate: unknown;
   if (draft.kind === "activity") candidate = { kind: "activity" };
@@ -117,14 +138,19 @@ export function resolveDraft(draft: SnoozeDraft, now: number): DraftResult {
   }
   const parsed = snoozeRuleSchema.safeParse(candidate);
   if (!parsed.success) return { ok: false, message: "Pick a time." };
-  return { ok: true, rule: parsed.data, until: wakeTime(parsed.data, now) };
+  return {
+    ok: true,
+    rule: parsed.data,
+    until: wakeTime(parsed.data, now),
+    events: draftWakesOnEvents(draft),
+  };
 }
 
 const KIND_LABELS: Readonly<Record<SnoozeDraftKind, string>> = {
   duration: "Duration",
   time: "Time",
   date: "Date",
-  activity: "On update",
+  activity: "Until it needs me",
 };
 
 /** Weekdays from Monday, the order a week reads in. */
@@ -181,35 +207,50 @@ export function SnoozeRuleFields({
       autoFocus={picker === "radios" ? focusOnMount.current : autoFocus}
     />
   );
+  const wakeEarly =
+    draft.kind === "activity" ? null : (
+      <label className="flex cursor-pointer items-center justify-between gap-3 text-sm">
+        Wake early on events
+        <SettingSwitch
+          size="sm"
+          label="Wake early on events"
+          checked={draftWakesOnEvents(draft)}
+          onChange={(events) => set({ events })}
+        />
+      </label>
+    );
   if (picker === "radios")
     return (
-      <RadioGroup
-        aria-label="Snooze kind"
-        value={draft.kind}
-        onValueChange={(kind) => set({ kind: kind as SnoozeDraftKind })}
-        className="gap-2.5"
-      >
-        {kinds.map((kind) => (
-          <div key={kind} className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <RadioGroupItem
-                id={`${name}-${kind}`}
-                value={kind}
-                className={radioClass}
-              />
-              <label
-                htmlFor={`${name}-${kind}`}
-                className="cursor-pointer text-sm"
-              >
-                {KIND_LABELS[kind]}
-              </label>
+      <div className="space-y-3">
+        <RadioGroup
+          aria-label="Snooze kind"
+          value={draft.kind}
+          onValueChange={(kind) => set({ kind: kind as SnoozeDraftKind })}
+          className="gap-2.5"
+        >
+          {kinds.map((kind) => (
+            <div key={kind} className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <RadioGroupItem
+                  id={`${name}-${kind}`}
+                  value={kind}
+                  className={radioClass}
+                />
+                <label
+                  htmlFor={`${name}-${kind}`}
+                  className="cursor-pointer text-sm"
+                >
+                  {KIND_LABELS[kind]}
+                </label>
+              </div>
+              {draft.kind === kind && kind !== "activity" ? (
+                <div className="pl-6">{fields}</div>
+              ) : null}
             </div>
-            {draft.kind === kind && kind !== "activity" ? (
-              <div className="pl-6">{fields}</div>
-            ) : null}
-          </div>
-        ))}
-      </RadioGroup>
+          ))}
+        </RadioGroup>
+        {wakeEarly}
+      </div>
     );
 
   return (
@@ -226,11 +267,12 @@ export function SnoozeRuleFields({
         />
       ) : null}
       {fields}
+      {wakeEarly}
     </div>
   );
 }
 
-/** The chosen kind's own fields; Until it updates has none. */
+/** The chosen kind's own fields; Until it needs me has none. */
 function KindFields({
   draft,
   set,

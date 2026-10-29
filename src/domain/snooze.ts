@@ -3,10 +3,12 @@
  * Recent, and its workstream group for the sidebar's Snoozed fold, and comes
  * back on its own.
  *
- * A snooze either has a wake time, or waits for the thread's next activity
- * (`until: null`). Time-based snoozes ignore agent activity, so a long run
- * finishing overnight doesn't undo "tomorrow morning". Every snooze ends when
- * the user sends the thread a message (enforced by the server) or unsnoozes it.
+ * A snooze has a wake time, wakes on events (see domain/wake.ts), or both:
+ * "Until it needs me" (`until: null`) waits only for an event, and a timed
+ * snooze set to wake early on events ends at whichever comes first. A
+ * time-only snooze ignores agent activity, so a long run finishing overnight
+ * doesn't undo "tomorrow morning". Every snooze ends when the user sends the
+ * thread a message (enforced by the server) or unsnoozes it.
  *
  * Snooze menus offer the user's presets: rules such as "2 hours" or "Monday
  * at 9 AM" that resolve to a wake time at the moment one is chosen. Stored
@@ -14,13 +16,36 @@
  * thread that is already snoozed.
  */
 import { z } from "zod";
+import {
+  DEFAULT_WAKE_EVENTS,
+  WAKE_EVENT_IDS,
+  parseWakeEvents,
+} from "./wake.ts";
 
 export type ThreadSnooze = {
-  /** When the thread wakes; null waits for its next activity instead. */
+  /** When the thread wakes; null waits for a wake event instead. */
   readonly until: number | null;
+  /**
+   * A timed snooze also ends at the first enabled wake event. Implied for
+   * `until: null`; absent means time only.
+   */
+  readonly events?: boolean;
   /** The thread's `latestAttentionAt` when it was snoozed. */
   readonly attentionAt: number;
   readonly at: number;
+  /**
+   * The thread's pull request state when the server last looked, so only a
+   * change wakes it; null without a pull request, absent until first seen.
+   */
+  readonly pr?: string | null;
+};
+
+/** When a snooze chosen from a menu or dialog ends. */
+export type SnoozeWhen = {
+  /** The wake time; null waits for a wake event. */
+  readonly until: number | null;
+  /** Also wake at the first enabled wake event (always, when `until` is null). */
+  readonly events: boolean;
 };
 
 const MINUTE_MS = 60 * 1000;
@@ -71,7 +96,7 @@ export type SnoozeDay = (typeof SNOOZE_DAYS)[number];
 
 /**
  * How a preset picks a wake time: a span from now, a clock time on a chosen
- * day, or the thread's next activity.
+ * day, or none, waiting for a wake event ("Until it needs me").
  */
 export const snoozeRuleSchema = z
   .discriminatedUnion("kind", [
@@ -105,8 +130,34 @@ export const snoozePresetSchema = z.object({
   /** The menu label; empty labels the preset by its rule (`ruleLabel`). */
   label: z.string().trim().max(MAX_PRESET_LABEL).default(""),
   rule: snoozeRuleSchema,
+  /**
+   * A timed preset also wakes at the first enabled wake event. Absent takes
+   * the rule's default (see `presetWakesOnEvents`); an activity rule always
+   * wakes on events.
+   */
+  wakeOnEvents: z.boolean().optional(),
 });
 export type SnoozePreset = z.infer<typeof snoozePresetSchema>;
+
+/**
+ * Whether a kind of snooze wakes early on events unless the user says
+ * otherwise. A duration is usually a short break from something still
+ * running, so an event is worth coming back for; a day-based time or a
+ * one-off date ("date", Custom… only) puts work away until then.
+ */
+export const defaultWakeOnEvents = (kind: SnoozeRuleKind | "date") =>
+  kind !== "time" && kind !== "date";
+
+/** Whether snoozing with `preset` also wakes on events. */
+export const presetWakesOnEvents = (preset: SnoozePreset) =>
+  preset.rule.kind === "activity" ||
+  (preset.wakeOnEvents ?? defaultWakeOnEvents(preset.rule.kind));
+
+/** When snoozing with `preset` at `now` ends. */
+export const presetWhen = (preset: SnoozePreset, now: number): SnoozeWhen => ({
+  until: wakeTime(preset.rule, now),
+  events: presetWakesOnEvents(preset),
+});
 
 const presetListSchema = z
   .array(snoozePresetSchema)
@@ -119,27 +170,43 @@ const presetListSchema = z
     },
   );
 
+const wakeEventsSchema = z.object(
+  Object.fromEntries(WAKE_EVENT_IDS.map((id) => [id, z.boolean()])) as Record<
+    (typeof WAKE_EVENT_IDS)[number],
+    z.ZodBoolean
+  >,
+);
+
 /**
  * How snoozing behaves, chosen in the Snooze settings section: the presets
- * every snooze menu lists, in menu order, and the one a click on a snooze
- * button uses. There is always at least one preset, and `default` always
- * names one of them. Stored in plugin storage and shared by every client.
+ * every snooze menu lists, in menu order, the one a click on a snooze
+ * button uses, and which wake events end a snooze early. There is always at
+ * least one preset, and `default` always names one of them. Stored in
+ * plugin storage and shared by every client.
  */
 export const snoozePrefsSchema = z.object({
   presets: presetListSchema,
   /** The id of the preset a click on a snooze button uses. */
   default: z.string(),
+  /** Which wake events end a snooze that wakes on events. */
+  events: wakeEventsSchema,
 });
 export type SnoozePrefs = z.infer<typeof snoozePrefsSchema>;
 
 /**
  * A change from the settings section, which replaces the whole preset list
- * at once. Unlike stored preferences, which are repaired as they're read, a
- * bad change is rejected so it can't quietly replace a good value.
+ * at once, or turns some wake events on or off. Unlike stored preferences,
+ * which are repaired as they're read, a bad change is rejected so it can't
+ * quietly replace a good value.
  */
 export const snoozePrefsPatchSchema = z
-  .object({ presets: presetListSchema, default: z.string().min(1) })
-  .partial();
+  .object({
+    presets: presetListSchema,
+    default: z.string().min(1),
+    events: wakeEventsSchema.partial().strict(),
+  })
+  .partial()
+  .strict();
 export type SnoozePrefsPatch = z.infer<typeof snoozePrefsPatchSchema>;
 
 const at = (hour: number, day: SnoozeDay): SnoozeRule => ({
@@ -182,9 +249,18 @@ const legacyPresets = (morningHour: number) =>
 
 const LEGACY_QUICK = ["1h", "tomorrow", "next-week", "activity"];
 
+/** Each preset's wake-on-events choice made explicit, as stored. */
+const withWakeChoice = (preset: SnoozePreset): SnoozePreset => ({
+  ...preset,
+  wakeOnEvents: presetWakesOnEvents(preset),
+});
+
 export const DEFAULT_SNOOZE_PREFS: SnoozePrefs = {
-  presets: legacyPresets(9).filter((p) => LEGACY_QUICK.includes(p.id)),
+  presets: legacyPresets(9)
+    .filter((p) => LEGACY_QUICK.includes(p.id))
+    .map(withWakeChoice),
   default: "tomorrow",
+  events: DEFAULT_WAKE_EVENTS as SnoozePrefs["events"],
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -210,6 +286,7 @@ function fromLegacy(value: Record<string, unknown>) {
       (preset) => quick.includes(preset.id) || preset.id === chosen,
     ),
     default: chosen,
+    events: value.events,
   };
 }
 
@@ -222,23 +299,41 @@ const repairLabel = (candidate: unknown) =>
 /**
  * Reads stored or received preferences, repairing what doesn't fit: labels
  * too long are cut, invalid or duplicate presets are dropped, extras past
- * the limit are cut, an empty list falls back to the defaults, and a default
- * naming no preset falls back to the first. Settings from before presets
- * were configurable become the presets their menus showed.
+ * the limit are cut, an empty list falls back to the defaults, a default
+ * naming no preset falls back to the first, a preset without a
+ * wake-on-events choice takes its rule's default, and a missing wake event
+ * is on. Settings from before presets were configurable become the presets
+ * their menus showed.
  */
 export function parseSnoozePrefs(raw: unknown): SnoozePrefs {
   const stored = isRecord(raw) ? raw : {};
   const value = Array.isArray(stored.presets) ? stored : fromLegacy(stored);
+  const events = parseWakeEvents(value.events) as SnoozePrefs["events"];
   const presets: SnoozePreset[] = [];
   for (const candidate of value.presets as unknown[]) {
     const parsed = snoozePresetSchema.safeParse(repairLabel(candidate));
     if (parsed.success && !presets.some((p) => p.id === parsed.data.id))
-      presets.push(parsed.data);
+      presets.push(withWakeChoice(parsed.data));
   }
-  if (!presets.length) return DEFAULT_SNOOZE_PREFS;
+  if (!presets.length) return { ...DEFAULT_SNOOZE_PREFS, events };
   const kept = presets.slice(0, MAX_SNOOZE_PRESETS);
   const chosen = kept.find((p) => p.id === value.default) ?? kept[0]!;
-  return { presets: kept, default: chosen.id };
+  return { presets: kept, default: chosen.id, events };
+}
+
+/**
+ * `prefs` with a settings change applied and repaired. Wake events the
+ * change doesn't name keep their setting.
+ */
+export function applySnoozePrefsPatch(
+  prefs: SnoozePrefs,
+  patch: Partial<SnoozePrefsPatch>,
+): SnoozePrefs {
+  return parseSnoozePrefs({
+    ...prefs,
+    ...patch,
+    events: { ...prefs.events, ...patch.events },
+  });
 }
 
 /** The preset a click on a snooze button uses. */
@@ -266,7 +361,7 @@ function daysAhead(day: SnoozeDay, now: Date, laterToday: boolean): number {
 
 /**
  * When a rule chosen at `now` wakes the thread, on the user's local clock;
- * null waits for activity. Minutes and hours are elapsed time; days land on
+ * null waits for a wake event. Minutes and hours are elapsed time; days land on
  * the same clock time that many days later.
  */
 export function wakeTime(rule: SnoozeRule, now: number): number | null {
@@ -286,17 +381,16 @@ export function wakeTime(rule: SnoozeRule, now: number): number | null {
 }
 
 /**
- * Whether a snooze still holds: its time hasn't come, or (for an activity
- * snooze) the thread hasn't had attention since it was snoozed.
+ * Whether a stored snooze still holds: it waits for a wake event, or its
+ * time hasn't come. A wake event ends a snooze by removing it on the
+ * server, so clients only judge time.
  */
 export function isSnoozed(
   snooze: ThreadSnooze | undefined,
-  thread: { readonly latestAttentionAt: number },
   now: number,
 ): boolean {
   if (!snooze) return false;
-  if (snooze.until !== null) return now < snooze.until;
-  return thread.latestAttentionAt <= snooze.attentionAt;
+  return snooze.until === null || now < snooze.until;
 }
 
 const sameDay = (a: Date, b: Date) =>
@@ -344,10 +438,10 @@ const UNIT_NAMES: Readonly<Record<SnoozeUnit, [string, string]>> = {
 
 /**
  * What a rule does, in words: "30 minutes", "Tomorrow at 9 AM", "Monday at
- * 1 PM", "Until it updates". A preset without its own label shows this.
+ * 1 PM", "Until it needs me". A preset without its own label shows this.
  */
 export function ruleLabel(rule: SnoozeRule): string {
-  if (rule.kind === "activity") return "Until it updates";
+  if (rule.kind === "activity") return "Until it needs me";
   if (rule.kind === "duration")
     return `${rule.amount} ${UNIT_NAMES[rule.unit][rule.amount === 1 ? 0 : 1]}`;
   return `${dayLabel(rule.day)} at ${clockLabel(rule.hour, rule.minute)}`;
@@ -359,23 +453,32 @@ export const presetLabel = (preset: SnoozePreset) =>
 /**
  * When a snooze ends, for menus and tooltips: "until 3:30 PM", "until
  * tomorrow, 9 AM", "until Mon, 9 AM", "until Oct 7, 9 AM", or "until it
- * updates".
+ * needs you". With `events`, a timed snooze adds "or it needs you".
  */
-export function describeWake(until: number | null, now: number): string {
-  if (until === null) return "until it updates";
+export function describeWake(
+  until: number | null,
+  now: number,
+  events = false,
+): string {
+  if (until === null) return "until it needs you";
+  const suffix = events ? " or it needs you" : "";
   const date = new Date(until);
   const today = new Date(now);
   const days = dayOffset(today, date);
-  if (sameDay(date, today)) return `until ${timeOf(date)}`;
-  if (days === 1) return `until tomorrow, ${timeOf(date)}`;
+  if (sameDay(date, today)) return `until ${timeOf(date)}${suffix}`;
+  if (days === 1) return `until tomorrow, ${timeOf(date)}${suffix}`;
   if (days > 1 && days < 7)
-    return `until ${date.toLocaleDateString(undefined, { weekday: "short" })}, ${timeOf(date)}`;
-  return `until ${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${timeOf(date)}`;
+    return `until ${date.toLocaleDateString(undefined, { weekday: "short" })}, ${timeOf(date)}${suffix}`;
+  return `until ${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${timeOf(date)}${suffix}`;
 }
 
 /** `describeWake` as a sentence start: "Until tomorrow, 9 AM". */
-export const wakeSentence = (until: number | null, now: number) => {
-  const text = describeWake(until, now);
+export const wakeSentence = (
+  until: number | null,
+  now: number,
+  events = false,
+) => {
+  const text = describeWake(until, now, events);
   return text[0]!.toUpperCase() + text.slice(1);
 };
 
@@ -385,6 +488,8 @@ export type SnoozeChoice = {
   readonly rule: SnoozeRule;
   /** When it wakes if chosen at the `now` it was resolved for. */
   readonly until: number | null;
+  /** It also wakes on events. */
+  readonly events: boolean;
   /** When it wakes, beside the label: "2:15 PM", "Thu 9 AM"; empty for activity. */
   readonly hint: string;
 };
@@ -401,6 +506,7 @@ export function snoozeChoices(
       label: presetLabel(preset),
       rule: preset.rule,
       until,
+      events: presetWakesOnEvents(preset),
       hint: wakeHint(until, now),
     };
   });
@@ -419,10 +525,10 @@ export function wakeHint(until: number | null, now: number): string {
 
 /**
  * A compact wake label for a sidebar row: "3:30 PM" today, a weekday within
- * the week, else a date; "On update" for an activity snooze.
+ * the week, else a date; "When needed" for an "Until it needs me" snooze.
  */
 export function shortWake(until: number | null, now: number): string {
-  if (until === null) return "On update";
+  if (until === null) return "When needed";
   const date = new Date(until);
   const today = new Date(now);
   if (sameDay(date, today)) return timeOf(date);

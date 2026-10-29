@@ -88,7 +88,7 @@ it("offers every preset and Custom… from the arrow", async () => {
     expect.stringMatching(/^1 hour/),
     expect.stringMatching(/^Tomorrow morning/),
     expect.stringMatching(/^Next week\(default\)/),
-    "Until it updates",
+    "Until it needs me",
     "Custom…",
   ]);
   fireEvent.click(within(menu).getByRole("menuitem", { name: "Custom…" }));
@@ -110,8 +110,11 @@ it("offers every preset and Custom… from the arrow", async () => {
       true,
     ),
   );
-  const { until } = slot.inspection.rpcCalls.find((c) => c.method === "snooze")!
-    .input as { until: number };
+  const { until, events } = slot.inspection.rpcCalls.find(
+    (c) => c.method === "snooze",
+  )!.input as { until: number; events: boolean };
+  // A short snooze wakes early on events unless switched off.
+  expect(events).toBe(true);
   expect(until - before).toBeGreaterThanOrEqual(20 * 60_000);
   expect(until - before).toBeLessThan(20 * 60_000 + 5_000);
   slot.lifecycle.unmount();
@@ -122,7 +125,7 @@ it("shows a snoozed thread's wake time and hides for threads not in the sidebar"
     snoozes: { t1: { until: null, attentionAt: Date.now() + 1, at: 0 } },
   });
   expect(
-    await slot.findByRole("button", { name: /^Snoozed until it updates/ }),
+    await slot.findByRole("button", { name: /^Snoozed until it needs you/ }),
   ).toBeTruthy();
   slot.lifecycle.unmount();
   const hidden = await mount({ threads: [] });

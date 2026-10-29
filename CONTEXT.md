@@ -44,6 +44,8 @@ Workstreams keeps open BB threads' topics, goals, statuses, and activity current
 
 **Agent recap**: An agent's report for its latest turn. Its `goal` field remains the contract used by running sessions.
 
+**Wake event**: Something that happens to a snoozed thread, its delegates, or its pull request that ends a snooze set to wake on events: a turn ending needing you, ready for review, done, or failed; a failed send; stuck work; or pull request feedback. "Until it needs me" waits only for one. _Avoid_: update, activity (for the trigger)
+
 **Activity**: The log of changes Workstreams made or observed, with undo where supported. _Avoid_: journal (in the UI)
 
 **Launch settings**: Project and environment choices for a new thread. _Avoid_: placement

@@ -18,8 +18,9 @@ import {
   defaultPreset,
   describeWake,
   isSnoozed,
+  presetWhen,
   shortWake,
-  wakeTime,
+  type SnoozeWhen,
 } from "../../domain/snooze.ts";
 import { useNow, useServerState } from "../useWorkstreams.ts";
 import { snoozeThreads, wakeThreads } from "./actions.ts";
@@ -52,13 +53,13 @@ export function SnoozeHeaderAction({
   const preset = defaultPreset(prefs);
   const now = useNow();
   const stored = server.snoozes[threadId];
-  const snooze = thread && isSnoozed(stored, thread, now) ? stored : undefined;
+  const snooze = thread && isSnoozed(stored, now) ? stored : undefined;
 
-  const snoozeUntil = (until: number | null) => {
+  const snoozeUntil = (when: SnoozeWhen) => {
     if (thread)
-      snoozeThreads(setSnoozes, [thread], until, { previous: () => snooze });
+      snoozeThreads(setSnoozes, [thread], when, { previous: () => snooze });
   };
-  const snoozeDefault = () => snoozeUntil(wakeTime(preset.rule, Date.now()));
+  const snoozeDefault = () => snoozeUntil(presetWhen(preset, Date.now()));
   const wake = () => {
     if (thread) wakeThreads(setSnoozes, [thread]);
   };
@@ -77,7 +78,8 @@ export function SnoozeHeaderAction({
   // to snooze them out of.
   if (!thread) return null;
 
-  const defaultTitle = `Snooze ${describeWake(wakeTime(preset.rule, now), now)}`;
+  const defaultWhen = presetWhen(preset, now);
+  const defaultTitle = `Snooze ${describeWake(defaultWhen.until, now, defaultWhen.events)}`;
   const menu = (
     <DropdownMenu.Portal>
       <DropdownMenu.Content
@@ -104,13 +106,13 @@ export function SnoozeHeaderAction({
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <Hint
-              label={`Snoozed ${describeWake(snooze.until, now)}`}
+              label={`Snoozed ${describeWake(snooze.until, now, snooze.events)}`}
               side="bottom"
             >
               <button
                 type="button"
                 className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md bg-foreground/[0.07] px-2 text-xs text-muted-foreground hover:bg-foreground/[0.12] hover:text-foreground data-[state=open]:bg-foreground/[0.12] data-[state=open]:text-foreground"
-                aria-label={`Snoozed ${describeWake(snooze.until, now)}. Snooze options`}
+                aria-label={`Snoozed ${describeWake(snooze.until, now, snooze.events)}. Snooze options`}
               >
                 <SnoozeIcon className="size-3.5" />
                 {isCompactViewport ? null : shortWake(snooze.until, now)}

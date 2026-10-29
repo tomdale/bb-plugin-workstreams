@@ -7,6 +7,7 @@ import {
   plainMenuKit,
 } from "../../src/app/snooze/SnoozeMenuItems.tsx";
 import type { SnoozePrefs } from "../../src/domain/snooze.ts";
+import { DEFAULT_WAKE_EVENTS } from "../../src/domain/wake.ts";
 
 const prefs: SnoozePrefs = {
   presets: [
@@ -17,6 +18,7 @@ const prefs: SnoozePrefs = {
     },
   ],
   default: "evening",
+  events: DEFAULT_WAKE_EVENTS,
 };
 
 beforeEach(() => {
@@ -51,9 +53,10 @@ it("works out a preset's wake time when it is chosen", () => {
   // The menu was drawn before 6 PM; the choice comes after it.
   vi.setSystemTime(new Date("2026-01-14T18:00:30"));
   fireEvent.click(screen.getByRole("menuitem", { name: /^This evening/ }));
-  expect(onSnooze).toHaveBeenCalledWith(
-    new Date("2026-01-15T18:00:00").getTime(),
-  );
+  expect(onSnooze).toHaveBeenCalledWith({
+    until: new Date("2026-01-15T18:00:00").getTime(),
+    events: false,
+  });
 });
 
 it("ends with Custom…, which opens the dialog rather than a submenu", () => {
