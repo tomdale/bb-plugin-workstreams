@@ -92,19 +92,25 @@ describe("split suggestions", () => {
       reason: "Planning apart from triggers",
       problem: null,
     });
-    // Review shows each thread's move into its new subgroup.
-    expect(split!.change?.op).toBe("split");
-    expect(split!.change?.rows[0]).toEqual({
-      kind: "thread",
-      id: "t1",
-      title: "Task 1",
-      from: [{ name: "Automations", created: false }],
-      to: [
-        { name: "Automations", created: false },
-        { name: "Planning", created: true },
-      ],
+    // Review shows each new subgroup and the threads that go to it.
+    expect(split!.change).toEqual({
+      op: "split",
+      moves: [
+        ["Planning", [1, 2, 3]],
+        ["Triggers", [4, 5, 6]],
+      ].map(([name, threads]) => ({
+        from: [{ name: "Automations", created: false }],
+        to: [
+          { name: "Automations", created: false },
+          { name, created: true },
+        ],
+        threads: (threads as number[]).map((n) => ({
+          id: `t${n}`,
+          title: `Task ${n}`,
+        })),
+        carried: 0,
+      })),
     });
-    expect(split!.change?.rows).toHaveLength(6);
     // Nothing changes until it's accepted.
     expect(topics.subtopics(auto.id)).toBe(0);
 
@@ -189,14 +195,12 @@ describe("tidy suggestions", () => {
     const [merge, rename] = state.suggestions;
     expect(merge!.change).toEqual({
       op: "merge",
-      rows: [
+      moves: [
         {
-          kind: "topic",
-          name: "Alpha",
-          created: false,
-          from: [],
+          from: [{ name: "Alpha", created: false }],
           to: [{ name: "Beta", created: false }],
-          threads: 1,
+          threads: [{ id: "t1", title: "Alpha task" }],
+          carried: 0,
         },
       ],
     });
@@ -263,11 +267,17 @@ describe("tidy suggestions", () => {
     const [create, reparent] = (await run()).suggestions;
     expect(reparent!.summary).toBe("Move Beta under Vercel");
     // The topic the create would make reads as new until it exists.
-    expect(reparent!.change?.rows[0]).toMatchObject({
-      name: "Beta",
-      from: [],
-      to: [{ name: "Vercel", created: true }],
-    });
+    expect(reparent!.change?.moves).toEqual([
+      {
+        from: [{ name: "Beta", created: false }],
+        to: [
+          { name: "Vercel", created: true },
+          { name: "Beta", created: false },
+        ],
+        threads: [],
+        carried: 0,
+      },
+    ]);
     // Accepted alone, the reparent waits for its topic.
     const early = await decide([reparent!.id], "accept");
     expect(early.failed).toHaveLength(1);
@@ -325,7 +335,7 @@ describe("suggestions CLI", () => {
     expect((await cli("suggestions")).stdout).toBe("No suggestions waiting.");
     const ran = await cli("suggestions", "run");
     expect(ran.stdout).toContain(
-      "Rename Alpha to Alpha Two\n    Topic Alpha (1 thread): Alpha → Alpha Two\n    Because",
+      "Rename Alpha to Alpha Two\n    Alpha → Alpha Two (with 1 thread)\n    Because",
     );
     const accepted = await cli("suggestions", "accept", "all");
     expect(accepted.stdout).toBe("Accepted 1 suggestion.");

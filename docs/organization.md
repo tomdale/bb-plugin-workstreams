@@ -103,9 +103,9 @@ provenance and remains eligible for future automatic updates.
 
 Suggestions change nothing until you accept them, on Organization or with
 `bb workstreams suggestions`; a sidebar notice counts the ones waiting. Review
-shows each waiting suggestion's operation and every thread or topic it would
-move, from the topic holding it now to the one it would move to, before its
-reason (`src/domain/suggestion-change.ts`).
+shows each waiting suggestion's operation and every move it would make, from a
+topic path now to the path after, with the threads making it, before its reason
+(`src/domain/suggestion-change.ts`).
 
 - **Split.** A topic without subtopics that passes 5 visible roots gets one call
   that partitions all of its roots into 2–5 subgroups: plain areas a person

@@ -39,6 +39,8 @@ const context = (extra: Partial<ChangeContext> = {}): ChangeContext => ({
 const at = (...names: string[]) =>
   names.map((name) => ({ name, created: false }));
 const made = (name: string) => ({ name, created: true });
+const listed = (...ids: string[]) =>
+  ids.map((id) => ({ id, title: `Thread ${id}` }));
 
 describe("suggestionChange", () => {
   it("refiles a thread from where it is, or from Unfiled", () => {
@@ -46,50 +48,50 @@ describe("suggestionChange", () => {
       suggestionChange({ op: "move", thread: "t1", topic: "todo" }, context()),
     ).toEqual({
       op: "refile",
-      rows: [
+      moves: [
         {
-          kind: "thread",
-          id: "t1",
-          title: "Thread t1",
           from: at("Toolbelt"),
           to: at("bb", "Todo Plugin"),
+          threads: listed("t1"),
+          carried: 0,
         },
       ],
     });
     expect(
       suggestionChange({ op: "move", thread: "t5", topic: "todo" }, context())
-        ?.rows[0],
-    ).toMatchObject({ from: null });
+        ?.moves[0],
+    ).toMatchObject({ from: null, threads: listed("t5") });
   });
 
   it("splits a topic's threads into the subtopics it would create", () => {
-    const change = suggestionChange(
-      {
-        topicId: "toolbelt",
-        subgroups: [
-          { name: "Shell", description: "", threadIds: ["t2"] },
-          { name: "Sidebar", description: "", threadIds: ["t1"] },
-        ],
-      },
-      context(),
-    );
-    expect(change?.op).toBe("split");
-    expect(change?.rows).toEqual([
-      {
-        kind: "thread",
-        id: "t2",
-        title: "Thread t2",
-        from: at("Toolbelt"),
-        to: [...at("Toolbelt"), made("Shell")],
-      },
-      {
-        kind: "thread",
-        id: "t1",
-        title: "Thread t1",
-        from: at("Toolbelt"),
-        to: [...at("Toolbelt"), made("Sidebar")],
-      },
-    ]);
+    expect(
+      suggestionChange(
+        {
+          topicId: "toolbelt",
+          subgroups: [
+            { name: "Shell", description: "", threadIds: ["t2"] },
+            { name: "Sidebar", description: "", threadIds: ["t1"] },
+          ],
+        },
+        context(),
+      ),
+    ).toEqual({
+      op: "split",
+      moves: [
+        {
+          from: at("Toolbelt"),
+          to: [...at("Toolbelt"), made("Shell")],
+          threads: listed("t2"),
+          carried: 0,
+        },
+        {
+          from: at("Toolbelt"),
+          to: [...at("Toolbelt"), made("Sidebar")],
+          threads: listed("t1"),
+          carried: 0,
+        },
+      ],
+    });
   });
 
   it("files threads beside subtopics in existing subtopics by name or alias", () => {
@@ -102,35 +104,29 @@ describe("suggestionChange", () => {
       context(),
     );
     expect(change?.op).toBe("file");
-    expect(change?.rows[0]).toMatchObject({
-      from: at("Agent", "Automations"),
-      to: [...at("Agent", "Automations"), { name: "alerts", created: false }],
-    });
+    expect(change?.moves[0]?.to).toEqual([
+      ...at("Agent", "Automations"),
+      { name: "alerts", created: false },
+    ]);
   });
 
-  it("merges a topic, with its threads and subtopics, into another", () => {
-    const change = suggestionChange(
-      { op: "merge", from: "auto", into: "todo" },
-      context(),
-    );
-    expect(change).toEqual({
+  it("merges a topic's threads and subtopics into another", () => {
+    expect(
+      suggestionChange({ op: "merge", from: "auto", into: "todo" }, context()),
+    ).toEqual({
       op: "merge",
-      rows: [
+      moves: [
         {
-          kind: "topic",
-          name: "Automations",
-          created: false,
-          from: at("Agent"),
-          to: at("bb", "Todo Plugin"),
-          threads: 1,
-        },
-        {
-          kind: "topic",
-          name: "Alert Investigations",
-          created: false,
           from: at("Agent", "Automations"),
           to: at("bb", "Todo Plugin"),
-          threads: 1,
+          threads: listed("t3"),
+          carried: 0,
+        },
+        {
+          from: at("Agent", "Automations", "Alert Investigations"),
+          to: at("bb", "Todo Plugin", "Alert Investigations"),
+          threads: [],
+          carried: 1,
         },
       ],
     });
@@ -141,23 +137,16 @@ describe("suggestionChange", () => {
       suggestionChange(
         { op: "reparent", topic: "agent", parent: "bb" },
         context(),
-      )?.rows,
+      )?.moves,
     ).toEqual([
-      {
-        kind: "topic",
-        name: "Agent",
-        created: false,
-        from: [],
-        to: at("bb"),
-        threads: 2,
-      },
+      { from: at("Agent"), to: at("bb", "Agent"), threads: [], carried: 2 },
     ]);
     expect(
       suggestionChange(
         { op: "reparent", topic: "todo", parent: null },
         context(),
-      )?.rows[0],
-    ).toMatchObject({ from: at("bb"), to: [] });
+      )?.moves[0],
+    ).toMatchObject({ from: at("bb", "Todo Plugin"), to: at("Todo Plugin") });
   });
 
   it("renames a topic in place", () => {
@@ -165,12 +154,8 @@ describe("suggestionChange", () => {
       suggestionChange(
         { op: "rename", topic: "todo", name: "Todos" },
         context(),
-      )?.rows[0],
-    ).toMatchObject({
-      name: "Todo Plugin",
-      from: at("bb", "Todo Plugin"),
-      to: at("bb", "Todos"),
-    });
+      )?.moves[0],
+    ).toMatchObject({ from: at("bb", "Todo Plugin"), to: at("bb", "Todos") });
   });
 
   it("creates a parent around topics, or a topic on its own", () => {
@@ -184,15 +169,13 @@ describe("suggestionChange", () => {
           children: ["todo"],
         },
         context(),
-      )?.rows,
+      )?.moves,
     ).toEqual([
       {
-        kind: "topic",
-        name: "Todo Plugin",
-        created: false,
-        from: at("bb"),
-        to: [...at("bb"), made("Plugins")],
-        threads: 0,
+        from: at("bb", "Todo Plugin"),
+        to: [...at("bb"), made("Plugins"), ...at("Todo Plugin")],
+        threads: [],
+        carried: 0,
       },
     ]);
     expect(
@@ -205,17 +188,8 @@ describe("suggestionChange", () => {
           children: [],
         },
         context(),
-      )?.rows,
-    ).toEqual([
-      {
-        kind: "topic",
-        name: "Plugins",
-        created: true,
-        from: null,
-        to: [],
-        threads: 0,
-      },
-    ]);
+      )?.moves,
+    ).toEqual([{ from: null, to: [made("Plugins")], threads: [], carried: 0 }]);
   });
 
   it("places a topic another suggestion of the pass creates", () => {
@@ -225,9 +199,7 @@ describe("suggestionChange", () => {
         creates: new Map([["plugins", { name: "Plugins", parent: "bb" }]]),
       }),
     );
-    expect(change?.rows[0]).toMatchObject({
-      to: [...at("bb"), made("Plugins")],
-    });
+    expect(change?.moves[0]?.to).toEqual([...at("bb"), made("Plugins")]);
   });
 
   it("is null when a thread or topic it names is gone", () => {
@@ -244,31 +216,26 @@ describe("suggestionChange", () => {
 });
 
 describe("changeLines", () => {
-  it("writes each row as item, from, and to", () => {
+  it("writes each move as from → to, with its threads below", () => {
     expect(
       changeLines({
         op: "file",
-        rows: [
+        moves: [
           {
-            kind: "thread",
-            id: "t5",
-            title: "Fix CI",
             from: null,
             to: [...at("Agent"), made("Evals")],
+            threads: [{ id: "t5", title: "Fix CI" }],
+            carried: 0,
           },
-          {
-            kind: "topic",
-            name: "Agent",
-            created: false,
-            from: [],
-            to: at("bb"),
-            threads: 2,
-          },
+          { from: at("Agent"), to: at("bb", "Agent"), threads: [], carried: 2 },
+          { from: null, to: [made("Plugins")], threads: [], carried: 0 },
         ],
       }),
     ).toEqual([
-      "“Fix CI”: Unfiled → Agent › Evals (new)",
-      "Topic Agent (2 threads): Top level → bb",
+      "Unfiled → Agent › Evals (new)",
+      "  “Fix CI”",
+      "Agent → bb › Agent (with 2 threads)",
+      "Plugins (new)",
     ]);
   });
 });

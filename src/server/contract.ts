@@ -245,24 +245,13 @@ const suggestionChangeSchema: z.ZodType<SuggestionChange> = z.object({
     "rename",
     "create",
   ]),
-  rows: z.array(
-    z.discriminatedUnion("kind", [
-      z.object({
-        kind: z.literal("thread"),
-        id: z.string(),
-        title: z.string(),
-        from: topicPlaceSchema.nullable(),
-        to: topicPlaceSchema,
-      }),
-      z.object({
-        kind: z.literal("topic"),
-        name: z.string(),
-        created: z.boolean(),
-        from: topicPlaceSchema.nullable(),
-        to: topicPlaceSchema,
-        threads: z.number(),
-      }),
-    ]),
+  moves: z.array(
+    z.object({
+      from: topicPlaceSchema.nullable(),
+      to: topicPlaceSchema,
+      threads: z.array(z.object({ id: z.string(), title: z.string() })),
+      carried: z.number(),
+    }),
   ),
 });
 

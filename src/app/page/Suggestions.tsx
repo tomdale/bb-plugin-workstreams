@@ -13,7 +13,7 @@ import type {
 } from "../../server/contract.ts";
 import { relativeAgeLabel } from "../../domain/presentation.ts";
 import { ghostButton, primaryButton, secondaryButton } from "./controls.ts";
-import { SuggestionChangeRows, changeHeading } from "./SuggestionChange.tsx";
+import { SuggestionChangeMoves, changeHeading } from "./SuggestionChange.tsx";
 
 type Rpc = ReturnType<typeof useRpc<RpcContract>>;
 type Suggestion = SuggestionsStateWire["suggestions"][number];
@@ -158,7 +158,7 @@ export function Suggestions({
               </div>
               {s.change ? (
                 <div className="mt-2">
-                  <SuggestionChangeRows change={s.change} />
+                  <SuggestionChangeMoves change={s.change} />
                 </div>
               ) : null}
               {s.reason ? (

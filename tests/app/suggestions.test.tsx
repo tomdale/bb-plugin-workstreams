@@ -159,20 +159,19 @@ it("says when there is nothing to review", async () => {
 const at = (...names: string[]) =>
   names.map((name) => ({ name, created: false }));
 
-it("leads with the operation and each item's move, from where to where", async () => {
+it("leads with the operation and each move, from where to where", async () => {
   await mount({
     suggestions: [
       suggestion("s1", "Refile “Record demo” into PantryPal", {
         reason: "A demo belongs under PantryPal.",
         change: {
           op: "refile",
-          rows: [
+          moves: [
             {
-              kind: "thread",
-              id: "t1",
-              title: "Record demo",
               from: at("Workstreams", "Recap Cards"),
               to: at("PantryPal"),
+              threads: [{ id: "t1", title: "Record demo" }],
+              carried: 0,
             },
           ],
         },
@@ -180,14 +179,12 @@ it("leads with the operation and each item's move, from where to where", async (
       suggestion("s2", "Move Workforest under bb", {
         change: {
           op: "reparent",
-          rows: [
+          moves: [
             {
-              kind: "topic",
-              name: "Workforest",
-              created: false,
-              from: [],
-              to: at("bb"),
-              threads: 2,
+              from: at("Workforest"),
+              to: at("bb", "Workforest"),
+              threads: [],
+              carried: 2,
             },
           ],
         },
@@ -196,15 +193,14 @@ it("leads with the operation and each item's move, from where to where", async (
         kind: "split",
         change: {
           op: "split",
-          rows: [1, 2, 3, 4, 5, 6, 7].map((n) => ({
-            kind: "thread" as const,
-            id: `a${n}`,
-            title: `Automation task ${n}`,
+          moves: ["PR Upkeep", "Design"].map((name, g) => ({
             from: at("Automations"),
-            to: [
-              ...at("Automations"),
-              { name: n <= 3 ? "PR Upkeep" : "Design", created: true },
-            ],
+            to: [...at("Automations"), { name, created: true }],
+            threads: [1, 2, 3].map((n) => ({
+              id: `a${g}${n}`,
+              title: `Automation task ${g}${n}`,
+            })),
+            carried: 0,
           })),
         },
       }),
@@ -213,32 +209,38 @@ it("leads with the operation and each item's move, from where to where", async (
     lastRunAt: 1,
     error: null,
   });
+  await screen.findByRole("heading", { name: "Refile thread" });
   const card = (heading: string) =>
     screen.getByRole("heading", { name: heading }).closest("li")!;
-  await screen.findByRole("heading", { name: "Refile thread" });
-  const refile = card("Refile thread");
-  expect(within(refile).getByText("From").parentElement!.textContent).toBe(
+  const moves = (heading: string) =>
+    within(card(heading))
+      .getAllByText("From")
+      .map((from) => from.parentElement!.textContent);
+
+  expect(moves("Refile thread")).toEqual([
     "From Workstreams › Recap Cardsto PantryPal",
-  );
-  expect(within(refile).getByRole("listitem").textContent).toBe("Record demo");
+  ]);
   expect(
-    within(refile).getByText("A demo belongs under PantryPal."),
+    within(card("Refile thread")).getByRole("list", { name: "Threads" })
+      .textContent,
+  ).toBe("Record demo");
+  expect(
+    within(card("Refile thread")).getByText("A demo belongs under PantryPal."),
   ).toBeTruthy();
 
-  expect(within(card("Move topic")).getByRole("listitem").textContent).toBe(
-    "Topic Workforest· 2 threads",
-  );
-  expect(
-    within(card("Move topic")).getByText("From").parentElement!.textContent,
-  ).toBe("From Top levelto bb");
+  expect(moves("Move topic")).toEqual([
+    "From Workforestto bb › Workforestwith 2 threads",
+  ]);
 
   // A split reads as its destinations, each marked New, with the threads
   // that go to each.
-  const split = card("Split topic");
-  const moves = within(split).getAllByText("From");
-  expect(moves.map((m) => m.parentElement!.textContent)).toEqual([
+  expect(moves("Split topic")).toEqual([
     "From Automationsto Automations › PR UpkeepNew",
     "From Automationsto Automations › DesignNew",
   ]);
-  expect(within(split).getAllByRole("listitem")).toHaveLength(7);
+  expect(
+    within(card("Split topic"))
+      .getAllByRole("list", { name: "Threads" })
+      .map((list) => within(list).getAllByRole("listitem").length),
+  ).toEqual([3, 3]);
 });

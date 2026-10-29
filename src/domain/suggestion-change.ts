@@ -1,15 +1,14 @@
 /**
  * What accepting an organizing suggestion would change, as review shows it:
- * each thread or topic that moves, where it sits now, and where it would sit.
- * Pure, so the server and tests share one definition.
+ * a list of moves, each one path becoming another. Pure, so the server and
+ * tests share one definition.
  *
- * Every row names a thread or topic and the topic that holds it before and
- * after, so a row reads "this item, where it is, where it goes". A thread
- * outside any topic is Unfiled (null); a topic at the top level sits in the
- * empty path; a merged topic goes to the topic it merges into. A rename is the
- * exception: its row shows the topic's own path before and after. Threads
- * that move only because their topic moves are counted on the topic's row,
- * not listed.
+ * A thread move goes from the topic holding its threads (null for Unfiled) to
+ * the topic that would hold them, and lists them. A topic move (merge, move
+ * under, rename, adopt into a new parent) goes from the topic's own path to
+ * the path it would have, or for a merge to the topic it folds into; the
+ * threads that come along are counted, not listed, except a merged topic's
+ * own threads. A topic a suggestion creates on its own has no `from`.
  */
 import type { Split, TidyEdit } from "./tidy.ts";
 import { topicAncestors } from "./topics.ts";
@@ -20,30 +19,18 @@ export type PathPart = {
   readonly created: boolean;
 };
 
-/** Topic names from the top level down. */
+/** Topic names from the top level down; empty for the top level. */
 export type TopicPlace = readonly PathPart[];
 
-export type ChangeRow =
-  | {
-      readonly kind: "thread";
-      readonly id: string;
-      readonly title: string;
-      /** The topic holding it now; null for Unfiled. */
-      readonly from: TopicPlace | null;
-      readonly to: TopicPlace;
-    }
-  | {
-      readonly kind: "topic";
-      readonly name: string;
-      /** Accepting the suggestion creates it. */
-      readonly created: boolean;
-      /** The topic holding it now; null when it doesn't exist yet. */
-      readonly from: TopicPlace | null;
-      /** The topic holding it after, or that a merge folds it into. */
-      readonly to: TopicPlace;
-      /** Visible threads that move with it. */
-      readonly threads: number;
-    };
+export type ChangeMove = {
+  /** Null for Unfiled threads, or for a topic that doesn't exist yet. */
+  readonly from: TopicPlace | null;
+  readonly to: TopicPlace;
+  /** The threads making this move. */
+  readonly threads: readonly { readonly id: string; readonly title: string }[];
+  /** Further visible threads that move along with a moved topic. */
+  readonly carried: number;
+};
 
 /**
  * `split` partitions a topic's threads into new subtopics; `file` moves the
@@ -54,7 +41,7 @@ export type ChangeOp =
 
 export type SuggestionChange = {
   readonly op: ChangeOp;
-  readonly rows: readonly ChangeRow[];
+  readonly moves: readonly ChangeMove[];
 };
 
 export type ChangeContext = {
@@ -80,7 +67,7 @@ export type ChangeContext = {
 const normalize = (name: string) => name.trim().toLowerCase();
 
 /**
- * The rows accepting `body` would change, or null when a topic or thread it
+ * The moves accepting `body` would make, or null when a topic or thread it
  * names no longer exists; the suggestion's problem then says why.
  */
 export function suggestionChange(
@@ -101,17 +88,16 @@ function describe(
   const { topics, threadTopic } = context;
   const byId = new Map(topics.map((topic) => [topic.id, topic]));
 
-  const path = (id: string): TopicPlace =>
-    topicAncestors(id, topics)
-      .reverse()
-      .map((at) => ({ name: byId.get(at)!.name, created: false }));
-  /** A topic reference, which may name a topic its pass creates. */
+  /** A topic's path; `new:` references name a topic the pass creates. */
   const place = (ref: string | null, depth = 0): TopicPlace => {
     if (ref === null) return [];
-    if (!ref.startsWith("new:")) return path(ref);
+    if (!ref.startsWith("new:"))
+      return topicAncestors(ref, topics)
+        .reverse()
+        .map((at) => ({ name: byId.get(at)!.name, created: false }));
+    if (depth > 10) throw new Error("Topic references loop.");
     const name = ref.slice(4).trim();
     const create = context.creates?.get(normalize(name));
-    if (depth > 10) throw new Error("Topic references loop.");
     return [
       ...(create ? place(create.parent, depth + 1) : []),
       { name: create?.name ?? name, created: true },
@@ -125,38 +111,24 @@ function describe(
         byId.has(topic) &&
         topicAncestors(topic, topics).includes(ref),
     ).length;
-
-  /** The topic holding a topic. */
-  const parent = (ref: string): TopicPlace => place(ref).slice(0, -1);
-  const topic = (
-    ref: string,
-    from: TopicPlace | null,
-    to: TopicPlace,
-    threads = within(ref),
-  ): ChangeRow => {
-    const own = place(ref).at(-1)!;
-    return {
-      kind: "topic",
-      name: own.name,
-      created: own.created,
-      from,
-      to,
-      threads,
-    };
-  };
-  const thread = (id: string, to: TopicPlace): ChangeRow => {
+  const thread = (id: string) => {
     if (!(id in threadTopic)) throw new Error("That thread is gone.");
-    const topic = threadTopic[id];
-    return {
-      kind: "thread",
-      id,
-      title: context.title(id),
-      from: topic ? path(topic) : null,
-      to,
-    };
+    return { id, title: context.title(id) };
   };
+  /** A topic moving from its own path to `to`, with its threads counted. */
+  const topicMove = (ref: string, to: TopicPlace): ChangeMove => ({
+    from: place(ref),
+    to,
+    threads: [],
+    carried: within(ref),
+  });
+  const under = (parent: TopicPlace, ref: string): TopicPlace => [
+    ...parent,
+    place(ref).at(-1)!,
+  ];
+
   if ("subgroups" in body) {
-    const group = path(body.topicId);
+    const group = place(body.topicId);
     const children = topics.filter((t) => t.parentId === body.topicId);
     const exists = (name: string) =>
       children.some(
@@ -168,47 +140,64 @@ function describe(
       );
     return {
       op: body.repair ? "file" : "split",
-      rows: body.subgroups.flatMap((subgroup) => {
-        const to = [
+      moves: body.subgroups.map((subgroup) => ({
+        from: group,
+        to: [
           ...group,
           { name: subgroup.name, created: !exists(subgroup.name) },
-        ];
-        return subgroup.threadIds.map((id) => thread(id, to));
-      }),
+        ],
+        threads: subgroup.threadIds.map(thread),
+        carried: 0,
+      })),
     };
   }
 
   switch (body.op) {
-    case "move":
+    case "move": {
+      const from = thread(body.thread);
+      const topic = threadTopic[body.thread];
       return {
         op: "refile",
-        rows: [thread(body.thread, place(body.topic))],
+        moves: [
+          {
+            from: topic ? place(topic) : null,
+            to: place(body.topic),
+            threads: [from],
+            carried: 0,
+          },
+        ],
       };
+    }
     case "merge": {
       const into = place(body.into);
-      const own = Object.values(threadTopic).filter((t) => t === body.from);
       return {
         op: "merge",
-        // Its subtopics' threads are counted on their own rows.
-        rows: [
-          topic(body.from, parent(body.from), into, own.length),
+        moves: [
+          {
+            from: place(body.from),
+            to: into,
+            threads: Object.entries(threadTopic)
+              .filter(([, topic]) => topic === body.from)
+              .map(([id]) => thread(id)),
+            carried: 0,
+          },
           ...topics
             .filter((t) => t.parentId === body.from)
-            .map((t) => topic(t.id, place(body.from), into)),
+            .map((t) => topicMove(t.id, under(into, t.id))),
         ],
       };
     }
     case "reparent":
       return {
         op: "reparent",
-        rows: [topic(body.topic, parent(body.topic), place(body.parent))],
+        moves: [topicMove(body.topic, under(place(body.parent), body.topic))],
       };
     case "rename": {
       const own = place(body.topic);
       return {
         op: "rename",
-        rows: [
-          topic(body.topic, own, [
+        moves: [
+          topicMove(body.topic, [
             ...own.slice(0, -1),
             { ...own.at(-1)!, name: body.name },
           ]),
@@ -222,37 +211,36 @@ function describe(
       ];
       return {
         op: "create",
-        rows: body.children.length
-          ? body.children.map((child) => topic(child, parent(child), created))
-          : [
-              {
-                kind: "topic",
-                name: body.name,
-                created: true,
-                from: null,
-                to: place(body.parent),
-                threads: 0,
-              },
-            ],
+        moves: body.children.length
+          ? body.children.map((child) =>
+              topicMove(child, under(created, child)),
+            )
+          : [{ from: null, to: created, threads: [], carried: 0 }],
       };
     }
   }
 }
 
-const placeText = (place: TopicPlace | null, unplaced: string) =>
-  place === null
-    ? unplaced
-    : place.length === 0
-      ? "Top level"
-      : place
-          .map((part) => `${part.name}${part.created ? " (new)" : ""}`)
-          .join(" › ");
+const placeText = (place: TopicPlace) =>
+  place.length === 0
+    ? "Top level"
+    : place
+        .map((part) => `${part.name}${part.created ? " (new)" : ""}`)
+        .join(" › ");
 
-/** One plain line per row, for the CLI: "item: from → to". */
+/**
+ * Plain lines for the CLI: each move as "from → to", its threads indented
+ * below it.
+ */
 export function changeLines(change: SuggestionChange): string[] {
-  return change.rows.map((row) =>
-    row.kind === "thread"
-      ? `“${row.title}”: ${placeText(row.from, "Unfiled")} → ${placeText(row.to, "Unfiled")}`
-      : `Topic ${row.name}${row.created ? " (new)" : ""}${row.threads ? ` (${row.threads} ${row.threads === 1 ? "thread" : "threads"})` : ""}: ${placeText(row.from, "—")} → ${placeText(row.to, "—")}`,
-  );
+  return change.moves.flatMap((move) => [
+    `${
+      move.from
+        ? `${placeText(move.from)} → `
+        : move.threads.length
+          ? "Unfiled → "
+          : ""
+    }${placeText(move.to)}${move.carried ? ` (with ${move.carried} ${move.carried === 1 ? "thread" : "threads"})` : ""}`,
+    ...move.threads.map((t) => `  “${t.title}”`),
+  ]);
 }

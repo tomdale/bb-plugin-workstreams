@@ -1,18 +1,15 @@
 /**
- * What accepting a suggestion would change. Rows that make the same move
- * share one line, "topic now → topic after", with the threads and topics
- * that make it listed below, so a split reads as a few destinations rather
- * than one line per thread.
+ * What accepting a suggestion would change: one line per move, "topic now →
+ * topic after", with the threads making that move listed beneath it.
  */
 import type {
+  ChangeMove,
   ChangeOp,
-  ChangeRow,
   SuggestionChange,
   TopicPlace,
 } from "../../domain/suggestion-change.ts";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
-import { TAG_ICON } from "../workstream-icon.ts";
 import { ActivityThreadLink } from "./ActivityThreadLink.tsx";
 
 const OPERATION: Record<ChangeOp, string> = {
@@ -27,106 +24,83 @@ const OPERATION: Record<ChangeOp, string> = {
 
 /** The operation a suggestion performs, as its heading. */
 export function changeHeading(change: SuggestionChange): string {
-  if (change.op === "create" && change.rows.some((row) => row.from !== null))
+  if (change.op === "create" && change.moves.some((move) => move.from))
     return "New parent topic";
   return OPERATION[change.op];
 }
 
-type Move = {
-  from: TopicPlace | null;
-  to: TopicPlace;
-  /** What `from: null` means: Unfiled for a thread, not yet made for a topic. */
-  kind: ChangeRow["kind"];
-  items: ChangeRow[];
-};
-
-/** Rows grouped by the move they make, in the order they first appear. */
-function moves(rows: readonly ChangeRow[]): Move[] {
-  const out = new Map<string, Move>();
-  for (const row of rows) {
-    const key = JSON.stringify([row.from ?? row.kind, row.to]);
-    const move = out.get(key);
-    if (move) move.items.push(row);
-    else
-      out.set(key, {
-        from: row.from,
-        to: row.to,
-        kind: row.kind,
-        items: [row],
-      });
-  }
-  return [...out.values()];
-}
-
-export function SuggestionChangeRows({ change }: { change: SuggestionChange }) {
+export function SuggestionChangeMoves({
+  change,
+}: {
+  change: SuggestionChange;
+}) {
   return (
-    <div className="space-y-2.5 rounded-lg bg-muted/40 px-3 py-2.5">
-      {moves(change.rows).map((move, index) => (
-        <div key={index}>
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-            <span className="sr-only">From </span>
-            <Place place={move.from} kind={move.kind} side="from" />
-            <Icon
-              name="ArrowRight"
-              fallback="ChevronRight"
-              aria-hidden
-              className="size-3.5 shrink-0 text-muted-foreground"
-            />
-            <span className="sr-only">to </span>
-            <Place place={move.to} kind={move.kind} side="to" />
-          </p>
-          <ul className="mt-1.5 flex flex-wrap gap-1.5">
-            {move.items.map((row, i) => (
-              <li
-                key={row.kind === "thread" ? row.id : `${row.name}:${i}`}
-                className="flex min-w-0 max-w-full"
-              >
-                <Item row={row} />
-              </li>
-            ))}
-          </ul>
-        </div>
+    <ul
+      aria-label="Changes"
+      className="space-y-2.5 rounded-lg bg-muted/40 px-3 py-2.5"
+    >
+      {change.moves.map((move, index) => (
+        <li key={index}>
+          <MoveLine move={move} />
+          {move.threads.length ? (
+            <ul aria-label="Threads" className="mt-1.5 flex flex-wrap gap-1.5">
+              {move.threads.map((thread) => (
+                <li key={thread.id} className="flex min-w-0 max-w-full">
+                  <ActivityThreadLink
+                    threadId={thread.id}
+                    fallback={thread.title}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 
-function Item({ row }: { row: ChangeRow }) {
-  if (row.kind === "thread")
-    return <ActivityThreadLink threadId={row.id} fallback={row.title} />;
+function MoveLine({ move }: { move: ChangeMove }) {
+  // Unfiled threads move from no topic; a topic made on its own has no
+  // `from` and shows only where it goes.
+  const from = move.from ?? (move.threads.length ? "Unfiled" : null);
   return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-surface-raised/50 py-0.5 pl-1 pr-1.5 text-xs leading-4 text-foreground">
-      <Icon
-        name={TAG_ICON}
-        aria-hidden
-        className="size-3.5 shrink-0 text-muted-foreground"
-      />
-      <span className="sr-only">Topic </span>
-      <span className="min-w-0 truncate">{row.name}</span>
-      {row.created ? <NewBadge /> : null}
-      {row.threads > 0 ? (
-        <span className="shrink-0 text-muted-foreground">
-          · {row.threads} {row.threads === 1 ? "thread" : "threads"}
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+      {from !== null ? (
+        <>
+          <span className="sr-only">From </span>
+          <Path place={from} side="from" />
+          <Icon
+            name="ArrowRight"
+            fallback="ChevronRight"
+            aria-hidden
+            className="size-3.5 shrink-0 text-muted-foreground"
+          />
+          <span className="sr-only">to </span>
+        </>
+      ) : null}
+      <Path place={move.to} side="to" />
+      {move.carried ? (
+        <span className="text-muted-foreground">
+          with {move.carried} {move.carried === 1 ? "thread" : "threads"}
         </span>
       ) : null}
-    </span>
+    </p>
   );
 }
 
-/** A topic path, its ancestors dimmed; or what having none means. */
-function Place({
+/** A topic path with its ancestors dimmed, the new topics in it marked. */
+function Path({
   place,
-  kind,
   side,
 }: {
-  place: TopicPlace | null;
-  kind: ChangeRow["kind"];
+  place: TopicPlace | "Unfiled";
   side: "from" | "to";
 }) {
-  if (place === null || place.length === 0)
+  if (place === "Unfiled" || place.length === 0)
     return (
       <span className="text-muted-foreground">
-        {place ? "Top level" : kind === "thread" ? "Unfiled" : "Nowhere yet"}
+        {place === "Unfiled" ? place : "Top level"}
       </span>
     );
   return (
@@ -151,18 +125,14 @@ function Place({
             >
               {part.name}
             </span>
-            {part.created ? <NewBadge /> : null}
+            {part.created ? (
+              <span className="ml-1 inline-block rounded border border-border px-1 py-px align-[1px] text-[10px] font-medium leading-none text-muted-foreground">
+                New
+              </span>
+            ) : null}
           </span>
         );
       })}
-    </span>
-  );
-}
-
-function NewBadge() {
-  return (
-    <span className="ml-1 inline-block shrink-0 rounded bg-muted px-1 py-px align-[1px] text-[10px] font-medium leading-none text-muted-foreground">
-      New
     </span>
   );
 }

@@ -234,10 +234,10 @@ accept them, on **Organization** (a sidebar notice links there) or with
 - **Memory:** Tidy sees the topics you filed threads under, the suggestions you
   accepted, and the ones you declined; a suggestion identical to a declined one
   is never proposed again.
-- **Review and undo:** Each suggestion lists every thread or topic it would
-  move, from the topic holding it now to the one it would move to, in the app
-  and in `bb workstreams suggestions`, and shows why it can't apply when the
-  tree changed since. Accepting one records it in Activity with **Undo**, which
+- **Review and undo:** Each suggestion lists every move it would make, from a
+  topic path now to the path after, with the threads making it, in the app and
+  in `bb workstreams suggestions`, and shows why it can't apply when the tree
+  changed since. Accepting one records it in Activity with **Undo**, which
   restores the topic tree and assignments as they were while nothing has changed
   since.
 
@@ -480,12 +480,13 @@ Open **Workstreams** in the main navigation panel to access four tabs:
    - **Suggestions:** Each organizing suggestion is headed by its operation
      (**Refile thread**, **Split topic**, **File threads in subtopics**, **Merge
      topics**, **Move topic**, **Rename topic**, **New topic**, or **New parent
-     topic**). Below it, each move it makes is one line, from the topic holding
-     its items now to the topic they would move to, with the threads and topics
-     making that move listed beneath. **New** marks a topic that accepting
-     creates, and a moved topic shows how many threads move with it. The reason
-     follows. Click **Accept**, **Decline**, **Accept all**, or **Ask now** for
-     fresh ones. **Recently decided** lists the latest decisions.
+     topic**). Below it, each move it makes is one line, from a topic path now
+     to the path after (`Toolbelt › Sidebar Switcher → bb › Sidebar Switcher`),
+     with the threads making that move listed beneath it and the threads that
+     come along with a moved topic counted. **New** marks a topic that accepting
+     creates. The reason follows. Click **Accept**, **Decline**, **Accept all**,
+     or **Ask now** for fresh ones. **Recently decided** lists the latest
+     decisions.
    - Assign topics directly to **Threads with no topic** or inspect **Derived
      Workstreams** with their active/total counts and grouping policy reason.
    - **Review automatic topics:** After editing topic definitions, click
