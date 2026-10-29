@@ -36,7 +36,11 @@ import { topicPath } from "../domain/topic-path.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal } from "./journal.ts";
 import type { Inference } from "./model.ts";
-import { snapshotTopics, type TopicStore } from "./topics.ts";
+import {
+  snapshotTopics,
+  topicsFingerprint,
+  type TopicStore,
+} from "./topics.ts";
 
 export const DAY_MS = 24 * 60 * 60_000;
 export const TIDY_NEW_TOPICS = 3;
@@ -407,13 +411,15 @@ export class Suggestions {
         newTopics >= TIDY_NEW_TOPICS ||
         newRoots >= TIDY_NEW_ROOTS ||
         (mess.count >= MESSY_AT && mess.key !== memo.mess);
+      // Edits that stopped fitting the tree don't hold up a new pass.
+      const tree = this.tree();
       const waiting = (
         this.deps.db
           .prepare(
-            "SELECT COUNT(*) AS n FROM ws_suggestion WHERE status = 'pending' AND kind = 'edit'",
+            "SELECT * FROM ws_suggestion WHERE status = 'pending' AND kind = 'edit'",
           )
-          .get() as { n: number }
-      ).n;
+          .all() as Row[]
+      ).filter((row) => !this.problem(row, tree)).length;
       if (
         !due ||
         waiting > 0 ||
@@ -583,6 +589,27 @@ export class Suggestions {
         : "Its threads changed since; ask for suggestions again.";
     }
     const edit = this.resolve(JSON.parse(row.body) as TidyEdit, row.pass_id);
+    // A topic another suggestion of the pass would create, while that one
+    // still waits; once it's declined or stale, this one can't apply.
+    const creating = new Set(
+      (
+        this.deps.db
+          .prepare(
+            "SELECT body FROM ws_suggestion WHERE pass_id = ? AND status = 'pending' AND kind = 'edit'",
+          )
+          .all(row.pass_id) as { body: string }[]
+      )
+        .map((r) => JSON.parse(r.body) as TidyEdit)
+        .filter((e) => e.op === "create")
+        .map((e) => (e as { name: string }).name.toLowerCase()),
+    );
+    if (
+      refs(edit).some(
+        (ref) =>
+          ref?.startsWith("new:") && !creating.has(ref.slice(4).toLowerCase()),
+      )
+    )
+      return "It needs a topic another suggestion would have created.";
     return refusal(edit, tree);
   }
 
@@ -685,7 +712,7 @@ export class Suggestions {
         undo: {
           kind: "restore-topics",
           snapshotId: snapshot,
-          revision: topics.revision(),
+          fingerprint: topicsFingerprint(db),
         },
         detail: row.reason || null,
       });

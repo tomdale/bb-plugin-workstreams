@@ -19,8 +19,11 @@ import { resolveProposal, takesThreads } from "./topics.ts";
 
 /** Requests are excerpted to this much each. */
 const REQUEST_CHARS = 1200;
-/** At most this many topics are listed. */
-export const PLACEMENT_TOPICS_MAX = 500;
+/**
+ * At most this many topics are listed: the answer's ID enums stay within
+ * structured-output limits.
+ */
+export const PLACEMENT_TOPICS_MAX = 450;
 
 export type PlacementTopic = {
   readonly id: string;
@@ -235,10 +238,9 @@ export function parsePlacement(
     { name, description, parentId },
     input.entities,
   );
-  if (resolved.subjectId !== null) {
-    if (!takesThreads(resolved.subjectId, input.entities))
-      throw new Error("The model proposed a topic that can't hold threads.");
+  // A proposal that names an existing topic is that topic. One with
+  // subtopics can't hold the thread; applying it keeps the thread's topic.
+  if (resolved.subjectId !== null)
     return { subjectId: resolved.subjectId, proposed: null, scopeShift };
-  }
   return { subjectId: null, proposed: resolved.proposed, scopeShift };
 }

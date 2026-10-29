@@ -114,8 +114,11 @@ const stepSchema = z.discriminatedUnion("kind", [
     /** Puts the topic tree back as a snapshot recorded it. */
     kind: z.literal("restore-topics"),
     snapshotId: z.string(),
-    /** The catalog revision the change left; any later change blocks undo. */
-    revision: z.number(),
+    /**
+     * The topic tree and assignments the change left (see
+     * `topicsFingerprint`); any later change to them blocks undo.
+     */
+    fingerprint: z.string(),
   }),
 ]);
 export type UndoStep = z.infer<typeof stepSchema>;

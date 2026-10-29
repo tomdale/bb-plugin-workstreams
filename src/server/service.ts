@@ -384,7 +384,7 @@ export class WorkstreamService {
       return { done: 1, skipped: 0 };
     }
     if (step.kind === "restore-topics") {
-      if (!restoreTopics(this.db, step.snapshotId, step.revision))
+      if (!restoreTopics(this.db, step.snapshotId, step.fingerprint))
         return { done: 0, skipped: 1 };
       this.onTopicsRestored();
       return { done: 1, skipped: 0 };

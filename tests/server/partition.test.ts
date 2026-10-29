@@ -4,6 +4,7 @@ import { openDatabase } from "../../src/server/db.ts";
 import {
   restoreTopics,
   snapshotTopics,
+  topicsFingerprint,
   TopicStore,
 } from "../../src/server/topics.ts";
 
@@ -90,6 +91,36 @@ describe("a topic holds threads or subtopics, never both", () => {
       ),
     ).toBe(false);
     expect(topics.assignment("t1").entityId).toBeNull();
+    expect(topics.assignment("t1").provenance).toBe("full");
+  });
+
+  it("keeps the topic, but settles the basis, when placement names a topic that can't hold it", () => {
+    const { topics } = store();
+    const product = topics.create("Automations");
+    topics.create("Triggers", "", product.id);
+    expect(
+      topics.applyAnalysis(
+        "t1",
+        { subjectId: product.id, proposed: null },
+        "full",
+        "k",
+      ),
+    ).toBe(false);
+    // Settled as Unfiled from these requests, so it isn't asked again.
+    expect(topics.assignment("t1")).toMatchObject({
+      entityId: null,
+      provenance: "full",
+    });
+    expect(topics.basis("t1")).toBe("k");
+    expect(
+      topics.applyAnalysis(
+        "t2",
+        { subjectId: "gone", proposed: null },
+        "full",
+        "k",
+      ),
+    ).toBe(false);
+    expect(topics.basis("t2")).toBe("k");
   });
 
   it("doesn't inherit a topic with subtopics", () => {
@@ -97,6 +128,19 @@ describe("a topic holds threads or subtopics, never both", () => {
     const product = topics.create("Automations");
     topics.create("Triggers", "", product.id);
     expect(topics.inheritTopic("t1", product.id)).toBe(false);
+  });
+});
+
+describe("merging a lone subtopic into its parent", () => {
+  it("leaves the parent holding the threads", () => {
+    const { topics, see } = store();
+    const parent = topics.create("Automations");
+    const only = topics.create("Planning", "", parent.id);
+    see("t1");
+    topics.assign("t1", only.id);
+    topics.merge(only.id, parent.id);
+    expect(topics.assignment("t1").entityId).toBe(parent.id);
+    expect(topics.subtopics(parent.id)).toBe(0);
   });
 });
 
@@ -175,7 +219,10 @@ describe("restoreTopics", () => {
     topics.merge(alpha.id, child.id);
     topics.rename(beta.id, "Alpha");
     topics.create("Gamma", "", null);
-    expect(restoreTopics(db, snapshot, topics.revision())).toBe(true);
+    const after = topicsFingerprint(db);
+    // The organizer binds and unbinds workstreams on its own afterwards.
+    topics.bindGroup("sec_g", topics.resolve("Gamma")!.id);
+    expect(restoreTopics(db, snapshot, after)).toBe(true);
     expect(
       topics
         .list()
@@ -192,7 +239,7 @@ describe("restoreTopics", () => {
     const alpha = topics.create("Alpha");
     const snapshot = snapshotTopics(db, 1);
     topics.rename(alpha.id, "Beta");
-    const after = topics.revision();
+    const after = topicsFingerprint(db);
     topics.create("Gamma");
     expect(restoreTopics(db, snapshot, after)).toBe(false);
     expect(topics.getById(alpha.id)?.name).toBe("Beta");

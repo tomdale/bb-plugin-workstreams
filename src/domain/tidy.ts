@@ -19,7 +19,7 @@
 import { z } from "zod";
 import { HEADER, redact, stripFence, tagged } from "./analysis.ts";
 import { placementIds } from "./placement.ts";
-import { topicAncestors } from "./topics.ts";
+import { takesThreads, topicAncestors } from "./topics.ts";
 import { SPLIT_ABOVE } from "./layout.ts";
 
 export const TIDY_EDITS_MAX = 8;
@@ -148,6 +148,12 @@ export type SplitInput = {
 
 export const SPLIT_RULES = `Propose 2–${SUBGROUPS_MAX} subgroups: the simplest, clearest groups a person would name without effort, each named for an area of work, never a task, pull request, bug, or repository. Clarity beats symmetry: a plain "PR Upkeep" beside "Alert Investigations" is better than a contrived name invented to keep siblings alike, and an "X & Y" name is usually a sign of contrivance. Put work about the whole group in a plainly named subgroup such as "Planning", never a catch-all like "General" or "Other". Prefer at least 2 threads per subgroup; keep a one-thread subgroup only for a genuinely distinct area. Name subgroups in Title Case, keeping product names' own spelling. Judge each thread by what it is about.`;
 
+/** The group's subtopics a thread can be filed in: those without subtopics. */
+const fileable = (input: Pick<SplitInput, "topics" | "topicId">) =>
+  input.topics.filter(
+    (t) => t.parentId === input.topicId && takesThreads(t.id, input.topics),
+  );
+
 const threadIds = (threads: readonly { id: string }[]) =>
   new Map(threads.map((thread, i) => [thread.id, `r${i + 1}`]));
 
@@ -159,8 +165,8 @@ export function splitPrompt(input: SplitInput): string {
     .reverse()
     .map((id) => input.topics.find((t) => t.id === id)!.name)
     .join(" › ");
-  const existing = input.topics.filter((t) => t.parentId === input.topicId);
-  const repair = existing.length > 0;
+  const repair = input.topics.some((t) => t.parentId === input.topicId);
+  const existing = fileable(input);
   const intro = repair
     ? `This group of agent threads holds threads beside its subgroups, and a group holds threads or subgroups, never both. File each of its own threads below in one of its subgroups (${existing.map((t) => `"${line(t.name, 60)}"`).join(", ")}), using a subgroup's exact name, or in a new subgroup of the same kind when none fits.`
     : `This group of agent threads has grown past ${SPLIT_ABOVE} threads, so it is splitting into subgroups. Every thread must go into exactly one subgroup; none stays in the group itself. ${SPLIT_RULES}`;
@@ -247,9 +253,7 @@ export function parseSplit(text: string, input: SplitInput): SplitOutput {
   const byShort = new Map(
     [...threadIds(input.threads)].map(([id, short]) => [short, id]),
   );
-  const existing = input.topics
-    .filter((t) => t.parentId === input.topicId)
-    .map((t) => t.name);
+  const existing = fileable(input).map((t) => t.name);
   const names = new Map<string, { name: string; description: string }>();
   for (const group of parsed.subgroups) {
     if (!validName(group.name))
@@ -277,7 +281,8 @@ export function parseSplit(text: string, input: SplitInput): SplitOutput {
     description: names.get(key)!.description,
     threadIds: ids,
   }));
-  if (existing.length === 0 && subgroups.length < 2)
+  const repair = input.topics.some((t) => t.parentId === input.topicId);
+  if (!repair && subgroups.length < 2)
     throw new Error("A split needs at least two subgroups.");
   if (subgroups.length > SUBGROUPS_MAX + existing.length)
     throw new Error("The split made too many subgroups.");
@@ -555,9 +560,13 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
       if (!exists(edit.from) || !exists(edit.into))
         return "A topic it names is gone.";
       const threads = (holds(edit.from) ? 1 : 0) + (holds(edit.into) ? 1 : 0);
+      // `from` itself leaves `into`'s subtopics when it merges into its parent.
       const kids =
         (!isNew(edit.from) && hasKids(edit.from)) ||
-        (!isNew(edit.into) && hasKids(edit.into));
+        (!isNew(edit.into) &&
+          state.topics.some(
+            (t) => t.parentId === edit.into && t.id !== edit.from,
+          ));
       if (threads > 0 && kids) return "It would put threads beside subtopics.";
       return null;
     }

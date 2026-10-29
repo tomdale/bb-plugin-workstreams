@@ -78,8 +78,24 @@ export function snapshotTopics(db: Database, at: number): string {
 }
 
 /**
- * Puts back the topic tree and assignments a snapshot recorded, while the
- * catalog is still at `revision`: any later topic or assignment change means
+ * The topic tree and every topic assignment, hashed. Workstream bindings and
+ * the catalog revision are left out: the organizer changes those on its own
+ * after every change, and undoing a change must still work after it does.
+ */
+export function topicsFingerprint(db: Database): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify([
+        db.prepare("SELECT * FROM ws_corpus_entity ORDER BY id").all(),
+        db.prepare("SELECT * FROM ws_corpus_subject ORDER BY thread_id").all(),
+      ]),
+    )
+    .digest("hex");
+}
+
+/**
+ * Puts back the topic tree and assignments a snapshot recorded, while they
+ * still match `fingerprint`: any later topic or assignment change means
  * undoing would discard it, so nothing is restored. Workstreams bound to
  * topics the snapshot lacks are unbound. Returns whether it restored.
  *
@@ -91,14 +107,14 @@ export function snapshotTopics(db: Database, at: number): string {
 export function restoreTopics(
   db: Database,
   snapshotId: string,
-  revision: number,
+  fingerprint: string,
 ): boolean {
   return db.transaction(() => {
     const row = db
       .prepare("SELECT entities, subjects FROM ws_topic_snapshot WHERE id = ?")
       .get(snapshotId) as { entities: string; subjects: string } | undefined;
+    if (!row || topicsFingerprint(db) !== fingerprint) return false;
     const current = parseInt(getMeta(db, "catalog_revision") ?? "1", 10) || 1;
-    if (!row || current !== revision) return false;
     const entities = JSON.parse(row.entities) as Row[];
     const kept = new Set(entities.map((entity) => entity.id as string));
     const now = new Map(
@@ -730,16 +746,29 @@ export class TopicStore {
       }
       if (kind === "quick" && current !== null && current !== "quick")
         return false;
-      // Only a topic without subtopics holds threads.
-      if (answer.subjectId && this.subtopics(answer.subjectId) > 0)
-        return false;
       const entity = answer.subjectId
         ? this.getById(answer.subjectId)
         : answer.proposed
           ? this.rememberProposal(answer.proposed)
           : null;
-      // A proposal can resolve to a topic that already has subtopics.
-      if (entity && this.subtopics(entity.id) > 0) return false;
+      // An answer naming a topic that is gone, or that has subtopics (only a
+      // topic without them holds threads), keeps the thread's topic. Placement
+      // still settled it from these requests, so it isn't asked again until a
+      // new request arrives.
+      if (
+        (answer.subjectId && !entity) ||
+        (entity && this.subtopics(entity.id) > 0)
+      ) {
+        if (kind === "full" && basis)
+          this.db
+            .prepare(
+              `INSERT INTO ws_corpus_subject(thread_id, entity_id, evidence, source)
+               VALUES (?, NULL, ?, 'full')
+               ON CONFLICT(thread_id) DO UPDATE SET evidence = excluded.evidence`,
+            )
+            .run(rootId, basis);
+        return false;
+      }
       const entityId = entity?.id ?? null;
       if (
         row &&
@@ -861,8 +890,10 @@ export class TopicStore {
         throw new Error("Subgroups need distinct names without colons.");
       const result: Topic[] = [];
       for (const group of subgroups) {
+        const existing = this.resolve(group.name, entityId);
+        if (existing) this.assertTakesThreads(existing.id);
         const topic =
-          this.resolve(group.name, entityId) ??
+          existing ??
           this.insertDiscovered(group.name, group.description, entityId);
         for (const threadId of group.threadIds)
           this.db
@@ -1097,7 +1128,8 @@ export class TopicStore {
       const mergedSubtopics = entities.filter(
         (e) =>
           (e.parentId === target.id || e.parentId === source.id) &&
-          e.id !== target.id,
+          e.id !== target.id &&
+          e.id !== source.id,
       ).length;
       const mergedThreads =
         this.heldThreads(source.id) + this.heldThreads(target.id);

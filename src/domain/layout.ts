@@ -194,13 +194,24 @@ export function layoutGroups(input: {
       promoted.add(id);
   }
 
-  for (;;) {
+  // Each round settles promotions against the previous round's counts: a
+  // group whose subgroups all moved up, or that no longer shows subgroups,
+  // moves back, and one too deep moves up. A group that moves back no longer
+  // shows subgroups, so it never moves up again, and the rounds end.
+  for (let round = 0; ; round++) {
     // A promoted group's roots leave its ancestors' counts.
     const split = new Set(
       input.topics
         .map((topic) => topic.id)
         .filter((id) => splits(id, cover(id, promoted))),
     );
+    const back = [...promoted].filter(
+      (id) => !split.has(id) || cover(id, promoted) === 0,
+    );
+    if (back.length > 0 && round <= input.topics.length) {
+      for (const id of back) promoted.delete(id);
+      continue;
+    }
     const tooDeep = new Set<string>();
     const listed: string[] = [];
     const draw = (
@@ -251,7 +262,7 @@ export function layoutGroups(input: {
         sortKey(a).localeCompare(sortKey(b)) ||
         a.topicId.localeCompare(b.topicId),
     );
-    if (tooDeep.size > 0) {
+    if (tooDeep.size > 0 && round <= input.topics.length) {
       for (const id of tooDeep) promoted.add(id);
       continue;
     }

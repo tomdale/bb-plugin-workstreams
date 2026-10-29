@@ -106,14 +106,20 @@ export class Placement {
    * Remembers where a new thread was started from when that topic couldn't
    * be inherited (it holds subtopics), so placement weighs it.
    */
-  hintStart(threadId: string, topicId: string, from: "thread" | "workstream") {
+  hintStart(
+    threadId: string,
+    topicId: string,
+    from: "thread" | "workstream" | "picked",
+  ) {
     const label = this.label(topicId);
     if (!label) return;
     this.startHints.set(
       threadId,
       from === "workstream"
         ? `It was started from the ${label} workstream.`
-        : `It was started from a thread filed under ${label}.`,
+        : from === "picked"
+          ? `It was started with the topic ${label}, which now has subtopics.`
+          : `It was started from a thread filed under ${label}.`,
     );
     if (this.startHints.size > 200)
       this.startHints.delete(this.startHints.keys().next().value!);
@@ -219,10 +225,10 @@ export class Placement {
       if (now.provenance === "manual" || this.deps.topics.basis(thread.id))
         return;
       this.deps.apply(thread.id, answer, question.basis, traceId);
+      // Placed; a failed call leaves the hint for the turn's end.
+      this.startHints.delete(thread.id);
     } catch (error) {
       this.deps.log(`Placing ${thread.id} failed: ${String(error)}`);
-    } finally {
-      this.startHints.delete(thread.id);
     }
   }
 

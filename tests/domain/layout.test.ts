@@ -290,6 +290,29 @@ describe("layoutGroups", () => {
     ]);
   });
 
+  it("doesn't promote a group whose subgroups all moved up", () => {
+    const tree: LayoutTopic[] = [
+      { id: "ctx", name: "Ctx", parentId: null },
+      { id: "p", name: "P", parentId: "ctx", partitioned: true },
+      { id: "a", name: "A", parentId: "p", partitioned: true },
+      { id: "a1", name: "A1", parentId: "a", partitioned: true },
+      { id: "a2", name: "A2", parentId: "a", partitioned: true },
+      { id: "x", name: "X", parentId: "a1" },
+      { id: "y", name: "Y", parentId: "a1" },
+      { id: "z", name: "Z", parentId: "a2" },
+      { id: "w", name: "W", parentId: "a2" },
+      { id: "b", name: "B", parentId: "p" },
+    ];
+    const layout = layoutGroups({
+      topics: tree,
+      counts: { x: 3, y: 3, z: 3, w: 3, b: 2 },
+    });
+    const top = outline(layout.nodes).filter((line) => !line.startsWith(" "));
+    expect(top.every((line) => !line.endsWith("(0)"))).toBe(true);
+    expect(layout.listed.every((id) => id !== "a")).toBe(true);
+    expect(layout.state.promoted).not.toContain("a");
+  });
+
   it("lists a legacy topic's own threads beside its subgroups", () => {
     const layout = layoutGroups({
       topics: [

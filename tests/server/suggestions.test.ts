@@ -100,7 +100,9 @@ describe("split suggestions", () => {
     expect(topics.assignment("t1").label).toBe("Automations: Planning");
     expect(topics.assignment("t6").label).toBe("Automations: Triggers");
 
-    // Undo puts the tree back.
+    // Undo puts the tree back, even after the organizer has bound the new
+    // subgroups' workstreams.
+    await rpc("organization", { action: "rebuild" });
     const { entries } = await rpc<{
       entries: { id: string; action: string }[];
     }>("journal", {});
@@ -239,8 +241,40 @@ describe("tidy suggestions", () => {
     expect(early.failed).toHaveLength(1);
     await decide([create!.id, reparent!.id], "accept");
     const vercel = topics.resolve("Vercel")!;
+    expect(vercel).toBeTruthy();
     expect(topics.getById(a.id)?.parentId).toBe(vercel.id);
     expect(topics.getById(b.id)?.parentId).toBe(vercel.id);
+  });
+});
+
+describe("an edit that needs a declined create", () => {
+  it("says it can't apply, and doesn't hold up the next pass", async () => {
+    const { w, topics, run, decide, rpc } = await setup({
+      tidy: () => ({
+        edits: [
+          tidyEdit({
+            op: "create",
+            name: "Vercel",
+            description: "Work",
+            parent: null,
+            children: ["t1"],
+          }),
+          tidyEdit({ op: "reparent", topic: "t2", parent: "new:Vercel" }),
+        ],
+      }),
+    });
+    topics.create("Alpha", "");
+    topics.create("Beta", "");
+    await rpc("refresh");
+    const [create] = (await run()).suggestions;
+    await decide([create!.id], "decline");
+    const { state } = await rpc<{ state: SuggestionsStateWire }>("suggestions");
+    expect(state.suggestions.find((s) => s.status === "pending")).toMatchObject(
+      {
+        summary: "Move Beta under Vercel",
+        problem: "It needs a topic another suggestion would have created.",
+      },
+    );
   });
 });
 

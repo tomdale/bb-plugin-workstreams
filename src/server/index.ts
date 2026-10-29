@@ -519,13 +519,19 @@ export default async function plugin(bb: BbPluginApi) {
         : identity.entityId
           ? topics.getById(identity.entityId)
           : null;
-      // A picked topic merged or deleted since leaves the thread to Quick
-      // analysis rather than failing.
+      // A picked topic merged or deleted since, or one that has gained
+      // subtopics, leaves the thread to placement rather than failing.
       if (identity.entityId && !entity) {
         bb.log.warn(`Composed thread ${threadId} names an unknown topic.`);
         return;
       }
-      topics.assign(threadId, entity?.id ?? null, { provenance: "manual" });
+      try {
+        topics.assign(threadId, entity?.id ?? null, { provenance: "manual" });
+      } catch (error) {
+        bb.log.warn(`Composed thread ${threadId}: ${String(error)}`);
+        if (entity) placement.hintStart(threadId, entity.id, "picked");
+        return;
+      }
       notify();
       triggerOrganizer(10);
       return;
