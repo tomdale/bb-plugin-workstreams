@@ -1,7 +1,9 @@
 /**
  * Organizing suggestions on the Organization tab: splits of busy topics and
- * tidy edits to the topic tree, each with its reason. Nothing changes until
- * you accept one; a declined suggestion isn't proposed again.
+ * tidy edits to the topic tree. Each one leads with its operation and the
+ * threads or topics it would move, from where to where, then its reason.
+ * Nothing changes until you accept one; a declined suggestion isn't proposed
+ * again.
  */
 import { useCallback, useEffect, useState } from "react";
 import { useRealtime, type useRpc } from "@get-bb/plugin-sdk/app";
@@ -11,6 +13,7 @@ import type {
 } from "../../server/contract.ts";
 import { relativeAgeLabel } from "../../domain/presentation.ts";
 import { ghostButton, primaryButton, secondaryButton } from "./controls.ts";
+import { SuggestionChangeRows, changeHeading } from "./SuggestionChange.tsx";
 
 type Rpc = ReturnType<typeof useRpc<RpcContract>>;
 type Suggestion = SuggestionsStateWire["suggestions"][number];
@@ -127,43 +130,45 @@ export function Suggestions({
       {pending.length ? (
         <ul className="mt-3 divide-y divide-border">
           {pending.map((s) => (
-            <li
-              key={s.id}
-              className="flex flex-wrap items-start gap-x-4 gap-y-2 py-2.5"
-            >
-              <div className="min-w-0 flex-1 basis-64">
-                <p className="text-[13px] font-medium">{s.summary}</p>
-                {s.reason ? (
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {s.reason}
-                  </p>
-                ) : null}
-                {s.problem ? (
-                  <p className="mt-0.5 text-xs text-(--ws-needs-you-strong)">
-                    Can't apply now: {s.problem}
-                  </p>
-                ) : null}
+            <li key={s.id} className="py-3">
+              <div className="flex items-center gap-x-4">
+                <h3 className="min-w-0 flex-1 text-[13px] font-medium">
+                  {s.change ? changeHeading(s.change) : s.summary}
+                </h3>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    className={ghostButton}
+                    disabled={running}
+                    aria-label={`Decline: ${s.summary}`}
+                    onClick={() => void decide([s.id], "decline")}
+                  >
+                    Decline
+                  </button>
+                  <button
+                    type="button"
+                    className={primaryButton}
+                    disabled={running || s.problem !== null}
+                    aria-label={`Accept: ${s.summary}`}
+                    onClick={() => void decide([s.id], "accept")}
+                  >
+                    Accept
+                  </button>
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  className={ghostButton}
-                  disabled={running}
-                  aria-label={`Decline: ${s.summary}`}
-                  onClick={() => void decide([s.id], "decline")}
-                >
-                  Decline
-                </button>
-                <button
-                  type="button"
-                  className={primaryButton}
-                  disabled={running || s.problem !== null}
-                  aria-label={`Accept: ${s.summary}`}
-                  onClick={() => void decide([s.id], "accept")}
-                >
-                  Accept
-                </button>
-              </div>
+              {s.change ? (
+                <div className="mt-2">
+                  <SuggestionChangeRows change={s.change} />
+                </div>
+              ) : null}
+              {s.reason ? (
+                <p className="mt-2 text-xs text-muted-foreground">{s.reason}</p>
+              ) : null}
+              {s.problem ? (
+                <p className="mt-1 text-xs text-(--ws-needs-you-strong)">
+                  Can't apply now: {s.problem}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>

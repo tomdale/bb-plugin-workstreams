@@ -1,4 +1,5 @@
 import type { LayoutNode } from "../domain/layout.ts";
+import type { SuggestionChange } from "../domain/suggestion-change.ts";
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { questionHistorySchema } from "./questions/history.ts";
 import {
@@ -230,6 +231,41 @@ const catalogStateSchema = z.object({
   layout: z.array(layoutNodeSchema).optional(),
 });
 
+const topicPlaceSchema = z.array(
+  z.object({ name: z.string(), created: z.boolean() }),
+);
+
+const suggestionChangeSchema: z.ZodType<SuggestionChange> = z.object({
+  op: z.enum([
+    "refile",
+    "split",
+    "file",
+    "merge",
+    "reparent",
+    "rename",
+    "create",
+  ]),
+  rows: z.array(
+    z.discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("thread"),
+        id: z.string(),
+        title: z.string(),
+        from: topicPlaceSchema.nullable(),
+        to: topicPlaceSchema,
+      }),
+      z.object({
+        kind: z.literal("topic"),
+        name: z.string(),
+        created: z.boolean(),
+        from: topicPlaceSchema.nullable(),
+        to: topicPlaceSchema,
+        threads: z.number(),
+      }),
+    ]),
+  ),
+});
+
 const suggestionsStateSchema = z.object({
   suggestions: z.array(
     z.object({
@@ -241,6 +277,7 @@ const suggestionsStateSchema = z.object({
       at: z.number(),
       decidedAt: z.number().nullable(),
       problem: z.string().nullable(),
+      change: suggestionChangeSchema.nullable(),
       traceId: z.string().nullable(),
     }),
   ),

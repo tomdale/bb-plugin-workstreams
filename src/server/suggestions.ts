@@ -22,6 +22,7 @@ import { randomUUID } from "node:crypto";
 import type { LayoutNode } from "../domain/layout.ts";
 import { SPLIT_ABOVE } from "../domain/layout.ts";
 import type { ModelChoice } from "../domain/prefs.ts";
+import type { Topic } from "../domain/topics.ts";
 import {
   describeEdit,
   editKey,
@@ -32,6 +33,10 @@ import {
   type TidyEdit,
   type TreeState,
 } from "../domain/tidy.ts";
+import {
+  suggestionChange,
+  type SuggestionChange,
+} from "../domain/suggestion-change.ts";
 import { topicPath } from "../domain/topic-path.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal } from "./journal.ts";
@@ -62,6 +67,11 @@ export type SuggestionView = {
   decidedAt: number | null;
   /** Why it can't apply now, or why it stopped applying. */
   problem: string | null;
+  /**
+   * What accepting it would move, while it waits and everything it names
+   * still exists.
+   */
+  change: SuggestionChange | null;
   traceId: string | null;
 };
 
@@ -181,6 +191,10 @@ export class Suggestions {
         .all() as Row[]),
     ];
     const tree = this.tree();
+    const known = {
+      topics: this.deps.topics.list(),
+      titles: new Map(this.deps.roots().map((r) => [r.id, r.title])),
+    };
     return rows.map((row) => ({
       id: row.id,
       kind: row.kind,
@@ -195,6 +209,7 @@ export class Suggestions {
           : row.status === "stale"
             ? row.detail
             : null,
+      change: row.status === "pending" ? this.change(row, tree, known) : null,
       traceId: row.trace_id,
     }));
   }
@@ -575,6 +590,44 @@ export class Suggestions {
     } catch {
       return new Map();
     }
+  }
+
+  /** What accepting a waiting suggestion would move, against `tree`. */
+  private change(
+    row: Row,
+    tree: TreeState,
+    known: { topics: readonly Topic[]; titles: ReadonlyMap<string, string> },
+  ): SuggestionChange | null {
+    const body = JSON.parse(row.body) as TidyEdit | Split;
+    const creates = new Map(
+      (
+        this.deps.db
+          .prepare(
+            "SELECT body FROM ws_suggestion WHERE pass_id = ? AND status = 'pending' AND kind = 'edit'",
+          )
+          .all(row.pass_id) as { body: string }[]
+      )
+        .map((r) => this.resolve(JSON.parse(r.body) as TidyEdit, row.pass_id))
+        .flatMap((e) =>
+          e.op === "create"
+            ? [
+                [
+                  e.name.toLowerCase(),
+                  { name: e.name, parent: e.parent },
+                ] as const,
+              ]
+            : [],
+        ),
+    );
+    return suggestionChange(
+      "subgroups" in body ? body : this.resolve(body, row.pass_id),
+      {
+        topics: known.topics,
+        threadTopic: tree.threadTopic,
+        title: (id) => known.titles.get(id) ?? "Untitled thread",
+        creates,
+      },
+    );
   }
 
   private problem(row: Row, tree: TreeState): string | null {

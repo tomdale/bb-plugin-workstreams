@@ -16,6 +16,7 @@ import {
   type Section,
 } from "../domain/project.ts";
 import { relativeAge } from "../domain/presentation.ts";
+import { changeLines } from "../domain/suggestion-change.ts";
 import { isCurrent } from "../domain/analysis.ts";
 import { needsAttention, workView } from "../domain/status.ts";
 import type { Analyzer, StoredAnalysis } from "./analyzer.ts";
@@ -266,7 +267,7 @@ export function registerCli(
       stdout: shown
         .map(
           (s) =>
-            `${s.id}  ${s.status === "pending" ? "" : `[${s.status}] `}${s.summary}${s.reason ? `\n    ${s.reason}` : ""}${s.problem ? `\n    Can't apply now: ${s.problem}` : ""}`,
+            `${s.id}  ${s.status === "pending" ? "" : `[${s.status}] `}${s.summary}${(s.change ? changeLines(s.change) : []).map((line) => `\n    ${line}`).join("")}${s.reason ? `\n    ${s.reason}` : ""}${s.problem ? `\n    Can't apply now: ${s.problem}` : ""}`,
         )
         .join("\n"),
     };

@@ -234,8 +234,10 @@ accept them, on **Organization** (a sidebar notice links there) or with
 - **Memory:** Tidy sees the topics you filed threads under, the suggestions you
   accepted, and the ones you declined; a suggestion identical to a declined one
   is never proposed again.
-- **Review and undo:** Each suggestion shows why it can't apply when the tree
-  changed since. Accepting one records it in Activity with **Undo**, which
+- **Review and undo:** Each suggestion lists every thread or topic it would
+  move, from the topic holding it now to the one it would move to, in the app
+  and in `bb workstreams suggestions`, and shows why it can't apply when the
+  tree changed since. Accepting one records it in Activity with **Undo**, which
   restores the topic tree and assignments as they were while nothing has changed
   since.
 
@@ -475,9 +477,15 @@ Open **Workstreams** in the main navigation panel to access four tabs:
      `Organizing stopped`), summary counts (**Active threads**, **Active
      workstreams**, **No topic**, **Done**), and click **Refresh** or
      **Rebuild…**.
-   - **Suggestions:** Review organizing suggestions, each with its reason:
-     **Accept**, **Decline**, **Accept all**, or **Ask now** for fresh ones.
-     **Recently decided** lists the latest decisions.
+   - **Suggestions:** Each organizing suggestion is headed by its operation
+     (**Refile thread**, **Split topic**, **File threads in subtopics**, **Merge
+     topics**, **Move topic**, **Rename topic**, **New topic**, or **New parent
+     topic**). Below it, each thread or topic it would move has a row: the item,
+     the topic holding it now, and the topic it would move to. **New** marks a
+     topic that accepting creates, a moved topic shows how many threads move
+     with it, and rows past the first `5` are behind **Show N more**. The reason
+     follows. Click **Accept**, **Decline**, **Accept all**, or **Ask now** for
+     fresh ones. **Recently decided** lists the latest decisions.
    - Assign topics directly to **Threads with no topic** or inspect **Derived
      Workstreams** with their active/total counts and grouping policy reason.
    - **Review automatic topics:** After editing topic definitions, click

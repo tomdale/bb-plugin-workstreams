@@ -92,6 +92,19 @@ describe("split suggestions", () => {
       reason: "Planning apart from triggers",
       problem: null,
     });
+    // Review shows each thread's move into its new subgroup.
+    expect(split!.change?.op).toBe("split");
+    expect(split!.change?.rows[0]).toEqual({
+      kind: "thread",
+      id: "t1",
+      title: "Task 1",
+      from: [{ name: "Automations", created: false }],
+      to: [
+        { name: "Automations", created: false },
+        { name: "Planning", created: true },
+      ],
+    });
+    expect(split!.change?.rows).toHaveLength(6);
     // Nothing changes until it's accepted.
     expect(topics.subtopics(auto.id)).toBe(0);
 
@@ -174,6 +187,19 @@ describe("tidy suggestions", () => {
       ["Rename Gamma to Gamma Two", "Because"],
     ]);
     const [merge, rename] = state.suggestions;
+    expect(merge!.change).toEqual({
+      op: "merge",
+      rows: [
+        {
+          kind: "topic",
+          name: "Alpha",
+          created: false,
+          from: [],
+          to: [{ name: "Beta", created: false }],
+          threads: 1,
+        },
+      ],
+    });
     await decide([merge!.id], "accept");
     await decide([rename!.id], "decline");
     expect(topics.getById(a.id)).toBeNull();
@@ -236,6 +262,12 @@ describe("tidy suggestions", () => {
     await rpc("refresh");
     const [create, reparent] = (await run()).suggestions;
     expect(reparent!.summary).toBe("Move Beta under Vercel");
+    // The topic the create would make reads as new until it exists.
+    expect(reparent!.change?.rows[0]).toMatchObject({
+      name: "Beta",
+      from: [],
+      to: [{ name: "Vercel", created: true }],
+    });
     // Accepted alone, the reparent waits for its topic.
     const early = await decide([reparent!.id], "accept");
     expect(early.failed).toHaveLength(1);
@@ -292,7 +324,9 @@ describe("suggestions CLI", () => {
     const cli = (...args: string[]) => w.harness.behavior.runCli(args);
     expect((await cli("suggestions")).stdout).toBe("No suggestions waiting.");
     const ran = await cli("suggestions", "run");
-    expect(ran.stdout).toContain("Rename Alpha to Alpha Two\n    Because");
+    expect(ran.stdout).toContain(
+      "Rename Alpha to Alpha Two\n    Topic Alpha (1 thread): Alpha → Alpha Two\n    Because",
+    );
     const accepted = await cli("suggestions", "accept", "all");
     expect(accepted.stdout).toBe("Accepted 1 suggestion.");
     expect(topics.getById(a.id)?.name).toBe("Alpha Two");
