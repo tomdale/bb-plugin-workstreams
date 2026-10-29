@@ -69,7 +69,8 @@ export type ReplySection = z.infer<typeof replySectionSchema>;
 
 export const replySchema = z
   .object({
-    lead: z.string(),
+    /** Text before the first heading; absent when the block starts at a section. */
+    lead: z.string().optional(),
     sections: z.array(replySectionSchema),
     /** Folded Markdown: the agent's Details section plus any overflow. */
     details: z.string().optional(),
@@ -253,13 +254,15 @@ function sliceNodes(
 }
 
 /**
- * Reads a reply block into its lead, labeled sections, and folded details.
+ * Reads a reply block into its optional lead, labeled sections, and folded
+ * details.
  *
- * Rules: the lead (text before the first heading) must be present once the
- * block is complete; at most two sections beyond the fixed labels stay in
+ * Rules: the lead is the text before the first heading, if any; a block
+ * beside a recap card starts at its first section. A closed block needs a
+ * lead or a section. At most two sections beyond the fixed labels stay in
  * the body, later ones fold; a section over five list items or three
  * sentences keeps that much and folds the rest. Folded text lands under
- * Details with its section's name. While streaming, a missing lead and an
+ * Details with its section's name. While streaming, an empty block and an
  * empty last section are accepted so arrived sections can show. An
  * unclosed block is read the same lenient way: the component shows bb's own
  * rendering of it, and a failed parse here would add bb's failure note.
@@ -284,11 +287,6 @@ export function parse(
   }
 
   const leadText = sliceNodes(lead, source);
-  if (!leadText && !partial)
-    return {
-      ok: false,
-      error: "The reply needs one or two sentences before its first heading.",
-    };
 
   const sections: ReplySection[] = [];
   const ownDetails: string[] = [];
@@ -334,10 +332,12 @@ export function parse(
   }
 
   const details = [...ownDetails, ...folded].join("\n\n");
+  if (!leadText && !sections.length && !details && !partial)
+    return { ok: false, error: "The reply is empty." };
   return {
     ok: true,
     data: {
-      lead: leadText,
+      ...(leadText ? { lead: leadText } : {}),
       sections,
       ...(details ? { details } : {}),
     },
