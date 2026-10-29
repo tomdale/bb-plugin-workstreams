@@ -268,3 +268,21 @@ describe("finding the block in a message", () => {
     expect(data.sections[0]!.markdown).toBe("```md\n:::\n```");
   });
 });
+
+describe("a block without state that holds only a headline", () => {
+  const ONLY =
+    ":::reply\n# No. The `shop` package declares no third-party dependencies\n:::\n";
+
+  it("reads as a plain headline with no card", () => {
+    expect(read(ONLY)).toEqual({
+      headline: "No. The `shop` package declares no third-party dependencies",
+      sections: [],
+    });
+  });
+
+  it("keeps a later # line after a lead as a section, as before", () => {
+    const data = read(":::reply\nLead.\n\n# Notes\nSome notes.\n:::\n");
+    expect(data.headline).toBeUndefined();
+    expect(data.sections.map((section) => section.label)).toEqual(["Notes"]);
+  });
+});

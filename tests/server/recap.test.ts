@@ -1008,6 +1008,11 @@ describe("recaps from reply blocks", () => {
       ":::reply\nAll set.\n:::\n",
       "its `:::reply` opener had no `state`",
     ],
+    [
+      "a block with no state that holds only a headline",
+      ":::reply\n# No third-party dependencies\n:::\n",
+      "its `:::reply` opener had no `state`",
+    ],
   ])(
     "sends a correction naming the missing part for %s",
     async (_, text, problem) => {

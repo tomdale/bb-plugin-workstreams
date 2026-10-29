@@ -444,3 +444,16 @@ it("fades in a section that arrives mid-stream, and keeps existing ones in place
   const added = view.container.querySelector('[data-reply-section="Next"]')!;
   expect(added.className).toContain("ws-reply-enter");
 });
+
+it("draws a block without state that holds only a headline as a plain headline", async () => {
+  const view = await draw(
+    ":::reply\n# No. The `shop` package declares no third-party dependencies\n:::\n",
+    { docked: { turnId: "turn1" } },
+  );
+  const root = view.container.querySelector("[data-reply-block]")!;
+  expect(root.querySelector("[data-reply-headline]")?.textContent).toBe(
+    "No. The `shop` package declares no third-party dependencies",
+  );
+  // No card, so a docked card for the turn hides nothing.
+  expect(root.hasAttribute("data-reply-docked")).toBe(false);
+});

@@ -174,6 +174,20 @@ function CardLines({ label, lines }: { label: string; lines: string[] }) {
   );
 }
 
+/** A reply's `# ` line, in the card title's weight without its frame. */
+function Headline({ markdown }: { markdown: string }) {
+  return (
+    <div
+      data-reply-headline=""
+      role="heading"
+      aria-level={3}
+      className={cn(SECTION_SPACING, "font-medium text-foreground")}
+    >
+      <RecapText text={markdown} typeClass={INHERIT} />
+    </div>
+  );
+}
+
 /**
  * The card fields as part of the message, in the card's type but without
  * its frame. Next actions are buttons on the docked card only.
@@ -181,16 +195,7 @@ function CardLines({ label, lines }: { label: string; lines: string[] }) {
 function CardPart({ card }: { card: ReplyCard }) {
   return (
     <>
-      {card.headline ? (
-        <div
-          data-reply-headline=""
-          role="heading"
-          aria-level={3}
-          className={cn(SECTION_SPACING, "font-medium text-foreground")}
-        >
-          <RecapText text={card.headline} typeClass={INHERIT} />
-        </div>
-      ) : null}
+      {card.headline ? <Headline markdown={card.headline} /> : null}
       {card.results.length ? (
         <div data-reply-results="" className="mt-1">
           <Items
@@ -232,13 +237,14 @@ export function ReplyBlock({
       ? lastGood.current
       : null;
   if (!reply) return null;
-  const { card, lead, sections, details } = reply;
+  const { card, headline, lead, sections, details } = reply;
   // While this turn's card is docked it shows the card fields; the block
   // keeps only the body, and a short answer's block shows nothing. Until the
   // docked state is known, the block draws that docked layout, so card
   // fields never appear and then vanish.
   const showCard = card && docked === false;
-  if (!showCard && !lead && !sections.length && !details) return null;
+  if (!showCard && !headline && !lead && !sections.length && !details)
+    return null;
   return (
     <StreamingContext.Provider value={status === "streaming"}>
       <div
@@ -249,6 +255,8 @@ export function ReplyBlock({
         className="my-1 min-w-0 text-foreground"
       >
         {showCard ? <CardPart card={card} /> : null}
+        {/* A block without `state` has no card; its headline is plain text. */}
+        {headline ? <Headline markdown={headline} /> : null}
         {lead ? <ReplyText markdown={lead} /> : null}
         {sections.map((section, index) => (
           // Keyed by position: the last section's label grows while it

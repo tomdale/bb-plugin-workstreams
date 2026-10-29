@@ -103,6 +103,12 @@ export const replySchema = z
   .object({
     /** Present when the opener sets `state`: the block also carries the recap card. */
     card: replyCardSchema.optional(),
+    /**
+     * A block without `state` that opens with a `# ` line: its heading, drawn
+     * as plain text. It makes no card; a block with `state` keeps its
+     * headline in `card`.
+     */
+    headline: z.string().optional(),
     /** Text before the first heading; absent when the block starts at a section. */
     lead: z.string().optional(),
     sections: z.array(replySectionSchema),
@@ -366,9 +372,9 @@ export function parse(
     if (!span(node))
       return { ok: false, error: "The reply's tree has no source offsets." };
     if (
-      carded &&
       headline === undefined &&
       !raw.length &&
+      (carded || !lead.length) &&
       node.type === "heading" &&
       node.depth === 1
     ) {
@@ -452,12 +458,13 @@ export function parse(
   }
 
   const details = [...ownDetails, ...folded].join("\n\n");
-  if (!card?.headline && !leadText && !sections.length && !details && !partial)
+  if (!headline && !leadText && !sections.length && !details && !partial)
     return { ok: false, error: "The reply is empty." };
   return {
     ok: true,
     data: {
       ...(card ? { card } : {}),
+      ...(!card && headline ? { headline } : {}),
       ...(leadText ? { lead: leadText } : {}),
       sections,
       ...(details ? { details } : {}),
@@ -472,8 +479,9 @@ export function parse(
 export function toText(data: unknown): string {
   const reply = replySchema.safeParse(data);
   if (!reply.success) return "";
-  const { lead, sections, details } = reply.data;
+  const { headline, lead, sections, details } = reply.data;
   return [
+    headline ?? reply.data.card?.headline,
     lead,
     ...sections
       .filter((section) => section.markdown)
