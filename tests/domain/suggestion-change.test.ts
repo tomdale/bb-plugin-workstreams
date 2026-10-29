@@ -308,6 +308,16 @@ describe("changeHeadline", () => {
         ],
       }),
     ).toBe("Move 2 Toolbelt threads into Shell and Sidebar");
+    expect(
+      headline({
+        topicId: "toolbelt",
+        repair: true,
+        subgroups: [
+          { name: "Shell", description: "", threadIds: ["t1"] },
+          { name: "Sidebar", description: "", threadIds: ["gone"] },
+        ],
+      }),
+    ).toBe("Move 1 Toolbelt thread into Shell and Sidebar");
     // Threads gone since leave no count.
     expect(
       headline({

@@ -291,7 +291,7 @@ export function changeHeadline(change: SuggestionChange): string {
       if (change.op === "split" && destinations.length > 1)
         return `Split ${group} into ${list(destinations)}`;
       if (destinations.length > 1)
-        return `Move ${count}${group} threads into ${list(destinations)}`;
+        return `Move ${count}${group} ${threads.length === 1 ? "thread" : "threads"} into ${list(destinations)}`;
       return threads.length === 1
         ? `Move “${threads[0]!.title}” to ${destinations[0]}`
         : `Move ${count}threads to ${destinations[0]}`;
