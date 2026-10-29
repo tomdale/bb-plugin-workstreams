@@ -288,6 +288,22 @@ function SuggestionList({
                 <SuggestionChangeBody change={s.change} />
               </div>
             ) : null}
+            {s.arrivals.length ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Also files{" "}
+                {s.arrivals.map((t, i) => (
+                  <span key={t.id}>
+                    {i > 0
+                      ? i === s.arrivals.length - 1
+                        ? " and "
+                        : ", "
+                      : null}
+                    <span className="text-foreground">{t.title}</span>
+                  </span>
+                ))}
+                , which joined since.
+              </p>
+            ) : null}
             {s.reason ? (
               <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/80">
                 {s.reason}

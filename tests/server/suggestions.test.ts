@@ -134,6 +134,59 @@ describe("split suggestions", () => {
     expect(topics.assignment("t1").entityId).toBe(auto.id);
   });
 
+  it("still applies after threads move, close, or join, filing newcomers", async () => {
+    const prompts: string[] = [];
+    const { w, topics, run, decide, rpc } = await setup({
+      split: (prompt) => {
+        prompts.push(prompt);
+        if (prompts.length > 1)
+          // The newcomer, filed among the proposed subgroups.
+          return {
+            reason: "",
+            subgroups: [{ name: "Triggers", description: "" }],
+            threads: [{ id: "r1", subgroup: "Triggers" }],
+          };
+        return {
+          reason: "Planning apart from triggers",
+          subgroups: [
+            { name: "Planning", description: "Design" },
+            { name: "Triggers", description: "Events" },
+          ],
+          threads: [1, 2, 3, 4, 5, 6].map((n) => ({
+            id: `r${n}`,
+            subgroup: n <= 3 ? "Planning" : "Triggers",
+          })),
+        };
+      },
+    });
+    const auto = topics.create("Automations", "The product");
+    const other = topics.create("Other", "");
+    for (let i = 1; i <= 6; i++) {
+      w.addThread(`t${i}`, { title: `Task ${i}` });
+      topics.assign(`t${i}`, auto.id);
+    }
+    await rpc("refresh");
+    const [split] = (await run()).suggestions;
+
+    // One thread moves elsewhere and a new one joins.
+    topics.assign("t6", other.id);
+    w.addThread("t7", { title: "Task 7" });
+    topics.assign("t7", auto.id);
+    await rpc("refresh");
+    const { state } = await rpc<{ state: SuggestionsStateWire }>("suggestions");
+    expect(state.suggestions[0]).toMatchObject({
+      problem: null,
+      arrivals: [{ id: "t7", title: "Task 7" }],
+    });
+
+    expect((await decide([split!.id], "accept")).applied).toEqual([split!.id]);
+    expect(prompts[1]).toContain('"Planning", "Triggers"');
+    expect(topics.assignment("t1").label).toBe("Automations: Planning");
+    expect(topics.assignment("t7").label).toBe("Automations: Triggers");
+    // The thread that moved away stays where it went.
+    expect(topics.assignment("t6").entityId).toBe(other.id);
+  });
+
   it("repairs a topic that holds threads beside subtopics", async () => {
     const { w, topics, run, decide, rpc } = await setup({
       split: (prompt) => {

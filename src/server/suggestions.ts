@@ -16,7 +16,9 @@
  *
  * Accepting applies a suggestion through the topic store, whose partition
  * rule refuses anything that would put threads beside subtopics, and logs it
- * in Activity with an undo that restores the tree as it was.
+ * in Activity with an undo that restores the tree as it was. A split applies
+ * to its group as it is then (`splitNow`): threads that left are left out, and
+ * threads that joined are filed by one more split call.
  */
 import { randomUUID } from "node:crypto";
 import type { LayoutNode } from "../domain/layout.ts";
@@ -27,8 +29,10 @@ import {
   describeEdit,
   editKey,
   refusal,
+  splitNow,
   type Held,
   type Split,
+  type SplitOutput,
   type SuggestThread,
   type TidyEdit,
   type TreeState,
@@ -76,6 +80,11 @@ export type SuggestionView = {
   change: SuggestionChange | null;
   /** What it does in a sentence, while `change` is known; else `summary`. */
   headline: string;
+  /**
+   * Threads that joined a split's group since it was made; accepting asks
+   * the model which subgroup each goes in.
+   */
+  arrivals: { id: string; title: string }[];
   traceId: string | null;
 };
 
@@ -217,6 +226,7 @@ export class Suggestions {
               ? row.detail
               : null,
         change: review?.change ?? null,
+        arrivals: review?.arrivals ?? [],
         headline: review?.change ? changeHeadline(review.change) : row.summary,
         traceId: row.trace_id,
       };
@@ -305,7 +315,7 @@ export class Suggestions {
     }
     for (const row of rows) {
       try {
-        this.apply(row);
+        this.apply(row, await this.filed(row));
         applied.push(row.id);
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
@@ -606,7 +616,10 @@ export class Suggestions {
     row: Row,
     tree: TreeState,
     known: { topics: readonly Topic[]; titles: ReadonlyMap<string, string> },
-  ): { change: SuggestionChange | null } {
+  ): {
+    change: SuggestionChange | null;
+    arrivals: { id: string; title: string }[];
+  } {
     const body = JSON.parse(row.body) as TidyEdit | Split;
     const creates = new Map(
       (
@@ -628,27 +641,26 @@ export class Suggestions {
             : [],
         ),
     );
-    const edit = "subgroups" in body ? body : this.resolve(body, row.pass_id);
+    const now = "subgroups" in body ? splitNow(body, tree) : null;
+    const edit = now ? now.split : this.resolve(body as TidyEdit, row.pass_id);
     const context: ChangeContext = {
       topics: known.topics,
       threadTopic: tree.threadTopic,
       title: (id) => known.titles.get(id) ?? "Untitled thread",
       creates,
     };
-    return { change: suggestionChange(edit, context) };
+    return {
+      change: suggestionChange(edit, context),
+      arrivals: (now?.arrivals ?? []).map((id) => ({
+        id,
+        title: context.title(id),
+      })),
+    };
   }
 
   private problem(row: Row, tree: TreeState): string | null {
-    if (row.kind === "split") {
-      const split = JSON.parse(row.body) as Split;
-      const listed = new Set(split.subgroups.flatMap((g) => g.threadIds));
-      const now = Object.entries(tree.threadTopic)
-        .filter(([, topic]) => topic === split.topicId)
-        .map(([id]) => id);
-      return now.length === listed.size && now.every((id) => listed.has(id))
-        ? null
-        : "Its threads changed since; ask for suggestions again.";
-    }
+    if (row.kind === "split")
+      return splitNow(JSON.parse(row.body) as Split, tree).problem;
     const edit = this.resolve(JSON.parse(row.body) as TidyEdit, row.pass_id);
     // A topic another suggestion of the pass would create, while that one
     // still waits; once it's declined or stale, this one can't apply.
@@ -699,7 +711,75 @@ export class Suggestions {
     }
   }
 
-  private apply(row: Row): void {
+  /**
+   * A split as it applies now, with the threads that joined its group since
+   * filed by one split call; undefined for other suggestions. The call's
+   * failure leaves the suggestion waiting.
+   */
+  private async filed(row: Row): Promise<Split | undefined> {
+    if (row.kind !== "split") return undefined;
+    const now = splitNow(JSON.parse(row.body) as Split, this.tree());
+    if (now.problem || now.arrivals.length === 0) return now.split;
+    const split = now.split;
+    const topics = this.deps.topics.list();
+    const key = (name: string) => name.trim().toLowerCase();
+    const children = new Set(
+      topics
+        .filter((t) => t.parentId === split.topicId)
+        .map((t) => key(t.name)),
+    );
+    // The subgroups it would create stand in as subgroups, so the call files
+    // the newcomers among them as it files threads beside subgroups.
+    const proposed = split.subgroups
+      .filter((g) => !children.has(key(g.name)))
+      .map((g) => ({
+        id: `proposed:${key(g.name)}`,
+        name: g.name,
+        description: g.description,
+        parentId: split.topicId,
+        aliases: [],
+      }));
+    const arrivals = new Set(now.arrivals);
+    let value: SplitOutput;
+    try {
+      value = (
+        await this.deps.inference.run(
+          "split",
+          {
+            topics: [...topics, ...proposed],
+            held: this.held(),
+            topicId: split.topicId,
+            threads: this.threads().filter((t) => arrivals.has(t.id)),
+            decisions: this.decisions(),
+          },
+          {
+            model: await this.deps.model(),
+            label: `${topicPath(split.topicId, topics)}: threads that joined`,
+            links: now.arrivals.map((id) => ({
+              kind: "thread" as const,
+              ref: id,
+            })),
+          },
+        )
+      ).value;
+    } catch (error) {
+      throw new NotYet(
+        `Couldn't file the threads that joined since: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    const subgroups = split.subgroups.map((g) => ({
+      ...g,
+      threadIds: [...g.threadIds],
+    }));
+    for (const group of value.split.subgroups) {
+      const match = subgroups.find((g) => key(g.name) === key(group.name));
+      if (match) match.threadIds.push(...group.threadIds);
+      else subgroups.push({ ...group, threadIds: [...group.threadIds] });
+    }
+    return { ...split, subgroups };
+  }
+
+  private apply(row: Row, filed?: Split): void {
     const topics = this.deps.topics;
     const db = this.deps.db;
     const body = JSON.parse(row.body) as TidyEdit | Split;
@@ -707,9 +787,16 @@ export class Suggestions {
       const snapshot = snapshotTopics(db, this.now());
       const threads: { id: string; name: string }[] = [];
       if ("subgroups" in body) {
-        const problem = this.problem(row, this.tree());
-        if (problem) throw new Error(problem);
-        topics.split(body.topicId, body.subgroups);
+        const now = splitNow(body, this.tree());
+        if (now.problem) throw new Error(now.problem);
+        const split = filed ?? now.split;
+        const listed = new Set(split.subgroups.flatMap((g) => g.threadIds));
+        if (now.arrivals.some((id) => !listed.has(id)))
+          throw new NotYet("More threads joined its group; accept it again.");
+        topics.split(
+          split.topicId,
+          split.subgroups.filter((g) => g.threadIds.length > 0),
+        );
       } else {
         const edit = this.resolve(body, row.pass_id);
         if (refs(edit).some((ref) => ref?.startsWith("new:")))

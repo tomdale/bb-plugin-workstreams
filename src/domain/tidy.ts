@@ -637,3 +637,78 @@ export function describeEdit(
       return `Refile “${names.thread(edit.thread)}” into ${names.topic(edit.topic)}`;
   }
 }
+
+/** A split as it would apply to the tree now. */
+export type SplitNow = {
+  /**
+   * The split without threads that left the group or closed since, and
+   * without the new subgroups that left it empty.
+   */
+  readonly split: Split;
+  /** Threads that joined the group since, which accepting must also file. */
+  readonly arrivals: readonly string[];
+  /** Why it no longer makes sense or can't apply; null when it can. */
+  readonly problem: string | null;
+};
+
+/**
+ * Fits a split to the group as it is now. Threads moving or closing since
+ * don't stop it: the rest are filed as proposed, and threads that joined
+ * are filed too when it's accepted. It stops only when what it proposed no
+ * longer holds: the group is gone, none of its threads remain, more threads
+ * joined than remain, or a split would leave only one subgroup with threads.
+ */
+export function splitNow(split: Split, state: TreeState): SplitNow {
+  const group = state.topics.find((t) => t.id === split.topicId);
+  const stop = (problem: string): SplitNow => ({
+    split,
+    arrivals: [],
+    problem,
+  });
+  if (!group) return stop("Its group is gone.");
+  const inGroup = new Set(
+    Object.entries(state.threadTopic)
+      .filter(([, topic]) => topic === split.topicId)
+      .map(([id]) => id),
+  );
+  const existing = new Set(
+    state.topics
+      .filter((t) => t.parentId === split.topicId)
+      .map((t) => t.name.trim().toLowerCase()),
+  );
+  const subgroups = split.subgroups
+    .map((g) => ({
+      ...g,
+      threadIds: g.threadIds.filter((id) => inGroup.has(id)),
+    }))
+    .filter(
+      (g) =>
+        g.threadIds.length > 0 || existing.has(g.name.trim().toLowerCase()),
+    );
+  const kept = subgroups.reduce((n, g) => n + g.threadIds.length, 0);
+  const listed = new Set(split.subgroups.flatMap((g) => g.threadIds));
+  const arrivals = [...inGroup].filter((id) => !listed.has(id));
+  const now = { ...split, subgroups };
+  if (kept === 0)
+    return stop(
+      split.repair && inGroup.size === 0
+        ? `${group.name} no longer holds threads beside its subgroups.`
+        : `None of its threads are in ${group.name} anymore.`,
+    );
+  if (arrivals.length > kept)
+    return {
+      split: now,
+      arrivals,
+      problem: `${arrivals.length} threads joined ${group.name} since; ask again to include them.`,
+    };
+  if (
+    !split.repair &&
+    subgroups.filter((g) => g.threadIds.length > 0).length < 2
+  )
+    return {
+      split: now,
+      arrivals,
+      problem: "Only one of its subgroups still has threads.",
+    };
+  return { split: now, arrivals, problem: null };
+}

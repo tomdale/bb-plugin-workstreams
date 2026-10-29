@@ -268,6 +268,7 @@ const suggestionsStateSchema = z.object({
       problem: z.string().nullable(),
       change: suggestionChangeSchema.nullable(),
       headline: z.string(),
+      arrivals: z.array(z.object({ id: z.string(), title: z.string() })),
       traceId: z.string().nullable(),
     }),
   ),

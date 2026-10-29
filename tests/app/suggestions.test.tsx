@@ -46,6 +46,7 @@ const suggestion = (
   problem: null,
   change: null,
   headline: summary,
+  arrivals: [],
   traceId: null,
   ...extra,
 });
@@ -180,6 +181,7 @@ it("lists thread moves biggest first, then tidying, with out-of-date ones collap
       suggestion("s2", "Split", {
         kind: "split",
         headline: "Split Automations into PR Upkeep and Design",
+        arrivals: [thread("n1"), thread("n2")],
         change: {
           op: "split",
           moves: [
@@ -245,6 +247,9 @@ it("lists thread moves biggest first, then tidying, with out-of-date ones collap
     "+PR Upkeep (new group)Thread a1 · Thread a2",
     "+Design (new group)Thread a3 (from Color Settings)",
   ]);
+  expect(within(split).getByText(/^Also files/).textContent).toBe(
+    "Also files Thread n1 and Thread n2, which joined since.",
+  );
   // A single move is one from → to line.
   const refile = within(moves)
     .getByRole("heading", { name: /^Move “/ })

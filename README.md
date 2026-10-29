@@ -488,9 +488,16 @@ Open **Workstreams** in the main navigation panel to access four tabs:
      - **Tidies groups**: changes to how groups nest and are named that move no
        thread, which decide where new threads go, each one line
        (`Workforest → bb › Workforest`).
-     - **Out of date**, collapsed: suggestions that no longer fit because the
-       groups changed since, each with why. Decline them or **Ask now** for
-       fresh ones.
+     - **Out of date**, collapsed: suggestions that no longer make sense or
+       can't apply, each with why. Decline them or **Ask now** for fresh ones.
+
+     Small changes since a split was suggested don't stop it: threads that moved
+     or closed are left out, and threads that joined its group are filed too
+     when you accept (one model call; the card says "Also files…"). A split
+     stops only when its group is gone, none of its threads remain, more threads
+     joined than remain, or it would leave one subgroup. A tidy edit stops only
+     when it would break a rule, such as giving subgroups to a group that holds
+     threads.
 
      **Accept all N** accepts every suggestion that can apply. **Recently
      decided** lists the latest decisions.
