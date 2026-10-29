@@ -30,7 +30,8 @@ describe("reply samples", () => {
     for (const entry of REPLY_SAMPLES) {
       const result = read(entry.message);
       expect(result, entry.kind).toMatchObject({ ok: true });
-      expect(reply(result).lead, entry.kind).not.toBe("");
+      // Beside a card the block starts at its first section.
+      expect(reply(result).lead !== undefined, entry.kind).toBe(!entry.card);
     }
   });
 
@@ -41,18 +42,14 @@ describe("reply samples", () => {
     }
   });
 
-  it("finished work with a card: lead, Checked, folded details", () => {
+  it("finished work with a card: no lead, Checked, Why, folded details", () => {
     const data = sample("finished work");
-    expect(data.lead).toBe(
-      "Skills find their helper scripts from every install path because each snapshot now keeps `skills/` and `scripts/` side by side.",
-    );
-    expect(shape(data)).toEqual(["fixed:Checked"]);
+    expect(data.lead).toBeUndefined();
+    expect(shape(data)).toEqual(["fixed:Checked", "fixed:Why"]);
     expect(data.sections[0]!.markdown).toBe(
-      "22 tests, type check, build and the Pi smoke test pass locally. Both commits are pushed.",
+      "Ran the 22 tests, the type check, the build and the Pi smoke test locally.",
     );
-    expect(data.details).toBe(
-      "- Changing a script makes a new snapshot; older snapshots keep their own copy\n- I removed both temporary worktrees",
-    );
+    expect(data.details).toBe("- I removed both temporary worktrees");
   });
 
   it("finished work without a card carries Done as task items", () => {
@@ -76,7 +73,11 @@ describe("reply samples", () => {
 
   it("status check: plain list items and an unchecked Not done", () => {
     const data = sample("status check");
-    expect(shape(data)).toEqual(["fixed:Checked", "fixed:Not done"]);
+    expect(shape(data)).toEqual([
+      "fixed:Checked",
+      "fixed:Not done",
+      "fixed:Why",
+    ]);
     expect(data.sections[0]!.items).toHaveLength(4);
     expect(
       data.sections[0]!.items!.every((item) => item.checked === null),
@@ -91,10 +92,10 @@ describe("reply samples", () => {
     const data = sample("report");
     expect(shape(data)).toEqual([
       "fixed:Not done",
+      "fixed:Why",
       "free:Root cause",
       "free:Suggested fix",
     ]);
-    expect(data.lead).toContain("@thread:thr_yfujvpd8vc");
     expect(data.details).toBe(
       "**Workaround**\n\nLeave out the subagent model override, or write `vercel-ai-gateway/openai/gpt-6-luna`.",
     );
@@ -111,26 +112,42 @@ describe("reply samples", () => {
     ]);
   });
 
-  it("short reply and one-line answer are a lead alone", () => {
-    expect(sample("short reply")).toEqual({
-      lead: 'The waiting card works: WorkstreamsRecap took state `waiting`, goal "Testing Circle X waiting card" and a 120-second timeout, and returned the Waiting state.',
-      sections: [],
-    });
-    expect(sample("one-line answer")).toEqual({ lead: "PASS", sections: [] });
+  it("handed off without a card keeps its lead", () => {
+    expect(sample("handed off").lead).toBe(
+      "@thread:thr_4teudyehkq now owns the browser-automation Zod error. It has the error text and the steps to reproduce it.",
+    );
   });
 });
 
 describe("rules", () => {
-  it("rejects a complete reply without a lead", () => {
-    expect(read(":::reply\n### Checked\nTests pass.\n:::\n")).toEqual({
-      ok: false,
-      error: "The reply needs one or two sentences before its first heading.",
+  it("reads a block that starts at a section, with no lead", () => {
+    expect(
+      reply(read(":::reply\n### Checked\nRan the tests locally.\n:::\n")),
+    ).toEqual({
+      sections: [
+        { label: "Checked", kind: "fixed", markdown: "Ran the tests locally." },
+      ],
     });
+  });
+
+  it("reads a block that is only a lead", () => {
+    expect(reply(read(":::reply\nPASS\n:::\n"))).toEqual({
+      lead: "PASS",
+      sections: [],
+    });
+  });
+
+  it("rejects a closed block with nothing in it", () => {
+    expect(read(":::reply\n:::\n")).toEqual({
+      ok: false,
+      error: "The reply is empty.",
+    });
+    expect(read(":::reply\n### Checked\n:::\n")).toMatchObject({ ok: false });
   });
 
   it("reads an unclosed reply leniently, so bb adds no failure note", () => {
     const data = reply(read(":::reply\n### Checked\nTests pass.\n"));
-    expect(data.lead).toBe("");
+    expect(data.lead).toBeUndefined();
     expect(data.sections).toEqual([
       { label: "Checked", kind: "fixed", markdown: "Tests pass." },
     ]);
@@ -138,7 +155,6 @@ describe("rules", () => {
 
   it("shows what has arrived while streaming", () => {
     expect(reply(read(":::reply\n", { streaming: true }))).toEqual({
-      lead: "",
       sections: [],
     });
     const data = reply(
@@ -285,16 +301,22 @@ describe("rules", () => {
 });
 
 describe("toText", () => {
-  it("writes the lead, labeled sections, and details as Markdown", () => {
+  it("writes the labeled sections and details as Markdown", () => {
     expect(toText(sample("status check"))).toBe(
       [
-        "[PR #412](https://github.com/example/api/pull/412) needed no rebase: it already sat on the latest `feature/register-artifacts`.",
-        "**Checked**\n- GitHub shows the PR open, mergeable and clean\n- Required preview deployments pass\n- Code review, code owner and preview comment checks pass\n- The force push changed nothing; GitHub already had `1e55e423e40`",
+        "**Checked**\n- Read the PR's status and required checks on GitHub\n- Read the preview deployments' status on GitHub\n- Read the code review and code owner checks on GitHub\n- Compared the branch with `feature/register-artifacts`; the force push changed nothing",
         "**Not done**\n- [ ] Merge: the PR is still open",
+        "**Why**\nThe PR already sat on the latest `feature/register-artifacts`, so it needed no rebase.",
         "**Details**\nOne older Build Container run failed. A newer run replaced it and passed, so it needs no fix.",
       ].join("\n\n"),
     );
-    expect(toText(sample("one-line answer"))).toBe("PASS");
+  });
+
+  it("puts a lead first when there is one", () => {
+    expect(toText(sample("handed off"))).toBe(
+      "@thread:thr_4teudyehkq now owns the browser-automation Zod error. It has the error text and the steps to reproduce it.\n\n**Next**\nThat thread reports back here when it has a fix.",
+    );
+    expect(toText({ lead: "PASS", sections: [] })).toBe("PASS");
   });
 
   it("returns an empty string for data that is not a reply", () => {

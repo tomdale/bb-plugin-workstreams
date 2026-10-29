@@ -91,7 +91,7 @@ it("keeps Details folded until opened", async () => {
 });
 
 it("draws a one-line answer as the lead alone", async () => {
-  const view = await draw(sample("one-line answer"));
+  const view = await draw(":::reply\nPASS\n:::\n");
   const root = view.container.querySelector("[data-reply-block]")!;
   expect(root.textContent).toBe("PASS");
   expect(root.querySelector("h3")).toBeNull();

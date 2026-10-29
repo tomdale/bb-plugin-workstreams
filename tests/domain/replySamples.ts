@@ -1,7 +1,8 @@
 /**
  * Reply bodies for the common kinds of turn end, each rewritten in block form
  * from a real thread's final reply. `card` says whether the turn also ends
- * with a recap card, which carries Done and commit links in that case.
+ * with a recap card. Beside a card the block has no lead and no Done: the
+ * card carries the headline, results and links.
  */
 export type ReplySample = {
   kind: string;
@@ -17,13 +18,13 @@ export const REPLY_SAMPLES: ReplySample[] = [
     from: "thr_ghfi59evbk",
     card: true,
     message: `:::reply
-Skills find their helper scripts from every install path because each snapshot now keeps \`skills/\` and \`scripts/\` side by side.
-
 ### Checked
-22 tests, type check, build and the Pi smoke test pass locally. Both commits are pushed.
+Ran the 22 tests, the type check, the build and the Pi smoke test locally.
+
+### Why
+Each snapshot carries its own copy of the scripts, so changing a script makes a new snapshot and older snapshots keep theirs.
 
 ### Details
-- Changing a script makes a new snapshot; older snapshots keep their own copy
 - I removed both temporary worktrees
 :::
 `,
@@ -50,16 +51,17 @@ Skills find their helper scripts from every install path. Both commits are pushe
     from: "thr_bmdzxnqkvt",
     card: true,
     message: `:::reply
-[PR #412](https://github.com/example/api/pull/412) needed no rebase: it already sat on the latest \`feature/register-artifacts\`.
-
 ### Checked
-- GitHub shows the PR open, mergeable and clean
-- Required preview deployments pass
-- Code review, code owner and preview comment checks pass
-- The force push changed nothing; GitHub already had \`1e55e423e40\`
+- Read the PR's status and required checks on GitHub
+- Read the preview deployments' status on GitHub
+- Read the code review and code owner checks on GitHub
+- Compared the branch with \`feature/register-artifacts\`; the force push changed nothing
 
 ### Not done
 - [ ] Merge: the PR is still open
+
+### Why
+The PR already sat on the latest \`feature/register-artifacts\`, so it needed no rebase.
 
 ### Details
 One older Build Container run failed. A newer run replaced it and passed, so it needs no fix.
@@ -71,10 +73,11 @@ One older Build Container run failed. A newer run replaced it and passed, so it 
     from: "thr_6mnpbbtj5b",
     card: true,
     message: `:::reply
-Subagents did not cut the model short: the parent thread asked for \`openai/gpt-6-luna\`, and that override replaced the right model. I sent the findings and the [full report](/tmp/pi-routing-report.md) to @thread:thr_yfujvpd8vc.
-
 ### Not done
 - [ ] No code changes, commits or PRs
+
+### Why
+The parent thread asked for \`openai/gpt-6-luna\`, and that override replaced the right model; subagents did not cut it short.
 
 ### Root cause
 bb reads every model name with a slash as \`provider/model\`. Pi also allows plain model names that contain slashes, so bb checks the wrong route.
@@ -129,24 +132,6 @@ The live test stops with \`403 Forbidden\`: the default development token may no
 
 ### Next
 I push the checked changes and watch the new CI run.
-:::
-`,
-  },
-  {
-    kind: "short reply",
-    from: "thr_j7nykucjym",
-    card: false,
-    message: `:::reply
-The waiting card works: WorkstreamsRecap took state \`waiting\`, goal "Testing Circle X waiting card" and a 120-second timeout, and returned the Waiting state.
-:::
-`,
-  },
-  {
-    kind: "one-line answer",
-    from: "thr_w45jad2u9i",
-    card: false,
-    message: `:::reply
-PASS
 :::
 `,
   },
