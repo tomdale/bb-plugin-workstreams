@@ -825,6 +825,8 @@ function RecapSummary({
   const body = compact ? COMPACT_BODY_CLASS : BODY_CLASS;
   const review = recap.state === "review" && recap.review.length > 0;
   const working = recap.state === "waiting";
+  // A short answer's complete recap has no results: the card is its title.
+  const results = recap.latest.length > 0;
   const accent = ACCENT[recap.state];
   const links =
     review && recap.links.length > 0 ? (
@@ -837,15 +839,17 @@ function RecapSummary({
         <Steps items={recap.review} />
         {links}
       </Row>
-    ) : (
+    ) : results ? (
       <Row accent={accent.text}>
         <Results done={recap.latest} accent={accent.text} />
       </Row>
-    );
+    ) : null;
+  } else if (!working && !review && !results) {
+    rows = null;
   } else {
     rows = (
       <>
-        {working ? null : (
+        {working || !results ? null : (
           <Row label={review ? "Done" : undefined} accent={accent.text}>
             <Results done={recap.latest} accent={accent.text} />
           </Row>

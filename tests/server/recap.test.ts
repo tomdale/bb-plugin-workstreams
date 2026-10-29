@@ -389,9 +389,7 @@ describe("agent recaps", () => {
   it("rejects incomplete state-specific input before recording a recap", async () => {
     const s = await world();
     s.w.turn("t1");
-    await expect(
-      s.report({ state: "complete", goal: "Done" }),
-    ).rejects.toThrow();
+    await expect(s.report({ state: "complete" })).rejects.toThrow();
     await expect(s.report({ ...RECAP, state: "review" })).rejects.toThrow();
     await expect(
       s.report({ state: "continuing", goal: "Working" }),
@@ -544,6 +542,23 @@ describe("agent recaps", () => {
     expect((await s.card()).recap).toBeNull();
   });
 
+  it("accepts a complete recap with no results for a short answer", async () => {
+    const s = await world();
+    s.w.turn("t1");
+    const output = await s.report({
+      state: "complete",
+      goal: "Python 3.9 or newer is required",
+    });
+    expect((await s.card()).recap).toMatchObject({
+      state: "complete",
+      goal: "Python 3.9 or newer is required",
+      latest: [],
+    });
+    expect(output).toBe(
+      "**Complete** · Python 3.9 or newer is required\n\nRecorded. This ends your turn: write nothing more.",
+    );
+  });
+
   it("requires review steps for review, and real link locations", async () => {
     const s = await world();
     s.w.turn("t1");
@@ -560,7 +575,9 @@ describe("agent recaps", () => {
         links: [{ title: "Report", location: "/tmp/report.md" }],
       }),
     ).rejects.toThrow("Links are review targets");
-    await expect(s.report({ ...RECAP, latest: [] })).rejects.toThrow();
+    await expect(
+      s.report({ ...RECAP, state: "review", review: ["Check"], latest: [] }),
+    ).rejects.toThrow();
     await expect(
       s.report({ ...RECAP, state: "review", review: [] }),
     ).rejects.toThrow();
