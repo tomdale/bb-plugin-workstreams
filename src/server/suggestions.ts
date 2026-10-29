@@ -227,6 +227,8 @@ export class Suggestions {
       }
       await this.running.catch(() => {});
     }
+    const before = this.pendingCount();
+    const hadError = this.error !== null;
     const run = (async () => {
       try {
         this.error = null;
@@ -238,7 +240,13 @@ export class Suggestions {
         if (options.manual) throw error;
       } finally {
         this.running = null;
-        this.deps.onChange(false);
+        // A check that found nothing due changes nothing anyone sees.
+        if (
+          options.manual ||
+          this.pendingCount() !== before ||
+          hadError !== (this.error !== null)
+        )
+          this.deps.onChange(false);
         if (this.again && !this.disposed) {
           this.again = false;
           this.check();
@@ -246,7 +254,7 @@ export class Suggestions {
       }
     })();
     this.running = run;
-    this.deps.onChange(false);
+    if (options.manual) this.deps.onChange(false);
     return run;
   }
 
@@ -303,9 +311,10 @@ export class Suggestions {
       const due = kids ? count > 0 : count > SPLIT_ABOVE;
       if (!due || pending.has(topic.id)) continue;
       if (!manual && this.now() - (tried[topic.id] ?? 0) < DAY_MS) continue;
+      const threads = this.threads().filter((t) => t.topicId === topic.id);
+      if (this.declinedSplit(topic.id, threads)) continue;
       tried[topic.id] = this.now();
       setMeta(this.deps.db, SPLITS_KEY, JSON.stringify(tried));
-      const threads = this.threads().filter((t) => t.topicId === topic.id);
       const { value, traceId } = await this.deps.inference.run(
         "split",
         {
@@ -323,6 +332,28 @@ export class Suggestions {
       );
       this.propose(randomUUID(), "split", value.split, value.reason, traceId);
     }
+  }
+
+  /** You declined a split of these same threads; asking again changes nothing. */
+  private declinedSplit(
+    topicId: string,
+    threads: readonly { id: string }[],
+  ): boolean {
+    const members = JSON.stringify(threads.map((t) => t.id).sort());
+    return (
+      this.deps.db
+        .prepare(
+          "SELECT body FROM ws_suggestion WHERE kind = 'split' AND status = 'declined'",
+        )
+        .all() as { body: string }[]
+    ).some((row) => {
+      const split = JSON.parse(row.body) as Split;
+      return (
+        split.topicId === topicId &&
+        JSON.stringify(split.subgroups.flatMap((g) => g.threadIds).sort()) ===
+          members
+      );
+    });
   }
 
   private tried(): Record<string, number> {
