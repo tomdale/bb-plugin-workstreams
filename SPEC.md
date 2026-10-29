@@ -84,8 +84,11 @@ recap states map `complete` to `done`, `review` to `review`, and `waiting` to
 “needs you” is its user-facing description. Runtime `error` is a BB thread
 status, not a stored analysis work state. Fresh user input clears the prior
 recap. Recap reminders remain configurable. With Structured replies on, agents
-also end each reply with a `:::reply` block of prose (lead, labeled sections,
-folded Details) that the app draws inline; it never feeds the card or status.
+write each final reply as a `:::reply` block that the app draws inline. Beside a
+recap card the block has no lead and holds only what the card cannot (labeled
+sections such as Checked and Why, folded Details); before a question card it
+opens with a lead and includes Done. Short answers have no block. The block
+never feeds the card or status.
 
 ## 4. Organization
 
