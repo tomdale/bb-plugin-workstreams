@@ -16,6 +16,10 @@
  *   surface    a card's tint       footer    a card footer's tint
  *   rule       hairlines inside a tinted card
  *
+ * Card surfaces are translucent in both modes, so a card tints whatever it
+ * sits on (the page, or a raised surface like the settings preview) rather
+ * than painting a fill computed from the page background.
+ *
  * Declared on Workstreams' roots with zero specificity (BB's plugin scoping),
  * not on :root, so `var()` resolves against the theme where each root sits.
  * Translucent steps mix in oklab, as Tailwind and BB do.
@@ -227,8 +231,8 @@
   );
   --ws-complete-surface: color-mix(
     in oklab,
-    var(--background) 85%,
-    oklch(26.2% 0.051 172.552)
+    oklch(26.2% 0.051 172.552) 15%,
+    transparent
   );
   --ws-complete-footer: color-mix(
     in oklab,
@@ -256,8 +260,8 @@
   );
   --ws-review-surface: color-mix(
     in oklab,
-    var(--background) 85%,
-    oklch(29.3% 0.066 243.157)
+    oklch(29.3% 0.066 243.157) 15%,
+    transparent
   );
   --ws-review-footer: color-mix(
     in oklab,
@@ -318,8 +322,8 @@
   );
   --ws-needs-you-surface: color-mix(
     in oklab,
-    var(--background) 85%,
-    oklch(27.9% 0.077 45.635)
+    oklch(27.9% 0.077 45.635) 15%,
+    transparent
   );
   --ws-needs-you-footer: color-mix(
     in oklab,
@@ -347,8 +351,8 @@
   );
   --ws-failure-surface: color-mix(
     in oklab,
-    var(--background) 85%,
-    oklch(25.8% 0.092 26.042)
+    oklch(25.8% 0.092 26.042) 15%,
+    transparent
   );
   --ws-failure-footer: color-mix(
     in oklab,
