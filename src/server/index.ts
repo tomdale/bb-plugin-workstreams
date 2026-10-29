@@ -1176,5 +1176,6 @@ export default async function plugin(bb: BbPluginApi) {
     currentPrefs,
     notify,
     reclassifyTask,
+    suggestions,
   });
 }

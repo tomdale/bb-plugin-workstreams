@@ -243,3 +243,24 @@ describe("tidy suggestions", () => {
     expect(topics.getById(b.id)?.parentId).toBe(vercel.id);
   });
 });
+
+describe("suggestions CLI", () => {
+  it("lists, runs, and accepts suggestions", async () => {
+    const { w, topics, rpc } = await setup({
+      tidy: () => ({
+        edits: [tidyEdit({ op: "rename", topic: "t1", name: "Alpha Two" })],
+      }),
+    });
+    const a = topics.create("Alpha", "");
+    w.addThread("t1", { title: "Alpha task" });
+    topics.assign("t1", a.id);
+    await rpc("refresh");
+    const cli = (...args: string[]) => w.harness.behavior.runCli(args);
+    expect((await cli("suggestions")).stdout).toBe("No suggestions waiting.");
+    const ran = await cli("suggestions", "run");
+    expect(ran.stdout).toContain("Rename Alpha to Alpha Two\n    Because");
+    const accepted = await cli("suggestions", "accept", "all");
+    expect(accepted.stdout).toBe("Accepted 1 suggestion.");
+    expect(topics.getById(a.id)?.name).toBe("Alpha Two");
+  });
+});

@@ -2,6 +2,7 @@
  * `bb workstreams …` for Tom, scripts, and agents. Output is bounded: lists
  * are capped and titles truncated.
  */
+import type { Suggestions, SuggestionsState } from "./suggestions.ts";
 import type { AgentRecaps } from "./recap.ts";
 import {
   PluginCliError,
@@ -216,6 +217,7 @@ export function registerCli(
     notify,
     reclassifyTask,
     reclassification,
+    suggestions,
   }: {
     /** The sidebar's stored order and prioritized workstreams. */
     arrangement: {
@@ -237,8 +239,69 @@ export function registerCli(
     reclassifyTask?: (input: {
       threadId: string;
     }) => Promise<{ assignment: TopicAssignment }>;
+    suggestions?: Suggestions;
   },
 ): void {
+  const suggestionsOutput = (
+    state: SuggestionsState,
+    options: { all?: boolean; json?: boolean },
+  ) => {
+    const shown = state.suggestions.filter(
+      (s) => options.all || s.status === "pending",
+    );
+    if (options.json)
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({ ...state, suggestions: shown }, null, 2),
+      };
+    if (shown.length === 0)
+      return {
+        exitCode: 0,
+        stdout: state.error
+          ? `No suggestions. The last run failed: ${state.error}`
+          : "No suggestions waiting.",
+      };
+    return {
+      exitCode: 0,
+      stdout: shown
+        .map(
+          (s) =>
+            `${s.id}  ${s.status === "pending" ? "" : `[${s.status}] `}${s.summary}${s.reason ? `\n    ${s.reason}` : ""}${s.problem ? `\n    Can't apply now: ${s.problem}` : ""}`,
+        )
+        .join("\n"),
+    };
+  };
+  const decideSuggestions = async (
+    given: string | string[],
+    decision: "accept" | "decline",
+    options: { json?: boolean },
+  ) => {
+    if (!suggestions) return fail(new Error("Suggestions are unavailable."));
+    const list = [given].flat();
+    const ids =
+      list.length === 1 && list[0] === "all"
+        ? suggestions
+            .state()
+            .suggestions.filter((s) => s.status === "pending")
+            .map((s) => s.id)
+        : list;
+    if (ids.length === 0)
+      return { exitCode: 0, stdout: "No suggestions waiting." };
+    const result = await suggestions.decide(ids, decision).catch(fail);
+    if (options.json)
+      return {
+        exitCode: result.failed.length ? 1 : 0,
+        stdout: JSON.stringify(result, null, 2),
+      };
+    const verb = decision === "accept" ? "Accepted" : "Declined";
+    return {
+      exitCode: result.failed.length ? 1 : 0,
+      stdout: [
+        `${verb} ${plural(result.applied.length, "suggestion")}.`,
+        ...result.failed.map((f) => `Couldn't apply ${f.id}: ${f.reason}`),
+      ].join("\n"),
+    };
+  };
   const load = async () => {
     const [threads, sections] = await Promise.all([
       listActiveThreads(bb.sdk),
@@ -531,6 +594,62 @@ export function registerCli(
               exitCode: state.status === "failed" ? 1 : 0,
               stdout: lines.join("\n"),
             };
+          },
+        }),
+        suggestions: cliCommand({
+          summary:
+            "List organizing suggestions: splits and tidy edits waiting for your decision",
+          options: {
+            all: {
+              type: "boolean",
+              description: "Include recently decided suggestions",
+            },
+            json: { type: "boolean", description: "Print JSON" },
+          },
+          async run({ options }) {
+            const state = suggestions?.state();
+            if (!state) return fail(new Error("Suggestions are unavailable."));
+            return suggestionsOutput(state, options);
+          },
+        }),
+        "suggestions run": cliCommand({
+          summary: "Ask for splits and a tidy pass now, whatever is due",
+          options: { json: { type: "boolean", description: "Print JSON" } },
+          async run({ options }) {
+            if (!suggestions)
+              return fail(new Error("Suggestions are unavailable."));
+            await suggestions.run({ manual: true }).catch(fail);
+            return suggestionsOutput(suggestions.state(), options);
+          },
+        }),
+        "suggestions accept": cliCommand({
+          summary: "Accept suggestions, in the order they were made",
+          positionals: [
+            {
+              name: "ids",
+              description: "Suggestion ids, or all",
+              required: true,
+              variadic: true,
+            },
+          ],
+          options: { json: { type: "boolean", description: "Print JSON" } },
+          async run({ positionals, options }) {
+            return decideSuggestions(positionals.ids, "accept", options);
+          },
+        }),
+        "suggestions decline": cliCommand({
+          summary: "Decline suggestions; tidy won't propose them again",
+          positionals: [
+            {
+              name: "ids",
+              description: "Suggestion ids, or all",
+              required: true,
+              variadic: true,
+            },
+          ],
+          options: { json: { type: "boolean", description: "Print JSON" } },
+          async run({ positionals, options }) {
+            return decideSuggestions(positionals.ids, "decline", options);
           },
         }),
         trace: cliCommand({
