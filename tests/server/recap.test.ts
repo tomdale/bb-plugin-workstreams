@@ -871,12 +871,21 @@ describe("structured replies", () => {
     expect(await replyText(await world())).toBeNull();
   });
 
-  it("contributes the reply instruction for a card when recaps are on", async () => {
+  it("gives the merged instruction and no recap tool when recaps are on", async () => {
     const s = await world({ replies: true });
     const text = await replyText(s);
-    expect(text).toContain(":::reply");
-    expect(text).toContain("The block is the whole reply");
-    expect((await s.configure()).instructions).not.toContain(":::reply");
+    expect(text).toContain(':::reply{state="review"}');
+    expect(text).toContain("End every turn with one reply block");
+    const resolved = await s.configure();
+    expect(resolved.instructions).not.toContain(":::reply");
+    expect(resolved.tools.map((tool) => tool.name)).not.toContain(RECAP_TOOL);
+  });
+
+  it("keeps the recap tool and its instructions while the setting is off", async () => {
+    const s = await world();
+    const resolved = await s.configure();
+    expect(resolved.tools.map((tool) => tool.name)).toContain(RECAP_TOOL);
+    expect(await replyText(s)).toBeNull();
   });
 
   it("asks for Done in the block when recaps are off, and nothing in side chats", async () => {
@@ -886,6 +895,139 @@ describe("structured replies", () => {
     expect(
       await replyText(s, { kind: "fork", pluginId: "side-chat" }),
     ).toBeNull();
+  });
+});
+
+describe("recaps from reply blocks", () => {
+  const COMPLETE =
+    ':::reply{state="complete"}\n# Added the count_items helper\n- [x] `count_items()` counts nested carts\n\n### Checked\nRan `python3 -m unittest` locally.\n:::\n';
+  const idleWith = (
+    s: Awaited<ReturnType<typeof world>>,
+    text: string | null,
+  ) =>
+    s.w.harness.behavior.emitThreadEvent("thread.idle", {
+      thread: s.thread(),
+      lastAssistantText: text,
+    });
+
+  it("stores the block's recap through the tool's path", async () => {
+    const s = await world({ replies: true });
+    const turnId = s.w.turn("t1");
+    await idleWith(s, COMPLETE);
+    expect((await s.card()).recap).toMatchObject({
+      state: "complete",
+      goal: "Added the count_items helper",
+      latest: ["`count_items()` counts nested carts"],
+      turnId,
+    });
+    expect(s.corrections()).toHaveLength(0);
+  });
+
+  it("stores a turn's recap once, however many idle events arrive", async () => {
+    const s = await world({ replies: true });
+    s.w.turn("t1");
+    await idleWith(s, COMPLETE);
+    const first = (await s.card()).recap!;
+    await idleWith(s, COMPLETE.replace("count_items helper", "other title"));
+    expect((await s.card()).recap).toEqual(first);
+  });
+
+  it("reads a waiting block's timeout and schedules its status check", async () => {
+    const s = await world({ replies: true });
+    s.w.turn("t1");
+    await idleWith(
+      s,
+      ':::reply{state="waiting" timeout="120"}\n# Waiting for the workers\n\n### Waiting on\n- @thread:thr_worker1 Migrate orders\n:::\n',
+    );
+    expect((await s.card()).recap).toMatchObject({
+      state: "waiting",
+      timeout: 120,
+      waitingAgents: [{ threadId: "thr_worker1", task: "Migrate orders" }],
+    });
+  });
+
+  it("finds the block in an earlier message of the turn when a stray line follows it", async () => {
+    const s = await world({ replies: true });
+    s.w.turn("t1");
+    s.w.say("t1", COMPLETE);
+    s.w.say("t1", "Subagent text", true);
+    s.w.say("t1", "Done.");
+    await idleWith(s, "Done.");
+    expect((await s.card()).recap).toMatchObject({
+      goal: "Added the count_items helper",
+    });
+  });
+
+  it("ignores a block from an earlier turn", async () => {
+    const s = await world({ replies: true });
+    s.w.turn("t1");
+    s.w.say("t1", COMPLETE);
+    s.w.turn("t1");
+    s.w.say("t1", "Done.");
+    await idleWith(s, "Done.");
+    expect((await s.card()).recap).toBeNull();
+  });
+
+  it.each([
+    ["no block", "Done.", "your reply had no readable `:::reply` block"],
+    [
+      "a block with no headline",
+      ':::reply{state="complete"}\n### Checked\nRan it.\n:::\n',
+      "it had no `# ` headline line",
+    ],
+    [
+      "an unknown state",
+      ':::reply{state="finished"}\n# Done\n:::\n',
+      "its `state` was not complete, review or waiting",
+    ],
+    [
+      "a block with no state",
+      ":::reply\nAll set.\n:::\n",
+      "its `:::reply` opener had no `state`",
+    ],
+  ])(
+    "sends a correction naming the missing part for %s",
+    async (_, text, problem) => {
+      const s = await world({ replies: true });
+      s.w.turn("t1");
+      await idleWith(s, text);
+      expect((await s.card()).recap).toBeNull();
+      const [correction] = s.corrections();
+      const message = (correction!.input as { text: string }[])[0]!.text;
+      expect(message).toContain(`Your turn ended without a recap: ${problem}.`);
+      expect(message).toContain("Correction 1 of 3.");
+      expect(message).not.toContain(RECAP_TOOL);
+    },
+  );
+
+  it("stores nothing and sends no correction while a question card waits", async () => {
+    const s = await world({ replies: true });
+    const turnId = s.w.turn("t1");
+    await s.w.harness.behavior.emitThreadEvent("interaction.pending", {
+      thread: s.thread(),
+      interaction: {
+        id: "i1",
+        threadId: "t1",
+        turnId,
+        status: "pending",
+        payload: { kind: "user_question" },
+        origin: null,
+      } as never,
+    });
+    await idleWith(s, ":::reply\nPick a coupon rule.\n:::\n");
+    expect((await s.card()).recap).toBeNull();
+    expect(s.corrections()).toHaveLength(0);
+  });
+
+  it("reads no blocks while the setting is off", async () => {
+    const s = await world();
+    s.w.turn("t1");
+    await idleWith(s, COMPLETE);
+    expect((await s.card()).recap).toBeNull();
+    const [correction] = s.corrections();
+    expect((correction!.input as { text: string }[])[0]!.text).toContain(
+      `then call ${RECAP_TOOL}`,
+    );
   });
 });
 

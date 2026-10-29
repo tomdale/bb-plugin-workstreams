@@ -34,7 +34,13 @@ import {
   type Recap,
 } from "../domain/recap.ts";
 import type { RecapPrefs } from "../domain/recapPrefs.ts";
+import { parse as parseReply } from "../domain/reply.ts";
 import { replyInstructions } from "../domain/replyInstructions.ts";
+import {
+  recapInputFromCard,
+  type ReplyRecapProblem,
+} from "../domain/replyRecap.ts";
+import { lastReplyBlock } from "../domain/replyText.ts";
 import type { Database } from "./db.ts";
 import { UserError } from "./service.ts";
 import { ASK_USER_QUESTION_RENDERER_ID } from "./questions/contracts.ts";
@@ -57,6 +63,16 @@ type Row = {
   waiting_nudged: number;
   waiting_cancelled: number;
 };
+/** Why a turn's reply block yielded no recap; the correction names it. */
+type BlockProblem = "block" | "no-state" | ReplyRecapProblem;
+const BLOCK_PROBLEMS: Record<BlockProblem, string> = {
+  block: "your reply had no readable `:::reply` block",
+  "no-state": "its `:::reply` opener had no `state`",
+  state: "its `state` was not complete, review or waiting",
+  headline: "it had no `# ` headline line",
+  invalid: "its card could not be read",
+};
+
 type DispatchContext = Parameters<
   Parameters<BbPluginApi["experimental_hooks"]["on"]>[1]
 >[0];
@@ -96,8 +112,18 @@ export class AgentRecaps {
     ReturnType<typeof setTimeout>
   >();
   private readonly waitingChecks = new Set<Promise<void>>();
-  /** Per thread, from the latest `configure`: whether the reply block instruction also has a recap card. */
+  /**
+   * Per thread, from the latest `configure`: whether the reply block carries
+   * the recap card (the recap is on) or is a reply alone.
+   */
   private readonly replyModes = new Map<string, boolean>();
+  /** Each thread's latest idle text, for the coalesced idle work. */
+  private readonly idleText = new Map<string, string | null>();
+  /** Why the thread's latest turn's block gave no recap, for its correction. */
+  private readonly blockProblems = new Map<
+    string,
+    { turnId: string; problem: BlockProblem }
+  >();
 
   constructor(
     private readonly deps: {
@@ -183,16 +209,18 @@ export class AgentRecaps {
       .run(Number(on), threadId);
     if (enabled && prefs.replies) this.replyModes.set(threadId, on);
     else this.replyModes.delete(threadId);
-    return { tools: on ? [RECAP_TOOL] : [] };
+    // With Structured replies on, the recap comes from the reply block.
+    return { tools: on && !prefs.replies ? [RECAP_TOOL] : [] };
   }
 
   /**
    * The reply block instruction for the resolution `configure` just decided,
-   * or null. bb calls `contributeInstructions` after `configure` in each
-   * resolution and gives it a 4,096-character budget of its own. The server
-   * cannot see whether the app draws message blocks; engines.bbPluginSdk
-   * keeps the plugin off older bb, and the Settings row stays disabled where
-   * the app finds no slot.
+   * or null. With the recap on it is the whole recap contract, since the
+   * session has no recap tool. bb calls `contributeInstructions` after
+   * `configure` in each resolution and gives it a 4,096-character budget of
+   * its own. The server cannot see whether the app draws message blocks;
+   * engines.bbPluginSdk keeps the plugin off older bb, and the Settings row
+   * stays disabled where the app finds no slot.
    */
   replyInstructions(threadId: string): string | null {
     const withRecap = this.replyModes.get(threadId);
@@ -309,8 +337,16 @@ export class AgentRecaps {
     this.deps.onChange();
   }
 
-  /** Coalesces idle events per thread; a repeat during a check runs again. */
-  onIdle(threadId: string): Promise<void> {
+  /**
+   * Coalesces idle events per thread; a repeat during a check runs again.
+   * `lastAssistantText` is the turn's final message, read for a reply block
+   * when Structured replies is on.
+   */
+  onIdle(
+    threadId: string,
+    lastAssistantText: string | null = null,
+  ): Promise<void> {
+    this.idleText.set(threadId, lastAssistantText);
     const recap = this.get(threadId)?.recap;
     if (recap) this.scheduleWaiting(threadId, recap);
     this.failureGuard.forget(threadId);
@@ -322,6 +358,7 @@ export class AgentRecaps {
     const work = (async () => {
       do {
         this.repeat.delete(threadId);
+        await this.recordReply(threadId);
         await this.enforce(threadId);
       } while (this.repeat.has(threadId) && !this.controller.signal.aborted);
     })()
@@ -647,6 +684,99 @@ export class AgentRecaps {
     });
   }
 
+  /** What a correction asks for: a recap call, or a reply block's missing part. */
+  private correctionText(threadId: string, turnId: string): string {
+    if (!this.deps.prefs().replies)
+      return `Your turn ended without a recap. Finish any remaining authorized work, then call ${RECAP_TOOL}, or ask the user through a question card if you need their input.`;
+    const found = this.blockProblems.get(threadId);
+    const problem =
+      BLOCK_PROBLEMS[found?.turnId === turnId ? found.problem : "block"];
+    return `Your turn ended without a recap: ${problem}. Finish any remaining authorized work, then end with a \`:::reply{state="…"}\` block that starts with a \`# \` headline. If you need the user's input instead, write the block without \`state\`, then ask through a question card.`;
+  }
+
+  /**
+   * With Structured replies on, records the recap a turn's reply block
+   * carries, through the same path as a tool call. The final message comes
+   * first; without a block there, the turn's other top-level messages are
+   * read, newest first. A turn already ended by a recap or a question card
+   * is left alone, so repeated idle events change nothing.
+   */
+  private async recordReply(threadId: string) {
+    const { required, replies } = this.deps.prefs();
+    if (!required || !replies) return;
+    const row = this.row(threadId);
+    if (!row.enrolled) return;
+    const signal = this.controller.signal;
+    const turnId = await this.latestTurn(threadId, signal).catch(() => null);
+    if (!turnId || row.accepted_turn === turnId) return;
+    const found = await this.replyRecap(
+      threadId,
+      turnId,
+      this.idleText.get(threadId) ?? null,
+      signal,
+    );
+    if (!found.ok) {
+      this.blockProblems.set(threadId, { turnId, problem: found.problem });
+      return;
+    }
+    this.blockProblems.delete(threadId);
+    const recap = toRecap(found.input, {
+      id: randomUUID(),
+      turnId,
+      at: Date.now(),
+    });
+    if (!this.accept(threadId, row.epoch, turnId, recap)) return;
+    // The session demonstrably follows the block contract.
+    this.deps.db
+      .prepare("UPDATE ws_agent_recap SET proven = 1 WHERE thread_id = ?")
+      .run(threadId);
+    this.scheduleWaiting(threadId, recap);
+    this.deps.onChange();
+  }
+
+  private async replyRecap(
+    threadId: string,
+    turnId: string,
+    lastText: string | null,
+    signal: AbortSignal,
+  ) {
+    let block = lastText ? lastReplyBlock(lastText) : null;
+    if (!block) {
+      const events = await this.deps.bb.sdk.threads.events
+        .list({
+          threadId,
+          types: ["item/completed"],
+          order: "desc",
+          limit: "50",
+          signal,
+        })
+        .catch(() => []);
+      for (const event of events as unknown as {
+        scope: { kind: string; turnId?: string };
+        data: {
+          item?: { type?: string; text?: string; parentToolCallId?: string };
+        };
+      }[]) {
+        const item = event.data.item;
+        if (
+          event.scope.kind !== "turn" ||
+          event.scope.turnId !== turnId ||
+          item?.type !== "agentMessage" ||
+          item.parentToolCallId ||
+          !item.text
+        )
+          continue;
+        block = lastReplyBlock(item.text);
+        if (block) break;
+      }
+    }
+    if (!block) return { ok: false, problem: "block" } as const;
+    const read = parseReply(block, { status: block.status });
+    if (!read.ok) return { ok: false, problem: "block" } as const;
+    if (!read.data.card) return { ok: false, problem: "no-state" } as const;
+    return recapInputFromCard(read.data.card);
+  }
+
   private async enforce(threadId: string) {
     const { required, corrections } = this.deps.prefs();
     // A durable question remains a valid turn ending after BB loses its waiter.
@@ -742,7 +872,7 @@ export class AgentRecaps {
         {
           type: "text",
           visibility: "agent-only",
-          text: `[Workstreams recap ${token} ${row.epoch} ${completed.seq}]\nYour turn ended without a recap. Finish any remaining authorized work, then call ${RECAP_TOOL}, or ask the user through a question card if you need their input. Correction ${row.intercepts + 1} of ${corrections}.`,
+          text: `[Workstreams recap ${token} ${row.epoch} ${completed.seq}]\n${this.correctionText(threadId, completed.scope.turnId)} Correction ${row.intercepts + 1} of ${corrections}.`,
           mentions: [],
         },
       ],

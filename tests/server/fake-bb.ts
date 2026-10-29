@@ -62,6 +62,11 @@ export async function fakeWorld(
   const pullRequests = new Map<string, string | null>();
   /** Each thread's latest agent turn: its number and how it ended. */
   const turns = new Map<string, { n: number; status: string }>();
+  /** Each thread's assistant messages, by the turn that wrote them. */
+  const messages = new Map<
+    string,
+    { turn: number; text: string; nested: boolean }[]
+  >();
   const sections: Section[] = [];
   let nextSection = 1;
   const addThread = (id: string, overrides: Partial<Thread> = {}) => {
@@ -255,6 +260,29 @@ export async function fakeWorld(
             types?: string[];
           }) => {
             const type = types?.[0];
+            if (type === "item/completed")
+              return (messages.get(threadId) ?? [])
+                .map((message, i) => ({
+                  id: `m${i}`,
+                  threadId,
+                  seq: message.turn * 10 + 1 + i / 100,
+                  scope: {
+                    kind: "turn",
+                    turnId: `${threadId}-t${message.turn}`,
+                  },
+                  type,
+                  data: {
+                    type,
+                    item: {
+                      type: "agentMessage",
+                      id: `item${i}`,
+                      text: message.text,
+                      ...(message.nested ? { parentToolCallId: "call1" } : {}),
+                    },
+                  },
+                  createdAt: 0,
+                }))
+                .reverse();
             if (type === "turn/started" || type === "turn/completed") {
               const turn = turns.get(threadId);
               if (!turn) return [];
@@ -370,9 +398,16 @@ export async function fakeWorld(
     turns.set(id, { n, status });
     return `${id}-t${n}`;
   };
+  /** The agent writes `text` as a message in the thread's current turn. */
+  const say = (id: string, text: string, nested = false) =>
+    messages.set(id, [
+      ...(messages.get(id) ?? []),
+      { turn: turns.get(id)?.n ?? 0, text, nested },
+    ]);
   return {
     ...host,
     turn,
+    say,
     threads,
     sections,
     addThread,

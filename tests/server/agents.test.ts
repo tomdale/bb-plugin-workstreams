@@ -215,8 +215,13 @@ describe("configure", () => {
       const text = contributions.join("\n\n");
       expect(text).toContain(QUESTION_INSTRUCTIONS);
       const recap = !options.sideChat && !options.noRecap;
-      if (recap) expect(text).toContain(RECAP_INSTRUCTIONS);
+      // With Structured replies on, the reply instruction carries the recap
+      // contract and the session has no recap tool.
+      if (recap && !options.replies) expect(text).toContain(RECAP_INSTRUCTIONS);
       else expect(text).not.toContain(RECAP_INSTRUCTIONS);
+      expect(selected.includes("WorkstreamsRecap")).toBe(
+        recap && !options.replies,
+      );
       if (options.replies && !options.sideChat)
         expect(text).toContain(replyInstructions(recap));
       else expect(text).not.toContain(":::reply");
