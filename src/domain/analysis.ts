@@ -133,7 +133,7 @@ const goalSchema = z
  * about 30 characters, under its workstream and any parent thread, so the
  * subject leads and nothing those already say repeats.
  */
-const GOAL_FORM = `Use a noun phrase of 2–5 words, at most 32 characters, in sentence case with no closing period. Lead with the subject being worked on, so it survives truncation; when the kind of work matters, it follows as a noun: "Phase 1 security review", "Work tab redesign", "Invoice webhook lint errors", "Dev server memory leak". Never start with a verb. Keep an identifier the request uses to tell sibling work apart, such as a phase or step number, at the front: "Phase 0 machine registry". Name a pull request or issue by its subject; only when the subject is unknown, by its number ("PR 4842 review"). Leave out setup, progress, status, and generic words such as plan, work, task, or changes, and never end with a title of only generic words ("API review", "Integration update").`;
+const GOAL_FORM = `Use a noun phrase of 2–5 words, at most 32 characters, in sentence case with no closing period. Lead with the subject being worked on, so it survives truncation; when the kind of work matters, it follows as a noun: "Phase 3 rollout review", "Settings page redesign", "Export job timeout errors", "Search index rebuild". Never start with a verb. Keep an identifier the request uses to tell sibling work apart, such as a phase or step number, at the front: "Step 2 schema migration". Name a pull request or issue by its subject; only when the subject is unknown, by its number ("PR 1207 review"). Leave out setup, progress, status, and generic words such as plan, work, task, or changes, and never end with a title of only generic words ("Service review", "Integration update").`;
 
 /**
  * Where a thread is listed: its workstream's topic path and, for a child
@@ -177,7 +177,7 @@ export function dropListedPrefix(
 export function listingBlock(listing: ThreadListing | null | undefined) {
   if (!listing?.group && !listing?.parent) return "";
   return [
-    'Where the thread is listed. Its title is read beside these, so leave out their names and products and name what tells this thread apart. Under "Beacon: Code Review", "Beacon security review flow" becomes "Security review flow"; under a parent "Build Harbor relay", "Harbor relay Phase 2 review" becomes "Phase 2 review". When leaving a name out would leave only generic words, name the subject more specifically instead: "Inside Harbor rewrite" becomes "Book series voice rewrite".',
+    'Where the thread is listed. Its title is read beside these, so leave out their names and products and name what tells this thread apart. Under "Atlas: Billing", "Atlas invoice export bug" becomes "Invoice export bug"; under a parent "Build Orion sync", "Orion sync Phase 3 review" becomes "Phase 3 review". When leaving a name out would leave only generic words, name the subject more specifically instead: under "Orion", "Orion redesign" becomes "Settings page redesign".',
     listing.group ? tagged("listed_under", redact(listing.group)) : null,
     listing.parent
       ? `${tagged("parent_thread", redact(listing.parent))} (it is a child of this thread)`
