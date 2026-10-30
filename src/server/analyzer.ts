@@ -27,6 +27,7 @@ import type {
   AgentReport,
   FullAnalysisInput,
   StoredAnalysis,
+  ThreadListing,
 } from "../domain/analysis.ts";
 import type { PlacementOutput } from "../domain/placement.ts";
 import type { PlacementQuestion, PlacementThread } from "./placement.ts";
@@ -115,6 +116,11 @@ export class Analyzer {
           traceId: string | null,
         ): void;
       };
+      /** Where the thread is listed, so its title needn't repeat it. */
+      listing?: (thread: {
+        id: string;
+        parentThreadId?: string | null;
+      }) => ThreadListing;
       /** Asks where a root belongs (see `Placement`). */
       placement?: {
         question(
@@ -182,6 +188,28 @@ export class Analyzer {
       if (result.reported) reported++;
     }
     return { reported, analyzed };
+  }
+
+  /**
+   * Renames the stored goal, and the objective's title with it, so a later
+   * analysis that keeps the objective carries the new title forward instead
+   * of restoring the old one.
+   */
+  renameGoal(threadId: string, title: string): void {
+    const result = this.get(threadId);
+    if (!result) return;
+    this.deps.db
+      .prepare("UPDATE ws_analysis SET result = ? WHERE thread_id = ?")
+      .run(
+        JSON.stringify({
+          ...result,
+          goal: title,
+          objective: result.objective
+            ? { ...result.objective, title }
+            : result.objective,
+        }),
+        threadId,
+      );
   }
 
   get(threadId: string): StoredAnalysis | undefined {
@@ -486,6 +514,7 @@ export class Analyzer {
             ? await this.continuation(thread, context.requests)
             : null,
           untitled: !thread.title,
+          listing: full ? (this.deps.listing?.(thread) ?? null) : null,
           requests: context.requests,
           lastAssistantText: context.lastAssistantText,
           report: reported?.report ?? null,

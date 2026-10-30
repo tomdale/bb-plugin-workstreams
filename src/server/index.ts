@@ -6,7 +6,10 @@
 import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { registerCli } from "./cli.ts";
-import { GOAL_MAX } from "../domain/analysis.ts";
+import { GOAL_MAX, type ThreadListing } from "../domain/analysis.ts";
+import { topicPath } from "../domain/topic-path.ts";
+import { displayTitle } from "./inventory.ts";
+import { restyleTitles } from "./restyle.ts";
 import { registerAgentInstructions } from "./agents.ts";
 import { Analyzer } from "./analyzer.ts";
 import { RecapArchive } from "./archive.ts";
@@ -309,6 +312,34 @@ export default async function plugin(bb: BbPluginApi) {
       applyTopic(threadId, answer, "full", basis, traceId),
     log: (message) => bb.log.warn(message),
   });
+  /**
+   * Where a thread is listed, for naming it beside that: its root's topic
+   * path, and its parent's title when it is a child.
+   */
+  const listingOf = (thread: {
+    id: string;
+    parentThreadId?: string | null;
+  }): ThreadListing => {
+    const byId = new Map(service.threads().map((t) => [t.id, t]));
+    const parentId =
+      thread.parentThreadId ?? byId.get(thread.id)?.parentThreadId ?? null;
+    let root = thread.id;
+    const seen = new Set([thread.id]);
+    for (
+      let at = parentId;
+      at && !seen.has(at);
+      at = byId.get(at)?.parentThreadId ?? null
+    ) {
+      seen.add(at);
+      root = at;
+    }
+    const entityId = topics.assignment(root).entityId;
+    const parent = parentId ? byId.get(parentId) : undefined;
+    return {
+      group: entityId ? topicPath(entityId, topics.list()) : null,
+      parent: parent ? displayTitle(parent) : null,
+    };
+  };
   // Set below; the analyzer reads recaps only once events start.
   let recaps: AgentRecaps;
   const analyzer = new Analyzer({
@@ -330,6 +361,7 @@ export default async function plugin(bb: BbPluginApi) {
         applyTopic(threadId, answer, "full", basis, traceId),
     },
     placement,
+    listing: listingOf,
     onChange: notify,
     onResult: (threadId, result) => {
       // A finished analysis can change whether the thread counts as done,
@@ -359,6 +391,7 @@ export default async function plugin(bb: BbPluginApi) {
     analyzed: (threadId) => analyzer.get(threadId) !== undefined,
     apply: (threadId, goal, revision, traceId) =>
       applyGoal(threadId, goal, revision, traceId, "opening"),
+    listing: listingOf,
     topics: {
       entities: () => topics.list(),
       project: projectName,
@@ -1179,5 +1212,27 @@ export default async function plugin(bb: BbPluginApi) {
     notify,
     reclassifyTask,
     suggestions,
+    restyle: (options) =>
+      restyleTitles(
+        {
+          db,
+          inference,
+          model: async () => currentPrefs().analysis.fullModel,
+          threads: () => service.threads(),
+          listing: listingOf,
+          objective: (threadId) =>
+            analyzer.get(threadId)?.objective?.summary ?? null,
+          retitle: (threadId, title, revision) =>
+            service.retitle(
+              threadId,
+              title,
+              revision,
+              "analysis",
+              "Retitled in the subject-first title form",
+            ),
+          renameGoal: (threadId, title) => analyzer.renameGoal(threadId, title),
+        },
+        options,
+      ),
   });
 }

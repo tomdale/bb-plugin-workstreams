@@ -17,7 +17,11 @@
  *   was sent, its result is applied as is, with no second call.
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import { clip, type QuickAnalysisOutput } from "../domain/analysis.ts";
+import {
+  clip,
+  type QuickAnalysisOutput,
+  type ThreadListing,
+} from "../domain/analysis.ts";
 import type { Entity } from "../domain/classify.ts";
 import type { ModelChoice } from "../domain/prefs.ts";
 import type { Database } from "./db.ts";
@@ -86,6 +90,8 @@ export class QuickAnalysis {
         revision: number,
         traceId: string | null,
       ) => Promise<void>;
+      /** Where the thread is listed, so its title needn't repeat it. */
+      listing?: (thread: OpeningThread) => ThreadListing;
       /** Topics, for a root's first topic. */
       topics?: {
         entities(): Entity[];
@@ -256,6 +262,7 @@ export class QuickAnalysis {
         request,
         project,
         entities,
+        listing: this.deps.listing?.(thread) ?? null,
       },
       {
         model: await this.deps.model(),

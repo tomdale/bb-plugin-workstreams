@@ -45,6 +45,7 @@ import { topicPath } from "../domain/topic-path.ts";
 import { activeHome } from "../domain/regroup.ts";
 import type { Prefs } from "../domain/prefs.ts";
 import type { Inference } from "./model.ts";
+import type { RestyleOutcome } from "./restyle.ts";
 
 const terminalLine = (text: string) =>
   text
@@ -219,6 +220,7 @@ export function registerCli(
     reclassifyTask,
     reclassification,
     suggestions,
+    restyle,
   }: {
     /** The sidebar's stored order and prioritized workstreams. */
     arrangement: {
@@ -241,6 +243,8 @@ export function registerCli(
       threadId: string;
     }) => Promise<{ assignment: TopicAssignment }>;
     suggestions?: Suggestions;
+    /** Renames the threads Workstreams titled in an earlier title form. */
+    restyle?: (options: { apply: boolean }) => Promise<RestyleOutcome[]>;
   },
 ): void {
   const suggestionsOutput = (
@@ -743,6 +747,40 @@ export function registerCli(
               stdout: options.json
                 ? JSON.stringify({ entry }, null, 2)
                 : `${entry.rationale}${entry.detail ? ` (${entry.detail})` : ""}`,
+            };
+          },
+        }),
+        "titles restyle": cliCommand({
+          summary:
+            "Propose new titles in the current form for threads Workstreams titled, or rename them with --apply",
+          options: {
+            apply: {
+              type: "boolean",
+              description: "Rename the threads, not only propose titles",
+            },
+            json: { type: "boolean", description: "Print JSON" },
+          },
+          async run({ options }) {
+            if (!restyle) return fail(new Error("Retitling is unavailable."));
+            const outcomes = await restyle({ apply: Boolean(options.apply) });
+            if (options.json)
+              return {
+                exitCode: 0,
+                stdout: JSON.stringify(outcomes, null, 2),
+              };
+            const counts = (result: RestyleOutcome["result"]) =>
+              outcomes.filter((o) => o.result === result).length;
+            return {
+              exitCode: 0,
+              stdout: [
+                ...outcomes.map(
+                  (o) =>
+                    `${o.result === "renamed" ? "renamed " : o.result === "proposed" ? "" : `${o.result} `}${terminalLine(o.from)} → ${terminalLine(o.to ?? "(none)")}${o.reason ? ` (${terminalLine(o.reason)})` : ""}`,
+                ),
+                options.apply
+                  ? `Renamed ${counts("renamed")}; ${counts("skipped")} skipped, ${counts("unchanged")} already in form`
+                  : `${counts("proposed")} proposed; rename them with bb workstreams titles restyle --apply`,
+              ].join("\n"),
             };
           },
         }),

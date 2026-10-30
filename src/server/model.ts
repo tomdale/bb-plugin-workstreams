@@ -7,8 +7,12 @@ import {
   fullAnalysisPrompt,
   parseFullAnalysis,
   parseQuickAnalysis,
+  parseRestyle,
   quickAnalysisPrompt,
   quickAnalysisSchema,
+  restylePrompt,
+  restyleSchema,
+  type RestyleInput,
   type FullAnalysisInput,
   type QuickAnalysisInput,
 } from "../domain/analysis.ts";
@@ -71,6 +75,11 @@ export const MODEL_CALLS = {
     parse: (text: string, input: SplitInput) => parseSplit(text, input),
     schema: (input: SplitInput) => splitSchema(input),
     maxTokens: 8_000,
+  },
+  restyle: {
+    prompt: (input: RestyleInput) => restylePrompt(input),
+    parse: (text: string, input: RestyleInput) => parseRestyle(text, input),
+    schema: () => restyleSchema(),
   },
   tidy: {
     prompt: (input: TidyInput) => tidyPrompt(input),
@@ -145,6 +154,10 @@ export function summarize(
       return split.subgroups
         .map((g) => `${g.name} (${g.threadIds.length})`)
         .join(", ");
+    }
+    case "restyle": {
+      const { title } = value as OutputOf<"restyle">;
+      return title ? `title “${title}”` : "no title";
     }
     case "tidy": {
       const edits = value as OutputOf<"tidy">;
