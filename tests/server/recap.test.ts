@@ -995,6 +995,29 @@ describe("recaps from reply blocks", () => {
     expect(s.corrections()).toHaveLength(0);
   });
 
+  it("reads a block's full Markdown fields back from storage", async () => {
+    const s = await world({ replies: true });
+    s.w.turn("t1");
+    const markdown = `**${"A complete explanation ".repeat(12).trim()}** with \`code\` and [source](https://example.com/source)`;
+    const title =
+      "A complete review target title that exceeds the tool's eighty-character limit by a considerable margin";
+    const message =
+      "Inspect the implementation and confirm the complete explanation still contains every detail and the original code formatting and source link";
+    await idleWith(
+      s,
+      `:::reply{state="review"}\n# ${markdown}\n- [x] ${markdown}\n\n### Review\n- ${markdown}\n\n### Links\n- [${title}](https://example.com/review)\n\n### Next\n- Inspect the result: ${message}\n:::\n`,
+    );
+    expect((await s.card()).recap).toMatchObject({
+      state: "review",
+      goal: markdown,
+      latest: [markdown],
+      review: [markdown],
+      links: [{ title, location: "https://example.com/review" }],
+      next: [{ title: "Inspect the result", message }],
+    });
+    expect(s.corrections()).toHaveLength(0);
+  });
+
   it("stores a turn's recap once, however many idle events arrive", async () => {
     const s = await world({ replies: true });
     s.w.turn("t1");

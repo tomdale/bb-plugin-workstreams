@@ -4,27 +4,25 @@
  * recap tool takes. The server stores it through the tool's path, so the
  * docked card, the sidebar, analysis and waiting checks read one recap.
  *
- * Reading is lenient: over-long lines are clipped and extra items dropped.
+ * Reading preserves full inline Markdown; extra items are dropped.
  * Only a block with no `state`, an unknown state, or no headline yields no
  * recap; the server then asks the agent for one.
  */
 import {
   blockRecapInputSchema,
-  clipVisible,
   RECAP_STATES,
   type RecapInput,
   type RecapState,
 } from "./recap.ts";
 import type { ReplyCard } from "./reply.ts";
 
-/** Limits of the recap card, shared with the tool's schema. */
+/** Item counts match the tool; block text is preserved without length limits. */
 const LIMITS = {
-  goal: 80,
-  results: { items: 3, max: 120 },
-  review: { items: 3, max: 160 },
-  next: { items: 3, title: 28, message: 120 },
-  links: { items: 8, title: 80 },
-  waitingOn: { items: 8, task: 80 },
+  results: 3,
+  review: 3,
+  next: 3,
+  links: 8,
+  waitingOn: 8,
 } as const;
 /** Seconds a waiting block without a usable `timeout` waits for. */
 export const DEFAULT_WAITING_TIMEOUT = 600;
@@ -42,9 +40,8 @@ function nextAction(line: string) {
   const colon = line.indexOf(": ");
   const title = colon > 0 ? line.slice(0, colon).trim() : "";
   const message = colon > 0 ? line.slice(colon + 2).trim() : "";
-  if (title && message && clipVisible(title, LIMITS.next.title) === title)
-    return { title, message: clipVisible(message, LIMITS.next.message) };
-  return clipVisible(line, LIMITS.next.message);
+  if (title && message) return { title, message };
+  return line;
 }
 
 /** `[title](location)` or a bare location; null unless the target is usable. */
@@ -56,7 +53,7 @@ function link(line: string): { title: string; location: string } | null {
     (location.startsWith("/") && !location.startsWith("//"));
   if (!usable || /\s/.test(location)) return null;
   return {
-    title: clipVisible(linked?.[1] ?? location, LIMITS.links.title),
+    title: linked?.[1] ?? location,
     location,
   };
 }
@@ -72,7 +69,7 @@ function waitingAgent(line: string): { threadId: string; task: string } | null {
       .trim() || `Agent ${match[1]}`;
   return {
     threadId: match[1]!,
-    task: clipVisible(task, LIMITS.waitingOn.task),
+    task,
   };
 }
 
@@ -91,7 +88,7 @@ export function recapInputFromCard(card: ReplyCard): ReplyRecapResult {
       problem: "state",
       error: `The block's state must be ${RECAP_STATES.join(", ")}.`,
     };
-  const goal = card.headline ? clipVisible(card.headline, LIMITS.goal) : "";
+  const goal = card.headline?.trim() ?? "";
   if (!goal)
     return {
       ok: false,
@@ -99,17 +96,11 @@ export function recapInputFromCard(card: ReplyCard): ReplyRecapResult {
       error: "The block needs a `# ` headline line.",
     };
   const results = card.results
-    .slice(0, LIMITS.results.items)
-    .map((item) => clipVisible(item.markdown, LIMITS.results.max))
+    .slice(0, LIMITS.results)
+    .map((item) => item.markdown)
     .filter(Boolean);
-  const next = card.next
-    .slice(0, LIMITS.next.items)
-    .map(nextAction)
-    .filter(Boolean);
-  const review = card.review
-    .slice(0, LIMITS.review.items)
-    .map((step) => clipVisible(step, LIMITS.review.max))
-    .filter(Boolean);
+  const next = card.next.slice(0, LIMITS.next).map(nextAction).filter(Boolean);
+  const review = card.review.slice(0, LIMITS.review).filter(Boolean);
   let input: unknown;
   if (state === "waiting")
     input = {
@@ -119,7 +110,7 @@ export function recapInputFromCard(card: ReplyCard): ReplyRecapResult {
       waitingAgents: card.waitingOn
         .map(waitingAgent)
         .filter((agent) => agent !== null)
-        .slice(0, LIMITS.waitingOn.items),
+        .slice(0, LIMITS.waitingOn),
     };
   else if (state === "review" && review.length)
     input = {
@@ -130,7 +121,7 @@ export function recapInputFromCard(card: ReplyCard): ReplyRecapResult {
       links: card.links
         .map(link)
         .filter((item) => item !== null)
-        .slice(0, LIMITS.links.items),
+        .slice(0, LIMITS.links),
       next,
     };
   // A review block with no steps reads as complete: there is nothing to review.

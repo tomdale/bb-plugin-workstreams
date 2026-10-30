@@ -5,6 +5,11 @@ import {
   recapInputFromCard,
 } from "../../src/domain/replyRecap.ts";
 import { lastReplyBlock } from "../../src/domain/replyText.ts";
+import {
+  recapInputSchema,
+  recapSchema,
+  toRecap,
+} from "../../src/domain/recap.ts";
 
 /** Reads a whole message the way the server does. */
 function read(message: string): Reply {
@@ -158,32 +163,73 @@ describe("the card in a reply block", () => {
     ).toMatchObject({ ok: true, input: { timeout: 86400 } });
   });
 
-  it("clips over-long lines and drops extra items", () => {
+  it("keeps full text while dropping extra items", () => {
     const long = "word ".repeat(60).trim();
     const result = recap(
       `:::reply{state="complete"}\n# ${long}\n- [x] one\n- [x] two\n- [x] three\n- [x] four\n- [x] ${long}\n\n### Next\n- a\n- b\n- c\n- d\n- ${"Very long button title here: send it"}\n:::\n`,
     );
     if (!result.ok) throw new Error(result.error);
-    expect(result.input.goal.length).toBeLessThanOrEqual(80);
-    expect(result.input.goal.endsWith("…")).toBe(true);
+    expect(result.input.goal).toBe(long);
     expect(result.input.latest).toEqual(["one", "two", "three"]);
     expect(result.input.next).toEqual(["a", "b", "c"]);
-    const clipped = recap(
+    const full = recap(
       `:::reply{state="complete"}\n# Done\n- [x] ${long}\n:::\n`,
     );
-    if (!clipped.ok) throw new Error(clipped.error);
-    expect((clipped.input.latest[0] as string).length).toBeLessThanOrEqual(120);
+    if (!full.ok) throw new Error(full.error);
+    expect(full.input.latest).toEqual([long]);
   });
 
-  it("keeps a next action whose title is too long as one message", () => {
+  it("keeps a next action's full title and message", () => {
     const result = recap(
       ':::reply{state="complete"}\n# Done\n\n### Next\n- This title is far too long for a button: send it\n:::\n',
     );
     expect(result).toMatchObject({
       ok: true,
-      input: { next: ["This title is far too long for a button: send it"] },
+      input: {
+        next: [
+          {
+            title: "This title is far too long for a button",
+            message: "send it",
+          },
+        ],
+      },
     });
   });
+
+  it.each(["complete", "review", "waiting"] as const)(
+    "preserves long Markdown fields through storage for %s",
+    (state) => {
+      // Exceeds both the tool's visible limit and its raw-text allowance.
+      const markdown = `**${"full text ".repeat(400).trim()}** with \`code\` and [the source](https://example.com/source)`;
+      const title =
+        "A full next-action title longer than twenty-eight characters";
+      const linkTitle = `**${"review target ".repeat(30).trim()}**`;
+      const result = recap(
+        `:::reply{state="${state}" timeout="600"}\n# ${markdown}\n- [x] ${markdown}\n\n### Review\n- ${markdown}\n\n### Next\n- ${title}: ${markdown}\n\n### Links\n- [${linkTitle}](https://example.com/review)\n\n### Waiting on\n- @thread:thr_worker ${markdown}\n:::\n`,
+      );
+      if (!result.ok) throw new Error(result.error);
+      expect(result.input.goal).toBe(markdown);
+      if (state === "waiting") {
+        expect(result.input.waitingAgents).toEqual([
+          { threadId: "thr_worker", task: markdown },
+        ]);
+      } else {
+        expect(result.input.latest).toEqual([markdown]);
+        expect(result.input.next).toEqual([{ title, message: markdown }]);
+      }
+      if (state === "review") {
+        expect(result.input.review).toEqual([markdown]);
+        expect(result.input.links).toEqual([
+          { title: linkTitle, location: "https://example.com/review" },
+        ]);
+      }
+      const stored = toRecap(result.input, { id: "r1", turnId: "t1", at: 1 });
+      expect(recapSchema.parse(JSON.parse(JSON.stringify(stored)))).toEqual(
+        stored,
+      );
+      expect(recapInputSchema.safeParse(result.input).success).toBe(false);
+    },
+  );
 
   it("drops links that are not absolute paths or HTTPS URLs", () => {
     const result = recap(

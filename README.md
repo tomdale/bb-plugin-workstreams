@@ -443,7 +443,8 @@ Workstreams page. With the [tomdale/bb](https://github.com/tomdale/bb) fork,
 which adds a message-block slot, you also get **Structured replies**:
 
 - Agents end each turn with a `:::reply` block instead of calling the recap
-  tool; its headline and results become the recap card.
+  tool; its headline and results become the recap card. Card text preserves
+  inline Markdown and is not clipped to the recap tool's character limits.
 - The block draws inline in the card's style, and leaves its card fields to the
   docked card while that turn's card shows.
 

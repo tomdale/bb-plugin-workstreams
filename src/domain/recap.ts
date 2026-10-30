@@ -44,15 +44,14 @@ const visibleLength = (markdown: string) =>
 
 // Tool parameters avoid transforms so BB can describe them as JSON Schema.
 // `max` bounds the visible text; the raw cap leaves room for link targets.
-const line = (max: number) =>
-  z
-    .string()
-    .trim()
-    .min(1)
-    .max(max * 4 + 2048)
-    .refine((text) => visibleLength(text) <= max, {
-      message: `Keep the visible text to ${max} characters or fewer.`,
-    });
+const line = (max?: number) => {
+  const text = z.string().trim().min(1);
+  return max === undefined
+    ? text
+    : text.max(max * 4 + 2048).refine((text) => visibleLength(text) <= max, {
+        message: `Keep the visible text to ${max} characters or fewer.`,
+      });
+};
 /** One line without the closing period models add despite instructions. */
 const tidy = (text: string) =>
   text
@@ -61,7 +60,7 @@ const tidy = (text: string) =>
     .replace(/(?<!\.)\.$/, "");
 
 /** One recap list item, optionally with a secondary subrow. */
-const genericRecapItem = (max: number) =>
+const genericRecapItem = (max?: number) =>
   z
     .object({
       text: line(max).describe("The item's primary text"),
@@ -71,7 +70,7 @@ const genericRecapItem = (max: number) =>
     })
     .strict();
 
-const legacyRecapItem = (max: number) =>
+const legacyRecapItem = (max?: number) =>
   z
     .object({
       step: line(max).describe("Legacy alias for text"),
@@ -79,7 +78,7 @@ const legacyRecapItem = (max: number) =>
     })
     .strict();
 
-const recapItemSchema = (max: number) =>
+const recapItemSchema = (max?: number) =>
   z.union([line(max), genericRecapItem(max), legacyRecapItem(max)]);
 
 export type RecapItem =
@@ -239,6 +238,32 @@ const recapFields = z
   .strict();
 
 /**
+ * Block fields and stored recaps preserve the agent's full inline Markdown.
+ * Tool-only text limits must not reject a block's card when it is read back.
+ */
+const fullNextActionSchema = z.union([
+  line(),
+  nextActionSchema.options[1].extend({
+    title: line(),
+    message: line(),
+    description: line().optional(),
+  }),
+]);
+const fullLinkSchema = linkSchema.extend({ title: line() });
+const fullWaitingAgentSchema = waitingAgentSchema.extend({ task: line() });
+const blockRecapFields = recapFields.extend({
+  goal: line(),
+  latest: z.array(recapItemSchema()).max(3).default([]),
+  review: z
+    .union([z.array(recapItemSchema()).max(3), z.string().trim()])
+    .nullable()
+    .optional(),
+  links: z.array(fullLinkSchema).max(8).default([]),
+  next: z.array(fullNextActionSchema).max(3).default([]),
+  waitingAgents: z.array(fullWaitingAgentSchema).max(8).optional(),
+});
+
+/**
  * The fields advertised to agents. Keep the root a concrete object: provider
  * bridges can flatten a root union into a tool with no named parameters.
  * State-specific requirements are enforced by recapInputSchema at execution.
@@ -250,10 +275,14 @@ export const recapToolSchema = recapFields;
  * `reviewResults` is the fewest results a review recap needs: one from the
  * tool, none from a reply block, whose review steps can stand alone.
  */
-const inputSchema = (reviewResults: 0 | 1) =>
+const inputSchema = (
+  reviewResults: 0 | 1,
+  fields = recapFields,
+  reviewLimit: number | null = 160,
+) =>
   z
     .discriminatedUnion("state", [
-      recapFields.extend({
+      fields.extend({
         state: z.literal("complete"),
         timeout: z.null().optional(),
         waitingAgents: z.array(z.never()).max(0).default([]),
@@ -262,26 +291,29 @@ const inputSchema = (reviewResults: 0 | 1) =>
           .nullable()
           .optional(),
         // A short answer's goal states the answer and needs no results.
-        latest: recapFields.shape.latest,
+        latest: fields.shape.latest,
         links: z
           .array(linkSchema)
           .max(0, "Links are review targets and belong only in a review recap.")
           .default([]),
       }),
-      recapFields.extend({
+      fields.extend({
         state: z.literal("review"),
         timeout: z.null().optional(),
         waitingAgents: z.array(z.never()).max(0).default([]),
         latest:
           reviewResults === 1
-            ? recapFields.shape.latest.removeDefault().min(1)
-            : recapFields.shape.latest,
+            ? fields.shape.latest.removeDefault().min(1)
+            : fields.shape.latest,
         review: z.union([
-          z.array(reviewStepSchema).min(1).max(3),
+          z
+            .array(recapItemSchema(reviewLimit ?? undefined))
+            .min(1)
+            .max(3),
           z.string().trim().min(1),
         ]),
       }),
-      recapFields.extend({
+      fields.extend({
         state: z.literal("waiting"),
         timeout: z.number().int().min(1).max(86400),
         latest: z.array(z.never()).max(0).default([]),
@@ -302,7 +334,9 @@ const inputSchema = (reviewResults: 0 | 1) =>
           recap.state === "review" ? recap.review : undefined,
         );
         return (
-          steps.length <= 3 && steps.every((step) => recapItemWithin(step, 160))
+          steps.length <= 3 &&
+          (reviewLimit === null ||
+            steps.every((step) => recapItemWithin(step, reviewLimit)))
         );
       },
       {
@@ -311,23 +345,9 @@ const inputSchema = (reviewResults: 0 | 1) =>
       },
     );
 export const recapInputSchema = inputSchema(1);
-/** A reply block's recap: the same contract, except review results are optional. */
-export const blockRecapInputSchema = inputSchema(0);
+/** A block preserves full text and needs no results alongside review steps. */
+export const blockRecapInputSchema = inputSchema(0, blockRecapFields, null);
 export type RecapInput = z.infer<typeof recapInputSchema>;
-
-/**
- * One line clipped to `max` visible characters for a reply block's recap,
- * which is clipped rather than rejected. A line over the limit loses its
- * Markdown and ends in an ellipsis at a word boundary.
- */
-export function clipVisible(markdown: string, max: number): string {
-  const text = markdown.replace(/\s+/g, " ").trim();
-  if (visibleLength(text) <= max) return text;
-  let cut = plainText(text).slice(0, max - 1);
-  const space = cut.lastIndexOf(" ");
-  if (space > max * 0.6) cut = cut.slice(0, space);
-  return `${cut.trimEnd()}…`;
-}
 
 /** A stored recap, tied to the turn that reported it. */
 export const recapSchema = z
@@ -339,7 +359,7 @@ export const recapSchema = z
     goal: z.string(),
     /** Legacy Waiting label saved before Waiting reused goal. */
     task: z.string().optional(),
-    waitingAgents: z.array(waitingAgentSchema).optional(),
+    waitingAgents: z.array(fullWaitingAgentSchema).optional(),
     latest: z.array(storedRecapItemSchema).default([]),
     timeout: z.number().optional(),
     /** Review steps; empty unless the state is review. */
@@ -347,9 +367,9 @@ export const recapSchema = z
       (value) => storedRecapItems(value),
       z.array(storedRecapItemSchema),
     ),
-    links: z.array(linkSchema),
+    links: z.array(fullLinkSchema),
     /** Suggested next messages, offered as buttons; empty while waiting. */
-    next: z.array(nextActionSchema).default([]),
+    next: z.array(fullNextActionSchema).default([]),
   })
   .transform(({ task, waitingAgents, ...recap }) => ({
     ...recap,

@@ -5,9 +5,13 @@ import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { emptyState, sidebarThread } from "./fixtures.ts";
 import {
   recapInputSchema,
+  recapSchema,
   toRecap,
   type RecapFiles,
 } from "../../src/domain/recap.ts";
+import { parse } from "../../src/domain/reply.ts";
+import { recapInputFromCard } from "../../src/domain/replyRecap.ts";
+import { blockInput } from "../domain/replyFixtures.ts";
 
 const interactionOverride = vi.hoisted(() => ({
   value: null as boolean | null,
@@ -228,6 +232,53 @@ async function mount(
     },
   );
 }
+
+it("renders a block's full card values with code formatting and clickable links", async () => {
+  markdownRendering.enabled = true;
+  const explanation =
+    "The full explanation must survive the card conversion without dropping its final conclusion "
+      .repeat(3)
+      .trim();
+  const markdown = `${explanation} with \`non-null\` and [the schema](https://example.com/schema)`;
+  const parsed = parse(
+    blockInput(
+      `:::reply{state="complete"}\n# ${markdown}\n- [x] ${markdown}\n\n### Next\n- Inspect: ${explanation}\n:::\n`,
+    ),
+  );
+  if (!parsed.ok || !parsed.data.card) throw new Error("no card");
+  const result = recapInputFromCard(parsed.data.card);
+  if (!result.ok) throw new Error(result.error);
+  const recap = recapSchema.parse(
+    JSON.parse(
+      JSON.stringify(
+        toRecap(result.input, {
+          id: "r1",
+          turnId: "turn",
+          at: 1,
+        }),
+      ),
+    ),
+  );
+  const send = vi.fn(() => ({ ok: true }));
+  const slot = await mount({ recap, send });
+  const heading = await slot.findByRole("heading", { level: 2 });
+  expect(heading.textContent).toBe(
+    `${explanation} with non-null and the schema`,
+  );
+  expect(heading.querySelector("code")?.textContent).toBe("non-null");
+  expect(heading.querySelector("a")?.getAttribute("href")).toBe(
+    "https://example.com/schema",
+  );
+  expect(await slot.findAllByRole("link", { name: "the schema" })).toHaveLength(
+    2,
+  );
+  fireEvent.click(await slot.findByRole("button", { name: "Inspect" }));
+  await waitFor(() =>
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ action: explanation }),
+    ),
+  );
+});
 
 it("opens the next thread in the workstream only after archive succeeds", async () => {
   let resolve!: (value: { ok: boolean }) => void;

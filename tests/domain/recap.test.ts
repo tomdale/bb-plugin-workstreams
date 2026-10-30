@@ -34,6 +34,35 @@ it("counts only rendered thread mentions as chips for visible length", () => {
   }
 });
 
+it.each([
+  { goal: "x".repeat(81) },
+  { latest: ["x".repeat(121)] },
+  { next: ["x".repeat(121)] },
+  { next: [{ title: "x".repeat(29), message: "Run it" }] },
+  { next: [{ title: "Run it", message: "x".repeat(121) }] },
+  { state: "review", latest: ["Done"], review: ["x".repeat(161)] },
+  {
+    state: "review",
+    latest: ["Done"],
+    review: ["Inspect"],
+    links: [{ title: "x".repeat(81), location: "https://example.com" }],
+  },
+  {
+    state: "waiting",
+    timeout: 600,
+    waitingAgents: [{ threadId: "thr_worker", task: "x".repeat(81) }],
+  },
+])("keeps the recap tool's text limits for %j", (patch) => {
+  expect(
+    recapInputSchema.safeParse({
+      state: "complete",
+      goal: "Done",
+      latest: [],
+      ...patch,
+    }).success,
+  ).toBe(false);
+});
+
 it("explains when to keep collaborating instead of reporting a completed turn", () => {
   expect(RECAP_TOOL_DESCRIPTION).toContain(
     "all work this thread owns is finished",
