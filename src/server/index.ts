@@ -1217,7 +1217,6 @@ export default async function plugin(bb: BbPluginApi) {
         {
           db,
           inference,
-          model: async () => currentPrefs().analysis.fullModel,
           threads: () => service.threads(),
           listing: listingOf,
           objective: (threadId) =>

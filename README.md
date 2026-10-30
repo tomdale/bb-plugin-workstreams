@@ -151,7 +151,8 @@ Full analysis settles:
   They aim under `32` characters; titles over `48` are dropped rather than
   clipped. If you rename a thread outside Workstreams, that title is locked and
   preserved until cleared. `bb workstreams titles restyle` proposes titles in
-  this form for threads Workstreams titled earlier, and `--apply` renames them.
+  this form for threads Workstreams titled earlier, using `openai/gpt-6-sol`
+  (reasoning `low`), and `--apply` renames them.
 - **Fallback recap and status:** Only when the agent did not call
   `WorkstreamsRecap`, Full analysis supplies a one-line recap, work state
   (`needs_decision`, `review`, `blocked`, `in_progress`, or `done`), and a short

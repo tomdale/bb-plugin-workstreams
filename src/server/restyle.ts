@@ -19,6 +19,17 @@ import { readTitleRecord } from "./titles.ts";
 /** Model calls in flight at once. */
 const CONCURRENCY = 4;
 
+/**
+ * Renaming runs once per thread, not every turn, so it can afford a model
+ * with more judgment than the analyses': one that keeps the subject when the
+ * listing already says most of the title.
+ */
+export const RESTYLE_MODEL: ModelChoice = {
+  kind: "gateway",
+  model: "openai/gpt-6-sol",
+  reasoningLevel: "low",
+};
+
 export type RestyleOutcome = {
   readonly threadId: string;
   readonly from: string;
@@ -33,7 +44,6 @@ export async function restyleTitles(
   deps: {
     db: Database;
     inference: Inference;
-    model: () => Promise<ModelChoice>;
     /** Visible threads, roots and children. */
     threads: () => readonly InventoryThread[];
     listing: (thread: InventoryThread) => ThreadListing;
@@ -58,7 +68,7 @@ export async function restyleTitles(
       record.written === thread.ownTitle
     );
   });
-  const model = await deps.model();
+  const model = RESTYLE_MODEL;
   const outcomes: RestyleOutcome[] = [];
   let cursor = 0;
   await Promise.all(
@@ -91,7 +101,8 @@ export async function restyleTitles(
           });
           continue;
         }
-        if (!to) {
+        // One word names too little to replace a title with.
+        if (!to || to.split(/\s+/).length < 2) {
           outcomes.push({
             threadId: thread.id,
             from,
