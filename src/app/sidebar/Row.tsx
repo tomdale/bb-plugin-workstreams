@@ -23,8 +23,13 @@ import { usePrefs } from "../prefs.ts";
 import { SnoozeIcon, WakeIcon } from "../snooze/icons.tsx";
 import { HoverAction, HoverMenuButton, RowActions } from "./HoverActions.tsx";
 
-const INDENT_PX = 12;
-const MAX_INDENT = 4;
+/**
+ * One level of nesting: a status slot (14px) and the gap after it (6px), so
+ * a child's mark sits where its parent's title starts. Subgroup blocks in
+ * the thread list step in by the same amount.
+ */
+export const INDENT_PX = 20;
+const MAX_INDENT = 3;
 
 function prTone(pr: PluginSidebarPullRequest): string {
   if (pr.state === "merged") return "ws-pr-merged";

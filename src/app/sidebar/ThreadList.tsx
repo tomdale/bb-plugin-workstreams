@@ -6,7 +6,11 @@
  * visible thread appears in exactly one group, or in Snoozed.
  *
  * Workstreams nest by topic (see `nestGroups`): a group lists its own
- * threads, then its subgroups, each indented one step.
+ * threads, then the threads of subgroups too small for headers, each
+ * labeled with its subgroup, then its other subgroups. Each level starts
+ * where its parent's names do: a subgroup's block, and a child thread, sit
+ * one step (`INDENT_PX`) in. Small top-level groups gather in Other (see
+ * `arrangeGroups`).
  *
  * Up Next's rows come from `selectUpNext`, including its focus on the
  * focused workstreams; while any workstream is focused, the rest hide behind
@@ -44,6 +48,7 @@ import {
   type Row as RowModel,
 } from "../../domain/project.ts";
 import {
+  OTHER_ID,
   arrangeGroups,
   focusedSections,
   groupRoots,
@@ -64,7 +69,7 @@ import {
   type BandSortOption,
 } from "./useBandOptions.ts";
 import { NameDialog, type NameRequest } from "./NameDialog.tsx";
-import { Row, hasStatusMark } from "./Row.tsx";
+import { INDENT_PX, Row, hasStatusMark } from "./Row.tsx";
 import { HeaderMenu, RowMenu, type RowMenuHandlers } from "./RowMenu.tsx";
 import { TraceInspector } from "../debug/Inspector.tsx";
 import {
@@ -106,6 +111,16 @@ import { usePrefs } from "../prefs.ts";
 
 type ThreadGroup = Group<PluginSidebarThread>;
 type ThreadNode = WorkstreamNode<PluginSidebarThread>;
+
+/** The groups drawn inline under `group`, in order, theirs included. */
+function inlineGroups(group: ThreadNode): ThreadNode[] {
+  return group.subgroups
+    .filter((sub) => sub.inline)
+    .flatMap((sub) => [sub, ...inlineGroups(sub)]);
+}
+
+/** A group's own name, for its rows' label: "Walkthrough Plugin" for "bb: Walkthrough Plugin". */
+const shortLabel = (label: string) => label.split(/:\s*/).at(-1) ?? label;
 type ThreadRow = RowModel<PluginSidebarThread>;
 /** Where a row is drawn: its workstream group, or one of the overlays. */
 type Placement = "group" | "needs-you" | "recent" | "snoozed" | "archived";
@@ -486,6 +501,12 @@ export function WorkstreamsThreadList({
         ),
     );
   const needsMarks = anyMark(shownNeedsRows, "needs-you");
+  const groupMarks = anyMark(
+    [...projection.groups, projection.unsorted, ...projection.dormant].flatMap(
+      (group) => group.rows,
+    ),
+    "group",
+  );
   const rowKey = (row: ThreadRow) => row.thread.id;
   const showBand = ws.showForYou && shownNeedsRows.length > 0;
   const bandPresence = usePresence(showBand ? ["band"] : [], String);
@@ -555,6 +576,8 @@ export function WorkstreamsThreadList({
     showStatusSlot = true,
     depth = isOverlay(placement) ? 0 : row.depth,
     key = row.thread.id,
+    /** Its group's name, for a row listed outside that group's header. */
+    label?: string,
   ) => (
     <RowMenu
       key={key}
@@ -573,7 +596,7 @@ export function WorkstreamsThreadList({
           depth={depth}
           active={row.thread.id === activeThreadId}
           now={now}
-          context={contextOf(row, placement)}
+          context={label ?? contextOf(row, placement)}
           attention={placement === "needs-you"}
           work={ws.work(row.thread)}
           showStatusSlot={showStatusSlot}
@@ -673,9 +696,13 @@ export function WorkstreamsThreadList({
           ),
         )),
   ];
-  /** A group's rows as sortable trees; the root row drags the whole tree. */
-  const renderTrees = (group: ThreadGroup) => {
-    const marks = anyMark(group.rows, "group");
+  /**
+   * A group's rows as sortable trees; the root row drags the whole tree.
+   * Every group decides its status slot together, so titles line up from
+   * one group to the next.
+   */
+  const renderTrees = (group: ThreadGroup, label?: string) => {
+    const marks = groupMarks;
     return (
       <SortableContext
         items={treesOf(group.rows).map((tree) => treeKey(tree[0]!.thread.id))}
@@ -698,6 +725,9 @@ export function WorkstreamsThreadList({
                         "group",
                         index === 0 ? handle : undefined,
                         marks,
+                        undefined,
+                        undefined,
+                        label,
                       ),
                     )}
                   </ul>
@@ -718,42 +748,65 @@ export function WorkstreamsThreadList({
     navigate.toCompose({ focusPrompt: true });
   };
   /**
-   * A group's own threads, then its subgroups. Subgroups fold on their own
-   * and take thread drops, but reorder and focus only with their top-level
-   * group.
+   * A group's own threads, then those of its subgroups drawn inline, each
+   * labeled with its subgroup, then its other subgroups. Subgroups fold on
+   * their own and take thread drops, but reorder and focus only with their
+   * top-level group.
    */
   const renderGroupBody = (group: ThreadNode): ReactNode => [
     <Fragment key="trees">{renderTrees(group)}</Fragment>,
-    ...group.subgroups.map((sub) => {
-      const render = (ref?: (element: HTMLElement | null) => void) => (
-        <WorkstreamGroup
-          group={sub}
-          nested
-          sectionRef={ref}
-          collapsed={groupCollapsed(sub.id, false, sub.topicId)}
-          toggle={() => toggleGroup(sub.id, false, sub.topicId)}
-          onNewThread={newThreadIn(sub)}
-          snooze={groupSnoozeOf(sub)}
-        >
-          {renderGroupBody(sub)}
-        </WorkstreamGroup>
-      );
-      return (
-        <li key={sub.id} className="list-none">
-          {sub.hasSection ? (
-            <DropTarget
-              id={groupKey(sub.id)}
-              data={{ type: "target", groupId: sub.id }}
-            >
-              {render}
-            </DropTarget>
-          ) : (
-            render()
-          )}
-        </li>
-      );
-    }),
+    ...inlineGroups(group).map((sub) => (
+      <Fragment key={`inline:${sub.id}`}>
+        {renderTrees(sub, shortLabel(sub.label))}
+      </Fragment>
+    )),
+    ...group.subgroups
+      .filter((sub) => !sub.inline)
+      .map((sub) => {
+        const render = (ref?: (element: HTMLElement | null) => void) => (
+          <WorkstreamGroup
+            group={sub}
+            nested
+            sectionRef={ref}
+            collapsed={groupCollapsed(sub.id, false, sub.topicId)}
+            toggle={() => toggleGroup(sub.id, false, sub.topicId)}
+            onNewThread={newThreadIn(sub)}
+            snooze={groupSnoozeOf(sub)}
+          >
+            {renderGroupBody(sub)}
+          </WorkstreamGroup>
+        );
+        return (
+          <li key={sub.id} className="list-none">
+            {sub.hasSection ? (
+              <DropTarget
+                id={groupKey(sub.id)}
+                data={{ type: "target", groupId: sub.id }}
+              >
+                {render}
+              </DropTarget>
+            ) : (
+              render()
+            )}
+          </li>
+        );
+      }),
   ];
+  /**
+   * Other: the small top-level groups' rows under one header, each labeled
+   * with its workstream. It stays last, so it neither drags nor focuses.
+   */
+  const renderOther = (group: ThreadNode) => (
+    <WorkstreamGroup
+      key={group.id}
+      group={group}
+      collapsed={lowerCollapsed(group.id)}
+      toggle={() => lowerToggle(group.id)}
+      snooze={groupSnoozeOf(group)}
+    >
+      {renderGroupBody(group)}
+    </WorkstreamGroup>
+  );
   const renderSortableGroup = (
     group: ThreadNode,
     props: Omit<GroupProps, "group" | "children">,
@@ -918,11 +971,15 @@ export function WorkstreamsThreadList({
     >
       <div className="flex flex-col gap-2">
         <SortableContext
-          items={populatedGroups.map((group) => groupKey(group.id))}
+          items={populatedGroups
+            .filter((group) => group.id !== OTHER_ID)
+            .map((group) => groupKey(group.id))}
           strategy={verticalListSortingStrategy}
         >
           {populatedGroups.map((group) =>
-            renderSortableGroup(group, activeGroupProps(group)),
+            group.id === OTHER_ID
+              ? renderOther(group)
+              : renderSortableGroup(group, activeGroupProps(group)),
           )}
         </SortableContext>
         {projection.unsorted.total > 0 ? (
@@ -1558,7 +1615,10 @@ function BandOptionsMenu({
 
 type GroupProps = {
   group: ThreadGroup | ThreadNode;
-  /** A subgroup, drawn smaller with its contents indented under its name. */
+  /**
+   * A subgroup: its block starts one step in, where its parent's name does,
+   * and its name reads as a label, smaller and muted.
+   */
   nested?: boolean;
   collapsed: boolean;
   toggle: () => void;
@@ -1612,11 +1672,15 @@ function WorkstreamGroup({
   return (
     <section
       ref={sectionRef}
-      style={style}
       aria-label={group.name}
       data-flip-key={`group:${group.id}`}
       data-prioritized={group.prioritized ? "" : undefined}
-      className={cn("rounded-md", !nested && "px-1")}
+      className="rounded-md"
+      style={{
+        ...style,
+        paddingLeft: nested ? INDENT_PX : 4,
+        paddingRight: nested ? 0 : 4,
+      }}
     >
       <HeaderMenu
         focus={
@@ -1632,25 +1696,31 @@ function WorkstreamGroup({
           {...handle?.listeners}
           // The wider right padding lines its buttons' icons up with the
           // thread rows' below.
-          className="group/row flex items-center gap-1.5 rounded-md py-0.5 pl-1.5 pr-2.5 hover:bg-sidebar-accent/60"
+          // Same box as a thread row: 28px tall, the chevron in a status
+          // slot's 14px, the name where thread titles start.
+          className="group/row flex h-7 items-center gap-1.5 rounded-md pl-1.5 pr-2.5 hover:bg-sidebar-accent/60"
         >
           <button
             type="button"
             aria-expanded={group.total > 0 ? !collapsed : undefined}
             onClick={group.total > 0 ? toggle : undefined}
-            className="flex min-w-0 flex-1 items-center gap-1 text-left"
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
           >
-            {group.total > 0 ? (
-              <Icon
-                name={collapsed ? "ChevronRight" : "ChevronDown"}
-                className="size-3 shrink-0 text-muted-foreground"
-              />
-            ) : null}
+            <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground">
+              {group.total > 0 ? (
+                <Icon
+                  name={collapsed ? "ChevronRight" : "ChevronDown"}
+                  className="size-3"
+                />
+              ) : null}
+            </span>
             <WorkstreamName
               name={"label" in group ? group.label : group.name}
-              muted={muted}
+              muted={muted || nested}
               className={
-                nested ? "text-[12px] font-medium" : "text-[13px] font-semibold"
+                nested
+                  ? "text-[12px] font-semibold"
+                  : "text-[13px] font-semibold"
               }
             />
           </button>
@@ -1699,9 +1769,7 @@ function WorkstreamGroup({
           </span>
         </div>
       </HeaderMenu>
-      {collapsed ? null : (
-        <ul className={cn("mt-0.5", nested && "pl-4")}>{children}</ul>
-      )}
+      {collapsed ? null : <ul>{children}</ul>}
     </section>
   );
 }

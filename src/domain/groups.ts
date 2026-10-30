@@ -11,6 +11,13 @@
  * organizer last applied (see `layoutGroups`): which topics list threads,
  * which only head subgroups, and the names dimmed before each header.
  * Focus, dormancy, and ordering apply to the top-level group as a whole.
+ *
+ * Small groups don't get headers (see `GROUP_MIN`): a subgroup showing fewer
+ * threads lists them in its parent's list, and so do all of a group's
+ * subgroups unless two of them are big enough for headers. Small top-level
+ * groups gather in Other, after the rest, once there are `OTHER_MIN` of them
+ * beside some bigger group. Rows listed outside their own group's header
+ * carry its name.
  */
 import { layoutLabel, type LayoutNode } from "./layout.ts";
 import type { Group, Projection, WorkstreamThread } from "./project.ts";
@@ -50,7 +57,81 @@ export type WorkstreamNode<T extends WorkstreamThread> = Group<T> & {
   readonly subgroups: readonly WorkstreamNode<T>[];
   /** Every section in the subtree, in the input order. */
   readonly sectionIds: readonly string[];
+  /**
+   * Drawn without a header: its rows, and its subgroups' rows, list in its
+   * parent's list, each labeled with its name.
+   */
+  readonly inline?: boolean;
 };
+
+/**
+ * A group or subgroup gets its own header only when it shows at least this
+ * many threads.
+ */
+export const GROUP_MIN = 3;
+
+/** Id of Other, which gathers the small top-level groups. */
+export const OTHER_ID = "__other";
+export const OTHER_NAME = "Other";
+
+/** A node with every group in it drawn inline, under its parent's header. */
+const inlined = <T extends WorkstreamThread>(
+  node: WorkstreamNode<T>,
+): WorkstreamNode<T> => ({
+  ...node,
+  inline: true,
+  subgroups: node.subgroups.map(inlined),
+});
+
+/**
+ * Folds small subgroups into their parent's list. A subgroup keeps its
+ * header when it shows `GROUP_MIN` threads and a sibling does too; one with
+ * none to show is a recently emptied workstream kept for New work, so it
+ * keeps its header as well.
+ */
+function foldSmall<T extends WorkstreamThread>(
+  node: WorkstreamNode<T>,
+): WorkstreamNode<T> {
+  const big = node.subgroups.filter((sub) => sub.total >= GROUP_MIN);
+  const keeps = (sub: WorkstreamNode<T>) =>
+    sub.total === 0 || (big.length >= 2 && sub.total >= GROUP_MIN);
+  return {
+    ...node,
+    subgroups: node.subgroups.map((sub) =>
+      keeps(sub) ? foldSmall(sub) : inlined(sub),
+    ),
+  };
+}
+
+/** Other forms once this many small top-level groups would gather there. */
+export const OTHER_MIN = 3;
+
+/**
+ * Other: the small top-level groups, each drawn inline. It forms only when
+ * it saves headers in a list with some to spare: `OTHER_MIN` small groups,
+ * and some other group keeping its header, so a short list of small groups
+ * never turns into a lone Other.
+ */
+function gatherOther<T extends WorkstreamThread>(
+  small: readonly WorkstreamNode<T>[],
+  others: number,
+): WorkstreamNode<T> | null {
+  if (small.length < OTHER_MIN || others === 0) return null;
+  return {
+    id: OTHER_ID,
+    name: OTHER_NAME,
+    label: OTHER_NAME,
+    rows: [],
+    total: small.reduce((sum, node) => sum + node.total, 0),
+    needsYou: small.reduce((sum, node) => sum + node.needsYou, 0),
+    lastActiveAt: Math.max(0, ...small.map((node) => node.lastActiveAt)),
+    prioritized: false,
+    topicId: null,
+    hasSection: false,
+    subgroups: small.map(inlined),
+    sectionIds: small.flatMap((node) => node.sectionIds),
+  };
+}
 
 /** Id of a header drawn for a topic that has no section. */
 export const sharedTopicId = (topicId: string) => `topic:${topicId}`;
@@ -329,7 +410,8 @@ export function arrangeGroups<T extends WorkstreamThread>(
       (node) =>
         node.total > 0 || node.sectionIds.some((id) => retained.has(id)),
     )
-    .map(prune);
+    .map(prune)
+    .map(foldSmall);
   const pinnedNodes: WorkstreamNode<T>[] = [];
   const otherNodes: WorkstreamNode<T>[] = [];
   const dormant: WorkstreamNode<T>[] = [];
@@ -343,7 +425,20 @@ export function arrangeGroups<T extends WorkstreamThread>(
     else otherNodes.push(node);
   }
   const pinned = sortTree(pinnedNodes, sort);
-  const other = sortTree(otherNodes, sort);
+  const isSmall = (node: WorkstreamNode<T>) =>
+    node.total > 0 && node.total < GROUP_MIN;
+  const gathered = gatherOther(
+    sortTree(otherNodes.filter(isSmall), sort),
+    otherNodes.filter((node) => node.total > 0 && !isSmall(node)).length +
+      pinnedNodes.length,
+  );
+  const other = [
+    ...sortTree(
+      gathered ? otherNodes.filter((node) => !isSmall(node)) : otherNodes,
+      sort,
+    ),
+    ...(gathered ? [gathered] : []),
+  ];
   const lowerCounts = [...other, ...dormant, projection.unsorted].reduce(
     (counts, group) => ({
       needsYou: counts.needsYou + group.needsYou,

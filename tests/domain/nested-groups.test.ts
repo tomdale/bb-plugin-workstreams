@@ -447,3 +447,154 @@ describe("planDrop with nested groups", () => {
     });
   });
 });
+
+describe("small groups", () => {
+  /** The outline, with groups drawn inline marked. */
+  const shape = (
+    nodes: readonly WorkstreamNode<TestThread>[],
+    depth = 0,
+  ): string[] =>
+    nodes.flatMap((node) => [
+      `${"  ".repeat(depth)}${node.label} (${node.total})${node.inline ? " inline" : ""}`,
+      ...shape(node.subgroups, depth + 1),
+    ]);
+  const sections = [
+    { id: "sec_alerts", name: "Beacon: Automations: Alert Investigations" },
+    { id: "sec_cli", name: "Beacon: Automations: CLI" },
+    { id: "sec_ws", name: "Workstreams" },
+  ];
+  const nested = topics(
+    { sec_alerts: "alerts", sec_cli: "cli", sec_ws: "ws" },
+    SPLIT,
+  );
+  const threads = (counts: Record<string, number>) =>
+    Object.entries(counts).flatMap(([sectionId, n]) =>
+      Array.from({ length: n }, (_, i) =>
+        thread(`${sectionId}-${i}`, { sectionId, latestAttentionAt: now }),
+      ),
+    );
+  const arrange = (
+    counts: Record<string, number>,
+    list = sections,
+    bindings = nested,
+    prioritized: string[] = [],
+  ) =>
+    arrangeGroups(
+      projectWorkstreams(threads(counts), list, {
+        now,
+        order: { workstreams: [], threads: {}, prioritized },
+      }),
+      "alphabetical",
+      bindings,
+    );
+
+  it("keeps headers for subgroups once two show enough threads", () => {
+    expect(shape(arrange({ sec_alerts: 3, sec_cli: 3 }).populated)).toEqual([
+      "Beacon: Automations (6)",
+      "  Alert Investigations (3)",
+      "  CLI (3)",
+    ]);
+  });
+
+  it("lists every subgroup inline when fewer than two are big enough", () => {
+    expect(shape(arrange({ sec_alerts: 4, sec_cli: 2 }).populated)).toEqual([
+      "Beacon: Automations (6)",
+      "  Alert Investigations (4) inline",
+      "  CLI (2) inline",
+    ]);
+  });
+
+  it("lists a small subgroup inline beside two big ones", () => {
+    const list = [
+      ...sections,
+      { id: "sec_review", name: "Beacon: Automations: Review" },
+    ];
+    const bindings = topics(
+      { sec_alerts: "alerts", sec_cli: "cli", sec_review: "review" },
+      [
+        node(
+          "auto",
+          "Automations",
+          [
+            node("alerts", "Alert Investigations"),
+            node("cli", "CLI"),
+            node("review", "Review"),
+          ],
+          { prefix: ["Beacon"] },
+        ),
+      ],
+    );
+    expect(
+      shape(
+        arrange({ sec_alerts: 3, sec_cli: 1, sec_review: 3 }, list, bindings)
+          .populated,
+      ),
+    ).toEqual([
+      "Beacon: Automations (7)",
+      "  Alert Investigations (3)",
+      "  CLI (1) inline",
+      "  Review (3)",
+    ]);
+  });
+
+  describe("Other", () => {
+    const flat = [
+      { id: "sec_big", name: "Big" },
+      { id: "sec_x", name: "Xylophone" },
+      { id: "sec_y", name: "Yak" },
+      { id: "sec_z", name: "Zebra" },
+    ];
+
+    it("gathers three small top-level groups after the rest", () => {
+      expect(
+        shape(
+          arrange(
+            { sec_big: 3, sec_x: 1, sec_y: 2, sec_z: 1 },
+            flat,
+            undefined as never,
+          ).populated,
+        ),
+      ).toEqual([
+        "Big (3)",
+        "Other (4)",
+        "  Xylophone (1) inline",
+        "  Yak (2) inline",
+        "  Zebra (1) inline",
+      ]);
+    });
+
+    it("forms only with three small groups beside a bigger one", () => {
+      const labels = (counts: Record<string, number>) =>
+        arrange(counts, flat, undefined as never).populated.map(
+          (node) => node.label,
+        );
+      expect(labels({ sec_big: 3, sec_x: 1, sec_y: 1 })).toEqual([
+        "Big",
+        "Xylophone",
+        "Yak",
+      ]);
+      expect(labels({ sec_big: 1, sec_x: 1, sec_y: 1, sec_z: 1 })).toEqual([
+        "Big",
+        "Xylophone",
+        "Yak",
+        "Zebra",
+      ]);
+    });
+
+    it("leaves a focused small group out, and counts it as bigger", () => {
+      const arranged = arrange(
+        { sec_big: 1, sec_x: 1, sec_y: 1, sec_z: 1 },
+        flat,
+        undefined as never,
+        ["sec_big"],
+      );
+      expect(arranged.pinned.map((node) => node.label)).toEqual(["Big"]);
+      expect(shape(arranged.populated)).toEqual([
+        "Other (3)",
+        "  Xylophone (1) inline",
+        "  Yak (1) inline",
+        "  Zebra (1) inline",
+      ]);
+    });
+  });
+});

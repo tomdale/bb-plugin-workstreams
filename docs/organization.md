@@ -58,6 +58,14 @@ A topic from before the partition rule that holds threads beside subtopics lists
 its own threads and still shows its subgroups, so no thread disappears; a split
 suggestion repairs it.
 
+The sidebar and Home then draw small groups without headers (`arrangeGroups` in
+`src/domain/groups.ts`), whatever the layout decided: a group needs at least 3
+visible threads for a header of its own. A smaller subgroup lists its threads in
+its parent's list, labeled with its name, and all of a group's subgroups do when
+fewer than two are big enough. Three or more small top-level groups beside a
+bigger one gather in Other, each row labeled with its workstream; a focused
+group keeps its header. Sections and topics don't change: this is drawing only.
+
 BB sections are flat; each group that lists threads is one section, named by its
 topic path, and headers above them have no section. At most three empty
 workstreams remain visible, newest first for eligibility, and only while each

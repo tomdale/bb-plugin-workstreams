@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { UNSORTED_ID, type Group, type Row } from "../../domain/project.ts";
-import type { WorkstreamNode } from "../../domain/groups.ts";
+import { OTHER_ID, type WorkstreamNode } from "../../domain/groups.ts";
 import { shortWake, type ThreadSnooze } from "../../domain/snooze.ts";
 import { workstreamHue } from "../../domain/workstreamHue.ts";
 import { WorkstreamName } from "../WorkstreamName.tsx";
@@ -216,9 +216,18 @@ export function WorkstreamGroups({
   );
 }
 
+/** The groups drawn inline under `group`, in order, theirs included. */
+const inlineGroups = (
+  group: WorkstreamNode<Thread>,
+): WorkstreamNode<Thread>[] =>
+  group.subgroups
+    .filter((sub) => sub.inline)
+    .flatMap((sub) => [sub, ...inlineGroups(sub)]);
+
 /**
- * A workstream: a header that opens and closes its threads, then its
- * subgroups (see `nestGroups`), which start open and fold on their own.
+ * A workstream: a header that opens and closes its threads, then those of
+ * its subgroups drawn inline, each labeled with its subgroup, then its other
+ * subgroups (see `arrangeGroups`), which start open and fold on their own.
  */
 function GroupSection({
   group,
@@ -237,19 +246,33 @@ function GroupSection({
   nested?: boolean;
 }) {
   const isUnfiled = group.id === UNSORTED_ID;
-  const subgroups = "subgroups" in group ? group.subgroups : [];
+  const plainDot = isUnfiled || group.id === OTHER_ID;
+  const subgroups =
+    "subgroups" in group ? group.subgroups.filter((sub) => !sub.inline) : [];
+  // Its own rows, then each inline group's, labeled with that group's name.
+  const blocks = [
+    { rows: group.rows, label: undefined as string | undefined },
+    ...("subgroups" in group ? inlineGroups(group) : []).map((sub) => ({
+      rows: sub.rows,
+      label: sub.label.split(/:\s*/).at(-1),
+    })),
+  ];
   const rows = open
-    ? unfoldedRows(
-        group.rows,
-        (row) => !env.isOpen(treeKey(row.thread.id), true),
+    ? blocks.flatMap((block) =>
+        unfoldedRows(
+          block.rows,
+          (row) => !env.isOpen(treeKey(row.thread.id), true),
+        ).map((row) => ({ row, label: block.label })),
       )
     : [];
   const descendants = new Map(
     open
-      ? group.rows.map((row, index) => [
-          row.thread.id,
-          descendantCount(group.rows, index),
-        ])
+      ? blocks.flatMap((block) =>
+          block.rows.map(
+            (row, index) =>
+              [row.thread.id, descendantCount(block.rows, index)] as const,
+          ),
+        )
       : [],
   );
   return (
@@ -264,7 +287,7 @@ function GroupSection({
       <h3 className="ws-home-group-head">
         <button type="button" aria-expanded={open} onClick={onToggle}>
           <Icon name="ChevronRight" className="ws-home-chevron" aria-hidden />
-          {nested ? null : isUnfiled ? (
+          {nested ? null : plainDot ? (
             <span className="ws-home-dot ws-home-dot-none" aria-hidden="true" />
           ) : (
             <span
@@ -308,7 +331,7 @@ function GroupSection({
       </h3>
       {open ? (
         <ul className="ws-home-rows" role="list">
-          {rows.map((row: Row<Thread>) => {
+          {rows.map(({ row, label }: { row: Row<Thread>; label?: string }) => {
             const children = descendants.get(row.thread.id) ?? 0;
             return (
               <HomeRow
@@ -320,6 +343,7 @@ function GroupSection({
                 depth={row.depth}
                 showMarkSlot
                 showAge={env.showAge}
+                trailing={label}
                 disclosure={
                   row.hasChildren
                     ? {

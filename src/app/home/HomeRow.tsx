@@ -50,7 +50,10 @@ export function HomeRow({
   workstream?: { name: string; hue: number } | null;
   /** What the thread asks of the user, from its current analysis. */
   ask?: string | null;
-  /** Replaces the age: a snoozed thread's wake time. */
+  /**
+   * Replaces the age: a snoozed thread's wake time, or the name of the group
+   * a row lists for when that group has no header of its own.
+   */
   trailing?: string;
   /** Present on a thread with child threads: shows and hides them. */
   disclosure?: { open: boolean; count: number; toggle: () => void };
