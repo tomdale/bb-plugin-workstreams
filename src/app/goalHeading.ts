@@ -88,6 +88,30 @@ export function headingHeight(
   );
 }
 
+/** Distance the expanded title travels until its bottom reaches the pane edge. */
+export function titleExitDistance(
+  base: number,
+  eyebrow: Eyebrow | null,
+  titleLines: number,
+): number {
+  return (
+    base * PAD_TOP +
+    (eyebrow?.expandedBlock ?? 0) +
+    base * TITLE_SIZE * TITLE_LINE * titleLines
+  );
+}
+
+/** The two copies move upward by the same distance; the compact copy starts
+ * one exit distance below its final position. */
+export function headingScroll(fromBottom: number, exitDistance: number) {
+  const moved = Math.min(Math.max(0, fromBottom), exitDistance);
+  return {
+    moved,
+    remaining: exitDistance - moved,
+    progress: moved / exitDistance,
+  };
+}
+
 /** The collapsed text block (workstream over title) in px. */
 export function compactBlock(base: number, eyebrow: Eyebrow | null): number {
   return (

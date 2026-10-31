@@ -116,6 +116,52 @@ it("draws the heading text inside the app's sliding surface so it travels with t
   slot.lifecycle.unmount();
 });
 
+it("moves the two fixed-size headings together as the reader scrolls", async () => {
+  paneFixture({ recap: false });
+  const scroller = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, value: 1000 },
+    clientHeight: { configurable: true, value: 400 },
+    scrollTop: { configurable: true, writable: true, value: 600 },
+  });
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 900, 672),
+  );
+  const slot = await mountHeading();
+  scroller.scrollTop = 600;
+  scroller.dispatchEvent(new Event("scroll"));
+  const groups = () => [
+    ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
+  ];
+  await waitFor(() => expect(groups()).toHaveLength(2));
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  const y = (element: HTMLElement) =>
+    Number.parseFloat(
+      element.style.transform.match(/translateY\(([-\d.]+)px\)/)![1]!,
+    );
+  const initial = groups().map(y);
+  scroller.scrollTop = 590;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(y(groups()[0]!)).toBeCloseTo(initial[0]! - 10));
+  expect(y(groups()[1]!)).toBeCloseTo(initial[1]! - 10);
+  expect(
+    groups()[0]!.querySelector<HTMLElement>(".ws-sticky-goal__title")!.style
+      .fontSize,
+  ).not.toBe(
+    groups()[1]!.querySelector<HTMLElement>(".ws-sticky-goal__title")!.style
+      .fontSize,
+  );
+  scroller.scrollTop = 500;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(y(groups()[1]!)).toBe(0));
+  scroller.scrollTop = 590;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(y(groups()[1]!)).toBeCloseTo(initial[1]! - 10));
+  slot.lifecycle.unmount();
+});
+
 it("falls back to the body when the sliding surface is missing", async () => {
   paneFixture({ recap: false });
   document.querySelector("main")!.removeAttribute("data-sidebar");

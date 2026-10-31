@@ -14,7 +14,9 @@ import {
   compactBlock,
   eyebrowMetrics,
   headingHeight,
+  headingScroll,
   pinnedHeight,
+  titleExitDistance,
 } from "./goalHeading.ts";
 import { WorkstreamIcon } from "./WorkstreamIcon.tsx";
 
@@ -172,24 +174,17 @@ function useMessageScroller(threadId: string | null): Mount | null {
   return mount;
 }
 
-// The heading leaves once, rather than tracking the scroll position. It
-// collapses after scrolling this far from the newest message and returns only
-// when back within the lower threshold, so hovering near the boundary cannot
-// make it flicker.
-const COLLAPSE_ENTER_PX = 240;
-const COLLAPSE_EXIT_PX = 120;
-
 function useScrollState(scroller: HTMLElement | null): {
-  collapsed: boolean;
+  fromBottom: number;
   // BB's own overflow fades appear only once content has scrolled out of view,
   // so the fade beneath the heading is on exactly when the timeline is
   // detached from its top.
   fade: boolean;
 } {
-  const [state, setState] = useState({ collapsed: false, fade: false });
+  const [state, setState] = useState({ fromBottom: 0, fade: false });
   useEffect(() => {
     // A new scroller (another thread) starts expanded until it is measured.
-    setState({ collapsed: false, fade: false });
+    setState({ fromBottom: 0, fade: false });
     if (!scroller) return;
     let frame = 0;
     const update = () => {
@@ -198,14 +193,11 @@ function useScrollState(scroller: HTMLElement | null): {
         const range = scroller.scrollHeight - scroller.clientHeight;
         const fromBottom = Math.max(0, range - scroller.scrollTop);
         const fade = scroller.scrollTop > 1;
-        setState((prev) => {
-          const collapsed = prev.collapsed
-            ? fromBottom > COLLAPSE_EXIT_PX
-            : fromBottom > COLLAPSE_ENTER_PX;
-          return prev.collapsed === collapsed && prev.fade === fade
+        setState((prev) =>
+          prev.fromBottom === fromBottom && prev.fade === fade
             ? prev
-            : { collapsed, fade };
-        });
+            : { fromBottom, fade },
+        );
       });
     };
     update();
@@ -374,10 +366,8 @@ function usePlacement(mount: Mount | null, base: number): Placement | null {
   return placement;
 }
 
-// How long a newly attached thread holds still before the heading may animate.
-// BB scrolls a fresh thread to its newest message and content keeps loading
-// for a moment; the heading must not glide to match that, only to match the
-// reader's own scrolling.
+// BB scrolls a fresh thread to its newest message while content loads. Hold
+// the expanded heading still briefly rather than following those initial shifts.
 const SETTLE_MS = 500;
 
 function useSettled(mount: Mount | null): boolean {
@@ -400,16 +390,10 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const { threadId } = useBbContext();
   const context = useGoalContext(threadId);
   const mount = useMessageScroller(threadId);
-  const { collapsed: scrolledAway, fade } = useScrollState(
-    mount?.scroller ?? null,
-  );
+  const { fromBottom, fade } = useScrollState(mount?.scroller ?? null);
   const settled = useSettled(mount);
   const base = mount?.baseFontSize ?? 14;
   const placement = usePlacement(mount, base);
-  // Until settled the heading stays expanded in place, unless the timeline is
-  // too short for it.
-  const collapsed = (settled && scrolledAway) || (placement?.short ?? false);
-
   const hasEyebrow = !!context?.workstream;
   const phone = useMediaQuery(PHONE_QUERY);
   const eyebrow = hasEyebrow ? eyebrowMetrics(base, phone) : null;
@@ -432,30 +416,33 @@ export function StickyGoalHeader(): React.ReactElement | null {
   }, [narrow, title, paneWidth, base, hasEyebrow]);
   const titleLines = narrow ? wrappedLines : 1;
   const height = headingHeight(base, hasEyebrow, titleLines);
-  // Collapsed, the heading goes to the title bar when it has room there, and
-  // otherwise stays pinned at the top of the timeline in its compact form.
-  const pinned = collapsed && !!placement && placement.bar === null;
+  const exitDistance = titleExitDistance(base, eyebrow, titleLines);
+  const { moved, remaining, progress } = headingScroll(
+    placement?.short ? exitDistance : settled ? fromBottom : 0,
+    exitDistance,
+  );
+  const collapsed = progress === 1;
+  // When the title bar has no room, the compact copy sits in the timeline.
+  const pinned = !!placement && placement.bar === null;
   const platePinnedHeight = pinnedHeight(base, eyebrow);
-  const fadeAnchor = pinned ? platePinnedHeight : height;
+  const plateHeight = Math.max(
+    height * (1 - progress),
+    pinned ? platePinnedHeight * progress : 0,
+  );
+  const fadeAnchor = plateHeight;
   useLayoutEffect(() => {
     if (!mount) return;
-    mount.root.className = settled
-      ? "ws-sticky-goal-root ws-sticky-goal-root--animated"
-      : "ws-sticky-goal-root";
+    mount.root.className = "ws-sticky-goal-root";
     mount.root.dataset.collapsed = String(collapsed);
     // The reserved gap follows the heading height, which changes only when the
     // thread gains or loses a workstream line.
     mount.root.style.marginBottom = `${height}px`;
-    mount.scroller.style.scrollPaddingTop = pinned
-      ? `${platePinnedHeight}px`
-      : collapsed
-        ? "0px"
-        : `${height}px`;
+    mount.scroller.style.scrollPaddingTop = `${plateHeight}px`;
     return () => {
       mount.root.className = "";
       delete mount.root.dataset.collapsed;
     };
-  }, [mount, collapsed, pinned, height, platePinnedHeight, settled]);
+  }, [mount, collapsed, height, plateHeight]);
 
   // The heading replaces BB's own thread title in the title bar, but only
   // while it is actually drawn, so the title never shows twice.
@@ -471,112 +458,145 @@ export function StickyGoalHeader(): React.ReactElement | null {
 
   useLayoutEffect(() => {
     if (!mount) return;
-    mount.overlay.className = settled
-      ? "ws-goal-overlay ws-goal-overlay--animated"
-      : "ws-goal-overlay";
+    mount.overlay.className = "ws-goal-overlay";
     return () => {
       mount.overlay.className = "";
     };
-  }, [mount, settled]);
+  }, [mount]);
 
   if (!mount || !context || !placement) return null;
 
-  const inBar = collapsed && placement.bar !== null;
-  // Both collapsed homes set the text in the same compact form.
-  const compact = inBar || pinned;
-  const titleScale = (base * TITLE_BAR_TITLE_SIZE) / (base * TITLE_SIZE);
-  const eyebrowBlock = eyebrow ? eyebrow.expandedBlock : 0;
-  const barEyebrowBlock = eyebrow ? eyebrow.compactBlock : 0;
+  const inBar = placement.bar !== null;
+  const eyebrowBlock = eyebrow?.expandedBlock ?? 0;
+  const barEyebrowBlock = eyebrow?.compactBlock ?? 0;
   const barBlock = compactBlock(base, eyebrow);
   const paneTop = placement.pane.y - base * PAD_TOP;
-  const spot =
-    inBar && placement.bar
-      ? {
-          x: placement.bar.x,
-          y: placement.bar.centerY - barBlock / 2,
-          width: placement.bar.width,
-        }
-      : pinned
-        ? {
-            x: placement.pane.x,
-            y: paneTop + base * PINNED_PAD,
-            width: placement.pane.width,
-          }
-        : placement.pane;
-  const titleOffset = compact ? barEyebrowBlock : eyebrowBlock;
-  const titleWidth = compact ? spot.width / titleScale : spot.width;
-  const wraps = narrow && !compact && titleLines > 1;
+  const compactSpot = placement.bar
+    ? {
+        x: placement.bar.x,
+        y: placement.bar.centerY - barBlock / 2,
+        width: placement.bar.width,
+      }
+    : {
+        x: placement.pane.x,
+        y: paneTop + base * PINNED_PAD,
+        width: placement.pane.width,
+      };
   const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
+  const workstream = (compact: boolean, width: number) =>
+    context.workstream &&
+    eyebrow && (
+      <div
+        className="ws-sticky-goal__workstream"
+        style={
+          {
+            fontSize: eyebrow.size,
+            maxWidth: compact ? width / eyebrow.compactScale : width,
+            transform: `scale(${compact ? eyebrow.compactScale : 1})`,
+            "--ws-hue": context.workstream.hue,
+          } as React.CSSProperties
+        }
+      >
+        <WorkstreamIcon className="size-4 text-current" />
+        <span>{context.workstream.name}</span>
+      </div>
+    );
 
-  // Only transforms and opacity move: the plate stays at the top of the
-  // scroller and fades, while the text glides to the title bar.
+  // Both copies move by the same number of pixels. Clipping each at its own
+  // viewport makes the compact copy arrive exactly as the large title exits.
   const text = (
-    <div
-      className="ws-goal-overlay__group"
-      style={{
-        transform: `translate(${spot.x}px, ${spot.y}px)`,
-        width: spot.width,
-        opacity: collapsed && !compact ? 0 : 1,
-      }}
-    >
-      {context.workstream && eyebrow && (
-        <div
-          className="ws-sticky-goal__workstream"
-          style={
-            {
-              fontSize: eyebrow.size,
-              maxWidth: compact ? spot.width / eyebrow.compactScale : undefined,
-              transform: `scale(${compact ? eyebrow.compactScale : 1})`,
-              "--ws-hue": context.workstream.hue,
-            } as React.CSSProperties
-          }
-        >
-          <WorkstreamIcon className="size-4 text-current" />
-          <span>{context.workstream.name}</span>
-        </div>
-      )}
-      <h2
-        className="ws-sticky-goal__title"
+    <>
+      <div
+        className="ws-goal-overlay__clip"
+        data-ws-heading="expanded"
         style={{
-          fontSize: base * TITLE_SIZE,
-          width: titleWidth,
-          transform: `translateY(${titleOffset}px) scale(${compact ? titleScale : 1})`,
-          ...(wraps
-            ? {
-                display: "-webkit-box",
-                whiteSpace: "normal",
-                WebkitBoxOrient: "vertical",
-                WebkitLineClamp: 2,
-              }
-            : null),
+          transform: `translate(${placement.pane.x}px, ${paneTop}px)`,
+          width: placement.pane.width,
+          height,
         }}
       >
-        {context.title}
-      </h2>
-      {/* Measures how many lines the title needs at the timeline's width. */}
-      {narrow && (
-        <h2
-          ref={measureRef}
-          aria-hidden
-          className="ws-sticky-goal__title ws-sticky-goal__probe"
-          style={{ fontSize: base * TITLE_SIZE, width: placement.pane.width }}
-        >
-          {context.title}
-        </h2>
-      )}
-      {context.subtask && (
         <div
-          className="ws-sticky-goal__subtitle"
+          className="ws-goal-overlay__group"
           style={{
-            fontSize: base * SUBTITLE_SIZE,
-            transform: `translateY(${eyebrowBlock + titleBlock}px)`,
-            opacity: collapsed ? 0 : 1,
+            transform: `translateY(${base * PAD_TOP - moved}px)`,
+            width: placement.pane.width,
           }}
         >
-          {context.subtask}
+          {workstream(false, placement.pane.width)}
+          <h2
+            className="ws-sticky-goal__title"
+            style={{
+              fontSize: base * TITLE_SIZE,
+              transform: `translateY(${eyebrowBlock}px)`,
+              ...(narrow && titleLines > 1
+                ? {
+                    display: "-webkit-box",
+                    whiteSpace: "normal",
+                    WebkitBoxOrient: "vertical",
+                    WebkitLineClamp: 2,
+                  }
+                : null),
+            }}
+          >
+            {context.title}
+          </h2>
+          {narrow && (
+            <h2
+              ref={measureRef}
+              aria-hidden
+              className="ws-sticky-goal__title ws-sticky-goal__probe"
+              style={{
+                fontSize: base * TITLE_SIZE,
+                width: placement.pane.width,
+              }}
+            >
+              {context.title}
+            </h2>
+          )}
+          {context.subtask && (
+            <div
+              className="ws-sticky-goal__subtitle"
+              style={{
+                fontSize: base * SUBTITLE_SIZE,
+                transform: `translateY(${eyebrowBlock + titleBlock}px)`,
+                opacity: 1 - progress,
+              }}
+            >
+              {context.subtask}
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+      <div
+        className="ws-goal-overlay__clip"
+        data-ws-heading="compact"
+        aria-hidden
+        style={{
+          transform: `translate(${compactSpot.x}px, ${compactSpot.y}px)`,
+          width: compactSpot.width,
+          height: barBlock,
+        }}
+      >
+        <div
+          className="ws-goal-overlay__group"
+          style={{
+            transform: `translateY(${remaining}px)`,
+            width: compactSpot.width,
+          }}
+        >
+          {workstream(true, compactSpot.width)}
+          <div
+            className="ws-sticky-goal__title"
+            style={{
+              fontSize: base * TITLE_BAR_TITLE_SIZE,
+              transform: `translateY(${barEyebrowBlock}px)`,
+            }}
+          >
+            {context.title}
+          </div>
+        </div>
+      </div>
+    </>
   );
 
   return createPortal(
@@ -588,19 +608,16 @@ export function StickyGoalHeader(): React.ReactElement | null {
             transform: `translate(${placement.background.x}px, ${placement.background.y}px)`,
             width: placement.background.width,
             "--ws-plate-height": `${fadeAnchor}px`,
-            "--ws-fade-below-plate": fade && (!collapsed || pinned) ? "1" : "0",
-            "--ws-fade-below-bar": fade && collapsed && !pinned ? "1" : "0",
+            "--ws-fade-below-plate": fade && plateHeight > 0 ? "1" : "0",
+            "--ws-fade-below-bar": fade && collapsed && inBar ? "1" : "0",
           } as React.CSSProperties
         }
       >
-        <div
-          className="ws-sticky-goal"
-          style={{ height, opacity: inBar ? 0 : 1 }}
-        >
+        <div className="ws-sticky-goal" style={{ height }}>
           <div
             className="ws-sticky-goal__plate"
             style={{
-              transform: `translateY(${pinned ? platePinnedHeight - height : 0}px)`,
+              transform: `scaleY(${plateHeight / height})`,
             }}
           />
         </div>

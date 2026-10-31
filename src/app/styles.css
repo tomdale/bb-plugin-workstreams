@@ -440,9 +440,9 @@
 /* A zero-height anchor reserves the heading's space in the message column.
    The plate, fades, and text share a layer in BB's sliding app surface, so
    they stay together as the timeline scrolls or a phone's pane slides aside.
-   Scrolling away from the newest message fades the plate and moves the text
-   to the title bar without reflow; the feathered fade follows the plate or
-   sits below the bar. */
+   Scrolling away from the newest message moves the two fixed-size headings
+   together without reflow; the feathered fade follows the plate or sits
+   below the bar. */
 .ws-sticky-goal-root {
   position: sticky;
   top: 0;
@@ -478,28 +478,18 @@
 }
 /* Under the expanded plate. */
 .ws-goal-background::after {
-  top: var(--ws-plate-height, 0px);
+  top: 0;
+  transform: translateY(var(--ws-plate-height, 0px));
   opacity: var(--ws-fade-below-plate, 0);
-}
-.ws-goal-overlay--animated .ws-goal-background::before,
-.ws-goal-overlay--animated .ws-goal-background::after {
-  transition:
-    opacity 150ms ease,
-    top 200ms ease;
-}
-.ws-goal-overlay--animated .ws-sticky-goal__plate {
-  transition: transform 200ms ease;
 }
 .ws-sticky-goal {
   position: absolute;
   inset: 0 0 auto;
 }
-.ws-goal-overlay--animated .ws-sticky-goal {
-  transition: opacity 200ms ease;
-}
 .ws-sticky-goal__plate {
   position: absolute;
   inset: 0;
+  transform-origin: top;
   background: var(--background);
 }
 .ws-goal-overlay {
@@ -511,38 +501,14 @@
   z-index: 40;
   pointer-events: none;
 }
+.ws-goal-overlay__clip,
 .ws-goal-overlay__group {
   position: absolute;
   top: 0;
   left: 0;
 }
-/* Motion applies only once a thread has settled (see StickyGoalHeader), so a
-   freshly opened thread renders the heading in place instead of gliding. */
-.ws-goal-overlay--animated .ws-goal-overlay__group {
-  transition:
-    transform 200ms ease,
-    width 200ms ease,
-    opacity 200ms ease;
-}
-.ws-goal-overlay--animated .ws-sticky-goal__workstream,
-.ws-goal-overlay--animated .ws-sticky-goal__title,
-.ws-goal-overlay--animated .ws-sticky-goal__subtitle {
-  transition:
-    transform 200ms ease,
-    width 200ms ease,
-    opacity 200ms ease;
-}
-@media (prefers-reduced-motion: reduce) {
-  .ws-goal-overlay--animated .ws-sticky-goal__plate,
-  .ws-goal-overlay--animated .ws-goal-background::before,
-  .ws-goal-overlay--animated .ws-goal-background::after,
-  .ws-goal-overlay--animated .ws-sticky-goal,
-  .ws-goal-overlay--animated .ws-goal-overlay__group,
-  .ws-goal-overlay--animated .ws-sticky-goal__workstream,
-  .ws-goal-overlay--animated .ws-sticky-goal__title,
-  .ws-goal-overlay--animated .ws-sticky-goal__subtitle {
-    transition: none;
-  }
+.ws-goal-overlay__clip {
+  overflow: hidden;
 }
 /* BB's thread title is replaced by the heading. */
 [data-ws-hide-title] .bb-thread-title {
