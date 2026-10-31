@@ -127,11 +127,9 @@ it("shows one item at a time, Up Next first, with how many are left", async () =
   await waitFor(() => expect(heading(slot)).toBe("Beta question"));
   expect(slot.getByText("Needs your decision")).toBeTruthy();
   expect(slot.getByText("Asked which API to use")).toBeTruthy();
-  expect(
-    slot.getByText(
-      (_, el) => el?.tagName === "P" && el.textContent === "2 left",
-    ),
-  ).toBeTruthy();
+  expect(slot.getByRole("navigation", { name: "Queue" }).textContent).toBe(
+    "1 of 2",
+  );
   // The running thread waits for its turn to end; it isn't in the queue.
   expect(slot.queryByText("Beta running")).toBeNull();
   slot.lifecycle.unmount();
@@ -201,6 +199,22 @@ it("edits a reply before sending with shift and a number", async () => {
   expect(
     slot.queryByRole("textbox", { name: "Reply to Alpha work" }),
   ).toBeNull();
+  slot.lifecycle.unmount();
+});
+
+it("steps through the queue without acting", async () => {
+  const slot = await mount();
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  press("ArrowRight");
+  await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+  expect(slot.getByRole("navigation", { name: "Queue" }).textContent).toBe(
+    "2 of 2",
+  );
+  fireEvent.click(slot.getByRole("button", { name: "Previous" }));
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  expect(
+    slot.inspection.rpcCalls.some((c) => c.method === "threadArchive"),
+  ).toBe(false);
   slot.lifecycle.unmount();
 });
 

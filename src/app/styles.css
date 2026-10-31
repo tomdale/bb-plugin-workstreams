@@ -558,9 +558,60 @@
 .ws-queue-enter {
   animation: ws-queue-enter 180ms ease-out;
 }
+/* The queue's card stack: the next card rises from the stack, the one
+   before lifts away; going back runs the other way. */
+@keyframes ws-card-rise {
+  from {
+    opacity: 0.4;
+    transform: translateY(7px) scale(0.965);
+  }
+}
+@keyframes ws-card-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-18px);
+  }
+}
+@keyframes ws-card-lift {
+  to {
+    opacity: 0;
+    transform: translateY(-18px);
+  }
+}
+@keyframes ws-card-sink {
+  to {
+    opacity: 0;
+    transform: translateY(7px) scale(0.965);
+  }
+}
+.ws-card-rise {
+  animation: ws-card-rise 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.ws-card-drop {
+  animation: ws-card-drop 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.ws-card-lift {
+  animation: ws-card-lift 200ms ease-in forwards;
+}
+.ws-card-sink {
+  animation: ws-card-sink 200ms ease-in forwards;
+}
+.ws-stack-layer {
+  transition:
+    transform 240ms ease,
+    opacity 240ms ease;
+}
 @media (prefers-reduced-motion: reduce) {
-  .ws-queue-enter {
+  .ws-queue-enter,
+  .ws-card-rise,
+  .ws-card-drop,
+  .ws-card-lift,
+  .ws-card-sink {
     animation: none;
+  }
+  .ws-card-lift,
+  .ws-card-sink {
+    display: none;
   }
 }
 .ws-sticky-goal__workstream > span {

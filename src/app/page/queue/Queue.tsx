@@ -10,8 +10,12 @@
  * with the receipt and heading above; the page centers again only when the
  * item or receipt changes, so opening Reply or holding ⇧ never moves it.
  *
+ * The next items wait as a stack behind the card. Acting moves on to the
+ * next; ← and → (or K and J, or the footer's arrows) step through without
+ * acting.
+ *
  * Keys: 1–3 send a reply (⇧ edits it first), R reply, S snooze (1–6 in its
- * menu), E archive, O open, U undo.
+ * menu), E archive, O open, U undo, ← → skip.
  */
 import {
   useCallback,
@@ -29,6 +33,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Icon } from "@/components/ui/icon";
 import type {
   RpcContract,
   SuggestionsStateWire,
@@ -49,6 +54,8 @@ import type { useWorkstreams } from "../../useWorkstreams.ts";
 import { actionMessage, cardOf, nextActionsOf } from "./card.ts";
 import {
   Answers,
+  CardStack,
+  cardEdge,
   Composer,
   Heading,
   KeyChip,
@@ -56,6 +63,7 @@ import {
   ThreadActions,
   ThreadCard,
   type QueueHeading,
+  type StackMotion,
   type SuggestionMove,
 } from "./QueueItem.tsx";
 import { useQueueActions, type Receipt } from "./useQueueActions.ts";
@@ -185,6 +193,8 @@ export function Queue({
     null,
   );
   const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [motion, setMotion] = useState<StackMotion>("forward");
   const [customSnooze, setCustomSnooze] = useState(false);
   const { projection, now } = ws;
 
@@ -247,7 +257,10 @@ export function Queue({
   const remaining = kept.current.filter(
     (id) => !cleared.has(id) && (rowOf.has(id) || suggestionOf.has(id)),
   );
-  const current = remaining[0] ?? null;
+  // The item shown: where the user skipped to, else the first left.
+  const current =
+    cursor && remaining.includes(cursor) ? cursor : (remaining[0] ?? null);
+  const position = current ? remaining.indexOf(current) : -1;
   const earlierLeft = plan.earlier.filter(
     (row) => !cleared.has(row.thread.id),
   ).length;
@@ -269,27 +282,50 @@ export function Queue({
     ? [`Accept and move ${movingCount(suggestion)} threads`, "Decline"]
     : threadAnswers;
 
+  /** Shows another item: the next after acting or skipping, or one back. */
+  const go = (id: string | null, toward: StackMotion) => {
+    setMotion(toward);
+    setCursor(id);
+    setReplying(null);
+    setSnoozeOpen(false);
+  };
+  /** Moves past an item being acted on, to the one after it. */
+  const moveOn = (id: string) => {
+    const at = remaining.indexOf(id);
+    go(remaining[at + 1] ?? remaining[at - 1] ?? null, "forward");
+  };
+  const skip = (step: 1 | -1) => {
+    const next = remaining[position + step];
+    if (next) go(next, step === 1 ? "forward" : "back");
+  };
+  const undo = () => {
+    const id = actions.undo();
+    if (id) go(id, "back");
+  };
+
   const titleOf = (id: string) =>
     (rowOf.get(id) ?? lastRow.current.get(id))?.thread.displayTitle ?? "";
 
   const send = (id: string, text: string, recapId?: string) => {
-    setReplying(null);
+    moveOn(id);
     actions.send({ id, title: titleOf(id) }, text, () =>
       recapId
         ? rpc.call("recap_send", { threadId: id, recapId, action: text })
         : rpc.call("threadSend", { threadId: id, text }),
     );
   };
-  const archive = (id: string) =>
+  const archive = (id: string) => {
+    moveOn(id);
     actions.apply(
       { itemId: id, kind: "archived", title: titleOf(id), detail: "" },
       () => rpc.call("threadArchive", { threadId: id }),
       () => rpc.call("threadUnarchive", { threadId: id }),
     );
+  };
   const snooze = (id: string, when: SnoozeWhen) => {
     const target = rowOf.get(id)?.thread;
     if (!target) return;
-    setSnoozeOpen(false);
+    moveOn(id);
     const previous = ws.server.snoozes[id];
     actions.apply(
       {
@@ -310,6 +346,7 @@ export function Queue({
   };
   const decide = (s: Suggestion, decision: "accept" | "decline") => {
     let entryId: string | undefined;
+    moveOn(suggestionKey(s.id));
     actions.apply(
       {
         itemId: suggestionKey(s.id),
@@ -356,8 +393,16 @@ export function Queue({
   };
 
   // Keys act on the current item, unless typing, in a dialog, or in a menu.
-  const keys = useRef({ answer, archive, open, thread, suggestion, actions });
-  keys.current = { answer, archive, open, thread, suggestion, actions };
+  const keys = useRef({
+    answer,
+    archive,
+    open,
+    thread,
+    suggestion,
+    undo,
+    skip,
+  });
+  keys.current = { answer, archive, open, thread, suggestion, undo, skip };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -371,7 +416,9 @@ export function Queue({
       const k = keys.current;
       const digit = /^Digit([1-9])$/.exec(event.code)?.[1];
       const key = event.key.toLowerCase();
-      if (key === "u") k.actions.undo();
+      if (key === "u") k.undo();
+      else if (key === "arrowright" || key === "j") k.skip(1);
+      else if (key === "arrowleft" || key === "k") k.skip(-1);
       else if (digit) k.answer(Number(digit) - 1, event.shiftKey);
       else if (!k.thread || k.suggestion) return;
       else if (key === "r") setReplying({ id: k.thread.id, text: "" });
@@ -433,6 +480,54 @@ export function Queue({
           title: suggestion.headline,
         }
       : null;
+  // The front card, kept for its exit animation once another replaces it.
+  const front: React.ReactNode =
+    thread && card ? (
+      <ThreadCard
+        card={card}
+        threadId={thread.id}
+        files={files}
+        age={ago(thread.latestAttentionAt, now)}
+      />
+    ) : suggestion ? (
+      <SuggestionCard
+        reason={suggestion.reason}
+        moving={movingCount(suggestion)}
+        moves={suggestionMoves(suggestion)}
+      />
+    ) : null;
+  const shown = useRef<{ key: string; node: React.ReactNode } | null>(null);
+  const [leaving, setLeaving] = useState<{
+    key: string;
+    node: React.ReactNode;
+  } | null>(null);
+  useLayoutEffect(() => {
+    const was = shown.current;
+    shown.current = current && front ? { key: current, node: front } : null;
+    if (!was || was.key === current) return;
+    setLeaving(was);
+    const timer = setTimeout(() => setLeaving(null), 220);
+    return () => clearTimeout(timer);
+    // Only a change of item starts the exit; `front` is read for the next one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current]);
+  if (shown.current?.key === current && front)
+    shown.current = { key: current!, node: front };
+  const behind = remaining.slice(position + 1, position + 3).map((id) => {
+    const next = rowOf.get(id)?.thread;
+    return cardEdge(
+      next
+        ? cardOf(
+            next,
+            ws.work(next),
+            ws.server.recaps[id],
+            sent.get(id),
+            isRunning(next),
+          )
+        : null,
+    );
+  });
+
   const archiveLeads =
     card?.kind === "recap" &&
     card.recap.state === "complete" &&
@@ -447,7 +542,7 @@ export function Queue({
             style={{ paddingTop: top }}
           >
             <div ref={above}>
-              <ReceiptLine receipt={receipt} onUndo={() => actions.undo()} />
+              <ReceiptLine receipt={receipt} onUndo={undo} />
               {heading ? (
                 <Heading
                   key={current}
@@ -456,86 +551,105 @@ export function Queue({
                 />
               ) : null}
             </div>
-            <div ref={unit} key={current ?? "empty"} className="ws-queue-enter">
-              {thread && card ? (
-                <>
-                  <ThreadCard
-                    card={card}
-                    threadId={thread.id}
-                    files={files}
-                    age={ago(thread.latestAttentionAt, now)}
-                  />
-                  {replying?.id === thread.id ? (
-                    <Composer
-                      title={thread.displayTitle}
-                      initial={replying.text}
-                      onCancel={() => setReplying(null)}
-                      onSend={(text) => send(thread.id, text)}
+            <div ref={unit}>
+              {front ? (
+                <CardStack
+                  key={current}
+                  front={front}
+                  behind={behind}
+                  leaving={leaving}
+                  motion={motion}
+                />
+              ) : null}
+              <div key={current ?? "empty"} className="ws-queue-enter">
+                {thread && card ? (
+                  <>
+                    {replying?.id === thread.id ? (
+                      <Composer
+                        title={thread.displayTitle}
+                        initial={replying.text}
+                        onCancel={() => setReplying(null)}
+                        onSend={(text) => send(thread.id, text)}
+                      />
+                    ) : (
+                      <>
+                        <Answers
+                          answers={answers}
+                          editable
+                          shift={shift}
+                          onAnswer={answer}
+                        />
+                        <ThreadActions
+                          archiveLeads={archiveLeads}
+                          snoozeOpen={snoozeOpen}
+                          now={now}
+                          snoozePrefs={ws.snoozePrefs}
+                          onSnoozeOpen={setSnoozeOpen}
+                          onReply={() =>
+                            setReplying({ id: thread.id, text: "" })
+                          }
+                          onSnooze={(when) => snooze(thread.id, when)}
+                          onCustomSnooze={() => setCustomSnooze(true)}
+                          onArchive={() => archive(thread.id)}
+                          onOpen={() => open(thread.id)}
+                        />
+                      </>
+                    )}
+                  </>
+                ) : suggestion ? (
+                  <>
+                    <Answers
+                      answers={answers}
+                      editable={false}
+                      shift={false}
+                      onAnswer={answer}
                     />
-                  ) : (
-                    <>
-                      <Answers
-                        answers={answers}
-                        editable
-                        shift={shift}
-                        onAnswer={answer}
-                      />
-                      <ThreadActions
-                        archiveLeads={archiveLeads}
-                        snoozeOpen={snoozeOpen}
-                        now={now}
-                        snoozePrefs={ws.snoozePrefs}
-                        onSnoozeOpen={setSnoozeOpen}
-                        onReply={() => setReplying({ id: thread.id, text: "" })}
-                        onSnooze={(when) => snooze(thread.id, when)}
-                        onCustomSnooze={() => setCustomSnooze(true)}
-                        onArchive={() => archive(thread.id)}
-                        onOpen={() => open(thread.id)}
-                      />
-                    </>
-                  )}
-                </>
-              ) : suggestion ? (
-                <>
-                  <SuggestionCard
-                    reason={suggestion.reason}
-                    moving={movingCount(suggestion)}
-                    moves={suggestionMoves(suggestion)}
-                  />
-                  <Answers
-                    answers={answers}
-                    editable={false}
-                    shift={false}
-                    onAnswer={answer}
-                  />
-                </>
-              ) : (
-                <div className="text-center">
-                  <p className="text-[22px] font-[450] tracking-[-0.015em] text-foreground/75">
-                    {earlier
-                      ? "Nothing else is open."
-                      : "Nothing needs you right now."}
-                  </p>
-                  {!earlier && earlierLeft > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => setEarlier(true)}
-                      className="mt-3 cursor-pointer text-[13px] text-muted-foreground hover:text-foreground"
-                    >
-                      Go through {earlierLeft} earlier thread
-                      {earlierLeft === 1 ? "" : "s"}
-                    </button>
-                  ) : null}
-                </div>
-              )}
+                  </>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-[22px] font-[450] tracking-[-0.015em] text-foreground/75">
+                      {earlier
+                        ? "Nothing else is open."
+                        : "Nothing needs you right now."}
+                    </p>
+                    {!earlier && earlierLeft > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setEarlier(true)}
+                        className="mt-3 cursor-pointer text-[13px] text-muted-foreground hover:text-foreground"
+                      >
+                        Go through {earlierLeft} earlier thread
+                        {earlierLeft === 1 ? "" : "s"}
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
         {remaining.length ? (
-          <p className="pointer-events-none absolute inset-x-0 bottom-7 m-0 text-center text-[13px] text-muted-foreground/80">
-            <span className="text-muted-foreground">{remaining.length}</span>{" "}
-            left
-          </p>
+          <nav
+            aria-label="Queue"
+            className="absolute inset-x-0 bottom-6 flex items-center justify-center gap-2 text-[13px] text-muted-foreground/80"
+          >
+            <SkipButton
+              label="Previous"
+              icon="ChevronLeft"
+              disabled={position <= 0}
+              onClick={() => skip(-1)}
+            />
+            <span className="min-w-14 text-center tabular-nums">
+              <span className="text-muted-foreground">{position + 1}</span> of{" "}
+              {remaining.length}
+            </span>
+            <SkipButton
+              label="Next"
+              icon="ChevronRight"
+              disabled={position >= remaining.length - 1}
+              onClick={() => skip(1)}
+            />
+          </nav>
         ) : null}
       </div>
       <CustomSnoozeDialog
@@ -547,6 +661,31 @@ export function Queue({
         }}
       />
     </HashColors.Provider>
+  );
+}
+
+/** Steps through the queue without acting: ← and → (or K and J). */
+function SkipButton({
+  label,
+  icon,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  icon: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
+    >
+      <Icon name={icon} className="size-4" />
+    </button>
   );
 }
 

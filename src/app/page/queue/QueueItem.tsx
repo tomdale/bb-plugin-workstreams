@@ -98,6 +98,87 @@ export function Heading({
   );
 }
 
+/** A card's border color by state, for the cards stacked behind it. */
+export function cardEdge(card: QueueCard | null): string {
+  if (!card) return NEUTRAL.card;
+  return card.kind === "recap"
+    ? ACCENT[card.recap.state].card
+    : card.kind === "needs"
+      ? NEEDS.card
+      : card.kind === "failed"
+        ? FAILED.card
+        : NEUTRAL.card;
+}
+
+/** How far each card behind the front one shows below it. */
+const STACK_STEP = 7;
+
+export type StackMotion = "forward" | "back";
+
+/**
+ * The current card with the next ones stacked behind it, their bottom edges
+ * showing. Moving on lifts the front card away and raises the next from the
+ * stack; going back drops the card back onto the stack and brings the earlier
+ * one down from above. `leaving` is the card on its way out, drawn over the
+ * new one while it animates.
+ */
+export function CardStack({
+  front,
+  behind,
+  leaving,
+  motion,
+}: {
+  front: ReactNode;
+  /** The next cards' border classes, nearest first (at most two). */
+  behind: readonly string[];
+  leaving: { key: string; node: ReactNode } | null;
+  motion: StackMotion;
+}) {
+  return (
+    <div
+      className="relative"
+      style={{ paddingBottom: behind.length * STACK_STEP }}
+    >
+      {behind.map((edge, index) => (
+        <div
+          key={`${index}-${edge}`}
+          aria-hidden
+          className={cn(
+            "ws-stack-layer pointer-events-none absolute inset-x-0 top-0 rounded-[11.5px] border bg-background",
+            edge,
+          )}
+          style={{
+            bottom: behind.length * STACK_STEP,
+            zIndex: -1 - index,
+            transform: `translateY(${(index + 1) * STACK_STEP}px) scaleX(${1 - (index + 1) * 0.035})`,
+            opacity: 0.75 - index * 0.3,
+          }}
+        />
+      ))}
+      <div
+        className={cn(
+          "relative rounded-[11.5px] bg-background",
+          motion === "forward" ? "ws-card-rise" : "ws-card-drop",
+        )}
+      >
+        {front}
+      </div>
+      {leaving ? (
+        <div
+          key={leaving.key}
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-0 z-10 rounded-[11.5px] bg-background",
+            motion === "forward" ? "ws-card-lift" : "ws-card-sink",
+          )}
+        >
+          {leaving.node}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** The recap card, or a plain card for a thread without a recap. */
 export function ThreadCard({
   card,
