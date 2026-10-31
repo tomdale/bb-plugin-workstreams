@@ -112,74 +112,80 @@ export function cardEdge(card: QueueCard | null): string {
 
 /** How far each card behind the front one shows below it. */
 const STACK_STEP = 7;
+/** Cards behind the front one whose edges show; one more waits unseen. */
+const STACK_SHOWN = 2;
 
-export type StackMotion = "forward" | "back";
+/**
+ * Where a card sits in the stack: slot 0 is the first behind the front, and
+ * slot −1 the front itself. Past the shown slots a card is hidden, ready to
+ * come into view when the stack moves up.
+ */
+export function layerPose(slot: number): {
+  transform: string;
+  opacity: number;
+} {
+  const depth = slot + 1;
+  return {
+    transform: `translateY(${depth * STACK_STEP}px) scaleX(${1 - depth * 0.035})`,
+    opacity: slot < 0 ? 1 : slot < STACK_SHOWN ? 0.75 - slot * 0.3 : 0,
+  };
+}
+
+export type StackCard = {
+  /** The queue item, so a card keeps its element as it moves up or down a slot. */
+  key: string;
+  /** Its border color by state (`cardEdge`). */
+  edge: string;
+};
 
 /**
  * The current card with the next ones stacked behind it, their bottom edges
- * showing. Moving on lifts the front card away and raises the next from the
- * stack; going back drops the card back onto the stack and brings the earlier
- * one down from above. `leaving` is the card on its way out, drawn over the
- * new one while it animates.
+ * showing. Each card behind keeps its element while it moves between slots,
+ * so the stack moves up a slot as the queue moves on and back down going
+ * back (`.ws-stack-layer`); `useQueueMotion` runs the front card's change.
  */
 export function CardStack({
+  itemKey,
   front,
   behind,
-  leaving,
-  motion,
 }: {
+  /** The item shown; the front card is drawn fresh for each. */
+  itemKey: string;
   front: ReactNode;
-  /** The next cards' border classes, nearest first (at most two). */
-  behind: readonly string[];
-  leaving: { key: string; node: ReactNode } | null;
-  motion: StackMotion;
+  /** The next cards, nearest first; those past the shown slots stay hidden. */
+  behind: readonly StackCard[];
 }) {
+  const shown = Math.min(behind.length, STACK_SHOWN);
   return (
     <div
+      data-queue-part="stack"
       className="relative isolate"
-      style={{
-        paddingBottom: behind.length * STACK_STEP,
-        // A taller leaving card is cut off at the stack's bottom edge, so it
-        // never covers the replies and buttons below; it can still lift above.
-        clipPath: leaving ? "inset(-64px -32px 0 -32px)" : undefined,
-      }}
+      style={{ paddingBottom: shown * STACK_STEP }}
     >
-      {behind.map((edge, index) => (
+      {behind.map(({ key, edge }, slot) => (
         <div
-          key={`${index}-${edge}`}
+          key={key}
           aria-hidden
+          data-queue-layer={key}
+          data-slot={slot}
           className={cn(
             "ws-stack-layer pointer-events-none absolute inset-x-0 top-0 rounded-[11.5px] border bg-background",
             edge,
           )}
           style={{
-            bottom: behind.length * STACK_STEP,
-            zIndex: -1 - index,
-            transform: `translateY(${(index + 1) * STACK_STEP}px) scaleX(${1 - (index + 1) * 0.035})`,
-            opacity: 0.75 - index * 0.3,
+            bottom: shown * STACK_STEP,
+            zIndex: -1 - slot,
+            ...layerPose(slot),
           }}
         />
       ))}
       <div
-        className={cn(
-          "relative rounded-[11.5px] bg-background",
-          motion === "forward" ? "ws-card-rise" : "ws-card-drop",
-        )}
+        key={itemKey}
+        data-queue-part="front"
+        className="relative rounded-[11.5px] bg-background"
       >
         {front}
       </div>
-      {leaving ? (
-        <div
-          key={leaving.key}
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 z-10 rounded-[11.5px] bg-background",
-            motion === "forward" ? "ws-card-lift" : "ws-card-sink",
-          )}
-        >
-          {leaving.node}
-        </div>
-      ) : null}
     </div>
   );
 }

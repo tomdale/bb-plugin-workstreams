@@ -218,6 +218,57 @@ it("steps through the queue without acting", async () => {
   slot.lifecycle.unmount();
 });
 
+it("draws the leaving item until its exit ends, and none for a held key", async () => {
+  type Fake = {
+    onfinish: (() => void) | null;
+    oncancel: (() => void) | null;
+    cancel: () => void;
+  };
+  const started: { el: Element; animation: Fake }[] = [];
+  const animate = vi.fn(function (this: Element) {
+    const animation: Fake = {
+      onfinish: null,
+      oncancel: null,
+      cancel: () => animation.oncancel?.(),
+    };
+    started.push({ el: this, animation });
+    return animation;
+  });
+  Object.defineProperty(Element.prototype, "animate", {
+    value: animate,
+    configurable: true,
+  });
+  try {
+    const slot = await mount();
+    await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+    const copies = () =>
+      [...slot.container.querySelectorAll("[inert]")].map(
+        (el) => el.textContent,
+      );
+    // Past the first item's own entrance, so the change isn't a held key.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    press("ArrowRight");
+    await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+    // The old heading, card, and actions leave as copies over the page.
+    expect(copies().some((text) => text?.includes("Beta question"))).toBe(true);
+    expect(copies().some((text) => text?.includes("Asked which API"))).toBe(
+      true,
+    );
+    // Going straight back is a held key: nothing more is copied.
+    const before = copies().length;
+    press("ArrowLeft");
+    await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+    expect(copies().length).toBe(before);
+    // Each copy goes once its exit ends.
+    for (const { el, animation } of started)
+      if (el.hasAttribute("inert")) animation.onfinish?.();
+    expect(copies()).toEqual([]);
+    slot.lifecycle.unmount();
+  } finally {
+    delete (Element.prototype as { animate?: unknown }).animate;
+  }
+});
+
 it("opens the item's thread", async () => {
   const slot = await mount();
   await waitFor(() => expect(heading(slot)).toBe("Beta question"));
