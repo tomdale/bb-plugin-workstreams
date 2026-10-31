@@ -136,7 +136,7 @@ export function CardStack({
 }) {
   return (
     <div
-      className="relative"
+      className="relative isolate"
       style={{ paddingBottom: behind.length * STACK_STEP }}
     >
       {behind.map((edge, index) => (
