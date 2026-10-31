@@ -519,6 +519,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
           className="ws-goal-overlay__group"
           style={{
             transform: `translateY(${base * PAD_TOP - moved}px)`,
+            opacity: 1 - progress,
             width: placement.pane.width,
           }}
         >
@@ -559,7 +560,6 @@ export function StickyGoalHeader(): React.ReactElement | null {
               style={{
                 fontSize: base * SUBTITLE_SIZE,
                 transform: `translateY(${eyebrowBlock + titleBlock}px)`,
-                opacity: 1 - progress,
               }}
             >
               {context.subtask}
@@ -583,6 +583,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
           className="ws-goal-overlay__group"
           style={{
             transform: `translateY(${remaining}px)`,
+            opacity: progress,
             width: compactSpot.width,
           }}
         >
