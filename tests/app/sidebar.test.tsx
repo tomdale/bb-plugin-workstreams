@@ -72,6 +72,7 @@ async function mount(
     analysis?: Record<string, unknown>;
     recaps?: Record<string, unknown>;
     lastPopulatedAt?: Record<string, number>;
+    assignmentError?: string;
     order?: {
       workstreams: string[];
       threads: Record<string, string[]>;
@@ -204,6 +205,35 @@ async function mount(
           : {}),
       }),
       moveThread: () => ({ entry: null }),
+      taskAssign: (raw: unknown) => {
+        if (options.assignmentError) throw new Error(options.assignmentError);
+        const { threadId, entityId } = raw as {
+          threadId: string;
+          entityId: string | null;
+        };
+        const sectionId =
+          entityId === null
+            ? null
+            : Object.entries(options.catalog?.groups ?? {}).find(
+                ([, topic]) => topic === entityId,
+              )?.[0];
+        if (sectionId === undefined)
+          throw new Error("Unknown destination topic");
+        const index = threads.findIndex((t) => t.id === threadId);
+        threads[index] = { ...threads[index]!, sectionId };
+        return {
+          assignment: {
+            threadId,
+            entityId,
+            status: entityId ? "assigned" : "unresolved",
+            provenance: "manual",
+            label: entityId,
+            ancestorIds: [],
+            evidence: null,
+            inheritedFrom: null,
+          },
+        };
+      },
       snooze: (raw: unknown) => {
         const { threadIds, until } = raw as {
           threadIds: string[];
@@ -1660,7 +1690,7 @@ describe("thread list", () => {
     }
   });
 
-  it("does not highlight another workstream when a cross-workstream drop is invalid", async () => {
+  it("does not highlight another workstream until its topic binding is known", async () => {
     const restore = layoutByRows();
     try {
       const slot = await mount(
@@ -1695,6 +1725,207 @@ describe("thread list", () => {
       restore();
     }
   });
+
+  it.each(["collapsed", "empty"])(
+    "moves a root onto a %s workstream header",
+    async (target) => {
+      const restore = layoutByRows();
+      const rowBounds = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function () {
+        if (
+          this.tagName === "SECTION" &&
+          this.getAttribute("aria-label") === "Beta"
+        )
+          return new DOMRect(0, 28, 200, 28);
+        return rowBounds.call(this);
+      };
+      try {
+        const threads = [
+          sidebarThread("alpha", { sectionId: "sec_a", title: "Alpha task" }),
+        ];
+        if (target === "collapsed")
+          threads.push(
+            sidebarThread("beta", { sectionId: "sec_b", title: "Beta task" }),
+          );
+        const slot = await mount(threads, {
+          settings: { showRecent: false, showForYou: false },
+          catalog: {
+            entities: [
+              {
+                id: "a",
+                name: "Alpha",
+                description: "",
+                parentId: null,
+                aliases: [],
+              },
+              {
+                id: "b",
+                name: "Beta",
+                description: "",
+                parentId: null,
+                aliases: [],
+              },
+            ],
+            groups: { sec_a: "a", sec_b: "b" },
+          },
+        });
+        await waitFor(() =>
+          expect(groupRows(slot, "Alpha")).toEqual(["Alpha task"]),
+        );
+        if (target === "collapsed")
+          fireEvent.click(
+            within(slot.getByRole("region", { name: "Beta" })).getByRole(
+              "button",
+              { name: "Beta" },
+            ),
+          );
+        const row = slot.container
+          .querySelector('[data-sidebar-thread-id="alpha"]')!
+          .closest("li")!;
+        fireEvent.mouseDown(row, { button: 0, clientX: 10, clientY: 14 });
+        fireEvent.mouseMove(document, { clientX: 10, clientY: 24 });
+        fireEvent.mouseMove(document, { clientX: 10, clientY: 42 });
+        expect(
+          slot
+            .getByRole("region", { name: "Beta" })
+            .hasAttribute("data-drop-target"),
+        ).toBe(true);
+        fireEvent.mouseUp(document, { clientX: 10, clientY: 42 });
+        await waitFor(() =>
+          expect(
+            slot.inspection.rpcCalls.find((c) => c.method === "reorder")?.input,
+          ).toEqual({
+            kind: "threads",
+            groupId: "sec_b",
+            ids: target === "collapsed" ? ["alpha", "beta"] : ["alpha"],
+          }),
+        );
+        slot.selectThread("alpha");
+        const header = within(
+          slot.getByRole("region", { name: "Beta" }),
+        ).getByRole("button", { name: "Beta" });
+        if (header.getAttribute("aria-expanded") === "false")
+          fireEvent.click(header);
+        await waitFor(() =>
+          expect(groupRows(slot, "Beta")).toEqual(
+            target === "collapsed"
+              ? ["Alpha task", "Beta task"]
+              : ["Alpha task"],
+          ),
+        );
+        await dragGuardRemoved();
+        slot.lifecycle.unmount();
+      } finally {
+        restore();
+      }
+    },
+  );
+
+  it.each([false, true])(
+    "moves a root and its children to the destination topic (failure: %s)",
+    async (fails) => {
+      const restore = layoutByRows();
+      try {
+        const slot = await mount(
+          [
+            sidebarThread("alpha", {
+              sectionId: "sec_a",
+              title: "Alpha task",
+              latestAttentionAt: Date.now(),
+            }),
+            sidebarThread("child", {
+              parentThreadId: "alpha",
+              title: "Delegate",
+              latestAttentionAt: Date.now() - 1,
+            }),
+            sidebarThread("beta", {
+              sectionId: "sec_b",
+              title: "Beta task",
+              latestAttentionAt: Date.now() - 2,
+            }),
+          ],
+          {
+            settings: { showRecent: false, showForYou: false },
+            catalog: {
+              entities: [
+                {
+                  id: "a",
+                  name: "Alpha",
+                  description: "",
+                  parentId: null,
+                  aliases: [],
+                },
+                {
+                  id: "b",
+                  name: "Beta",
+                  description: "",
+                  parentId: null,
+                  aliases: [],
+                },
+              ],
+              groups: { sec_a: "a", sec_b: "b" },
+            },
+            assignmentError: fails ? "Topic assignment failed" : undefined,
+          },
+        );
+        await waitFor(() =>
+          expect(groupRows(slot, "Alpha")).toEqual(["Alpha task", "Delegate"]),
+        );
+        const row = slot.container
+          .querySelector('[data-sidebar-thread-id="alpha"]')!
+          .closest("li")!;
+        fireEvent.mouseDown(row, { button: 0, clientX: 10, clientY: 14 });
+        fireEvent.mouseMove(document, { clientX: 10, clientY: 24 });
+        fireEvent.mouseMove(document, { clientX: 10, clientY: 70 });
+        expect(
+          slot
+            .getByRole("region", { name: "Beta" })
+            .hasAttribute("data-drop-target"),
+        ).toBe(true);
+        fireEvent.mouseUp(document, { clientX: 10, clientY: 70 });
+        await waitFor(() =>
+          expect(
+            slot.inspection.rpcCalls.find((c) => c.method === "taskAssign")
+              ?.input,
+          ).toEqual({ threadId: "alpha", entityId: "b" }),
+        );
+        if (fails) {
+          await slot.findByText("Topic assignment failed");
+          expect(groupRows(slot, "Alpha")).toEqual(["Alpha task", "Delegate"]);
+          expect(groupRows(slot, "Beta")).toEqual(["Beta task"]);
+          expect(
+            slot.inspection.rpcCalls.some((c) => c.method === "reorder"),
+          ).toBe(false);
+        } else {
+          // Publish the coordinator's updated section through the SDK snapshot.
+          slot.selectThread("alpha");
+          await waitFor(() =>
+            expect(groupRows(slot, "Beta")).toEqual([
+              "Beta task",
+              "Alpha task",
+              "Delegate",
+            ]),
+          );
+          expect(
+            within(slot.getByRole("region", { name: "Alpha" })).queryAllByRole(
+              "link",
+            ),
+          ).toEqual([]);
+          expect(
+            slot.inspection.rpcCalls.find((c) => c.method === "reorder")?.input,
+          ).toEqual({
+            kind: "threads",
+            groupId: "sec_b",
+            ids: ["beta", "alpha"],
+          });
+        }
+        await dragGuardRemoved();
+        slot.lifecycle.unmount();
+      } finally {
+        restore();
+      }
+    },
+  );
 });
 
 /**

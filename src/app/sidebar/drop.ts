@@ -9,21 +9,39 @@ import {
   type ManualOrder,
 } from "../../domain/order.ts";
 import {
+  UNSORTED_ID,
   type Projection,
   type Section,
   type WorkstreamThread,
 } from "../../domain/project.ts";
 import { nestGroups, type WorkstreamTopics } from "../../domain/groups.ts";
+import { takesThreads } from "../../domain/topics.ts";
 import type { ReorderChange } from "../useWorkstreams.ts";
 import type { Drop } from "./dnd.tsx";
 
-/**
- * What a sidebar drop changes: only the order. A thread's workstream follows
- * its topic, so dragging a thread into another group doesn't move it there.
- */
+/** A cross-group drop sets the root's topic before saving its destination order. */
 export type DropPlan = {
+  assign?: { threadId: string; entityId: string | null };
   reorder: ReorderChange | null;
 };
+
+/** A parent topic cannot take threads alongside its subtopics. */
+function destination(groupId: string, topics?: WorkstreamTopics) {
+  if (groupId === UNSORTED_ID) return { entityId: null };
+  const entityId = topics?.bindings[groupId];
+  return entityId &&
+    topics.entities.some((entity) => entity.id === entityId) &&
+    takesThreads(entityId, topics.entities)
+    ? { entityId }
+    : null;
+}
+
+export const acceptsThreadDrop = (
+  fromGroupId: string,
+  toGroupId: string,
+  topics?: WorkstreamTopics,
+): boolean =>
+  fromGroupId === toGroupId || destination(toGroupId, topics) !== null;
 
 export function planDrop<T extends WorkstreamThread>(
   drop: Drop,
@@ -65,19 +83,37 @@ export function planDrop<T extends WorkstreamThread>(
     };
   }
 
-  if (drop.fromGroupId !== drop.toGroupId) {
-    // Cross-group moving is disabled; navigation is derived by coordinator.
+  const groups = [...projection.all, projection.unsorted];
+  const source = groups.find((g) => g.id === drop.fromGroupId);
+  if (
+    !source?.rows.some(
+      (row) => row.depth === 0 && row.thread.id === drop.threadId,
+    )
+  )
     return { reorder: null };
-  }
-
-  const group = [
-    ...projection.groups,
-    projection.unsorted,
-    ...projection.dormant,
-  ].find((g) => g.id === drop.toGroupId);
-  const roots = (group?.rows ?? [])
+  const group = groups.find((g) => g.id === drop.toGroupId);
+  if (!group) return { reorder: null };
+  const roots = group.rows
     .filter((row) => row.depth === 0)
     .map((row) => row.thread.id);
+  if (drop.overThreadId !== null && !roots.includes(drop.overThreadId))
+    return { reorder: null };
+  if (drop.fromGroupId !== drop.toGroupId) {
+    const target = destination(drop.toGroupId, topics);
+    if (!target) return { reorder: null };
+    const at =
+      drop.overThreadId === null ? -1 : roots.indexOf(drop.overThreadId);
+    const before =
+      at < 0 ? (roots[0] ?? null) : (roots[at + (drop.below ? 1 : 0)] ?? null);
+    return {
+      assign: { threadId: drop.threadId, entityId: target.entityId },
+      reorder: {
+        kind: "threads",
+        groupId: drop.toGroupId,
+        ids: placeBefore(roots, drop.threadId, before),
+      },
+    };
+  }
   let ids: string[];
   if (drop.overThreadId === null) {
     // Dropped on a group header: the top of that group.

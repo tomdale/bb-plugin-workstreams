@@ -74,10 +74,11 @@ import {
   DropTarget,
   Sortable,
   useSidebarDnd,
+  useIncomingThread,
   type DragHandle,
   type Drop,
 } from "./dnd.tsx";
-import { planDrop } from "./drop.ts";
+import { acceptsThreadDrop, planDrop } from "./drop.ts";
 import { setComposerPreset } from "../composer/preset.ts";
 import {
   defaultPreset,
@@ -397,7 +398,7 @@ export function WorkstreamsThreadList({
 
   const report = (cause: unknown) =>
     setError(cause instanceof Error ? cause.message : String(cause));
-  const onDrop = (drop: Drop) => {
+  const onDrop = async (drop: Drop) => {
     setError(null);
     const plan = planDrop(
       drop,
@@ -406,11 +407,20 @@ export function WorkstreamsThreadList({
       ws.server.order,
       ws.topics,
     );
-    if (plan.reorder) ws.reorder(plan.reorder).catch(report);
+    try {
+      if (plan.assign) {
+        await ws.rpc.call("taskAssign", plan.assign);
+        await ws.refresh();
+      }
+      if (plan.reorder) await ws.reorder(plan.reorder);
+    } catch (cause) {
+      report(cause);
+    }
   };
   const { contextProps } = useSidebarDnd({
     containerRef: listRef,
     onDrop,
+    acceptsThread: (from, to) => acceptsThreadDrop(from, to, ws.topics),
   });
 
   const applySnooze = (request: SnoozeRequest, when: SnoozeWhen) =>
@@ -1610,7 +1620,6 @@ type GroupProps = {
   sectionRef?: (element: HTMLElement | null) => void;
   style?: CSSProperties;
   handle?: DragHandle;
-  /** A thread from another group is being dragged over this one. */
   children: ReactNode;
 };
 
@@ -1629,6 +1638,7 @@ function WorkstreamGroup({
   children,
 }: GroupProps) {
   const { prefs } = usePrefs();
+  const incoming = useIncomingThread(group.id);
   const shows = (when: "always" | "collapsed" | "never" = "collapsed") =>
     when === "always" || (when === "collapsed" && collapsed);
   const focusAction = onToggleFocus ? (
@@ -1654,7 +1664,12 @@ function WorkstreamGroup({
       aria-label={group.name}
       data-flip-key={`group:${group.id}`}
       data-prioritized={group.prioritized ? "" : undefined}
-      className={cn("rounded-md", nested && "pt-1")}
+      data-drop-target={incoming ? "" : undefined}
+      className={cn(
+        "rounded-md",
+        nested && "pt-1",
+        incoming && "bg-sidebar-accent/60",
+      )}
       style={{
         ...style,
         paddingLeft: nested ? 0 : 4,

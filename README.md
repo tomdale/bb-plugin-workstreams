@@ -26,7 +26,8 @@ Tom's checkout, develop in a Workforest task and install only from canonical
 2. Select **Workstreams** as the sidebar thread list and open **Workstreams** in
    the main navigation to browse the topic tree and organization state.
 3. Start a thread with **Automatic**, or select its **Topic** yourself. To move
-   existing work, change its Topic rather than dragging between sections.
+   existing work, drag its root thread to another workstream or change its
+   Topic.
 
 See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
 
@@ -349,6 +350,12 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      button appears only while the header lists threads.
    - Use the **Sort workstreams** menu to order workstreams by **Name A–Z**,
      **Recent activity**, or **Manual order** (drag headers within their tier).
+   - Drag a root thread to another workstream to set its **Topic** to that
+     workstream's topic; its delegates follow it. Drop on a row to place it
+     before or after that root, or on a header to place it first, including a
+     collapsed or recently emptied workstream. Drop in **Unfiled** to clear its
+     topic. A group with subgroups cannot take threads itself: drop on a
+     subgroup's header or one of its rows instead.
    - Drag root threads within a workstream to set manual thread order (newly
      created roots appear at the top of their workstream; newly created
      workstreams appear at the bottom).

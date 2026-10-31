@@ -1,6 +1,6 @@
 /**
  * Drag and drop for the sidebar: workstream headers reorder workstreams, and
- * a root thread's row reorders its whole tree within its topic-derived group.
+ * a root thread's row reorders its tree or moves it to another topic's group.
  * Children follow their root and never drag alone.
  *
  * Drags use mouse and touch sensors rather than pointer events so BB's
@@ -21,6 +21,7 @@ import {
   TouchSensor,
   pointerWithin,
   useDroppable,
+  useDndContext,
   useSensor,
   useSensors,
   type CollisionDetection,
@@ -37,7 +38,7 @@ export type DragData =
   /** `pinned`: a focused workstream, which reorders only among its tier. */
   | { type: "group"; groupId: string; pinned?: boolean }
   | { type: "thread"; threadId: string; groupId: string }
-  /** A group that takes thread drops but does not itself reorder (Unfiled). */
+  /** A group that takes thread drops but does not itself reorder. */
   | { type: "target"; groupId: string };
 
 export type Drop =
@@ -55,46 +56,66 @@ export type Drop =
 
 const dataOf = (value: unknown) => value as DragData | undefined;
 
+type AcceptsThreadDrop = (fromGroupId: string, toGroupId: string) => boolean;
+
 /**
  * Threads land on rows first, then on a group; workstreams land only on
  * workstreams in their own tier (focused or not). Only what is under the
  * pointer counts, so releasing over a band or outside the list changes
  * nothing.
  */
-const collision: CollisionDetection = (args) => {
-  const active = dataOf(args.active.data.current);
-  const activeType = active?.type;
-  const accepts = (data: DragData | undefined) =>
-    activeType === "group"
-      ? data?.type === "group" &&
-        !!data.pinned === (active?.type === "group" && !!active.pinned)
-      : active?.type === "thread" && data?.groupId === active.groupId;
-  const hits = pointerWithin({
-    ...args,
-    droppableContainers: args.droppableContainers.filter((container) =>
-      accepts(dataOf(container.data.current)),
-    ),
-  });
-  if (activeType !== "thread") return hits;
-  const rows = hits.filter(
-    (hit) =>
-      dataOf(hit.data?.droppableContainer?.data.current)?.type === "thread",
+const collision =
+  (acceptsThread: AcceptsThreadDrop): CollisionDetection =>
+  (args) => {
+    const active = dataOf(args.active.data.current);
+    const activeType = active?.type;
+    const accepts = (data: DragData | undefined) =>
+      activeType === "group"
+        ? data?.type === "group" &&
+          !!data.pinned === (active?.type === "group" && !!active.pinned)
+        : active?.type === "thread" &&
+          data !== undefined &&
+          acceptsThread(active.groupId, data.groupId);
+    const hits = pointerWithin({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((container) =>
+        accepts(dataOf(container.data.current)),
+      ),
+    });
+    if (activeType !== "thread") return hits;
+    const rows = hits.filter(
+      (hit) =>
+        dataOf(hit.data?.droppableContainer?.data.current)?.type === "thread",
+    );
+    return rows.length ? rows : hits;
+  };
+
+/** Highlights only a group that collision detection has accepted for this tree. */
+export function useIncomingThread(groupId: string): boolean {
+  const { active, over } = useDndContext();
+  const source = dataOf(active?.data.current);
+  const target = dataOf(over?.data.current);
+  return (
+    source?.type === "thread" &&
+    source.groupId !== groupId &&
+    target?.groupId === groupId
   );
-  return rows.length ? rows : hits;
-};
+}
 
 const verticalOnly: Modifier = ({ transform }) => ({ ...transform, x: 0 });
 
 /**
- * DndContext props for within-group reordering. `containerRef` bounds the
+ * DndContext props for reordering and topic moves. `containerRef` bounds the
  * list: a drop outside it sideways belongs to BB's split drag, not a reorder.
  */
 export function useSidebarDnd({
   containerRef,
   onDrop,
+  acceptsThread,
 }: {
   containerRef: RefObject<HTMLElement | null>;
   onDrop: (drop: Drop) => void;
+  acceptsThread: AcceptsThreadDrop;
 }): { contextProps: DndContextProps } {
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
@@ -146,7 +167,7 @@ export function useSidebarDnd({
   return {
     contextProps: {
       sensors,
-      collisionDetection: collision,
+      collisionDetection: collision(acceptsThread),
       modifiers: [verticalOnly],
       onDragStart: suppressClick.begin,
       onDragEnd,
@@ -216,12 +237,21 @@ export function Sortable({
     transform,
     transition,
     isDragging,
+    isOver,
   } = useSortable({ id, data, disabled });
+  const { active } = useDndContext();
+  const activeData = dataOf(active?.data.current);
+  const incoming =
+    isOver &&
+    activeData?.type === "thread" &&
+    data.type === "thread" &&
+    activeData.groupId !== data.groupId;
   return children({
     ref: setNodeRef,
     style: {
       transform: CSS.Translate.toString(transform),
       transition,
+      ...(incoming && { background: "var(--sidebar-accent)" }),
       ...(isDragging && {
         position: "relative",
         zIndex: 10,
