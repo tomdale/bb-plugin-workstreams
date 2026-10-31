@@ -137,7 +137,12 @@ export function CardStack({
   return (
     <div
       className="relative isolate"
-      style={{ paddingBottom: behind.length * STACK_STEP }}
+      style={{
+        paddingBottom: behind.length * STACK_STEP,
+        // A taller leaving card is cut off at the stack's bottom edge, so it
+        // never covers the replies and buttons below; it can still lift above.
+        clipPath: leaving ? "inset(-64px -32px 0 -32px)" : undefined,
+      }}
     >
       {behind.map((edge, index) => (
         <div
