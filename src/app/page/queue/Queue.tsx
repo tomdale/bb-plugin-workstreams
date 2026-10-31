@@ -504,13 +504,15 @@ export function Queue({
   useLayoutEffect(() => {
     const was = shown.current;
     shown.current = current && front ? { key: current, node: front } : null;
-    if (!was || was.key === current) return;
-    setLeaving(was);
-    const timer = setTimeout(() => setLeaving(null), 220);
-    return () => clearTimeout(timer);
+    if (was && was.key !== current) setLeaving(was);
     // Only a change of item starts the exit; `front` is read for the next one.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = setTimeout(() => setLeaving(null), 220);
+    return () => clearTimeout(timer);
+  }, [leaving]);
   if (shown.current?.key === current && front)
     shown.current = { key: current!, node: front };
   const behind = remaining.slice(position + 1, position + 3).map((id) => {
@@ -554,14 +556,14 @@ export function Queue({
             <div ref={unit}>
               {front ? (
                 <CardStack
-                  key={current}
+                  key={`card:${current}`}
                   front={front}
                   behind={behind}
                   leaving={leaving}
                   motion={motion}
                 />
               ) : null}
-              <div key={current ?? "empty"} className="ws-queue-enter">
+              <div key={`actions:${current}`} className="ws-queue-enter">
                 {thread && card ? (
                   <>
                     {replying?.id === thread.id ? (

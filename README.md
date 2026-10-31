@@ -536,8 +536,10 @@ above the composer:
 
 Open **Workstreams** in the main navigation panel. The page is a queue that
 shows one thing at a time that needs you: Up Next's threads in the sidebar's
-order, then the organizer's suggestions. The order holds while the page is open,
-and the footer says how many are left.
+order, then the organizer's suggestions. The order holds while the page is open.
+The next items wait as a stack behind the current card, and acting on one moves
+on to the next. To look ahead or back without acting, use the footer's arrows,
+which also show where you are ("2 of 9"), or press `←` and `→` (or `K` and `J`).
 
 Each thread shows its workstream (click it to open **Topics**) and title above
 its latest recap card. Under the card:
@@ -593,7 +595,7 @@ Each opens as its own view with **Back**. Deep links still work:
 | `Workstreams: next Up Next thread` (`Cmd+Alt+J` / `Ctrl+Alt+J`) | Global command palette / shortcut | Opens the next thread in Up Next, wrapping to the top.                                          |
 | `Workstreams: snooze this thread`                               | Command palette (active thread)   | Snoozes the current thread using your configured **Click to snooze** default preset.            |
 | `Workstreams: wake this snoozed thread`                         | Command palette (snoozed thread)  | Wakes the current snoozed thread immediately.                                                   |
-| `1`–`3`, `Shift`, `R`, `S`, `E`, `O`, `U`                       | Workstreams page                  | Sends a reply (`Shift` edits it first), replies, snoozes, archives, opens, or undoes.           |
+| `1`–`3`, `Shift`, `R`, `S`, `E`, `O`, `U`, `←`/`→`              | Workstreams page                  | Sends a reply (`Shift` edits it first), replies, snoozes, archives, opens, undoes, or skips.    |
 | `Shift+Click`                                                   | Recap card **Next action** button | Copies the suggested prompt into the composer for editing instead of sending immediately.       |
 | `1`–`4`, `Enter` / `Shift+Enter`                                | `AskUserQuestion` card            | Selects an option by number; submits the answer (`Enter`) or inserts a newline (`Shift+Enter`). |
 
