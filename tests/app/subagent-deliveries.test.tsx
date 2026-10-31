@@ -144,8 +144,8 @@ it("renders the complete saved reply outside the clipped bubble and restores it 
   expect(message.getByText("Reviewed all states")).toBeTruthy();
   expect(message.getByText("Review")).toBeTruthy();
   expect(
-    message.getByRole("link", { name: "Full transcript" }).getAttribute("href"),
-  ).toBe("/threads/thr_worker");
+    message.getByText("@thread:thr_worker").closest("[data-markdown-preview]"),
+  ).not.toBeNull();
   expect(
     message.container
       .querySelector("[data-ws-subagent-delivery]")

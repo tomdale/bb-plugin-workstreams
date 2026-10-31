@@ -511,10 +511,11 @@ which adds a message-block slot, you also get **Structured replies**:
   component shows its original source and a diagnostic without discarding the
   explanation or the recap.
 - Completion messages from the Subagents plugin show their reply blocks inline,
-  in a bordered panel labeled Subagent, with the worker's name and transcript
-  link. They use the thread's message type size, including completions delivered
-  while the parent thread is running. File links use the worker's workspace.
-  Unsupported, incomplete, or unverified deliveries keep BB's original message.
+  in a bordered panel labeled Subagent, with the worker's name and BB's standard
+  thread chip for the full transcript. They use the thread's message type size,
+  including completions delivered while the parent thread is running. File links
+  use the worker's workspace. Unsupported, incomplete, or unverified deliveries
+  keep BB's original message.
 
 Workstreams detects the slot when its app loads and reports it to the server.
 Without the slot, Settings has no Structured replies row and agents use the

@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { Markdown, UrlLink, useSdk } from "@get-bb/plugin-sdk/app";
+import { Markdown, useSdk } from "@get-bb/plugin-sdk/app";
 import type { PluginBrowserBbSdk } from "@get-bb/plugin-sdk/app";
 import { z } from "zod";
 import { usePortalScopeProps } from "@/lib/portal-scope";
@@ -115,12 +115,10 @@ function Delivery({ target }: { target: Target }) {
           {delivery.title}
         </span>
         <span>{delivery.status}</span>
-        <UrlLink
-          href={`/threads/${delivery.threadId}`}
-          className="ml-auto shrink-0"
-        >
-          Full transcript
-        </UrlLink>
+        <Markdown
+          content={`@thread:${delivery.threadId}`}
+          className="ml-auto min-w-0 max-w-full text-xs [&_p]:m-0"
+        />
       </div>
       {delivery.error ? (
         <p className="text-sm text-destructive">{delivery.error}</p>
