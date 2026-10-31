@@ -110,9 +110,8 @@ export function headingScroll(fromBottom: number, exitDistance: number) {
     Math.max(0, fromBottom) / (exitDistance / HEADING_SCROLL_RATIO),
     1,
   );
-  // Blend linear and smoothstep: the copies ease at both ends while staying
-  // responsive to small scrolls and reaching their boundaries together.
-  const progress = (t + t * t * (3 - 2 * t)) / 2;
+  // Start responsively and ease to zero velocity at the shared endpoint.
+  const progress = t * (0.5 + t * (2 - 1.5 * t));
   const moved = exitDistance * progress;
   return { moved, remaining: exitDistance - moved, progress };
 }

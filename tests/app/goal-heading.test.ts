@@ -61,13 +61,32 @@ it("eases both copies together over a longer scroll and reaches both boundaries"
   const late = headingScroll(travel * 0.75, distance);
   const finish = headingScroll(travel, distance);
   expect(start).toEqual({ moved: 0, remaining: distance, progress: 0 });
-  expect(early.progress).toBeCloseTo(0.203125);
-  expect(late.progress).toBeCloseTo(1 - early.progress);
+  expect(early.progress).toBeCloseTo(0.2265625);
+  expect(late.progress).toBeCloseTo(0.8671875);
   expect(early.moved + early.remaining).toBeCloseTo(distance);
-  expect(halfway.progress).toBeCloseTo(0.5);
+  expect(halfway.progress).toBeCloseTo(0.5625);
   expect(finish).toEqual({ moved: distance, remaining: 0, progress: 1 });
   expect(headingScroll(travel + 50, distance)).toEqual(finish);
   expect(headingScroll(-10, distance)).toEqual(start);
+});
+
+it("slows to a stop at the shared endpoint without overshooting", () => {
+  const distance = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 1);
+  const travel = distance * 2.5;
+  const before = headingScroll(travel * 0.98, distance);
+  const almost = headingScroll(travel * 0.99, distance);
+  const finish = headingScroll(travel, distance);
+  expect(before.progress).toBeLessThan(almost.progress);
+  expect(almost.progress).toBeLessThan(finish.progress);
+  expect(finish.progress - almost.progress).toBeLessThan(
+    (almost.progress - before.progress) * 0.4,
+  );
+  for (let step = 0; step <= 100; step++) {
+    const state = headingScroll((travel * step) / 100, distance);
+    expect(state.progress).toBeGreaterThanOrEqual(0);
+    expect(state.progress).toBeLessThanOrEqual(1);
+    expect(state.moved + state.remaining).toBeCloseTo(distance);
+  }
 });
 
 it("eases the outgoing and incoming opacity independently", () => {
