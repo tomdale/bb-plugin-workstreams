@@ -116,15 +116,15 @@ export function headingScroll(fromBottom: number, exitDistance: number) {
   return { moved, remaining: exitDistance - moved, progress };
 }
 
-/** The inline heading follows the timeline; the compact title appears in
- * proportion to the large title's clipped height. */
+/** The floating heading leaves as the reader scrolls away from the newest
+ * message; the compact title appears in proportion to the clipped height. */
 export function hybridHeadingScroll(
-  fromTop: number,
+  fromBottom: number,
   exitDistance: number,
   titleBlock: number,
   headingHeight: number,
 ) {
-  const scrolled = Math.max(0, fromTop);
+  const scrolled = Math.max(0, fromBottom);
   return {
     moved: Math.min(scrolled, headingHeight),
     remaining: 0,

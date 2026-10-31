@@ -191,7 +191,7 @@ export function ThreadsSettings() {
         />
         <SettingRow
           label="Title transition"
-          description="How the large heading changes to the compact title. Hybrid scrolls the large heading with the conversation."
+          description="How the large heading changes to the compact title. Hybrid moves the large heading away as the compact title fades in."
           control={
             <SegmentedControl
               label="Title transition"

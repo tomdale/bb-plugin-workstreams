@@ -185,20 +185,15 @@ function useMessageScroller(threadId: string | null): Mount | null {
 
 function useScrollState(scroller: HTMLElement | null): {
   fromBottom: number;
-  fromTop: number;
   // BB's own overflow fades appear only once content has scrolled out of view,
   // so the fade beneath the heading is on exactly when the timeline is
   // detached from its top.
   fade: boolean;
 } {
-  const [state, setState] = useState({
-    fromBottom: 0,
-    fromTop: 0,
-    fade: false,
-  });
+  const [state, setState] = useState({ fromBottom: 0, fade: false });
   useEffect(() => {
     // A new scroller (another thread) starts expanded until it is measured.
-    setState({ fromBottom: 0, fromTop: 0, fade: false });
+    setState({ fromBottom: 0, fade: false });
     if (!scroller) return;
     let frame = 0;
     const update = () => {
@@ -206,14 +201,11 @@ function useScrollState(scroller: HTMLElement | null): {
       frame = requestAnimationFrame(() => {
         const range = scroller.scrollHeight - scroller.clientHeight;
         const fromBottom = Math.max(0, range - scroller.scrollTop);
-        const fromTop = Math.max(0, scroller.scrollTop);
         const fade = scroller.scrollTop > 1;
         setState((prev) =>
-          prev.fromBottom === fromBottom &&
-          prev.fromTop === fromTop &&
-          prev.fade === fade
+          prev.fromBottom === fromBottom && prev.fade === fade
             ? prev
-            : { fromBottom, fromTop, fade },
+            : { fromBottom, fade },
         );
       });
     };
@@ -411,7 +403,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const fadeOnly = transition === "fade";
   const hybrid = transition === "hybrid";
   const mount = useMessageScroller(threadId);
-  const { fromBottom, fromTop, fade } = useScrollState(mount?.scroller ?? null);
+  const { fromBottom, fade } = useScrollState(mount?.scroller ?? null);
   const settled = useSettled(mount);
   const base = mount?.baseFontSize ?? 14;
   const placement = usePlacement(mount, base);
@@ -442,7 +434,12 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const { moved, remaining, progress } = placement?.short
     ? { moved: exitDistance, remaining: 0, progress: 1 }
     : hybrid
-      ? hybridHeadingScroll(fromTop, exitDistance, titleBlock, height)
+      ? hybridHeadingScroll(
+          settled ? fromBottom : 0,
+          exitDistance,
+          titleBlock,
+          height,
+        )
       : headingScroll(settled ? fromBottom : 0, exitDistance);
   const collapsed = progress === 1;
   const opacity = hybrid
@@ -453,12 +450,13 @@ export function StickyGoalHeader(): React.ReactElement | null {
   // When the title bar has no room, the compact copy sits in the timeline.
   const pinned = !!placement && placement.bar === null;
   const platePinnedHeight = pinnedHeight(base, eyebrow);
-  // A pinned compact heading needs a solid plate. The hybrid's large heading
-  // instead occupies its reserved space in the scrolling timeline.
+  // Keep the floating heading backed until it exits; a pinned compact heading
+  // also needs a plate after the large heading has gone.
   const plateHeight = hybrid
-    ? pinned
-      ? platePinnedHeight * progress
-      : 0
+    ? Math.max(
+        placement?.short ? 0 : height - moved,
+        pinned ? platePinnedHeight * progress : 0,
+      )
     : fadeOnly
       ? pinned
         ? height * (1 - progress) + platePinnedHeight * progress
@@ -543,8 +541,8 @@ export function StickyGoalHeader(): React.ReactElement | null {
       </div>
     );
 
-  // The hybrid heading moves with the timeline; its compact copy remains
-  // still and fades in as the large title crosses the viewport edge.
+  // The hybrid heading moves out as the reader leaves the newest message;
+  // its compact copy fades in as the large title crosses the viewport edge.
   const text = (
     <>
       <div

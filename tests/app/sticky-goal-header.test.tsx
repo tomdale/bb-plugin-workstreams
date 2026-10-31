@@ -329,7 +329,7 @@ it("crossfades stationary headings and switches modes on preference changes", as
   slot.lifecycle.unmount();
 });
 
-it("moves the large heading with the timeline and fades the compact title as it exits", async () => {
+it("floats the large heading at the newest message and fades the compact title as it exits", async () => {
   paneFixture({ recap: false });
   const scroller = document.querySelector<HTMLElement>(
     '[data-test="messages"]',
@@ -337,7 +337,7 @@ it("moves the large heading with the timeline and fades the compact title as it 
   Object.defineProperties(scroller, {
     scrollHeight: { configurable: true, value: 1000 },
     clientHeight: { configurable: true, value: 400 },
-    scrollTop: { configurable: true, writable: true, value: 0 },
+    scrollTop: { configurable: true, writable: true, value: 600 },
   });
   vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
     new DOMRect(0, 48, 900, 672),
@@ -354,41 +354,95 @@ it("moves the large heading with the timeline and fades the compact title as it 
     new DOMRect(700, 0, 100, 48),
   );
   const slot = await mountHeading("hybrid");
+  scroller.scrollTop = 600;
+  scroller.dispatchEvent(new Event("scroll"));
   const groups = () => [
     ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
   ];
   const y = (el: HTMLElement) =>
-    Number.parseFloat(
-      el.style.transform.match(/translateY\(([-\d.]+)px\)/)![1]!,
-    );
+    Number.parseFloat(el.style.transform.slice("translateY(".length));
   await waitFor(() => expect(groups()).toHaveLength(2));
+  await new Promise((resolve) => setTimeout(resolve, 550));
   const titleTop = 14 * 0.85;
   const titleHeight = (14 * 1.5 * 4) / 3;
-  for (const [fromTop, expected] of [
+  const plate = overlay()!.querySelector<HTMLElement>(
+    ".ws-sticky-goal__plate",
+  )!;
+  const height = Number.parseFloat(plate.parentElement!.style.height);
+  for (const [fromBottom, expected] of [
     [0, 0],
     [titleTop, 0],
     [titleTop + titleHeight / 4, 0.25],
     [titleTop + titleHeight / 2, 0.5],
     [titleTop + titleHeight, 1],
+    [height + 10, 1],
     [titleTop + titleHeight / 2, 0.5],
     [0, 0],
   ]) {
-    scroller.scrollTop = fromTop!;
+    scroller.scrollTop = 600 - fromBottom!;
     scroller.dispatchEvent(new Event("scroll"));
     await waitFor(() => {
-      expect(y(groups()[0]!)).toBeCloseTo(titleTop - fromTop!);
+      expect(y(groups()[0]!)).toBeCloseTo(
+        titleTop - Math.min(fromBottom!, height),
+      );
       expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(expected!);
     });
     expect(Number(groups()[0]!.style.opacity)).toBe(1);
     expect(y(groups()[1]!)).toBe(0);
+    expect(
+      Number.parseFloat(plate.style.transform.slice("scaleY(".length)),
+    ).toBeCloseTo(Math.max(0, height - fromBottom!) / height);
   }
   Object.defineProperty(scroller, "scrollHeight", {
     configurable: true,
     value: 2000,
   });
+  scroller.scrollTop = 1600;
   scroller.dispatchEvent(new Event("scroll"));
   await waitFor(() => expect(y(groups()[0]!)).toBeCloseTo(titleTop));
   expect(Number(groups()[1]!.style.opacity)).toBe(0);
+  slot.lifecycle.unmount();
+});
+
+it("keeps the hybrid heading backed when the compact title is pinned", async () => {
+  paneFixture({ recap: false });
+  const scroller = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, value: 1000 },
+    clientHeight: { configurable: true, value: 400 },
+    scrollTop: { configurable: true, writable: true, value: 600 },
+  });
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 900, 672),
+  );
+  const slot = await mountHeading("hybrid");
+  scroller.scrollTop = 600;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() =>
+    expect(overlay()!.querySelector(".ws-sticky-goal__plate")).not.toBeNull(),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  const plate = overlay()!.querySelector<HTMLElement>(
+    ".ws-sticky-goal__plate",
+  )!;
+  const height = Number.parseFloat(plate.parentElement!.style.height);
+  expect(
+    Number.parseFloat(plate.style.transform.slice("scaleY(".length)),
+  ).toBeCloseTo(1);
+  scroller.scrollTop = 500;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() =>
+    expect(root()!.getAttribute("data-collapsed")).toBe("true"),
+  );
+  const scaled =
+    Number.parseFloat(plate.style.transform.slice("scaleY(".length)) * height;
+  expect(scaled).toBeGreaterThan(0);
+  expect(Number(plate.style.opacity)).toBe(1);
+  expect(Number.parseFloat(scroller.style.scrollPaddingTop)).toBeCloseTo(
+    scaled,
+  );
   slot.lifecycle.unmount();
 });
 
