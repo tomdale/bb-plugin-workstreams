@@ -743,19 +743,3 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
 .ws-subagent-delivery-source {
   display: none;
 }
-
-/* A reply block's section that arrives while the reply streams fades in
-   without moving: opacity only, so nothing above or below it shifts. */
-@keyframes ws-reply-enter {
-  from {
-    opacity: 0;
-  }
-}
-.ws-reply-enter {
-  animation: ws-reply-enter 180ms ease-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  .ws-reply-enter {
-    animation: none;
-  }
-}

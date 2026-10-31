@@ -25,7 +25,10 @@ vi.mock("@get-bb/plugin-sdk/app", async (importActual) => {
     Markdown: (props: React.ComponentProps<typeof actual.Markdown>) =>
       React.createElement(
         "div",
-        { "data-document": JSON.stringify(props.experimental_document) },
+        {
+          "data-document": JSON.stringify(props.experimental_document),
+          "data-markdown": props.content,
+        },
         React.createElement(ReactMarkdown, {
           children: props.content,
           urlTransform: (url) => url,
@@ -43,7 +46,7 @@ const SDK = {
   },
 };
 const Original = () => <div data-original="">Host rendering</div>;
-async function registration(): Promise<ExperimentalMessageBlockRegistration> {
+function registration(): ExperimentalMessageBlockRegistration {
   let reply: ExperimentalMessageBlockRegistration | null = null;
   registerReplyBlock({
     slots: {
@@ -74,34 +77,38 @@ function props(
     Original,
   };
 }
-async function draw(
+function draw(
   message: string,
   options: {
     streaming?: boolean;
     docked?: { turnId: string; dismissed?: boolean };
   } = {},
 ) {
-  const block = await registration();
+  const block = registration();
   return renderSlot(block, props(block, message, options.streaming), {
     sdk: SDK,
-    ...(options.docked
-      ? {
-          rpc: {
-            state: () => ({
-              recaps: { t1: { id: "r1", turnId: options.docked!.turnId } },
-              dismissedRecaps: options.docked!.dismissed ? ["r1"] : [],
-            }),
-          },
-        }
-      : {}),
+    openFilePreview: () => true,
+    rpc: {
+      state: () => ({
+        recaps: options.docked
+          ? { t1: { id: "r1", turnId: options.docked.turnId } }
+          : {},
+        dismissedRecaps: options.docked?.dismissed ? ["r1"] : [],
+      }),
+    },
   });
 }
 const body = (
   component: (typeof COMPONENT_EXAMPLES)[keyof typeof COMPONENT_EXAMPLES],
 ) => `:::reply\n${componentFence(component)}\n:::\n`;
 
-it("registers version 1 and a readable text view", async () => {
-  const block = await registration();
+const finding = COMPONENT_EXAMPLES.finding as Extract<
+  typeof COMPONENT_EXAMPLES.finding,
+  { type: "finding" }
+>;
+
+it("registers version 1 and the existing readable text view", () => {
+  const block = registration();
   expect(block.versions).toEqual([1]);
   expect(block.toText({ body: [{ type: "text", body: "PASS" }] })).toBe("PASS");
 });
@@ -112,135 +119,90 @@ it("preserves upstream registration without a message-block slot", async () => {
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   expect(app.composerCustomizations.map((c) => c.id)).toContain("recap");
 });
+it.each(Object.entries(COMPONENT_EXAMPLES))(
+  "renders %s as plain Markdown and native links",
+  async (_type, component) => {
+    const view = draw(body(component));
+    expect(
+      view.container.querySelectorAll("[data-markdown]").length,
+    ).toBeGreaterThan(0);
+    expect(view.container.textContent?.trim().length).toBeGreaterThan(0);
+    expect(view.container.textContent).not.toContain("```workstreams");
+    expect(
+      view.container.querySelector(
+        "[data-reply-component], aside, article, button, footer",
+      ),
+    ).toBeNull();
+    expect(view.container.querySelector("[data-reply-block]")?.className).toBe(
+      "min-w-0 space-y-4",
+    );
+  },
+);
 it.each(Object.entries(COMPOSED_SAMPLES))(
-  "renders the %s composition and full explanation",
-  async (kind, message) => {
-    const view = await draw(message, { docked: { turnId: "turn1" } });
+  "renders the %s body without composed treatment",
+  async (kind, source) => {
+    const view = draw(source, { docked: { turnId: "turn1" } });
     expect(
       view.container
         .querySelector("[data-reply-kind]")
         ?.getAttribute("data-reply-kind"),
     ).toBe(kind);
     expect(
-      view.container.querySelectorAll("[data-reply-component]").length,
+      view.container.querySelectorAll("[data-markdown]").length,
     ).toBeGreaterThan(0);
-    expect(view.container.textContent).not.toContain("```workstreams");
     expect(
-      view.container.querySelector("[data-reply-headline]")?.textContent,
-    ).toBeTruthy();
-    expect(view.container.querySelector("[data-reply-recap]")).toBeNull();
-    expect(
-      view.container.querySelector("[data-reply-block]")?.className,
-    ).not.toMatch(/\bborder\b/);
-  },
-);
-it("places shared context before the headline without shortening the explanation", async () => {
-  const message = `:::reply{state="complete"}\n# Found the cause\n- [x] The caller and calculation use different units\n\nA full explanation before the context in the source.\n\n${componentFence(COMPONENT_EXAMPLES.context)}\n:::\n`;
-  const view = await draw(message);
-  await waitFor(() =>
-    expect(
-      view.container.querySelector("[data-reply-headline]"),
-    ).not.toBeNull(),
-  );
-  expect(
-    view.container
-      .querySelector("[data-reply-block]")
-      ?.firstElementChild?.getAttribute("data-reply-component"),
-  ).toBe("context");
-  expect(view.container.textContent).toContain(
-    "A full explanation before the context in the source.",
-  );
-});
-
-it("distinguishes a reported location from the current workspace used for links", async () => {
-  const view = await draw(
-    body({
-      type: "context",
-      topic: "Deployment review",
-      where: "Production · canary",
-      background: "The result concerns a deployment, not just the checkout.",
-    }),
-  );
-  const workspace = await screen.findByRole("button", {
-    name: "Show current workspace",
-  });
-  expect(view.container.textContent).not.toContain("/work/shop");
-  expect(view.container.textContent).toContain(
-    "Reported location: Production · canary",
-  );
-  fireEvent.click(workspace);
-  expect(await screen.findByText("/work/shop")).toBeDefined();
-});
-
-it("keeps long prose and headings visible without a generated Details fold", async () => {
-  const text = Array.from(
-    { length: 8 },
-    (_, i) =>
-      `### Point ${i}\n\nSentence one. Sentence two. Sentence three. Sentence four.`,
-  ).join("\n\n");
-  const view = await draw(`:::reply\n${text}\n:::\n`);
-  expect(view.container.querySelectorAll("h3")).toHaveLength(8);
-  expect(view.container.textContent).toContain("Point 7");
-  expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
-});
-it.each(["    ", "        ", "\t", "  \t"])(
-  "keeps indented code literal after the article lead (%j)",
-  async (indent) => {
-    const view = await draw(
-      `:::reply{state="complete"}\n# A code example\n\nAn introduction.\n\n${indent}git show abc1234\n:::\n`,
-    );
-    expect(view.container.querySelector("[data-reply-lead]")?.textContent).toBe(
-      "An introduction.",
-    );
-    expect(view.container.querySelector("pre code")?.textContent).toContain(
-      "git show abc1234",
-    );
-    expect(
-      screen.queryByRole("button", { name: "Copy commit abc1234" }),
+      view.container.querySelector(
+        "header, footer, aside, [data-reply-lead], [data-reply-cue]",
+      ),
     ).toBeNull();
+    expect(view.container.textContent).not.toContain("```workstreams");
   },
 );
-
-it("keeps several supporting components beside one primary explanation", async () => {
-  const view = await draw(
-    body({
-      type: "group",
-      relationship: "supporting",
-      children: [
-        { type: "text", body: "The primary explanation stays together." },
-        COMPONENT_EXAMPLES.finding as Extract<
-          typeof COMPONENT_EXAMPLES.finding,
-          { type: "finding" }
-        >,
-        COMPONENT_EXAMPLES.checks as Extract<
-          typeof COMPONENT_EXAMPLES.checks,
-          { type: "checks" }
-        >,
-      ],
-    }),
+it("preserves source order rather than moving context above prose", () => {
+  const view = draw(
+    `:::reply\nOpening explanation.\n\n${componentFence({ type: "context", topic: "Reported task", where: "Reported location" })}\n\nClosing explanation.\n:::\n`,
   );
-  const aside = screen.getByRole("complementary", {
-    name: "Supporting information",
-  });
-  expect(aside.children).toHaveLength(2);
-  expect(aside.textContent).toContain("The calculation subtracts cents");
-  expect(aside.textContent).toContain("Local checks");
-  expect(aside.textContent).not.toContain(
-    "The primary explanation stays together",
+  const paragraphs = [...view.container.querySelectorAll("p")].map(
+    (p) => p.textContent,
   );
-  expect(view.container.textContent).toContain(
-    "The primary explanation stays together",
-  );
+  expect(paragraphs).toEqual([
+    "Opening explanation.",
+    "Reported task",
+    "Reported location",
+    "Closing explanation.",
+  ]);
+  expect(
+    screen.queryByRole("button", { name: "Show current workspace" }),
+  ).toBeNull();
 });
-
-it("keeps multiple primary components together beside supporting evidence", async () => {
-  const view = await draw(
+it("keeps supporting detail, all checks, and comparison details visible", () => {
+  const source = [
+    COMPONENT_EXAMPLES.details,
+    COMPONENT_EXAMPLES.checks,
+    COMPONENT_EXAMPLES.comparison,
+  ]
+    .map(componentFence)
+    .join("\n\n");
+  const view = draw(`:::reply\n${source}\n:::\n`);
+  expect(view.container.querySelector("pre code")?.textContent).toContain(
+    "1000 * (10 / 100)",
+  );
+  expect(screen.getByText("Unit tests")).toBeDefined();
+  expect(screen.getByText("Status: passed")).toBeDefined();
+  expect(screen.getByText("Payment integration")).toBeDefined();
+  expect(screen.getByText("Status: skipped")).toBeDefined();
+  expect(view.container.textContent).toContain("connection remains unverified");
+  expect(view.container.textContent).toContain("100-cent discount");
+  expect(view.container.querySelector("button, [hidden]")).toBeNull();
+});
+it("flattens grouped component lists without losing their narrative or sources", () => {
+  const view = draw(
     body({
       type: "group",
       relationship: "supporting",
       children: [
         [
-          { type: "text", body: "The primary explanation." },
+          { type: "text", body: "Primary explanation." },
           COMPONENT_EXAMPLES.sequence as Extract<
             typeof COMPONENT_EXAMPLES.sequence,
             { type: "sequence" }
@@ -253,66 +215,39 @@ it("keeps multiple primary components together beside supporting evidence", asyn
       ],
     }),
   );
-  const group = view.container.querySelector("[data-relationship=supporting]")!;
-  const primary = group.firstElementChild!;
-  expect(primary.textContent).toContain("The primary explanation.");
-  expect(
-    primary.querySelector("[data-reply-component=sequence]"),
-  ).not.toBeNull();
-  const aside = screen.getByRole("complementary", {
-    name: "Supporting information",
-  });
-  expect(aside.textContent).toContain("The calculation subtracts cents");
-  expect(aside.textContent).not.toContain("The primary explanation.");
-});
-
-it("uses a local disclosure for explicitly supporting Markdown", async () => {
-  const view = await draw(body(COMPONENT_EXAMPLES.details));
-  const toggle = screen.getByRole("button", { name: "Supporting calculation" });
-  expect(toggle.getAttribute("aria-expanded")).toBe("false");
-  expect(view.container.querySelector("pre")).toBeNull();
-  fireEvent.click(toggle);
-  expect(view.container.querySelector("pre code")?.textContent).toContain(
-    "1000 * (10 / 100)",
-  );
-  expect(toggle.getAttribute("aria-expanded")).toBe("true");
-});
-it("shows unresolved and skipped checks while passed checks are folded", async () => {
-  const view = await draw(body(COMPONENT_EXAMPLES.checks));
-  expect(view.container.textContent).toContain("Payment integration");
-  expect(view.container.textContent).toContain("Skipped");
-  expect(view.container.textContent).toContain("connection remains unverified");
-  expect(screen.queryByText("Unit tests")).toBeNull();
-  expect(screen.getByLabelText("Reported test totals").textContent).toContain(
-    "22",
-  );
-  fireEvent.click(screen.getByRole("button", { name: "1 check passed" }));
-  expect(screen.getByText("Unit tests")).toBeDefined();
-});
-it("renders comparison qualifications outside the optional detail", async () => {
-  const view = await draw(body(COMPONENT_EXAMPLES.comparison));
+  expect(view.container.textContent).toContain("Primary explanation.");
   expect(view.container.textContent).toContain(
-    "Requires checking and updating every caller",
+    "The calculation subtracts cents",
   );
-  expect(view.container.textContent).toContain(
-    "Choose this only if callers already know",
-  );
-  expect(view.container.textContent).not.toContain("100-cent discount");
-  fireEvent.click(
-    screen.getByRole("button", { name: "Details: Change the caller contract" }),
-  );
-  expect(view.container.textContent).toContain("100-cent discount");
+  expect(view.container.textContent).toContain("Calculation");
+  expect(view.container.querySelector("aside, [data-relationship]")).toBeNull();
 });
-it("renders evidence as a workspace-aware link with code formatting", async () => {
-  const view = await draw(body(COMPONENT_EXAMPLES.finding));
-  await waitFor(() =>
+it.each(["    ", "        ", "\t", "  \t"])(
+  "preserves indented code after prose (%j)",
+  (indent) => {
+    const view = draw(
+      `:::reply\nAn introduction.\n\n${indent}git show abc1234\n:::\n`,
+    );
+    expect(view.container.querySelector("pre code")?.textContent).toContain(
+      "git show abc1234",
+    );
     expect(
-      view.container
-        .querySelector("[data-document]")
-        ?.getAttribute("data-document"),
-    ).toContain("env1"),
+      screen.queryByRole("button", { name: "Copy commit abc1234" }),
+    ).toBeNull();
+  },
+);
+it("keeps a Markdown reference definition in the same document as its use", () => {
+  const view = draw(
+    ":::reply\nAn [explanation][source].\n\n[source]: https://example.com/evidence\n:::\n",
   );
-  const link = screen.getByRole("link", { name: "Calculation" });
+  expect(
+    screen.getByRole("link", { name: "explanation" }).getAttribute("href"),
+  ).toBe("https://example.com/evidence");
+  expect(view.container.querySelectorAll("[data-markdown]")).toHaveLength(1);
+});
+it("routes workspace evidence through native file previews", async () => {
+  const view = draw(body(COMPONENT_EXAMPLES.finding));
+  const link = await screen.findByRole("link", { name: "Calculation" });
   expect(link.getAttribute("href")).toContain("coupon.ts");
   fireEvent.click(link);
   expect(view.inspection.navigateCalls).toContainEqual({
@@ -326,60 +261,118 @@ it("renders evidence as a workspace-aware link with code formatting", async () =
       location: { kind: "range", startLine: 12, endLine: 16 },
     },
   });
-  expect(view.container.querySelector("code")?.textContent).toBe("10");
+  expect(
+    view.container
+      .querySelector("[data-document]")
+      ?.getAttribute("data-document"),
+  ).toContain("env1");
 });
-it("opens an evidence file with spaces outside the workspace through the host", async () => {
-  const component = {
-    ...COMPONENT_EXAMPLES.finding,
-    evidence: [
-      {
-        label: "Rendering notes",
-        location: "/tmp/Rendered Notes.md",
-        line: 2,
-        endLine: 4,
+it.each(["/tmp/Rendered Notes.md", "/tmp/Review #draft? 100%.md"])(
+  "preserves literal external evidence paths: %s",
+  async (path) => {
+    const view = draw(
+      body({
+        ...finding,
+        evidence: [
+          { label: "Literal file", location: path, line: 2, endLine: 4 },
+        ],
+      }),
+    );
+    const link = await screen.findByRole("link", { name: "Literal file" });
+    expect(link.getAttribute("href")).toContain(
+      encodeURIComponent(path.slice(path.lastIndexOf("/") + 1)),
+    );
+    fireEvent.click(link);
+    expect(view.inspection.navigateCalls).toContainEqual({
+      method: "experimental_openFilePreview",
+      options: {
+        target: { kind: "host", hostId: "host1", path },
+        location: { kind: "range", startLine: 2, endLine: 4 },
       },
-    ],
-  };
-  const view = await draw(body(component));
-  const link = await screen.findByRole("link", { name: "Rendering notes" });
-  expect(link.getAttribute("href")).toContain("Rendered%20Notes.md");
-  fireEvent.click(link);
-  expect(view.inspection.navigateCalls).toContainEqual({
-    method: "experimental_openFilePreview",
-    options: {
-      target: { kind: "host", hostId: "host1", path: "/tmp/Rendered Notes.md" },
-      location: { kind: "range", startLine: 2, endLine: 4 },
-    },
-  });
+    });
+  },
+);
+it.each(["/tmp/Plan#draft.md", "/tmp/Plan#L2", "/tmp/Question?.md"])(
+  "preserves literal evidence without an explicit range: %s",
+  async (path) => {
+    const view = draw(
+      body({
+        ...finding,
+        evidence: [{ label: "Literal without range", location: path }],
+      }),
+    );
+    const link = await screen.findByRole("link", {
+      name: "Literal without range",
+    });
+    expect(link.getAttribute("href")).toContain(
+      encodeURIComponent(path.slice(path.lastIndexOf("/") + 1)),
+    );
+    fireEvent.click(link);
+    expect(view.inspection.navigateCalls).toContainEqual({
+      method: "experimental_openFilePreview",
+      options: {
+        target: { kind: "host", hostId: "host1", path },
+        location: null,
+      },
+    });
+  },
+);
+
+it("keeps block Markdown intact within change, sequence, and evidence fields", () => {
+  const source = [
+    componentFence({
+      type: "change",
+      title: "The change",
+      before: "```sh\ngit show abc1234\n```",
+      after: "> A quoted explanation.\n\n- A list item",
+    }),
+    componentFence({
+      type: "sequence",
+      title: "The steps",
+      steps: [
+        { title: "First", detail: "```sh\nnpm test\n```" },
+        { title: "Second", detail: "The second explanation." },
+      ],
+    }),
+    componentFence({
+      ...finding,
+      evidence: [
+        { label: "Evidence excerpt", detail: "```text\nA source excerpt\n```" },
+      ],
+    }),
+  ].join("\n\n");
+  const view = draw(`:::reply\n${source}\n:::\n`);
+  const code = [...view.container.querySelectorAll("pre code")].map(
+    (e) => e.textContent,
+  );
+  expect(code).toEqual([
+    "git show abc1234\n",
+    "npm test\n",
+    "A source excerpt\n",
+  ]);
+  expect(view.container.querySelector("blockquote")?.textContent).toContain(
+    "A quoted explanation.",
+  );
+  expect(screen.getByText("A list item")).toBeDefined();
+  expect(screen.getByText("The second explanation.")).toBeDefined();
 });
 
-it("preserves reserved characters in an evidence filename", async () => {
-  const component = {
-    ...COMPONENT_EXAMPLES.finding,
-    evidence: [
-      { label: "Literal filename", location: "/tmp/Review #draft? 100%.md" },
-    ],
-  };
-  const view = await draw(body(component));
-  const link = await screen.findByRole("link", { name: "Literal filename" });
-  expect(link.getAttribute("href")).toContain("%23draft%3F%20100%25.md");
-  fireEvent.click(link);
-  expect(view.inspection.navigateCalls).toContainEqual({
-    method: "experimental_openFilePreview",
-    options: {
-      target: {
-        kind: "host",
-        hostId: "host1",
-        path: "/tmp/Review #draft? 100%.md",
-      },
-      location: null,
-    },
-  });
+it("isolates unterminated Markdown in a field from subsequent content", () => {
+  const view = draw(
+    `:::reply\n${componentFence({ type: "details", title: "An excerpt", body: "```text\nAn unfinished code fence" })}\n\n[Subsequent target](https://example.com/after)\n:::\n`,
+  );
+  expect(view.container.querySelector("pre")?.textContent).toContain(
+    "An unfinished code fence",
+  );
+  expect(screen.getByRole("link", { name: "Subsequent target" })).toBeDefined();
 });
 
-it("opens a Markdown file URL through the public file-preview API", async () => {
-  const view = await draw(
-    ":::reply\n[Notes](file:///tmp/Notes%20File.md#L3)\n:::\n",
+it("keeps an escaping relative evidence path inert", async () => {
+  const view = draw(
+    body({
+      ...finding,
+      evidence: [{ label: "Outside relative path", location: "../private.md" }],
+    }),
   );
   await waitFor(() =>
     expect(
@@ -388,9 +381,61 @@ it("opens a Markdown file URL through the public file-preview API", async () => 
         ?.getAttribute("data-document"),
     ).toContain("env1"),
   );
-  const link = screen.getByRole("link", { name: "Notes" });
-  expect(link.getAttribute("href")).toBe("file:///tmp/Notes%20File.md#L3");
+  expect(
+    screen.queryByRole("link", { name: "Outside relative path" }),
+  ).toBeNull();
+  expect(view.container.textContent).toContain("Outside relative path");
+});
+it("normalizes a relative prose link and supplies its workspace context", async () => {
+  const view = draw(":::reply\nRead [the plan](docs/My Plan.md).\n:::\n");
+  const link = screen.getByRole("link", { name: "the plan" });
+  expect(link.getAttribute("href")).toBe("docs/My%20Plan.md");
+  await waitFor(() =>
+    expect(
+      view.container
+        .querySelector("[data-document]")
+        ?.getAttribute("data-document"),
+    ).toContain("/work/shop"),
+  );
+  // BB resolves the encoded relative destination from experimental_document.
+  link.setAttribute("href", "file:///work/shop/docs/My%20Plan.md");
   fireEvent.click(link);
+  expect(view.inspection.navigateCalls).toContainEqual({
+    method: "experimental_openFilePreview",
+    options: {
+      target: {
+        kind: "workspace",
+        environmentId: "env1",
+        path: "docs/My Plan.md",
+      },
+      location: null,
+    },
+  });
+});
+
+it("keeps visible ordinary list markers despite host CSS preflight", () => {
+  const view = draw(body(COMPONENT_EXAMPLES.sequence));
+  expect(view.container.querySelector("ol")?.className).toContain(
+    "list-decimal",
+  );
+  expect(view.container.querySelector("ol")?.className).toContain("pl-5");
+  view.lifecycle.unmount();
+  const evidence = draw(body(COMPONENT_EXAMPLES.finding));
+  expect(evidence.container.querySelector("ul")?.className).toContain(
+    "list-disc",
+  );
+});
+
+it("opens ordinary Markdown file URLs through the public file-preview API", async () => {
+  const view = draw(":::reply\n[Notes](file:///tmp/Notes%20File.md#L3)\n:::\n");
+  await waitFor(() =>
+    expect(
+      view.container
+        .querySelector("[data-document]")
+        ?.getAttribute("data-document"),
+    ).toContain("env1"),
+  );
+  fireEvent.click(screen.getByRole("link", { name: "Notes" }));
   expect(view.inspection.navigateCalls).toContainEqual({
     method: "experimental_openFilePreview",
     options: {
@@ -399,22 +444,33 @@ it("opens a Markdown file URL through the public file-preview API", async () => 
     },
   });
 });
-
-it("keeps malformed component source visible alongside readable prose", async () => {
-  const view = await draw(
+it("preserves malformed component source and the surrounding explanation", () => {
+  const view = draw(
     ':::reply\nBefore.\n\n```workstreams\n{"type":"does-not-exist"}\n```\n\nAfter.\n:::\n',
   );
   expect(view.container.textContent).toContain("Before.");
   expect(view.container.textContent).toContain("After.");
+  expect(view.container.textContent).toContain("Component not displayed");
   expect(view.container.querySelector("pre")?.textContent).toContain(
     '"does-not-exist"',
   );
-  expect(screen.getByRole("status").textContent).toContain(
-    "Component not displayed",
+});
+it("isolates an unterminated component from historical recap fields", async () => {
+  const view = draw(
+    ':::reply{state="review"}\n# Saved work\n- [x] The work is saved\n\n### Review\n- [Review target](https://example.com/review)\n\n### Explanation\nAn explanation.\n\n```workstreams\n{"type":"finding"}\n:::\n',
+  );
+  await screen.findByRole("link", { name: "Review target" });
+  expect(screen.getByText("The work is saved")).toBeDefined();
+  expect(view.container.querySelector("pre")?.textContent).toContain(
+    '"finding"',
+  );
+  expect(view.container.querySelector("pre")?.textContent).not.toContain(
+    "Review target",
   );
 });
-it("defers a partial component without hiding the explanation", async () => {
-  const view = await draw(
+
+it("defers partial JSON without hiding the explanation", () => {
+  const view = draw(
     ':::reply\nExplanation.\n\n```workstreams\n{"type":"finding"',
     { streaming: true },
   );
@@ -422,49 +478,60 @@ it("defers a partial component without hiding the explanation", async () => {
   expect(screen.getByRole("status").textContent).toBe("Receiving information…");
   expect(view.container.querySelector("pre")).toBeNull();
 });
-it("uses host rendering for an unclosed reply", async () => {
-  const view = await draw(":::reply\nUnfinished reply");
+it("uses host rendering for an unclosed reply", () => {
+  const view = draw(":::reply\nUnfinished reply");
   expect(view.container.querySelector("[data-original]")).not.toBeNull();
   expect(view.container.querySelector("[data-reply-block]")).toBeNull();
 });
-it("does not mark an unchecked reported result as completed", async () => {
-  const view = await draw(
+it("keeps unchecked reported work visible without marking it completed", () => {
+  const view = draw(
     ':::reply{state="review"}\n# The change awaits a push\n- [ ] Push the branch\n\n### Review\n- Inspect the diff\n:::\n',
   );
-  expect(view.container.querySelector("[data-reply-results]")).toBeNull();
   expect(screen.getByRole("heading", { name: "Not done" })).toBeDefined();
   expect(view.container.textContent).toContain("Push the branch");
 });
-
-it("draws card fields for past turns, with no duplicate send actions", async () => {
-  const view = await draw(COMPOSED_SAMPLES.change);
-  await waitFor(() =>
-    expect(view.container.querySelector("[data-reply-recap]")).not.toBeNull(),
-  );
-  expect(
-    view.container.querySelector("[data-reply-results]")?.textContent,
-  ).toContain("whole percentages");
-  const article = view.container.querySelector("[data-reply-block]")!;
-  expect(article.lastElementChild?.hasAttribute("data-reply-recap")).toBe(true);
-  expect(view.container.textContent).not.toContain("Check callers");
-  expect(screen.getByRole("heading", { name: "Review" })).toBeDefined();
-});
-it("shows card fields after dismissal or when another turn owns the docked recap", async () => {
-  for (const docked of [
-    { turnId: "turn1", dismissed: true },
-    { turnId: "turn2" },
-  ]) {
-    const view = await draw(COMPOSED_SAMPLES.change, { docked });
+it.each([
+  ["docked", { turnId: "turn1" }, false],
+  ["historical", { turnId: "turn2" }, true],
+  ["dismissed", { turnId: "turn1", dismissed: true }, true],
+  ["no stored recap", undefined, true],
+] as const)(
+  "preserves %s recap ownership without a styled inline card",
+  async (_name, docked, shown) => {
+    const source =
+      ':::reply{state="complete"}\n# Work is saved\n- [x] A concrete result\n\nA full explanation.\n\n### Next\n- Act: Do the next thing\n:::\n';
+    const view = draw(source, { docked });
     await waitFor(() =>
       expect(
-        view.container.querySelector("[data-reply-headline]"),
-      ).not.toBeNull(),
+        Boolean(screen.queryByRole("heading", { name: "Work is saved" })),
+      ).toBe(shown),
     );
-    view.lifecycle.unmount();
-  }
-});
+    expect(view.container.textContent?.includes("A concrete result")).toBe(
+      shown,
+    );
+    expect(view.container.textContent).toContain("A full explanation.");
+    expect(view.container.textContent).not.toContain("Do the next thing");
+    expect(view.container.querySelector("footer, button, article")).toBeNull();
+  },
+);
+it.each([
+  ["review", "Ready for review", { turnId: "turn2" }],
+  ["waiting", "Waiting", { turnId: "turn2" }],
+  ["review", "Ready for review", { turnId: "turn1", dismissed: true }],
+  ["waiting", "Waiting", { turnId: "turn1", dismissed: true }],
+] as const)(
+  "keeps %s state visible in a historical or dismissed recap",
+  async (state, label, docked) => {
+    draw(
+      `:::reply{state="${state}" timeout="30"}\n# The work state\n\nAn explanation.\n:::\n`,
+      { docked },
+    );
+    await screen.findByText(label);
+  },
+);
+
 it("does not duplicate a headline-only answer while its card is docked", async () => {
-  const view = await draw(
+  const view = draw(
     ':::reply{state="complete"}\n# Python 3.9 or newer\n:::\n',
     { docked: { turnId: "turn1" } },
   );
@@ -472,8 +539,8 @@ it("does not duplicate a headline-only answer while its card is docked", async (
     expect(view.container.querySelector("[data-reply-block]")).toBeNull(),
   );
 });
-it("keeps the last good parse during a malformed streaming update", async () => {
-  const block = await registration(),
+it("keeps the last good parse during a malformed streaming update", () => {
+  const block = registration(),
     base = props(block, ":::reply\nAn explanation.\n", true);
   const view = renderSlot(block, base, { sdk: SDK });
   view.lifecycle.rerender(
@@ -485,10 +552,12 @@ it("keeps the last good parse during a malformed streaming update", async () => 
   );
   expect(view.container.querySelector("[data-reply-block]")).toBeNull();
 });
-it("draws the docked layout while the server state is still unknown", async () => {
-  const block = await registration();
+it("withholds recap fields while server ownership is unknown", async () => {
+  const block = registration();
   let resolve!: (value: unknown) => void;
-  const view = renderSlot(block, props(block, COMPOSED_SAMPLES.change), {
+  const source =
+    ':::reply{state="complete"}\n# Work is saved\n- [x] A concrete result\n\nA full explanation.\n:::\n';
+  const view = renderSlot(block, props(block, source), {
     sdk: SDK,
     rpc: {
       state: () =>
@@ -497,13 +566,10 @@ it("draws the docked layout while the server state is still unknown", async () =
         }),
     },
   });
-  expect(
-    view.container.querySelector("[data-reply-headline]")?.textContent,
-  ).toContain("coupon applies");
-  expect(view.container.querySelector("[data-reply-recap]")).toBeNull();
-  expect(view.container.textContent).toContain("caller contract unchanged");
+  expect(view.container.textContent).toContain("A full explanation.");
+  expect(view.container.textContent).not.toContain("Work is saved");
+  expect(view.container.textContent).not.toContain("A concrete result");
   resolve({ recaps: {}, dismissedRecaps: [] });
-  await waitFor(() =>
-    expect(view.container.querySelector("[data-reply-recap]")).not.toBeNull(),
-  );
+  await screen.findByRole("heading", { name: "Work is saved" });
+  expect(view.container.textContent).toContain("A concrete result");
 });
