@@ -120,7 +120,7 @@ export function ThreadCard({
           : NEUTRAL;
   return (
     <div
-      style={{ zoom: CARD_ZOOM, width: `${100 / CARD_ZOOM}%` }}
+      style={{ zoom: CARD_ZOOM }}
       className={cn(
         "@container/recap overflow-hidden rounded-lg border px-5 pb-2 pt-[15px] text-foreground",
         accent.card,
@@ -208,7 +208,7 @@ export function SuggestionCard({
 }) {
   return (
     <div
-      style={{ zoom: CARD_ZOOM, width: `${100 / CARD_ZOOM}%` }}
+      style={{ zoom: CARD_ZOOM }}
       className="rounded-lg border border-border px-5 pb-2 pt-[15px] text-foreground"
     >
       <p className="text-[11px] font-medium leading-[1.6] text-muted-foreground">
