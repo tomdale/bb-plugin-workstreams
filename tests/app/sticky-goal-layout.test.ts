@@ -87,6 +87,54 @@ it.skipIf(!executablePath)(
 );
 
 it.skipIf(!executablePath)(
+  "moves and clips the hybrid background with the heading",
+  { timeout: 30_000 },
+  async () => {
+    const browser = await chromium.launch({ executablePath, headless: true });
+    try {
+      const page = await browser.newPage({
+        viewport: { width: 400, height: 180 },
+      });
+      await page.setContent(`
+        <style>${styles}
+          :root { --background: black; }
+          body { margin: 0; background: white; }
+          .surface { position: relative; }
+        </style>
+        <div class="surface"><div class="ws-goal-overlay">
+          <div class="ws-goal-background ws-goal-background--hybrid" style="width:400px;height:120px;--ws-plate-height:40px;--ws-plate-offset:40px;--ws-plate-fade-height:8rem;--ws-fade-below-plate:1">
+            <div class="ws-sticky-goal" style="height:40px;transform:translateY(40px)"><div class="ws-sticky-goal__plate"></div></div>
+          </div>
+        </div></div>`);
+      const image = await page.screenshot();
+      const samples = await page.evaluate(
+        async (source) => {
+          const image = new Image();
+          image.src = source;
+          await image.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = image.width;
+          canvas.height = image.height;
+          const context = canvas.getContext("2d")!;
+          context.drawImage(image, 0, 0);
+          return [20, 50, 100, 125].map(
+            (y) => context.getImageData(20, y, 1, 1).data[0]!,
+          );
+        },
+        `data:image/png;base64,${image.toString("base64")}`,
+      );
+      expect(samples[0]).toBe(255);
+      expect(samples[1]).toBe(0);
+      expect(samples[2]).toBeGreaterThan(0);
+      expect(samples[2]).toBeLessThan(100);
+      expect(samples[3]).toBe(255);
+    } finally {
+      await browser.close();
+    }
+  },
+);
+
+it.skipIf(!executablePath)(
   "feathers the heading background gradually in light and dark themes",
   { timeout: 30_000 },
   async () => {

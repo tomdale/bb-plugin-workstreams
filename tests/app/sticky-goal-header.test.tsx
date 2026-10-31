@@ -308,16 +308,12 @@ it("crossfades stationary headings and switches modes on preference changes", as
   await slot.behavior.emitRealtime("prefs", {
     prefs: parsePrefs({ threads: { headingTransition: "hybrid" } }),
   });
-  const hybridProgress = hybridHeadingScroll(
-    50,
-    distance,
-    (14 * 1.5 * 4) / 3,
-    Number.parseFloat(plate.parentElement!.style.height),
-  ).progress;
+  const hybridProgress = hybridHeadingScroll(50, distance).progress;
   await waitFor(() =>
     expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(hybridProgress),
   );
-  expect(Number(groups()[0]!.style.opacity)).toBe(1);
+  expect(Number(groups()[0]!.style.opacity)).toBeCloseTo(1 - hybridProgress);
+  expect(groups()[0]!.style.transform).toBe(`translateY(${14 * 0.85 + 50}px)`);
   expect(groups()[1]!.style.transform).toBe("translateY(0px)");
   await slot.behavior.emitRealtime("prefs", {
     prefs: parsePrefs({ threads: { headingTransition: "fade" } }),
@@ -338,7 +334,7 @@ it("crossfades stationary headings and switches modes on preference changes", as
   slot.lifecycle.unmount();
 });
 
-it("floats the large heading at the newest message and fades the compact title as it exits", async () => {
+it("moves the large heading with the timeline and fades it into the compact title", async () => {
   paneFixture({ recap: false });
   const scroller = document.querySelector<HTMLElement>(
     '[data-test="messages"]',
@@ -374,6 +370,8 @@ it("floats the large heading at the newest message and fades the compact title a
   await new Promise((resolve) => setTimeout(resolve, 550));
   const titleTop = 14 * 0.85;
   const titleHeight = (14 * 1.5 * 4) / 3;
+  const exitDistance = titleTop + titleHeight;
+  const travel = exitDistance * 2.5;
   const plate = overlay()!.querySelector<HTMLElement>(
     ".ws-sticky-goal__plate",
   )!;
@@ -384,36 +382,51 @@ it("floats the large heading at the newest message and fades the compact title a
   expect(background.style.getPropertyValue("--ws-plate-fade-height")).toBe(
     "8rem",
   );
-  for (const [moved, expected] of [
-    [0, 0],
-    [titleTop, 0],
-    [titleTop + titleHeight / 4, 0.25],
-    [titleTop + titleHeight / 2, 0.5],
-    [titleTop + titleHeight, 1],
-    [height + 10, 1],
-    [titleTop + titleHeight / 2, 0.5],
-    [0, 0],
+  expect(background.classList.contains("ws-goal-background--hybrid")).toBe(
+    true,
+  );
+  expect(Number.parseFloat(background.style.height)).toBe(672);
+  for (const fromBottom of [
+    0,
+    20,
+    travel / 2,
+    travel,
+    travel + 20,
+    travel / 2,
+    0,
   ]) {
-    scroller.scrollTop = 600 - moved!;
+    const { moved, progress } = hybridHeadingScroll(fromBottom, exitDistance);
+    scroller.scrollTop = 600 - fromBottom;
     scroller.dispatchEvent(new Event("scroll"));
     await waitFor(() => {
-      expect(y(groups()[0]!)).toBeCloseTo(titleTop - Math.min(moved!, height));
-      expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(expected!);
+      expect(y(groups()[0]!)).toBeCloseTo(titleTop + moved);
+      expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(progress);
     });
-    expect(Number(groups()[0]!.style.opacity)).toBe(1);
+    expect(Number(groups()[0]!.style.opacity)).toBeCloseTo(1 - progress);
     expect(y(groups()[1]!)).toBe(0);
     expect(
       Number.parseFloat(plate.style.transform.slice("scaleY(".length)),
-    ).toBeCloseTo(Math.max(0, titleTop + titleHeight - moved!) / height);
+    ).toBeCloseTo(exitDistance / height);
+    expect(Number(plate.style.opacity)).toBeCloseTo(
+      headingBackdropOpacity(progress),
+    );
+    expect(
+      Number.parseFloat(
+        plate.parentElement!.style.transform.slice("translateY(".length),
+      ),
+    ).toBeCloseTo(moved);
+    expect(
+      Number.parseFloat(background.style.getPropertyValue("--ws-plate-offset")),
+    ).toBeCloseTo(moved);
     expect(Number.parseFloat(scroller.style.scrollPaddingTop)).toBeCloseTo(
-      Math.max(0, height - moved!),
+      height * (1 - progress),
     );
     expect(
       Number(background.style.getPropertyValue("--ws-fade-below-plate")),
-    ).toBe(moved! < height ? 1 : 0);
+    ).toBeCloseTo(headingBackdropOpacity(progress));
     expect(
       Number(background.style.getPropertyValue("--ws-fade-below-bar")),
-    ).toBe(moved! < height ? 0 : 1);
+    ).toBeCloseTo(progress);
   }
   Object.defineProperty(scroller, "scrollHeight", {
     configurable: true,
@@ -461,9 +474,13 @@ it("keeps the hybrid heading backed when the compact title is pinned", async () 
   const scaled =
     Number.parseFloat(plate.style.transform.slice("scaleY(".length)) * height;
   expect(scaled).toBeGreaterThan(0);
-  expect(Number(plate.style.opacity)).toBe(1);
+  expect(Number(plate.style.opacity)).toBe(0);
+  const compactPlate = overlay()!.querySelector<HTMLElement>(
+    ".ws-hybrid-pinned-plate",
+  )!;
+  expect(Number(compactPlate.style.opacity)).toBe(1);
   expect(Number.parseFloat(scroller.style.scrollPaddingTop)).toBeCloseTo(
-    scaled,
+    Number.parseFloat(compactPlate.style.height),
   );
   slot.lifecycle.unmount();
 });
@@ -488,12 +505,21 @@ it.each(["fade", "scroll", "hybrid"] as const)(
       ]);
     });
     expect(root()!.getAttribute("data-collapsed")).toBe("true");
-    expect(
-      Number(
-        overlay()!.querySelector<HTMLElement>(".ws-sticky-goal__plate")!.style
-          .opacity,
-      ),
-    ).toBe(1);
+    if (mode === "hybrid") {
+      expect(
+        Number(
+          overlay()!.querySelector<HTMLElement>(".ws-hybrid-pinned-plate")!
+            .style.opacity,
+        ),
+      ).toBe(1);
+    } else {
+      expect(
+        Number(
+          overlay()!.querySelector<HTMLElement>(".ws-sticky-goal__plate")!.style
+            .opacity,
+        ),
+      ).toBe(1);
+    }
     slot.lifecycle.unmount();
   },
 );

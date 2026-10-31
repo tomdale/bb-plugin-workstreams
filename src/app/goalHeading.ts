@@ -116,22 +116,15 @@ export function headingScroll(fromBottom: number, exitDistance: number) {
   return { moved, remaining: exitDistance - moved, progress };
 }
 
-/** The floating heading moves one pixel per pixel away from the newest
- * message; the compact title appears in proportion to the clipped height. */
-export function hybridHeadingScroll(
-  fromBottom: number,
-  exitDistance: number,
-  titleBlock: number,
-  headingHeight: number,
-) {
+/** The large heading follows the timeline while its opacity gives way to the
+ * compact title over the same scroll range as the other transitions. */
+export function hybridHeadingScroll(fromBottom: number, exitDistance: number) {
   const scrolled = Math.max(0, fromBottom);
+  const { progress } = headingScroll(scrolled, exitDistance);
   return {
-    moved: Math.min(scrolled, headingHeight),
+    moved: Math.min(scrolled, exitDistance / HEADING_SCROLL_RATIO),
     remaining: 0,
-    progress: Math.max(
-      0,
-      Math.min(1, (scrolled - (exitDistance - titleBlock)) / titleBlock),
-    ),
+    progress,
   };
 }
 

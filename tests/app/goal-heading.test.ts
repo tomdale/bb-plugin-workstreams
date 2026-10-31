@@ -91,38 +91,27 @@ it("slows to a stop at the shared endpoint without overshooting", () => {
   }
 });
 
-it("fades the compact title by the fraction of the large title that has scrolled out", () => {
-  const eyebrow = eyebrowMetrics(BASE, false);
-  const exit = titleExitDistance(BASE, eyebrow, 1);
-  const heading = headingHeight(BASE, true, 1);
-  const titleHeight = (BASE * 1.5 * 4) / 3;
-  const titleTop = exit - titleHeight;
-  expect(hybridHeadingScroll(0, exit, titleHeight, heading)).toEqual({
+it("moves the hybrid heading with the timeline while easing the crossfade", () => {
+  const exit = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 1);
+  const travel = exit * 2.5;
+  expect(hybridHeadingScroll(0, exit)).toEqual({
     moved: 0,
     remaining: 0,
     progress: 0,
   });
-  expect(
-    hybridHeadingScroll(titleTop, exit, titleHeight, heading).progress,
-  ).toBe(0);
-  expect(hybridHeadingScroll(20, exit, titleHeight, heading).moved).toBe(20);
-  const halfway = hybridHeadingScroll(
-    titleTop + titleHeight / 2,
-    exit,
-    titleHeight,
-    heading,
+  expect(hybridHeadingScroll(20, exit).moved).toBe(20);
+  const halfway = hybridHeadingScroll(travel / 2, exit);
+  expect(halfway.moved).toBeCloseTo(travel / 2);
+  expect(halfway.progress).toBeCloseTo(
+    headingScroll(travel / 2, exit).progress,
   );
-  expect(halfway.moved).toBeCloseTo(titleTop + titleHeight / 2);
-  expect(halfway.progress).toBeCloseTo(0.5);
-  expect(hybridHeadingScroll(exit, exit, titleHeight, heading).progress).toBe(
-    1,
-  );
-  expect(hybridHeadingScroll(10000, exit, titleHeight, heading)).toEqual({
-    moved: heading,
-    remaining: 0,
-    progress: 1,
-  });
-  expect(hybridHeadingScroll(-10, exit, titleHeight, heading).progress).toBe(0);
+  const finish = hybridHeadingScroll(travel, exit);
+  const beyond = hybridHeadingScroll(10000, exit);
+  expect(finish.moved).toBeCloseTo(travel);
+  expect(finish.progress).toBe(1);
+  expect(beyond.moved).toBeCloseTo(travel);
+  expect(beyond.progress).toBe(1);
+  expect(hybridHeadingScroll(-10, exit).progress).toBe(0);
 });
 
 it("eases the outgoing and incoming opacity independently", () => {
