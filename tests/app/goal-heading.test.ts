@@ -51,16 +51,18 @@ it("leaves the room reserved for a heading with no workstream alone", () => {
   );
 });
 
-it("moves both headings one pixel per scroll pixel until the large title exits", () => {
+it("moves both headings half a pixel per scroll pixel until the large title exits", () => {
   const distance = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 1);
   const start = headingScroll(0, distance);
   const middle = headingScroll(12, distance);
-  const finish = headingScroll(distance, distance);
+  const halfway = headingScroll(distance, distance);
+  const finish = headingScroll(distance * 2, distance);
   expect(start).toEqual({ moved: 0, remaining: distance, progress: 0 });
-  expect(middle.moved).toBe(12);
-  expect(middle.remaining).toBe(distance - 12);
+  expect(middle.moved).toBe(6);
+  expect(middle.remaining).toBe(distance - 6);
+  expect(halfway.progress).toBe(0.5);
   expect(finish).toEqual({ moved: distance, remaining: 0, progress: 1 });
-  expect(headingScroll(distance + 50, distance)).toEqual(finish);
+  expect(headingScroll(distance * 2 + 50, distance)).toEqual(finish);
   expect(headingScroll(-10, distance)).toEqual(start);
 });
 

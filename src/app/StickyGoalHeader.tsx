@@ -417,10 +417,9 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const titleLines = narrow ? wrappedLines : 1;
   const height = headingHeight(base, hasEyebrow, titleLines);
   const exitDistance = titleExitDistance(base, eyebrow, titleLines);
-  const { moved, remaining, progress } = headingScroll(
-    placement?.short ? exitDistance : settled ? fromBottom : 0,
-    exitDistance,
-  );
+  const { moved, remaining, progress } = placement?.short
+    ? { moved: exitDistance, remaining: 0, progress: 1 }
+    : headingScroll(settled ? fromBottom : 0, exitDistance);
   const collapsed = progress === 1;
   // When the title bar has no room, the compact copy sits in the timeline.
   const pinned = !!placement && placement.bar === null;

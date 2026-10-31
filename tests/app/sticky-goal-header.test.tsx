@@ -145,8 +145,8 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
   expect(groups().map((group) => Number(group.style.opacity))).toEqual([1, 0]);
   scroller.scrollTop = 590;
   scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() => expect(y(groups()[0]!)).toBeCloseTo(initial[0]! - 10));
-  expect(y(groups()[1]!)).toBeCloseTo(initial[1]! - 10);
+  await waitFor(() => expect(y(groups()[0]!)).toBeCloseTo(initial[0]! - 5));
+  expect(y(groups()[1]!)).toBeCloseTo(initial[1]! - 5);
   const partialOpacity = groups().map((group) => Number(group.style.opacity));
   expect(partialOpacity[0]).toBeGreaterThan(0);
   expect(partialOpacity[0]).toBeLessThan(1);
@@ -165,7 +165,7 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
   expect(groups().map((group) => Number(group.style.opacity))).toEqual([0, 1]);
   scroller.scrollTop = 590;
   scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() => expect(y(groups()[1]!)).toBeCloseTo(initial[1]! - 10));
+  await waitFor(() => expect(y(groups()[1]!)).toBeCloseTo(initial[1]! - 5));
   expect(groups().map((group) => Number(group.style.opacity))).toEqual(
     partialOpacity,
   );
@@ -176,6 +176,27 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
       1, 0,
     ]),
   );
+  slot.lifecycle.unmount();
+});
+
+it("starts fully compact when the timeline is too short for the large heading", async () => {
+  paneFixture({ recap: false });
+  const scroller = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 900, 300),
+  );
+  const slot = await mountHeading();
+  await waitFor(() => {
+    const groups = overlay()!.querySelectorAll<HTMLElement>(
+      ".ws-goal-overlay__group",
+    );
+    expect([...groups].map((group) => Number(group.style.opacity))).toEqual([
+      0, 1,
+    ]);
+  });
+  expect(root()!.getAttribute("data-collapsed")).toBe("true");
   slot.lifecycle.unmount();
 });
 

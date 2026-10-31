@@ -101,10 +101,15 @@ export function titleExitDistance(
   );
 }
 
-/** The two copies move upward by the same distance; the compact copy starts
- * one exit distance below its final position. */
+// Both copies travel the same distance over twice as much timeline scroll.
+const HEADING_SCROLL_RATIO = 0.5;
+
+/** The compact copy starts one exit distance below its final position. */
 export function headingScroll(fromBottom: number, exitDistance: number) {
-  const moved = Math.min(Math.max(0, fromBottom), exitDistance);
+  const moved = Math.min(
+    Math.max(0, fromBottom) * HEADING_SCROLL_RATIO,
+    exitDistance,
+  );
   return {
     moved,
     remaining: exitDistance - moved,
