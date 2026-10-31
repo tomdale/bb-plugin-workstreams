@@ -498,7 +498,8 @@ which adds a message-block slot, you also get **Structured replies**:
   actions. A malformed component shows its original source and a diagnostic
   without discarding the explanation or the recap.
 - Completion messages from the Subagents plugin show their reply blocks inline,
-  with the worker's name and transcript link, including completions delivered
+  in a bordered panel labeled Subagent, with the worker's name and transcript
+  link. They use the thread's message type size, including completions delivered
   while the parent thread is running. File links use the worker's workspace.
   Unsupported, incomplete, or unverified deliveries keep BB's original message.
 

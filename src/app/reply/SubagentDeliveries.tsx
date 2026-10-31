@@ -106,12 +106,19 @@ function Delivery({ target }: { target: Target }) {
       data-bb-plugin-root=""
       data-bb-plugin={scope["data-bb-plugin"]}
       data-ws-subagent-delivery=""
-      className="min-w-0 space-y-3 py-2"
+      aria-label={`Subagent: ${delivery.title}`}
+      className="my-2 min-w-0 space-y-3 rounded-lg border border-border bg-surface-recessed px-4 py-3 text-sm leading-relaxed"
     >
-      <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">{delivery.title}</span>
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-border pb-2 text-xs text-muted-foreground">
+        <span>Subagent</span>
+        <span className="min-w-0 font-medium text-foreground [overflow-wrap:anywhere]">
+          {delivery.title}
+        </span>
         <span>{delivery.status}</span>
-        <UrlLink href={`/threads/${delivery.threadId}`}>
+        <UrlLink
+          href={`/threads/${delivery.threadId}`}
+          className="ml-auto shrink-0"
+        >
           Full transcript
         </UrlLink>
       </div>
