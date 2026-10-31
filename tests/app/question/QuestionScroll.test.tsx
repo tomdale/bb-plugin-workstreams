@@ -32,6 +32,7 @@ function mountScroller(initialMax: number, initialTop: number) {
   });
   const button = view.getByRole("button");
   let scrollTop = initialTop;
+  const positions: number[] = [];
   let cachedMax = initialMax;
   let previous = initialTop;
   let input = false;
@@ -48,6 +49,7 @@ function mountScroller(initialMax: number, initialTop: number) {
       get: () => scrollTop,
       set: (value: number) => {
         scrollTop = Math.min(max(), Math.max(0, value));
+        positions.push(scrollTop);
       },
     },
   });
@@ -72,21 +74,21 @@ function mountScroller(initialMax: number, initialTop: number) {
     top: () => scrollTop,
     attached: () => attached,
     wheelEvents: () => wheelEvents,
+    positions,
   };
 }
 
 it.each([0, 200])(
   "preserves the bottom reading position when a card grows from scroll range %s",
   (initialMax) => {
-    const { scroller, button, top, attached, wheelEvents } = mountScroller(
-      initialMax,
-      initialMax,
-    );
+    const { scroller, button, top, attached, wheelEvents, positions } =
+      mountScroller(initialMax, initialMax);
     fireEvent.click(button);
     expect(button.getAttribute("aria-expanded")).toBe("true");
     expect(top()).toBe(initialMax);
     expect(attached()).toBe(false);
     expect(wheelEvents()).toBe(1);
+    if (initialMax > 0) expect(positions).toEqual([initialMax - 5, initialMax]);
     fireEvent.click(button);
     expect(wheelEvents()).toBe(1);
     scroller.remove();

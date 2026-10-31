@@ -44,9 +44,12 @@ function expandAtReadingPosition(card: HTMLElement, expand: () => void) {
     Math.min(max, scroller.scrollTop + card.getBoundingClientRect().top - top),
   );
   if (max - target <= 4) return;
-  // Let BB refresh its scroll extent before moving away from the bottom.
-  scroller.scrollTop = max;
-  scroller.dispatchEvent(new Event("scroll"));
+  // With no room to move up, BB must first refresh its cached scroll extent.
+  // Otherwise avoid jumping to the new bottom, which can unmount virtual rows.
+  if (target < 5) {
+    scroller.scrollTop = max;
+    scroller.dispatchEvent(new Event("scroll"));
+  }
   scroller.dispatchEvent(new WheelEvent("wheel", { deltaY: -1 }));
   scroller.scrollTop = Math.max(0, target - 5);
   scroller.dispatchEvent(new Event("scroll"));
