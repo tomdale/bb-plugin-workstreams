@@ -103,8 +103,8 @@ export function Row({
   active: boolean;
   now: number;
   /**
-   * Shown after the title instead of the age in overlay bands: the row's
-   * workstream name, or when a snoozed row wakes.
+   * Shown after the title in overlay bands and inline groups: the row's
+   * workstream or subgroup name, or when a snoozed row wakes.
    */
   context?: string;
   /**
@@ -187,7 +187,6 @@ export function Row({
             : thread.displayTitle
         }
         aria-describedby={recap ? `ws-recap-${thread.id}` : undefined}
-        title={recap ? `${thread.displayTitle}\n${recap}` : undefined}
         onClick={(event) => {
           event.preventDefault();
           actions.open(thread.id, { split: event.metaKey || event.ctrlKey });
@@ -202,10 +201,9 @@ export function Row({
       ) : null}
       {thread.isPinned && showPin ? (
         <span
-          className="relative inline-flex size-3.5 shrink-0 items-center justify-center text-muted-foreground"
+          className="pointer-events-none relative inline-flex size-3.5 shrink-0 items-center justify-center text-muted-foreground"
           role="img"
           aria-label="Pinned"
-          title="Pinned"
         >
           <Icon name="Pin" className="size-3" />
         </span>
@@ -227,10 +225,9 @@ export function Row({
         ) : null}
         {state?.glyph && !nativeStatus ? (
           <span
-            className={`ws-work ws-work-${reported && shownState === "done" ? "complete" : shownState} relative inline-flex size-3.5 shrink-0 items-center justify-center`}
+            className={`ws-work ws-work-${reported && shownState === "done" ? "complete" : shownState} pointer-events-none relative inline-flex size-3.5 shrink-0 items-center justify-center`}
             role="img"
             aria-label={state.label}
-            title={state.label}
           >
             {state.glyph}
           </span>
@@ -271,22 +268,24 @@ export function Row({
               : "text-muted-foreground group-hover/row:text-foreground",
         )}
       >
-        {/* The age, or the band's context, follows the title itself, so the
-            row's trailing end is left to its marks and hover buttons. */}
+        {/* The band's or subgroup's context and the age follow the title
+            itself, so the row's trailing end is left to its marks and hover
+            buttons. */}
         <span className="flex min-w-0 items-baseline gap-1.5 leading-5">
           <span className="min-w-0 truncate">
             <ThreadTitle threadId={thread.id} />
           </span>
-          {context || timestamps !== "hide" ? (
+          {context ? (
+            <span className="block max-w-24 shrink-0 truncate text-[11px] font-normal tabular-nums text-muted-foreground/70">
+              {context}
+            </span>
+          ) : null}
+          {timestamps !== "hide" ? (
             <span
-              data-timestamp={context ? undefined : timestamps}
+              data-timestamp={timestamps}
               className="flex shrink-0 text-[11px] font-normal tabular-nums text-muted-foreground/70"
             >
-              {context ? (
-                <span className="block max-w-24 truncate">{context}</span>
-              ) : (
-                relativeAge(thread.latestAttentionAt, now)
-              )}
+              {relativeAge(thread.latestAttentionAt, now)}
             </span>
           ) : null}
         </span>
@@ -299,19 +298,16 @@ export function Row({
       {/* Shown until the hover buttons take their place, as in BB's row. */}
       <span className="ws-row-aside pointer-events-none relative flex shrink-0 items-center gap-1.5 text-[11px] tabular-nums text-muted-foreground/70 empty:hidden group-hover/row:hidden group-has-[:focus-visible]/row:hidden group-has-[[data-state=open]]/row:hidden">
         {rowStatus ? (
-          <span title={rowStatus.label} aria-label={rowStatus.label} role="img">
+          <span aria-label={rowStatus.label} role="img">
             <Icon name={rowStatus.icon} className="size-3" />
           </span>
         ) : hasUnsubmittedDraft ? (
-          <span title="Unsent draft" aria-label="Unsent draft" role="img">
+          <span aria-label="Unsent draft" role="img">
             ✎
           </span>
         ) : null}
         {pullRequest ? (
-          <span
-            className={cn("ws-pr", prTone(pullRequest))}
-            title={`#${pullRequest.number} ${pullRequest.title}`}
-          >
+          <span className={cn("ws-pr", prTone(pullRequest))}>
             #{pullRequest.number}
           </span>
         ) : null}

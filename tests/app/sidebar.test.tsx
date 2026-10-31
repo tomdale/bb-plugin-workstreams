@@ -313,17 +313,18 @@ describe("thread list", () => {
     async (timestamps) => {
       const slot = await mount(undefined, { settings: { timestamps } });
       const alpha = slot.getByRole("region", { name: "Alpha" });
+      const upNext = slot.getByRole("region", { name: "Up Next" });
       await waitFor(() => {
         const ages = alpha.querySelectorAll("[data-timestamp]");
         expect(ages).toHaveLength(timestamps === "hide" ? 0 : 2);
         for (const age of ages)
           expect(age.getAttribute("data-timestamp")).toBe(timestamps);
+        const bandAges = upNext.querySelectorAll("[data-timestamp]");
+        expect(bandAges).toHaveLength(timestamps === "hide" ? 0 : 3);
+        for (const age of bandAges)
+          expect(age.getAttribute("data-timestamp")).toBe(timestamps);
       });
-      expect(
-        within(slot.getByRole("region", { name: "Up Next" })).getByText(
-          "Alpha",
-        ),
-      ).toBeTruthy();
+      expect(within(upNext).getByText("Alpha")).toBeTruthy();
       slot.lifecycle.unmount();
     },
   );
@@ -1441,8 +1442,14 @@ describe("thread list", () => {
       within(group).getByRole("img", { name: "Ready for your review" }),
     ).toBeTruthy();
     expect(within(group).getByRole("img", { name: "Complete" })).toBeTruthy();
+    const finishedLink = within(group).getByRole("link", {
+      name: "Finished, Complete",
+    });
+    expect(finishedLink.getAttribute("title")).toBeNull();
     expect(
-      within(group).getByRole("link", { name: "Finished, Complete" }).title,
+      finishedLink.parentElement?.querySelector(
+        `[id="${finishedLink.getAttribute("aria-describedby")}"]`,
+      )?.textContent,
     ).toContain("Reported complete");
     slot.lifecycle.unmount();
   });
@@ -2068,6 +2075,7 @@ describe("small groups", () => {
       } else {
         expect(row.closest("section")).toBe(top());
         expect(within(row).getByText("CLI")).toBeTruthy();
+        expect(row.querySelector("[data-timestamp]")?.textContent).toBe("now");
       }
       slot.lifecycle.unmount();
     },
@@ -2106,6 +2114,7 @@ describe("small groups", () => {
       .getByRole("link", { name: "Y task" })
       .closest("li")!;
     expect(within(row).getByText("Yak")).toBeTruthy();
+    expect(row.querySelector("[data-timestamp]")?.textContent).toBe("now");
     expect(slot.queryByRole("button", { name: "Focus on Other" })).toBeNull();
     slot.lifecycle.unmount();
   });
