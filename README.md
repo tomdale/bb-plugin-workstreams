@@ -50,7 +50,7 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
 | **Goal**             | What a thread is for, written as its display title: an -ing verb and its subject ("Redesigning work tab") that leaves out what its workstream and parent thread already say (`2–5` words, under `34` characters).                          |
 | **Status**           | How the latest turn ended: `needs you`, `review`, `blocked`, `working` (`in_progress` in JSON/CLI), `done`, or `error`.                                                                                                                    |
 | **Agent recap**      | A structured end-of-turn report submitted by the agent with the `WorkstreamsRecap` tool.                                                                                                                                                   |
-| **Organization**     | The deterministic process—and Workstreams page tab—that derives workstreams and section membership from topics.                                                                                                                            |
+| **Organization**     | The deterministic process that derives workstreams and section membership from topics; its status is under **Topics** on the Workstreams page.                                                                                             |
 | **Activity**         | The log of changes Workstreams made or observed, with undo where supported.                                                                                                                                                                |
 
 ### Core rules
@@ -65,7 +65,7 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
 3. **Topic provenance priority.** Topic sources follow
    `manual > inherited > full > quick`:
    - `manual` (chosen by you in the composer, thread header, sidebar,
-     Organization tab, or CLI) is never overwritten by automatic analysis.
+     Workstreams page, or CLI) is never overwritten by automatic analysis.
    - `inherited` (from a parent/source thread or a workstream's **＋** button)
      changes automatically only when placement reports a scope shift or settles
      a more specific topic beneath it, or when you explicitly apply a reviewed
@@ -538,71 +538,55 @@ above the composer:
 
 ### Workstreams page (`/plugins/workstreams/home`)
 
-Open **Workstreams** in the main navigation panel to access four tabs:
+Open **Workstreams** in the main navigation panel. The page is a queue that
+shows one thing at a time that needs you: Up Next's threads in the sidebar's
+order, then the organizer's suggestions. The order holds while the page is open,
+and the footer says how many are left.
 
-1. **Overview:** Press `/` to search across workstream names, thread titles, and
-   recaps; click **New work…** to open the composer; browse active workstream
-   cards ranked by `needs you` and recency; or expand the quiet/dormant
-   workstreams disclosure.
-2. **Topics:** Browse and search the full topic tree (`Owner › Capability`),
-   descriptions, and aliases. Create top-level topics (**New topic**), **Add
-   subtopic**, **Rename**, **Move** (reparent to another topic or top level),
-   **Merge** (moves assigned threads and subtopics into the target topic and
-   deletes the source), or **Edit details** (description and comma-separated
-   aliases).
-3. **Organization:**
-   - Inspect live organizer status (`Workstreams up to date`,
-     `Analyzing threads N of M`, `Updating workstreams`, or
-     `Organizing stopped`), summary counts (**Active threads**, **Active
-     workstreams**, **No topic**, **Done**), and click **Refresh** or
-     **Rebuild…**.
-   - **Suggestions:** Each organizing suggestion is a headline naming what moves
-     and where ("Split Automations into PR Upkeep and Design", "Move “Record
-     demo video” to PantryPal", "Move Workforest under bb"), the change in a
-     line or two, and its reason. They are listed in three parts:
-     - **Moves threads**, biggest change first. A suggestion moving several
-       threads lists each destination group once with the threads going there
-       (`+` marks a new group, and a thread from another group says where from).
-       Any other change is one `group now → group after` line.
-     - **Tidies groups**: changes to how groups nest and are named that move no
-       thread, which decide where new threads go, each one line
-       (`Workforest → bb › Workforest`).
-     - **Out of date**, collapsed: suggestions blocked for now, such as moving a
-       group under one that holds threads, each with why. Decline them or **Ask
-       now** for fresh ones.
+Each thread shows its workstream (click it to open **Topics**) and title above
+its latest recap card. Under the card:
 
-     A suggestion that would no longer change anything (none of a split's
-     threads remain, something it names is gone, the change was already made, or
-     it needs a group another declined suggestion would have made) is retired on
-     its own after each organizer pass and decision, and shows under **Recently
-     decided** as "Nothing left to change".
+- **Replies:** the agent's proposed next messages, in full. Click one or press
+  `1`–`3` to send it; hold `Shift` while clicking or pressing the number to edit
+  it in the composer first.
+- **Reply** (`R`) opens a composer in place of the replies: `Enter` sends,
+  `Shift+Enter` adds a line, `Esc` goes back.
+- **Snooze…** (`S`) opens the snooze presets at the button; press `1`–`6` to
+  choose one, or **Custom…**.
+- **Archive** (`E`) and **Open** (`O`). On a complete recap with no replies,
+  Archive comes first.
 
-     Small changes since a split was suggested don't stop it: threads that moved
-     or closed are left out, and threads that joined its group are filed too
-     when you accept (one model call; the card says "Also files…"). A split
-     stops only when its group is gone, none of its threads remain, more threads
-     joined than remain, or it would leave one subgroup. A tidy edit stops only
-     when it would break a rule, such as giving subgroups to a group that holds
-     threads.
+A suggestion shows the topics its threads would move to (new ones marked), with
+**Accept and move N threads** (`1`) and **Decline** (`2`).
 
-     **Accept all N** accepts every suggestion that can apply. **Recently
-     decided** lists the latest decisions.
+Every action applies at once and leaves a line above the next item with **Undo**
+(`U`). A sent message waits `5` seconds behind its line before it goes out, so
+Undo can keep it from sending. When Up Next is clear, the page says so and
+offers to go through the earlier open threads.
 
-   - Assign topics directly to **Threads with no topic** or inspect **Derived
-     Workstreams** with their active/total counts and grouping policy reason.
-   - **Review automatic topics:** After editing topic definitions, click
-     **Preview topic repairs** to evaluate up to `100` visible roots against the
-     current topic tree (making model calls without changing any assignments,
-     titles, or statuses). Review the proposed `from → to` changes and click
-     **Apply topic repairs** to commit them. Plans expire after `30` minutes,
-     reject stale topic trees, preserve manual assignments, and skip threads
-     whose evidence changed since the preview.
-4. **Activity:** Day-grouped log of automatic and outside changes. Filter by
-   workstream, action (`Move`, `New workstream`, `Rename`, `Delete`, `Undo`,
-   `Reorganize`, `Edit`, `New thread`, `Updated title`, `Removed topic`,
-   `Suggestion`), **Needs review**, or **Outside changes**. Hover or focus any
-   reversible entry and click **Undo** to revert its effect when current BB
-   state still matches.
+The **⋯** menu in the corner opens:
+
+- **Activity:** Day-grouped log of automatic and outside changes. Filter by
+  workstream, action (`Move`, `New workstream`, `Rename`, `Delete`, `Undo`,
+  `Reorganize`, `Edit`, `New thread`, `Updated title`, `Removed topic`,
+  `Suggestion`), **Needs review**, or **Outside changes**. Hover or focus any
+  reversible entry and click **Undo** to revert its effect when current BB state
+  still matches.
+- **Topics:** The organizer's status with **Re-run** and **Rebuild…**, every
+  suggestion waiting for a decision (**Threads move**, **Groups change**, and
+  the collapsed **out of date**), threads with no topic, and the topic tree.
+  Click a topic to rename it, move it under another, edit its description and
+  aliases, add a subtopic, or merge it into another. **Review automatic topics**
+  previews topic repairs for up to `100` visible roots against the current tree
+  (model calls only) and applies them when you confirm; plans expire after `30`
+  minutes and skip manual assignments and threads whose evidence changed. In
+  Topics, `j`/`k` move between suggestions and `a`/`d`/`u` accept, decline, and
+  undo.
+- **Model calls** (Debug mode only): the traces behind Workstreams' model calls.
+
+Each opens as its own view with **Back**. Deep links still work:
+`/plugins/workstreams/home/activity`, `/debug`, and `/topics` (also
+`/organization`).
 
 ---
 
@@ -613,7 +597,7 @@ Open **Workstreams** in the main navigation panel to access four tabs:
 | `Workstreams: next Up Next thread` (`Cmd+Alt+J` / `Ctrl+Alt+J`) | Global command palette / shortcut | Opens the next thread in Up Next, wrapping to the top.                                          |
 | `Workstreams: snooze this thread`                               | Command palette (active thread)   | Snoozes the current thread using your configured **Click to snooze** default preset.            |
 | `Workstreams: wake this snoozed thread`                         | Command palette (snoozed thread)  | Wakes the current snoozed thread immediately.                                                   |
-| `/`                                                             | Workstreams page                  | Switches to the **Overview** tab and focuses the search box.                                    |
+| `1`–`3`, `Shift`, `R`, `S`, `E`, `O`, `U`                       | Workstreams page                  | Sends a reply (`Shift` edits it first), replies, snoozes, archives, opens, or undoes.           |
 | `Shift+Click`                                                   | Recap card **Next action** button | Copies the suggested prompt into the composer for editing instead of sending immediately.       |
 | `1`–`4`, `Enter` / `Shift+Enter`                                | `AskUserQuestion` card            | Selects an option by number; submits the answer (`Enter`) or inserts a newline (`Shift+Enter`). |
 

@@ -671,6 +671,44 @@ export const rpcContract = defineRpcContract({
     input: z.object({ threadId: z.string().min(1), recapId: z.string() }),
     output: z.object({ ok: z.literal(true) }),
   },
+  /**
+   * The Workstreams page queue's actions on a thread. `threadSend` sends the
+   * user's message (queued behind a turn underway); `threadArchive` archives
+   * the thread with its delegates, and `threadUnarchive` brings it back, for
+   * Undo.
+   */
+  threadSend: {
+    input: z.object({
+      threadId: z.string().min(1),
+      text: z.string().trim().min(1).max(20_000),
+    }),
+    output: z.object({ ok: z.literal(true) }),
+  },
+  threadArchive: {
+    input: z.object({ threadId: z.string().min(1) }),
+    output: z.object({ ok: z.literal(true) }),
+  },
+  threadUnarchive: {
+    input: z.object({ threadId: z.string().min(1) }),
+    output: z.object({ ok: z.literal(true) }),
+  },
+  /**
+   * Where each thread's files live, to resolve file links in its recap on
+   * the Workstreams page queue; threads without an environment, or unreadable, are left out.
+   */
+  recapFiles: {
+    input: z.object({ threadIds: z.array(z.string().min(1)).max(200) }),
+    output: z.object({
+      files: z.record(
+        z.string(),
+        z.object({
+          environmentId: z.string(),
+          root: z.string().nullable(),
+          hostId: z.string().nullable(),
+        }),
+      ),
+    }),
+  },
   organization: {
     input: z
       .object({
@@ -697,8 +735,19 @@ export const rpcContract = defineRpcContract({
     output: z.object({
       applied: z.array(z.string()),
       failed: z.array(z.object({ id: z.string(), reason: z.string() })),
+      /** Each accepted suggestion's Activity entry, for Undo. */
+      entries: z.record(z.string(), z.string()),
       state: suggestionsStateSchema,
     }),
+  },
+  /**
+   * Undoes a decision just made: an accepted suggestion's Activity entry is
+   * undone (`entryId`, from `suggestionsDecide`), and the suggestion waits
+   * for review again.
+   */
+  suggestionsReopen: {
+    input: z.object({ id: z.string().min(1), entryId: z.string().optional() }),
+    output: z.object({ state: suggestionsStateSchema }),
   },
   journal: {
     input: z

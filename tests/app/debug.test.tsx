@@ -78,9 +78,7 @@ it("opens Activity for debug links and shows debug controls only in Debug mode",
     );
   const off = page(false);
   expect(off.queryByRole("tab", { name: "Debug" })).toBeNull();
-  expect(
-    off.getByRole("tab", { name: "Activity" }).getAttribute("aria-selected"),
-  ).toBe("true");
+  expect(off.getByRole("heading", { name: "Activity" })).toBeTruthy();
   expect(off.queryByRole("checkbox", { name: "Failures only" })).toBeNull();
   expect(off.queryByRole("button", { name: "Clear traces…" })).toBeNull();
   await off.findByText("No activity yet.");
@@ -90,9 +88,7 @@ it("opens Activity for debug links and shows debug controls only in Debug mode",
   off.unmount();
   const on = page(true);
   expect(on.queryByRole("tab", { name: "Debug" })).toBeNull();
-  expect(
-    on.getByRole("tab", { name: "Activity" }).getAttribute("aria-selected"),
-  ).toBe("true");
+  expect(on.getByRole("heading", { name: "Activity" })).toBeTruthy();
   expect(await on.findByText("Response not usable")).toBeTruthy();
   expect(on.getByRole("checkbox", { name: "Failures only" })).toBeTruthy();
   expect(on.queryByText("No activity yet.")).toBeNull();

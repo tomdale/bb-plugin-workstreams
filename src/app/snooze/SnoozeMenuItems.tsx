@@ -26,9 +26,12 @@ export function SnoozeMenuItems({
   onSnooze,
   onWake,
   onCustom,
+  numbered = false,
   kit = dropdownMenuKit,
 }: {
   kit?: MenuKit;
+  /** Shows each preset's number key (1–6), for a menu that handles them. */
+  numbered?: boolean;
   /** Names what the choices snooze, above them ("Snooze 4 threads"). */
   heading?: string;
   now: number;
@@ -57,7 +60,7 @@ export function SnoozeMenuItems({
           <Separator />
         </>
       ) : null}
-      {snoozeChoices(prefs.presets, now).map((choice) => (
+      {snoozeChoices(prefs.presets, now).map((choice, index) => (
         <MenuItem
           key={choice.id}
           onSelect={() =>
@@ -67,6 +70,11 @@ export function SnoozeMenuItems({
             })
           }
         >
+          {numbered ? (
+            <span className="mr-2.5 w-2 text-[11px] tabular-nums text-muted-foreground">
+              {index + 1}
+            </span>
+          ) : null}
           <span className="flex-1">
             {choice.label}
             {choice.id === prefs.default && !snooze ? (

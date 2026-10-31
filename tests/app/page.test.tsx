@@ -1,10 +1,19 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
-import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const entry = {
   id: "e1",
@@ -24,6 +33,18 @@ const entry = {
   detail: null,
 };
 
+const analysis = (recap: string, state = "done") => ({
+  recap,
+  state,
+  needsYou: null,
+  subject: "Alpha",
+  drift: null,
+  driftSectionId: null,
+  revision: Date.now(),
+  at: Date.now(),
+  model: "m",
+});
+
 async function mount() {
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   const now = Date.now();
@@ -37,6 +58,7 @@ async function mount() {
           sidebarThread("a1", {
             sectionId: "sec_a",
             title: "Alpha work",
+            isUnread: true,
             latestAttentionAt: now,
           }),
           sidebarThread("a2", { parentThreadId: "a1", title: "Alpha child" }),
@@ -46,6 +68,12 @@ async function mount() {
             hasPendingInteraction: true,
             latestAttentionAt: now - 3_600_000,
           }),
+          sidebarThread("run", {
+            sectionId: "sec_b",
+            title: "Beta running",
+            status: "active",
+            indicator: "runtime",
+          }),
         ],
         sections: [section("sec_a", "Alpha"), section("sec_b", "Beta")],
         projects: [],
@@ -53,34 +81,30 @@ async function mount() {
       rpc: {
         state: () => ({
           ...emptyState(),
-          analysis: {
+          analysis: { b1: analysis("Asked which API to use") },
+          recaps: {
             a1: {
-              recap: "Tests pass; waiting on review.",
-              state: "review",
-              needsYou: null,
-              subject: "Alpha",
-              drift: null,
-              driftSectionId: null,
-              revision: now,
+              id: "r1",
+              turnId: "t1",
               at: now,
-              model: "m",
+              state: "review",
+              goal: "Built the feed",
+              latest: ["Tests pass"],
+              review: ["Open the page"],
+              links: [],
+              next: [
+                { title: "Ship it", message: "Ship the feed to main" },
+                { title: "Tweak copy", message: "Tighten the card copy" },
+              ],
             },
           },
         }),
-        catalog: () => ({
-          entities: [
-            {
-              id: "known",
-              name: "Quiet product",
-              description: "Retained without current tasks",
-              parentId: null,
-              aliases: [],
-            },
-          ],
-          groups: {},
-          assignments: {},
-          revision: 1,
-        }),
+        recapFiles: () => ({ files: {} }),
+        recapPrefs: () => ({ prefs: {} }),
+        recap_send: () => ({ ok: true }),
+        threadSend: () => ({ ok: true }),
+        threadArchive: () => ({ ok: true }),
+        threadUnarchive: () => ({ ok: true }),
         journal: () => ({ entries: [entry] }),
         undo: () => ({ entry: { ...entry, id: "e2", action: "undo" } }),
       },
@@ -88,66 +112,117 @@ async function mount() {
   );
 }
 
-it("opens the Topics tab and lists every topic", async () => {
+type Slot = Awaited<ReturnType<typeof mount>>;
+const heading = (slot: Slot) =>
+  slot.queryByRole("heading", { level: 1 })?.textContent ?? null;
+const press = (key: string, options: { shiftKey?: boolean } = {}) =>
+  fireEvent.keyDown(window, {
+    key,
+    code: /^[0-9]$/.test(key) ? `Digit${key}` : undefined,
+    ...options,
+  });
+
+it("shows one item at a time, Up Next first, with how many are left", async () => {
   const slot = await mount();
-  fireEvent.click(slot.getByRole("tab", { name: "Topics" }));
-  expect(await slot.findByText("Quiet product")).toBeTruthy();
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  expect(slot.getByText("Needs your decision")).toBeTruthy();
+  expect(slot.getByText("Asked which API to use")).toBeTruthy();
   expect(
-    slot.getByRole("tab", { name: "Topics" }).getAttribute("aria-selected"),
-  ).toBe("true");
-});
-
-it("ranks workstreams by needs-you first and lists roots with child thread counts", async () => {
-  const slot = await mount();
-  const headings = slot
-    .getAllByRole("heading", { level: 2 })
-    .map((h) => h.textContent);
-  expect(headings).toEqual(["Beta", "Alpha"]);
-  const alpha = slot.getByRole("region", { name: "Alpha" });
-  expect(within(alpha).getByText("Alpha work")).toBeTruthy();
-  expect(within(alpha).getByText("+1 child thread")).toBeTruthy();
-  expect(within(alpha).queryByText("Alpha child")).toBeNull();
-  fireEvent.click(within(alpha).getByText("Alpha work"));
-  expect(slot.inspection.navigateCalls).toEqual([
-    { method: "toThread", threadId: "a1" },
-  ]);
+    slot.getByText(
+      (_, el) => el?.tagName === "P" && el.textContent === "2 left",
+    ),
+  ).toBeTruthy();
+  // The running thread waits for its turn to end; it isn't in the queue.
+  expect(slot.queryByText("Beta running")).toBeNull();
   slot.lifecycle.unmount();
 });
 
-it("filters with search", async () => {
+it("archives the item at once, leaves a receipt with Undo, and moves on", async () => {
   const slot = await mount();
-  fireEvent.change(
-    slot.getByRole("textbox", { name: "Search threads and workstreams" }),
-    {
-      target: { value: "question" },
-    },
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  press("e");
+  expect(slot.getByRole("status").textContent).toContain(
+    "Archived Beta question",
   );
+  await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+  expect(slot.getByText("Built the feed")).toBeTruthy();
+  expect(slot.getByText("Ship the feed to main")).toBeTruthy();
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.find((c) => c.method === "threadArchive")?.input,
+    ).toEqual({ threadId: "b1" }),
+  );
+  fireEvent.click(slot.getByRole("button", { name: /^Undo/ }));
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.find((c) => c.method === "threadUnarchive")
+        ?.input,
+    ).toEqual({ threadId: "b1" }),
+  );
+  slot.lifecycle.unmount();
+});
+
+it("holds a reply behind its receipt so Undo can keep it from sending", async () => {
+  const slot = await mount();
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  press("e");
+  await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+  vi.useFakeTimers();
+  press("1");
+  expect(slot.getByRole("status").textContent).toContain("Sent to Alpha work");
+  press("u");
+  await act(async () => {
+    vi.advanceTimersByTime(10_000);
+  });
+  expect(slot.inspection.rpcCalls.some((c) => c.method === "recap_send")).toBe(
+    false,
+  );
+  expect(heading(slot)).toBe("Alpha work");
+  press("1");
+  await act(async () => {
+    vi.advanceTimersByTime(10_000);
+  });
   expect(
-    slot.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
-  ).toEqual(["Beta"]);
+    slot.inspection.rpcCalls.find((c) => c.method === "recap_send")?.input,
+  ).toEqual({ threadId: "a1", recapId: "r1", action: "Ship the feed to main" });
   slot.lifecycle.unmount();
 });
 
-it("updates workstream header counts to match filtered rows", async () => {
+it("edits a reply before sending with shift and a number", async () => {
   const slot = await mount();
-  fireEvent.change(
-    slot.getByRole("textbox", { name: "Search threads and workstreams" }),
-    {
-      target: { value: "Alpha work" },
-    },
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  press("e");
+  await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+  press("2", { shiftKey: true });
+  const field = slot.getByRole("textbox", { name: "Reply to Alpha work" });
+  expect((field as HTMLTextAreaElement).value).toBe("Tighten the card copy");
+  fireEvent.keyDown(field, { key: "Escape" });
+  expect(
+    slot.queryByRole("textbox", { name: "Reply to Alpha work" }),
+  ).toBeNull();
+  slot.lifecycle.unmount();
+});
+
+it("opens the item's thread", async () => {
+  const slot = await mount();
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  press("o");
+  expect(slot.inspection.sidebarActionCalls).toContainEqual(
+    expect.objectContaining({ method: "open", threadId: "b1" }),
   );
-  const alpha = slot.getByRole("region", { name: "Alpha" });
-  const header = within(alpha).getByRole("heading", {
-    name: "Alpha",
-  }).parentElement;
-  expect(header?.textContent).toContain("1");
-  expect(header?.textContent).not.toContain("2");
   slot.lifecycle.unmount();
 });
 
-it("shows the activity log with undo", async () => {
+it("opens the activity log from the menu, with undo", async () => {
   const slot = await mount();
-  fireEvent.click(slot.getByRole("tab", { name: "Activity" }));
+  const more = slot.getByRole("button", { name: "More" });
+  fireEvent.pointerDown(more, {
+    button: 0,
+    ctrlKey: false,
+    pointerType: "mouse",
+  });
+  fireEvent.click(await slot.findByRole("menuitem", { name: "Activity" }));
   expect(await slot.findByText("Moved from Unfiled to Beta")).toBeTruthy();
   fireEvent.click(slot.getByRole("button", { name: "Undo" }));
   await waitFor(() =>
@@ -157,167 +232,9 @@ it("shows the activity log with undo", async () => {
       entryId: "e1",
     }),
   );
-  slot.lifecycle.unmount();
-});
-
-it("shows where each thread stopped", async () => {
-  const slot = await mount();
-  const alpha = slot.getByRole("region", { name: "Alpha" });
-  expect(
-    await within(alpha).findByText("Tests pass; waiting on review."),
-  ).toBeTruthy();
-  expect(
-    within(alpha).getByRole("img", { name: "Ready for your review" }),
-  ).toBeTruthy();
-  slot.lifecycle.unmount();
-});
-
-it("renders live organization view with derived workstreams on the Organize tab", async () => {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  const orgState = {
-    status: "idle" as const,
-    progress: null,
-    error: null,
-    lastUpdatedAt: 1,
-    groups: [
-      {
-        key: "sec_Beta",
-        sectionId: "sec_Beta",
-        name: "Beta",
-        description: "The Beta effort",
-        activeCount: 2,
-        completedCount: 0,
-        totalCount: 2,
-        roots: [
-          {
-            id: "t1",
-            title: "Title t1",
-            completed: false,
-            topicId: "sec_Beta",
-            topicLabel: "Beta",
-            provenance: "automatic" as const,
-            reason: "Classified as Beta.",
-          },
-          {
-            id: "t2",
-            title: "Title t2",
-            completed: false,
-            topicId: "sec_Beta",
-            topicLabel: "Beta",
-            provenance: "automatic" as const,
-            reason: "Classified as Beta.",
-          },
-        ],
-      },
-    ],
-    unresolved: [],
-    counts: {
-      activeRoots: 2,
-      completedRoots: 0,
-      totalRoots: 2,
-      unresolvedRoots: 0,
-      activeWorkstreams: 1,
-    },
-  };
-  const slot = renderSlot(
-    app.navPanels[0]!,
-    { subPath: "map" },
-    {
-      sidebarThreads: {
-        status: "ready",
-        threads: [
-          sidebarThread("t1", { sectionId: "sec_Beta" }),
-          sidebarThread("t1c", { parentThreadId: "t1" }),
-          sidebarThread("t1d", { parentThreadId: "t1c" }),
-        ],
-        sections: [section("sec_Beta", "Beta")],
-        projects: [],
-      },
-      rpc: {
-        state: () => emptyState(),
-        organization: () => ({ state: orgState }),
-      },
-    },
+  fireEvent.click(slot.getByRole("button", { name: "Back" }));
+  await waitFor(() =>
+    expect(slot.getByRole("button", { name: "More" })).toBeTruthy(),
   );
-  expect((await slot.findAllByText("Beta")).length).toBeGreaterThanOrEqual(1);
-  slot.lifecycle.unmount();
-});
-
-it("reports live organization status on the Organize tab", async () => {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  const orgState = {
-    status: "idle" as const,
-    progress: null,
-    error: null,
-    lastUpdatedAt: 1,
-    groups: [
-      {
-        key: "sec_a",
-        sectionId: "sec_a",
-        name: "Alpha",
-        description: "Alpha work",
-        activeCount: 1,
-        completedCount: 0,
-        totalCount: 1,
-        roots: [
-          {
-            id: "a1",
-            title: "Task a1",
-            completed: false,
-            topicId: "sec_a",
-            topicLabel: "Alpha",
-            provenance: "automatic" as const,
-            reason: "Classified as Alpha.",
-          },
-        ],
-      },
-    ],
-    unresolved: [],
-    counts: {
-      activeRoots: 1,
-      completedRoots: 0,
-      totalRoots: 1,
-      unresolvedRoots: 0,
-      activeWorkstreams: 1,
-    },
-  };
-  const slot = renderSlot(
-    app.navPanels[0]!,
-    { subPath: "map" },
-    {
-      sidebarThreads: {
-        status: "ready",
-        threads: [
-          sidebarThread("a1", { sectionId: "sec_a" }),
-          sidebarThread("a2", { parentThreadId: "a1" }),
-        ],
-        sections: [section("sec_a", "Alpha")],
-        projects: [],
-      },
-      rpc: {
-        state: () => ({
-          ...emptyState(),
-          workstreams: {
-            sec_a: {
-              sectionId: "sec_a",
-              name: "Alpha",
-              description: "Alpha work",
-              descriptionSource: "generated",
-              aliases: [],
-              subjects: [],
-              projects: [],
-              evidence: { threadCount: 1, lastActiveAt: 0 },
-              createdBy: "workstreams",
-              updatedAt: 0,
-            },
-          },
-        }),
-        journal: () => ({ entries: [] }),
-        organization: () => ({ state: orgState }),
-      },
-    },
-  );
-  expect((await slot.findAllByText("Alpha")).length).toBeGreaterThanOrEqual(1);
-  expect(slot.queryByRole("alert")).toBeNull();
   slot.lifecycle.unmount();
 });

@@ -63,7 +63,7 @@ const CARD_CLASS =
  * border, background, state line, row labels, and row rules; everything else
  * stays neutral.
  */
-const ACCENT: Record<
+export const ACCENT: Record<
   Recap["state"],
   { card: string; text: string; rules: string; footer: string }
 > = {
@@ -131,9 +131,9 @@ const MARKDOWN_CLASS =
  * copies the full hash.
  */
 /** The user's hash colors; null fields use the theme's default tints. */
-type HashColorPrefs = { digits: string | null; letters: string | null };
+export type HashColorPrefs = { digits: string | null; letters: string | null };
 const NO_HASH_COLORS: HashColorPrefs = { digits: null, letters: null };
-const HashColors = createContext<HashColorPrefs>(NO_HASH_COLORS);
+export const HashColors = createContext<HashColorPrefs>(NO_HASH_COLORS);
 
 function Sha({ sha }: { sha: string }) {
   const [copied, setCopied] = useState(false);
@@ -598,7 +598,15 @@ const LINK =
   "M6.5 9.5a3 3 0 0 0 4.24 0l2-2a3 3 0 0 0-4.24-4.24l-.5.5 M9.5 6.5a3 3 0 0 0-4.24 0l-2 2a3 3 0 0 0 4.24 4.24l.5-.5";
 
 /** Where the turn's result stands, above the goal. */
-function StateLine({ recap, clearance }: { recap: Recap; clearance: string }) {
+function StateLine({
+  recap,
+  clearance,
+  age,
+}: {
+  recap: Recap;
+  clearance: string;
+  age?: string;
+}) {
   const state = recap.state;
   return (
     <p
@@ -614,6 +622,9 @@ function StateLine({ recap, clearance }: { recap: Recap; clearance: string }) {
         : state === "waiting"
           ? "Waiting"
           : "Complete"}
+      {age ? (
+        <span className="ml-1 font-normal text-muted-foreground">{age}</span>
+      ) : null}
     </p>
   );
 }
@@ -798,12 +809,13 @@ function Links({
  * complete. Compact keeps the essential row unlabeled: review steps for
  * review, results when complete.
  */
-function RecapSummary({
+export function RecapSummary({
   recap,
   layout,
   files,
   threadId,
   clearance,
+  age,
 }: {
   recap: Recap;
   layout: RecapLayout;
@@ -811,6 +823,8 @@ function RecapSummary({
   threadId: string | null;
   /** Room the top line leaves for the corner buttons. */
   clearance: string;
+  /** How long ago the recap arrived ("14m ago"), after the state. */
+  age?: string;
 }) {
   const navigate = useBbNavigate();
   const compact = layout === "minimal";
@@ -906,7 +920,7 @@ function RecapSummary({
       <MarkdownDocumentContext.Provider value={markdownDocument}>
         <CompactContext.Provider value={compact}>
           {/* The top line clears the corner buttons. */}
-          <StateLine recap={recap} clearance={clearance} />
+          <StateLine recap={recap} clearance={clearance} age={age} />
           <div
             role="heading"
             aria-level={2}
@@ -1036,7 +1050,7 @@ function nextActionTitle(action: NextAction): string {
 }
 
 /** Footer buttons (suggested actions and Archive) share one size and style. */
-const FOOTER_BUTTON = `h-7 max-w-none shrink-0 whitespace-nowrap border-border bg-transparent px-2.5 text-[11.5px] font-medium text-foreground hover:bg-transparent hover:text-foreground ${PHONE_SECONDARY} max-md:pointer-coarse:h-9`;
+export const FOOTER_BUTTON = `h-7 max-w-none shrink-0 whitespace-nowrap border-border bg-transparent px-2.5 text-[11.5px] font-medium text-foreground hover:bg-transparent hover:text-foreground ${PHONE_SECONDARY} max-md:pointer-coarse:h-9`;
 
 const NEXT_ACTION_ACCENT: Record<Recap["state"], string> = {
   waiting: "text-(--ws-waiting-text)",

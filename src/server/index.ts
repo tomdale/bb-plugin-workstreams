@@ -1136,6 +1136,46 @@ export default async function plugin(bb: BbPluginApi) {
     archiveStatus: ({ threadId }) => archives.status(threadId),
     archive: ({ threadId, recapId }) =>
       userFacing(() => archives.archive(threadId, recapId)),
+    threadSend: async ({ threadId, text }) => {
+      await bb.sdk.threads.send({
+        threadId,
+        mode: "queue-if-active",
+        input: [{ type: "text", text, mentions: [] }],
+      });
+      return { ok: true as const };
+    },
+    threadArchive: async ({ threadId }) => {
+      await bb.sdk.threads.archive({ threadId });
+      return { ok: true as const };
+    },
+    threadUnarchive: async ({ threadId }) => {
+      await bb.sdk.threads.unarchive({ threadId });
+      return { ok: true as const };
+    },
+    recapFiles: async ({ threadIds }) => {
+      const read = await Promise.all(
+        threadIds.map(async (threadId) => {
+          const thread = await bb.sdk.threads
+            .get({ threadId })
+            .catch(() => null);
+          if (!thread?.environmentId) return null;
+          const environment = await bb.sdk.environments
+            .get({ environmentId: thread.environmentId })
+            .catch(() => null);
+          return [
+            threadId,
+            {
+              environmentId: thread.environmentId,
+              root: environment?.path ?? null,
+              hostId: environment?.hostId ?? null,
+            },
+          ] as const;
+        }),
+      );
+      return {
+        files: Object.fromEntries(read.filter((entry) => entry !== null)),
+      };
+    },
     suggestions: async () => ({ state: suggestions.state() }),
     suggestionsRun: () =>
       userFacing(async () => {
@@ -1146,6 +1186,15 @@ export default async function plugin(bb: BbPluginApi) {
       userFacing(async () => {
         const result = await suggestions.decide(ids, decision);
         return { ...result, state: suggestions.state() };
+      }),
+    suggestionsReopen: ({ id, entryId }) =>
+      userFacing(async () => {
+        if (entryId) {
+          await service.undo(entryId);
+          map.refresh(service.threads());
+        }
+        suggestions.reopen(id);
+        return { state: suggestions.state() };
       }),
     organization: async (input) => {
       if (input?.action === "rebuild") {

@@ -48,6 +48,7 @@ import {
 import { topicPath } from "../domain/topic-path.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal } from "./journal.ts";
+import { UserError } from "./service.ts";
 import type { Inference } from "./model.ts";
 import {
   snapshotTopics,
@@ -313,7 +314,12 @@ export class Suggestions {
   async decide(
     ids: readonly string[],
     decision: "accept" | "decline",
-  ): Promise<{ applied: string[]; failed: { id: string; reason: string }[] }> {
+  ): Promise<{
+    applied: string[];
+    failed: { id: string; reason: string }[];
+    /** Each accepted suggestion's Activity entry, whose Undo reverts it. */
+    entries: Record<string, string>;
+  }> {
     const rows = this.deps.db
       .prepare(
         `SELECT * FROM ws_suggestion WHERE status = 'pending' AND id IN (${ids.map(() => "?").join(", ") || "NULL"}) ORDER BY at, rowid`,
@@ -321,16 +327,17 @@ export class Suggestions {
       .all(...ids) as Row[];
     const applied: string[] = [];
     const failed: { id: string; reason: string }[] = [];
+    const entries: Record<string, string> = {};
     if (decision === "decline") {
       for (const row of rows) this.settle(row.id, "declined", null);
       // An edit needing a topic a declined one would create is moot now.
       this.retire();
       this.deps.onChange(false);
-      return { applied: rows.map((row) => row.id), failed };
+      return { applied: rows.map((row) => row.id), failed, entries };
     }
     for (const row of rows) {
       try {
-        this.apply(row, await this.filed(row));
+        entries[row.id] = this.apply(row, await this.filed(row));
         applied.push(row.id);
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
@@ -342,7 +349,25 @@ export class Suggestions {
     // What was accepted may leave others with nothing left to change.
     this.retire();
     this.deps.onChange(applied.length > 0);
-    return { applied, failed };
+    return { applied, failed, entries };
+  }
+
+  /**
+   * Puts a decided suggestion back up for review, for Undo right after the
+   * decision. The caller first undoes an accepted one's Activity entry, which
+   * restores the topics as they were; a suggestion that no longer applies is
+   * then retired as usual.
+   */
+  reopen(id: string): void {
+    const result = this.deps.db
+      .prepare(
+        "UPDATE ws_suggestion SET status = 'pending', decided_at = NULL, detail = NULL WHERE id = ? AND status IN ('accepted', 'declined')",
+      )
+      .run(id);
+    if (result.changes === 0)
+      throw new UserError("That suggestion can't be reopened.");
+    this.retire();
+    this.deps.onChange(false);
   }
 
   // Splits ----------------------------------------------------------------
@@ -845,11 +870,12 @@ export class Suggestions {
     return { ...split, subgroups };
   }
 
-  private apply(row: Row, filed?: Split): void {
+  /** Applies an accepted suggestion; returns its Activity entry's id. */
+  private apply(row: Row, filed?: Split): string {
     const topics = this.deps.topics;
     const db = this.deps.db;
     const body = JSON.parse(row.body) as TidyEdit | Split;
-    db.transaction(() => {
+    return db.transaction(() => {
       const snapshot = snapshotTopics(db, this.now());
       const threads: { id: string; name: string }[] = [];
       if ("subgroups" in body) {
@@ -925,7 +951,7 @@ export class Suggestions {
         }
       }
       this.settle(row.id, "accepted", null);
-      this.deps.journal.add({
+      return this.deps.journal.add({
         action: "suggestion",
         source: "user",
         rationale: row.summary,
@@ -937,7 +963,7 @@ export class Suggestions {
           fingerprint: topicsFingerprint(db),
         },
         detail: row.reason || null,
-      });
+      }).id;
     })();
   }
 
