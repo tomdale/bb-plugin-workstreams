@@ -220,7 +220,9 @@ alone never regroups:
   outside section moves, and prunes unused, childless discovered topics.
 - **Stable visual collapse:** Expanding or collapsing a workstream in the
   sidebar follows its bound topic identity across windows and across section
-  recreation. Collapsible group headers show a hand cursor on hover.
+  recreation. Collapsible group headers show a hand cursor on hover. Subgroup
+  headers use small uppercase labels; each group's contents are indented behind
+  a subtle vertical guide to distinguish headers from thread rows.
 
 ### 5. Organizing suggestions
 

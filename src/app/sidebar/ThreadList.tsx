@@ -7,10 +7,9 @@
  *
  * Workstreams nest by topic (see `nestGroups`): a group lists its own
  * threads, then the threads of subgroups too small for headers, each
- * labeled with its subgroup, then its other subgroups. Each level starts
- * where its parent's names do: a subgroup's block, and a child thread, sit
- * one step (`INDENT_PX`) in. Small top-level groups gather in Other (see
- * `arrangeGroups`).
+ * labeled with its subgroup, then its other subgroups. Each group's contents
+ * sit one step (`INDENT_PX`) in, with a guide below its disclosure chevron.
+ * Small top-level groups gather in Other (see `arrangeGroups`).
  *
  * Up Next's rows come from `selectUpNext`, including its focus on the
  * focused workstreams; while any workstream is focused, the rest hide behind
@@ -1685,10 +1684,10 @@ function WorkstreamGroup({
       aria-label={group.name}
       data-flip-key={`group:${group.id}`}
       data-prioritized={group.prioritized ? "" : undefined}
-      className="rounded-md"
+      className={cn("rounded-md", nested && "pt-1")}
       style={{
         ...style,
-        paddingLeft: nested ? INDENT_PX : 4,
+        paddingLeft: nested ? 0 : 4,
         paddingRight: nested ? 0 : 4,
       }}
     >
@@ -1733,7 +1732,7 @@ function WorkstreamGroup({
               muted={muted || nested}
               className={
                 nested
-                  ? "text-[12px] font-semibold"
+                  ? "text-[11px] font-semibold uppercase tracking-wide"
                   : "text-[13px] font-semibold"
               }
             />
@@ -1783,7 +1782,11 @@ function WorkstreamGroup({
           </span>
         </div>
       </HeaderMenu>
-      {collapsed ? null : <ul>{children}</ul>}
+      {collapsed ? null : (
+        <ul className="ml-3 border-l border-sidebar-border/60 pl-[7px]">
+          {children}
+        </ul>
+      )}
     </section>
   );
 }

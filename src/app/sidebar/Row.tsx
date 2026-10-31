@@ -25,8 +25,8 @@ import { HoverAction, HoverMenuButton, RowActions } from "./HoverActions.tsx";
 
 /**
  * One level of nesting: a status slot (14px) and the gap after it (6px), so
- * a child's mark sits where its parent's title starts. Subgroup blocks in
- * the thread list step in by the same amount.
+ * a child's mark sits where its parent's title starts. Each group's contents
+ * in the thread list step in by the same amount.
  */
 export const INDENT_PX = 20;
 const MAX_INDENT = 3;
