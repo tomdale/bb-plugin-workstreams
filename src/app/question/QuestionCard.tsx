@@ -1,3 +1,4 @@
+import { QUESTION_CARD_CLASS } from "./question-presentation.tsx";
 /**
  * The AskUserQuestion card, drawn above the composer where the recap card
  * goes, in the recap card's style.
@@ -24,10 +25,6 @@ import { QuestionForm } from "./question-form.tsx";
 import { usePendingQuestion } from "./pending.ts";
 import type { RpcContract } from "../../server/contract.ts";
 import type { JsonValue } from "@get-bb/plugin-sdk";
-
-/** The recap card's frame (see RecapCard.tsx) in the Needs you color. */
-const CARD_CLASS =
-  "@container/question relative mx-auto mb-3 w-full min-w-0 max-w-4xl rounded-lg border border-(--ws-needs-you-border) bg-(--ws-needs-you-surface) px-4 py-3 text-foreground";
 
 /** Banner anchors by thread; one composer per thread shows banners. */
 const anchors = new Map<string, HTMLElement>();
@@ -95,7 +92,7 @@ export function QuestionAnchor() {
     >
       {pending?.recoverable && !native ? (
         <div
-          className={CARD_CLASS}
+          className={QUESTION_CARD_CLASS}
           role="region"
           aria-label="Question needs your answer"
           data-ws-question-card=""
@@ -193,7 +190,7 @@ export function QuestionInteraction({
       <span className="ws-question-portaled" hidden />
       {createPortal(
         <div
-          className={CARD_CLASS}
+          className={QUESTION_CARD_CLASS}
           role="region"
           aria-label="Question needs your answer"
           data-ws-question-card=""

@@ -660,9 +660,10 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
   display: none;
 }
 
-/* Keep generated-message content owned by BB, but show the validated Q&A
-   portal instead of its transport JSON. The source can contain direct text, so
-   hide the matched element itself; the portal anchor is its sibling. */
+/* The portal is a direct child of the delivery row, outside BB's clipped
+   message body. Keep host DOM for reconciliation and restore it on unmount. */
+.ws-delivered-question-row > :not([data-ws-delivered-anchor]),
+.ws-delivered-question-duplicate,
 .ws-delivered-question-source {
   display: none !important;
 }

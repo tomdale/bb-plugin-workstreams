@@ -159,4 +159,6 @@ export interface ToolResult {
   answers: Record<string, string>;
   response?: string;
   annotations?: Record<string, ToolResultAnnotation>;
+  /** Exact selections and free text; answer strings alone are ambiguous. */
+  submission?: InteractionResponse;
 }

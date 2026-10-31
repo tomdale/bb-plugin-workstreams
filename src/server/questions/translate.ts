@@ -213,6 +213,7 @@ export function buildToolResult(
     }
   }
   return {
+    submission: response,
     questions: payload.questions.map((question) => ({
       question: question.prompt,
       ...(question.details === undefined ? {} : { details: question.details }),

@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { interactionPayloadSchema } from "./contracts.ts";
+import {
+  interactionPayloadSchema,
+  interactionResponseSchema,
+  toolInputSchema,
+} from "./contracts.ts";
+import { buildInteractionPayload } from "./translate.ts";
 
 export const questionResultSchema = z.object({
   questions: z.array(
@@ -22,6 +27,7 @@ export const questionResultSchema = z.object({
   ),
   answers: z.record(z.string(), z.string()),
   response: z.string().optional(),
+  submission: interactionResponseSchema.optional(),
   annotations: z
     .record(
       z.string(),
@@ -55,17 +61,42 @@ export const questionHistorySchema = z.object({
 });
 export type QuestionHistory = z.infer<typeof questionHistorySchema>;
 
+export function questionResultRecord(
+  value: unknown,
+  id: string,
+  at: number | null,
+): QuestionHistory | null {
+  const parsed = questionResultSchema.safeParse(value);
+  if (!parsed.success) return null;
+  const input = toolInputSchema.safeParse({ questions: parsed.data.questions });
+  return input.success
+    ? {
+        id,
+        at,
+        status: "answered",
+        payload: buildInteractionPayload(input.data),
+        result: parsed.data,
+      }
+    : null;
+}
+
+export const DELIVERED_QUESTION_PREFIX =
+  "Your earlier AskUserQuestion tool call has finished. Its result:";
+export const RECOVERED_QUESTION_PREFIX =
+  "My answer to your question (recovered after the question tool was interrupted):";
+
 /** Detached answers are ordinary retained inputs, even when their UI row was suppressed. */
 export function deliveredQuestionResult(text: string) {
-  const prefix =
-    "Your earlier AskUserQuestion tool call has finished. Its result:\n\n";
-  const recovered =
-    "My answer to your question (recovered after the question tool was interrupted):\n";
+  const prefix = DELIVERED_QUESTION_PREFIX;
+  const recovered = RECOVERED_QUESTION_PREFIX;
   let raw: string;
   if (text.startsWith(prefix)) raw = text.slice(prefix.length);
-  else if (text.startsWith(recovered))
-    raw = text.slice(recovered.length).split("\nUse this as my answer")[0]!;
-  else return null;
+  else if (text.startsWith(recovered)) {
+    raw = text.slice(recovered.length).trim();
+    const suffix =
+      "Use this as my answer and resume the work that depended on it.";
+    if (raw.endsWith(suffix)) raw = raw.slice(0, -suffix.length).trimEnd();
+  } else return null;
   try {
     const result = questionResultSchema.safeParse(JSON.parse(raw));
     return result.success ? result.data : null;

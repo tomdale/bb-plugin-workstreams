@@ -1,3 +1,4 @@
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { describe, expect, it, vi } from "vitest";
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { openDatabase } from "../../../src/server/db.ts";
@@ -11,16 +12,30 @@ const input = {
 };
 
 function setup() {
-  const send = vi.fn(async () => ({ status: "started" }));
+  const send = vi.fn(
+    async (_args: Parameters<BbPluginApi["sdk"]["threads"]["send"]>[0]) => ({
+      status: "started",
+    }),
+  );
+  const events = { current: [] as unknown[] };
   const host = createFakePluginHost({
     pluginId: "workstreams",
     sdk: {
       threads: {
         send,
         get: async () => ({ projectId: "thread-project" }),
-        events: { list: async () => [] },
+        events: { list: async () => events.current },
       },
-      projects: { attachments: { copy: async () => undefined } },
+      projects: {
+        attachments: {
+          copy: async () => undefined,
+          read: async () => ({
+            bytes: new Uint8Array([1]),
+            mimeType: "image/png",
+            sizeBytes: 1,
+          }),
+        },
+      },
     },
   });
   let store: QuestionStore;
@@ -29,7 +44,7 @@ function setup() {
     registerQuestionTool(bb, store);
   };
   plugin(host.bb);
-  return { host, send, plugin, store: () => store! };
+  return { host, send, plugin, events, store: () => store! };
 }
 
 describe("durable questions", () => {
@@ -208,3 +223,74 @@ describe("durable questions", () => {
     await host.harness.lifecycle.dispose();
   });
 });
+
+it.each([false, true])(
+  "retains the identical full submission through reload and event reconstruction (interrupted: %s)",
+  async (interrupted) => {
+    const { host: initialHost, plugin, store, send, events } = setup();
+    let host = initialHost;
+    const { original, submission, result } =
+      await import("../../app/question/submission-fixture.ts");
+    const call = host.harness.callAgentTool("AskUserQuestion", original);
+    await vi.waitFor(() =>
+      expect(host.harness.pendingInteractions).toHaveLength(1),
+    );
+    const interaction = host.harness.pendingInteractions[0]!;
+    const saved = store().pending(interaction.threadId)!;
+    store().attach(interaction.threadId, interaction.id);
+    // Use same-project attachments so both paths preserve the exact references.
+    const answer = JSON.parse(JSON.stringify(submission));
+    for (const attachment of answer.answers.q2.attachments)
+      attachment.projectId = "thread-project";
+    if (interrupted) {
+      host = await host.harness.lifecycle.reload(plugin);
+      await call;
+      await store().recover(interaction.threadId, saved.id, answer, false);
+    } else {
+      host.harness.submitInteraction(interaction.id, answer);
+      await call;
+    }
+    const history = (await store().history(interaction.threadId))[0]!;
+    expect(history.result).toMatchObject({
+      questions: result.questions,
+      answers: result.answers,
+      submission: answer,
+    });
+    host = await host.harness.lifecycle.reload(plugin);
+    expect(
+      await store().atInteraction(interaction.threadId, interaction.id),
+    ).toEqual(history);
+    const retained = JSON.stringify(history.result);
+    // Simulate history without the plugin database: only retained BB events remain.
+    events.current = [
+      {
+        id: "answer-event",
+        createdAt: 123,
+        type: interrupted ? "client/turn/requested" : "item/completed",
+        data: interrupted
+          ? {
+              input: [
+                {
+                  type: "text",
+                  text: (
+                    send.mock.calls[0]![0] as { input: { text: string }[] }
+                  ).input[0]!.text,
+                },
+              ],
+            }
+          : {
+              item: {
+                type: "toolCall",
+                tool: "AskUserQuestion",
+                result: retained,
+              },
+            },
+      },
+    ];
+    const reconstructed = await store().history("other-thread");
+    expect(reconstructed).toHaveLength(1);
+    expect(reconstructed[0]!.result).toEqual(history.result);
+    expect(await store().history("other-thread")).toEqual(reconstructed);
+    await host.harness.lifecycle.dispose();
+  },
+);

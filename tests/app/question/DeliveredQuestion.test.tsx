@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { PluginBrowserBbSdk } from "@get-bb/plugin-sdk/app";
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
@@ -130,4 +131,203 @@ it("does not convert malformed transport data or unrelated text", () => {
   expect(deliveredCardRecord("ordinary message")).toBeNull();
   expect(deliveredCardRecord(prefix + "\n{invalid")).toBeNull();
   expect(deliveredCardRecord(prefix + "\n{}")).toBeNull();
+});
+
+const recoveredPrefix =
+  "My answer to your question (recovered after the question tool was interrupted):";
+const recoveredSuffix =
+  "Use this as my answer and resume the work that depended on it.";
+
+it.each([prefix, recoveredPrefix])(
+  "restores the same card for %s, including when paragraphs omit newline separators",
+  async (lead) => {
+    const { result: complete } = await import("./submission-fixture.ts");
+    // Attachment retrieval is covered by the timeline test; use text-only here.
+    const answer = {
+      ...complete,
+      submission: {
+        answers: {
+          ...complete.submission!.answers,
+          q2: { selected: [], freeText: "More detail" },
+        },
+      },
+      annotations: undefined,
+    };
+    const raw = `${lead}${JSON.stringify(answer)}${lead === recoveredPrefix ? recoveredSuffix : ""}`;
+    const message = render(
+      <div data-timeline-row-id="thread:delivery">
+        <div style={{ maxHeight: 20, overflow: "hidden" }}>
+          <div>{raw}</div>
+          <button>Show more</button>
+        </div>
+      </div>,
+    );
+    for (let reload = 0; reload < 2; reload++) {
+      const overlay = renderSlot(
+        app.appOverlays.find((p) => p.id === "delivered-questions")!,
+        {},
+      );
+      await waitFor(() =>
+        expect(
+          message.container.querySelectorAll("[data-ws-question-history]"),
+        ).toHaveLength(1),
+      );
+      expect(message.getByText("Keep the details visible.")).toBeTruthy();
+      expect(
+        message.container.querySelector("[data-ws-delivered-anchor]")
+          ?.parentElement?.dataset.timelineRowId,
+      ).toBe("thread:delivery");
+      expect(
+        message.container.querySelector(
+          "[data-ws-question-history] input, [data-ws-question-history] button",
+        ),
+      ).toBeNull();
+      overlay.lifecycle.unmount();
+      expect(
+        message.container.querySelector(".ws-delivered-question-row"),
+      ).toBeNull();
+    }
+  },
+);
+
+it("keeps one answer when the original form and a delivery are both mounted, and restores it as rows unmount", async () => {
+  const raw = `${recoveredPrefix}\n${JSON.stringify(result)}\n${recoveredSuffix}`;
+  const record = deliveredCardRecord(raw)!;
+  const { QuestionHistoryCard } =
+    await import("../../../src/app/question/QuestionHistory.tsx");
+  const message = render(
+    <div data-timeline-row-list="normal">
+      <div data-timeline-row-id="thread:form:one">
+        <QuestionHistoryCard record={record} />
+      </div>
+      <div data-timeline-row-id="thread:delivery">
+        <p>{raw}</p>
+      </div>
+    </div>,
+  );
+  const overlay = renderSlot(
+    app.appOverlays.find((p) => p.id === "delivered-questions")!,
+    {},
+  );
+  await waitFor(() =>
+    expect(
+      message.container.querySelector(".ws-delivered-question-duplicate"),
+    ).toBeTruthy(),
+  );
+  expect(
+    message.container.querySelectorAll("[data-ws-question-history]"),
+  ).toHaveLength(1);
+  message.rerender(
+    <div data-timeline-row-list="normal">
+      <div data-timeline-row-id="thread:delivery">
+        <p>{raw}</p>
+      </div>
+    </div>,
+  );
+  await waitFor(() =>
+    expect(
+      message.container.querySelectorAll("[data-ws-question-history]"),
+    ).toHaveLength(1),
+  );
+  expect(
+    message.container.querySelector(".ws-delivered-question-duplicate"),
+  ).toBeNull();
+  message.rerender(
+    <div data-timeline-row-list="normal">
+      <div data-timeline-row-id="thread:delivery">
+        <p>Ordinary message</p>
+      </div>
+    </div>,
+  );
+  await waitFor(() =>
+    expect(
+      message.container.querySelector("[data-ws-question-history]"),
+    ).toBeNull(),
+  );
+  expect(
+    message.container.querySelector(".ws-delivered-question-row"),
+  ).toBeNull();
+  overlay.lifecycle.unmount();
+});
+
+it("loads the exact retained event instead of reconstructing Markdown-altered or clipped JSON", async () => {
+  const { vi } = await import("vitest");
+  const read = vi.fn(
+    async () =>
+      [
+        {
+          type: "client/turn/requested",
+          seq: 42,
+          data: {
+            input: [
+              {
+                type: "text",
+                text: `${recoveredPrefix}\n${JSON.stringify({ ...result, questions: result.questions.map((q) => ({ ...q, details: "Keep **literal** Markdown and <tags>." })) })}\n${recoveredSuffix}`,
+              },
+            ],
+          },
+        },
+      ] as unknown as Awaited<
+        ReturnType<PluginBrowserBbSdk["threads"]["events"]["list"]>
+      >,
+  );
+  const message = render(
+    <div data-timeline-row-id="thread:user-seed:42">
+      <div>{recoveredPrefix}...</div>
+    </div>,
+  );
+  const overlay = renderSlot(
+    app.appOverlays.find((p) => p.id === "delivered-questions")!,
+    {},
+    { sdk: { threads: { events: { list: read } } } },
+  );
+  await waitFor(() =>
+    expect(
+      message.getByText("Keep **literal** Markdown and <tags>."),
+    ).toBeTruthy(),
+  );
+  expect(read).toHaveBeenCalledOnce();
+  expect(read).toHaveBeenCalledWith(
+    expect.objectContaining({
+      threadId: "thread",
+      afterSeq: "41",
+      beforeSeq: "43",
+      limit: "1",
+    }),
+  );
+  expect(
+    message.queryByText("Expand to view the question and answer"),
+  ).toBeNull();
+  overlay.lifecycle.unmount();
+});
+
+it("replaces only the delivery row inside a turn and leaves unrelated content visible", async () => {
+  const message = render(
+    <div data-timeline-row-id="thread:turn">
+      <p>Work before the answer</p>
+      <div data-timeline-row-list="nested">
+        <div data-timeline-row-id="thread:delivery">
+          <p>{`${prefix}\n${JSON.stringify(result)}`}</p>
+        </div>
+      </div>
+    </div>,
+  );
+  const overlay = renderSlot(
+    app.appOverlays.find((p) => p.id === "delivered-questions")!,
+    {},
+  );
+  await waitFor(() =>
+    expect(
+      message.container.querySelector("[data-ws-question-history]"),
+    ).toBeTruthy(),
+  );
+  expect(
+    message.container
+      .querySelector("[data-timeline-row-id='thread:turn']")
+      ?.classList.contains("ws-delivered-question-row"),
+  ).toBe(false);
+  expect(
+    message.container.querySelectorAll(".ws-delivered-question-row"),
+  ).toHaveLength(1);
+  overlay.lifecycle.unmount();
 });

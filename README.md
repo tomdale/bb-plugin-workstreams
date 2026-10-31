@@ -509,8 +509,13 @@ above the composer:
   to submit, `Shift+Enter` for a newline).
 - Draft answers save automatically to `sessionStorage` (`250 ms` debounce) and
   recover across page reloads or interrupted turns.
-- Completed or dismissed questions render inline in the conversation timeline as
-  **QuestionHistoryCard** entries.
+- Submitted questions remain inline as read-only cards with the original
+  question text, details, options and previews, selected answers, free text,
+  notes, and downloadable image or file attachments. They use the same display
+  after an interruption, recovery, or page reload, without an extra raw JSON
+  answer. Older answers retain the information saved with them; exact selections
+  are marked when the structured submission is available. Dismissed questions
+  keep their original content and dismissal status.
 
 ### Workstreams page (`/plugins/workstreams/home`)
 
