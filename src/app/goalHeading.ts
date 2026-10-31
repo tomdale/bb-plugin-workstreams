@@ -116,18 +116,6 @@ export function headingScroll(fromBottom: number, exitDistance: number) {
   return { moved, remaining: exitDistance - moved, progress };
 }
 
-/** The large heading follows the timeline while its opacity gives way to the
- * compact title over the same scroll range as the other transitions. */
-export function hybridHeadingScroll(fromBottom: number, exitDistance: number) {
-  const scrolled = Math.max(0, fromBottom);
-  const { progress } = headingScroll(scrolled, exitDistance);
-  return {
-    moved: Math.min(scrolled, exitDistance / HEADING_SCROLL_RATIO),
-    remaining: 0,
-    progress,
-  };
-}
-
 /** Keep the outgoing heading readable longer and let the incoming one brighten early. */
 export function headingOpacity(progress: number) {
   return {

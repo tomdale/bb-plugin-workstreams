@@ -191,7 +191,7 @@ export function ThreadsSettings() {
         />
         <SettingRow
           label="Title transition"
-          description="How the large heading changes to the compact title. Hybrid moves the large heading with the conversation as it fades out."
+          description="How the large heading changes to the compact title as you scroll."
           control={
             <SegmentedControl
               label="Title transition"
@@ -199,7 +199,6 @@ export function ThreadsSettings() {
               options={[
                 { value: "fade", label: "Fade" },
                 { value: "scroll", label: "Scroll" },
-                { value: "hybrid", label: "Hybrid" },
               ]}
               onChange={(headingTransition) =>
                 update({ threads: { headingTransition } })

@@ -7,7 +7,6 @@ import {
   headingHeight,
   headingOpacity,
   headingScroll,
-  hybridHeadingScroll,
   pinnedHeight,
   titleExitDistance,
 } from "../../src/app/goalHeading.ts";
@@ -89,29 +88,6 @@ it("slows to a stop at the shared endpoint without overshooting", () => {
     expect(state.progress).toBeLessThanOrEqual(1);
     expect(state.moved + state.remaining).toBeCloseTo(distance);
   }
-});
-
-it("moves the hybrid heading with the timeline while easing the crossfade", () => {
-  const exit = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 1);
-  const travel = exit * 2.5;
-  expect(hybridHeadingScroll(0, exit)).toEqual({
-    moved: 0,
-    remaining: 0,
-    progress: 0,
-  });
-  expect(hybridHeadingScroll(20, exit).moved).toBe(20);
-  const halfway = hybridHeadingScroll(travel / 2, exit);
-  expect(halfway.moved).toBeCloseTo(travel / 2);
-  expect(halfway.progress).toBeCloseTo(
-    headingScroll(travel / 2, exit).progress,
-  );
-  const finish = hybridHeadingScroll(travel, exit);
-  const beyond = hybridHeadingScroll(10000, exit);
-  expect(finish.moved).toBeCloseTo(travel);
-  expect(finish.progress).toBe(1);
-  expect(beyond.moved).toBeCloseTo(travel);
-  expect(beyond.progress).toBe(1);
-  expect(hybridHeadingScroll(-10, exit).progress).toBe(0);
 });
 
 it("eases the outgoing and incoming opacity independently", () => {

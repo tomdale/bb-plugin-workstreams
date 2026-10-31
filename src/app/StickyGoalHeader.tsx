@@ -18,7 +18,6 @@ import {
   headingHeight,
   headingOpacity,
   headingScroll,
-  hybridHeadingScroll,
   pinnedHeight,
   titleExitDistance,
 } from "./goalHeading.ts";
@@ -230,7 +229,7 @@ type Placement = {
   /** In the timeline, at the scroller's top edge. */
   pane: { x: number; y: number; width: number };
   /** The scroller's full width, at its top edge. */
-  background: { x: number; y: number; width: number; height: number };
+  background: { x: number; y: number; width: number };
   /** The timeline is phone-width: the title may wrap and the bar is cramped. */
   narrow: boolean;
   /** The timeline is too short to spare room for the expanded heading. */
@@ -306,7 +305,6 @@ function measurePlacement(mount: Mount, base: number): Placement {
       x: scrollerRect.left - origin.left,
       y: scrollerRect.top - origin.top,
       width: scrollerRect.width,
-      height: scrollerRect.height,
     },
     bar,
     narrow: scrollerRect.width < NARROW_PX,
@@ -322,7 +320,6 @@ const samePlacement = (a: Placement | null, b: Placement): boolean =>
   Math.abs(a.background.x - b.background.x) < 0.5 &&
   Math.abs(a.background.y - b.background.y) < 0.5 &&
   Math.abs(a.background.width - b.background.width) < 0.5 &&
-  Math.abs(a.background.height - b.background.height) < 0.5 &&
   a.narrow === b.narrow &&
   a.short === b.short &&
   (a.bar === null) === (b.bar === null) &&
@@ -401,9 +398,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const { threadId } = useBbContext();
   const context = useGoalContext(threadId);
   const { prefs } = usePrefs();
-  const transition = prefs?.threads.headingTransition ?? "fade";
-  const fadeOnly = transition === "fade";
-  const hybrid = transition === "hybrid";
+  const fadeOnly = (prefs?.threads.headingTransition ?? "fade") === "fade";
   const mount = useMessageScroller(threadId);
   const { fromBottom, fade } = useScrollState(mount?.scroller ?? null);
   const settled = useSettled(mount);
@@ -435,39 +430,28 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
   const { moved, remaining, progress } = placement?.short
     ? { moved: exitDistance, remaining: 0, progress: 1 }
-    : hybrid
-      ? hybridHeadingScroll(settled ? fromBottom : 0, exitDistance)
-      : headingScroll(settled ? fromBottom : 0, exitDistance);
+    : headingScroll(settled ? fromBottom : 0, exitDistance);
   const collapsed = progress === 1;
-  const opacity =
-    hybrid || fadeOnly
-      ? { expanded: 1 - progress, compact: progress }
-      : headingOpacity(progress);
+  const opacity = fadeOnly
+    ? { expanded: 1 - progress, compact: progress }
+    : headingOpacity(progress);
   // When the title bar has no room, the compact copy sits in the timeline.
   const pinned = !!placement && placement.bar === null;
   const platePinnedHeight = pinnedHeight(base, eyebrow);
-  // The hybrid's plate travels with the large title, separate from the
-  // compact title's pinned plate when the bar has no room.
-  const plateHeight = hybrid
-    ? exitDistance
-    : fadeOnly
-      ? pinned
-        ? height * (1 - progress) + platePinnedHeight * progress
-        : height
-      : Math.max(
-          height * (1 - progress),
-          pinned ? platePinnedHeight * progress : 0,
-        );
-  const plateOpacity =
-    hybrid || (fadeOnly && !pinned) ? headingBackdropOpacity(progress) : 1;
-  const scrollPadding = hybrid
-    ? Math.max(
+  // A pinned compact heading needs a solid plate; in the bar the full-size
+  // plate can instead fade away without moving under the large heading.
+  const plateHeight = fadeOnly
+    ? pinned
+      ? height * (1 - progress) + platePinnedHeight * progress
+      : height
+    : Math.max(
         height * (1 - progress),
         pinned ? platePinnedHeight * progress : 0,
-      )
-    : fadeOnly && !pinned
-      ? height * (1 - progress)
-      : plateHeight;
+      );
+  const plateOpacity =
+    fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
+  const scrollPadding =
+    fadeOnly && !pinned ? height * (1 - progress) : plateHeight;
   const fadeAnchor = plateHeight;
   useLayoutEffect(() => {
     if (!mount) return;
@@ -540,7 +524,8 @@ export function StickyGoalHeader(): React.ReactElement | null {
       </div>
     );
 
-  // The hybrid heading follows the timeline while the compact copy fades in.
+  // The scroll transition moves both copies together; the fade transition
+  // keeps them in place.
   const text = (
     <>
       <div
@@ -549,13 +534,13 @@ export function StickyGoalHeader(): React.ReactElement | null {
         style={{
           transform: `translate(${placement.pane.x}px, ${paneTop}px)`,
           width: placement.pane.width,
-          height: hybrid ? placement.background.height : height,
+          height,
         }}
       >
         <div
           className="ws-goal-overlay__group"
           style={{
-            transform: `translateY(${base * PAD_TOP + (hybrid ? moved : fadeOnly ? 0 : -moved)}px)`,
+            transform: `translateY(${base * PAD_TOP - (fadeOnly ? 0 : moved)}px)`,
             opacity: opacity.expanded,
             width: placement.pane.width,
           }}
@@ -619,7 +604,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
         <div
           className="ws-goal-overlay__group"
           style={{
-            transform: `translateY(${fadeOnly || hybrid ? 0 : remaining}px)`,
+            transform: `translateY(${fadeOnly ? 0 : remaining}px)`,
             opacity: opacity.compact,
             width: compactSpot.width,
           }}
@@ -642,50 +627,26 @@ export function StickyGoalHeader(): React.ReactElement | null {
   return createPortal(
     <>
       <div
-        className={
-          hybrid
-            ? "ws-goal-background ws-goal-background--hybrid"
-            : "ws-goal-background"
-        }
+        className="ws-goal-background"
         style={
           {
             transform: `translate(${placement.background.x}px, ${placement.background.y}px)`,
             width: placement.background.width,
-            height: hybrid ? placement.background.height : undefined,
             "--ws-plate-height": `${fadeAnchor}px`,
-            "--ws-plate-offset": `${hybrid ? moved : 0}px`,
-            "--ws-plate-fade-height": hybrid ? "8rem" : "4rem",
             // In scroll mode, the plate's feather matches the 1.5rem bar fade.
             "--ws-plate-fade-scale":
-              hybrid || (fadeOnly && !pinned)
-                ? 1
-                : 1 - progress * (1 - 1.5 / 4),
+              fadeOnly && !pinned ? 1 : 1 - progress * (1 - 1.5 / 4),
             "--ws-fade-below-plate": fade && plateHeight > 0 ? plateOpacity : 0,
             "--ws-fade-below-bar":
               fade && inBar
-                ? fadeOnly || hybrid
+                ? fadeOnly
                   ? opacity.compact
                   : Number(collapsed)
                 : 0,
           } as React.CSSProperties
         }
       >
-        {hybrid && pinned && (
-          <div
-            className="ws-hybrid-pinned-plate"
-            style={{
-              height: platePinnedHeight,
-              opacity: headingBackdropOpacity(1 - progress),
-            }}
-          />
-        )}
-        <div
-          className="ws-sticky-goal"
-          style={{
-            height,
-            transform: hybrid ? `translateY(${moved}px)` : undefined,
-          }}
-        >
+        <div className="ws-sticky-goal" style={{ height }}>
           <div
             className="ws-sticky-goal__plate"
             style={{

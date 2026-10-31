@@ -5,7 +5,7 @@ import {
   prefsPatchSchema,
 } from "../../src/domain/prefs.ts";
 import { DEFAULT_COLORS } from "../../src/domain/colors.ts";
-import { openDatabase } from "../../src/server/db.ts";
+import { openDatabase, setMeta } from "../../src/server/db.ts";
 import {
   loadPrefs,
   migrateLegacyPrefs,
@@ -63,9 +63,28 @@ describe("Workstreams prefs", () => {
     ).toBe(false);
     const world = await fakeWorld();
     const db = openDatabase(world.bb);
-    for (const headingTransition of ["scroll", "hybrid", "fade"] as const) {
+    // A stored retired choice falls back without resetting neighboring fields.
+    setMeta(
+      db,
+      "prefs",
+      JSON.stringify({
+        threads: { headingTransition: "hybrid", showParentLink: true },
+      }),
+    );
+    expect(loadPrefs(db).threads).toMatchObject({
+      headingTransition: "fade",
+      showParentLink: true,
+    });
+    expect(
+      prefsPatchSchema.safeParse({ threads: { headingTransition: "hybrid" } })
+        .success,
+    ).toBe(false);
+    for (const headingTransition of ["scroll", "fade"] as const) {
       savePrefs(db, { threads: { headingTransition } });
-      expect(loadPrefs(db).threads.headingTransition).toBe(headingTransition);
+      expect(loadPrefs(db).threads).toMatchObject({
+        headingTransition,
+        showParentLink: true,
+      });
     }
     await world.harness.lifecycle.dispose();
   });

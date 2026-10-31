@@ -7,7 +7,6 @@ import {
   headingBackdropOpacity,
   headingOpacity,
   headingScroll,
-  hybridHeadingScroll,
   titleExitDistance,
 } from "../../src/app/goalHeading.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
@@ -61,9 +60,7 @@ function paneFixture({ recap }: { recap: boolean }) {
     </main>`;
 }
 
-async function mountHeading(
-  headingTransition: "fade" | "scroll" | "hybrid" = "scroll",
-) {
+async function mountHeading(headingTransition: "fade" | "scroll" = "scroll") {
   stubResizeObserver();
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   const heading = app.appOverlays.find(
@@ -306,16 +303,6 @@ it("crossfades stationary headings and switches modes on preference changes", as
   expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(scrollOpacity.compact);
   expect(Number(plate.style.opacity)).toBe(1);
   await slot.behavior.emitRealtime("prefs", {
-    prefs: parsePrefs({ threads: { headingTransition: "hybrid" } }),
-  });
-  const hybridProgress = hybridHeadingScroll(50, distance).progress;
-  await waitFor(() =>
-    expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(hybridProgress),
-  );
-  expect(Number(groups()[0]!.style.opacity)).toBeCloseTo(1 - hybridProgress);
-  expect(groups()[0]!.style.transform).toBe(`translateY(${14 * 0.85 + 50}px)`);
-  expect(groups()[1]!.style.transform).toBe("translateY(0px)");
-  await slot.behavior.emitRealtime("prefs", {
     prefs: parsePrefs({ threads: { headingTransition: "fade" } }),
   });
   await waitFor(() =>
@@ -334,158 +321,7 @@ it("crossfades stationary headings and switches modes on preference changes", as
   slot.lifecycle.unmount();
 });
 
-it("moves the large heading with the timeline and fades it into the compact title", async () => {
-  paneFixture({ recap: false });
-  const scroller = document.querySelector<HTMLElement>(
-    '[data-test="messages"]',
-  )!;
-  Object.defineProperties(scroller, {
-    scrollHeight: { configurable: true, value: 1000 },
-    clientHeight: { configurable: true, value: 400 },
-    scrollTop: { configurable: true, writable: true, value: 600 },
-  });
-  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 48, 900, 672),
-  );
-  const header = document.querySelector("header")!;
-  vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 0, 900, 48),
-  );
-  vi.spyOn(
-    header.querySelector(".bb-thread-title")!,
-    "getBoundingClientRect",
-  ).mockReturnValue(new DOMRect(0, 0, 80, 48));
-  vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(700, 0, 100, 48),
-  );
-  const slot = await mountHeading("hybrid");
-  scroller.scrollTop = 600;
-  scroller.dispatchEvent(new Event("scroll"));
-  const groups = () => [
-    ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
-  ];
-  const y = (el: HTMLElement) =>
-    Number.parseFloat(el.style.transform.slice("translateY(".length));
-  await waitFor(() => expect(groups()).toHaveLength(2));
-  await new Promise((resolve) => setTimeout(resolve, 550));
-  const titleTop = 14 * 0.85;
-  const titleHeight = (14 * 1.5 * 4) / 3;
-  const exitDistance = titleTop + titleHeight;
-  const travel = exitDistance * 2.5;
-  const plate = overlay()!.querySelector<HTMLElement>(
-    ".ws-sticky-goal__plate",
-  )!;
-  const height = Number.parseFloat(plate.parentElement!.style.height);
-  const background = overlay()!.querySelector<HTMLElement>(
-    ".ws-goal-background",
-  )!;
-  expect(background.style.getPropertyValue("--ws-plate-fade-height")).toBe(
-    "8rem",
-  );
-  expect(background.classList.contains("ws-goal-background--hybrid")).toBe(
-    true,
-  );
-  expect(Number.parseFloat(background.style.height)).toBe(672);
-  for (const fromBottom of [
-    0,
-    20,
-    travel / 2,
-    travel,
-    travel + 20,
-    travel / 2,
-    0,
-  ]) {
-    const { moved, progress } = hybridHeadingScroll(fromBottom, exitDistance);
-    scroller.scrollTop = 600 - fromBottom;
-    scroller.dispatchEvent(new Event("scroll"));
-    await waitFor(() => {
-      expect(y(groups()[0]!)).toBeCloseTo(titleTop + moved);
-      expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(progress);
-    });
-    expect(Number(groups()[0]!.style.opacity)).toBeCloseTo(1 - progress);
-    expect(y(groups()[1]!)).toBe(0);
-    expect(
-      Number.parseFloat(plate.style.transform.slice("scaleY(".length)),
-    ).toBeCloseTo(exitDistance / height);
-    expect(Number(plate.style.opacity)).toBeCloseTo(
-      headingBackdropOpacity(progress),
-    );
-    expect(
-      Number.parseFloat(
-        plate.parentElement!.style.transform.slice("translateY(".length),
-      ),
-    ).toBeCloseTo(moved);
-    expect(
-      Number.parseFloat(background.style.getPropertyValue("--ws-plate-offset")),
-    ).toBeCloseTo(moved);
-    expect(Number.parseFloat(scroller.style.scrollPaddingTop)).toBeCloseTo(
-      height * (1 - progress),
-    );
-    expect(
-      Number(background.style.getPropertyValue("--ws-fade-below-plate")),
-    ).toBeCloseTo(headingBackdropOpacity(progress));
-    expect(
-      Number(background.style.getPropertyValue("--ws-fade-below-bar")),
-    ).toBeCloseTo(progress);
-  }
-  Object.defineProperty(scroller, "scrollHeight", {
-    configurable: true,
-    value: 2000,
-  });
-  scroller.scrollTop = 1600;
-  scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() => expect(y(groups()[0]!)).toBeCloseTo(titleTop));
-  expect(Number(groups()[1]!.style.opacity)).toBe(0);
-  slot.lifecycle.unmount();
-});
-
-it("keeps the hybrid heading backed when the compact title is pinned", async () => {
-  paneFixture({ recap: false });
-  const scroller = document.querySelector<HTMLElement>(
-    '[data-test="messages"]',
-  )!;
-  Object.defineProperties(scroller, {
-    scrollHeight: { configurable: true, value: 1000 },
-    clientHeight: { configurable: true, value: 400 },
-    scrollTop: { configurable: true, writable: true, value: 600 },
-  });
-  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 0, 900, 672),
-  );
-  const slot = await mountHeading("hybrid");
-  scroller.scrollTop = 600;
-  scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() =>
-    expect(overlay()!.querySelector(".ws-sticky-goal__plate")).not.toBeNull(),
-  );
-  await new Promise((resolve) => setTimeout(resolve, 550));
-  const plate = overlay()!.querySelector<HTMLElement>(
-    ".ws-sticky-goal__plate",
-  )!;
-  const height = Number.parseFloat(plate.parentElement!.style.height);
-  expect(
-    Number.parseFloat(plate.style.transform.slice("scaleY(".length)) * height,
-  ).toBeCloseTo(titleExitDistance(14, null, 1));
-  scroller.scrollTop = 400;
-  scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() =>
-    expect(root()!.getAttribute("data-collapsed")).toBe("true"),
-  );
-  const scaled =
-    Number.parseFloat(plate.style.transform.slice("scaleY(".length)) * height;
-  expect(scaled).toBeGreaterThan(0);
-  expect(Number(plate.style.opacity)).toBe(0);
-  const compactPlate = overlay()!.querySelector<HTMLElement>(
-    ".ws-hybrid-pinned-plate",
-  )!;
-  expect(Number(compactPlate.style.opacity)).toBe(1);
-  expect(Number.parseFloat(scroller.style.scrollPaddingTop)).toBeCloseTo(
-    Number.parseFloat(compactPlate.style.height),
-  );
-  slot.lifecycle.unmount();
-});
-
-it.each(["fade", "scroll", "hybrid"] as const)(
+it.each(["fade", "scroll"] as const)(
   "starts fully compact in %s mode when the timeline is short",
   async (mode) => {
     paneFixture({ recap: false });
@@ -505,21 +341,12 @@ it.each(["fade", "scroll", "hybrid"] as const)(
       ]);
     });
     expect(root()!.getAttribute("data-collapsed")).toBe("true");
-    if (mode === "hybrid") {
-      expect(
-        Number(
-          overlay()!.querySelector<HTMLElement>(".ws-hybrid-pinned-plate")!
-            .style.opacity,
-        ),
-      ).toBe(1);
-    } else {
-      expect(
-        Number(
-          overlay()!.querySelector<HTMLElement>(".ws-sticky-goal__plate")!.style
-            .opacity,
-        ),
-      ).toBe(1);
-    }
+    expect(
+      Number(
+        overlay()!.querySelector<HTMLElement>(".ws-sticky-goal__plate")!.style
+          .opacity,
+      ),
+    ).toBe(1);
     slot.lifecycle.unmount();
   },
 );
