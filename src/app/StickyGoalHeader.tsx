@@ -426,7 +426,9 @@ export function StickyGoalHeader(): React.ReactElement | null {
     ? { moved: exitDistance, remaining: 0, progress: 1 }
     : headingScroll(settled ? fromBottom : 0, exitDistance);
   const collapsed = progress === 1;
-  const opacity = headingOpacity(progress);
+  const opacity = fadeOnly
+    ? { expanded: 1 - progress, compact: progress }
+    : headingOpacity(progress);
   // When the title bar has no room, the compact copy sits in the timeline.
   const pinned = !!placement && placement.bar === null;
   const platePinnedHeight = pinnedHeight(base, eyebrow);

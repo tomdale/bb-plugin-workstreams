@@ -248,6 +248,22 @@ it("crossfades stationary headings and switches modes on preference changes", as
     expect(Number(groups()[1]!.style.opacity)).toBeGreaterThan(0),
   );
   expect(groups().map((group) => group.style.transform)).toEqual(transforms);
+  const distance = titleExitDistance(14, null, 1);
+  for (const fromBottom of [20, 50, 80, 50]) {
+    const progress = headingScroll(fromBottom, distance).progress;
+    scroller.scrollTop = 600 - fromBottom;
+    scroller.dispatchEvent(new Event("scroll"));
+    await waitFor(() =>
+      expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(progress),
+    );
+    expect(Number(groups()[0]!.style.opacity)).toBeCloseTo(1 - progress);
+    expect(
+      Number(groups()[0]!.style.opacity) + Number(groups()[1]!.style.opacity),
+    ).toBeCloseTo(1);
+    expect(groups().map((group) => group.style.transform)).toEqual(transforms);
+  }
+  expect(Number(groups()[0]!.style.opacity)).toBeLessThan(0.65);
+  expect(Number(groups()[1]!.style.opacity)).toBeLessThan(0.65);
   const plate = overlay()!.querySelector<HTMLElement>(
     ".ws-sticky-goal__plate",
   )!;
@@ -265,6 +281,11 @@ it("crossfades stationary headings and switches modes on preference changes", as
     expect(groups()[0]!.style.transform).not.toBe(transforms[0]),
   );
   expect(groups()[1]!.style.transform).not.toBe(transforms[1]);
+  const scrollOpacity = headingOpacity(headingScroll(50, distance).progress);
+  expect(Number(groups()[0]!.style.opacity)).toBeCloseTo(
+    scrollOpacity.expanded,
+  );
+  expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(scrollOpacity.compact);
   expect(Number(plate.style.opacity)).toBe(1);
   await slot.behavior.emitRealtime("prefs", {
     prefs: parsePrefs({ threads: { headingTransition: "fade" } }),
