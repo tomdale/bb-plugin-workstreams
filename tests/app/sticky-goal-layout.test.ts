@@ -56,6 +56,12 @@ it.skipIf(!executablePath)(
           onTop: document.elementFromPoint(20, 50)?.className,
           fade: getComputedStyle(background, "::after").backgroundImage,
           fadeOpacity: getComputedStyle(background, "::after").opacity,
+          plateFadeHeight: Number.parseFloat(
+            getComputedStyle(background, "::after").height,
+          ),
+          barFadeHeight: Number.parseFloat(
+            getComputedStyle(background, "::before").height,
+          ),
         };
       });
       expect(result.rootTop).toBeLessThan(result.scrollerTop);
@@ -64,6 +70,7 @@ it.skipIf(!executablePath)(
       expect(result.onTop).toBe("ws-sticky-goal__plate");
       expect(result.fade).toContain("linear-gradient");
       expect(result.fadeOpacity).toBe("1");
+      expect(result.plateFadeHeight * (1.5 / 4)).toBe(result.barFadeHeight);
     } finally {
       await browser.close();
     }

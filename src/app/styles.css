@@ -477,12 +477,15 @@
 /* Under the title bar, once the heading has gone. */
 .ws-goal-background::before {
   top: 0;
+  height: 1.5rem;
   opacity: var(--ws-fade-below-bar, 0);
 }
 /* Under the expanded plate. */
 .ws-goal-background::after {
   top: 0;
-  transform: translateY(var(--ws-plate-height, 0px));
+  transform: translateY(var(--ws-plate-height, 0px))
+    scaleY(var(--ws-plate-fade-scale, 1));
+  transform-origin: top;
   opacity: var(--ws-fade-below-plate, 0);
 }
 .ws-sticky-goal {

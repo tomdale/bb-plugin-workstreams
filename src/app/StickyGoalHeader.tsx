@@ -612,6 +612,8 @@ export function StickyGoalHeader(): React.ReactElement | null {
             transform: `translate(${placement.background.x}px, ${placement.background.y}px)`,
             width: placement.background.width,
             "--ws-plate-height": `${fadeAnchor}px`,
+            // Match the 1.5rem bar fade as the 4rem plate fade leaves.
+            "--ws-plate-fade-scale": 1 - progress * (1 - 1.5 / 4),
             "--ws-fade-below-plate": fade && plateHeight > 0 ? "1" : "0",
             "--ws-fade-below-bar": fade && collapsed && inBar ? "1" : "0",
           } as React.CSSProperties

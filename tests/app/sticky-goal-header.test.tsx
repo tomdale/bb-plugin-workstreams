@@ -144,6 +144,13 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
     );
   const initial = groups().map(y);
   expect(groups().map((group) => Number(group.style.opacity))).toEqual([1, 0]);
+  const fadeScale = () =>
+    Number(
+      overlay()!
+        .querySelector<HTMLElement>(".ws-goal-background")!
+        .style.getPropertyValue("--ws-plate-fade-scale"),
+    );
+  expect(fadeScale()).toBe(1);
   const motion = headingScroll(10, initial[1]!);
   scroller.scrollTop = 590;
   scroller.dispatchEvent(new Event("scroll"));
@@ -158,6 +165,8 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
   expect(partialOpacity[0]).toBeCloseTo(expectedOpacity.expanded);
   expect(partialOpacity[1]).toBeCloseTo(expectedOpacity.compact);
   expect(partialOpacity[1]).toBeGreaterThan(0);
+  expect(fadeScale()).toBeLessThan(1);
+  expect(fadeScale()).toBeGreaterThan(1.5 / 4);
   expect(
     groups()[0]!.querySelector<HTMLElement>(".ws-sticky-goal__title")!.style
       .fontSize,
@@ -169,6 +178,7 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
   scroller.dispatchEvent(new Event("scroll"));
   await waitFor(() => expect(y(groups()[1]!)).toBe(0));
   expect(groups().map((group) => Number(group.style.opacity))).toEqual([0, 1]);
+  expect(fadeScale()).toBe(1.5 / 4);
   scroller.scrollTop = 590;
   scroller.dispatchEvent(new Event("scroll"));
   await waitFor(() =>
