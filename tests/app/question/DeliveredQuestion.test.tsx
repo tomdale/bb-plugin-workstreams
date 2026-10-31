@@ -42,6 +42,11 @@ it("replaces the delivered message's raw JSON with inline Q&A and restores host 
   expect(message.getByText("What should we test?")).toBeTruthy();
   expect(message.getByText("Your answer")).toBeTruthy();
   expect(
+    message.container
+      .querySelector("[data-ws-question-history]")
+      ?.hasAttribute("data-bb-plugin-root"),
+  ).toBe(true);
+  expect(
     message.container.querySelector(".ws-delivered-question-source"),
   ).toBeTruthy();
   expect(

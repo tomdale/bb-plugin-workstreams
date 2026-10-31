@@ -9,6 +9,7 @@ import type { RpcContract } from "../../server/contract.ts";
 import type { QuestionHistory } from "../../server/questions/history.ts";
 import { questionResultRecord } from "../../server/questions/history.ts";
 import { cn } from "@/lib/utils";
+import { usePortalScopeProps } from "@/lib/portal-scope";
 import { QuestionAttachment } from "./QuestionAttachment.tsx";
 import {
   QUESTION_CARD_CLASS,
@@ -21,8 +22,11 @@ import {
 import { formatQuestionText } from "./question-markdown.ts";
 
 export function QuestionHistoryCard({ record }: { record: QuestionHistory }) {
+  const scope = usePortalScopeProps();
   return (
     <div
+      data-bb-plugin-root=""
+      data-bb-plugin={scope["data-bb-plugin"]}
       data-ws-question-history=""
       data-ws-question-result={
         record.result ? JSON.stringify(record.result) : undefined
