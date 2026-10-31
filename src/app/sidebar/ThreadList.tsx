@@ -1251,7 +1251,7 @@ export function WorkstreamsThreadList({
                           type="button"
                           aria-expanded={!collapsed}
                           onClick={() => toggle(key, true)}
-                          className="flex w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-left text-[12px] font-medium text-muted-foreground hover:bg-sidebar-accent/60"
+                          className="flex w-full cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-left text-[12px] font-medium text-muted-foreground hover:bg-sidebar-accent/60"
                         >
                           <Icon
                             name={collapsed ? "ChevronRight" : "ChevronDown"}
@@ -1449,7 +1449,7 @@ function Band({
           type="button"
           aria-expanded={!collapsed}
           onClick={toggle}
-          className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-sidebar-accent/60"
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-sidebar-accent/60"
         >
           <Icon
             name={collapsed ? "ChevronRight" : "ChevronDown"}
@@ -1715,7 +1715,10 @@ function WorkstreamGroup({
             type="button"
             aria-expanded={group.total > 0 ? !collapsed : undefined}
             onClick={group.total > 0 ? toggle : undefined}
-            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-1.5 text-left",
+              group.total > 0 && "cursor-pointer",
+            )}
           >
             <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground">
               {group.total > 0 ? (

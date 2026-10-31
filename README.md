@@ -220,7 +220,7 @@ alone never regroups:
   outside section moves, and prunes unused, childless discovered topics.
 - **Stable visual collapse:** Expanding or collapsing a workstream in the
   sidebar follows its bound topic identity across windows and across section
-  recreation.
+  recreation. Collapsible group headers show a hand cursor on hover.
 
 ### 5. Organizing suggestions
 
