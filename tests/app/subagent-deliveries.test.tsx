@@ -14,7 +14,10 @@ vi.mock("@get-bb/plugin-sdk/app", async (importActual) => {
     Markdown: (props: React.ComponentProps<typeof actual.Markdown>) =>
       React.createElement(
         "div",
-        { "data-document": JSON.stringify(props.experimental_document) },
+        {
+          "data-markdown-preview": "",
+          "data-document": JSON.stringify(props.experimental_document),
+        },
         React.createElement(ReactMarkdown, {
           children: props.content,
           urlTransform: (url) => url,
@@ -40,6 +43,8 @@ function fixtures(
     delay?: Promise<void>;
     title?: string;
     groups?: "visible" | "hidden";
+    label?: string;
+    plainPreview?: boolean;
   } = {},
 ) {
   const title = options.title ?? "Review";
@@ -113,7 +118,12 @@ function fixtures(
       data-timeline-row-id={`thr_parent:user-seed:42${options.groups ? "-1" : ""}`}
     >
       <div data-message-column="">
-        <Markdown content={notificationHeader} />
+        {options.label ? <span>{options.label}</span> : null}
+        {options.plainPreview ? (
+          <span>{notificationHeader}</span>
+        ) : (
+          <Markdown content={notificationHeader} />
+        )}
         <p>:::reply…</p>
         <button>Show more</button>
       </div>
@@ -188,6 +198,24 @@ it("recognizes a quoted title after Markdown removes its JSON escapes", async ()
   overlay.lifecycle.unmount();
 });
 
+it.each(["Steer", "Follow-up"])(
+  "recognizes a delivery after BB's %s label",
+  async (label) => {
+    const { message, overlay } = fixtures({ label });
+    await waitFor(() =>
+      expect(
+        message.container.querySelector("[data-reply-block]"),
+      ).not.toBeNull(),
+    );
+    expect(message.getByText("The controls fit the app")).toBeTruthy();
+    expect(
+      message.container.querySelector(".ws-subagent-delivery-source"),
+    ).not.toBeNull();
+    overlay.lifecycle.unmount();
+    expect(message.getByText(label)).toBeTruthy();
+  },
+);
+
 it.each(["visible", "hidden"] as const)(
   "renders the matching visible row from %s grouped input",
   async (groups) => {
@@ -203,6 +231,20 @@ it.each(["visible", "hidden"] as const)(
     overlay.lifecycle.unmount();
   },
 );
+
+it("recognizes a collapsed plain-text delivery without a Markdown wrapper", async () => {
+  const { message, overlay } = fixtures({
+    label: "Steer",
+    plainPreview: true,
+  });
+  await waitFor(() =>
+    expect(
+      message.container.querySelector("[data-reply-block]"),
+    ).not.toBeNull(),
+  );
+  expect(message.getByText("The controls fit the app")).toBeTruthy();
+  overlay.lifecycle.unmount();
+});
 
 it.each([
   { match: false },
@@ -228,7 +270,9 @@ it.each([
 it("does not activate blocks in ordinary user messages", async () => {
   const message = render(
     <div data-timeline-row-id="thr_parent:user-seed:42">
-      <div data-message-column="">{reply}</div>
+      <div data-message-column="">
+        <Markdown content={reply} />
+      </div>
     </div>,
   );
   const events = vi.fn();
@@ -279,7 +323,9 @@ it("restores the old host when BB remounts the body of a retained row", async ()
   const oldHost = message.container.querySelector("[data-message-column]")!;
   message.rerender(
     <div data-timeline-row-id="thr_parent:user-seed:42">
-      <section data-message-column="">{header}</section>
+      <section data-message-column="">
+        <Markdown content={header} />
+      </section>
     </div>,
   );
   await waitFor(() =>

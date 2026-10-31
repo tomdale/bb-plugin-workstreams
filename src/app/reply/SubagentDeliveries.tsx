@@ -176,12 +176,12 @@ export function SubagentDeliveries() {
         const match = /(?:^|:)([^:]+):user-seed:(\d+)(?:-(\d+))?$/.exec(id);
         if (!match) continue;
         const host = row.querySelector<HTMLElement>("[data-message-column]");
-        const text = (host?.textContent ?? "").trimStart();
+        const text = host?.textContent ?? "";
         if (
           !host ||
           host.closest("[data-timeline-row-id]") !== row ||
-          (!text.startsWith("Subagent ") &&
-            !text.startsWith("The user returned control of subagent "))
+          (!text.includes("Subagent ") &&
+            !text.includes("The user returned control of subagent "))
         )
           continue;
         const entry: { id: string; host: HTMLElement; target?: Target } = {
