@@ -414,8 +414,7 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
   bar is too narrow). In **Settings → Workstreams → Threads**, choose **Title
   transition → Scroll** to have both headings slide as they fade, or **Hybrid**
   to float the large heading over a longer feathered background at the newest
-  message and fade in the compact title as the large title slowly moves out of
-  view.
+  message and fade in the compact title as the large title moves out of view.
 - **Thread header actions:**
   - **Parent thread** (optional, off by default): Opens the parent thread from a
     delegate's header.

@@ -394,7 +394,7 @@ it("floats the large heading at the newest message and fades the compact title a
     [titleTop + titleHeight / 2, 0.5],
     [0, 0],
   ]) {
-    scroller.scrollTop = 600 - moved! * 2;
+    scroller.scrollTop = 600 - moved!;
     scroller.dispatchEvent(new Event("scroll"));
     await waitFor(() => {
       expect(y(groups()[0]!)).toBeCloseTo(titleTop - Math.min(moved!, height));
