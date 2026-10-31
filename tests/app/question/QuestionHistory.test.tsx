@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 const app = await loadPluginApp(() => import("../../../src/app/index.tsx"));
@@ -76,6 +76,10 @@ it("renders the saved Q&A at the form row without a header or panel", async () =
   );
   await slot.findByText("SQLite with replicas");
   expect(slot.getByText("Which database?")).toBeTruthy();
+  const disclosure = slot.getByRole("button", { expanded: false });
+  expect(slot.queryByText("CREATE TABLE test;")).toBeNull();
+  fireEvent.click(disclosure);
+  expect(disclosure.getAttribute("aria-expanded")).toBe("true");
   expect(slot.getByText("Compare **managed** and local options.")).toBeTruthy();
   expect(slot.getByRole("list", { name: "Options offered" })).toBeTruthy();
   expect(slot.getByText("CREATE TABLE test;")).toBeTruthy();
@@ -127,6 +131,15 @@ it("reconstructs every input and output as read-only content from the persisted 
       },
     },
   );
+  expect(slot.getByText("Which layout?")).toBeTruthy();
+  expect(slot.getByText("Cards · Keep the details visible.")).toBeTruthy();
+  expect(slot.getByText("Types, build · Tests")).toBeTruthy();
+  expect(
+    slot.getByText("Use the attached sample. · sample.txt · sample.png"),
+  ).toBeTruthy();
+  expect(slot.queryByText("Room for details")).toBeNull();
+  const disclosure = slot.getByRole("button", { expanded: false });
+  fireEvent.click(disclosure);
   await slot.findByRole("link", { name: "sample.txt" });
   expect(
     slot.getByRole("link", { name: "sample.txt" }).getAttribute("download"),
@@ -141,9 +154,12 @@ it("reconstructs every input and output as read-only content from the persisted 
   expect(slot.container.querySelectorAll(".sr-only")).toHaveLength(3);
   expect(
     slot.container.querySelector(
-      "input, textarea, button, [role=radio], [role=checkbox], [contenteditable=true]",
+      "input, textarea, [role=radio], [role=checkbox], [contenteditable=true]",
     ),
   ).toBeNull();
+  fireEvent.click(disclosure);
+  expect(disclosure.getAttribute("aria-expanded")).toBe("false");
+  expect(slot.queryByText("Room for details")).toBeNull();
   slot.lifecycle.unmount();
   expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
   vi.unstubAllGlobals();

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { PluginBrowserBbSdk } from "@get-bb/plugin-sdk/app";
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { deliveredCardRecord } from "../../../src/app/question/DeliveredQuestion.tsx";
@@ -40,6 +40,7 @@ it("replaces the delivered message's raw JSON with inline Q&A and restores host 
     ).toBeTruthy(),
   );
   expect(message.getByText("What should we test?")).toBeTruthy();
+  fireEvent.click(message.getByRole("button", { expanded: false }));
   expect(message.getByText("Your answer")).toBeTruthy();
   expect(
     message.container
@@ -177,14 +178,20 @@ it.each([prefix, recoveredPrefix])(
           message.container.querySelectorAll("[data-ws-question-history]"),
         ).toHaveLength(1),
       );
+      expect(
+        message.getByText("Cards · Keep the details visible."),
+      ).toBeTruthy();
+      const disclosure = message.getByRole("button", { expanded: false });
+      fireEvent.click(disclosure);
       expect(message.getByText("Keep the details visible.")).toBeTruthy();
+      expect(message.getByText("Compact rows")).toBeTruthy();
       expect(
         message.container.querySelector("[data-ws-delivered-anchor]")
           ?.parentElement?.dataset.timelineRowId,
       ).toBe("thread:delivery");
       expect(
         message.container.querySelector(
-          "[data-ws-question-history] input, [data-ws-question-history] button",
+          "[data-ws-question-history] input, [data-ws-question-history] textarea, [data-ws-question-history] [role=radio], [data-ws-question-history] [role=checkbox]",
         ),
       ).toBeNull();
       overlay.lifecycle.unmount();
@@ -287,10 +294,12 @@ it("loads the exact retained event instead of reconstructing Markdown-altered or
     { sdk: { threads: { events: { list: read } } } },
   );
   await waitFor(() =>
-    expect(
-      message.getByText("Keep **literal** Markdown and <tags>."),
-    ).toBeTruthy(),
+    expect(message.getByRole("button", { expanded: false })).toBeTruthy(),
   );
+  fireEvent.click(message.getByRole("button", { expanded: false }));
+  expect(
+    message.getByText("Keep **literal** Markdown and <tags>."),
+  ).toBeTruthy();
   expect(read).toHaveBeenCalledOnce();
   expect(read).toHaveBeenCalledWith(
     expect.objectContaining({
