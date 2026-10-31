@@ -9,7 +9,7 @@
  * threads, then the threads of subgroups too small for headers, each
  * labeled with its subgroup, then its other subgroups. Each group's contents
  * sit one step (`INDENT_PX`) in, with a guide below its disclosure chevron.
- * Small top-level groups gather in Other (see `arrangeGroups`).
+ * Top-level workstreams always keep their own headers (see `arrangeGroups`).
  *
  * Up Next's rows come from `selectUpNext`, including its focus on the
  * focused workstreams; while any workstream is focused, the rest hide behind
@@ -47,7 +47,6 @@ import {
   type Row as RowModel,
 } from "../../domain/project.ts";
 import {
-  OTHER_ID,
   arrangeGroups,
   focusedSections,
   groupRoots,
@@ -746,10 +745,6 @@ export function WorkstreamsThreadList({
     );
     navigate.toCompose({ focusPrompt: true });
   };
-  const emptyNewWorkIn = (group: ThreadNode) =>
-    inlineGroups(group)
-      .filter((sub) => sub.total === 0 && sub.hasSection)
-      .map((sub) => ({ name: sub.name, run: newThreadIn(sub) }));
   /**
    * A group's own threads, then those of its subgroups drawn inline, each
    * labeled with its subgroup, then its other subgroups. Subgroups fold on
@@ -774,7 +769,6 @@ export function WorkstreamsThreadList({
             collapsed={groupCollapsed(sub.id, false, sub.topicId)}
             toggle={() => toggleGroup(sub.id, false, sub.topicId)}
             onNewThread={newThreadIn(sub)}
-            newWorkIn={emptyNewWorkIn(sub)}
             snooze={groupSnoozeOf(sub)}
           >
             {renderGroupBody(sub)}
@@ -796,22 +790,6 @@ export function WorkstreamsThreadList({
         );
       }),
   ];
-  /**
-   * Other: the small top-level groups' rows under one header, each labeled
-   * with its workstream. It stays last, so it neither drags nor focuses.
-   */
-  const renderOther = (group: ThreadNode) => (
-    <WorkstreamGroup
-      key={group.id}
-      group={group}
-      collapsed={lowerCollapsed(group.id)}
-      toggle={() => lowerToggle(group.id)}
-      snooze={groupSnoozeOf(group)}
-      newWorkIn={emptyNewWorkIn(group)}
-    >
-      {renderGroupBody(group)}
-    </WorkstreamGroup>
-  );
   const renderSortableGroup = (
     group: ThreadNode,
     props: Omit<GroupProps, "group" | "children">,
@@ -826,7 +804,6 @@ export function WorkstreamsThreadList({
           {...props}
           group={group}
           snooze={groupSnoozeOf(group)}
-          newWorkIn={emptyNewWorkIn(group)}
           sectionRef={ref}
           style={style}
           handle={handle}
@@ -977,15 +954,11 @@ export function WorkstreamsThreadList({
     >
       <div className="flex flex-col gap-2">
         <SortableContext
-          items={populatedGroups
-            .filter((group) => group.id !== OTHER_ID)
-            .map((group) => groupKey(group.id))}
+          items={populatedGroups.map((group) => groupKey(group.id))}
           strategy={verticalListSortingStrategy}
         >
           {populatedGroups.map((group) =>
-            group.id === OTHER_ID
-              ? renderOther(group)
-              : renderSortableGroup(group, activeGroupProps(group)),
+            renderSortableGroup(group, activeGroupProps(group)),
           )}
         </SortableContext>
         {projection.unsorted.total > 0 ? (
@@ -1629,8 +1602,6 @@ type GroupProps = {
   collapsed: boolean;
   toggle: () => void;
   onNewThread?: () => void;
-  /** Scoped New work actions for empty subgroups drawn without headers. */
-  newWorkIn?: readonly { name: string; run: () => void }[];
   onToggleFocus?: () => void;
   /** Snoozes every thread the group lists; absent while it lists none. */
   snooze?: GroupSnooze;
@@ -1649,7 +1620,6 @@ function WorkstreamGroup({
   collapsed,
   toggle,
   onNewThread,
-  newWorkIn,
   onToggleFocus,
   snooze,
   muted,
@@ -1698,7 +1668,6 @@ function WorkstreamGroup({
             : undefined
         }
         onNewWork={onNewThread}
-        newWorkIn={newWorkIn}
         snooze={snooze}
       >
         <div

@@ -42,7 +42,6 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
 | **Topic assignment** | A root's assigned topic (or **No topic**), together with its provenance (`manual`, `inherited`, `full`, or `quick`) and classification basis.                                                                                              |
 | **Workstream**       | A native BB section bound to one topic in the topic tree.                                                                                                                                                                                  |
 | **Subgroup**         | A workstream shown inside a busier group. A group shows its subtopics as subgroups above `5` visible roots and one list again at `3` or fewer.                                                                                             |
-| **Other**            | The group that gathers small top-level groups, each with fewer than `3` threads, once there are `3` of them beside a bigger group. Its rows carry their workstreams' names.                                                                |
 | **Group**            | A topic as suggestion review names it: where its threads sit in the sidebar, whether or not it has threads and a workstream yet.                                                                                                           |
 | **Placement**        | The one model call that chooses a root's topic from its requests, when it starts and after each new request.                                                                                                                               |
 | **Suggestion**       | A split of a busy topic, or a tidy edit to the topic tree, that changes nothing until you accept it. Review lists those that move threads apart from those that only tidy groups, which move no thread and decide where future threads go. |
@@ -317,25 +316,23 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    - **Small groups:** When fewer than two subgroups show at least `3` threads,
      all list inline in their parent's thread list, each labeled with its
      subgroup's name. Otherwise all sibling headers stay visible, including
-     small subgroups. A recently emptied subgroup retained for New work also
-     keeps its siblings' headers. A parent shows threads or subgroup headers,
+     small populated subgroups. A parent shows threads or subgroup headers,
      never both. If a parent holds threads of its own, all subgroups list
-     inline; its right-click menu offers New work for retained empty subgroups.
-     Once `3` or more top-level groups are that small beside a bigger one, they
-     gather in **Other**, after the rest, each row labeled with its workstream.
-     Focused workstreams keep their own headers.
+     inline. Top-level workstreams always keep their own headers, regardless of
+     their size or how many there are; they never gather in **Other**.
    - **Indentation:** Each level starts where its parent's names start: a
      subgroup's header and threads sit one step in from its parent's, and a
      child thread one step in from its parent thread. Headers and threads share
      one row height and one column for chevrons and status marks; subgroup names
      are smaller and muted.
-   - **Empty workstreams:** Keep at most `3` empty workstreams, and only while
-     they had a visible, non-archived, unsnoozed thread within the last `10`
-     minutes. The most recently populated win; focused and nested workstreams
-     share the same limit. This briefly keeps **New work** available after the
-     last thread is archived or snoozed, then removes the empty row without
-     deleting threads or topics. The grace period survives reloads and is shared
-     across windows; polling an empty workstream never extends it.
+   - **Empty workstreams:** Empty subgroups and their empty parent groups
+     disappear as soon as their last visible thread is archived or snoozed.
+     Standalone top-level workstreams can briefly keep **New work** available:
+     at most `3` recently emptied workstreams are retained, and only while they
+     had a visible, non-archived, unsnoozed thread within the last `10` minutes.
+     The most recently populated win, whether focused or not. Hiding an empty
+     group never deletes threads or topics. The grace period survives reloads
+     and is shared across windows; polling an empty workstream never extends it.
    - Click the **Focus** button (viewfinder icon) on any workstream header to
      pin it to the top tier. When at least one workstream is focused, the other
      workstreams, **Unfiled**, and **Dormant** collapse behind **Show/Hide other

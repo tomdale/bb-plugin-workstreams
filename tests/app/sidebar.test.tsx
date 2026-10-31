@@ -1887,17 +1887,14 @@ describe("nested workstreams", () => {
     );
     const top = slot.getByRole("region", { name: "Beacon: Automations" });
     expect(within(top).queryAllByRole("region")).toEqual([]);
+    expect(within(top).queryByText("CLI")).toBeNull();
     fireEvent.contextMenu(top.querySelector(".group\\/row")!);
-    fireEvent.click(
-      await screen.findByRole("menuitem", {
+    await screen.findByRole("menuitem", { name: "New work" });
+    expect(
+      screen.queryByRole("menuitem", {
         name: "New work in Beacon: Automations: CLI",
       }),
-    );
-    expect(takeComposerPreset()?.target).toEqual({ sectionId: "sec_cli" });
-    expect(slot.inspection.navigateCalls.at(-1)).toEqual({
-      method: "toCompose",
-      options: { focusPrompt: true },
-    });
+    ).toBeNull();
     slot.lifecycle.unmount();
   });
 
@@ -1914,26 +1911,23 @@ describe("nested workstreams", () => {
     );
     await waitFor(() =>
       expect(
-        within(top())
-          .getByRole("region", {
-            name: "Beacon: Automations: CLI",
-          })
-          .querySelectorAll("a"),
-      ).toHaveLength(0),
+        slot.queryByRole("region", { name: "Beacon: Automations: CLI" }),
+      ).toBeNull(),
     );
-    // Recently emptied subgroups retain their scoped New work action too.
     expect(
-      within(top()).getByRole("button", {
+      within(top()).queryByRole("button", {
         name: "New work in Beacon: Automations: CLI",
       }),
-    ).toBeTruthy();
+    ).toBeNull();
     fireEvent.click(
       within(top()).getByRole("button", {
         name: /^Snooze 3 threads in Beacon: Automations until/,
       }),
     );
     await waitFor(() =>
-      expect(within(top()).queryAllByRole("link")).toEqual([]),
+      expect(
+        slot.queryByRole("region", { name: "Beacon: Automations" }),
+      ).toBeNull(),
     );
     expect(
       slot.inspection.rpcCalls
@@ -1943,6 +1937,35 @@ describe("nested workstreams", () => {
       ["commands", "docs", "flags"],
       ["rebase", "triage", "verify"],
     ]);
+    slot.lifecycle.unmount();
+  });
+
+  it("removes an archived subgroup and its parent without waiting for the grace period", async () => {
+    const threads = nestedThreads();
+    const slot = await mount(threads, options);
+    await slot.findByRole("region", { name: "Beacon: Automations" });
+    await waitFor(() =>
+      slot.getByRole("region", { name: "Beacon: Automations: CLI" }),
+    );
+    for (let i = 0; i < threads.length; i++) {
+      if (threads[i]!.sectionId === "sec_cli")
+        threads[i] = { ...threads[i]!, isArchived: true };
+    }
+    slot.selectThread("rebase");
+    await waitFor(() =>
+      expect(
+        slot.queryByRole("region", { name: "Beacon: Automations: CLI" }),
+      ).toBeNull(),
+    );
+    expect(groupRows(slot, "Beacon: Automations")).toHaveLength(3);
+    for (let i = 0; i < threads.length; i++)
+      threads[i] = { ...threads[i]!, isArchived: true };
+    slot.selectThread("rebase");
+    await waitFor(() =>
+      expect(
+        slot.queryByRole("region", { name: "Beacon: Automations" }),
+      ).toBeNull(),
+    );
     slot.lifecycle.unmount();
   });
 
@@ -2081,7 +2104,7 @@ describe("small groups", () => {
     },
   );
 
-  it("gathers small top-level groups in Other, after the rest", async () => {
+  it("keeps small top-level workstreams under their own headers", async () => {
     const slot = await mount(
       [
         sidebarThread("b1", { sectionId: "sec_big", title: "Big one" }),
@@ -2101,21 +2124,22 @@ describe("small groups", () => {
         settings: { showRecent: false, showForYou: false },
       },
     );
-    await waitFor(() =>
-      expect(groupRows(slot, "Other")).toEqual(["X task", "Y task", "Z task"]),
-    );
+    await waitFor(() => expect(groupRows(slot, "Yak")).toEqual(["Y task"]));
     expect(
       slot
         .getAllByRole("region")
         .filter((region) => !region.parentElement?.closest("section"))
         .map((region) => region.getAttribute("aria-label")),
-    ).toEqual(["Big", "Other"]);
-    const row = within(slot.getByRole("region", { name: "Other" }))
+    ).toEqual(["Big", "Xylophone", "Yak", "Zebra"]);
+    expect(slot.queryByRole("region", { name: "Other" })).toBeNull();
+    expect(groupRows(slot, "Xylophone")).toEqual(["X task"]);
+    expect(groupRows(slot, "Zebra")).toEqual(["Z task"]);
+    const row = within(slot.getByRole("region", { name: "Yak" }))
       .getByRole("link", { name: "Y task" })
       .closest("li")!;
-    expect(within(row).getByText("Yak")).toBeTruthy();
+    expect(within(row).queryByText("Yak")).toBeNull();
     expect(row.querySelector("[data-timestamp]")?.textContent).toBe("now");
-    expect(slot.queryByRole("button", { name: "Focus on Other" })).toBeNull();
+    expect(slot.getByRole("button", { name: "Focus on Yak" })).toBeTruthy();
     slot.lifecycle.unmount();
   });
 });

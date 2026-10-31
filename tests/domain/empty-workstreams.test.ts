@@ -66,7 +66,7 @@ describe("recent empty workstreams", () => {
     ).toEqual([]);
   });
 
-  it("uses one budget across focused and nested workstreams", () => {
+  it("does not retain empty subgroups, even when focused and within the grace period", () => {
     const projection = projectWorkstreams(
       [thread("live", { sectionId: "old", latestAttentionAt: now })],
       sections,
@@ -105,12 +105,7 @@ describe("recent empty workstreams", () => {
       ],
     });
     expect(arranged.pinned).toHaveLength(1);
-    expect(arranged.pinned[0]!.subgroups.map((g) => g.id)).toEqual([
-      "b",
-      "c",
-      "d",
-      "old",
-    ]);
+    expect(arranged.pinned[0]!.subgroups.map((g) => g.id)).toEqual(["old"]);
     expect(projection.groups.filter((g) => g.total === 0)).toHaveLength(3);
   });
 
@@ -150,6 +145,70 @@ describe("recent empty workstreams", () => {
     expect(arranged.populated[0]!.total).toBe(1);
     expect(arranged.populated[0]!.subgroups[0]!.total).toBe(1);
   });
+
+  it.each(["archived", "snoozed"])(
+    "removes empty nested ancestors immediately after the last thread is %s",
+    (action) => {
+      const topics = {
+        entities: [
+          { id: "product", name: "Product", parentId: null },
+          { id: "family", name: "Family", parentId: "product" },
+          { id: "child", name: "Child", parentId: "family" },
+        ],
+        bindings: { a: "child" },
+        layout: [
+          {
+            topicId: "product",
+            name: "Product",
+            prefix: [],
+            lists: false,
+            total: 1,
+            children: [
+              {
+                topicId: "family",
+                name: "Family",
+                prefix: [],
+                lists: false,
+                total: 1,
+                children: [
+                  {
+                    topicId: "child",
+                    name: "Child",
+                    prefix: [],
+                    lists: true,
+                    total: 1,
+                    children: [],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+      const live = thread("live", { sectionId: "a", latestAttentionAt: now });
+      expect(
+        arrangeGroups(
+          projectWorkstreams([live], sections, { now }),
+          "manual",
+          topics,
+        ).populated,
+      ).toHaveLength(1);
+      const projection = projectWorkstreams(
+        [{ ...live, isArchived: action === "archived" }],
+        sections,
+        {
+          now,
+          lastPopulatedAt: { a: now, b: now },
+          snoozedUntil: () => (action === "snoozed" ? now + grace : undefined),
+        },
+      );
+      const arranged = arrangeGroups(projection, "manual", topics);
+      // The standalone workstream keeps its grace period, not the nested one.
+      expect(arranged.other.map((g) => g.id)).toEqual(["b"]);
+      expect(arranged.dormant).toEqual([]);
+      expect(projection.snoozed).toHaveLength(action === "snoozed" ? 1 : 0);
+    },
+  );
 
   it("never hides populated workstreams regardless of attention age", () => {
     const projection = projectWorkstreams(

@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { UNSORTED_ID, type Group, type Row } from "../../domain/project.ts";
-import { OTHER_ID, type WorkstreamNode } from "../../domain/groups.ts";
+import type { WorkstreamNode } from "../../domain/groups.ts";
 import { shortWake, type ThreadSnooze } from "../../domain/snooze.ts";
 import { workstreamHue } from "../../domain/workstreamHue.ts";
 import { WorkstreamName } from "../WorkstreamName.tsx";
@@ -246,7 +246,6 @@ function GroupSection({
   nested?: boolean;
 }) {
   const isUnfiled = group.id === UNSORTED_ID;
-  const plainDot = isUnfiled || group.id === OTHER_ID;
   const subgroups =
     "subgroups" in group ? group.subgroups.filter((sub) => !sub.inline) : [];
   // Its own rows, then each inline group's, labeled with that group's name.
@@ -287,7 +286,7 @@ function GroupSection({
       <h3 className="ws-home-group-head">
         <button type="button" aria-expanded={open} onClick={onToggle}>
           <Icon name="ChevronRight" className="ws-home-chevron" aria-hidden />
-          {nested ? null : plainDot ? (
+          {nested ? null : isUnfiled ? (
             <span className="ws-home-dot ws-home-dot-none" aria-hidden="true" />
           ) : (
             <span

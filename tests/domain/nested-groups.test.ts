@@ -537,7 +537,7 @@ describe("small groups", () => {
     ]);
   });
 
-  it("keeps small siblings' headers beside a retained empty subgroup", () => {
+  it("removes a recently emptied subgroup and folds the remaining siblings", () => {
     const projection = projectWorkstreams(
       threads({ sec_alerts: 1 }),
       sections,
@@ -545,11 +545,7 @@ describe("small groups", () => {
     );
     expect(
       shape(arrangeGroups(projection, "alphabetical", nested).populated),
-    ).toEqual([
-      "Beacon: Automations (1)",
-      "  Alert Investigations (1)",
-      "  CLI (0)",
-    ]);
+    ).toEqual(["Beacon: Automations (1)", "  Alert Investigations (1) inline"]);
   });
 
   it("flattens every subgroup when the parent also holds threads", () => {
@@ -579,7 +575,7 @@ describe("small groups", () => {
     );
   });
 
-  describe("Other", () => {
+  describe("top-level headers", () => {
     const flat = [
       { id: "sec_big", name: "Big" },
       { id: "sec_x", name: "Xylophone" },
@@ -587,7 +583,7 @@ describe("small groups", () => {
       { id: "sec_z", name: "Zebra" },
     ];
 
-    it("gathers three small top-level groups after the rest", () => {
+    it("keeps three small top-level groups separate beside a bigger one", () => {
       expect(
         shape(
           arrange(
@@ -596,16 +592,10 @@ describe("small groups", () => {
             undefined as never,
           ).populated,
         ),
-      ).toEqual([
-        "Big (3)",
-        "Other (4)",
-        "  Xylophone (1) inline",
-        "  Yak (2) inline",
-        "  Zebra (1) inline",
-      ]);
+      ).toEqual(["Big (3)", "Xylophone (1)", "Yak (2)", "Zebra (1)"]);
     });
 
-    it("forms only with three small groups beside a bigger one", () => {
+    it("keeps headers regardless of group size or count", () => {
       const labels = (counts: Record<string, number>) =>
         arrange(counts, flat, undefined as never).populated.map(
           (node) => node.label,
@@ -623,7 +613,7 @@ describe("small groups", () => {
       ]);
     });
 
-    it("leaves a focused small group out, and counts it as bigger", () => {
+    it("keeps unfocused small groups separate beside a focused one", () => {
       const arranged = arrange(
         { sec_big: 1, sec_x: 1, sec_y: 1, sec_z: 1 },
         flat,
@@ -632,10 +622,9 @@ describe("small groups", () => {
       );
       expect(arranged.pinned.map((node) => node.label)).toEqual(["Big"]);
       expect(shape(arranged.populated)).toEqual([
-        "Other (3)",
-        "  Xylophone (1) inline",
-        "  Yak (1) inline",
-        "  Zebra (1) inline",
+        "Xylophone (1)",
+        "Yak (1)",
+        "Zebra (1)",
       ]);
     });
   });
