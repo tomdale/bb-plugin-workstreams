@@ -544,9 +544,11 @@ above the composer:
   free text, notes, and downloadable image or file attachments. They use the
   same display after an interruption, recovery, or page reload, without an extra
   raw JSON answer. Older answers retain the information saved with them; exact
-  selections are marked when the structured submission is available. Expanding
-  at the bottom keeps the card's top in place and detaches the thread from the
-  bottom. Dismissed questions keep their original content and dismissal status.
+  selections are marked when the structured submission is available. Cards
+  expand and collapse with a short animation, unless reduced motion is enabled.
+  Expanding at the bottom keeps the card's top in place and detaches the thread
+  from the bottom. Dismissed questions keep their original content and dismissal
+  status.
 
 ### Workstreams page (`/plugins/workstreams/home`)
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
   Markdown,
@@ -33,7 +33,7 @@ function expandAtReadingPosition(card: HTMLElement, expand: () => void) {
     scroller &&
     scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop <= 4;
   if (!scroller || !atBottom) {
-    expand();
+    flushSync(expand);
     return;
   }
   const top = card.getBoundingClientRect().top;
@@ -60,44 +60,147 @@ function expandAtReadingPosition(card: HTMLElement, expand: () => void) {
 export function QuestionHistoryCard({ record }: { record: QuestionHistory }) {
   const scope = usePortalScopeProps();
   const [expanded, setExpanded] = useState(false);
-  return (
-    <div
-      data-bb-plugin-root=""
-      data-bb-plugin={scope["data-bb-plugin"]}
-      data-ws-question-history=""
-      data-ws-question-result={
-        record.result ? JSON.stringify(record.result) : undefined
+  const [closing, setClosing] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const summaryRef = useRef<HTMLSpanElement>(null);
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const running = useRef<{ animation: Animation; cleanup: () => void } | null>(
+    null,
+  );
+
+  const stopAnimation = useCallback(() => {
+    const current = running.current;
+    if (!current) return;
+    running.current = null;
+    current.animation.onfinish = null;
+    current.animation.cancel();
+    current.cleanup();
+  }, []);
+  useEffect(() => stopAnimation, [stopAnimation]);
+
+  const toggle = () => {
+    const card = cardRef.current;
+    const wrapper = wrapperRef.current;
+    if (!card || !wrapper) return;
+    const from = card.getBoundingClientRect().height;
+    stopAnimation();
+    const motion =
+      typeof card.animate === "function" &&
+      !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+    const animate = (to: number, reserve: boolean, finish: () => void) => {
+      if (!motion || Math.abs(from - to) < 1) {
+        finish();
+        return;
       }
-      className={cn(QUESTION_CARD_CLASS, "my-2")}
-      role="region"
-      aria-label="Question and answer"
-    >
-      <button
-        type="button"
-        aria-expanded={expanded}
-        onClick={(event) => {
-          if (expanded) {
-            setExpanded(false);
-          } else {
-            expandAtReadingPosition(event.currentTarget.parentElement!, () =>
-              setExpanded(true),
-            );
-          }
-        }}
-        className="flex w-full cursor-pointer items-start gap-2 rounded text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      const oldHeight = wrapper.style.height;
+      const oldOverflow = card.style.overflow;
+      if (reserve) {
+        // Keep the full scroll range while the visible card grows, so BB does
+        // not reattach its bottom pin during the animation.
+        const style = getComputedStyle(card);
+        wrapper.style.height = `${to + parseFloat(style.marginTop || "0") + parseFloat(style.marginBottom || "0")}px`;
+      }
+      card.style.overflow = "hidden";
+      const animation = card.animate(
+        [{ height: `${from}px` }, { height: `${to}px` }],
+        {
+          duration: 220,
+          easing: "cubic-bezier(0.32, 0.72, 0, 1)",
+        },
+      );
+      const cleanup = () => {
+        wrapper.style.height = oldHeight;
+        card.style.overflow = oldOverflow;
+      };
+      running.current = { animation, cleanup };
+      animation.onfinish = () => {
+        if (running.current?.animation !== animation) return;
+        running.current = null;
+        finish();
+        cleanup();
+      };
+    };
+
+    if (expanded && !closing) {
+      const summary = summaryRef.current;
+      const details = detailsRef.current;
+      if (!motion || !summary || !details) {
+        setExpanded(false);
+        setClosing(false);
+        return;
+      }
+      const summaryMargin = parseFloat(
+        getComputedStyle(summary).marginTop || "0",
+      );
+      const detailMargin = parseFloat(
+        getComputedStyle(details).marginTop || "0",
+      );
+      const to =
+        card.getBoundingClientRect().height -
+        details.getBoundingClientRect().height -
+        detailMargin +
+        summary.getBoundingClientRect().height +
+        summaryMargin;
+      setClosing(true);
+      animate(to, false, () => {
+        flushSync(() => {
+          setExpanded(false);
+          setClosing(false);
+        });
+      });
+    } else {
+      expandAtReadingPosition(card, () => {
+        setExpanded(true);
+        setClosing(false);
+      });
+      animate(card.getBoundingClientRect().height, true, () => {});
+    }
+  };
+
+  return (
+    <div ref={wrapperRef} className="flow-root">
+      <div
+        ref={cardRef}
+        data-bb-plugin-root=""
+        data-bb-plugin={scope["data-bb-plugin"]}
+        data-ws-question-history=""
+        data-ws-question-result={
+          record.result ? JSON.stringify(record.result) : undefined
+        }
+        className={cn(QUESTION_CARD_CLASS, "my-2")}
+        role="region"
+        aria-label="Question and answer"
       >
-        <Icon
-          name={expanded ? "ChevronDown" : "ChevronRight"}
-          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-          aria-hidden
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block text-xs font-medium text-muted-foreground">
-            Question ·{" "}
-            {record.status === "unknown" ? "Answer unavailable" : record.status}
-          </span>
-          {!expanded ? (
-            <span className="mt-2 block space-y-2">
+        <button
+          type="button"
+          aria-expanded={expanded && !closing}
+          onClick={toggle}
+          className="flex w-full cursor-pointer items-start gap-2 rounded text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <Icon
+            name={expanded && !closing ? "ChevronDown" : "ChevronRight"}
+            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
+          <span className="relative min-w-0 flex-1">
+            <span className="block text-xs font-medium text-muted-foreground">
+              Question ·{" "}
+              {record.status === "unknown"
+                ? "Answer unavailable"
+                : record.status}
+            </span>
+            <span
+              ref={summaryRef}
+              data-ws-question-summary=""
+              aria-hidden={expanded || undefined}
+              className={cn(
+                "mt-2 block space-y-2",
+                expanded &&
+                  "pointer-events-none invisible absolute inset-x-0 top-0",
+              )}
+            >
               {record.payload.questions.map((q) => {
                 const submitted = record.result?.submission?.answers[q.id];
                 const annotation = record.result?.annotations?.[q.prompt];
@@ -134,121 +237,129 @@ export function QuestionHistoryCard({ record }: { record: QuestionHistory }) {
                 );
               })}
             </span>
-          ) : null}
-        </span>
-      </button>
-      {expanded ? (
-        <div className="mt-3 space-y-6">
-          {record.payload.questions.map((q) => {
-            const submitted = record.result?.submission?.answers[q.id];
-            const annotation = record.result?.annotations?.[q.prompt];
-            const answer = record.result?.answers[q.prompt];
-            const attachments =
-              submitted?.attachments ?? annotation?.attachments ?? [];
-            return (
-              <section key={q.id} className="min-w-0">
-                <p className="mb-1 text-xs font-medium text-muted-foreground">
-                  {q.shortLabel}
-                  {q.multiSelect ? " · Select multiple" : ""}
-                </p>
-                <div
-                  role="heading"
-                  aria-level={2}
-                  className={cn(
-                    "font-medium tracking-[-0.006em]",
-                    PROMPT_CLASS,
-                  )}
-                >
-                  <Markdown content={q.prompt} className={MARKDOWN_CLASS} />
-                </div>
-                {q.details ? (
-                  <div className="mt-2 text-[13px] leading-[1.5] max-md:pointer-coarse:text-sm">
-                    <Markdown
-                      content={formatQuestionText(q.details)}
-                      className={DETAILS_CLASS}
-                    />
-                  </div>
-                ) : null}
-                {q.options.length ? (
-                  <ul aria-label="Options offered" className="mt-3 space-y-px">
-                    {q.options.map((o) => (
-                      <li key={o.value}>
-                        <QuestionOptionRow
-                          readOnly
-                          checked={
-                            submitted?.selected.includes(o.value) ?? false
-                          }
-                          label={o.label}
-                          description={o.description}
-                          multiSelect={q.multiSelect}
-                        />
-                        {o.preview ? (
-                          <QuestionOptionPreview preview={o.preview} />
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                <div className="mt-3 space-y-2 rounded-md border border-border bg-background/50 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Your answer
+          </span>
+        </button>
+        {expanded ? (
+          <div
+            ref={detailsRef}
+            data-ws-question-details=""
+            inert={closing || undefined}
+            className="mt-3 space-y-6"
+          >
+            {record.payload.questions.map((q) => {
+              const submitted = record.result?.submission?.answers[q.id];
+              const annotation = record.result?.annotations?.[q.prompt];
+              const answer = record.result?.answers[q.prompt];
+              const attachments =
+                submitted?.attachments ?? annotation?.attachments ?? [];
+              return (
+                <section key={q.id} className="min-w-0">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">
+                    {q.shortLabel}
+                    {q.multiSelect ? " · Select multiple" : ""}
                   </p>
-                  {submitted?.selected.length ? (
-                    <ul className="space-y-1 text-sm font-medium">
-                      {submitted.selected.map((value) => (
-                        <li key={value}>
-                          {q.options.find((o) => o.value === value)?.label ??
-                            value}
+                  <div
+                    role="heading"
+                    aria-level={2}
+                    className={cn(
+                      "font-medium tracking-[-0.006em]",
+                      PROMPT_CLASS,
+                    )}
+                  >
+                    <Markdown content={q.prompt} className={MARKDOWN_CLASS} />
+                  </div>
+                  {q.details ? (
+                    <div className="mt-2 text-[13px] leading-[1.5] max-md:pointer-coarse:text-sm">
+                      <Markdown
+                        content={formatQuestionText(q.details)}
+                        className={DETAILS_CLASS}
+                      />
+                    </div>
+                  ) : null}
+                  {q.options.length ? (
+                    <ul
+                      aria-label="Options offered"
+                      className="mt-3 space-y-px"
+                    >
+                      {q.options.map((o) => (
+                        <li key={o.value}>
+                          <QuestionOptionRow
+                            readOnly
+                            checked={
+                              submitted?.selected.includes(o.value) ?? false
+                            }
+                            label={o.label}
+                            description={o.description}
+                            multiSelect={q.multiSelect}
+                          />
+                          {o.preview ? (
+                            <QuestionOptionPreview preview={o.preview} />
+                          ) : null}
                         </li>
                       ))}
                     </ul>
                   ) : null}
-                  {submitted?.freeText ? (
-                    <p className="whitespace-pre-wrap break-words text-sm">
-                      {submitted.freeText}
+                  <div className="mt-3 space-y-2 rounded-md border border-border bg-background/50 p-3">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Your answer
                     </p>
-                  ) : null}
-                  {!submitted && answer ? (
-                    <p className="whitespace-pre-wrap break-words text-sm">
-                      {answer}
-                    </p>
-                  ) : null}
-                  {!submitted &&
-                  annotation?.preview &&
-                  !q.options.some((o) => o.preview === annotation.preview) ? (
-                    <QuestionOptionPreview preview={annotation.preview} />
-                  ) : null}
-                  {attachments.length ? (
-                    <ul
-                      aria-label="Attached files"
-                      className="flex flex-wrap gap-2"
-                    >
-                      {attachments.map((attachment, index) => (
-                        <QuestionAttachment
-                          key={`${attachment.projectId}:${attachment.path}:${index}`}
-                          attachment={attachment}
-                        />
-                      ))}
-                    </ul>
-                  ) : null}
-                  {!submitted?.selected.length &&
-                  !submitted?.freeText &&
-                  !answer &&
-                  !attachments.length ? (
-                    <p className="text-sm">
-                      {record.status === "dismissed"
-                        ? "Dismissed without an answer or approval"
-                        : record.status === "pending"
-                          ? "Awaiting your answer"
-                          : "No answer was retained"}
-                    </p>
-                  ) : null}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      ) : null}
+                    {submitted?.selected.length ? (
+                      <ul className="space-y-1 text-sm font-medium">
+                        {submitted.selected.map((value) => (
+                          <li key={value}>
+                            {q.options.find((o) => o.value === value)?.label ??
+                              value}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {submitted?.freeText ? (
+                      <p className="whitespace-pre-wrap break-words text-sm">
+                        {submitted.freeText}
+                      </p>
+                    ) : null}
+                    {!submitted && answer ? (
+                      <p className="whitespace-pre-wrap break-words text-sm">
+                        {answer}
+                      </p>
+                    ) : null}
+                    {!submitted &&
+                    annotation?.preview &&
+                    !q.options.some((o) => o.preview === annotation.preview) ? (
+                      <QuestionOptionPreview preview={annotation.preview} />
+                    ) : null}
+                    {attachments.length ? (
+                      <ul
+                        aria-label="Attached files"
+                        className="flex flex-wrap gap-2"
+                      >
+                        {attachments.map((attachment, index) => (
+                          <QuestionAttachment
+                            key={`${attachment.projectId}:${attachment.path}:${index}`}
+                            attachment={attachment}
+                          />
+                        ))}
+                      </ul>
+                    ) : null}
+                    {!submitted?.selected.length &&
+                    !submitted?.freeText &&
+                    !answer &&
+                    !attachments.length ? (
+                      <p className="text-sm">
+                        {record.status === "dismissed"
+                          ? "Dismissed without an answer or approval"
+                          : record.status === "pending"
+                            ? "Awaiting your answer"
+                            : "No answer was retained"}
+                      </p>
+                    ) : null}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
