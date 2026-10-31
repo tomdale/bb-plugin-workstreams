@@ -18,6 +18,7 @@ import {
   headingHeight,
   headingOpacity,
   headingScroll,
+  hybridHeadingScroll,
   pinnedHeight,
   titleExitDistance,
 } from "./goalHeading.ts";
@@ -33,13 +34,18 @@ const COMPOSER = "[data-app-composer]";
  */
 const INSET = '[data-sidebar="inset"]';
 
-// The heading shares the message column's left edge and type. BB may place a
-// scroll sentinel before that column, so prefer its data attribute to its position.
+// BB marks the message column while attached to the newest message. When
+// detached, skip its hidden scroll sentinel and the separate sticky footer.
 function messageColumn(scroller: HTMLElement): HTMLElement | null {
   const wrapper = scroller.firstElementChild;
   const column =
     wrapper?.querySelector(":scope > [data-scroll-attached]") ??
-    wrapper?.firstElementChild;
+    (wrapper &&
+      [...wrapper.children].find(
+        (child) =>
+          child.getAttribute("aria-hidden") !== "true" &&
+          !child.hasAttribute("data-scroll-footer"),
+      ));
   return column instanceof HTMLElement ? column : null;
 }
 
@@ -179,15 +185,20 @@ function useMessageScroller(threadId: string | null): Mount | null {
 
 function useScrollState(scroller: HTMLElement | null): {
   fromBottom: number;
+  fromTop: number;
   // BB's own overflow fades appear only once content has scrolled out of view,
   // so the fade beneath the heading is on exactly when the timeline is
   // detached from its top.
   fade: boolean;
 } {
-  const [state, setState] = useState({ fromBottom: 0, fade: false });
+  const [state, setState] = useState({
+    fromBottom: 0,
+    fromTop: 0,
+    fade: false,
+  });
   useEffect(() => {
     // A new scroller (another thread) starts expanded until it is measured.
-    setState({ fromBottom: 0, fade: false });
+    setState({ fromBottom: 0, fromTop: 0, fade: false });
     if (!scroller) return;
     let frame = 0;
     const update = () => {
@@ -195,11 +206,14 @@ function useScrollState(scroller: HTMLElement | null): {
       frame = requestAnimationFrame(() => {
         const range = scroller.scrollHeight - scroller.clientHeight;
         const fromBottom = Math.max(0, range - scroller.scrollTop);
+        const fromTop = Math.max(0, scroller.scrollTop);
         const fade = scroller.scrollTop > 1;
         setState((prev) =>
-          prev.fromBottom === fromBottom && prev.fade === fade
+          prev.fromBottom === fromBottom &&
+          prev.fromTop === fromTop &&
+          prev.fade === fade
             ? prev
-            : { fromBottom, fade },
+            : { fromBottom, fromTop, fade },
         );
       });
     };
@@ -393,9 +407,11 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const { threadId } = useBbContext();
   const context = useGoalContext(threadId);
   const { prefs } = usePrefs();
-  const fadeOnly = (prefs?.threads.headingTransition ?? "fade") === "fade";
+  const transition = prefs?.threads.headingTransition ?? "fade";
+  const fadeOnly = transition === "fade";
+  const hybrid = transition === "hybrid";
   const mount = useMessageScroller(threadId);
-  const { fromBottom, fade } = useScrollState(mount?.scroller ?? null);
+  const { fromBottom, fromTop, fade } = useScrollState(mount?.scroller ?? null);
   const settled = useSettled(mount);
   const base = mount?.baseFontSize ?? 14;
   const placement = usePlacement(mount, base);
@@ -422,26 +438,35 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const titleLines = narrow ? wrappedLines : 1;
   const height = headingHeight(base, hasEyebrow, titleLines);
   const exitDistance = titleExitDistance(base, eyebrow, titleLines);
+  const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
   const { moved, remaining, progress } = placement?.short
     ? { moved: exitDistance, remaining: 0, progress: 1 }
-    : headingScroll(settled ? fromBottom : 0, exitDistance);
+    : hybrid
+      ? hybridHeadingScroll(fromTop, exitDistance, titleBlock, height)
+      : headingScroll(settled ? fromBottom : 0, exitDistance);
   const collapsed = progress === 1;
-  const opacity = fadeOnly
-    ? { expanded: 1 - progress, compact: progress }
-    : headingOpacity(progress);
+  const opacity = hybrid
+    ? { expanded: placement?.short ? 0 : 1, compact: progress }
+    : fadeOnly
+      ? { expanded: 1 - progress, compact: progress }
+      : headingOpacity(progress);
   // When the title bar has no room, the compact copy sits in the timeline.
   const pinned = !!placement && placement.bar === null;
   const platePinnedHeight = pinnedHeight(base, eyebrow);
-  // A pinned compact heading needs a solid plate; in the bar the full-size
-  // plate can instead fade away without moving under the large heading.
-  const plateHeight = fadeOnly
+  // A pinned compact heading needs a solid plate. The hybrid's large heading
+  // instead occupies its reserved space in the scrolling timeline.
+  const plateHeight = hybrid
     ? pinned
-      ? height * (1 - progress) + platePinnedHeight * progress
-      : height
-    : Math.max(
-        height * (1 - progress),
-        pinned ? platePinnedHeight * progress : 0,
-      );
+      ? platePinnedHeight * progress
+      : 0
+    : fadeOnly
+      ? pinned
+        ? height * (1 - progress) + platePinnedHeight * progress
+        : height
+      : Math.max(
+          height * (1 - progress),
+          pinned ? platePinnedHeight * progress : 0,
+        );
   const plateOpacity =
     fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
   const scrollPadding =
@@ -499,7 +524,6 @@ export function StickyGoalHeader(): React.ReactElement | null {
         y: paneTop + base * PINNED_PAD,
         width: placement.pane.width,
       };
-  const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
   const workstream = (compact: boolean, width: number) =>
     context.workstream &&
     eyebrow && (
@@ -519,8 +543,8 @@ export function StickyGoalHeader(): React.ReactElement | null {
       </div>
     );
 
-  // In scroll mode the copies travel together; in fade mode each stays at
-  // its final position while its opacity follows the same scroll progress.
+  // The hybrid heading moves with the timeline; its compact copy remains
+  // still and fades in as the large title crosses the viewport edge.
   const text = (
     <>
       <div
@@ -599,7 +623,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
         <div
           className="ws-goal-overlay__group"
           style={{
-            transform: `translateY(${fadeOnly ? 0 : remaining}px)`,
+            transform: `translateY(${fadeOnly || hybrid ? 0 : remaining}px)`,
             opacity: opacity.compact,
             width: compactSpot.width,
           }}
@@ -634,7 +658,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
             "--ws-fade-below-plate": fade && plateHeight > 0 ? plateOpacity : 0,
             "--ws-fade-below-bar":
               fade && inBar
-                ? fadeOnly
+                ? fadeOnly || hybrid
                   ? opacity.compact
                   : Number(collapsed)
                 : 0,

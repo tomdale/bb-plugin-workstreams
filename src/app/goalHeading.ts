@@ -116,6 +116,25 @@ export function headingScroll(fromBottom: number, exitDistance: number) {
   return { moved, remaining: exitDistance - moved, progress };
 }
 
+/** The inline heading follows the timeline; the compact title appears in
+ * proportion to the large title's clipped height. */
+export function hybridHeadingScroll(
+  fromTop: number,
+  exitDistance: number,
+  titleBlock: number,
+  headingHeight: number,
+) {
+  const scrolled = Math.max(0, fromTop);
+  return {
+    moved: Math.min(scrolled, headingHeight),
+    remaining: 0,
+    progress: Math.max(
+      0,
+      Math.min(1, (scrolled - (exitDistance - titleBlock)) / titleBlock),
+    ),
+  };
+}
+
 /** Keep the outgoing heading readable longer and let the incoming one brighten early. */
 export function headingOpacity(progress: number) {
   return {

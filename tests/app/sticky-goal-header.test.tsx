@@ -44,7 +44,7 @@ function paneFixture({ recap }: { recap: boolean }) {
         <div data-thread-window>
           <div class="thread-scrollbar" data-test="messages">
             <div>
-              <div data-test="sentinel" class="invisible w-px"></div>
+              <div data-test="sentinel" aria-hidden="true" class="invisible w-px"></div>
               <div data-test="column" data-scroll-attached></div>
             </div>
           </div>
@@ -60,7 +60,9 @@ function paneFixture({ recap }: { recap: boolean }) {
     </main>`;
 }
 
-async function mountHeading(headingTransition: "fade" | "scroll" = "scroll") {
+async function mountHeading(
+  headingTransition: "fade" | "scroll" | "hybrid" = "scroll",
+) {
   stubResizeObserver();
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   const heading = app.appOverlays.find(
@@ -95,6 +97,21 @@ it("attaches to the message scroller although a recap card scrolls its own text"
   expect(document.querySelector('[data-test="column"]')!.contains(root())).toBe(
     true,
   );
+  slot.lifecycle.unmount();
+});
+
+it("ignores the scroll sentinel when BB removes the column's attachment marker", async () => {
+  paneFixture({ recap: false });
+  const column = document.querySelector<HTMLElement>('[data-test="column"]')!;
+  column.removeAttribute("data-scroll-attached");
+  const slot = await mountHeading();
+  await waitFor(() => expect(root()?.parentElement).toBe(column));
+  const replacement = column.cloneNode(false) as HTMLElement;
+  column.replaceWith(replacement);
+  await waitFor(() => expect(root()?.parentElement).toBe(replacement));
+  expect(
+    document.querySelector('[data-test="sentinel"]')!.contains(root()),
+  ).toBe(false);
   slot.lifecycle.unmount();
 });
 
@@ -288,6 +305,12 @@ it("crossfades stationary headings and switches modes on preference changes", as
   expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(scrollOpacity.compact);
   expect(Number(plate.style.opacity)).toBe(1);
   await slot.behavior.emitRealtime("prefs", {
+    prefs: parsePrefs({ threads: { headingTransition: "hybrid" } }),
+  });
+  await waitFor(() => expect(Number(groups()[1]!.style.opacity)).toBe(1));
+  expect(Number(groups()[0]!.style.opacity)).toBe(1);
+  expect(groups()[1]!.style.transform).toBe("translateY(0px)");
+  await slot.behavior.emitRealtime("prefs", {
     prefs: parsePrefs({ threads: { headingTransition: "fade" } }),
   });
   await waitFor(() =>
@@ -306,7 +329,70 @@ it("crossfades stationary headings and switches modes on preference changes", as
   slot.lifecycle.unmount();
 });
 
-it.each(["fade", "scroll"] as const)(
+it("moves the large heading with the timeline and fades the compact title as it exits", async () => {
+  paneFixture({ recap: false });
+  const scroller = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, value: 1000 },
+    clientHeight: { configurable: true, value: 400 },
+    scrollTop: { configurable: true, writable: true, value: 0 },
+  });
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 48, 900, 672),
+  );
+  const header = document.querySelector("header")!;
+  vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 900, 48),
+  );
+  vi.spyOn(
+    header.querySelector(".bb-thread-title")!,
+    "getBoundingClientRect",
+  ).mockReturnValue(new DOMRect(0, 0, 80, 48));
+  vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(700, 0, 100, 48),
+  );
+  const slot = await mountHeading("hybrid");
+  const groups = () => [
+    ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
+  ];
+  const y = (el: HTMLElement) =>
+    Number.parseFloat(
+      el.style.transform.match(/translateY\(([-\d.]+)px\)/)![1]!,
+    );
+  await waitFor(() => expect(groups()).toHaveLength(2));
+  const titleTop = 14 * 0.85;
+  const titleHeight = (14 * 1.5 * 4) / 3;
+  for (const [fromTop, expected] of [
+    [0, 0],
+    [titleTop, 0],
+    [titleTop + titleHeight / 4, 0.25],
+    [titleTop + titleHeight / 2, 0.5],
+    [titleTop + titleHeight, 1],
+    [titleTop + titleHeight / 2, 0.5],
+    [0, 0],
+  ]) {
+    scroller.scrollTop = fromTop!;
+    scroller.dispatchEvent(new Event("scroll"));
+    await waitFor(() => {
+      expect(y(groups()[0]!)).toBeCloseTo(titleTop - fromTop!);
+      expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(expected!);
+    });
+    expect(Number(groups()[0]!.style.opacity)).toBe(1);
+    expect(y(groups()[1]!)).toBe(0);
+  }
+  Object.defineProperty(scroller, "scrollHeight", {
+    configurable: true,
+    value: 2000,
+  });
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(y(groups()[0]!)).toBeCloseTo(titleTop));
+  expect(Number(groups()[1]!.style.opacity)).toBe(0);
+  slot.lifecycle.unmount();
+});
+
+it.each(["fade", "scroll", "hybrid"] as const)(
   "starts fully compact in %s mode when the timeline is short",
   async (mode) => {
     paneFixture({ recap: false });

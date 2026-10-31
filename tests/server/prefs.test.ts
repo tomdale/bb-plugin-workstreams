@@ -47,7 +47,7 @@ describe("Workstreams prefs", () => {
     await world.harness.lifecycle.dispose();
   });
 
-  it("defaults title transitions to fade and persists either validated choice", async () => {
+  it("defaults title transitions to fade and persists each validated choice", async () => {
     expect(parsePrefs({}).threads.headingTransition).toBe("fade");
     expect(
       parsePrefs({
@@ -63,7 +63,7 @@ describe("Workstreams prefs", () => {
     ).toBe(false);
     const world = await fakeWorld();
     const db = openDatabase(world.bb);
-    for (const headingTransition of ["scroll", "fade"] as const) {
+    for (const headingTransition of ["scroll", "hybrid", "fade"] as const) {
       savePrefs(db, { threads: { headingTransition } });
       expect(loadPrefs(db).threads.headingTransition).toBe(headingTransition);
     }

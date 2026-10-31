@@ -117,7 +117,7 @@ const GROUPS = {
     /** Title untitled threads with their goal and retitle them as work moves on. */
     autoTitle: [z.boolean(), true],
     /** How the large and compact goal headings change as the timeline scrolls. */
-    headingTransition: [z.enum(["fade", "scroll"]), "fade"],
+    headingTransition: [z.enum(["fade", "scroll", "hybrid"]), "fade"],
     /** A link to the parent thread in child threads' headers. */
     showParentLink: [z.boolean(), false],
     /** An icon-only Archive button in thread headers. */

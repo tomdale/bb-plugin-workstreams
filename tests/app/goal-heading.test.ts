@@ -7,6 +7,7 @@ import {
   headingHeight,
   headingOpacity,
   headingScroll,
+  hybridHeadingScroll,
   pinnedHeight,
   titleExitDistance,
 } from "../../src/app/goalHeading.ts";
@@ -88,6 +89,39 @@ it("slows to a stop at the shared endpoint without overshooting", () => {
     expect(state.progress).toBeLessThanOrEqual(1);
     expect(state.moved + state.remaining).toBeCloseTo(distance);
   }
+});
+
+it("fades the compact title by the fraction of the large title that has scrolled out", () => {
+  const eyebrow = eyebrowMetrics(BASE, false);
+  const exit = titleExitDistance(BASE, eyebrow, 1);
+  const heading = headingHeight(BASE, true, 1);
+  const titleHeight = (BASE * 1.5 * 4) / 3;
+  const titleTop = exit - titleHeight;
+  expect(hybridHeadingScroll(0, exit, titleHeight, heading)).toEqual({
+    moved: 0,
+    remaining: 0,
+    progress: 0,
+  });
+  expect(
+    hybridHeadingScroll(titleTop, exit, titleHeight, heading).progress,
+  ).toBe(0);
+  const halfway = hybridHeadingScroll(
+    titleTop + titleHeight / 2,
+    exit,
+    titleHeight,
+    heading,
+  );
+  expect(halfway.moved).toBeCloseTo(titleTop + titleHeight / 2);
+  expect(halfway.progress).toBeCloseTo(0.5);
+  expect(hybridHeadingScroll(exit, exit, titleHeight, heading).progress).toBe(
+    1,
+  );
+  expect(hybridHeadingScroll(10000, exit, titleHeight, heading)).toEqual({
+    moved: heading,
+    remaining: 0,
+    progress: 1,
+  });
+  expect(hybridHeadingScroll(-10, exit, titleHeight, heading).progress).toBe(0);
 });
 
 it("eases the outgoing and incoming opacity independently", () => {
