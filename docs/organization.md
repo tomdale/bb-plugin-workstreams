@@ -91,9 +91,9 @@ organizer restores derived membership when a later pass runs.
 
 A root spawned from another thread inherits that thread's topic. A root started
 from a workstream's ＋ inherits the bound topic. A topic with subtopics can't be
-inherited; placement weighs it as a hint instead. Otherwise Quick analysis of
-the first request supplies a guess or leaves the root Unfiled. Explicit composer
-choices have manual priority.
+inherited; placement weighs it as a hint instead. A composer's automatic preview
+supplies the topic it showed. Otherwise placement of the first request files the
+root or leaves it Unfiled. Explicit composer choices have manual priority.
 
 Placement settles the topic with one closed-set call on the first request, and
 again beside Full analysis after a new substantive request. It reads the

@@ -107,6 +107,7 @@ export function toInput(c: Case): FullAnalysisInput {
   }
   return {
     title: c.title,
+    titledBy: "other",
     mode: "full",
     report: null,
     // Keep the most recent two requests, as production does.
@@ -292,7 +293,7 @@ for (const [set, cases] of sets)
         c,
         input: {
           ...input,
-          untitled: true,
+          titledBy: "none",
           title: `${opening.slice(0, 77)}...`,
         },
       });
@@ -319,7 +320,7 @@ for (const model of models) {
       if (job.mode === "opening") {
         const quick = {
           request: job.input.requests[0]?.text ?? "",
-          entities: [],
+          entities: null,
         };
         const { text, cost } = await complete(
           model,

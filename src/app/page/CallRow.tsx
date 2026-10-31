@@ -34,11 +34,6 @@ const EVENT: Record<TraceKind, { label: string; description: string }> = {
     description:
       "The model chose the thread's topic from its requests, or proposed a new one: when the thread started, or after a new request.",
   },
-  restyle: {
-    label: "Retitle",
-    description:
-      "The model renamed a thread Workstreams had titled, in the current title form, keeping what the title names.",
-  },
 };
 const STATES: Record<string, { label: string; description: string }> = {
   review: {

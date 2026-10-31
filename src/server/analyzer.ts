@@ -6,15 +6,16 @@
  *
  * What a run asks depends on what changed:
  *
- * - After a new request from you, Full analysis settles the goal and
+ * - After a new request from you, Full analysis settles the title and
  *   describes the turn when the agent didn't report, and placement settles a
- *   root's topic alongside it (see `Placement`).
+ *   root's topic alongside it (see `Placement`). It keeps a title Workstreams
+ *   wrote unless the goal changed, and never names over one you gave.
  * - After a turn with no new request (a waiting check, a bare "continue"),
  *   only the turn's status is new: with an agent report nothing is asked and
- *   the settled goal carries forward; without one, only the status is asked.
+ *   the settled title carries forward; without one, only the status is asked.
  *
- * The goal reaches BB, as the thread's title, only through `onResult` and the
- * retitle policy; the topic only through `topics.apply`.
+ * The title reaches BB only through `onResult` and the retitle policy; the
+ * topic only through `topics.apply`.
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { createHash } from "node:crypto";
@@ -28,6 +29,7 @@ import type {
   FullAnalysisInput,
   StoredAnalysis,
   ThreadListing,
+  TitledBy,
 } from "../domain/analysis.ts";
 import type { PlacementOutput } from "../domain/placement.ts";
 import type { PlacementQuestion, PlacementThread } from "./placement.ts";
@@ -38,13 +40,8 @@ import type { Database } from "./db.ts";
 import { displayTitle, type InventoryThread } from "./inventory.ts";
 import { modelLabel, type Inference } from "./model.ts";
 import { inputText, isSubstantiveRequest, openingOf } from "./requests.ts";
-import {
-  IDENTITY_VERSION,
-  settleIdentity,
-  type ThreadObjective,
-} from "../domain/identity.ts";
+import { observeThreadTitle } from "./titles.ts";
 import { assignmentEvidence, threadEvidence } from "./evidence.ts";
-import { redact } from "../domain/redact.ts";
 
 type Sdk = BbPluginApi["sdk"];
 
@@ -190,28 +187,6 @@ export class Analyzer {
     return { reported, analyzed };
   }
 
-  /**
-   * Renames the stored goal, and the objective's title with it, so a later
-   * analysis that keeps the objective carries the new title forward instead
-   * of restoring the old one.
-   */
-  renameGoal(threadId: string, title: string): void {
-    const result = this.get(threadId);
-    if (!result) return;
-    this.deps.db
-      .prepare("UPDATE ws_analysis SET result = ? WHERE thread_id = ?")
-      .run(
-        JSON.stringify({
-          ...result,
-          goal: title,
-          objective: result.objective
-            ? { ...result.objective, title }
-            : result.objective,
-        }),
-        threadId,
-      );
-  }
-
   get(threadId: string): StoredAnalysis | undefined {
     const row = this.deps.db
       .prepare("SELECT result FROM ws_analysis WHERE thread_id = ?")
@@ -284,7 +259,6 @@ export class Analyzer {
           row.thread_id,
           {
             revision: row.revision,
-            needsGoalBackfill: !result || !Object.hasOwn(result, "goal"),
             needsTopicRetry: Boolean(result?.topicError),
           },
         ] as const;
@@ -304,7 +278,6 @@ export class Analyzer {
       if (
         previous &&
         previous.revision >= thread.latestAttentionAt &&
-        !previous.needsGoalBackfill &&
         !previous.needsTopicRetry &&
         !untopiced
       )
@@ -446,7 +419,6 @@ export class Analyzer {
         !force &&
         previous &&
         previous.revision >= revision &&
-        Object.hasOwn(previous, "goal") &&
         !previous.topicError &&
         !this.settleTopic.has(threadId)
       )
@@ -463,8 +435,8 @@ export class Analyzer {
       if (this.disposed || this.forgotten.has(threadId)) return null;
       const context = await this.context(thread);
       const reported = this.deps.report?.(threadId) ?? null;
-      const settled =
-        previous?.requestsKey === context.requestsKey && previous.goal !== null;
+      // Requests already titled from need no second look at the title.
+      const settled = previous?.requestsKey === context.requestsKey;
       const placing =
         this.deps.placement && this.placement(thread.id).isTask
           ? await this.deps.placement.question(
@@ -491,7 +463,6 @@ export class Analyzer {
       let topicAnswer: PlacementOutput | null = null;
       let topicTraceId: string | null = null;
       let names: NameObservations | null = null;
-      let identityDecision = "kept: no substantive request";
       if (topicOnly && previous) {
         // Only the topic was missing; the turn's goal and status stand.
         result = { ...previous };
@@ -506,14 +477,13 @@ export class Analyzer {
           traceId: null,
         };
       } else {
+        const titledBy = this.titledBy(thread);
         const input: FullAnalysisInput = {
           title: displayTitle(thread),
-          previousGoal: previous?.goal ?? null,
-          previousObjective: previous?.objective ?? null,
+          titledBy,
           continuation: full
             ? await this.continuation(thread, context.requests)
             : null,
-          untitled: !thread.title,
           listing: full ? (this.deps.listing?.(thread) ?? null) : null,
           requests: context.requests,
           lastAssistantText: context.lastAssistantText,
@@ -536,35 +506,16 @@ export class Analyzer {
           `Analyzed ${threadId}: context ${asked - started} ms, model ${this.now() - asked} ms`,
         );
         const status = reported?.status ?? output.status!;
-        const identity = settleIdentity({
-          previous: previous?.objective ?? null,
-          candidate: output.identity,
-          requestIds: context.requests.flatMap((r) => (r.id ? [r.id] : [])),
-        });
-        identityDecision = identity.decision;
-        // An older response contract can establish a provisional objective;
-        // subsequent changes require an explicit identity transition.
-        const objective: ThreadObjective | null =
-          identity.objective ??
-          (!previous?.objective && output.goal && context.requests[0]?.id
-            ? {
-                summary: redact(context.requests[0].text).slice(0, 1200),
-                title: output.goal,
-                evidenceIds: [context.requests[0].id],
-              }
-            : null);
+        // Without a new title the thread keeps its own: one Workstreams wrote
+        // or you gave it, or else the title last settled for it, which a turn
+        // that started meanwhile kept from being applied.
+        const kept =
+          titledBy === "workstreams" || titledBy === "you"
+            ? input.title
+            : (previous?.goal ?? null);
         result = {
           ...status,
-          goal: topicOnly
-            ? (previous?.goal ?? null)
-            : full
-              ? (objective?.title ??
-                output.goal ??
-                previous?.goal ??
-                (input.untitled ? null : input.title))
-              : (previous?.goal ?? null),
-          objective: topicOnly ? (previous?.objective ?? null) : objective,
-          identityVersion: IDENTITY_VERSION,
+          goal: full ? (output.goal ?? kept) : (previous?.goal ?? null),
           reported: reported !== null,
           requestsKey: full
             ? context.requestsKey
@@ -641,11 +592,7 @@ export class Analyzer {
       this.deps.inference.annotate(
         result.traceId,
         stored.changes > 0
-          ? {
-              storedForRevision: revision,
-              identity: identityDecision,
-              evidenceRevision: revision,
-            }
+          ? { storedForRevision: revision, evidenceRevision: revision }
           : { stored: "no: a newer turn's analysis was already stored" },
       );
       if (stored.changes > 0 && topicAnswer && placing)
@@ -721,10 +668,7 @@ export class Analyzer {
         ? [{ text: opening, initial: true }]
         : []),
       ...recent.map((text) => ({ text, initial: text === opening })),
-    ].map((request) => ({
-      ...request,
-      id: `r:${createHash("sha256").update(request.text).digest("hex").slice(0, 16)}`,
-    }));
+    ];
     // The idle event's text describes its own turn only; otherwise read the
     // latest output.
     const cached = this.lastText.get(thread.id);
@@ -756,7 +700,6 @@ export class Analyzer {
         .find(Boolean) ?? thread.sourceThreadId;
     if (!referenced || referenced === thread.id) return null;
     const stored = this.get(referenced);
-    if (stored?.objective) return stored.objective.summary;
     try {
       const sdk = this.deps.sdk();
       const first = await sdk.threads.events.list({
@@ -769,6 +712,14 @@ export class Analyzer {
     } catch {
       return stored?.goal ?? null;
     }
+  }
+
+  /** Who gave the thread its current title (see `TitledBy`). */
+  private titledBy(thread: { id: string; title: string | null }): TitledBy {
+    if (thread.title === null) return "none";
+    const record = observeThreadTitle(this.deps.db, thread.id, thread.title);
+    if (record.locked) return "you";
+    return record.written === thread.title ? "workstreams" : "other";
   }
 
   /**

@@ -114,5 +114,90 @@ export const titleCases: TitleCase[] = [
   },
 ];
 
+/**
+ * A thread Workstreams already titled, and the requests since. Its title
+ * names the goal, so a request that only takes the work to its next step
+ * keeps it, and one that changes the goal renames it.
+ */
+export type FollowUpCase = {
+  id: string;
+  /** Oldest first; the last is the new one. */
+  requests: string[];
+  /** The title Workstreams wrote. */
+  title: string;
+  expect: "keep" | "rename";
+  /** For a rename, as in `TitleCase`. */
+  must?: string[][];
+};
+
+const AUDIT =
+  "Audit the release pipeline and propose a reliability plan; do not implement it.";
+
+export const followUpCases: FollowUpCase[] = [
+  {
+    id: "step-diagnose",
+    requests: [
+      AUDIT,
+      "As part of that audit, diagnose why schema verification fails.",
+    ],
+    title: "Auditing release pipeline",
+    expect: "keep",
+  },
+  {
+    id: "step-test",
+    requests: [
+      AUDIT,
+      "Run the verification tests and include their results in the audit.",
+    ],
+    title: "Auditing release pipeline",
+    expect: "keep",
+  },
+  {
+    id: "step-ship",
+    requests: [
+      "Add CSV export to the invoices page.",
+      "Tests pass. Open a PR and get it merged.",
+    ],
+    title: "Adding invoice CSV export",
+    expect: "keep",
+  },
+  {
+    id: "step-review",
+    requests: [
+      "Build the snooze presets dialog.",
+      "Address the review comments on the PR.",
+    ],
+    title: "Building snooze presets dialog",
+    expect: "keep",
+  },
+  {
+    id: "pivot",
+    requests: [
+      AUDIT,
+      "Change direction: leave the release pipeline and implement the billing workflow.",
+    ],
+    title: "Auditing release pipeline",
+    expect: "rename",
+    must: [["billing"]],
+  },
+  {
+    id: "proposal-approved",
+    requests: [
+      "Propose a design for offline sync in the mobile app; don't implement it yet.",
+      "The design looks good. Implement it.",
+    ],
+    title: "Designing offline sync",
+    expect: "rename",
+    must: [["sync"]],
+  },
+  {
+    id: "vague-refined",
+    requests: ["Help with the pipeline.", AUDIT],
+    title: "Helping with pipeline",
+    expect: "rename",
+    must: [["release", "reliability"]],
+  },
+];
+
 /** -ing verbs that don't say what kind of work a thread is. */
 export const VAGUE_VERBS = ["working", "handling", "doing", "continuing"];

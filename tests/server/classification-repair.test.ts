@@ -1,5 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
+import { afterEach, describe, expect, it } from "vitest";
 import { fakeWorld } from "./fake-bb.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
@@ -7,20 +6,11 @@ let world: Awaited<ReturnType<typeof fakeWorld>> | undefined;
 afterEach(async () => {
   await world?.harness.lifecycle.dispose();
 });
-async function dispatch(w: NonNullable<typeof world>) {
-  const thread = w.addThread("t", {
-    title: null,
-    status: "starting",
-    latestAttentionAt: 10,
-  });
-  await w.harness.registrations.hooks["message.dispatch"]!(
-    makeMessageDispatchHookContext({
-      thread,
-      origin: "app",
-      input: { text: "Audit the release pipeline", blocks: [] },
-    }),
-  );
-}
+/** The composer's preview, where Quick analysis chooses a topic. */
+const preview = (w: NonNullable<typeof world>) =>
+  w.harness.behavior.callRpc("preview", {
+    prompt: "Audit the release pipeline",
+  }) as Promise<{ goal: string | null; subjectId?: string | null }>;
 describe("bounded classification repair", () => {
   it("repairs an invalid topic ID without losing the independently valid title", async () => {
     let topicId = "";
@@ -39,11 +29,10 @@ describe("bounded classification repair", () => {
     const w = world;
     const topics = new TopicStore(openDatabase(w.bb));
     topicId = topics.create("Pipeline", "Release pipeline").id;
-    await dispatch(w);
-    await vi.waitFor(() =>
-      expect(w.threads.get("t")?.title).toBe("Release pipeline audit"),
-    );
-    expect(topics.assignment("t").entityId).toBe(topicId);
+    expect(await preview(w)).toMatchObject({
+      goal: "Release pipeline audit",
+      subjectId: topicId,
+    });
     expect(w.completions).toHaveLength(2);
   });
   it("keeps a usable title and leaves topic unresolved after two invalid responses", async () => {
@@ -55,16 +44,14 @@ describe("bounded classification repair", () => {
         }),
     });
     const w = world;
-    await dispatch(w);
-    await vi.waitFor(() =>
-      expect(w.threads.get("t")?.title).toBe("Release pipeline audit"),
-    );
+    new TopicStore(openDatabase(w.bb)).create("Pipeline", "Release pipeline");
+    expect(await preview(w)).toMatchObject({
+      goal: "Release pipeline audit",
+      subjectId: null,
+    });
     expect(w.completions).toHaveLength(2);
-    expect(
-      new TopicStore(openDatabase(w.bb)).assignment("t").provenance,
-    ).toBeNull();
   });
-  it("retains valid Full status and objective without clearing the topic on invalid output", async () => {
+  it("retains valid Full status and title without clearing the topic on invalid output", async () => {
     world = await fakeWorld({
       complete: () =>
         JSON.stringify({
@@ -87,7 +74,6 @@ describe("bounded classification repair", () => {
       state: "review",
       goal: "Release pipeline audit",
       topicError: expect.any(String),
-      objective: { title: "Release pipeline audit" },
     });
   });
 });

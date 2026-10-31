@@ -110,15 +110,13 @@ export class WorkstreamService {
    * retitle policy. `revision` is the thread revision the goal
    * was inferred for, and `basis` says from what: a finished turn's analysis,
    * or the opening request alone while the first turn runs. When the policy
-   * declines, nothing changes and `skipped` says why. `rationale` replaces
-   * the journal entry's usual explanation when the caller knows a better one.
+   * declines, nothing changes and `skipped` says why.
    */
   retitle(
     threadId: string,
     suggestion: string | null,
     revision: number,
     basis: RetitleBasis = "analysis",
-    rationale?: string,
   ): Promise<{ entry: JournalEntry | null; skipped: string | null }> {
     return this.serial(async () => {
       if (!this.titlesEnabled()) return { entry: null, skipped: "disabled" };
@@ -145,20 +143,6 @@ export class WorkstreamService {
         basis,
       });
       if (!decision.ok || !suggestion) {
-        // The analysis of the first finished turn settles a provisional title
-        // even when it keeps it; any later change is an ordinary retitle.
-        if (
-          !decision.ok &&
-          decision.reason === "unchanged" &&
-          basis === "analysis" &&
-          record.provisional &&
-          thread.status === "idle" &&
-          (thread.latestAttentionAt ?? thread.updatedAt) <= revision
-        )
-          writeTitleRecord(this.db, threadId, {
-            ...record,
-            provisional: false,
-          });
         return {
           entry: null,
           skipped: decision.ok ? "no-suggestion" : decision.reason,
@@ -169,8 +153,6 @@ export class WorkstreamService {
       writeTitleRecord(this.db, threadId, {
         observed: suggestion,
         written: suggestion,
-        retitledAt: this.now(),
-        provisional: basis === "opening",
       });
       this.seeThread(
         threadId,
@@ -182,14 +164,11 @@ export class WorkstreamService {
         action: "retitle",
         source: "auto",
         rationale:
-          rationale ??
-          (basis === "opening"
+          basis === "opening"
             ? "Titled from the opening request"
-            : record.provisional
-              ? `Retitled after the first turn from ${from}`
-              : thread.title
-                ? `Retitled from ${from}`
-                : "Titled an untitled thread"),
+            : thread.title
+              ? `Retitled from ${from}`
+              : "Titled an untitled thread",
         threads: [{ id: threadId, name: suggestion }],
         workstreams: [],
         undo: { kind: "retitle", threadId, from: thread.title, to: suggestion },
@@ -355,8 +334,6 @@ export class WorkstreamService {
       writeTitleRecord(this.db, step.threadId, {
         observed: step.from,
         written: null,
-        retitledAt: null,
-        provisional: false,
       });
       this.seeThread(
         step.threadId,

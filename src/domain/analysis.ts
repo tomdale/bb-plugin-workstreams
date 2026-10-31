@@ -3,20 +3,19 @@
  * rule that decides whether a stored result is current. Pure, so the server,
  * the app, and the eval runner share one definition.
  *
- * - Quick analysis sees one request: a draft in the New thread composer, or a
- *   thread's first request. It gives a new thread a goal (its title) and a
- *   topic within seconds, before the first turn ends.
+ * - Quick analysis sees one request. A thread's first request gets its
+ *   opening title within seconds, before the first turn ends; a draft in the
+ *   New thread composer gets a title and a topic to preview.
  * - Full analysis runs when a turn ends. It sees the requests, the agent's
- *   final reply, and the agent's own report, so it settles the goal, and
+ *   final reply, and the agent's own report, so it settles the title, and
  *   gives the turn's status when the agent didn't report one. Placement
  *   settles the topic (see placement.ts).
+ *
+ * Both write a title as two parts, an -ing verb and its subject, which code
+ * joins (`composeTitle`), so the form is the output's shape rather than a rule
+ * the model may drop.
  */
 import { z } from "zod";
-import {
-  identityCandidateSchema,
-  type IdentityCandidate,
-  type ThreadObjective,
-} from "./identity.ts";
 import {
   emptyObservations,
   nameObservationsSchema,
@@ -47,8 +46,8 @@ export const RECAP_MAX = 140;
 /**
  * A thread's goal is its title: the sidebar row, the heading, and every other
  * place that names the thread show the same phrase. A sidebar row shows about
- * 30 characters before it truncates, so goals aim there (`GOAL_FORM`); this
- * is BB's own cap for generated titles, past which a goal is dropped.
+ * 34 characters before it truncates, so titles aim there (`TITLE_RULES`);
+ * this is BB's own cap for generated titles, past which a title is dropped.
  */
 export const GOAL_MAX = 48;
 /** A request is excerpted to this much for Quick analysis. */
@@ -59,10 +58,8 @@ export type ThreadAnalysis = {
   readonly recap: string;
   readonly state: WorkState;
   readonly needsYou: string | null;
-  /** What the thread is for, which is also its title. */
+  /** The goal the thread works toward, which is also its title. */
   readonly goal: string | null;
-  readonly objective?: ThreadObjective | null;
-  readonly identityVersion?: number;
   readonly topicError?: string;
   /** The thread's `latestAttentionAt` when it was analyzed. */
   readonly revision: number;
@@ -115,33 +112,57 @@ const clipped = (max: number) =>
     .min(1)
     .transform((text) => clip(text, max));
 
+// Titles ------------------------------------------------------------------
+
 /**
- * The goal as the model wrote it, cleaned for use as a title. One that is too
- * long is dropped rather than cut: a clipped name reads as the incomplete kind
- * a title is meant to replace, and the thread keeps its previous goal instead.
+ * How both analyses write a title: the goal the thread works toward, phrased
+ * as what you're doing, in two parts code joins. The goal outlasts the steps
+ * toward it, so the verb names the overall work, not the latest subtask.
  */
-const goalSchema = z
-  .string()
-  .transform(cleanGoal)
-  .pipe(z.string().min(1).max(GOAL_MAX))
+const TITLE_RULES = `Two parts that read together as "<verb> <subject>", naming the goal you're working toward in this thread, phrased as what you're doing: "Redesigning settings page", "Reviewing Phase 3 rollout", "Fixing export job timeouts", "Explaining cache invalidation".
+  - verb: the kind of work, as one -ing verb (fixing, reviewing, explaining, investigating, migrating, designing). Choose what the work is, not how the request phrases it: a request that opens "Review PR 1207" is reviewing. It names the overall work, not the latest step: diagnosing, testing, or shipping on the way to a fix is still fixing. Never working, handling, or doing.
+  - subject: what the verb acts on, as it reads after the verb: the most specific words that tell this thread apart from similar work ("export job timeouts", not "export issues"), at most 3 words besides an identifier, no articles, lowercase except names and acronyms. With the verb, at most 34 characters: drop the least telling word to fit ("billing export retry queue" becomes "export retry queue"). Keep an identifier the request uses to tell sibling work apart, such as a phase or step number ("Step 2 schema"), but never an opaque ID. Name a pull request or issue by its subject; only when the subject is unknown, by its number ("PR 1207"). Name what a plan or document is about, not the document. Leave out names the listing shows and generic words such as plan, work, task, or changes.`;
+
+/** The title as a model writes it. */
+export type TitleParts = { readonly verb: string; readonly subject: string };
+
+/** The title field of an output schema: its parts, or null for none. */
+const titleFieldSchema = {
+  anyOf: [
+    { type: "null" },
+    {
+      type: "object",
+      additionalProperties: false,
+      properties: { verb: { type: "string" }, subject: { type: "string" } },
+      required: ["verb", "subject"],
+    },
+  ],
+};
+
+const titlePartsSchema = z
+  .object({ verb: z.string(), subject: z.string() })
   .nullable()
   .catch(null);
 
 /**
- * The form of a goal, shared by both analyses so a thread's first name and
- * its later names read alike. A title answers "what am I doing?" with an -ing
- * verb and its subject. It is read in a sidebar row that shows about 30
- * characters, under its workstream and any parent thread, so it stays short
- * and repeats nothing those already say.
+ * The parts joined as a title, without names the listing shows. A title too
+ * long for BB is dropped rather than cut: a clipped name reads as the
+ * incomplete kind a title is meant to replace.
  */
-const GOAL_FORM = `Answer "what am I doing?" with an -ing verb and what it acts on: 2–5 words, at most 34 characters, sentence case, no articles, no closing period. "Redesigning settings page", "Reviewing Phase 3 rollout", "Fixing export job timeouts", "Explaining cache invalidation". The first word always ends in -ing, even when the request opens with a command: "Review PR 1207" becomes "Reviewing PR 1207". Stay within 34 characters by dropping words the subject reads clearly without: "Investigating search indexer memory growth" becomes "Investigating indexer memory". Choose the verb that says what kind of work it is (fixing, reviewing, explaining, investigating, migrating), never working on, handling, or doing. Keep an identifier the request uses to tell sibling work apart, such as a phase or step number: "Migrating Step 2 schema". Name a pull request or issue by its subject; only when the subject is unknown, by its number ("Reviewing PR 1207"). Name what a plan or document is about, not the document. Leave out setup, progress, status, and generic words such as plan, work, task, or changes; the words after the verb name a specific subject ("Updating integration" says too little).`;
-
-/**
- * A generated title's opening -ing verb, held at generation where a schema
- * applies: a fast model otherwise echoes a request that opens with a command
- * ("Review PR 1207") instead of saying what the thread is doing.
- */
-const GOAL_PATTERN = "^[A-Z][a-z]+ing ";
+export function composeTitle(
+  parts: TitleParts | null | undefined,
+  listing: ThreadListing | null | undefined,
+): string | null {
+  if (!parts) return null;
+  const verb = cleanGoal(parts.verb).toLowerCase();
+  const subject = cleanGoal(parts.subject);
+  if (!verb || !subject) return null;
+  const title = dropListedPrefix(
+    `${verb[0]!.toUpperCase()}${verb.slice(1)} ${subject}`,
+    listing,
+  );
+  return title.length <= GOAL_MAX ? title : null;
+}
 
 /**
  * Where a thread is listed: its workstream's topic path and, for a child
@@ -233,8 +254,6 @@ const PROMPT_TAGS = [
   "title",
   "listed_under",
   "parent_thread",
-  "previous_title_candidate",
-  "durable_objective",
   "continuation_context",
   "checkout",
   "hint",
@@ -291,36 +310,56 @@ export const stripFence = (text: string) =>
 
 // Quick analysis ----------------------------------------------------------
 
-/** What Quick analysis sees: one request, its project, and the topic tree. */
+/**
+ * What Quick analysis sees: one request, its project, and, when it also
+ * chooses a topic (the composer's preview), the topic tree. A thread's
+ * opening title needs no topic: placement files the thread.
+ */
 export type QuickAnalysisInput = {
   readonly request: string;
   readonly project?: string | null;
-  readonly entities: readonly Entity[];
+  readonly entities: readonly Entity[] | null;
   readonly listing?: ThreadListing | null;
 };
 
 export function quickAnalysisPrompt(input: QuickAnalysisInput): string {
   const project = input.project ? redact(input.project).slice(0, 100) : null;
+  const topics = input.entities;
+  const goal = `- goal: the title wherever threads are listed. ${TITLE_RULES}
+  null when the request doesn't say what the work is (a greeting, or a bare "continue" or "yes").`;
   return `${HEADER}
 
-You name one new agent thread from its opening request and choose its topic, for someone who switches between dozens of threads. Work has only just begun, so name what the request asks for.
+You name one new agent thread from its opening request${topics ? " and choose its topic" : ""}, for someone who switches between dozens of threads. Work has only just begun, so name what the request asks for.
 
 ${tagged("opening_request", excerpt(redact(input.request), QUICK_REQUEST_CHARS))}
-${project ? `\nThe project the thread runs in:\n${tagged("project", project)}\n` : ""}${input.listing?.group || input.listing?.parent ? `\n${listingBlock(input.listing)}\n` : ""}
+${project ? `\nThe project the thread runs in:\n${tagged("project", project)}\n` : ""}${input.listing?.group || input.listing?.parent ? `\n${listingBlock(input.listing)}\n` : ""}${
+    topics
+      ? `
 The topic tree, where indentation expresses parentage and each topic's ID is in square brackets:
-${tagged("topic_tree", topicTreeBlock(input.entities))}
+${tagged("topic_tree", topicTreeBlock(topics))}
 
-Return {"goal": string|null, "subjectId": string|null, "proposed": object|null}:
-- goal: what you are doing in this thread, which becomes its title wherever threads are listed. ${GOAL_FORM} null when the request doesn't say what the work is (a greeting, or a bare "continue" or "yes").
+Return {"goal": {"verb": string, "subject": string}|null, "subjectId": string|null, "proposed": object|null}:
+${goal}
 - subjectId / proposed: the most specific supported topic. subjectId copies only the exact identifier inside square brackets in the tree, not its name or path. An execution tool mentioned only as the method for unspecified work does not establish a topic; return both fields null when the work's owner is unknown.
 
-${CLASSIFICATION_RULES}`;
+${CLASSIFICATION_RULES}`
+      : `
+Return {"goal": {"verb": string, "subject": string}|null}:
+${goal}`
+  }`;
 }
 
 /** JSON Schema constrains IDs at generation as well as at application. */
 export function quickAnalysisSchema(
   input: Pick<QuickAnalysisInput, "entities">,
 ): Record<string, unknown> {
+  if (!input.entities)
+    return {
+      type: "object",
+      additionalProperties: false,
+      properties: { goal: titleFieldSchema },
+      required: ["goal"],
+    };
   const nullableId = {
     type: ["string", "null"],
     enum: [null, ...input.entities.map((e) => e.id)],
@@ -335,7 +374,7 @@ export function quickAnalysisSchema(
     type: "object",
     additionalProperties: false,
     properties: {
-      goal: { type: ["string", "null"], pattern: GOAL_PATTERN },
+      goal: titleFieldSchema,
       subjectId: nullableId,
       proposed: {
         anyOf: [
@@ -359,7 +398,7 @@ export function quickAnalysisSchema(
 }
 
 const quickOutputSchema = z.object({
-  goal: goalSchema.optional().default(null),
+  goal: titlePartsSchema.optional().default(null),
 });
 
 export type QuickAnalysisOutput = {
@@ -389,11 +428,10 @@ export function parseQuickAnalysis(
   input: Pick<QuickAnalysisInput, "entities" | "listing">,
 ): QuickAnalysisOutput {
   const raw: unknown = JSON.parse(stripFence(text));
-  const parsed = quickOutputSchema.parse(raw);
-  return {
-    goal: parsed.goal ? dropListedPrefix(parsed.goal, input.listing) : null,
-    ...checkedTopic(raw, input.entities),
-  };
+  const goal = composeTitle(quickOutputSchema.parse(raw).goal, input.listing);
+  return input.entities
+    ? { goal, ...checkedTopic(raw, input.entities) }
+    : { goal, subjectId: null, proposed: null };
 }
 
 // Full analysis -----------------------------------------------------------
@@ -405,34 +443,38 @@ export type AgentReport = {
   readonly latest: readonly string[];
 };
 
+/**
+ * Who gave the thread its current title, which decides what Full analysis may
+ * do with it: Workstreams may keep or replace its own title, names a thread
+ * BB or an agent titled or that has none, and leaves one you renamed alone.
+ */
+export type TitledBy = "workstreams" | "other" | "none" | "you";
+
 export type FullAnalysisInput = {
-  /**
-   * The title BB displays, which is a placeholder when `untitled` is set.
-   * Once Workstreams has titled the thread it is the previous goal.
-   */
+  /** The title BB displays: the thread's own, or BB's placeholder. */
   readonly title: string;
-  /** Previous title candidate, used to resolve the context of follow-ups. */
-  readonly previousGoal?: string | null;
-  readonly previousObjective?: ThreadObjective | null;
+  readonly titledBy: TitledBy;
   /** Bounded context from an explicitly referenced continuation thread. */
   readonly continuation?: string | null;
-  readonly untitled?: boolean;
   readonly listing?: ThreadListing | null;
   /** Oldest first: the opening request, then the latest ones. */
   readonly requests: readonly {
     readonly text: string;
     readonly initial: boolean;
-    readonly id?: string;
   }[];
   readonly lastAssistantText: string | null;
   /** The agent's own report of this turn; its status needs no inference. */
   readonly report?: AgentReport | null;
   /**
-   * `full` settles the goal because the requests changed; `status` only
+   * `full` settles the title because the requests changed; `status` only
    * describes how the turn ended.
    */
   readonly mode: "full" | "status";
 };
+
+/** Whether the analysis names the thread: only after new requests, and never over your own title. */
+const namesThread = (input: Pick<FullAnalysisInput, "mode" | "titledBy">) =>
+  input.mode === "full" && input.titledBy !== "you";
 
 const REQUEST_CHARS = 1500;
 const INITIAL_CHARS = 1800;
@@ -448,12 +490,8 @@ export function conversationBlock(
   const cut = (text: string, max: number) => excerpt(redact(text), max);
   const parts = input.requests.map((request) =>
     request.initial
-      ? tagged("opening_request", cut(request.text, INITIAL_CHARS), {
-          id: request.id,
-        })
-      : tagged("user_request", cut(request.text, REQUEST_CHARS), {
-          id: request.id,
-        }),
+      ? tagged("opening_request", cut(request.text, INITIAL_CHARS))
+      : tagged("user_request", cut(request.text, REQUEST_CHARS)),
   );
   if (input.lastAssistantText)
     parts.push(
@@ -470,8 +508,22 @@ const STATUS_FIELDS = `- recap: at most ${RECAP_MAX} characters. Where the work 
 - state: "needs_decision" when the last message asks the user something specific (a question, a choice, permission, "want me to…?") or needs a step only the user can take; closing boilerplate like "let me know" doesn't count. "review" when a finished deliverable waits on the user to review, test, merge, or ship. "blocked" when waiting on something other than the user. "done" only when the thread has reached a natural end: the latest request is fully answered or completed, and there are no outstanding tasks, unfinished implementation, failing tests, pending follow-ups, or work left for the agent or user. An answered question can be done. A completed intermediate step is not done when the broader requested work remains. Otherwise "in_progress".
 - needsYou: when state is "needs_decision", the ask in at most 80 characters; otherwise null.`;
 
-const GOAL_FIELD = `- goal: the title, saying what the thread is doing toward its overall objective. ${GOAL_FORM} Preserve its identity across diagnosis, implementation, review, testing, and shipping subtasks; its verb names the overall work, not the current step, so a thread building a feature stays "Building …" while it tests or ships it. Findings clarify the objective; a user direction change can replace it. Distinguish the requested deliverable: an audit or proposal remains an audit or proposal until implementation is requested.
-- identity: {"change":"keep"|"refine"|"pivot", "summary":string, "title":string, "evidenceIds":string[]}. summary describes the durable objective and its scope in at most 1200 characters, independently of the latest task or status. title follows the goal form above and equals goal. Use keep when the current objective still identifies the overall work; carry its summary and title forward. Use refine when new user evidence makes an initially vague objective more precise; cite at least one request ID not already retained in the objective. Use pivot when the user changes the overall direction, supported by the latest user request ID. Cite request IDs: the id attributes in <conversation> or the evidenceIds in <durable_objective>; these identify the evidence, not topics. Establish an objective from the opening request when none exists. Incidental product mentions and agent recap headlines describe evidence or the latest task, not a direction change. A schema investigation supporting deployment readiness, for example, keeps the deployment objective while its recap describes the investigation.`;
+/** The title field, by what the analysis may do with the current title. */
+function titleField(titledBy: TitledBy): string {
+  const when =
+    titledBy === "workstreams"
+      ? "null keeps the current title: return null while it still names the goal, and new parts only when the user's requests changed the goal, not when the work moved to its next step or the wording could be better."
+      : "null only when the requests don't say what the work is.";
+  return `- goal: the thread's title. ${TITLE_RULES}
+  An audit or proposal stays an audit or proposal until implementation is requested. ${when}`;
+}
+
+const TITLE_SECTION: Record<TitledBy, string> = {
+  workstreams: "The thread's title, which Workstreams wrote:",
+  other: "The thread's title, which BB or an agent gave it:",
+  none: "The thread has no title yet; BB shows this placeholder:",
+  you: "The thread's title, which the user gave it:",
+};
 
 export function fullAnalysisPrompt(input: FullAnalysisInput): string {
   const report = input.report ?? null;
@@ -485,22 +537,15 @@ export function fullAnalysisPrompt(input: FullAnalysisInput): string {
     fields.push(STATUS_FIELDS);
     keys.push('"recap": string', '"state": string', '"needsYou": string|null');
   }
-  if (input.mode === "full") {
-    fields.push(GOAL_FIELD);
-    keys.push('"goal": string|null', '"identity": object|null');
+  const naming = namesThread(input);
+  if (naming) {
+    fields.push(titleField(input.titledBy));
+    keys.push('"goal": {"verb": string, "subject": string}|null');
   }
   const sections = [
-    input.untitled
-      ? `The thread has no title yet; BB shows this placeholder:\n${tagged("title", redact(input.title), { placeholder: "true" })}`
-      : `The thread's title:\n${tagged("title", redact(input.title))}`,
-    input.previousGoal
-      ? `The previous title candidate, which is context, not authority:\n${tagged("previous_title_candidate", redact(input.previousGoal))}`
-      : "No goal has been settled yet.",
-    input.previousObjective
-      ? `The thread's durable objective:\n${tagged("durable_objective", redact(JSON.stringify(input.previousObjective)))}`
-      : "Establish the overall objective from user evidence.",
+    `${TITLE_SECTION[input.titledBy]}\n${tagged("title", redact(input.title))}`,
   ];
-  if (input.mode === "full" && (input.listing?.group || input.listing?.parent))
+  if (naming && (input.listing?.group || input.listing?.parent))
     sections.push(listingBlock(input.listing));
   if (input.continuation)
     sections.push(
@@ -529,29 +574,70 @@ Return {${keys.join(", ")}}:
 ${fields.join("\n")}`;
 }
 
+/** JSON Schema for exactly the fields the prompt asks for. */
+export function fullAnalysisSchema(
+  input: Pick<FullAnalysisInput, "report" | "mode" | "titledBy">,
+): Record<string, unknown> {
+  const properties: Record<string, unknown> = {
+    names: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        products: { type: "array", items: { type: "string" } },
+        features: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              name: { type: "string" },
+              product: { type: ["string", "null"] },
+            },
+            required: ["name", "product"],
+          },
+        },
+      },
+      required: ["products", "features"],
+    },
+  };
+  if (!input.report) {
+    properties.recap = { type: "string" };
+    properties.state = { type: "string", enum: [...WORK_STATES] };
+    properties.needsYou = { type: ["string", "null"] };
+  }
+  if (namesThread(input)) properties.goal = titleFieldSchema;
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties,
+    required: Object.keys(properties),
+  };
+}
+
 const fullOutputSchema = z.object({
   // An unknown state must not discard an otherwise good result.
   recap: clipped(RECAP_MAX).optional(),
   state: z.enum(WORK_STATES).catch("in_progress").optional(),
   needsYou: clipped(80).nullable().catch(null).optional(),
-  goal: goalSchema.optional(),
-  identity: identityCandidateSchema.nullable().catch(null).optional(),
+  goal: titlePartsSchema.optional(),
   names: nameObservationsSchema.catch(emptyObservations).optional(),
 });
 
 export type FullAnalysisOutput = {
   names: NameObservations;
-  identity: IdentityCandidate | null;
   /** Present only when the agent didn't report the turn. */
   status: { recap: string; state: WorkState; needsYou: string | null } | null;
-  /** Present only in `full` mode. */
+  /**
+   * A new title, or null to keep the current one. Asked only after new
+   * requests, and never over a title you gave the thread.
+   */
   goal: string | null;
 };
 
 /** Strips an optional Markdown fence, then validates against what was asked. */
 export function parseFullAnalysis(
   text: string,
-  input: Pick<FullAnalysisInput, "report" | "mode" | "listing">,
+  input: Pick<FullAnalysisInput, "report" | "mode" | "titledBy" | "listing">,
 ): FullAnalysisOutput {
   const raw: unknown = JSON.parse(stripFence(text));
   const parsed = fullOutputSchema.parse(raw);
@@ -565,16 +651,10 @@ export function parseFullAnalysis(
       needsYou: state === "needs_decision" ? (parsed.needsYou ?? null) : null,
     };
   }
-  const goal = input.mode === "full" ? (parsed.goal ?? null) : null;
-  const identity = input.mode === "full" ? (parsed.identity ?? null) : null;
   return {
     status,
-    identity: identity && {
-      ...identity,
-      title: dropListedPrefix(identity.title, input.listing),
-    },
     names: parsed.names ?? emptyObservations(),
-    goal: goal && dropListedPrefix(goal, input.listing),
+    goal: namesThread(input) ? composeTitle(parsed.goal, input.listing) : null,
   };
 }
 
@@ -593,51 +673,4 @@ export function isCurrent(
     thread.status === "idle" &&
     analysis.revision >= thread.latestAttentionAt
   );
-}
-
-// Restyle -----------------------------------------------------------------
-
-/**
- * A thread Workstreams titled in an earlier title form, to rename in the
- * current one (`GOAL_FORM`) without changing what it names.
- */
-export type RestyleInput = {
-  readonly title: string;
-  /** What the thread is for: its durable objective, when it has one. */
-  readonly objective: string | null;
-  readonly listing?: ThreadListing | null;
-};
-
-export function restylePrompt(input: RestyleInput): string {
-  const listing = listingBlock(input.listing);
-  return `${HEADER}
-
-You rename one agent thread whose title was written in an older style, for someone who switches between dozens of threads. The new title names the same subject as the current one, in its words where you can, and keeps its names, identifiers, and numbers unless the listing below already shows them; only the form changes. What the thread is for helps you choose the verb and understand the title; don't name its details instead.
-
-The current title:
-${tagged("title", redact(input.title))}
-${input.objective ? `\nWhat the thread is for:\n${tagged("durable_objective", excerpt(redact(input.objective), 1200))}\n` : ""}${listing ? `\n${listing}\n` : ""}
-Return {"title": string}. ${GOAL_FORM}`;
-}
-
-export function restyleSchema(): Record<string, unknown> {
-  return {
-    type: "object",
-    additionalProperties: false,
-    properties: { title: { type: "string", pattern: GOAL_PATTERN } },
-    required: ["title"],
-  };
-}
-
-/** The new title, or null when the model's was too long or empty. */
-export function parseRestyle(
-  text: string,
-  input: Pick<RestyleInput, "listing">,
-): { title: string | null } {
-  const parsed = z
-    .object({ title: goalSchema })
-    .parse(JSON.parse(stripFence(text)));
-  return {
-    title: parsed.title ? dropListedPrefix(parsed.title, input.listing) : null,
-  };
 }

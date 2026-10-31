@@ -36,9 +36,12 @@ budget. A small perfect synthetic run is not a production accuracy estimate. See
 `node eval/titles.ts` runs Quick analysis's prompt, schema, and parser on
 synthetic opening requests, each listed under a workstream and sometimes a
 parent thread; `EVAL_KIND=full` runs Full analysis's on the same requests as a
-first turn. A title passes when it starts with an -ing verb that says what kind
-of work it is, names its case's subject, repeats nothing its listing shows, and
-fits a sidebar row (`EVAL_VISIBLE`, default `34` characters).
+first turn. `EVAL_KIND=follow` gives Full analysis a title Workstreams wrote and
+a later request: a request that only takes the work to its next step must keep
+the title, and one that changes the goal must rename it. A title passes when it
+starts with an -ing verb that says what kind of work it is, names its case's
+subject, repeats nothing its listing shows, and fits a sidebar row
+(`EVAL_VISIBLE`, default `34` characters).
 
 - `EVAL_MODEL`: default `openai/gpt-6-luna-fast` (Quick) or
   `openai/gpt-6-sol-fast` (Full)
@@ -60,14 +63,6 @@ name their own edit's topics, and checks renames on moves.
 - `EVAL_REPETITIONS`: repeat each case 1–20 times; default `3`
 - `EVAL_CASE`: run one case by ID
 - `EVAL_OUTPUT`: JSON report path; default `/tmp/tidy-eval.json`
-
-## Identity trajectories
-
-`node eval/identity.ts` evaluates establishment, refinement, subtask stability,
-and an explicit user pivot through Full analysis and the identity-transition
-policy. `EVAL_MODEL` defaults to `openai/gpt-6-luna-fast`; `EVAL_OUTPUT`
-defaults to `/tmp/identity-eval.json`. The runner preserves raw outputs and
-exits nonzero on a failed transition.
 
 ## Composed replies
 

@@ -55,8 +55,6 @@ const titleRecord = (w: World, id: string) =>
         observed: string | null;
         written: string | null;
         locked: number;
-        provisional: number;
-        retitled_at: number | null;
       }
     | undefined;
 
@@ -174,7 +172,6 @@ describe("naming a thread from its opening request", () => {
     expect(titleRecord(w, "t1")).toMatchObject({
       written: "Fix stale build cache",
       locked: 0,
-      provisional: 1,
     });
   });
 
@@ -188,8 +185,10 @@ describe("naming a thread from its opening request", () => {
     expect(model).toBe("openai/gpt-6-luna-fast");
     expect(prompt).toContain(REQUEST);
     expect(prompt).toContain(
-      'Return {"goal": string|null, "subjectId": string|null',
+      'Return {"goal": {"verb": string, "subject": string}|null}',
     );
+    // Placement files the thread; naming it needs no topic tree.
+    expect(prompt).not.toContain("<topic_tree>");
     expect(prompt).not.toContain("Last assistant");
     expect(prompt).not.toContain("Zebracorn");
     // BB re-runs the hook for a queued message, a retry, and a restart; the
@@ -220,12 +219,11 @@ describe("naming a thread from its opening request", () => {
     await settle(6_000);
     expect(w.threads.get("t1")?.title).toBe("Speed up the monorepo build");
     expect((await retitles(w)).map((e) => e.rationale)).toEqual([
-      "Retitled after the first turn from Fix stale build cache",
+      "Retitled from Fix stale build cache",
       "Titled from the opening request",
     ]);
     expect(titleRecord(w, "t1")).toMatchObject({
       written: "Speed up the monorepo build",
-      provisional: 0,
     });
 
     w.converse("t1", [REQUEST, "Cache the monorepo build"]);
@@ -249,7 +247,6 @@ describe("naming a thread from its opening request", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     await finishTurn(w, "t1", 200);
     await settle(6_000);
-    expect(titleRecord(w, "t1")).toMatchObject({ provisional: 0 });
     expect(await retitles(w)).toHaveLength(1);
     w.converse("t1", [REQUEST, "Cache the monorepo build"]);
     await finishTurn(w, "t1", 300);
@@ -286,7 +283,7 @@ describe("naming a thread from its opening request", () => {
     w.bb.storage
       .database()
       .prepare(
-        "INSERT INTO ws_title (thread_id, observed, written, locked, retitled_at, provisional) VALUES ('t1', NULL, NULL, 1, NULL, 0)",
+        "INSERT INTO ws_title (thread_id, observed, written, locked) VALUES ('t1', NULL, NULL, 1)",
       )
       .run();
     await firstMessage(w);
@@ -315,7 +312,7 @@ describe("naming a thread from its opening request", () => {
     await finishTurn(w, "t1", 200);
     await settle(6_000);
     expect(w.threads.get("t1")?.title).toBe("Speed up the monorepo build");
-    expect(titleRecord(w, "t1")).toMatchObject({ locked: 0, provisional: 0 });
+    expect(titleRecord(w, "t1")).toMatchObject({ locked: 0 });
   });
 
   it("makes no call when titles are turned off", async () => {

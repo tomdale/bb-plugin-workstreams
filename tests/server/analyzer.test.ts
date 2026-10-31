@@ -73,7 +73,7 @@ describe("idle analysis", () => {
     expect(
       prompt.indexOf("Investigate recurring scheduler schema errors"),
     ).toBeLessThan(prompt.indexOf("Remove change-specific README details"));
-    expect(prompt).toContain("Preserve its identity across diagnosis");
+    expect(prompt).toContain("names the overall work, not the latest step");
   });
   it("persists observed names across runs without altering manual topics and deletes them with the thread", async () => {
     let count = 0;
@@ -134,11 +134,7 @@ describe("idle analysis", () => {
     expect(analyses(w)[0]!.prompt).toContain("Fixed; tests pass.");
     expect(analyses(w)[0]!.model).toBe("openai/gpt-6-sol-fast");
     const { analysis } = await state(w);
-    expect(analysis.t1).toMatchObject({
-      state: "review",
-      revision: 500,
-      goal: "Thread t1",
-    });
+    expect(analysis.t1).toMatchObject({ state: "review", revision: 500 });
   });
 
   it("drops a scheduled run when a new turn starts first", async () => {
@@ -269,13 +265,8 @@ describe("idle analysis", () => {
     for (const c of w.completions) expect(c.prompt).not.toContain("proj_");
   });
 
-  it("uses the previous durable goal as input and carries it forward when omitted", async () => {
-    let previous: string | null = null;
-    const w = await setup(({ prompt }) => {
-      const match = prompt.match(
-        /<previous_title_candidate>\n([^\n]+)\n<\/previous_title_candidate>/,
-      );
-      previous = match?.[1] ?? null;
+  it("carries the settled title forward when an analysis gives none", async () => {
+    const w = await setup(() => {
       return JSON.stringify({
         recap: "Still making progress",
         state: "in_progress",
@@ -288,7 +279,6 @@ describe("idle analysis", () => {
     expect((await state(w)).analysis.t1?.goal).toBe(
       "Make onboarding easier to complete",
     );
-    expect(previous).toBeNull();
 
     const w2 = await setup(() =>
       JSON.stringify({ recap: "Side question answered", state: "done" }),
@@ -321,9 +311,6 @@ describe("idle analysis", () => {
         }),
       );
     await w2.harness.behavior.runCli(["analyze", "t2"]);
-    expect(w2.completions.at(-1)?.prompt).toContain(
-      "<previous_title_candidate>\nMake onboarding easier to complete\n</previous_title_candidate>",
-    );
     expect(w2.completions.at(-1)?.prompt).not.toContain("Legacy inferred");
     expect((await state(w2)).analysis.t2?.goal).toBe(
       "Make onboarding easier to complete",

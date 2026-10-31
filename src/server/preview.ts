@@ -25,7 +25,7 @@ export type Preview = {
   subject: string | null;
   subjectId?: string | null;
   proposal?: DraftSubjectProposal | null;
-  /** Quick analysis's goal for the thread: its provisional title. */
+  /** Quick analysis's goal for the thread: its opening title. */
   goal?: string | null;
   /** The debug trace of the model call behind it, if any. */
   traceId: string | null;

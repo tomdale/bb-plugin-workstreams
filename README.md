@@ -72,8 +72,8 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
      topic-repair plan or accept a suggestion.
    - `full` (settled by placement from the thread's requests) replaces `quick`
      and updates prior `full` assignments.
-   - `quick` (initial guess from Quick analysis) fills only threads without a
-     stronger source.
+   - `quick` (the topic the composer's Quick analysis preview showed) fills only
+     threads without a stronger source.
 4. **Agent reports outrank fallback status.** Structured questions
    (`AskUserQuestion`) and agent recaps (`WorkstreamsRecap`) take precedence
    over Full analysis for thread status, recap text, and `needs you` prompts.
@@ -96,9 +96,9 @@ phones):
 
 - **Automatic (`✦`, default):** Runs **Quick analysis** on your draft while you
   type (after a `250 ms` pause, or `900 ms` for drafts of `20` characters or
-  fewer) to preview a goal and topic. When you send the first request, a
+  fewer) to preview a title and topic. When you send the first request, a
   matching draft preview is reused immediately without a second model call;
-  otherwise Quick analysis runs on the sent request.
+  otherwise Quick analysis titles the sent request.
 - **Explicit workstream reference:** A draft containing `@section:<id>` resolves
   to that section's bound topic without a model call when typing suggestions are
   enabled. For example, `@section:sec_0123456789` uses a native BB section ID,
@@ -116,14 +116,15 @@ phones):
   (`manual` provenance, keeping the thread **Unfiled**).
 
 Quick analysis defaults to schema-constrained `openai/gpt-6-luna-fast` with
-reasoning disabled (`15 s` timeout, up to `4` in-flight calls). Title and topic
-outputs validate independently: an invalid topic receives one bounded repair
-attempt within the remaining time budget and never blocks a valid opening title
-or clears an existing assignment. Opening titles only fill threads that do not
-yet have a title while the first turn is still running.
+reasoning disabled (`15 s` timeout, up to `4` in-flight calls). A draft
+preview's title and topic validate independently: an invalid topic receives one
+bounded repair attempt within the remaining time budget and never blocks a valid
+title. Opening titles only fill threads that do not yet have a title while the
+first turn is still running.
 
-A new root's first request is also **placed** right away (see below), so Quick
-analysis's topic is a guess that placement settles within a few seconds.
+A new root's first request is also **placed** right away (see below), so the
+thread is filed within a few seconds; the opening title call doesn't choose a
+topic.
 
 ### 2. Turn end & Full analysis
 
@@ -131,30 +132,28 @@ When a visible, non-archived thread goes idle after a turn (`5 s` debounce, up
 to `4` concurrent runs), **Full analysis** runs with:
 
 - The thread's opening request, recent substantive user requests (control-only
-  replies such as `continue`, `yes`, or `ok` do not redefine the thread's
-  objective), referenced continuation threads (`@thread:`), and the latest
-  assistant reply.
-- The thread's current durable objective and title, and the latest agent recap
-  if one was recorded.
+  replies such as `continue`, `yes`, or `ok` don't count as new requests),
+  referenced continuation threads (`@thread:`), and the latest assistant reply.
+- The thread's current title and who gave it, and the latest agent recap if one
+  was recorded.
 
 Full analysis settles:
 
-- **Durable objective and goal (title):** Evaluates whether the thread's
-  objective should `keep`, `refine` (requires new user request evidence), or
-  `pivot` (requires the latest user request). When **Keep titles current** is
-  enabled, Workstreams updates the thread title. Titles answer "what am I
-  doing?" with an -ing verb that says what kind of work it is and the subject it
-  acts on ("Reviewing Phase 1 security", not "Review Phase 1 security and
-  boundaries"); the verb names the overall work, so it stays put while the
-  thread tests or ships it. Titles keep identifiers such as a phase number, name
-  a pull request by its subject rather than its number, and leave out what the
-  thread's workstream and parent thread already say: Quick and Full analysis see
-  both, and a workstream name at the start or right after the verb is dropped
-  from the result. They aim under `34` characters; titles over `48` are dropped
-  rather than clipped. If you rename a thread outside Workstreams, that title is
-  locked and preserved until cleared. `bb workstreams titles restyle` proposes
-  titles in this form for threads Workstreams titled earlier, using
-  `openai/gpt-6-sol` (reasoning `low`), and `--apply` renames them.
+- **Title:** After a turn that followed a new request from you, when **Keep
+  titles current** is enabled. A title names the goal you're working toward,
+  phrased as what you're doing: an -ing verb that says what kind of work it is
+  and the subject it acts on ("Reviewing Phase 1 security", not "Review Phase 1
+  security and boundaries"). Both analyses write it as those two parts, and
+  Workstreams joins them. The verb names the overall work, not the latest step,
+  so a title Workstreams wrote is kept while the thread diagnoses, tests, or
+  ships, and replaced when your requests change the goal; a title BB or an agent
+  gave the thread is replaced. Titles keep identifiers such as a phase number,
+  name a pull request by its subject rather than its number, and leave out what
+  the thread's workstream and parent thread already say: both analyses see both,
+  and a workstream name at the start or right after the verb is dropped from the
+  result. They aim under `34` characters; titles over `48` are dropped rather
+  than clipped. If you rename a thread outside Workstreams, Full analysis stops
+  titling it until the title is cleared.
 - **Fallback recap and status:** Only when the agent did not call
   `WorkstreamsRecap`, Full analysis supplies a one-line recap, work state
   (`needs_decision`, `review`, `blocked`, `in_progress`, or `done`), and a short
@@ -763,10 +762,7 @@ bb workstreams suggestions run [--json]
 bb workstreams suggestions accept <id...|all> [--json]
 bb workstreams suggestions decline <id...|all> [--json]
 
-# Propose titles in the current form for threads Workstreams titled earlier; --apply renames them (titles you renamed stay)
-bb workstreams titles restyle [--apply] [--json]
-
-# Inspect recorded Debug-mode model traces (kinds: quick-analysis, full-analysis, placement, split, tidy, restyle)
+# Inspect recorded Debug-mode model traces (kinds: quick-analysis, full-analysis, placement, split, tidy)
 bb workstreams trace [<trace-id>] [--thread <id>] [--entry <id>] [--kind <kind>] [--limit 1..500] [--json]
 ```
 

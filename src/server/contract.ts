@@ -7,7 +7,6 @@ import {
   interactionResponseSchema,
 } from "./questions/contracts.ts";
 import { z } from "zod";
-import { objectiveSchema } from "../domain/identity.ts";
 import { WORK_STATES } from "../domain/analysis.ts";
 import { observedNamesSchema } from "../domain/name-observations.ts";
 import { prefsPatchSchema, prefsSchema } from "../domain/prefs.ts";
@@ -33,8 +32,6 @@ const analysisSchema = z.object({
   needsYou: z.string().nullable(),
   // What the thread is for, which is also its title. Older rows predate goals.
   goal: z.string().nullable().default(null),
-  objective: objectiveSchema.nullable().optional(),
-  identityVersion: z.number().optional(),
   topicError: z.string().optional(),
   revision: z.number(),
   at: z.number(),
@@ -315,7 +312,7 @@ export const previewSchema = z.object({
   subject: z.string().nullable(),
   subjectId: z.string().nullable().optional(),
   proposal: draftSubjectProposalSchema.nullable().optional(),
-  /** Quick analysis's goal for the new thread, its provisional title. */
+  /** Quick analysis's goal for the new thread, its opening title. */
   goal: z.string().nullable().optional(),
   traceId: z.string().nullable(),
   explanation: z

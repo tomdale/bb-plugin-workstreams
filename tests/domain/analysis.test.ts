@@ -3,6 +3,7 @@ import {
   GOAL_MAX,
   RECAP_MAX,
   fullAnalysisPrompt,
+  fullAnalysisSchema,
   isCurrent,
   parseFullAnalysis,
   parseQuickAnalysis,
@@ -30,6 +31,7 @@ const entities = [
 
 const base: FullAnalysisInput = {
   title: "Fix stale build cache",
+  titledBy: "other",
   requests: [{ text: "The Lumen cache serves stale builds", initial: true }],
   lastAssistantText: "Found the invalidation bug; fixed it and tests pass.",
   mode: "full",
@@ -50,9 +52,58 @@ describe("Full analysis", () => {
   it("asks for status and goal, never a topic, after a new request with no report", () => {
     const prompt = fullAnalysisPrompt(base);
     expect(prompt).toContain('"recap": string');
-    expect(prompt).toContain('"goal": string|null');
+    expect(prompt).toContain(
+      '"goal": {"verb": string, "subject": string}|null',
+    );
     expect(prompt).not.toContain("subjectId");
     expect(prompt).not.toContain("topic_tree");
+  });
+
+  it("may keep only a title Workstreams wrote, and never names over yours", () => {
+    const keeps = "null keeps the current title";
+    expect(fullAnalysisPrompt(base)).not.toContain(keeps);
+    expect(fullAnalysisPrompt({ ...base, titledBy: "workstreams" })).toContain(
+      keeps,
+    );
+    const yours = { ...base, titledBy: "you" } as const;
+    expect(fullAnalysisPrompt(yours)).not.toContain("- goal:");
+    expect(fullAnalysisPrompt(yours)).toContain("which the user gave it");
+    expect(fullAnalysisSchema(yours)).not.toHaveProperty("properties.goal");
+    expect(fullAnalysisSchema(base)).toHaveProperty("properties.goal");
+    expect(
+      parseFullAnalysis(
+        JSON.stringify({
+          recap: "Done",
+          state: "done",
+          goal: { verb: "fixing", subject: "build cache" },
+        }),
+        yours,
+      ).goal,
+    ).toBeNull();
+  });
+
+  it("asks for exactly the fields the prompt names", () => {
+    const required = (input: FullAnalysisInput) =>
+      fullAnalysisSchema(input).required;
+    expect(required(base)).toEqual([
+      "names",
+      "recap",
+      "state",
+      "needsYou",
+      "goal",
+    ]);
+    expect(required({ ...base, mode: "status" })).toEqual([
+      "names",
+      "recap",
+      "state",
+      "needsYou",
+    ]);
+    expect(
+      required({
+        ...base,
+        report: { state: "complete", headline: "Done", latest: [] },
+      }),
+    ).toEqual(["names", "goal"]);
   });
 
   it("doesn't ask for status the agent already reported", () => {
@@ -62,15 +113,14 @@ describe("Full analysis", () => {
     });
     expect(prompt).toContain("reported this turn as complete");
     expect(prompt).not.toContain('"recap": string');
-    const parsed = parseFullAnalysis('{"goal":"Stale build cache"}', {
-      ...base,
-      report: { state: "complete", headline: "x", latest: [] },
-    });
+    const parsed = parseFullAnalysis(
+      '{"goal":{"verb":"fixing","subject":"stale build cache"}}',
+      { ...base, report: { state: "complete", headline: "x", latest: [] } },
+    );
     expect(parsed).toEqual({
       status: null,
-      identity: null,
       names: { products: [], features: [] },
-      goal: "Stale build cache",
+      goal: "Fixing stale build cache",
     });
   });
 
@@ -81,7 +131,6 @@ describe("Full analysis", () => {
     expect(
       parseFullAnalysis('{"recap":"Waiting on CI","state":"blocked"}', input),
     ).toEqual({
-      identity: null,
       names: { products: [], features: [] },
       status: { recap: "Waiting on CI", state: "blocked", needsYou: null },
       goal: null,
@@ -150,7 +199,7 @@ describe("Full analysis", () => {
           recap: "x ".repeat(200),
           state: "review",
           needsYou: "Approve?",
-          goal: "y".repeat(GOAL_MAX + 1),
+          goal: { verb: "Fixing", subject: "y".repeat(GOAL_MAX) },
         }) +
         "\n```",
       base,
@@ -165,17 +214,17 @@ describe("Full analysis", () => {
     const prompt = fullAnalysisPrompt({
       ...base,
       requests: [
-        { text: "Fix the cache", initial: true, id: "r:1" },
-        { text: "Now ship it", initial: false, id: "r:2" },
+        { text: "Fix the cache", initial: true },
+        { text: "Now ship it", initial: false },
       ],
     });
     expect(prompt).toContain(
       [
         "<conversation>",
-        '<opening_request id="r:1">',
+        "<opening_request>",
         "Fix the cache",
         "</opening_request>",
-        '<user_request id="r:2">',
+        "<user_request>",
         "Now ship it",
         "</user_request>",
         '<last_assistant_message verified="false">',
@@ -229,12 +278,31 @@ describe("Quick analysis", () => {
     expect(prompt).toContain("[lumen]");
   });
 
+  it("names a thread without a topic when it has no topic tree", () => {
+    const input = { request: "Fix the Lumen cache", entities: null };
+    const prompt = quickAnalysisPrompt(input);
+    expect(prompt).not.toContain("topic_tree");
+    expect(prompt).not.toContain("subjectId");
+    expect(quickAnalysisSchema(input)).toMatchObject({ required: ["goal"] });
+    expect(
+      parseQuickAnalysis(
+        '{"goal":{"verb":"Fixing","subject":"Lumen cache"}}',
+        input,
+      ),
+    ).toEqual({ goal: "Fixing Lumen cache", subjectId: null, proposed: null });
+  });
+
   it("parses a goal and topic, treating missing fields as none", () => {
     expect(
-      parseQuickAnalysis('{"goal":"Lumen cache.","subjectId":"cache"}', {
-        entities,
-      }),
-    ).toEqual({ goal: "Lumen cache", subjectId: "cache", proposed: null });
+      parseQuickAnalysis(
+        '{"goal":{"verb":"Fixing","subject":"Lumen cache."},"subjectId":"cache"}',
+        { entities },
+      ),
+    ).toEqual({
+      goal: "Fixing Lumen cache",
+      subjectId: "cache",
+      proposed: null,
+    });
     expect(parseQuickAnalysis("{}", { entities })).toEqual({
       goal: null,
       subjectId: null,

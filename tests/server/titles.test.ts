@@ -81,7 +81,7 @@ describe("keeping thread titles current", () => {
       .reverse()
       .find((c) => c.prompt.includes("You describe one agent thread"));
     expect(analysis!.prompt).toContain(
-      '<title placeholder="true">\nfix the cache thing…\n</title>',
+      "The thread has no title yet; BB shows this placeholder:\n<title>\nfix the cache thing…\n</title>",
     );
     expect(w.threads.get("t1")?.title).toBe("Fix stale build cache");
     const [entry] = await retitles(w);
@@ -98,11 +98,11 @@ describe("keeping thread titles current", () => {
     expect(w.threads.get("t1")?.title).toBe("Fix stale build cache");
   });
 
-  it("keeps the objective when later responses suggest a subtask title", async () => {
+  it("keeps a title it wrote when a later analysis gives none", async () => {
     // Before setup: the plugin captures Date.now when it loads.
     let now = 1_000_000;
     const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
-    const w = await setup(["Markdown viewer themes", "Markdown viewer fonts"]);
+    const w = await setup(["Markdown viewer themes", null]);
     w.addThread("t1", { title: "Explain build caching" });
     await rpc(w, "refresh", null);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -113,6 +113,11 @@ describe("keeping thread titles current", () => {
 
     now += 1;
     await turn(w, "t1", 200);
+    // The analysis may keep only a title Workstreams wrote.
+    const last = [...w.completions]
+      .reverse()
+      .find((c) => c.prompt.includes("You describe one agent thread"));
+    expect(last!.prompt).toContain("null keeps the current title");
     expect(w.threads.get("t1")?.title).toBe("Markdown viewer themes");
     expect(await retitles(w)).toHaveLength(1);
     clock.mockRestore();

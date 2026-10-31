@@ -5,12 +5,7 @@ import {
   type TitleRecord,
 } from "../../src/domain/titles.ts";
 
-const fresh: TitleRecord = {
-  observed: "Old",
-  written: null,
-  retitledAt: null,
-  provisional: false,
-};
+const fresh: TitleRecord = { observed: "Old", written: null };
 const thread = {
   title: "Old",
   displayTitle: "Old",
@@ -44,27 +39,26 @@ describe("observeTitle", () => {
       reason: "manual",
     });
   });
-  it("clears provisional status when a title is cleared or changed externally", () => {
-    const provisional = { ...fresh, written: "Old", provisional: true };
-    expect(observeTitle(provisional, "Old")).toBe(provisional);
-    expect(observeTitle(provisional, "Mine")).toMatchObject({
+  it("keeps a title Workstreams wrote unlocked, and unlocks a cleared one", () => {
+    const written = { ...fresh, written: "Old" };
+    expect(observeTitle(written, "Old")).toBe(written);
+    expect(observeTitle(written, "Mine")).toMatchObject({
       observed: "Mine",
-      provisional: false,
+      locked: true,
     });
-    expect(observeTitle(provisional, null)).toMatchObject({
+    expect(observeTitle({ ...written, locked: true }, null)).toMatchObject({
       observed: null,
-      provisional: false,
+      locked: false,
     });
   });
 });
 
 describe("retitleDecision", () => {
-  it("accepts current suggestions for recently retitled and provisional titles", () => {
+  it("accepts a current suggestion, including over a title Workstreams wrote", () => {
     expect(decide()).toEqual({ ok: true });
-    for (const provisional of [true, false])
-      expect(
-        decide({ record: { ...fresh, retitledAt: Date.now(), provisional } }),
-      ).toEqual({ ok: true });
+    expect(decide({ record: { ...fresh, written: "Old" } })).toEqual({
+      ok: true,
+    });
   });
   it("declines missing, unchanged, stale and running-turn suggestions", () => {
     expect(decide({ suggestion: null })).toEqual({
@@ -106,7 +100,7 @@ describe("retitleDecision", () => {
     expect(opening({ thread })).toEqual({ ok: false, reason: "titled" });
     expect(
       opening({
-        record: { ...fresh, written: "Old", provisional: true },
+        record: { ...fresh, written: "Old" },
         thread,
       }),
     ).toEqual({ ok: false, reason: "titled" });

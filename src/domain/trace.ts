@@ -18,7 +18,6 @@ export const TRACE_KINDS = [
   "placement",
   "split",
   "tidy",
-  "restyle",
 ] as const;
 export type TraceKind = (typeof TRACE_KINDS)[number];
 
@@ -98,7 +97,6 @@ export const TRACE_KIND_TITLE: Record<TraceKind, string> = {
   placement: "Placement",
   split: "Split suggestion",
   tidy: "Tidy suggestions",
-  restyle: "Retitle",
 };
 
 /** Compact labels for narrow columns, such as the Activity log's. */
@@ -108,7 +106,6 @@ export const TRACE_KIND_SHORT: Record<TraceKind, string> = {
   placement: "Placement",
   split: "Split",
   tidy: "Tidy",
-  restyle: "Retitle",
 };
 
 export const TRACE_STATUS_TITLE: Record<TraceStatus, string> = {

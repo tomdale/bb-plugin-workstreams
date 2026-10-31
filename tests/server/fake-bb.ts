@@ -32,6 +32,30 @@ export type FakeCompletion = (call: {
 
 /** How the placement prompt opens, so a fake can tell it apart. */
 const PLACEMENT = "You file one agent thread under a topic";
+/** How the prompts that write titles open. */
+const NAMING = [
+  "You name one new agent thread",
+  "You describe one agent thread",
+];
+
+/**
+ * Tests write a title as one string, `goal: "Fixing the pipeline"`; the
+ * analyses ask for its verb and subject, so split a test's answer for them.
+ */
+function asTitleParts(answer: string) {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(answer) as Record<string, unknown>;
+  } catch {
+    return answer;
+  }
+  if (typeof parsed.goal !== "string") return answer;
+  const [verb = "", ...subject] = parsed.goal.split(" ");
+  return JSON.stringify({
+    ...parsed,
+    goal: { verb, subject: subject.join(" ") },
+  });
+}
 
 /**
  * Tests answer every call with one JSON shape, naming a topic by its ID as
@@ -150,10 +174,13 @@ export async function fakeWorld(
       }) ?? DEFAULT_ANSWER);
       const usage = { input: 100, output: 20, cost: 0.0001 };
       const placing = input.prompt.includes(PLACEMENT);
+      const naming = NAMING.some((opening) => input.prompt.includes(opening));
       const translate = (text: string) =>
         placing
           ? asPlacement(text, new TopicStore(openDatabase(host.bb)).list())
-          : text;
+          : naming
+            ? asTitleParts(text)
+            : text;
       return typeof given === "string"
         ? { text: translate(given), usage }
         : { ...given, text: translate(given.text), usage, stopReason: "stop" };

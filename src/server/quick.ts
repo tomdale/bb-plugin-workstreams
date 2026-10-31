@@ -1,8 +1,8 @@
 /**
- * Quick analysis: a new thread's goal and topic from its first
- * request, while its first turn is still running, so the thread is titled and
- * filed within seconds instead of after a turn that may take an hour. Full
- * analysis of the first finished turn then settles both.
+ * Opening titles: Quick analysis names a new thread from its first request
+ * while its first turn is still running, so the thread is titled within
+ * seconds instead of after a turn that may take an hour. Placement files it
+ * meanwhile, and Full analysis of the first finished turn settles the title.
  *
  * Everything here is best effort and apart from the turn it describes:
  *
@@ -10,19 +10,13 @@
  *   which fails the message if its handler throws or is slow, so it only
  *   decides whether to start the call, and never throws.
  * - A failed or slow call is logged and forgotten; Full analysis covers it.
- * - A thread is tried once per run. Its title is written only while it has
- *   none of its own (the retitle policy re-checks at the write), and its
- *   topic only while it has none (the topic store enforces that).
- * - When the New thread composer already ran Quick analysis on the text that
- *   was sent, its result is applied as is, with no second call.
+ * - A thread is tried once per run, and titled only while it has no title of
+ *   its own (the retitle policy re-checks at the write).
+ * - When the New thread composer already named the text that was sent, that
+ *   title is applied as is, with no second call.
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import {
-  clip,
-  type QuickAnalysisOutput,
-  type ThreadListing,
-} from "../domain/analysis.ts";
-import type { Entity } from "../domain/classify.ts";
+import { clip, type ThreadListing } from "../domain/analysis.ts";
 import type { ModelChoice } from "../domain/prefs.ts";
 import type { Database } from "./db.ts";
 import type { InventoryThread } from "./inventory.ts";
@@ -92,18 +86,6 @@ export class QuickAnalysis {
       ) => Promise<void>;
       /** Where the thread is listed, so its title needn't repeat it. */
       listing?: (thread: OpeningThread) => ThreadListing;
-      /** Topics, for a root's first topic. */
-      topics?: {
-        entities(): Entity[];
-        project(projectId: string): Promise<string | null>;
-        /** Whether the thread has no topic yet, so a quick one may fill it. */
-        open(threadId: string): boolean;
-        apply(
-          threadId: string,
-          answer: Pick<QuickAnalysisOutput, "subjectId" | "proposed">,
-          traceId: string | null,
-        ): void;
-      };
       log: (message: string) => void;
     },
   ) {}
@@ -122,7 +104,7 @@ export class QuickAnalysis {
    * request is known: BB records the request only after admission. Queued
    * messages and retries come back through here, so a thread is tried once.
    */
-  onDispatch(ctx: OpeningDispatch, preset?: QuickAnalysisOutput | null): void {
+  onDispatch(ctx: OpeningDispatch, preset?: string | null): void {
     try {
       if (ctx.attempt !== "start-turn" || ctx.origin === null) return;
       if (preset) this.applyPreset(ctx.thread, preset);
@@ -132,34 +114,16 @@ export class QuickAnalysis {
     }
   }
 
-  /** Applies the composer's result for the text that was sent. */
-  private applyPreset(thread: OpeningThread, preset: QuickAnalysisOutput) {
-    const titled = this.eligible(thread);
-    if (!titled && !this.wantsTopic(thread)) return;
+  /** Applies the title the composer previewed for the text that was sent. */
+  private applyPreset(thread: OpeningThread, title: string) {
+    if (!this.eligible(thread)) return;
     this.tried.add(thread.id);
     const revision = thread.latestAttentionAt ?? thread.updatedAt;
-    if (this.wantsTopic(thread) && !preset.topicError)
-      this.deps.topics?.apply(thread.id, preset, null);
-    if (preset.goal && titled)
-      void this.deps
-        .apply(thread.id, preset.goal, revision, null)
-        .catch((error: unknown) =>
-          this.deps.log(
-            `Quick title for ${thread.id} failed: ${String(error)}`,
-          ),
-        );
-  }
-
-  /** A root with no topic yet, which Quick analysis may give one. */
-  private wantsTopic(thread: OpeningThread): boolean {
-    return (
-      !this.disposed &&
-      !this.deps.analyzed(thread.id) &&
-      !thread.parentThreadId &&
-      thread.visibility !== "hidden" &&
-      thread.archivedAt === null &&
-      (this.deps.topics?.open(thread.id) ?? false)
-    );
+    void this.deps
+      .apply(thread.id, title, revision, null)
+      .catch((error: unknown) =>
+        this.deps.log(`Quick title for ${thread.id} failed: ${String(error)}`),
+      );
   }
 
   /**
@@ -169,8 +133,7 @@ export class QuickAnalysis {
    */
   async onRunning(thread: OpeningThread): Promise<void> {
     try {
-      if (!this.eligible(thread) && !this.wantsTopic(thread)) return;
-      if (this.tried.has(thread.id)) return;
+      if (!this.eligible(thread)) return;
       const request = await openingRequest(this.deps.sdk(), thread.id);
       if (request) this.begin(thread, request);
     } catch (error) {
@@ -185,9 +148,7 @@ export class QuickAnalysis {
   sweep(threads: readonly InventoryThread[]): void {
     for (const candidate of threads) {
       if (
-        (candidate.ownTitle !== null &&
-          (candidate.parentThreadId !== null ||
-            !(this.deps.topics?.open(candidate.id) ?? false))) ||
+        candidate.ownTitle !== null ||
         candidate.status === "idle" ||
         candidate.status === "error" ||
         !this.available(candidate.id)
@@ -228,9 +189,7 @@ export class QuickAnalysis {
   }
 
   private begin(thread: OpeningThread, request: string): void {
-    if (!isUserRequest(request)) return;
-    if (!this.eligible(thread) && !this.wantsTopic(thread)) return;
-    if (this.tried.has(thread.id) || this.inFlight >= MAX_IN_FLIGHT) return;
+    if (!isUserRequest(request) || !this.eligible(thread)) return;
     this.tried.add(thread.id);
     this.inFlight++;
     void this.run(thread, request)
@@ -248,20 +207,12 @@ export class QuickAnalysis {
     // Anything that has happened to the thread since is the retitle policy's
     // to weigh against this revision.
     const revision = thread.latestAttentionAt ?? thread.updatedAt;
-    // The topic tree and project matter only when there's a topic to choose.
-    const topics = this.wantsTopic(thread) ? this.deps.topics : undefined;
     const evidence = threadEvidence({ ...thread, status: undefined });
-    const entities = topics?.entities() ?? [];
-    const project =
-      topics && thread.projectId
-        ? await topics.project(thread.projectId)
-        : null;
     const { value, traceId } = await this.deps.inference.run(
       "quick-analysis",
       {
         request,
-        project,
-        entities,
+        entities: null,
         listing: this.deps.listing?.(thread) ?? null,
       },
       {
@@ -273,10 +224,6 @@ export class QuickAnalysis {
       },
     );
     if (this.disposed) return;
-    const projectIsCurrent =
-      !topics ||
-      !thread.projectId ||
-      (await topics.project(thread.projectId)) === project;
     const live = await this.deps
       .sdk()
       .threads.get({ threadId: thread.id })
@@ -285,11 +232,8 @@ export class QuickAnalysis {
       !live ||
       live.status === "idle" ||
       live.status === "error" ||
-      !projectIsCurrent ||
-      this.disposed ||
       this.deps.analyzed(thread.id) ||
-      threadEvidence({ ...live, status: undefined }) !== evidence ||
-      (topics && JSON.stringify(topics.entities()) !== JSON.stringify(entities))
+      threadEvidence({ ...live, status: undefined }) !== evidence
     ) {
       this.deps.inference.annotate(traceId, {
         application: "discarded: opening evidence changed",
@@ -297,15 +241,12 @@ export class QuickAnalysis {
       });
       return;
     }
-    if (topics && this.wantsTopic(live) && !value.topicError)
-      topics.apply(thread.id, value, traceId);
     if (!value.goal) {
       this.deps.inference.annotate(traceId, {
         title: "not applied: the request doesn't say what the work is",
       });
       return;
     }
-    if (this.eligible(thread) || this.tried.has(thread.id))
-      await this.deps.apply(thread.id, value.goal, revision, traceId);
+    await this.deps.apply(thread.id, value.goal, revision, traceId);
   }
 }

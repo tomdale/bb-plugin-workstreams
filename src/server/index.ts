@@ -6,10 +6,9 @@
 import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { registerCli } from "./cli.ts";
-import { GOAL_MAX, type ThreadListing } from "../domain/analysis.ts";
+import type { ThreadListing } from "../domain/analysis.ts";
 import { topicPath } from "../domain/topic-path.ts";
 import { displayTitle } from "./inventory.ts";
-import { restyleTitles } from "./restyle.ts";
 import { registerAgentInstructions } from "./agents.ts";
 import { Analyzer } from "./analyzer.ts";
 import { RecapArchive } from "./archive.ts";
@@ -29,7 +28,6 @@ import { hostContract } from "./inference/contract.ts";
 import { openDatabase } from "./db.ts";
 import { Journal } from "./journal.ts";
 import { Inference } from "./model.ts";
-import { adoptStoredGoals } from "./adopt.ts";
 import { QuickAnalysis, type OpeningThread } from "./quick.ts";
 import { agentReport, reportedStatus } from "../domain/recap.ts";
 import { loadOrder, saveOrder } from "./order.ts";
@@ -238,8 +236,8 @@ export default async function plugin(bb: BbPluginApi) {
   traces.prune({ force: true });
   /**
    * Gives a thread its goal as its title, when the retitle policy and the
-   * `autoTitle` preference allow it, and records the outcome on the call's
-   * trace.
+   * `autoTitle` preference allow it (`service.retitle`), and records the
+   * outcome on the call's trace.
    */
   const applyGoal = async (
     threadId: string,
@@ -249,12 +247,6 @@ export default async function plugin(bb: BbPluginApi) {
     basis: RetitleBasis,
   ): Promise<void> => {
     try {
-      if (!currentPrefs().threads.autoTitle) {
-        inference.annotate(traceId, {
-          title: "not applied: the autoTitle setting is off",
-        });
-        return;
-      }
       const { entry, skipped } = await service.retitle(
         threadId,
         goal,
@@ -368,9 +360,7 @@ export default async function plugin(bb: BbPluginApi) {
       // and settle how a snoozed thread's turn ended.
       triggerOrganizer();
       if (awaitingEvents()) void checkWakeEvents();
-      // A goal carried over from before goals were capped can be too long for
-      // a title.
-      if (result.goal && result.goal.length <= GOAL_MAX)
+      if (result.goal)
         void applyGoal(
           threadId,
           result.goal,
@@ -392,13 +382,6 @@ export default async function plugin(bb: BbPluginApi) {
     apply: (threadId, goal, revision, traceId) =>
       applyGoal(threadId, goal, revision, traceId, "opening"),
     listing: listingOf,
-    topics: {
-      entities: () => topics.list(),
-      project: projectName,
-      open: (threadId) => topics.assignment(threadId).provenance === null,
-      apply: (threadId, answer, traceId) =>
-        applyTopic(threadId, answer, "quick", null, traceId),
-    },
     log: (message) => bb.log.warn(message),
   });
   bb.onDispose(() => quick.dispose());
@@ -569,20 +552,24 @@ export default async function plugin(bb: BbPluginApi) {
       triggerOrganizer(10);
       return;
     }
-    // Quick analysis already ran on this text in the composer.
-    quick.onDispatch(
-      {
-        thread,
-        attempt: "start-turn",
-        origin: "app",
-        input: { text: "" },
-      },
-      {
-        goal: identity.goal ?? null,
-        subjectId: identity.entityId ?? null,
-        proposed: identity.proposal ?? null,
-      },
-    );
+    // Quick analysis already ran on this text in the composer: its topic
+    // files the thread until placement settles it, and its title names it.
+    if (identity.entityId || identity.proposal)
+      applyTopic(
+        threadId,
+        {
+          subjectId: identity.entityId ?? null,
+          proposed: identity.proposal ?? null,
+        },
+        "quick",
+        null,
+        null,
+      );
+    if (identity.goal)
+      quick.onDispatch(
+        { thread, attempt: "start-turn", origin: "app", input: { text: "" } },
+        identity.goal,
+      );
   };
   /** The thread a new root was started from, when it was. */
   const startedFrom = (ctx: {
@@ -677,24 +664,6 @@ export default async function plugin(bb: BbPluginApi) {
         .then(() => {
           analyzer.catchUp(service.threads());
           quick.sweep(service.threads());
-          void adoptStoredGoals({
-            db,
-            threads: () => service.threads(),
-            analysis: (threadId) => analyzer.get(threadId),
-            enabled: () => currentPrefs().threads.autoTitle,
-            retitle: (threadId, goal, revision, rationale) =>
-              service.retitle(threadId, goal, revision, "analysis", rationale),
-            log: (message) => bb.log.warn(message),
-          })
-            .then((adopted) => {
-              if (adopted > 0)
-                bb.log.info(
-                  `Titled ${adopted} threads from their stored goals`,
-                );
-            })
-            .catch((error: unknown) =>
-              bb.log.warn(`Adopting stored goals failed: ${String(error)}`),
-            );
           void sweepSnoozes();
           map.refresh(service.threads());
           triggerOrganizer(50);
@@ -1261,26 +1230,5 @@ export default async function plugin(bb: BbPluginApi) {
     notify,
     reclassifyTask,
     suggestions,
-    restyle: (options) =>
-      restyleTitles(
-        {
-          db,
-          inference,
-          threads: () => service.threads(),
-          listing: listingOf,
-          objective: (threadId) =>
-            analyzer.get(threadId)?.objective?.summary ?? null,
-          retitle: (threadId, title, revision) =>
-            service.retitle(
-              threadId,
-              title,
-              revision,
-              "analysis",
-              "Retitled in the current title form",
-            ),
-          renameGoal: (threadId, title) => analyzer.renameGoal(threadId, title),
-        },
-        options,
-      ),
   });
 }

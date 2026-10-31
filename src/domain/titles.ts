@@ -1,8 +1,11 @@
 /**
- * Thread title history and the retitle policy. Full analysis projects the
- * accepted objective while automatic titling is enabled; opening analysis
- * fills an empty title. Outside edits retain title ownership until cleared.
+ * Thread title history and the retitle policy. While automatic titling is
+ * enabled, Quick analysis fills an empty title from the opening request and
+ * Full analysis settles it after turns with new requests. Outside edits
+ * retain title ownership until cleared.
  */
+
+import { GOAL_MAX } from "./analysis.ts";
 
 /** What Workstreams knows about one thread's title. */
 export type TitleRecord = {
@@ -12,13 +15,6 @@ export type TitleRecord = {
   readonly locked?: boolean;
   /** The title Workstreams last wrote, if any. */
   readonly written: string | null;
-  /** When Workstreams last retitled the thread. */
-  readonly retitledAt: number | null;
-  /**
-   * `written` was inferred from the opening request alone, while the first
-   * turn was still running. Full analysis settles it after the first turn.
-   */
-  readonly provisional: boolean;
 };
 
 /**
@@ -30,22 +26,14 @@ export function observeTitle(
   record: TitleRecord | undefined,
   raw: string | null,
 ): TitleRecord {
-  if (!record)
-    return {
-      observed: raw,
-      written: null,
-      retitledAt: null,
-      provisional: false,
-    };
+  if (!record) return { observed: raw, written: null };
   if (raw === record.observed) return record;
-  if (raw === null)
-    return { ...record, observed: null, locked: false, provisional: false };
+  if (raw === null) return { ...record, observed: null, locked: false };
   const renamedElsewhere = record.observed !== null && raw !== record.written;
   return {
     ...record,
     observed: raw,
     locked: record.locked || renamedElsewhere,
-    provisional: record.provisional && !renamedElsewhere,
   };
 }
 
@@ -54,7 +42,7 @@ const same = (a: string, b: string) =>
   b.replace(/\s+/g, " ").trim().toLowerCase();
 
 export type RetitleSkip =
-  "no-suggestion" | "unchanged" | "stale" | "titled" | "manual";
+  "no-suggestion" | "too-long" | "unchanged" | "stale" | "titled" | "manual";
 
 /**
  * What a suggested title was inferred from.
@@ -86,6 +74,8 @@ export function retitleDecision(args: {
 }): { ok: true } | { ok: false; reason: RetitleSkip } {
   const { thread, suggestion } = args;
   if (!suggestion) return { ok: false, reason: "no-suggestion" };
+  // Goals stored before titles were capped can be longer than BB allows.
+  if (suggestion.length > GOAL_MAX) return { ok: false, reason: "too-long" };
   if (same(suggestion, thread.displayTitle))
     return { ok: false, reason: "unchanged" };
   if (args.basis === "opening") {

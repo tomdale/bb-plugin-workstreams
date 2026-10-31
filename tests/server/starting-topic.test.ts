@@ -1,8 +1,9 @@
 /**
  * How a new root gets its first topic and title: the topic you
  * picked in the composer, the topic of the workstream whose ＋ opened it, the
- * topic of the thread it was started from, or Quick analysis of its first
- * request, reusing the composer's own preview when the text matches.
+ * topic of the thread it was started from, or placement of its first
+ * request. Quick analysis titles it, reusing the composer's own preview when
+ * the text matches.
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
@@ -115,15 +116,21 @@ describe("a new root's first topic", () => {
     expect(corpus.assignment("t1").entityId).not.toBe(parser.id);
   });
 
-  it("comes from Quick analysis of the first request, with its title", async () => {
-    const { w, corpus, parser, dispatch, settle, quickCalls } = await setup();
+  it("comes from placement of the first request, while Quick analysis titles it", async () => {
+    let parserId = "";
+    const { w, corpus, parser, dispatch, settle, quickCalls } = await setup(
+      () => parserId,
+    );
+    parserId = parser.id;
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
     expect(quickCalls()).toHaveLength(1);
     expect(quickCalls()[0]!.prompt).toContain("Make the parser handle tabs");
+    // Placement files the thread, so naming it needs no topic tree.
+    expect(quickCalls()[0]!.prompt).not.toContain("<topic_tree>");
     expect(corpus.assignment("t1")).toMatchObject({
       entityId: parser.id,
-      provenance: "quick",
+      provenance: "full",
     });
     expect(w.threads.get("t1")?.title).toBe("Parser tab handling");
   });

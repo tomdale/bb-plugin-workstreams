@@ -5,14 +5,11 @@
  */
 import {
   fullAnalysisPrompt,
+  fullAnalysisSchema,
   parseFullAnalysis,
   parseQuickAnalysis,
-  parseRestyle,
   quickAnalysisPrompt,
   quickAnalysisSchema,
-  restylePrompt,
-  restyleSchema,
-  type RestyleInput,
   type FullAnalysisInput,
   type QuickAnalysisInput,
 } from "../domain/analysis.ts";
@@ -64,6 +61,7 @@ export const MODEL_CALLS = {
     prompt: (input: FullAnalysisInput) => fullAnalysisPrompt(input),
     parse: (text: string, input: FullAnalysisInput) =>
       parseFullAnalysis(text, input),
+    schema: (input: FullAnalysisInput) => fullAnalysisSchema(input),
   },
   placement: {
     prompt: (input: PlacementInput) => placementPrompt(input),
@@ -75,11 +73,6 @@ export const MODEL_CALLS = {
     parse: (text: string, input: SplitInput) => parseSplit(text, input),
     schema: (input: SplitInput) => splitSchema(input),
     maxTokens: 8_000,
-  },
-  restyle: {
-    prompt: (input: RestyleInput) => restylePrompt(input),
-    parse: (text: string, input: RestyleInput) => parseRestyle(text, input),
-    schema: () => restyleSchema(),
   },
   tidy: {
     prompt: (input: TidyInput) => tidyPrompt(input),
@@ -144,7 +137,7 @@ export function summarize(
       return [
         q.goal ? `goal “${q.goal}”` : "no goal",
         q.topicError ? "invalid topic (valid title retained)" : null,
-        topicOf(q, (input as QuickAnalysisInput).entities),
+        topicOf(q, (input as QuickAnalysisInput).entities ?? undefined),
       ]
         .filter(Boolean)
         .join(" · ");
@@ -154,10 +147,6 @@ export function summarize(
       return split.subgroups
         .map((g) => `${g.name} (${g.threadIds.length})`)
         .join(", ");
-    }
-    case "restyle": {
-      const { title } = value as OutputOf<"restyle">;
-      return title ? `title “${title}”` : "no title";
     }
     case "tidy": {
       const edits = value as OutputOf<"tidy">;
@@ -174,7 +163,6 @@ export function summarize(
       return [
         a.status ? a.status.state.replace("_", " ") : "reported",
         a.goal ? `goal “${a.goal}”` : null,
-        a.identity ? `identity ${a.identity.change}` : null,
       ]
         .filter(Boolean)
         .join(" · ");
