@@ -48,6 +48,16 @@ it.skipIf(!executablePath)(
         const background = document.querySelector<HTMLElement>(
           ".ws-goal-background",
         )!;
+        const barFadeHeight = Number.parseFloat(
+          getComputedStyle(background, "::before").height,
+        );
+        const plateFadeHeight = Number.parseFloat(
+          getComputedStyle(background, "::after").height,
+        );
+        background.style.setProperty("--ws-plate-fade-height", "8rem");
+        const hybridFadeHeight = Number.parseFloat(
+          getComputedStyle(background, "::after").height,
+        );
         return {
           rootTop: root.getBoundingClientRect().top,
           scrollerTop: scroller.getBoundingClientRect().top,
@@ -56,12 +66,9 @@ it.skipIf(!executablePath)(
           onTop: document.elementFromPoint(20, 50)?.className,
           fade: getComputedStyle(background, "::after").backgroundImage,
           fadeOpacity: getComputedStyle(background, "::after").opacity,
-          plateFadeHeight: Number.parseFloat(
-            getComputedStyle(background, "::after").height,
-          ),
-          barFadeHeight: Number.parseFloat(
-            getComputedStyle(background, "::before").height,
-          ),
+          plateFadeHeight,
+          hybridFadeHeight,
+          barFadeHeight,
         };
       });
       expect(result.rootTop).toBeLessThan(result.scrollerTop);
@@ -71,6 +78,8 @@ it.skipIf(!executablePath)(
       expect(result.fade).toContain("linear-gradient");
       expect(result.fadeOpacity).toBe("1");
       expect(result.plateFadeHeight * (1.5 / 4)).toBe(result.barFadeHeight);
+      expect(result.hybridFadeHeight).toBe(result.plateFadeHeight * 2);
+      expect(result.hybridFadeHeight * (1.5 / 8)).toBe(result.barFadeHeight);
     } finally {
       await browser.close();
     }
@@ -84,12 +93,12 @@ it.skipIf(!executablePath)(
     const browser = await chromium.launch({ executablePath, headless: true });
     try {
       const page = await browser.newPage({
-        viewport: { width: 400, height: 220 },
+        viewport: { width: 400, height: 260 },
       });
       await page.setContent(`
         <style>${styles}
           body { margin: 0; }
-          .surface { position: relative; height: 220px; }
+          .surface { position: relative; height: 260px; }
         </style>
         <div class="surface">
           <div class="ws-goal-overlay">
@@ -99,38 +108,57 @@ it.skipIf(!executablePath)(
           </div>
         </div>`);
       for (const theme of ["dark", "light"] as const) {
-        await page.evaluate((theme) => {
-          document.documentElement.style.setProperty(
-            "--background",
-            theme === "dark" ? "black" : "white",
+        for (const fadeSize of [4, 8]) {
+          await page.evaluate(
+            ({ theme, fadeSize }) => {
+              document.documentElement.style.setProperty(
+                "--background",
+                theme === "dark" ? "black" : "white",
+              );
+              document.querySelector<HTMLElement>(
+                ".surface",
+              )!.style.background = theme === "dark" ? "white" : "black";
+              document
+                .querySelector<HTMLElement>(".ws-goal-background")!
+                .style.setProperty("--ws-plate-fade-height", `${fadeSize}rem`);
+            },
+            { theme, fadeSize },
           );
-          document.querySelector<HTMLElement>(".surface")!.style.background =
-            theme === "dark" ? "white" : "black";
-        }, theme);
-        const image = await page.screenshot();
-        const samples = await page.evaluate(
-          async (source) => {
-            const image = new Image();
-            image.src = source;
-            await image.decode();
-            const canvas = document.createElement("canvas");
-            canvas.width = image.width;
-            canvas.height = image.height;
-            const context = canvas.getContext("2d")!;
-            context.drawImage(image, 0, 0);
-            return [101, 116, 132, 148, 164].map(
-              (y) => context.getImageData(20, y, 1, 1).data[0]!,
-            );
-          },
-          `data:image/png;base64,${image.toString("base64")}`,
-        );
-        const contrast = samples.map((value) =>
-          theme === "dark" ? value : 255 - value,
-        );
-        expect(contrast[0]).toBeLessThan(16);
-        expect(contrast[4]).toBeGreaterThan(245);
-        for (let i = 1; i < contrast.length; i++) {
-          expect(contrast[i]! - contrast[i - 1]!).toBeGreaterThan(15);
+          const image = await page.screenshot();
+          const samples = await page.evaluate(
+            async ({ source, fadeSize }) => {
+              const image = new Image();
+              image.src = source;
+              await image.decode();
+              const canvas = document.createElement("canvas");
+              canvas.width = image.width;
+              canvas.height = image.height;
+              const context = canvas.getContext("2d")!;
+              context.drawImage(image, 0, 0);
+              return [
+                1,
+                0.25 * fadeSize * 16,
+                0.5 * fadeSize * 16,
+                0.75 * fadeSize * 16,
+                fadeSize * 16,
+              ].map(
+                (offset) =>
+                  context.getImageData(20, 100 + offset, 1, 1).data[0]!,
+              );
+            },
+            {
+              source: `data:image/png;base64,${image.toString("base64")}`,
+              fadeSize,
+            },
+          );
+          const contrast = samples.map((value) =>
+            theme === "dark" ? value : 255 - value,
+          );
+          expect(contrast[0]).toBeLessThan(16);
+          expect(contrast[4]).toBeGreaterThan(245);
+          for (let i = 1; i < contrast.length; i++) {
+            expect(contrast[i]! - contrast[i - 1]!).toBeGreaterThan(15);
+          }
         }
       }
     } finally {

@@ -7,6 +7,7 @@ import {
   headingBackdropOpacity,
   headingOpacity,
   headingScroll,
+  hybridHeadingScroll,
   titleExitDistance,
 } from "../../src/app/goalHeading.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
@@ -307,7 +308,15 @@ it("crossfades stationary headings and switches modes on preference changes", as
   await slot.behavior.emitRealtime("prefs", {
     prefs: parsePrefs({ threads: { headingTransition: "hybrid" } }),
   });
-  await waitFor(() => expect(Number(groups()[1]!.style.opacity)).toBe(1));
+  const hybridProgress = hybridHeadingScroll(
+    50,
+    distance,
+    (14 * 1.5 * 4) / 3,
+    Number.parseFloat(plate.parentElement!.style.height),
+  ).progress;
+  await waitFor(() =>
+    expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(hybridProgress),
+  );
   expect(Number(groups()[0]!.style.opacity)).toBe(1);
   expect(groups()[1]!.style.transform).toBe("translateY(0px)");
   await slot.behavior.emitRealtime("prefs", {
@@ -369,7 +378,13 @@ it("floats the large heading at the newest message and fades the compact title a
     ".ws-sticky-goal__plate",
   )!;
   const height = Number.parseFloat(plate.parentElement!.style.height);
-  for (const [fromBottom, expected] of [
+  const background = overlay()!.querySelector<HTMLElement>(
+    ".ws-goal-background",
+  )!;
+  expect(background.style.getPropertyValue("--ws-plate-fade-height")).toBe(
+    "8rem",
+  );
+  for (const [moved, expected] of [
     [0, 0],
     [titleTop, 0],
     [titleTop + titleHeight / 4, 0.25],
@@ -379,19 +394,26 @@ it("floats the large heading at the newest message and fades the compact title a
     [titleTop + titleHeight / 2, 0.5],
     [0, 0],
   ]) {
-    scroller.scrollTop = 600 - fromBottom!;
+    scroller.scrollTop = 600 - moved! * 2;
     scroller.dispatchEvent(new Event("scroll"));
     await waitFor(() => {
-      expect(y(groups()[0]!)).toBeCloseTo(
-        titleTop - Math.min(fromBottom!, height),
-      );
+      expect(y(groups()[0]!)).toBeCloseTo(titleTop - Math.min(moved!, height));
       expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(expected!);
     });
     expect(Number(groups()[0]!.style.opacity)).toBe(1);
     expect(y(groups()[1]!)).toBe(0);
     expect(
       Number.parseFloat(plate.style.transform.slice("scaleY(".length)),
-    ).toBeCloseTo(Math.max(0, height - fromBottom!) / height);
+    ).toBeCloseTo(Math.max(0, titleTop + titleHeight - moved!) / height);
+    expect(Number.parseFloat(scroller.style.scrollPaddingTop)).toBeCloseTo(
+      Math.max(0, height - moved!),
+    );
+    expect(
+      Number(background.style.getPropertyValue("--ws-fade-below-plate")),
+    ).toBe(moved! < height ? 1 : 0);
+    expect(
+      Number(background.style.getPropertyValue("--ws-fade-below-bar")),
+    ).toBe(moved! < height ? 0 : 1);
   }
   Object.defineProperty(scroller, "scrollHeight", {
     configurable: true,
@@ -429,9 +451,9 @@ it("keeps the hybrid heading backed when the compact title is pinned", async () 
   )!;
   const height = Number.parseFloat(plate.parentElement!.style.height);
   expect(
-    Number.parseFloat(plate.style.transform.slice("scaleY(".length)),
-  ).toBeCloseTo(1);
-  scroller.scrollTop = 500;
+    Number.parseFloat(plate.style.transform.slice("scaleY(".length)) * height,
+  ).toBeCloseTo(titleExitDistance(14, null, 1));
+  scroller.scrollTop = 400;
   scroller.dispatchEvent(new Event("scroll"));
   await waitFor(() =>
     expect(root()!.getAttribute("data-collapsed")).toBe("true"),

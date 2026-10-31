@@ -116,6 +116,9 @@ export function headingScroll(fromBottom: number, exitDistance: number) {
   return { moved, remaining: exitDistance - moved, progress };
 }
 
+// The hybrid heading moves at half the timeline scroll speed.
+const HYBRID_SCROLL_RATIO = 0.5;
+
 /** The floating heading leaves as the reader scrolls away from the newest
  * message; the compact title appears in proportion to the clipped height. */
 export function hybridHeadingScroll(
@@ -124,7 +127,7 @@ export function hybridHeadingScroll(
   titleBlock: number,
   headingHeight: number,
 ) {
-  const scrolled = Math.max(0, fromBottom);
+  const scrolled = Math.max(0, fromBottom) * HYBRID_SCROLL_RATIO;
   return {
     moved: Math.min(scrolled, headingHeight),
     remaining: 0,

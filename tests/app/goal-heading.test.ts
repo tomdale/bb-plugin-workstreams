@@ -103,19 +103,20 @@ it("fades the compact title by the fraction of the large title that has scrolled
     progress: 0,
   });
   expect(
-    hybridHeadingScroll(titleTop, exit, titleHeight, heading).progress,
+    hybridHeadingScroll(titleTop * 2, exit, titleHeight, heading).progress,
   ).toBe(0);
+  expect(hybridHeadingScroll(20, exit, titleHeight, heading).moved).toBe(10);
   const halfway = hybridHeadingScroll(
-    titleTop + titleHeight / 2,
+    (titleTop + titleHeight / 2) * 2,
     exit,
     titleHeight,
     heading,
   );
   expect(halfway.moved).toBeCloseTo(titleTop + titleHeight / 2);
   expect(halfway.progress).toBeCloseTo(0.5);
-  expect(hybridHeadingScroll(exit, exit, titleHeight, heading).progress).toBe(
-    1,
-  );
+  expect(
+    hybridHeadingScroll(exit * 2, exit, titleHeight, heading).progress,
+  ).toBe(1);
   expect(hybridHeadingScroll(10000, exit, titleHeight, heading)).toEqual({
     moved: heading,
     remaining: 0,

@@ -483,6 +483,7 @@
 /* Under the expanded plate. */
 .ws-goal-background::after {
   top: 0;
+  height: var(--ws-plate-fade-height, 4rem);
   transform: translateY(var(--ws-plate-height, 0px))
     scaleY(var(--ws-plate-fade-scale, 1));
   transform-origin: top;

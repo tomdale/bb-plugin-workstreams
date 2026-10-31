@@ -450,11 +450,11 @@ export function StickyGoalHeader(): React.ReactElement | null {
   // When the title bar has no room, the compact copy sits in the timeline.
   const pinned = !!placement && placement.bar === null;
   const platePinnedHeight = pinnedHeight(base, eyebrow);
-  // Keep the floating heading backed until it exits; a pinned compact heading
-  // also needs a plate after the large heading has gone.
+  // Start the hybrid's long feather below the title, behind the subtitle;
+  // a pinned compact heading keeps a solid plate after the title has gone.
   const plateHeight = hybrid
     ? Math.max(
-        placement?.short ? 0 : height - moved,
+        placement?.short ? 0 : exitDistance - moved,
         pinned ? platePinnedHeight * progress : 0,
       )
     : fadeOnly
@@ -467,9 +467,16 @@ export function StickyGoalHeader(): React.ReactElement | null {
         );
   const plateOpacity =
     fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
-  const scrollPadding =
-    fadeOnly && !pinned ? height * (1 - progress) : plateHeight;
+  const scrollPadding = hybrid
+    ? Math.max(
+        placement?.short ? 0 : height - moved,
+        pinned ? platePinnedHeight * progress : 0,
+      )
+    : fadeOnly && !pinned
+      ? height * (1 - progress)
+      : plateHeight;
   const fadeAnchor = plateHeight;
+  const hybridHeadingVisible = hybrid && !placement?.short && moved < height;
   useLayoutEffect(() => {
     if (!mount) return;
     mount.root.className = "ws-sticky-goal-root";
@@ -650,15 +657,27 @@ export function StickyGoalHeader(): React.ReactElement | null {
             transform: `translate(${placement.background.x}px, ${placement.background.y}px)`,
             width: placement.background.width,
             "--ws-plate-height": `${fadeAnchor}px`,
-            // Match the 1.5rem bar fade as the 4rem plate fade leaves.
-            "--ws-plate-fade-scale":
-              fadeOnly && !pinned ? 1 : 1 - progress * (1 - 1.5 / 4),
-            "--ws-fade-below-plate": fade && plateHeight > 0 ? plateOpacity : 0,
+            "--ws-plate-fade-height": hybrid ? "8rem" : "4rem",
+            // The plate's feather becomes the 1.5rem bar fade as it leaves.
+            "--ws-plate-fade-scale": hybrid
+              ? 1 -
+                (placement?.short ? 1 : Math.min(1, moved / height)) *
+                  (1 - 1.5 / 8)
+              : fadeOnly && !pinned
+                ? 1
+                : 1 - progress * (1 - 1.5 / 4),
+            "--ws-fade-below-plate":
+              fade &&
+              (hybrid ? hybridHeadingVisible || pinned : plateHeight > 0)
+                ? plateOpacity
+                : 0,
             "--ws-fade-below-bar":
               fade && inBar
-                ? fadeOnly || hybrid
-                  ? opacity.compact
-                  : Number(collapsed)
+                ? hybrid
+                  ? Number(!hybridHeadingVisible)
+                  : fadeOnly
+                    ? opacity.compact
+                    : Number(collapsed)
                 : 0,
           } as React.CSSProperties
         }
