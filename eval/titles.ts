@@ -12,12 +12,13 @@ import {
   gatewayComplete,
   gatewayKey,
 } from "../src/server/inference/gateway.ts";
-import { GENERIC_VERBS, titleCases } from "./title-cases.ts";
+import { VAGUE_VERBS, titleCases } from "./title-cases.ts";
 
 /**
  * Paid evaluation of the titles Quick analysis writes, or with
  * `EVAL_KIND=full` the ones Full analysis settles after a first turn; it
- * never applies results to the plugin. A title passes when it names its case's subject,
+ * never applies results to the plugin. A title passes when it starts with an
+ * -ing verb that says what kind of work it is, names its case's subject,
  * repeats nothing the sidebar already shows beside it, and fits the visible
  * width of a sidebar row.
  */
@@ -96,14 +97,17 @@ await Promise.all(
         for (const word of test.avoid)
           if (title.includes(word)) problems.push(`repeats "${word}"`);
         if (goal.length > VISIBLE) problems.push(`${goal.length} characters`);
+        const verb = title.split(/\s+/)[0] ?? "";
+        if (!verb.endsWith("ing"))
+          problems.push("doesn't start with an -ing verb");
+        else if (VAGUE_VERBS.includes(verb))
+          problems.push(`vague verb "${verb}"`);
       }
-      const first = title.split(/\s+/)[0] ?? "";
       results.push({
         id: test.id,
         goal,
         passed: problems.length === 0,
         problems,
-        verbFirst: GENERIC_VERBS.includes(first),
         latencyMs: Date.now() - begun,
       });
     }
@@ -119,13 +123,12 @@ const lines = titleCases.map((test) => {
 const passed = results.filter((r) => r.passed).length;
 const titled = results.filter((r) => r.goal) as { goal: string }[];
 const lengths = titled.map((r) => r.goal.length).sort((a, b) => a - b);
-const verbFirst = results.filter((r) => r.verbFirst).length;
 await writeFile(
   process.env.EVAL_OUTPUT ?? "/tmp/title-eval.json",
   JSON.stringify({ model, reasoningLevel, results }, null, 2),
 );
 console.log(lines.join("\n"));
 console.log(
-  `${passed}/${results.length} titles ${model}: median ${lengths[Math.floor(lengths.length / 2)] ?? 0} chars, ${verbFirst}/${titled.length} start with a generic verb`,
+  `${passed}/${results.length} titles ${model}: median ${lengths[Math.floor(lengths.length / 2)] ?? 0} chars, ${titled.length} titled`,
 );
 process.exitCode = passed === results.length ? 0 : 1;

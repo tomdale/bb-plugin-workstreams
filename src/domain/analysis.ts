@@ -129,11 +129,19 @@ const goalSchema = z
 
 /**
  * The form of a goal, shared by both analyses so a thread's first name and
- * its later names read alike. A title is read in a sidebar row that shows
- * about 30 characters, under its workstream and any parent thread, so the
- * subject leads and nothing those already say repeats.
+ * its later names read alike. A title answers "what am I doing?" with an -ing
+ * verb and its subject. It is read in a sidebar row that shows about 30
+ * characters, under its workstream and any parent thread, so it stays short
+ * and repeats nothing those already say.
  */
-const GOAL_FORM = `Use a noun phrase of 2–5 words, at most 32 characters, in sentence case with no closing period. Lead with the subject being worked on, so it survives truncation; when the kind of work matters, it follows as a noun: "Phase 3 rollout review", "Settings page redesign", "Export job timeout errors", "Search index rebuild". Never start with a verb. Keep an identifier the request uses to tell sibling work apart, such as a phase or step number, at the front: "Step 2 schema migration". Name a pull request or issue by its subject; only when the subject is unknown, by its number ("PR 1207 review"). Leave out setup, progress, status, and generic words such as plan, work, task, or changes, and never end with a title of only generic words ("Service review", "Integration update").`;
+const GOAL_FORM = `Answer "what am I doing?" with an -ing verb and what it acts on: 2–5 words, at most 34 characters, sentence case, no articles, no closing period. "Redesigning settings page", "Reviewing Phase 3 rollout", "Fixing export job timeouts", "Explaining cache invalidation". The first word always ends in -ing, even when the request opens with a command: "Review PR 1207" becomes "Reviewing PR 1207". Stay within 34 characters by dropping words the subject reads clearly without: "Investigating search indexer memory growth" becomes "Investigating indexer memory". Choose the verb that says what kind of work it is (fixing, reviewing, explaining, investigating, migrating), never working on, handling, or doing. Keep an identifier the request uses to tell sibling work apart, such as a phase or step number: "Migrating Step 2 schema". Name a pull request or issue by its subject; only when the subject is unknown, by its number ("Reviewing PR 1207"). Name what a plan or document is about, not the document. Leave out setup, progress, status, and generic words such as plan, work, task, or changes; the words after the verb name a specific subject ("Updating integration" says too little).`;
+
+/**
+ * A generated title's opening -ing verb, held at generation where a schema
+ * applies: a fast model otherwise echoes a request that opens with a command
+ * ("Review PR 1207") instead of saying what the thread is doing.
+ */
+const GOAL_PATTERN = "^[A-Z][a-z]+ing ";
 
 /**
  * Where a thread is listed: its workstream's topic path and, for a child
@@ -145,13 +153,35 @@ export type ThreadListing = {
 };
 
 /**
- * A title without a leading name its listing already shows: under "Inside
- * Harbor", "Inside Harbor book rewrite" reads "Book rewrite". A remainder of
- * one word says too little, so such a title stays whole.
+ * A title without a name its listing already shows, at its start or right
+ * after its verb: under "Inside Harbor", "Rewriting Inside Harbor style guide"
+ * reads "Rewriting style guide". A subject the drop would leave with one word
+ * says too little, so such a title stays whole.
  */
 export function dropListedPrefix(
   title: string,
   listing: ThreadListing | null | undefined,
+): string {
+  const [verb, ...rest] = title.split(/\s+/);
+  if (verb && /^\p{L}+ing$/u.test(verb) && rest.length > 1) {
+    const object = dropListedName(rest.join(" "), listing, 2);
+    if (object !== rest.join(" ")) return `${verb} ${lowerFirst(object)}`;
+  }
+  return dropListedName(title, listing, 2);
+}
+
+/** "Invoice export" after a verb reads "invoice export"; "API docs" stays. */
+function lowerFirst(text: string): string {
+  const [first = ""] = text.split(" ");
+  return /^\p{Lu}\p{Ll}*$/u.test(first)
+    ? `${first.toLowerCase()}${text.slice(first.length)}`
+    : text;
+}
+
+function dropListedName(
+  title: string,
+  listing: ThreadListing | null | undefined,
+  minWords: number,
 ): string {
   const names = (listing?.group ?? "")
     .split(":")
@@ -167,7 +197,7 @@ export function dropListedPrefix(
     const form = forms.find((n) => n && lower.startsWith(`${n} `));
     if (!form) continue;
     const rest = title.slice(form.length).trim();
-    if (rest.split(/\s+/).length < 2) continue;
+    if (rest.split(/\s+/).length < minWords) continue;
     return `${rest[0]!.toUpperCase()}${rest.slice(1)}`;
   }
   return title;
@@ -177,7 +207,7 @@ export function dropListedPrefix(
 export function listingBlock(listing: ThreadListing | null | undefined) {
   if (!listing?.group && !listing?.parent) return "";
   return [
-    'Where the thread is listed. Its title is read beside these, so leave out their names and products and name what tells this thread apart. Under "Atlas: Billing", "Atlas invoice export bug" becomes "Invoice export bug"; under a parent "Build Orion sync", "Orion sync Phase 3 review" becomes "Phase 3 review". When leaving a name out would leave only generic words, name the subject more specifically instead: under "Orion", "Orion redesign" becomes "Settings page redesign".',
+    'Where the thread is listed. Its title is read beside these, so leave out their names and products and name what tells this thread apart. Under "Atlas: Billing", "Fixing Atlas invoice export" becomes "Fixing invoice export"; under a parent "Building Orion sync", "Reviewing Orion sync Phase 3" becomes "Reviewing Phase 3". When leaving a name out would leave only generic words, name the subject more specifically instead: under "Orion", "Redesigning Orion" becomes "Redesigning settings page".',
     listing.group ? tagged("listed_under", redact(listing.group)) : null,
     listing.parent
       ? `${tagged("parent_thread", redact(listing.parent))} (it is a child of this thread)`
@@ -281,7 +311,7 @@ The topic tree, where indentation expresses parentage and each topic's ID is in 
 ${tagged("topic_tree", topicTreeBlock(input.entities))}
 
 Return {"goal": string|null, "subjectId": string|null, "proposed": object|null}:
-- goal: what this thread is for, which becomes its title wherever threads are listed. ${GOAL_FORM} null when the request doesn't say what the work is (a greeting, or a bare "continue" or "yes").
+- goal: what you are doing in this thread, which becomes its title wherever threads are listed. ${GOAL_FORM} null when the request doesn't say what the work is (a greeting, or a bare "continue" or "yes").
 - subjectId / proposed: the most specific supported topic. subjectId copies only the exact identifier inside square brackets in the tree, not its name or path. An execution tool mentioned only as the method for unspecified work does not establish a topic; return both fields null when the work's owner is unknown.
 
 ${CLASSIFICATION_RULES}`;
@@ -305,7 +335,7 @@ export function quickAnalysisSchema(
     type: "object",
     additionalProperties: false,
     properties: {
-      goal: { type: ["string", "null"] },
+      goal: { type: ["string", "null"], pattern: GOAL_PATTERN },
       subjectId: nullableId,
       proposed: {
         anyOf: [
@@ -440,7 +470,7 @@ const STATUS_FIELDS = `- recap: at most ${RECAP_MAX} characters. Where the work 
 - state: "needs_decision" when the last message asks the user something specific (a question, a choice, permission, "want me to…?") or needs a step only the user can take; closing boilerplate like "let me know" doesn't count. "review" when a finished deliverable waits on the user to review, test, merge, or ship. "blocked" when waiting on something other than the user. "done" only when the thread has reached a natural end: the latest request is fully answered or completed, and there are no outstanding tasks, unfinished implementation, failing tests, pending follow-ups, or work left for the agent or user. An answered question can be done. A completed intermediate step is not done when the broader requested work remains. Otherwise "in_progress".
 - needsYou: when state is "needs_decision", the ask in at most 80 characters; otherwise null.`;
 
-const GOAL_FIELD = `- goal: the title of the thread's overall objective. ${GOAL_FORM} Preserve its identity across diagnosis, implementation, review, testing, and shipping subtasks. Findings clarify the objective; a user direction change can replace it. Distinguish the requested deliverable: an audit or proposal remains an audit or proposal until implementation is requested.
+const GOAL_FIELD = `- goal: the title, saying what the thread is doing toward its overall objective. ${GOAL_FORM} Preserve its identity across diagnosis, implementation, review, testing, and shipping subtasks; its verb names the overall work, not the current step, so a thread building a feature stays "Building …" while it tests or ships it. Findings clarify the objective; a user direction change can replace it. Distinguish the requested deliverable: an audit or proposal remains an audit or proposal until implementation is requested.
 - identity: {"change":"keep"|"refine"|"pivot", "summary":string, "title":string, "evidenceIds":string[]}. summary describes the durable objective and its scope in at most 1200 characters, independently of the latest task or status. title follows the goal form above and equals goal. Use keep when the current objective still identifies the overall work; carry its summary and title forward. Use refine when new user evidence makes an initially vague objective more precise; cite at least one request ID not already retained in the objective. Use pivot when the user changes the overall direction, supported by the latest user request ID. Cite request IDs: the id attributes in <conversation> or the evidenceIds in <durable_objective>; these identify the evidence, not topics. Establish an objective from the opening request when none exists. Incidental product mentions and agent recap headlines describe evidence or the latest task, not a direction change. A schema investigation supporting deployment readiness, for example, keeps the deployment objective while its recap describes the investigation.`;
 
 export function fullAnalysisPrompt(input: FullAnalysisInput): string {
@@ -582,7 +612,7 @@ export function restylePrompt(input: RestyleInput): string {
   const listing = listingBlock(input.listing);
   return `${HEADER}
 
-You rename one agent thread whose title was written in an older style, for someone who switches between dozens of threads. The new title names the same subject as the current one, in its words where you can, and keeps its names, identifiers, and numbers unless the listing below already shows them; only the form changes. What the thread is for helps you understand the title; don't name its details instead.
+You rename one agent thread whose title was written in an older style, for someone who switches between dozens of threads. The new title names the same subject as the current one, in its words where you can, and keeps its names, identifiers, and numbers unless the listing below already shows them; only the form changes. What the thread is for helps you choose the verb and understand the title; don't name its details instead.
 
 The current title:
 ${tagged("title", redact(input.title))}
@@ -594,7 +624,7 @@ export function restyleSchema(): Record<string, unknown> {
   return {
     type: "object",
     additionalProperties: false,
-    properties: { title: { type: "string" } },
+    properties: { title: { type: "string", pattern: GOAL_PATTERN } },
     required: ["title"],
   };
 }

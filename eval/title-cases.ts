@@ -114,27 +114,5 @@ export const titleCases: TitleCase[] = [
   },
 ];
 
-/** Verbs that say little at the start of a sidebar row. */
-export const GENERIC_VERBS = [
-  "implement",
-  "review",
-  "design",
-  "fix",
-  "build",
-  "rebuild",
-  "make",
-  "create",
-  "add",
-  "update",
-  "investigate",
-  "explain",
-  "plan",
-  "ship",
-  "restore",
-  "revise",
-  "rewrite",
-  "prepare",
-  "check",
-  "verify",
-  "validate",
-];
+/** -ing verbs that don't say what kind of work a thread is. */
+export const VAGUE_VERBS = ["working", "handling", "doing", "continuing"];

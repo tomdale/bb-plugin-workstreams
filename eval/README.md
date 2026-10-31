@@ -36,9 +36,9 @@ budget. A small perfect synthetic run is not a production accuracy estimate. See
 `node eval/titles.ts` runs Quick analysis's prompt, schema, and parser on
 synthetic opening requests, each listed under a workstream and sometimes a
 parent thread; `EVAL_KIND=full` runs Full analysis's on the same requests as a
-first turn. A title passes when it names its case's subject, repeats nothing its
-listing shows, and fits a sidebar row (`EVAL_VISIBLE`, default `34` characters).
-The report counts titles that start with a generic verb.
+first turn. A title passes when it starts with an -ing verb that says what kind
+of work it is, names its case's subject, repeats nothing its listing shows, and
+fits a sidebar row (`EVAL_VISIBLE`, default `34` characters).
 
 - `EVAL_MODEL`: default `openai/gpt-6-luna-fast` (Quick) or
   `openai/gpt-6-sol-fast` (Full)

@@ -47,7 +47,7 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
 | **Placement**        | The one model call that chooses a root's topic from its requests, when it starts and after each new request.                                                                                                                               |
 | **Suggestion**       | A split of a busy topic, or a tidy edit to the topic tree, that changes nothing until you accept it. Review lists those that move threads apart from those that only tidy groups, which move no thread and decide where future threads go. |
 | **Unfiled**          | Roots that currently have no topic and therefore belong to no workstream.                                                                                                                                                                  |
-| **Goal**             | What a thread is for, written as its display title: a noun phrase that leads with its subject and leaves out what its workstream and parent thread already say (`2–5` words, aiming under `32` characters).                                |
+| **Goal**             | What a thread is for, written as its display title: an -ing verb and its subject ("Redesigning work tab") that leaves out what its workstream and parent thread already say (`2–5` words, under `34` characters).                          |
 | **Status**           | How the latest turn ended: `needs you`, `review`, `blocked`, `working` (`in_progress` in JSON/CLI), `done`, or `error`.                                                                                                                    |
 | **Agent recap**      | A structured end-of-turn report submitted by the agent with the `WorkstreamsRecap` tool.                                                                                                                                                   |
 | **Organization**     | The deterministic process—and Workstreams page tab—that derives workstreams and section membership from topics.                                                                                                                            |
@@ -142,17 +142,19 @@ Full analysis settles:
 - **Durable objective and goal (title):** Evaluates whether the thread's
   objective should `keep`, `refine` (requires new user request evidence), or
   `pivot` (requires the latest user request). When **Keep titles current** is
-  enabled, Workstreams updates the thread title. Titles lead with the subject,
-  so it survives a sidebar row's truncation ("Phase 1 security review", not
-  "Review Phase 1 security and boundaries"), keep identifiers such as a phase
-  number, name a pull request by its subject rather than its number, and leave
-  out what the thread's workstream and parent thread already say: Quick and Full
-  analysis see both, and a leading workstream name is dropped from the result.
-  They aim under `32` characters; titles over `48` are dropped rather than
-  clipped. If you rename a thread outside Workstreams, that title is locked and
-  preserved until cleared. `bb workstreams titles restyle` proposes titles in
-  this form for threads Workstreams titled earlier, using `openai/gpt-6-sol`
-  (reasoning `low`), and `--apply` renames them.
+  enabled, Workstreams updates the thread title. Titles answer "what am I
+  doing?" with an -ing verb that says what kind of work it is and the subject it
+  acts on ("Reviewing Phase 1 security", not "Review Phase 1 security and
+  boundaries"); the verb names the overall work, so it stays put while the
+  thread tests or ships it. Titles keep identifiers such as a phase number, name
+  a pull request by its subject rather than its number, and leave out what the
+  thread's workstream and parent thread already say: Quick and Full analysis see
+  both, and a workstream name at the start or right after the verb is dropped
+  from the result. They aim under `34` characters; titles over `48` are dropped
+  rather than clipped. If you rename a thread outside Workstreams, that title is
+  locked and preserved until cleared. `bb workstreams titles restyle` proposes
+  titles in this form for threads Workstreams titled earlier, using
+  `openai/gpt-6-sol` (reasoning `low`), and `--apply` renames them.
 - **Fallback recap and status:** Only when the agent did not call
   `WorkstreamsRecap`, Full analysis supplies a one-line recap, work state
   (`needs_decision`, `review`, `blocked`, `in_progress`, or `done`), and a short

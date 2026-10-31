@@ -5,7 +5,9 @@ import {
   parseQuickAnalysis,
   parseRestyle,
   quickAnalysisPrompt,
+  quickAnalysisSchema,
   restylePrompt,
+  restyleSchema,
 } from "../../src/domain/analysis.ts";
 
 const listing = { group: "Streams Plugin: Recap Cards", parent: null };
@@ -28,6 +30,29 @@ describe("dropListedPrefix", () => {
     expect(
       dropListedPrefix("Streams plugin recap cards sizing bug", listing),
     ).toBe("Sizing bug");
+  });
+
+  it("drops a listed name right after the verb", () => {
+    expect(
+      dropListedPrefix("Fixing Atlas invoice export", {
+        group: "Atlas: Billing",
+        parent: null,
+      }),
+    ).toBe("Fixing invoice export");
+    expect(dropListedPrefix("Restoring recap cards task list", listing)).toBe(
+      "Restoring task list",
+    );
+    // A name the verb's subject would be left without stays.
+    expect(dropListedPrefix("Restoring recap card details", listing)).toBe(
+      "Restoring recap card details",
+    );
+    // Acronyms keep their case.
+    expect(
+      dropListedPrefix("Reviewing Atlas API docs", {
+        group: "Atlas",
+        parent: null,
+      }),
+    ).toBe("Reviewing API docs");
   });
 
   it("keeps a title whose rest would be one word, or with nothing listed", () => {
@@ -96,6 +121,20 @@ describe("listing context", () => {
         { entities: [], listing },
       ).goal,
     ).toBe("Completed tasks");
+  });
+});
+
+describe("title form", () => {
+  it("asks generation for an opening -ing verb", () => {
+    const pattern = (schema: Record<string, unknown>, field: string) =>
+      new RegExp(
+        (schema.properties as Record<string, { pattern: string }>)[field]!
+          .pattern,
+      );
+    const quick = pattern(quickAnalysisSchema({ entities: [] }), "goal");
+    expect(quick.test("Reviewing PR 1207")).toBe(true);
+    expect(quick.test("Review PR 1207")).toBe(false);
+    expect(pattern(restyleSchema(), "title").test("Fixing export")).toBe(true);
   });
 });
 

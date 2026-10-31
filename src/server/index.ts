@@ -1227,7 +1227,7 @@ export default async function plugin(bb: BbPluginApi) {
               title,
               revision,
               "analysis",
-              "Retitled in the subject-first title form",
+              "Retitled in the current title form",
             ),
           renameGoal: (threadId, title) => analyzer.renameGoal(threadId, title),
         },
