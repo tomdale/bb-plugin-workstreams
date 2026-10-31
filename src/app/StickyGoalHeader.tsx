@@ -574,7 +574,9 @@ export function StickyGoalHeader(): React.ReactElement | null {
         style={{
           transform: `translate(${compactSpot.x}px, ${compactSpot.y}px)`,
           width: compactSpot.width,
-          height: barBlock,
+          height: inBar
+            ? Math.max(barBlock, paneTop - compactSpot.y)
+            : barBlock,
         }}
       >
         <div
