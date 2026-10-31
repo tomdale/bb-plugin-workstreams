@@ -124,6 +124,11 @@ export function headingOpacity(progress: number) {
   };
 }
 
+/** Keep timeline text behind the large heading until its fade is nearly done. */
+export function headingBackdropOpacity(progress: number): number {
+  return 1 - progress ** 12;
+}
+
 /** The collapsed text block (workstream over title) in px. */
 export function compactBlock(base: number, eyebrow: Eyebrow | null): number {
   return (

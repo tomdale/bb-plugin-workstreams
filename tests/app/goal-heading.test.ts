@@ -3,6 +3,7 @@ import {
   PHONE_QUERY,
   compactBlock,
   eyebrowMetrics,
+  headingBackdropOpacity,
   headingHeight,
   headingOpacity,
   headingScroll,
@@ -94,6 +95,15 @@ it("eases the outgoing and incoming opacity independently", () => {
   expect(headingOpacity(0.25)).toEqual({ expanded: 0.9375, compact: 0.4375 });
   expect(headingOpacity(0.75)).toEqual({ expanded: 0.4375, compact: 0.9375 });
   expect(headingOpacity(1)).toEqual({ expanded: 0, compact: 1 });
+});
+
+it("keeps the backdrop opaque through the crossfade and clears it at the end", () => {
+  expect(headingBackdropOpacity(0)).toBe(1);
+  expect(headingBackdropOpacity(0.5)).toBeGreaterThan(0.99);
+  expect(headingBackdropOpacity(0.9)).toBeGreaterThan(
+    headingOpacity(0.9).expanded,
+  );
+  expect(headingBackdropOpacity(1)).toBe(0);
 });
 
 it("accounts for a two-line phone title before finishing the reveal", () => {

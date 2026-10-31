@@ -14,6 +14,7 @@ import {
   TITLE_SIZE,
   compactBlock,
   eyebrowMetrics,
+  headingBackdropOpacity,
   headingHeight,
   headingOpacity,
   headingScroll,
@@ -439,7 +440,8 @@ export function StickyGoalHeader(): React.ReactElement | null {
         height * (1 - progress),
         pinned ? platePinnedHeight * progress : 0,
       );
-  const plateOpacity = fadeOnly && !pinned ? opacity.expanded : 1;
+  const plateOpacity =
+    fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
   const scrollPadding =
     fadeOnly && !pinned ? height * (1 - progress) : plateHeight;
   const fadeAnchor = plateHeight;

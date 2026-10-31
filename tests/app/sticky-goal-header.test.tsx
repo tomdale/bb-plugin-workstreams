@@ -3,7 +3,12 @@ import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, waitFor } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { emptyState, sidebarThread } from "./fixtures.ts";
-import { headingOpacity, headingScroll } from "../../src/app/goalHeading.ts";
+import {
+  headingBackdropOpacity,
+  headingOpacity,
+  headingScroll,
+  titleExitDistance,
+} from "../../src/app/goalHeading.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
 
 afterEach(() => {
@@ -247,8 +252,11 @@ it("crossfades stationary headings and switches modes on preference changes", as
     ".ws-sticky-goal__plate",
   )!;
   expect(Number(plate.style.opacity)).toBeCloseTo(
-    Number(groups()[0]!.style.opacity),
+    headingBackdropOpacity(
+      headingScroll(50, titleExitDistance(14, null, 1)).progress,
+    ),
   );
+  expect(Number(plate.style.opacity)).toBeGreaterThan(0.95);
   expect(plate.style.transform).toBe("scaleY(1)");
   await slot.behavior.emitRealtime("prefs", {
     prefs: parsePrefs({ threads: { headingTransition: "scroll" } }),
