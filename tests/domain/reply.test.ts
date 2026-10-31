@@ -1,405 +1,427 @@
 import { describe, expect, it } from "vitest";
+import { parse, toText, type Reply } from "../../src/domain/reply.ts";
 import {
-  parse,
-  type Reply,
-  type ReplyParseResult,
-  toText,
-} from "../../src/domain/reply.ts";
-import { replyInstructions } from "../../src/domain/replyInstructions.ts";
+  componentText,
+  replyComponentSchema,
+  evidenceFilePath,
+  evidenceMarkdown,
+} from "../../src/domain/replyComponents.ts";
+import {
+  COMPONENT_EXAMPLES,
+  COMPOSED_SAMPLES,
+  componentFence,
+} from "../../src/domain/replyExamples.ts";
+import {
+  replyInstructions,
+  REPLY_COMPONENT_INSTRUCTIONS,
+} from "../../src/domain/replyInstructions.ts";
 import { recapInputFromCard } from "../../src/domain/replyRecap.ts";
-import { lastReplyBlock } from "../../src/domain/replyText.ts";
 import { blockInput } from "./replyFixtures.ts";
+import { onlyReplyBlock, lastReplyBlock } from "../../src/domain/replyText.ts";
 import { REPLY_SAMPLES } from "./replySamples.ts";
 
-function read(message: string, options?: { streaming?: boolean }) {
-  const { status, ...input } = blockInput(message, options);
-  return parse(input, { status });
-}
-
-function reply(result: ReplyParseResult): Reply {
+function read(message: string, streaming = false): Reply {
+  const { status, ...input } = blockInput(message, { streaming });
+  const result = parse(input, { status });
   if (!result.ok) throw new Error(result.error);
   return result.data;
 }
+const block = (body: string) => `:::reply\n${body}\n:::\n`;
 
-const sample = (kind: string) =>
-  reply(read(REPLY_SAMPLES.find((entry) => entry.kind === kind)!.message));
-
-const shape = (data: Reply) =>
-  data.sections.map(({ label, kind }) => `${kind}:${label}`);
-
-describe("reply samples", () => {
-  it("reads every sample without error", () => {
-    for (const entry of REPLY_SAMPLES) {
-      const result = read(entry.message);
-      expect(result, entry.kind).toMatchObject({ ok: true });
-      // Beside a card the block starts at its first section.
-      expect(reply(result).lead !== undefined, entry.kind).toBe(!entry.card);
-    }
-  });
-
-  it("keeps the whole block in the source and the data JSON-safe", () => {
-    for (const entry of REPLY_SAMPLES) {
-      const data = reply(read(entry.message));
-      expect(JSON.parse(JSON.stringify(data))).toEqual(data);
-    }
-  });
-
-  it("finished work with a card: no lead, Checked, Why, folded details", () => {
-    const data = sample("finished work");
-    expect(data.lead).toBeUndefined();
-    expect(shape(data)).toEqual(["fixed:Checked", "fixed:Why"]);
-    expect(data.sections[0]!.markdown).toBe(
-      "Ran the 22 tests, the type check, the build and the Pi smoke test locally.",
-    );
-    expect(data.details).toBe("- I removed both temporary worktrees");
-  });
-
-  it("finished work without a card carries Done as task items", () => {
-    const data = sample("finished work, no card");
-    expect(shape(data)).toEqual(["fixed:Done", "fixed:Checked"]);
-    expect(data.lead).toContain("[toolbelt ff20695](https://github.com/");
-    expect(data.sections[0]!.items).toEqual([
-      {
-        checked: true,
-        markdown:
-          "Each skill snapshot keeps `skills/` and `scripts/` side by side",
-      },
-      {
-        checked: true,
-        markdown: "Both helper scripts run from Pi's skill folders",
-      },
-      { checked: true, markdown: "All 18 skills still load in BB and Pi" },
-    ]);
-    expect(data.details).toBeUndefined();
-  });
-
-  it("status check: plain list items and an unchecked Not done", () => {
-    const data = sample("status check");
-    expect(shape(data)).toEqual([
-      "fixed:Checked",
-      "fixed:Not done",
-      "fixed:Why",
-    ]);
-    expect(data.sections[0]!.items).toHaveLength(4);
-    expect(
-      data.sections[0]!.items!.every((item) => item.checked === null),
-    ).toBe(true);
-    expect(data.sections[1]!.items).toEqual([
-      { checked: false, markdown: "Merge: the PR is still open" },
-    ]);
-    expect(data.details).toContain("A newer run replaced it");
-  });
-
-  it("report: keeps two extra sections and folds the third", () => {
-    const data = sample("report");
-    expect(shape(data)).toEqual([
-      "fixed:Not done",
-      "fixed:Why",
-      "free:Root cause",
-      "free:Suggested fix",
-    ]);
-    expect(data.details).toBe(
-      "**Workaround**\n\nLeave out the subagent model override, or write `vercel-ai-gateway/openai/gpt-6-luna`.",
-    );
-  });
-
-  it("handed off, waiting on you, blocked: the fixed labels in order", () => {
-    expect(shape(sample("handed off"))).toEqual(["fixed:Next"]);
-    expect(shape(sample("waiting on you"))).toEqual(["fixed:Needs you"]);
-    expect(shape(sample("blocked"))).toEqual([
-      "fixed:Done",
-      "fixed:Not done",
-      "fixed:Needs you",
-      "fixed:Next",
-    ]);
-  });
-
-  it("handed off without a card keeps its lead", () => {
-    expect(sample("handed off").lead).toBe(
-      "@thread:thr_4teudyehkq now owns the browser-automation Zod error. It has the error text and the steps to reproduce it.",
-    );
-  });
-});
-
-describe("rules", () => {
-  it("reads a block that starts at a section, with no lead", () => {
-    expect(
-      reply(read(":::reply\n### Checked\nRan the tests locally.\n:::\n")),
-    ).toEqual({
-      sections: [
-        { label: "Checked", kind: "fixed", markdown: "Ran the tests locally." },
-      ],
-    });
-  });
-
-  it("reads a block that is only a lead", () => {
-    expect(reply(read(":::reply\nPASS\n:::\n"))).toEqual({
-      lead: "PASS",
-      sections: [],
-    });
-  });
-
-  it("rejects a closed block with nothing in it", () => {
-    expect(read(":::reply\n:::\n")).toEqual({
-      ok: false,
-      error: "The reply is empty.",
-    });
-    expect(read(":::reply\n### Checked\n:::\n")).toMatchObject({ ok: false });
-  });
-
-  it("reads an unclosed reply leniently, so bb adds no failure note", () => {
-    const data = reply(read(":::reply\n### Checked\nTests pass.\n"));
-    expect(data.lead).toBeUndefined();
-    expect(data.sections).toEqual([
-      { label: "Checked", kind: "fixed", markdown: "Tests pass." },
-    ]);
-  });
-
-  it("shows what has arrived while streaming", () => {
-    expect(reply(read(":::reply\n", { streaming: true }))).toEqual({
-      sections: [],
-    });
-    const data = reply(
-      read(":::reply\nTests pass.\n\n### Checked\n22 tests\n\n### Ne", {
-        streaming: true,
-      }),
-    );
-    expect(data.lead).toBe("Tests pass.");
-    expect(data.sections).toEqual([
-      { label: "Checked", kind: "fixed", markdown: "22 tests" },
-      { label: "Ne", kind: "free", markdown: "" },
-    ]);
-  });
-
-  it("drops empty sections once complete", () => {
-    expect(
-      shape(
-        reply(
-          read(":::reply\nLead.\n\n### Checked\n\n### Why\nBecause.\n:::\n"),
+describe("composed replies", () => {
+  it.each(Object.entries(COMPOSED_SAMPLES))(
+    "reads the %s sample and its recap",
+    (kind, message) => {
+      const data = read(message);
+      expect(data.kind).toBe(kind);
+      expect(recapInputFromCard(data.card!).ok).toBe(true);
+      expect(
+        data.body.some(
+          (part) => part.type === "text" && part.body.includes("\n\n"),
         ),
-      ),
-    ).toEqual(["fixed:Why"]);
-  });
+      ).toBe(true);
+      expect(data.body.some((part) => part.type !== "text")).toBe(true);
+      expect(JSON.parse(JSON.stringify(data))).toEqual(data);
+      expect(toText(data)).not.toContain("```workstreams");
+    },
+  );
 
-  it("matches fixed labels loosely and keeps their exact text", () => {
-    const data = reply(
-      read(
-        ":::reply\nLead.\n\n## not  done:\n- [ ] Merge\n\n### NEEDS YOU\nA token.\n:::\n",
-      ),
-    );
-    expect(shape(data)).toEqual(["fixed:Not done", "fixed:Needs you"]);
-  });
+  it.each(Object.entries(COMPONENT_EXAMPLES))(
+    "reads and serializes the %s component",
+    (_, example) => {
+      expect(replyComponentSchema.safeParse(example).success).toBe(true);
+      const data = read(block(componentFence(example)));
+      expect(data.body).toEqual([example]);
+      expect(componentText(example).length).toBeGreaterThan(0);
+      expect(toText(data)).toBe(componentText(example));
+    },
+  );
 
-  it("folds list items past five under Details", () => {
-    const items = Array.from({ length: 7 }, (_, n) => `- Item ${n + 1}`).join(
-      "\n",
-    );
-    const data = reply(read(`:::reply\nLead.\n\n### Checked\n${items}\n:::\n`));
-    expect(data.sections[0]!.markdown).toBe(
-      "- Item 1\n- Item 2\n- Item 3\n- Item 4\n- Item 5",
-    );
-    expect(data.sections[0]!.items).toHaveLength(5);
-    expect(data.details).toBe("**Checked, continued**\n\n- Item 6\n- Item 7");
-  });
-
-  it("folds sentences past three, ignoring periods in code and abbreviations", () => {
-    const data = reply(
-      read(
-        ":::reply\nLead.\n\n### Why\nThe `a.b. C` path breaks, e.g. on Linux. Second one! Third? Fourth sentence. Fifth.\n:::\n",
+  it("keeps prose in place on both sides of a component", () => {
+    const data = read(
+      block(
+        `The caller supplies a percentage.\n\n${componentFence(COMPONENT_EXAMPLES.finding)}\n\nConvert it before applying the discount.`,
       ),
     );
-    expect(data.sections[0]!.markdown).toBe(
-      "The `a.b. C` path breaks, e.g. on Linux. Second one! Third?",
-    );
-    expect(data.details).toBe("**Why, continued**\n\nFourth sentence. Fifth.");
+    expect(data.body.map((part) => part.type)).toEqual([
+      "text",
+      "finding",
+      "text",
+    ]);
+    expect(data.body[0]).toEqual({
+      type: "text",
+      body: "The caller supplies a percentage.",
+    });
+    expect(data.body[2]).toEqual({
+      type: "text",
+      body: "Convert it before applying the discount.",
+    });
   });
 
-  it("counts sentences across paragraphs and folds later blocks whole", () => {
-    const data = reply(
-      read(
-        ":::reply\nLead.\n\n### Root cause\nOne. Two.\n\nThree.\n\nFour.\n\n- After\n:::\n",
-      ),
-    );
-    expect(data.sections[0]!.markdown).toBe("One. Two.\n\nThree.");
-    expect(data.details).toBe("**Root cause, continued**\n\nFour.\n\n- After");
+  it("preserves long explanations and arbitrary headings without implicit disclosure", () => {
+    const paragraphs = Array.from(
+      { length: 8 },
+      (_, i) =>
+        `### Explanation ${i + 1}\n\nOne. Two. Three. Four. Five.\n\n${Array.from({ length: 8 }, (_, n) => `- Item ${n + 1}`).join("\n")}`,
+    ).join("\n\n");
+    expect(read(block(paragraphs)).body).toEqual([
+      { type: "text", body: paragraphs },
+    ]);
   });
 
-  it("puts the agent's own Details before folded overflow", () => {
-    const data = reply(
-      read(
-        ":::reply\nLead.\n\n### One\nA.\n\n### Two\nB.\n\n### Three\nC.\n\n### Details\nOwn notes.\n:::\n",
+  it("only folds an explicit Details section", () => {
+    const data = read(
+      block(
+        "Main explanation.\n\n### Details\nSupporting notes.\n\n### More explanation\nThis stays visible.",
       ),
     );
-    expect(data.details).toBe("Own notes.\n\n**Three**\n\nC.");
+    expect(data.body.map((part) => part.type)).toEqual([
+      "text",
+      "details",
+      "text",
+    ]);
+    expect(data.body[1]).toEqual({
+      type: "details",
+      title: "Details",
+      body: "Supporting notes.",
+    });
+    expect(toText(data)).toContain("Supporting notes.");
+    expect(data.body[2]).toEqual({
+      type: "text",
+      body: "### More explanation\nThis stays visible.",
+    });
   });
 
-  it("keeps deeper headings, ordered lists and code inside a section", () => {
-    const data = reply(
-      read(
-        ":::reply\nLead.\n\n### Next\n#### Order\n1. First\n2. Second\n\n```sh\nnpm test\n```\n:::\n",
+  it.each(REPLY_SAMPLES)(
+    "keeps the stored sample $kind readable",
+    ({ message }) => {
+      const data = read(message);
+      expect(toText(data)).not.toBe("");
+      expect(
+        data.body.every(
+          (part) => part.type === "text" || part.type === "details",
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it("keeps component fences after a recap section in the body", () => {
+    const data = read(
+      `:::reply{state="review"}\n# The change is ready\n- [x] Kept the caller contract\n\n### Review\n- Inspect the calculation\n\n${componentFence(COMPONENT_EXAMPLES.change)}\n:::\n`,
+    );
+    expect(data.card?.review).toEqual(["Inspect the calculation"]);
+    expect(data.body).toEqual([COMPONENT_EXAMPLES.change]);
+  });
+
+  it("preserves meaningful Markdown whitespace inside text components", () => {
+    const markdown =
+      "    const value = 1;\n\nA paragraph with its full explanation.\n";
+    expect(
+      read(block(componentFence({ type: "text", body: markdown }))).body,
+    ).toEqual([{ type: "text", body: markdown }]);
+  });
+
+  it("keeps a component after explicit Details outside the Markdown fold", () => {
+    const data = read(
+      block(
+        `### Details\nSupporting notes.\n\n${componentFence(COMPONENT_EXAMPLES.change)}`,
       ),
     );
-    expect(data.sections).toEqual([
+    expect(data.body).toEqual([
+      { type: "details", title: "Details", body: "Supporting notes." },
+      COMPONENT_EXAMPLES.change,
+    ]);
+  });
+
+  it("preserves checked and unchecked result status in the text view", () => {
+    const data = read(
+      ':::reply{state="review"}\n# The change is local\n- [x] Committed the change\n- [ ] Push the branch\n\n### Review\n- Inspect the diff\n:::\n',
+    );
+    expect(data.card?.results).toEqual([
+      { checked: true, markdown: "Committed the change" },
+    ]);
+    expect(toText(data)).toContain("- [x] Committed the change");
+    expect(toText(data)).toContain("### Not done\n\n- [ ] Push the branch");
+  });
+
+  it("keeps ordinary code and headings inside it as Markdown", () => {
+    const source =
+      "### Example\n\n```ts\n// ### not a section\nconst x = 1;\n```";
+    expect(read(block(source)).body).toEqual([{ type: "text", body: source }]);
+  });
+
+  it("keeps a literal ::: line with a longer outer marker", () => {
+    const data = read("::::reply\n```md\n:::\n```\n::::\n");
+    expect(data.body).toEqual([{ type: "text", body: "```md\n:::\n```" }]);
+  });
+
+  it("keeps malformed component source without losing surrounding prose or the recap", () => {
+    const source =
+      ':::reply{state="complete"}\n# Investigated the failure\n- [x] The source was preserved\n\nBefore.\n\n```workstreams\n{"type":"finding","title":"unfinished"}\n```\n\nAfter.\n:::\n';
+    const data = read(source);
+    expect(data.body.map((part) => part.type)).toEqual([
+      "text",
+      "unparsed",
+      "text",
+    ]);
+    expect(data.body[1]).toMatchObject({
+      source: expect.stringContaining('"unfinished"'),
+      error: expect.stringContaining("Component not displayed"),
+    });
+    expect(recapInputFromCard(data.card!).ok).toBe(true);
+    expect(toText(data)).toContain("Before.");
+    expect(toText(data)).toContain("After.");
+  });
+
+  it("shows a pending component until its code fence closes", () => {
+    const source =
+      ':::reply\nAn explanation.\n\n```workstreams\n{"type":"finding","title":"';
+    expect(read(source, true).body.map((part) => part.type)).toEqual([
+      "text",
+      "pending",
+    ]);
+    const completeJson =
+      ':::reply\n```workstreams\n{"type":"text","body":"Complete JSON but the fence is still open"}';
+    expect(read(completeJson, true).body).toEqual([{ type: "pending" }]);
+    expect(
+      read(block(componentFence(COMPONENT_EXAMPLES.finding))).body[0]?.type,
+    ).toBe("finding");
+  });
+
+  it("keeps a final unterminated component as source even if its JSON is valid", () => {
+    const data = read(
+      ':::reply\n```workstreams\n{"type":"text","body":"Complete JSON"}\n:::\n',
+    );
+    expect(data.body).toEqual([
       {
-        label: "Next",
-        kind: "fixed",
-        markdown: "#### Order\n1. First\n2. Second\n\n```sh\nnpm test\n```",
+        type: "unparsed",
+        source: '```workstreams\n{"type":"text","body":"Complete JSON"}',
+        error: "Component not displayed: close the workstreams code fence.",
       },
     ]);
   });
 
-  it("ignores headings inside a code block", () => {
-    const data = reply(
-      read(
-        ":::reply\nLead.\n\n### Checked\n```md\n### Done\n- [x] not an item\n```\n:::\n",
-      ),
+  it("accepts an empty streaming prefix but rejects an empty closed reply", () => {
+    expect(read(":::reply\n", true)).toEqual({ body: [] });
+    const input = blockInput(":::reply\n:::\n");
+    expect(parse(input)).toMatchObject({ ok: false });
+  });
+
+  it("keeps server parsing consistent with the registered reply versions", () => {
+    const input = blockInput(
+      ':::reply{v="999" state="complete"}\n# Unsupported reply\n:::\n',
     );
-    expect(data.sections).toEqual([
-      {
-        label: "Checked",
-        kind: "fixed",
-        markdown: "```md\n### Done\n- [x] not an item\n```",
-      },
+    expect(parse(input)).toEqual({
+      ok: false,
+      error: "Unsupported reply version.",
+    });
+    expect(read(':::reply{v="1"}\nA supported reply.\n:::\n').body).toEqual([
+      { type: "text", body: "A supported reply." },
     ]);
   });
 
-  it("keeps a ::: line inside a code block when the block uses a longer marker", () => {
-    const data = reply(
-      read(
-        "::::reply\nLead.\n\n### Checked\n```md\n:::\n```\n\n### Next\nShip it.\n::::\n",
-      ),
-    );
-    expect(data.sections.map((section) => section.label)).toEqual([
-      "Checked",
-      "Next",
-    ]);
-    expect(data.sections[0]!.markdown).toBe("```md\n:::\n```");
-  });
-
-  it("dedents multi-line list items", () => {
-    const data = reply(
-      read(
-        ":::reply\nLead.\n\n### Done\n- [x] First line\n  second line\n:::\n",
-      ),
-    );
-    expect(data.sections[0]!.items).toEqual([
-      { checked: true, markdown: "First line\nsecond line" },
-    ]);
-  });
-
-  it("rejects a tree without source offsets", () => {
+  it("rejects missing source positions rather than guessing offsets", () => {
     expect(
       parse({
-        source: "Lead.",
+        source: "Text",
         tree: {
           type: "root",
           children: [
-            { type: "paragraph", children: [{ type: "text", value: "Lead." }] },
+            { type: "paragraph", children: [{ type: "text", value: "Text" }] },
           ],
         },
       }),
     ).toMatchObject({ ok: false });
   });
-});
 
-describe("toText", () => {
-  it("writes the labeled sections and details as Markdown", () => {
-    expect(toText(sample("status check"))).toBe(
-      [
-        "**Checked**\n- Read the PR's status and required checks on GitHub\n- Read the preview deployments' status on GitHub\n- Read the code review and code owner checks on GitHub\n- Compared the branch with `feature/register-artifacts`; the force push changed nothing",
-        "**Not done**\n- [ ] Merge: the PR is still open",
-        "**Why**\nThe PR already sat on the latest `feature/register-artifacts`, so it needed no rebase.",
-        "**Details**\nOne older Build Container run failed. A newer run replaced it and passed, so it needs no fix.",
-      ].join("\n\n"),
+  it("keeps a stateless headline separate and accepts a headline-only recap", () => {
+    expect(read(block("# Python 3.9 or newer"))).toEqual({
+      headline: "Python 3.9 or newer",
+      body: [],
+    });
+    const data = read(
+      ':::reply{state="complete"}\n# Python 3.9 or newer\n:::\n',
     );
+    expect(data.body).toEqual([]);
+    expect(recapInputFromCard(data.card!)).toMatchObject({
+      ok: true,
+      input: { goal: "Python 3.9 or newer", latest: [] },
+    });
   });
 
-  it("puts a lead first when there is one", () => {
-    expect(toText(sample("handed off"))).toBe(
-      "@thread:thr_4teudyehkq now owns the browser-automation Zod error. It has the error text and the steps to reproduce it.\n\n**Next**\nThat thread reports back here when it has a fix.",
-    );
-    expect(toText({ lead: "PASS", sections: [] })).toBe("PASS");
-  });
-
-  it("returns an empty string for data that is not a reply", () => {
+  it("text output includes qualifications, test totals, evidence, and recap actions", () => {
+    const data = read(COMPOSED_SAMPLES.change);
+    const output = toText(data);
+    for (const phrase of [
+      "Existing saved orders are unchanged",
+      "22 tests passed; 0 failed; 1 skipped",
+      "credential was unavailable",
+      "reports/tests.json",
+      "No push was requested",
+      "Check callers",
+    ])
+      expect(output).toContain(phrase);
     expect(toText(null)).toBe("");
-    expect(toText({ lead: 3 })).toBe("");
+    expect(toText({ body: 42 })).toBe("");
   });
 });
 
-describe("replyInstructions", () => {
-  const example = (text: string) =>
-    /^:{3}reply(\{[^}\n]*\})?\n[\s\S]*?\n:::$/m.exec(text)![0];
+describe("whole-reply validation", () => {
+  const one = ':::reply{state="complete"}\n# One answer\n:::\n';
+  it("accepts one closed top-level reply with surrounding whitespace", () => {
+    expect(onlyReplyBlock(`\n${one}\n`)?.status).toBe("closed");
+    expect(onlyReplyBlock("::::reply\nA reply.\n::::\n")?.status).toBe(
+      "closed",
+    );
+  });
+  it.each([
+    `Before.\n\n${one}`,
+    `${one}\nAfter.`,
+    `${one}\n${one}`,
+    "```md\n:::reply\nExample\n:::\n```",
+    ":::reply-other\nOther block\n:::\n",
+  ])("rejects multiple replies or content outside the reply: %s", (message) => {
+    expect(onlyReplyBlock(message)).toBeNull();
+  });
+  it("keeps server recovery separate from the strict authoring check", () => {
+    expect(lastReplyBlock(`${one}\nAfter.`)?.attributes.state).toBe("complete");
+    expect(lastReplyBlock(`${one}\n${one}`)?.source).toBe("# One answer\n");
+  });
+  it("requires a closer at least as long as the opener", () => {
+    expect(onlyReplyBlock("::::reply\nA reply.\n:::\n")?.status).toBe(
+      "unclosed",
+    );
+    expect(onlyReplyBlock(":::reply\nA reply.\n")?.status).toBe("unclosed");
+  });
+});
 
-  it("with the recap on, the example carries a card the server can store", () => {
-    const block = lastReplyBlock(`${example(replyInstructions(true))}\n`)!;
-    const data = reply(parse(block, { status: block.status }));
-    expect(data.lead).toBeUndefined();
-    expect(data.card?.headline).toBe("Percent coupons apply a percentage");
-    expect(data.sections.map((section) => section.label)).toEqual(["Checked"]);
+describe("evidence paths", () => {
+  it("keeps filesystem reserved characters literal and line coordinates separate", () => {
+    expect(evidenceFilePath("notes/Review #draft? 100%.md", "/work/shop")).toBe(
+      "/work/shop/notes/Review #draft? 100%.md",
+    );
+    expect(evidenceFilePath("../notes/Plan#L2", "/work/shop")).toBeNull();
+    expect(evidenceFilePath("notes/../Plan#L2", "/work/shop")).toBe(
+      "/work/shop/Plan#L2",
+    );
+    expect(evidenceFilePath("/work/notes/Plan#L2", "/work/shop")).toBe(
+      "/work/notes/Plan#L2",
+    );
+    expect(
+      evidenceMarkdown({
+        label: "Evidence",
+        location: "/tmp/Review #draft? 100%.md",
+        line: 2,
+        endLine: 4,
+      }),
+    ).toBe("[Evidence](</tmp/Review%20%23draft%3F%20100%25.md#L2-L4>)");
+    expect(evidenceFilePath("file:///tmp/notes.md", "/work")).toBeNull();
+    expect(evidenceFilePath("notes.md", null)).toBeNull();
+  });
+  it.each([
+    { line: 0 },
+    { line: 3, endLine: 2 },
+    { endLine: 4 },
+    { location: "https://example.com", line: 2 },
+  ])("rejects invalid file-line coordinates %j", (patch) => {
+    expect(
+      replyComponentSchema.safeParse({
+        ...COMPONENT_EXAMPLES.finding,
+        evidence: [{ label: "Source", location: "src/coupon.ts", ...patch }],
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("component boundary", () => {
+  it.each([
+    "javascript:alert(1)",
+    "data:text/html,x",
+    "//example.com/secret",
+    "../outside.md",
+    "reports/../../outside.md",
+    "/tmp/a\nb",
+  ])("rejects an unsafe evidence target %s", (location) => {
+    expect(
+      replyComponentSchema.safeParse({
+        ...COMPONENT_EXAMPLES.finding,
+        evidence: [{ label: "Source", location }],
+      }).success,
+    ).toBe(false);
+  });
+  it("rejects executable or styling fields and nested groups", () => {
+    expect(
+      replyComponentSchema.safeParse({
+        ...COMPONENT_EXAMPLES.change,
+        color: "red",
+      }).success,
+    ).toBe(false);
+    expect(
+      replyComponentSchema.safeParse({
+        type: "group",
+        relationship: "peers",
+        children: [COMPONENT_EXAMPLES.group, COMPONENT_EXAMPLES.change],
+      }).success,
+    ).toBe(false);
+  });
+  it("rejects invalid statuses and invented negative counts", () => {
+    expect(
+      replyComponentSchema.safeParse({
+        ...COMPONENT_EXAMPLES.checks,
+        testTotals: { passed: -1, failed: 0, skipped: 0 },
+      }).success,
+    ).toBe(false);
+    expect(
+      replyComponentSchema.safeParse({
+        ...COMPONENT_EXAMPLES.delivery,
+        stages: [{ name: "Push", status: "success", detail: "Claim" }],
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("delivered instructions", () => {
+  it.each([true, false])(
+    "stays inside the delivery budget with recap %s",
+    (recap) =>
+      expect(replyInstructions(recap).length).toBeLessThanOrEqual(4096),
+  );
+  it("gives the component guide its own bounded instruction", () =>
+    expect(REPLY_COMPONENT_INSTRUCTIONS.length).toBeLessThanOrEqual(4096));
+  it("teaches an example that parses and stores through the production path", () => {
+    const example = /^:::reply\{state="review"[\s\S]*?\n:::$/m.exec(
+      replyInstructions(true),
+    )![0];
+    const data = read(example);
+    expect(data.body.some((part) => part.type === "change")).toBe(true);
     expect(recapInputFromCard(data.card!)).toMatchObject({
       ok: true,
       input: {
         state: "review",
-        review: ["Run the cart tests and check the 10% case"],
+        latest: [
+          "Callers pass whole percentages; conversion stays beside the calculation",
+        ],
       },
     });
-  });
-
-  it("with the recap on, the short-answer example is a complete recap with no results", () => {
-    const text = replyInstructions(true);
-    const short = /^:::reply\{state="complete"\}\n# [^\n]+\n:::$/m.exec(
-      text,
-    )![0];
-    const block = lastReplyBlock(`${short}\n`)!;
-    const data = reply(parse(block, { status: block.status }));
-    expect(recapInputFromCard(data.card!)).toMatchObject({
-      ok: true,
-      input: { state: "complete", goal: "Python 3.9 or newer", latest: [] },
-    });
-  });
-
-  it("without the recap, the example has a lead and Done", () => {
-    const data = reply(read(`${example(replyInstructions(false))}\n`));
-    expect(data.card).toBeUndefined();
-    expect(data.lead).not.toBeUndefined();
-    expect(data.sections[0]!.label).toBe("Done");
-  });
-
-  it("with the recap on: final message, states, card fields, body order, short answers, question cards", () => {
-    const text = replyInstructions(true);
-    for (const phrase of [
-      "End every turn with one reply block as your final message",
-      "no space after the colons or before the `{`",
-      "`::::reply{…}`",
-      'timeout="<seconds>"',
-      "`### Review` (review only)",
-      "`### Links` (review only)",
-      "`### Waiting on` (waiting only)",
-      "`Title: message`",
-      "in this order: Checked, Not done, Needs you, Why",
-      "Checked says what was run and its result",
-      'not "Ran tests"',
-      "not the task's name",
-      "Only a short answer",
-      "A complete or review block with a body has results",
-      "at least one whenever they can take or request a next step",
-      ':::reply{state="complete"}\n# Python 3.9 or newer\n:::',
-      "unless the turn ends with a question card, which is then the reply",
-      "A two-line body is a good body",
-    ])
-      expect(text).toContain(phrase);
-    expect(text).not.toContain("WorkstreamsRecap");
-    expect(text).not.toContain("without `state`");
-  });
-
-  it("without the recap: the fixed labels in order, and the block before a question card", () => {
-    const text = replyInstructions(false);
-    expect(text).toContain(
-      "these exact labels in this order: Done, Checked, Not done, Needs you, Next, Why",
-    );
-    expect(text).toContain("write the block before calling the question tool");
-    expect(text).not.toContain("state=");
-    expect(text).toContain("A two-line body is a good body");
   });
 });

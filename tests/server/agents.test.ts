@@ -3,7 +3,14 @@ import { makePluginAgentConfigurationContext } from "@get-bb/plugin-sdk/testing"
 import { fakeWorld } from "./fake-bb.ts";
 import { WORKER_THREAD_MARKER } from "../../src/domain/worker.ts";
 import { RECAP_INSTRUCTIONS } from "../../src/domain/recap.ts";
-import { replyInstructions } from "../../src/domain/replyInstructions.ts";
+import {
+  replyInstructions,
+  REPLY_EXAMPLES_TOOL,
+} from "../../src/domain/replyInstructions.ts";
+import {
+  COMPONENT_EXAMPLES,
+  componentFence,
+} from "../../src/domain/replyExamples.ts";
 import { QUESTION_INSTRUCTIONS } from "../../src/server/questions/tool-definition.ts";
 
 /**
@@ -150,6 +157,60 @@ describe("configure", () => {
     expect(copy.tools.map((tool) => tool.name)).toEqual(
       fresh.tools.map((tool) => tool.name),
     );
+  });
+
+  it("offers read-only component examples only to sessions with Structured replies", async () => {
+    const w = await setup();
+    expect(
+      (await resolve(w, { id: "task" })).tools.map((tool) => tool.name),
+    ).not.toContain(REPLY_EXAMPLES_TOOL);
+    await w.harness.behavior.callRpc("setRecapPrefs", {
+      patch: { replies: true },
+    });
+    await w.harness.behavior.callRpc("reportClient", { messageBlocks: true });
+    expect(
+      (await resolve(w, { id: "task" })).tools.map((tool) => tool.name),
+    ).toContain(REPLY_EXAMPLES_TOOL);
+    const output = await w.harness.behavior.callAgentTool(
+      REPLY_EXAMPLES_TOOL,
+      { types: ["checks", "group"] },
+      { threadId: "task" },
+    );
+    expect(output).toBe(
+      [
+        componentFence(COMPONENT_EXAMPLES.checks),
+        componentFence(COMPONENT_EXAMPLES.group),
+      ].join("\n\n"),
+    );
+    await w.harness.behavior.callRpc("setRecapPrefs", {
+      patch: { required: false },
+    });
+    const bodyOnly = await resolve(w, { id: "task" });
+    expect(bodyOnly.tools.map((tool) => tool.name)).toContain(
+      REPLY_EXAMPLES_TOOL,
+    );
+    expect(bodyOnly.tools.map((tool) => tool.name)).not.toContain(
+      "WorkstreamsRecap",
+    );
+    const worker = await resolve(
+      w,
+      { id: "worker" },
+      {
+        pluginMetadata: {
+          [WORKER_THREAD_MARKER.key]: WORKER_THREAD_MARKER.value,
+        },
+      },
+    );
+    expect(worker.tools).toEqual([]);
+    expect(
+      (
+        await resolve(
+          w,
+          { id: "task" },
+          { origin: { kind: "fork", pluginId: "side-chat" } },
+        )
+      ).tools.map((tool) => tool.name),
+    ).not.toContain(REPLY_EXAMPLES_TOOL);
   });
 
   it.each([

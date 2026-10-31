@@ -1,5 +1,8 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { gatewayComplete } from "../../src/server/inference/gateway.ts";
+import {
+  gatewayComplete,
+  SYSTEM_PROMPT,
+} from "../../src/server/inference/gateway.ts";
 import { fakeWorld } from "./fake-bb.ts";
 import { savePrefs } from "../../src/server/prefs.ts";
 
@@ -40,7 +43,10 @@ it.each(["none", "minimal", "low", "medium", "high", "xhigh", "max"])(
       reasoning_effort: effort,
       max_tokens: 32768,
       providerOptions: { gateway: { serviceTier: "fast" } },
-      messages: [{ role: "system" }, { role: "user", content: "classify" }],
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: "classify" },
+      ],
     });
     expect(result).toMatchObject({
       text: "{}",
@@ -66,9 +72,42 @@ it("keeps unconfigured requests on Messages without forcing thinking", async () 
     "https://ai-gateway.vercel.sh/v1/messages",
   );
   const body = JSON.parse(fetch.mock.calls[0]![1].body);
+  expect(body.system).toBe(SYSTEM_PROMPT);
   expect(body).not.toHaveProperty("thinking");
   expect(body).not.toHaveProperty("reasoning_effort");
 });
+
+it.each([false, true])(
+  "keeps a supplied reply instruction in the system role (chat=%s)",
+  async (chat) => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify(
+            chat
+              ? { choices: [{ message: { content: "{}" } }] }
+              : { content: [{ type: "text", text: "{}" }] },
+          ),
+        ),
+      );
+    vi.stubGlobal("fetch", fetch);
+    await gatewayComplete({
+      prompt: "Answer with the supplied fact only",
+      systemPrompt: "Format the reply as a block",
+      model: "openai/test",
+      apiKey: "test",
+      ...(chat ? { reasoningLevel: "none" } : {}),
+    });
+    const body = JSON.parse(fetch.mock.calls[0]![1].body);
+    if (chat)
+      expect(body.messages).toEqual([
+        { role: "system", content: "Format the reply as a block" },
+        { role: "user", content: "Answer with the supplied fact only" },
+      ]);
+    else expect(body.system).toBe("Format the reply as a block");
+  },
+);
 
 it("sends a strict output contract for schema-constrained classification", async () => {
   const fetch = vi

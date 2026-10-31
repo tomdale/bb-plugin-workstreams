@@ -1,83 +1,71 @@
-/**
- * The agent-facing instruction for the `:::reply` block, given only when the
- * Structured replies setting is on. bb adds it through
- * `contributeInstructions`, whose 4,096-character budget it has to itself;
- * tests/server/agents.test.ts checks it against that limit.
+/*
+ * The reply contract travels separately from question instructions. Component
+ * examples ride on their own optional tool, so each delivered instruction
+ * remains within BB's per-text budget.
  */
-import { REPLY_BLOCK, REPLY_LABELS } from "./reply.ts";
+import { REPLY_BLOCK } from "./reply.ts";
+export const REPLY_EXAMPLES_TOOL = "WorkstreamsReplyExamples";
+const BODY = `Body: write the answer and reasoning as Markdown paragraphs. Keep causal connections. Choose headings and order for this reply. Keep uncertainty and qualifications beside their claims. Explicitly fold supporting detail while keeping the main explanation visible.
+Orient a returning reader with a context component: broad task, relevant place, brief background. Name actors and describe observable behavior. Distinguish passed from untested and pushed from deployed. Use complete sentences. Explain reasons when they help the reader understand a conclusion or decision. Actions name their effect. A short reply needs no components.`;
+const MARKERS = `Open with \`:::${REPLY_BLOCK}\` alone on a line; put any attributes on that same line, with no space after the colons or before \`{\`, and close with \`:::\` on its own line. Use a top-level block. Fenced code works inside; if a line must contain only \`:::\`, use \`::::reply\` and \`::::\` around the reply.`;
 
-const SYNTAX = `Put it at the top level of the message, not inside a list, quote, or code block. Open it with \`:::${REPLY_BLOCK}\` alone on a line, with no space after the colons or before attributes; write Markdown inside; close it with \`:::\` alone on a line.`;
-const CODE = `Code blocks work inside the body. A line holding only \`:::\` ends the block even inside a code block, so a body that must contain one opens with \`::::${REPLY_BLOCK}\` and closes with \`::::\`.`;
-const VOICE = (state: string) =>
-  `Put a condition first ("If CI passes, …"). Name who did what. Say what state things are in${state}: pushed or not, checked locally or in CI. Give a reason only when it changes a decision. Use concrete words and leave out filler such as simply, just, easily, and obviously.`;
-
-/**
- * `withRecap` says whether the recap is on. The reply block then carries the
- * recap card as well (the session has no recap tool), and this one
- * instruction is the whole recap contract. Without it the block is a reply
- * alone.
- */
 export function replyInstructions(withRecap: boolean): string {
   return withRecap ? withCard() : alone();
 }
 
+function alone(): string {
+  return `When you need input, put any explanation in a reply block before calling the question tool; the question card ends the turn. Otherwise, end your final reply with one :::reply block containing the answer, explanation, completion details, and relevant commit or PR links. ${MARKERS}\n${BODY}`;
+}
+
+/** A question card owns the reply when input is required; other turns carry recap fields. */
 function withCard(): string {
-  const body = REPLY_LABELS.filter(
-    (label) => label !== "Done" && label !== "Next",
-  );
-  return `End every turn with one reply block as your final message, after you finish the work you were authorized to do, unless the turn ends with a question card, which is then the reply. The block is the whole reply: write nothing before it or after it, and make no tool call after it. Its card fields become the recap above the composer and the thread's state in the sidebar.
-Open it with \`:::${REPLY_BLOCK}{state="…"}\` alone on a line (the states are below), with no space after the colons or before the \`{\`, and close it with \`:::\` alone on a line, at the top level of the message. Code blocks work inside; a line holding only \`:::\` ends the block even inside one, so a body that holds such a line uses \`::::${REPLY_BLOCK}{…}\` … \`::::\`. For example, with illustrative details:
+  return `When the user's answer is required, end with a question card; put any explanation before that tool call. Otherwise, finish authorized work and end with one reply block as the whole final message, with no text or tool call after it. ${MARKERS}
+Set state="complete", state="review", or state="waiting" on the opener; optional kind is answer, investigation, change, recommendation, proposal, status, or handoff, independently of state.
+State covers work this thread owns: complete when all authorized work is finished; review when a finished result awaits the user to inspect, test, merge, or ship; waiting only for an async result this thread must check to resume work. Work elsewhere counts only while this thread owns follow-up. Before complete/review, check blockers and authorized continuations. Continue work or ask for required input. Waiting also sets timeout="<seconds>" (1–86400), a realistic time until you check again. The card counts down; if that turn is still current at expiry, Workstreams prompts a status check.
+Recap fields update the card and sidebar; use terse inline Markdown without closing periods.
+Card fields: start with # and one short present-tense sentence stating what is true (at most 80 characters), -ing for waiting. Immediately below, complete and review with a body have 1–3 - [x] results: concrete outcomes, most important first, about 12 words each, with relevant commit and PR links. Results state findings or recommendations, including advice with no file changes. The body explains the outcomes rather than repeating their sentences.
+Reserved ### sections: Review (review only) has 1–3 steps to inspect the result and what to expect. Links (review only) lists [title](location) review targets, HTTPS or absolute paths. Waiting on (waiting only) lists one @thread:<id> task per awaited agent. Next (complete/review) lists 1–3 Title: message actions the user might request, with short labels (at most 28 characters) and self-contained messages sent verbatim. Include a next action when the user has a useful next step; never offer work you should do yourself. A one-line answer can be a headline-only block.
+${BODY}
+Example with illustrative details:
+:::reply{state="review" kind="change"}
+# The coupon applies a percentage
+- [x] Callers pass whole percentages; conversion stays beside the calculation
 
-:::${REPLY_BLOCK}{state="review"}
-# Percent coupons apply a percentage
-- [x] \`apply_percent_coupon\` applies a percentage
-- [x] Committed \`e69d1dd\` locally; nothing pushed
+\`\`\`workstreams
+{"type":"context","topic":"Coupon calculation","background":"Review the percentage fix while keeping caller units unchanged."}
+\`\`\`
 
-### Checked
-Ran \`python3 -m unittest\`: 5 of 5 pass.
+The calculation divides the percentage by 100 before applying it to the amount, so callers keep the same units.
+
+\`\`\`workstreams
+{"type":"change","title":"Coupon behavior","before":"10 subtracted ten cents","after":"10 subtracts ten percent","limitation":"Existing saved orders are unchanged"}
+\`\`\`
 
 ### Review
-- Run the cart tests and check the 10% case
+- Inspect the percentage calculation and its regression test
 
 ### Next
-- Push the fix: Push the coupon fix and watch CI
+- Check callers: Check the other coupon callers for the same unit mismatch
 :::
-
-state: complete when all work this thread owns is finished; review when a finished result waits on the user to inspect, test, merge, or ship; waiting only while an async task runs whose result this thread needs, with \`timeout="<seconds>"\` (1-86400, a realistic polling interval), after which Workstreams prompts you to check status if no other turn has started. The state covers the work this thread owns under the user's request; work continuing elsewhere counts only while this thread owns follow-up. Keep working while there is authorized work you can do, and before a complete or review block check for concrete blockers and obvious continuations.
-Card fields, as terse inline Markdown without closing periods:
-- \`# \` headline (required, up to 80 characters): one short present-tense sentence saying what is true now, not the task's name ("1 of 5 tests fails", not "Repo status checked"); -ing for waiting
-- a \`- [x]\` list right under it (complete and review): one to three results, about 12 words each, most important first, with commit hashes and PR links inline; an explanation's results are what you found or established
-- \`### Review\` (review only): one to three steps saying how to try the result and what to expect
-- \`### Links\` (review only): \`[title](location)\` items, absolute paths or HTTPS URLs the user is asked to review
-- \`### Waiting on\` (waiting only): one \`@thread:<id> task\` item per agent you wait for
-- \`### Next\` (complete and review): one to three \`Title: message\` items the user might send, at least one whenever they can take or request a next step; a title of at most 28 characters, a self-contained message sent verbatim; never work you should do yourself
-Then the body, only sections with something to say, in this order: ${body.join(", ")}. Checked says what was run and its result ("Ran \`python3 -m unittest\`: 5 of 5 pass", not "Ran tests"); Not done items are \`- [ ]\`; Why gives the how or why. Then up to two sections of your own (a one-to-four-word heading; at most five items or three sentences) and \`### Details\` (shown folded) for anything longer. Never repeat a card line in the body.
-A complete or review block with a body has results, and Next when the user has a next step. Only a short answer (a one-line fact, a yes or no, a simple lookup) is a block with only its headline, which states the answer:
-
-:::${REPLY_BLOCK}{state="complete"}
+Short answer:
+:::reply{state="complete"}
 # Python 3.9 or newer
-:::
-
-${VOICE("")}
-A two-line body is a good body: stop when one or two short sections say it.`;
+:::`;
 }
 
-function alone(): string {
-  return `End your final reply of each turn with one reply block, which the app draws as a short labeled reply. ${SYNTAX} For example:
-
-:::${REPLY_BLOCK}
-Settings open in half the time because the font file is cached after the first visit.
-
-### Done
-- [x] Cached the font file after the first visit
-
-### Checked
-12 tests and the type check pass locally. Nothing is pushed.
-:::
-
-Inside the block, start with a lead of one or two plain sentences before any heading. Then add only the sections that have something to say, as \`###\` headings with these exact labels in this order: ${REPLY_LABELS.join(", ")}. Write Done items as \`- [x]\` and Not done items as \`- [ ]\`. After those, add at most two sections of your own, each with a heading of one to four words in sentence case and at most five list items or three sentences. Put anything longer under a last \`### Details\` heading, which shows folded.
-${CODE}
-Include Done and any commit or PR links in the block. When a question card ends the turn, write the block before calling the question tool.
-Lead with what is true now. ${VOICE("")}
-A two-line body is a good body: when a lead and one short section say it, stop there.`;
-}
+export const REPLY_COMPONENT_INSTRUCTIONS = `Compose information inside the body with JSON objects in fenced code blocks tagged workstreams. Call ${REPLY_EXAMPLES_TOOL} for the types you need before writing them. Its examples are illustrative, not facts about this thread. Place each fence at the body's top level, outside lists or quotes. The agent chooses information and relationships; the renderer chooses presentation. Each fence contains one object. Ordinary code uses its own language tag.
+For a substantive reply, start its body with context. Give an investigation's conclusion, certainty, and evidence in a finding; show before/after behavior in a change; state a recommendation with its reason and qualification in a recommendation. Use prose to explain the causal reasoning and connect those pieces. These are defaults for relevant information, not requirements to add unrelated components.
+Use concrete words and omit filler. Put conditions first; say whether checks ran locally or in CI.
+Choose by the reader's question:
+context: what are we working on, where, and what background matters? topic, optional where and background.
+finding: what did we establish, how certain is it, and why does it matter? title, explanation, certainty (observed|inferred|unknown), optional consequence and evidence.
+comparison: how do these options differ? title and 2–8 items, each name, summary, optional qualification, detail, recommended. Put a consequential trade-off in qualification so it stays visible; detail opens on demand. Compare with reasons and consequential trade-offs; numerical scores require a stated measurement or scoring method.
+sequence: what happens in what order? title and steps with title, optional detail and attention.
+change: what changed for the reader? title, before, after, optional unchanged and limitation. A limitation stays beside the change.
+checks: what was checked and what remains unverified? title, scope, items with name, status (passed|failed|skipped|blocked|untested), optional detail and evidence. Optional testTotals {passed,failed,skipped} contains actual nonnegative counts. The view opens failures and other unresolved states and folds passed checks. A clean run may need only a sentence.
+delivery: which stages really happened? title, scope, stages with name, status (done|pending|blocked|unknown), detail, optional evidence. Distinguish committed, pushed, built, installed, and deployed. A reported stage does not independently prove it happened.
+recommendation: what do you recommend and why? choice, reason, optional qualification. State the boundary beside it.
+details: supporting material with title and body (Markdown), folded on demand. Keep required actions and important qualifications in the visible explanation or the component they qualify.
+group: information to read together; relationship="peers" for comparable pieces or "supporting" for an explanation with supporting information. children contains 2–8 components, with no nested groups. A text child has type="text" and body (full Markdown).
+Evidence: plain label, optional detail, location (HTTPS or literal file path), line and endLine (1-based file range). Use links to real reports, source, or artifacts; distinguish a mock presentation check from verifying the claims in the mock. Relative files stay in the workspace; external files require an absolute path. Link factual claims to evidence and preserve uncertainty; component status is an agent report, not host verification.
+Each component takes only the named fields. Keep values as complete readable Markdown; the renderer preserves full values and uses explicit disclosure for supporting detail. Components that don't help the reader can be omitted. Shared context, sources and actions should not be repeated on every piece. A reply's kind describes its purpose; choose the components its information needs. Ask required questions through the question card; these components display information and do not collect approval or execute work.`;

@@ -101,6 +101,8 @@ export async function gatewayKey(
 
 export async function gatewayComplete(request: {
   prompt: string;
+  /** Instruction for a tool-free completion; classifiers use the default. */
+  systemPrompt?: string;
   model: string;
   apiKey: string;
   signal?: AbortSignal;
@@ -153,7 +155,10 @@ export async function gatewayComplete(request: {
         ...(chat
           ? {
               messages: [
-                { role: "system", content: SYSTEM_PROMPT },
+                {
+                  role: "system",
+                  content: request.systemPrompt ?? SYSTEM_PROMPT,
+                },
                 { role: "user", content: request.prompt },
               ],
               ...(effort ? { reasoning_effort: effort } : {}),
@@ -171,7 +176,7 @@ export async function gatewayComplete(request: {
                 : {}),
             }
           : {
-              system: SYSTEM_PROMPT,
+              system: request.systemPrompt ?? SYSTEM_PROMPT,
               messages: [{ role: "user", content: request.prompt }],
               ...(request.disableThinking
                 ? { thinking: { type: "disabled" } }

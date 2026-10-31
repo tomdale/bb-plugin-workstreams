@@ -7,6 +7,8 @@ import {
 import { RECAP_TOOL, type RecapFiles } from "../../src/domain/recap.ts";
 import { fakeWorld } from "./fake-bb.ts";
 import plugin from "../../src/server/index.ts";
+import { replyInstructions } from "../../src/domain/replyInstructions.ts";
+import { COMPOSED_SAMPLES } from "../../src/domain/replyExamples.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 const worlds: World[] = [];
@@ -881,8 +883,7 @@ describe("structured replies", () => {
   it("gives the merged instruction and no recap tool when recaps are on", async () => {
     const s = await world({ replies: true });
     const text = await replyText(s);
-    expect(text).toContain(':::reply{state="review"}');
-    expect(text).toContain("End every turn with one reply block");
+    expect(text).toBe(replyInstructions(true));
     const resolved = await s.configure();
     expect(resolved.instructions).not.toContain(":::reply");
     expect(resolved.tools.map((tool) => tool.name)).not.toContain(RECAP_TOOL);
@@ -937,9 +938,9 @@ describe("structured replies", () => {
     expect(await replyText(s)).toBeNull();
   });
 
-  it("asks for Done in the block when recaps are off, and nothing in side chats", async () => {
+  it("provides a composed body without a recap, and no reply instruction in side chats", async () => {
     const off = await world({ required: false, replies: true });
-    expect(await replyText(off)).toContain("Include Done and any commit");
+    expect(await replyText(off)).toBe(replyInstructions(false));
     const s = await world({ replies: true });
     expect(
       await replyText(s, { kind: "fork", pluginId: "side-chat" }),
@@ -1014,6 +1015,33 @@ describe("recaps from reply blocks", () => {
       review: [markdown],
       links: [{ title, location: "https://example.com/review" }],
       next: [{ title: "Inspect the result", message }],
+    });
+    expect(s.corrections()).toHaveLength(0);
+  });
+
+  it("does not store unchecked items as completed recap results", async () => {
+    const s = await world({ replies: true });
+    s.w.turn("t1");
+    await idleWith(
+      s,
+      ':::reply{state="review"}\n# The change is local\n- [x] Committed the change\n- [ ] Push the branch\n\n### Review\n- Inspect the diff\n:::\n',
+    );
+    expect((await s.card()).recap).toMatchObject({
+      state: "review",
+      latest: ["Committed the change"],
+    });
+    expect(s.corrections()).toHaveLength(0);
+  });
+
+  it("records the recap from a composed reply without treating body data as recap fields", async () => {
+    const s = await world({ replies: true });
+    s.w.turn("t1");
+    await idleWith(s, COMPOSED_SAMPLES.change);
+    expect((await s.card()).recap).toMatchObject({
+      state: "review",
+      goal: "The coupon applies a percentage",
+      latest: ["The calculation converts whole percentages to fractions"],
+      review: ["Inspect the percentage calculation and its regression test"],
     });
     expect(s.corrections()).toHaveLength(0);
   });

@@ -116,9 +116,9 @@ const CompactContext = createContext(false);
 type MarkdownDocument = NonNullable<
   React.ComponentProps<typeof Markdown>["experimental_document"]
 >;
-const MarkdownDocumentContext = createContext<MarkdownDocument | undefined>(
-  undefined,
-);
+export const MarkdownDocumentContext = createContext<
+  MarkdownDocument | undefined
+>(undefined);
 const useBodyClass = () =>
   useContext(CompactContext) ? COMPACT_BODY_CLASS : BODY_CLASS;
 

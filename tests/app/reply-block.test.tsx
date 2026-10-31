@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type {
   PluginAppBuilder,
@@ -7,299 +7,399 @@ import type {
   ExperimentalMessageBlockRegistration,
 } from "@get-bb/plugin-sdk/app";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { registerReplyBlock } from "../../src/app/reply/register.ts";
+import {
+  componentFence,
+  COMPONENT_EXAMPLES,
+  COMPOSED_SAMPLES,
+} from "../../src/domain/replyExamples.ts";
 import { blockInput } from "../domain/replyFixtures.ts";
-import { REPLY_SAMPLES } from "../domain/replySamples.ts";
 
+vi.mock("@get-bb/plugin-sdk/app", async (importActual) => {
+  const actual = await importActual<typeof import("@get-bb/plugin-sdk/app")>();
+  const React = await import("react");
+  const { default: ReactMarkdown } = await import("react-markdown");
+  return {
+    ...actual,
+    Markdown: (props: React.ComponentProps<typeof actual.Markdown>) =>
+      React.createElement(
+        "div",
+        { "data-document": JSON.stringify(props.experimental_document) },
+        React.createElement(ReactMarkdown, {
+          children: props.content,
+          urlTransform: (url) => url,
+        }),
+      ),
+  };
+});
 afterEach(cleanup);
-
-/** Stands in for bb's own rendering of the block. */
-const Original = () => <div data-original="">bb's rendering</div>;
-
-/**
- * The reply block's registration on a bb with the fork's message-block slot.
- * The published SDK's test harness has no such slot, so the test hands the
- * registrar an app whose slot captures what it registers.
- */
+const SDK = {
+  threads: {
+    get: async () => ({
+      ...makeThreadResponse({ id: "t1", environmentId: "env1" }),
+      environment: { id: "env1", path: "/work/shop", hostId: "host1" },
+    }),
+  },
+};
+const Original = () => <div data-original="">Host rendering</div>;
 async function registration(): Promise<ExperimentalMessageBlockRegistration> {
   let reply: ExperimentalMessageBlockRegistration | null = null;
   registerReplyBlock({
     slots: {
       experimental_messageBlock: (
-        registration: ExperimentalMessageBlockRegistration,
+        value: ExperimentalMessageBlockRegistration,
       ) => {
-        reply = registration;
+        reply = value;
       },
     },
   } as unknown as PluginAppBuilder);
-  if (!reply) throw new Error("reply block not registered");
+  if (!reply) throw Error("No reply registration");
   return reply;
 }
-
-async function draw(
+function props(
+  block: ExperimentalMessageBlockRegistration,
   message: string,
-  options?: {
-    streaming?: boolean;
-    docked?: { turnId: string; dismissed?: boolean };
-  },
-) {
-  const block = await registration();
-  const { status, source, tree, attributes } = blockInput(message, options);
-  const result = block.parse(
-    { attributes, source, tree },
-    { version: 1, status },
-  );
-  const props: ExperimentalMessageBlockProps = {
+  streaming = false,
+): ExperimentalMessageBlockProps {
+  const input = blockInput(message, { streaming });
+  const result = block.parse(input, { version: 1, status: input.status });
+  return {
     data: result.ok ? result.data : null,
     error: result.ok ? null : result.error,
-    status,
+    status: input.status,
     source: message,
-    message: {
-      id: "m1",
-      threadId: "t1",
-      turnId: "turn1",
-      role: "assistant",
-    } as unknown as ExperimentalMessageBlockProps["message"],
+    message: { id: "m1", threadId: "t1", turnId: "turn1", projectId: "p1" },
     index: 0,
     Original,
   };
-  const docked = options?.docked;
-  return renderSlot(
-    block,
-    props,
-    docked
+}
+async function draw(
+  message: string,
+  options: {
+    streaming?: boolean;
+    docked?: { turnId: string; dismissed?: boolean };
+  } = {},
+) {
+  const block = await registration();
+  return renderSlot(block, props(block, message, options.streaming), {
+    sdk: SDK,
+    ...(options.docked
       ? {
           rpc: {
             state: () => ({
-              recaps: { t1: { id: "r1", turnId: docked.turnId } },
-              dismissedRecaps: docked.dismissed ? ["r1"] : [],
+              recaps: { t1: { id: "r1", turnId: options.docked!.turnId } },
+              dismissedRecaps: options.docked!.dismissed ? ["r1"] : [],
             }),
           },
         }
-      : undefined,
-  );
+      : {}),
+  });
 }
+const body = (
+  component: (typeof COMPONENT_EXAMPLES)[keyof typeof COMPONENT_EXAMPLES],
+) => `:::reply\n${componentFence(component)}\n:::\n`;
 
-const sample = (kind: string) =>
-  REPLY_SAMPLES.find((entry) => entry.kind === kind)!.message;
-
-it("registers the reply block for version 1", async () => {
+it("registers version 1 and a readable text view", async () => {
   const block = await registration();
   expect(block.versions).toEqual([1]);
-  expect(block.toText({ lead: "PASS", sections: [] })).toBe("PASS");
+  expect(block.toText({ body: [{ type: "text", body: "PASS" }] })).toBe("PASS");
 });
-
-it("registers nothing on a bb without message blocks", () => {
-  const app = { slots: {} } as unknown as PluginAppBuilder;
-  expect(() => registerReplyBlock(app)).not.toThrow();
-});
-
-it("loads the whole app on upstream bb, which has no message-block slot", async () => {
+it("preserves upstream registration without a message-block slot", async () => {
+  expect(() =>
+    registerReplyBlock({ slots: {} } as PluginAppBuilder),
+  ).not.toThrow();
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  // The upstream test host collects the slots it has; the recap card and
-  // question card still register.
-  expect(app.composerCustomizations.map((entry) => entry.id)).toContain(
-    "recap",
-  );
-  const { replyBlocksDrawn } = await import("../../src/app/reply/register.ts");
-  expect(replyBlocksDrawn()).toBe(false);
+  expect(app.composerCustomizations.map((c) => c.id)).toContain("recap");
 });
-
-it("draws the lead, quiet labels, and drawn markers instead of checkboxes", async () => {
-  const view = await draw(sample("blocked"));
-  const root = view.container.querySelector("[data-reply-block]")!;
-  expect(root.textContent).toContain("The live test stops with");
-  expect(
-    [...root.querySelectorAll("h3")].map((heading) => heading.textContent),
-  ).toEqual(["Done", "Not done", "Needs you", "Next"]);
-  expect(root.querySelector('[data-reply-item="Done"]')?.textContent).toBe(
-    "Done: Wrote down which token the live test needs",
-  );
-  expect(root.querySelector('[data-reply-item="Not done"]')).not.toBeNull();
-  expect(root.querySelector('input[type="checkbox"]')).toBeNull();
-  expect(root.textContent).not.toContain("[x]");
-  expect(root.textContent).not.toContain(":::");
-  expect(root.className).not.toMatch(/border/);
-});
-
-it("keeps Details folded until opened", async () => {
-  const view = await draw(sample("finished work"));
-  const toggle = screen.getByRole("button", { name: "Details" });
-  expect(toggle.getAttribute("aria-expanded")).toBe("false");
-  expect(view.container.textContent).not.toContain("temporary worktrees");
-  fireEvent.click(toggle);
-  expect(toggle.getAttribute("aria-expanded")).toBe("true");
-  expect(view.container.textContent).toContain(
-    "I removed both temporary worktrees",
-  );
-});
-
-it("draws a one-line answer as the lead alone", async () => {
-  const view = await draw(":::reply\nPASS\n:::\n");
-  const root = view.container.querySelector("[data-reply-block]")!;
-  expect(root.textContent).toBe("PASS");
-  expect(root.querySelector("h3")).toBeNull();
-});
-
-it("shows the sections that have arrived while streaming", async () => {
-  const view = await draw(
-    ":::reply\nTests pass.\n\n### Checked\n22 tests\n\n### Ne",
-    { streaming: true },
-  );
-  const labels = [...view.container.querySelectorAll("h3")].map(
-    (heading) => heading.textContent,
-  );
-  expect(labels).toEqual(["Checked", "Ne"]);
-});
-
-it("draws nothing when a streaming parse has no data yet", async () => {
-  const block = await registration();
-  const view = renderSlot(block, {
-    data: null,
-    error: "not yet",
-    status: "streaming",
-    source: ":::reply\n",
-    message: {} as ExperimentalMessageBlockProps["message"],
-    index: 0,
-    Original,
-  });
-  expect(view.container.querySelector("[data-reply-block]")).toBeNull();
-});
-
-it("shows bb's own rendering when the reply ended without its closing line", async () => {
-  const view = await draw(":::reply\nTests pass.\n\n### Checked\n22 tests\n");
-  expect(view.container.querySelector("[data-original]")).not.toBeNull();
-  expect(view.container.querySelector("[data-reply-block]")).toBeNull();
-});
-
-it("draws a code block inside a section", async () => {
-  const view = await draw(
-    [
-      ":::reply",
-      "The config now sets a timeout.",
-      "",
-      "### Checked",
-      "```ts",
-      "### not a heading",
-      "export const timeout = 30;",
-      "```",
-      "",
-      "### Next",
-      "- Restart the server",
-      ":::",
-    ].join("\n"),
-  );
-  const root = view.container.querySelector("[data-reply-block]")!;
-  expect(
-    [...root.querySelectorAll("h3")].map((heading) => heading.textContent),
-  ).toEqual(["Checked", "Next"]);
-  // The section goes to bb's Markdown whole, fence included.
-  const checked = root.querySelector('[data-reply-section="Checked"]')!;
-  expect(
-    checked.querySelector('[data-testid="bb-markdown"]')?.textContent,
-  ).toBe("```ts\n### not a heading\nexport const timeout = 30;\n```");
-});
-
-it("draws a streaming reply through to closed without showing bb's rendering", async () => {
-  const block = await registration();
-  const full = ":::reply\nTests pass.\n\n### Checked\n22 tests\n:::\n";
-  const props = (message: string, status: "streaming" | "closed") => {
-    const { source, tree } = blockInput(message, {
-      streaming: status === "streaming",
-    });
-    const result = block.parse(
-      { attributes: {}, source, tree },
-      { version: 1, status },
-    );
-    return {
-      data: result.ok ? result.data : null,
-      error: result.ok ? null : result.error,
-      status,
-      source: message,
-      message: {} as ExperimentalMessageBlockProps["message"],
-      index: 0,
-      Original,
-    };
-  };
-  const view = renderSlot(block, props(":::reply\nTests pass.\n", "streaming"));
-  const steps = [
-    props(":::reply\nTests pass.\n\n### Checked\n22", "streaming"),
-    props(full, "closed"),
-  ];
-  for (const next of steps) {
-    view.lifecycle.rerender(<block.component {...next} />);
-    expect(view.container.querySelector("[data-original]")).toBeNull();
-    expect(view.container.querySelector("[data-reply-block]")).not.toBeNull();
-  }
-});
-
-it("starts a block with no lead at its first section, with no gap above", async () => {
-  const view = await draw(sample("finished work"));
-  const root = view.container.querySelector("[data-reply-block]")!;
-  const first = root.firstElementChild!;
-  expect(first.getAttribute("data-reply-section")).toBe("Checked");
-  expect(first.className).toContain("first:mt-0");
-});
-
-const CARD = `:::reply{state="review"}
-# Fixed the percent coupon math
-- [x] \`apply_percent_coupon\` applies a percentage
-
-### Checked
-Ran \`python3 -m unittest\` locally.
-
-### Review
-- Run the cart tests
-
-### Next
-- Push the fix: Push the coupon fix
-:::
-`;
-
-it("draws a past turn's card fields in the block, without next actions", async () => {
-  const view = await draw(CARD);
+it.each(Object.entries(COMPOSED_SAMPLES))(
+  "renders the %s composition and full explanation",
+  async (kind, message) => {
+    const view = await draw(message, { docked: { turnId: "turn1" } });
+    expect(
+      view.container
+        .querySelector("[data-reply-kind]")
+        ?.getAttribute("data-reply-kind"),
+    ).toBe(kind);
+    expect(
+      view.container.querySelectorAll("[data-reply-component]").length,
+    ).toBeGreaterThan(0);
+    expect(view.container.textContent).not.toContain("```workstreams");
+    expect(view.container.querySelector("[data-reply-headline]")).toBeNull();
+    expect(
+      view.container.querySelector("[data-reply-block]")?.className,
+    ).not.toMatch(/\bborder\b/);
+  },
+);
+it("places shared context before the headline without shortening the explanation", async () => {
+  const message = `:::reply{state="complete"}\n# Found the cause\n- [x] The caller and calculation use different units\n\nA full explanation before the context in the source.\n\n${componentFence(COMPONENT_EXAMPLES.context)}\n:::\n`;
+  const view = await draw(message);
   await waitFor(() =>
     expect(
       view.container.querySelector("[data-reply-headline]"),
     ).not.toBeNull(),
   );
-  const root = view.container.querySelector("[data-reply-block]")!;
-  expect(root.querySelector("[data-reply-headline]")?.textContent).toBe(
-    "Fixed the percent coupon math",
+  expect(
+    view.container
+      .querySelector("[data-reply-block]")
+      ?.firstElementChild?.getAttribute("data-reply-component"),
+  ).toBe("context");
+  expect(view.container.textContent).toContain(
+    "A full explanation before the context in the source.",
   );
-  expect(
-    root.querySelector('[data-reply-results] [data-reply-item="Done"]')
-      ?.textContent,
-  ).toContain("applies a percentage");
-  expect(
-    [...root.querySelectorAll("h3")].map((heading) => heading.textContent),
-  ).toEqual(["Review", "Checked"]);
-  expect(root.textContent).not.toContain("Push the fix");
 });
 
-it("leaves the card fields to the docked card for its own turn", async () => {
-  const view = await draw(CARD, { docked: { turnId: "turn1" } });
+it("distinguishes a reported location from the current workspace used for links", async () => {
+  const view = await draw(
+    body({
+      type: "context",
+      topic: "Deployment review",
+      where: "Production · canary",
+      background: "The result concerns a deployment, not just the checkout.",
+    }),
+  );
+  await waitFor(() =>
+    expect(view.container.textContent).toContain(
+      "Current workspace: /work/shop",
+    ),
+  );
+  expect(view.container.textContent).toContain(
+    "Reported location: Production · canary",
+  );
+});
+
+it("keeps long prose and headings visible without a generated Details fold", async () => {
+  const text = Array.from(
+    { length: 8 },
+    (_, i) =>
+      `### Point ${i}\n\nSentence one. Sentence two. Sentence three. Sentence four.`,
+  ).join("\n\n");
+  const view = await draw(`:::reply\n${text}\n:::\n`);
+  expect(view.container.querySelectorAll("h3")).toHaveLength(8);
+  expect(view.container.textContent).toContain("Point 7");
+  expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
+});
+it("keeps several supporting components beside one primary explanation", async () => {
+  const view = await draw(
+    body({
+      type: "group",
+      relationship: "supporting",
+      children: [
+        { type: "text", body: "The primary explanation stays together." },
+        COMPONENT_EXAMPLES.finding as Extract<
+          typeof COMPONENT_EXAMPLES.finding,
+          { type: "finding" }
+        >,
+        COMPONENT_EXAMPLES.checks as Extract<
+          typeof COMPONENT_EXAMPLES.checks,
+          { type: "checks" }
+        >,
+      ],
+    }),
+  );
+  const aside = screen.getByRole("complementary", {
+    name: "Supporting information",
+  });
+  expect(aside.children).toHaveLength(2);
+  expect(aside.textContent).toContain("The calculation subtracts cents");
+  expect(aside.textContent).toContain("Local checks");
+  expect(aside.textContent).not.toContain(
+    "The primary explanation stays together",
+  );
+  expect(view.container.textContent).toContain(
+    "The primary explanation stays together",
+  );
+});
+
+it("uses a local disclosure for explicitly supporting Markdown", async () => {
+  const view = await draw(body(COMPONENT_EXAMPLES.details));
+  const toggle = screen.getByRole("button", { name: "Supporting calculation" });
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  expect(view.container.querySelector("pre")).toBeNull();
+  fireEvent.click(toggle);
+  expect(view.container.querySelector("pre code")?.textContent).toContain(
+    "1000 * (10 / 100)",
+  );
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+});
+it("shows unresolved and skipped checks while passed checks are folded", async () => {
+  const view = await draw(body(COMPONENT_EXAMPLES.checks));
+  expect(view.container.textContent).toContain("Payment integration");
+  expect(view.container.textContent).toContain("Skipped");
+  expect(view.container.textContent).toContain("connection remains unverified");
+  expect(screen.queryByText("Unit tests")).toBeNull();
+  expect(screen.getByLabelText("Reported test totals").textContent).toContain(
+    "22",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "1 check passed" }));
+  expect(screen.getByText("Unit tests")).toBeDefined();
+});
+it("renders comparison qualifications outside the optional detail", async () => {
+  const view = await draw(body(COMPONENT_EXAMPLES.comparison));
+  expect(view.container.textContent).toContain(
+    "Requires checking and updating every caller",
+  );
+  expect(view.container.textContent).not.toContain("Use this only if callers");
+  fireEvent.click(
+    screen.getByRole("button", { name: "Details: Change the caller contract" }),
+  );
+  expect(view.container.textContent).toContain("Use this only if callers");
+});
+it("renders evidence as a workspace-aware link with code formatting", async () => {
+  const view = await draw(body(COMPONENT_EXAMPLES.finding));
+  fireEvent.click(screen.getByRole("button", { name: "Evidence (1)" }));
   await waitFor(() =>
     expect(
       view.container
-        .querySelector("[data-reply-block]")
-        ?.getAttribute("data-reply-docked"),
-    ).toBe(""),
+        .querySelector("[data-document]")
+        ?.getAttribute("data-document"),
+    ).toContain("env1"),
   );
-  const root = view.container.querySelector("[data-reply-block]")!;
-  expect(root.querySelector("[data-reply-headline]")).toBeNull();
-  expect(root.querySelector("[data-reply-results]")).toBeNull();
-  expect(
-    [...root.querySelectorAll("h3")].map((heading) => heading.textContent),
-  ).toEqual(["Checked"]);
+  const link = screen.getByRole("link", { name: "Calculation" });
+  expect(link.getAttribute("href")).toContain("coupon.ts");
+  fireEvent.click(link);
+  expect(view.inspection.navigateCalls).toContainEqual({
+    method: "experimental_openFilePreview",
+    options: {
+      target: {
+        kind: "workspace",
+        environmentId: "env1",
+        path: "src/coupon.ts",
+      },
+      location: { kind: "range", startLine: 12, endLine: 16 },
+    },
+  });
+  expect(view.container.querySelector("code")?.textContent).toBe("10");
+});
+it("opens an evidence file with spaces outside the workspace through the host", async () => {
+  const component = {
+    ...COMPONENT_EXAMPLES.finding,
+    evidence: [
+      {
+        label: "Rendering notes",
+        location: "/tmp/Rendered Notes.md",
+        line: 2,
+        endLine: 4,
+      },
+    ],
+  };
+  const view = await draw(body(component));
+  fireEvent.click(screen.getByRole("button", { name: "Evidence (1)" }));
+  const link = await screen.findByRole("link", { name: "Rendering notes" });
+  expect(link.getAttribute("href")).toContain("Rendered%20Notes.md");
+  fireEvent.click(link);
+  expect(view.inspection.navigateCalls).toContainEqual({
+    method: "experimental_openFilePreview",
+    options: {
+      target: { kind: "host", hostId: "host1", path: "/tmp/Rendered Notes.md" },
+      location: { kind: "range", startLine: 2, endLine: 4 },
+    },
+  });
 });
 
-it("shows the card fields again once the card is dismissed or belongs to another turn", async () => {
+it("preserves reserved characters in an evidence filename", async () => {
+  const component = {
+    ...COMPONENT_EXAMPLES.finding,
+    evidence: [
+      { label: "Literal filename", location: "/tmp/Review #draft? 100%.md" },
+    ],
+  };
+  const view = await draw(body(component));
+  fireEvent.click(screen.getByRole("button", { name: "Evidence (1)" }));
+  const link = await screen.findByRole("link", { name: "Literal filename" });
+  expect(link.getAttribute("href")).toContain("%23draft%3F%20100%25.md");
+  fireEvent.click(link);
+  expect(view.inspection.navigateCalls).toContainEqual({
+    method: "experimental_openFilePreview",
+    options: {
+      target: {
+        kind: "host",
+        hostId: "host1",
+        path: "/tmp/Review #draft? 100%.md",
+      },
+      location: null,
+    },
+  });
+});
+
+it("opens a Markdown file URL through the public file-preview API", async () => {
+  const view = await draw(
+    ":::reply\n[Notes](file:///tmp/Notes%20File.md#L3)\n:::\n",
+  );
+  await waitFor(() =>
+    expect(
+      view.container
+        .querySelector("[data-document]")
+        ?.getAttribute("data-document"),
+    ).toContain("env1"),
+  );
+  const link = screen.getByRole("link", { name: "Notes" });
+  expect(link.getAttribute("href")).toBe("file:///tmp/Notes%20File.md#L3");
+  fireEvent.click(link);
+  expect(view.inspection.navigateCalls).toContainEqual({
+    method: "experimental_openFilePreview",
+    options: {
+      target: { kind: "host", hostId: "host1", path: "/tmp/Notes File.md" },
+      location: { kind: "range", startLine: 3, endLine: 3 },
+    },
+  });
+});
+
+it("keeps malformed component source visible alongside readable prose", async () => {
+  const view = await draw(
+    ':::reply\nBefore.\n\n```workstreams\n{"type":"does-not-exist"}\n```\n\nAfter.\n:::\n',
+  );
+  expect(view.container.textContent).toContain("Before.");
+  expect(view.container.textContent).toContain("After.");
+  expect(view.container.querySelector("pre")?.textContent).toContain(
+    '"does-not-exist"',
+  );
+  expect(screen.getByRole("status").textContent).toContain(
+    "Component not displayed",
+  );
+});
+it("defers a partial component without hiding the explanation", async () => {
+  const view = await draw(
+    ':::reply\nExplanation.\n\n```workstreams\n{"type":"finding"',
+    { streaming: true },
+  );
+  expect(view.container.textContent).toContain("Explanation.");
+  expect(screen.getByRole("status").textContent).toBe("Receiving information…");
+  expect(view.container.querySelector("pre")).toBeNull();
+});
+it("uses host rendering for an unclosed reply", async () => {
+  const view = await draw(":::reply\nUnfinished reply");
+  expect(view.container.querySelector("[data-original]")).not.toBeNull();
+  expect(view.container.querySelector("[data-reply-block]")).toBeNull();
+});
+it("does not mark an unchecked reported result as completed", async () => {
+  const view = await draw(
+    ':::reply{state="review"}\n# The change awaits a push\n- [ ] Push the branch\n\n### Review\n- Inspect the diff\n:::\n',
+  );
+  expect(view.container.querySelector("[data-reply-results]")).toBeNull();
+  expect(screen.getByRole("heading", { name: "Not done" })).toBeDefined();
+  expect(view.container.textContent).toContain("Push the branch");
+});
+
+it("draws card fields for past turns, with no duplicate send actions", async () => {
+  const view = await draw(COMPOSED_SAMPLES.change);
+  await waitFor(() =>
+    expect(
+      view.container.querySelector("[data-reply-headline]"),
+    ).not.toBeNull(),
+  );
+  expect(
+    view.container.querySelector("[data-reply-results]")?.textContent,
+  ).toContain("whole percentages");
+  expect(view.container.textContent).not.toContain("Check callers");
+  expect(screen.getByRole("heading", { name: "Review" })).toBeDefined();
+});
+it("shows card fields after dismissal or when another turn owns the docked recap", async () => {
   for (const docked of [
     { turnId: "turn1", dismissed: true },
     { turnId: "turn2" },
   ]) {
-    const view = await draw(CARD, { docked });
+    const view = await draw(COMPOSED_SAMPLES.change, { docked });
     await waitFor(() =>
       expect(
         view.container.querySelector("[data-reply-headline]"),
@@ -308,176 +408,46 @@ it("shows the card fields again once the card is dismissed or belongs to another
     view.lifecycle.unmount();
   }
 });
-
-it("draws nothing for a short answer while its card is docked", async () => {
-  const short = ':::reply{state="complete"}\n# Python 3.9 or newer\n:::\n';
-  const shown = await draw(short);
-  await waitFor(() =>
-    expect(
-      shown.container.querySelector("[data-reply-headline]")?.textContent,
-    ).toBe("Python 3.9 or newer"),
+it("does not duplicate a headline-only answer while its card is docked", async () => {
+  const view = await draw(
+    ':::reply{state="complete"}\n# Python 3.9 or newer\n:::\n',
+    { docked: { turnId: "turn1" } },
   );
-  shown.lifecycle.unmount();
-  const view = await draw(short, { docked: { turnId: "turn1" } });
   await waitFor(() =>
     expect(view.container.querySelector("[data-reply-block]")).toBeNull(),
   );
 });
-
-it("draws the docked layout until the docked state is known, so card fields never flash", async () => {
-  let answer: (value: unknown) => void = () => {};
-  const block = await registration();
-  const { status, source, tree, attributes } = blockInput(CARD);
-  const result = block.parse(
-    { attributes, source, tree },
-    { version: 1, status },
-  );
-  const view = renderSlot(
-    block,
-    {
-      data: result.ok ? result.data : null,
-      error: null,
-      status,
-      source: CARD,
-      message: {
-        id: "m1",
-        threadId: "t1",
-        turnId: "turn1",
-      } as unknown as ExperimentalMessageBlockProps["message"],
-      index: 0,
-      Original,
-    },
-    {
-      rpc: {
-        state: () =>
-          new Promise((resolve) => {
-            answer = resolve;
-          }),
-      },
-    },
-  );
-  const root = () => view.container.querySelector("[data-reply-block]")!;
-  expect(root().getAttribute("data-reply-docked")).toBe("pending");
-  expect(root().querySelector("[data-reply-headline]")).toBeNull();
-  expect(root().textContent).toContain("Ran");
-  answer({ recaps: {}, dismissedRecaps: [] });
-  await waitFor(() =>
-    expect(root().querySelector("[data-reply-headline]")).not.toBeNull(),
-  );
-});
-
-it("keeps the last good reply while a streaming update fails to parse", async () => {
-  const block = await registration();
-  const message = {
-    id: "m1",
-    threadId: "t1",
-    turnId: "turn1",
-  } as unknown as ExperimentalMessageBlockProps["message"];
-  const good = blockInput(":::reply\nTests pass.\n\n### Checked\n22 tests\n", {
-    streaming: true,
-  });
-  const parsed = block.parse(
-    { attributes: {}, source: good.source, tree: good.tree },
-    { version: 1, status: "streaming" },
-  );
-  const base = {
-    source: "",
-    message,
-    index: 0,
-    Original,
-  };
-  const view = renderSlot(block, {
-    ...base,
-    data: parsed.ok ? parsed.data : null,
-    error: null,
-    status: "streaming" as const,
-  });
-  const text = () =>
-    view.container.querySelector("[data-reply-block]")?.textContent;
-  expect(text()).toContain("22 tests");
-  for (const next of [
-    { data: null, error: "not yet" },
-    { data: { not: "a reply" }, error: null },
-  ]) {
-    view.lifecycle.rerender(
-      <block.component {...base} {...next} status="streaming" />,
-    );
-    expect(text()).toContain("22 tests");
-  }
-  // Once closed, only the fresh parse counts.
+it("keeps the last good parse during a malformed streaming update", async () => {
+  const block = await registration(),
+    base = props(block, ":::reply\nAn explanation.\n", true);
+  const view = renderSlot(block, base, { sdk: SDK });
   view.lifecycle.rerender(
-    <block.component
-      {...base}
-      data={{ not: "a reply" }}
-      error={null}
-      status="closed"
-    />,
+    <block.component {...base} data={null} error="pending" />,
+  );
+  expect(view.container.textContent).toContain("An explanation.");
+  view.lifecycle.rerender(
+    <block.component {...base} data={null} error="bad" status="closed" />,
   );
   expect(view.container.querySelector("[data-reply-block]")).toBeNull();
 });
-
-it("fades in a section that arrives mid-stream, and keeps existing ones in place", async () => {
+it("draws the docked layout while the server state is still unknown", async () => {
   const block = await registration();
-  const message = {
-    id: "m1",
-    threadId: "t1",
-    turnId: "turn1",
-  } as unknown as ExperimentalMessageBlockProps["message"];
-  const props = (text: string, status: "streaming" | "closed") => {
-    const input = blockInput(text, { streaming: status === "streaming" });
-    const parsed = block.parse(
-      { attributes: {}, source: input.source, tree: input.tree },
-      { version: 1, status },
-    );
-    return {
-      data: parsed.ok ? parsed.data : null,
-      error: null,
-      status,
-      source: text,
-      message,
-      index: 0,
-      Original,
-    };
-  };
-  const view = renderSlot(
-    block,
-    props(":::reply\nLead.\n\n### Checked\n22 tests\n", "closed"),
+  let resolve!: (value: unknown) => void;
+  const view = renderSlot(block, props(block, COMPOSED_SAMPLES.change), {
+    sdk: SDK,
+    rpc: {
+      state: () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    },
+  });
+  expect(view.container.querySelector("[data-reply-headline]")).toBeNull();
+  expect(view.container.textContent).toContain("caller contract unchanged");
+  resolve({ recaps: {}, dismissedRecaps: [] });
+  await waitFor(() =>
+    expect(
+      view.container.querySelector("[data-reply-headline]"),
+    ).not.toBeNull(),
   );
-  const first = view.container.querySelector('[data-reply-section="Checked"]')!;
-  expect(first.className).not.toContain("ws-reply-enter");
-  view.lifecycle.rerender(
-    <block.component
-      {...props(
-        ":::reply\nLead.\n\n### Checked\n22 tests\n\n### Ne",
-        "streaming",
-      )}
-    />,
-  );
-  view.lifecycle.rerender(
-    <block.component
-      {...props(
-        ":::reply\nLead.\n\n### Checked\n22 tests\n\n### Next\nShip",
-        "streaming",
-      )}
-    />,
-  );
-  // The same node, not remounted, and the new one fading in.
-  expect(view.container.querySelector('[data-reply-section="Checked"]')).toBe(
-    first,
-  );
-  const added = view.container.querySelector('[data-reply-section="Next"]')!;
-  expect(added.className).toContain("ws-reply-enter");
-});
-
-it("draws a block without state that holds only a headline as a plain headline", async () => {
-  const view = await draw(
-    ":::reply\n# No. The `shop` package declares no third-party dependencies\n:::\n",
-    { docked: { turnId: "turn1" } },
-  );
-  const root = view.container.querySelector("[data-reply-block]")!;
-  expect(root.querySelector("[data-reply-headline]")?.textContent).toBe(
-    "No. The `shop` package declares no third-party dependencies",
-  );
-  // No card, so a docked card for the turn hides nothing.
-  expect(root.hasAttribute("data-reply-docked")).toBe(false);
 });

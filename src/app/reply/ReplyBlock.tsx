@@ -1,216 +1,128 @@
-/**
- * The `:::reply` block: the agent's reply body, drawn as part of bb's own
- * message in the recap card's type, labels, and markers, but without the
- * card's colored frame (only the docked card has one). It shows prose only;
- * the recap tool stays the source for the card and the sidebar. A reply that
- * ended without its closing `:::` line shows bb's own rendering of the block,
- * the same Markdown readers see without the plugin.
+/*
+ * One reply in the timeline. Its recap fields appear here when their docked
+ * card is absent; its explanation and information components stay in the
+ * message. Unclosed replies use the host's original rendering.
  */
-import { createContext, useContext, useId, useRef, useState } from "react";
-import { Markdown } from "@get-bb/plugin-sdk/app";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
+import { Markdown, useSdk, useBbNavigate } from "@get-bb/plugin-sdk/app";
+import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
+import { recapHostFileLink } from "../../domain/recapFileLinks.ts";
+import { Icon } from "@/components/ui/icon";
 import type { ExperimentalMessageBlockProps } from "@get-bb/plugin-sdk/app";
 import { cn } from "@/lib/utils";
-import { Icon } from "@/components/ui/icon";
-import {
-  CHECK,
-  Glyph,
-  LABEL_CLASS,
-  RecapText,
-} from "../composer/RecapCard.tsx";
+import { MarkdownDocumentContext, RecapText } from "../composer/RecapCard.tsx";
 import {
   CARD_LABELS,
-  DETAILS_LABEL,
   replySchema,
   type Reply,
   type ReplyCard,
-  type ReplyItem,
-  type ReplySection,
 } from "../../domain/reply.ts";
+import { Information, ReplyFiles, ReplyText } from "./Information.tsx";
 import { useDockedTurn } from "./useDockedTurn.ts";
 
-/** The message's own type, so the body reads as part of the message. */
-const INHERIT = "text-[length:inherit] leading-[inherit]";
-/** A block beside a recap card has no lead, so its first section sits flush. */
-const SECTION_SPACING = "mt-3 first:mt-0";
-const LABEL = cn(LABEL_CLASS, "m-0 text-muted-foreground");
-const DOT = "M8 6.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 1 0 0-3Z";
-const CIRCLE = "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9Z";
+type Document = ComponentProps<typeof Markdown>["experimental_document"];
 
-/**
- * Markdown that is a single paragraph renders through the recap card's line
- * renderer, which also draws thread chips and commit hashes; anything with
- * block structure renders through bb's Markdown.
- */
-function ReplyText({ markdown }: { markdown: string }) {
-  const block = /\n[ \t]*\n|^[ \t]*([-*+] |\d+[.)] |#|>|```|~~~|\|)/m.test(
-    markdown,
-  );
-  return block ? (
-    <Markdown content={markdown} className={cn("min-w-0", INHERIT)} />
-  ) : (
-    <RecapText text={markdown} typeClass={INHERIT} />
-  );
-}
-
-function marker(item: ReplyItem, label: string) {
-  const checked =
-    item.checked ??
-    (label === "Done" ? true : label === "Not done" ? false : null);
-  if (checked === true)
-    return {
-      path: CHECK,
-      name: "Done",
-      className: "text-(--ws-complete-text)",
+/** File references resolve in the message's workspace, not the plugin package. */
+function useReplyWorkspace(threadId: string | null) {
+  const sdk = useSdk();
+  const [loaded, setLoaded] = useState<{
+    threadId: string;
+    document: Document;
+    files: RecapFiles;
+  } | null>(null);
+  useEffect(() => {
+    if (!threadId) return;
+    let live = true;
+    void sdk.threads
+      .get({ threadId, include: "environment" })
+      .then((thread) => {
+        const environment = "environment" in thread ? thread.environment : null;
+        if (!live || !environment || typeof environment.path !== "string")
+          return;
+        setLoaded({
+          threadId,
+          files: {
+            environmentId: environment.id,
+            root: environment.path,
+            hostId: environment.hostId ?? null,
+          },
+          document: {
+            threadId,
+            rootPath: environment.path,
+            target: {
+              kind: "workspace",
+              environmentId: environment.id,
+              path: "__reply__.md",
+            },
+          },
+        });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
     };
-  if (checked === false)
-    return {
-      path: CIRCLE,
-      name: "Not done",
-      className: "text-muted-foreground",
-    };
-  return {
-    path: DOT,
-    name: null,
-    filled: true,
-    className: "text-muted-foreground",
-  };
+  }, [threadId, sdk]);
+  return loaded?.threadId === threadId ? loaded : null;
 }
 
-function Items({ items, label }: { items: ReplyItem[]; label: string }) {
-  return (
-    <ul className="m-0 list-none space-y-0.5 p-0">
-      {items.map((item, index) => {
-        const mark = marker(item, label);
-        return (
-          <li
-            key={index}
-            data-reply-item={mark.name ?? "plain"}
-            className="grid grid-cols-[14px_minmax(0,1fr)] gap-x-1.5 max-md:pointer-coarse:grid-cols-[1.125rem_minmax(0,1fr)]"
-          >
-            <Glyph
-              path={mark.path}
-              filled={mark.filled}
-              className={cn(
-                "mt-[0.3em] h-3.5 w-3.5 max-md:pointer-coarse:h-4 max-md:pointer-coarse:w-4",
-                mark.className,
-              )}
-            />
-            {mark.name ? <span className="sr-only">{mark.name}: </span> : null}
-            <ReplyText markdown={item.markdown} />
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-/** Whether the reply is still streaming, for sections that mount meanwhile. */
-const StreamingContext = createContext(false);
-
-function Section({ section }: { section: ReplySection }) {
-  // Only a section that arrives mid-stream fades in; one present when the
-  // block mounts, as on reload, draws at once.
-  const [entering] = useState(useContext(StreamingContext));
-  return (
-    <section
-      data-reply-section={section.label}
-      className={cn(SECTION_SPACING, entering && "ws-reply-enter")}
-    >
-      <h3 className={LABEL}>{section.label}</h3>
-      {section.items ? (
-        <Items items={section.items} label={section.label} />
-      ) : section.markdown ? (
-        <ReplyText markdown={section.markdown} />
-      ) : null}
-    </section>
-  );
-}
-
-/** Folded by default; the plugin draws the fold because raw `<details>` arrives as text. */
-function Details({ markdown }: { markdown: string }) {
-  const [open, setOpen] = useState(false);
-  const id = useId();
-  return (
-    <section data-reply-section={DETAILS_LABEL} className={SECTION_SPACING}>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen((value) => !value)}
-        className={cn(
-          LABEL,
-          "-ml-0.5 inline-flex cursor-pointer items-center gap-1 rounded px-0.5 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-        )}
-      >
-        <Icon
-          name="ChevronRight"
-          aria-hidden
-          className={cn(
-            "size-3 transition-transform duration-150 motion-reduce:transition-none",
-            open && "rotate-90",
-          )}
-        />
-        {DETAILS_LABEL}
-      </button>
-      <div id={id} hidden={!open} className="mt-1 text-muted-foreground">
-        {open ? <ReplyText markdown={markdown} /> : null}
-      </div>
-    </section>
-  );
-}
-
-/** One card field drawn as a quiet section of plain lines. */
-function CardLines({ label, lines }: { label: string; lines: string[] }) {
-  if (!lines.length) return null;
-  return (
-    <Section
-      section={{
-        label,
-        kind: "fixed",
-        markdown: lines.join("\n"),
-        items: lines.map((markdown) => ({ checked: null, markdown })),
-      }}
-    />
-  );
-}
-
-/** A reply's `# ` line, in the card title's weight without its frame. */
-function Headline({ markdown }: { markdown: string }) {
+function Headline({ text }: { text: string }) {
   return (
     <div
-      data-reply-headline=""
       role="heading"
       aria-level={3}
-      className={cn(SECTION_SPACING, "font-medium text-foreground")}
+      data-reply-headline=""
+      className="font-medium leading-[1.5]"
     >
-      <RecapText text={markdown} typeClass={INHERIT} />
+      <RecapText
+        text={text}
+        typeClass="text-[length:inherit] leading-[inherit]"
+      />
     </div>
   );
 }
-
-/**
- * The card fields as part of the message, in the card's type but without
- * its frame. Next actions are buttons on the docked card only.
- */
 function CardPart({ card }: { card: ReplyCard }) {
   return (
-    <>
-      {card.headline ? <Headline markdown={card.headline} /> : null}
+    <div className="space-y-3">
+      {card.headline ? <Headline text={card.headline} /> : null}
       {card.results.length ? (
-        <div data-reply-results="" className="mt-1">
-          <Items
-            items={card.results.map((item) => ({
-              checked: item.checked ?? true,
-              markdown: item.markdown,
-            }))}
-            label="Done"
-          />
-        </div>
+        <ul data-reply-results="" className="m-0 list-none space-y-1 p-0">
+          {card.results.map((item, i) => (
+            <li key={i} className="flex min-w-0 items-start gap-2">
+              <Icon
+                name={item.checked === false ? "Circle" : "Check"}
+                aria-hidden
+                className={cn(
+                  "mt-[0.3em] size-3.5 shrink-0",
+                  item.checked === false
+                    ? "text-muted-foreground"
+                    : "text-(--ws-complete-text)",
+                )}
+              />
+              {item.checked === false ? (
+                <span className="sr-only">Not done: </span>
+              ) : null}
+              <ReplyText markdown={item.markdown} />
+            </li>
+          ))}
+        </ul>
       ) : null}
-      <CardLines label={CARD_LABELS.review} lines={card.review} />
-      <CardLines label={CARD_LABELS.waitingOn} lines={card.waitingOn} />
-      <CardLines label={CARD_LABELS.links} lines={card.links} />
-    </>
+      {(["review", "waitingOn", "links"] as const)
+        .filter((key) => card[key].length)
+        .map((key) => (
+          <section key={key}>
+            <h3 className="mb-1 mt-0 text-[0.85em] font-medium text-muted-foreground">
+              {CARD_LABELS[key]}
+            </h3>
+            <ul className="m-0 list-none space-y-1 p-0">
+              {card[key].map((line, i) => (
+                <li key={i}>
+                  <ReplyText markdown={line} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+    </div>
   );
 }
 
@@ -220,13 +132,11 @@ export function ReplyBlock({
   message,
   Original,
 }: ExperimentalMessageBlockProps) {
-  const docked = useDockedTurn(
-    message.threadId ?? null,
-    message.turnId ?? null,
-  );
-  // While the reply streams, an update that doesn't parse keeps the last
-  // reply that did, so the block never blanks for a frame. Once closed, only
-  // the fresh parse counts.
+  const threadId = message.threadId ?? null;
+  const docked = useDockedTurn(threadId, message.turnId ?? null);
+  const workspace = useReplyWorkspace(threadId);
+  const document = workspace?.document;
+  const navigate = useBbNavigate();
   const lastGood = useRef<Reply | null>(null);
   const parsed = replySchema.safeParse(data);
   if (parsed.success) lastGood.current = parsed.data;
@@ -237,34 +147,73 @@ export function ReplyBlock({
       ? lastGood.current
       : null;
   if (!reply) return null;
-  const { card, headline, lead, sections, details } = reply;
-  // While this turn's card is docked it shows the card fields; the block
-  // keeps only the body, and a short answer's block shows nothing. Until the
-  // docked state is known, the block draws that docked layout, so card
-  // fields never appear and then vanish.
+  const { card, headline, body, kind } = reply;
   const showCard = card && docked === false;
-  if (!showCard && !headline && !lead && !sections.length && !details)
-    return null;
+  if (!showCard && !headline && !body.length) return null;
   return (
-    <StreamingContext.Provider value={status === "streaming"}>
-      <div
-        data-reply-block=""
-        data-reply-docked={
-          card && docked !== false ? (docked ? "" : "pending") : undefined
-        }
-        className="my-1 min-w-0 text-foreground"
-      >
-        {showCard ? <CardPart card={card} /> : null}
-        {/* A block without `state` has no card; its headline is plain text. */}
-        {headline ? <Headline markdown={headline} /> : null}
-        {lead ? <ReplyText markdown={lead} /> : null}
-        {sections.map((section, index) => (
-          // Keyed by position: the last section's label grows while it
-          // streams, and a new key would remount it.
-          <Section key={index} section={section} />
-        ))}
-        {details ? <Details markdown={details} /> : null}
-      </div>
-    </StreamingContext.Provider>
+    <MarkdownDocumentContext.Provider value={document}>
+      <ReplyFiles.Provider value={workspace?.files ?? null}>
+        <div
+          data-reply-block=""
+          onClickCapture={(event) => {
+            if (
+              event.defaultPrevented ||
+              event.button !== 0 ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.altKey ||
+              event.shiftKey
+            )
+              return;
+            const anchor =
+              event.target instanceof Element
+                ? event.target.closest("a[href]")
+                : null;
+            if (!anchor || !event.currentTarget.contains(anchor)) return;
+            const link = recapHostFileLink(anchor.getAttribute("href") ?? "");
+            const target = link
+              ? fileTarget(link.path, workspace?.files ?? null)
+              : null;
+            if (
+              link &&
+              target &&
+              navigate.experimental_openFilePreview({
+                target,
+                location: link.location,
+              })
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }}
+          data-reply-kind={kind}
+          data-reply-docked={
+            card && docked !== false ? (docked ? "" : "pending") : undefined
+          }
+          className="@container/reply my-2 min-w-0 space-y-6 text-foreground [overflow-wrap:anywhere]"
+        >
+          {body.map((part, index) =>
+            part.type === "context" ? (
+              <Information key={`context-${index}`} part={part} />
+            ) : null,
+          )}
+          {showCard ? <CardPart card={card} /> : null}
+          {headline ? <Headline text={headline} /> : null}
+          {body.map((part, index) =>
+            part.type === "context" ? null : (
+              <div
+                key={index}
+                className={cn(
+                  "min-w-0",
+                  status === "streaming" && "ws-reply-enter",
+                )}
+              >
+                <Information part={part} />
+              </div>
+            ),
+          )}
+        </div>
+      </ReplyFiles.Provider>
+    </MarkdownDocumentContext.Provider>
   );
 }

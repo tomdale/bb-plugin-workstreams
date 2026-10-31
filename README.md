@@ -465,8 +465,30 @@ which adds a message-block slot, you also get **Structured replies**:
 - Agents end each turn with a `:::reply` block instead of calling the recap
   tool; its headline and results become the recap card. Card text preserves
   inline Markdown and is not clipped to the recap tool's character limits.
-- The block draws inline in the card's style, and leaves its card fields to the
-  docked card while that turn's card shows.
+- The reply combines full Markdown explanations with information components:
+  findings and evidence, comparisons, sequences, behavior changes, checks,
+  delivery records, and recommendations. Components can be grouped as peers or
+  as an explanation with supporting evidence. A reply's kind is separate from
+  whether its work is complete, ready for review, or waiting.
+- Context identifies the broad task, relevant place, and background. Relative
+  evidence paths stay inside the message's workspace; external files use
+  explicit absolute paths. File line ranges are separate from literal filename
+  characters. A location obtained from BB is labeled **Current workspace** so it
+  is not confused with a historical report.
+- Qualifications stay beside the claims they limit. Failed, skipped, blocked,
+  and untested checks stay visible; passed checks and supporting evidence open
+  on demand. Explanations are not shortened or automatically folded based on
+  sentence or section counts. Authors can explicitly fold supporting material.
+- Components contain reported information, not independently verified facts.
+  Check and delivery scopes identify where and when a result applies. The
+  read-only `WorkstreamsReplyExamples` tool supplies illustrative, validated
+  examples only to sessions using Structured replies; it never executes work.
+  Existing agent sessions may need a fresh start to receive a newly registered
+  tool and its guidance.
+- The inline body leaves its recap fields to the docked card while that turn's
+  card shows. Past turns show those fields inline, without duplicate send
+  actions. A malformed component shows its original source and a diagnostic
+  without discarding the explanation or the recap.
 
 Workstreams detects the slot when its app loads and reports it to the server.
 Without the slot, Settings has no Structured replies row and agents use the

@@ -220,14 +220,17 @@ export class AgentRecaps {
     this.deps.db
       .prepare("UPDATE ws_agent_recap SET enrolled = ? WHERE thread_id = ?")
       .run(Number(on), threadId);
-    // Structured replies needs a bb that draws reply blocks.
+    // Body-only and recap-bearing replies share the Structured replies gate.
     const replies = enabled && prefs.replies && this.messageBlocks;
     if (replies) this.replyModes.set(threadId, on);
     else this.replyModes.delete(threadId);
     // With Structured replies on, the recap comes from the reply block.
     const blocks = on && replies;
     this.blockSessions.set(threadId, blocks);
-    return { tools: on && !blocks ? [RECAP_TOOL] : [] };
+    return {
+      tools: on && !blocks ? [RECAP_TOOL] : [],
+      structuredReplies: replies,
+    };
   }
 
   /** A client's report of what its bb draws; the latest report wins. */

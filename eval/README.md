@@ -69,6 +69,35 @@ policy. `EVAL_MODEL` defaults to `openai/gpt-6-luna-fast`; `EVAL_OUTPUT`
 defaults to `/tmp/identity-eval.json`. The runner preserves raw outputs and
 exits nonzero on a failed transition.
 
+## Composed replies
+
+`node eval/replies.ts` makes paid, tool-free Gateway calls against synthetic
+investigation, change, recommendation, uncertainty, and short-answer tasks. It
+uses the production instructions, component examples, parser, and recap
+validation. Checks cover one closed whole-message reply, usable recaps and
+required result lists, malformed components, reported test counts, explicit
+uncertainty cues, and unnecessary content in short answers. Preferred component
+selections are recorded as advisory notes, not failures: a valid composition can
+explain a fact in prose or use another suitable component. The uncertainty check
+is a phrase/status heuristic; inspect the recorded replies to judge whether
+their claims are true.
+
+- `EVAL_MODEL`: default `openai/gpt-6-luna`
+- `EVAL_REASONING_LEVEL`: default `medium`
+- `EVAL_REPETITIONS`: 1–5; default `1`
+- `EVAL_CASE`: run one case by ID
+- `EVAL_OUTPUT`: report path; default `/tmp/reply-eval.json`
+
+Reports preserve the reply, readable text, usage, cost, and latency even when
+validation fails. The runner exits nonzero on a failed or empty run. Examples
+are supplied as if the read-only guide tool had returned them; the model's reply
+is wrapped in a JSON field for the shared Gateway runner. Reply guidance uses
+the system role, with tool guidance before the main reply contract as BB
+delivers it, and the synthetic request uses the user role, so a request for a
+brief answer does not replace the reply-format contract. This checks format and
+supplied facts, not tool selection, real harness turn ordering, visual
+rendering, or reader comprehension. Those need separate checks.
+
 ## Status fixtures
 
 `node eval/run.ts [model ...]` runs analysis evaluations against supported

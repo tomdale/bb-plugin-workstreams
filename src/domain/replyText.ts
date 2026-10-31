@@ -40,28 +40,25 @@ function shift(node: unknown, delta: number): void {
     shift(child, delta);
 }
 
-/**
- * The last top-level `:::reply` block in `message`, or null. A block that
- * runs to the end of the message without its closing line is `unclosed`.
- */
-export function lastReplyBlock(message: string): ReplyBlockInput | null {
-  const root = processor.runSync(processor.parse(message)) as Root;
-  const node = [...root.children]
-    .reverse()
-    .find(
-      (child): child is RootContent & { type: "containerDirective" } =>
-        child.type === "containerDirective" && child.name === REPLY_BLOCK,
-    );
+function readBlock(
+  node: RootContent | undefined,
+  message: string,
+): ReplyBlockInput | null {
+  if (node?.type !== "containerDirective" || node.name !== REPLY_BLOCK)
+    return null;
   const start = node?.position?.start.offset;
   const end = node?.position?.end.offset;
   if (!node || start === undefined || end === undefined) return null;
   const block = message.slice(start, end);
   const openerEnd = block.indexOf("\n");
   const lastNewline = block.lastIndexOf("\n");
+  const markerLength = /^[ \t]*(:{3,})/.exec(block)?.[1]?.length ?? 3;
   const closed =
     openerEnd !== -1 &&
     lastNewline >= openerEnd &&
-    /^[ \t]*:{3,}[ \t]*$/.test(block.slice(lastNewline + 1));
+    new RegExp(`^[ \\t]*:{${markerLength},}[ \\t]*$`).test(
+      block.slice(lastNewline + 1).replace(/\r$/, ""),
+    );
   const innerStart = openerEnd === -1 ? block.length : openerEnd + 1;
   const innerEnd = closed ? lastNewline + 1 : block.length;
   const source = block.slice(innerStart, Math.max(innerStart, innerEnd));
@@ -83,4 +80,22 @@ export function lastReplyBlock(message: string): ReplyBlockInput | null {
     tree,
     status: closed ? "closed" : "unclosed",
   };
+}
+
+/** The server can recover the last top-level reply despite stray text around it. */
+export function lastReplyBlock(message: string): ReplyBlockInput | null {
+  const root = processor.runSync(processor.parse(message)) as Root;
+  for (const node of [...root.children].reverse()) {
+    const block = readBlock(node, message);
+    if (block) return block;
+  }
+  return null;
+}
+
+/** Authored output is one top-level reply, with no other Markdown outside it. */
+export function onlyReplyBlock(message: string): ReplyBlockInput | null {
+  const root = processor.runSync(processor.parse(message)) as Root;
+  return root.children.length === 1
+    ? readBlock(root.children[0], message)
+    : null;
 }

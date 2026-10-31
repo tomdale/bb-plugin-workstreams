@@ -70,8 +70,12 @@ describe("the card in a reply block", () => {
         "https://example.com/pr/12",
       ],
     });
-    expect(data.lead).toBeUndefined();
-    expect(data.sections.map((section) => section.label)).toEqual(["Checked"]);
+    expect(data.body).toEqual([
+      {
+        type: "text",
+        body: "### Checked\nRan `python3 -m unittest` in the repo: 5 of 5 pass.",
+      },
+    ]);
   });
 
   it("maps a review block to recap input", () => {
@@ -123,7 +127,7 @@ describe("the card in a reply block", () => {
     const data = read(
       ':::reply{state="complete"}\n# Python 3.9 or newer\n:::\n',
     );
-    expect(data.sections).toEqual([]);
+    expect(data.body).toEqual([]);
     expect(recapInputFromCard(data.card!)).toMatchObject({
       ok: true,
       input: { state: "complete", goal: "Python 3.9 or newer", latest: [] },
@@ -273,10 +277,11 @@ describe("the card in a reply block", () => {
       ":::reply\nThe card needs your choice.\n\n### Done\n- [x] Read the coupon code\n\n### Next\nI apply the fix you pick.\n:::\n",
     );
     expect(data.card).toBeUndefined();
-    expect(data.lead).toBe("The card needs your choice.");
-    expect(data.sections.map((section) => section.label)).toEqual([
-      "Done",
-      "Next",
+    expect(data.body).toEqual([
+      {
+        type: "text",
+        body: "The card needs your choice.\n\n### Done\n- [x] Read the coupon code\n\n### Next\nI apply the fix you pick.",
+      },
     ]);
   });
 });
@@ -311,7 +316,9 @@ describe("finding the block in a message", () => {
       '::::reply{state="complete"}\n# Documented the marker\n\n### Example\n```md\n:::\n```\n::::\n',
     );
     expect(data.card?.headline).toBe("Documented the marker");
-    expect(data.sections[0]!.markdown).toBe("```md\n:::\n```");
+    expect(data.body).toEqual([
+      { type: "text", body: "### Example\n```md\n:::\n```" },
+    ]);
   });
 });
 
@@ -322,13 +329,15 @@ describe("a block without state that holds only a headline", () => {
   it("reads as a plain headline with no card", () => {
     expect(read(ONLY)).toEqual({
       headline: "No. The `shop` package declares no third-party dependencies",
-      sections: [],
+      body: [],
     });
   });
 
   it("keeps a later # line after a lead as a section, as before", () => {
     const data = read(":::reply\nLead.\n\n# Notes\nSome notes.\n:::\n");
     expect(data.headline).toBeUndefined();
-    expect(data.sections.map((section) => section.label)).toEqual(["Notes"]);
+    expect(data.body).toEqual([
+      { type: "text", body: "Lead.\n\n# Notes\nSome notes." },
+    ]);
   });
 });

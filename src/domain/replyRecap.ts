@@ -96,6 +96,7 @@ export function recapInputFromCard(card: ReplyCard): ReplyRecapResult {
       error: "The block needs a `# ` headline line.",
     };
   const results = card.results
+    .filter((item) => item.checked !== false)
     .slice(0, LIMITS.results)
     .map((item) => item.markdown)
     .filter(Boolean);
