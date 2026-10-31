@@ -54,16 +54,19 @@ tree to show:
 - **Depth.** At most three header levels show; a group that would show subgroups
   at the third level moves to the top whatever its share.
 
-A topic from before the partition rule that holds threads beside subtopics lists
-its own threads and still shows its subgroups, so no thread disappears; a split
-suggestion repairs it.
+A topic that holds threads beside subtopics draws them all in one list, so no
+thread disappears or sits beside subgroup headers; a split suggestion repairs
+its assignments. Its sidebar header's right-click menu offers New work for any
+retained empty subgroup whose header is hidden.
 
 The sidebar and Home then draw small groups without headers (`arrangeGroups` in
-`src/domain/groups.ts`), whatever the layout decided: a group needs at least 3
-visible threads for a header of its own. A smaller subgroup lists its threads in
-its parent's list, labeled with its name, and all of a group's subgroups do when
-fewer than two are big enough. Three or more small top-level groups beside a
-bigger one gather in Other, each row labeled with its workstream; a focused
+`src/domain/groups.ts`), whatever the layout decided: when fewer than two
+subgroups show at least 3 visible threads, all list inline in their parent's
+thread list, labeled with their names. Otherwise all subgroups keep their
+headers, including small siblings, so a parent shows threads or subgroup
+headers, never both. A recently emptied subgroup retained for New work also
+keeps headers for all its siblings. Three or more small top-level groups beside
+a bigger one gather in Other, each row labeled with its workstream; a focused
 group keeps its header. Sections and topics don't change: this is drawing only.
 
 BB sections are flat; each group that lists threads is one section, named by its

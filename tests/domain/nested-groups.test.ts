@@ -504,7 +504,7 @@ describe("small groups", () => {
     ]);
   });
 
-  it("lists a small subgroup inline beside two big ones", () => {
+  it("keeps a small subgroup's header beside two big ones", () => {
     const list = [
       ...sections,
       { id: "sec_review", name: "Beacon: Automations: Review" },
@@ -532,9 +532,51 @@ describe("small groups", () => {
     ).toEqual([
       "Beacon: Automations (7)",
       "  Alert Investigations (3)",
-      "  CLI (1) inline",
+      "  CLI (1)",
       "  Review (3)",
     ]);
+  });
+
+  it("keeps small siblings' headers beside a retained empty subgroup", () => {
+    const projection = projectWorkstreams(
+      threads({ sec_alerts: 1 }),
+      sections,
+      { now, lastPopulatedAt: { sec_cli: now - 1 } },
+    );
+    expect(
+      shape(arrangeGroups(projection, "alphabetical", nested).populated),
+    ).toEqual([
+      "Beacon: Automations (1)",
+      "  Alert Investigations (1)",
+      "  CLI (0)",
+    ]);
+  });
+
+  it("flattens every subgroup when the parent also holds threads", () => {
+    const projection = projectWorkstreams(
+      threads({ sec_auto: 1, sec_alerts: 3, sec_cli: 3 }),
+      [{ id: "sec_auto", name: "Beacon: Automations" }, ...sections],
+      { now },
+    );
+    const [group] = arrangeGroups(
+      projection,
+      "alphabetical",
+      topics({ sec_auto: "auto", sec_alerts: "alerts", sec_cli: "cli" }, [
+        { ...SPLIT[0]!, lists: true },
+      ]),
+    ).populated;
+    expect(shape([group!])).toEqual([
+      "Beacon: Automations (7)",
+      "  Alert Investigations (3) inline",
+      "  CLI (3) inline",
+    ]);
+    expect(
+      groupRoots(group!)
+        .map((t) => t.id)
+        .sort(),
+    ).toEqual(
+      projection.all.flatMap((g) => g.rows.map((r) => r.thread.id)).sort(),
+    );
   });
 
   describe("Other", () => {

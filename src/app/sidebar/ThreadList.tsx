@@ -747,6 +747,10 @@ export function WorkstreamsThreadList({
     );
     navigate.toCompose({ focusPrompt: true });
   };
+  const emptyNewWorkIn = (group: ThreadNode) =>
+    inlineGroups(group)
+      .filter((sub) => sub.total === 0 && sub.hasSection)
+      .map((sub) => ({ name: sub.name, run: newThreadIn(sub) }));
   /**
    * A group's own threads, then those of its subgroups drawn inline, each
    * labeled with its subgroup, then its other subgroups. Subgroups fold on
@@ -771,6 +775,7 @@ export function WorkstreamsThreadList({
             collapsed={groupCollapsed(sub.id, false, sub.topicId)}
             toggle={() => toggleGroup(sub.id, false, sub.topicId)}
             onNewThread={newThreadIn(sub)}
+            newWorkIn={emptyNewWorkIn(sub)}
             snooze={groupSnoozeOf(sub)}
           >
             {renderGroupBody(sub)}
@@ -803,6 +808,7 @@ export function WorkstreamsThreadList({
       collapsed={lowerCollapsed(group.id)}
       toggle={() => lowerToggle(group.id)}
       snooze={groupSnoozeOf(group)}
+      newWorkIn={emptyNewWorkIn(group)}
     >
       {renderGroupBody(group)}
     </WorkstreamGroup>
@@ -821,6 +827,7 @@ export function WorkstreamsThreadList({
           {...props}
           group={group}
           snooze={groupSnoozeOf(group)}
+          newWorkIn={emptyNewWorkIn(group)}
           sectionRef={ref}
           style={style}
           handle={handle}
@@ -1623,6 +1630,8 @@ type GroupProps = {
   collapsed: boolean;
   toggle: () => void;
   onNewThread?: () => void;
+  /** Scoped New work actions for empty subgroups drawn without headers. */
+  newWorkIn?: readonly { name: string; run: () => void }[];
   onToggleFocus?: () => void;
   /** Snoozes every thread the group lists; absent while it lists none. */
   snooze?: GroupSnooze;
@@ -1641,6 +1650,7 @@ function WorkstreamGroup({
   collapsed,
   toggle,
   onNewThread,
+  newWorkIn,
   onToggleFocus,
   snooze,
   muted,
@@ -1689,6 +1699,7 @@ function WorkstreamGroup({
             : undefined
         }
         onNewWork={onNewThread}
+        newWorkIn={newWorkIn}
         snooze={snooze}
       >
         <div

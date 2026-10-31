@@ -495,7 +495,7 @@ describe("Home screen", () => {
       expect(links(fold)).toEqual([]);
       fireEvent.click(within(fold).getByRole("button", { name: /^Snoozed/ }));
       expect(links(fold)).toEqual(["Later"]);
-      expect(fold.textContent).not.toContain("w");
+      expect(within(fold).queryByText(/^\d+w$/)).toBeNull();
     });
 
     it("can hide the Snoozed fold", async () => {

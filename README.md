@@ -311,13 +311,16 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      header above subgroups has no threads of its own. Subgroups collapse
      independently. Focus, ordering, and Dormant apply to a top-level group as a
      whole.
-   - **Small groups:** A group or subgroup gets its own header only when it
-     shows at least `3` threads. A smaller subgroup lists its threads in its
-     parent's list, each labeled with the subgroup's name, and so do all of a
-     group's subgroups unless two of them are that big. Once `3` or more
-     top-level groups are that small beside a bigger one, they gather in
-     **Other**, after the rest, each row labeled with its workstream. Focused
-     workstreams keep their own headers.
+   - **Small groups:** When fewer than two subgroups show at least `3` threads,
+     all list inline in their parent's thread list, each labeled with its
+     subgroup's name. Otherwise all sibling headers stay visible, including
+     small subgroups. A recently emptied subgroup retained for New work also
+     keeps its siblings' headers. A parent shows threads or subgroup headers,
+     never both. If a parent holds threads of its own, all subgroups list
+     inline; its right-click menu offers New work for retained empty subgroups.
+     Once `3` or more top-level groups are that small beside a bigger one, they
+     gather in **Other**, after the rest, each row labeled with its workstream.
+     Focused workstreams keep their own headers.
    - **Indentation:** Each level starts where its parent's names start: a
      subgroup's header and threads sit one step in from its parent's, and a
      child thread one step in from its parent thread. Headers and threads share

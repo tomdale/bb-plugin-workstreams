@@ -12,9 +12,8 @@
  * which only head subgroups, and the names dimmed before each header.
  * Focus, dormancy, and ordering apply to the top-level group as a whole.
  *
- * Small groups don't get headers (see `GROUP_MIN`): a subgroup showing fewer
- * threads lists them in its parent's list, and so do all of a group's
- * subgroups unless two of them are big enough for headers. Small top-level
+ * Subgroups keep their headers together or all list inline (see `GROUP_MIN`),
+ * so a parent shows threads or subgroup headers, never both. Small top-level
  * groups gather in Other, after the rest, once there are `OTHER_MIN` of them
  * beside some bigger group. Rows listed outside their own group's header
  * carry its name.
@@ -65,8 +64,7 @@ export type WorkstreamNode<T extends WorkstreamThread> = Group<T> & {
 };
 
 /**
- * A group or subgroup gets its own header only when it shows at least this
- * many threads.
+ * Two subgroups showing this many threads keep headers for all their siblings.
  */
 export const GROUP_MIN = 3;
 
@@ -84,21 +82,22 @@ const inlined = <T extends WorkstreamThread>(
 });
 
 /**
- * Folds small subgroups into their parent's list. A subgroup keeps its
- * header when it shows `GROUP_MIN` threads and a sibling does too; one with
- * none to show is a recently emptied workstream kept for New work, so it
- * keeps its header as well.
+ * Folds all subgroups into one thread list unless two reach `GROUP_MIN` or
+ * a recently emptied subgroup needs its New work header. Headers stay together
+ * so inline threads never sit beside subgroup headers. A parent with its own
+ * rows also draws all subgroups inline to preserve that rule.
  */
 function foldSmall<T extends WorkstreamThread>(
   node: WorkstreamNode<T>,
 ): WorkstreamNode<T> {
   const big = node.subgroups.filter((sub) => sub.total >= GROUP_MIN);
-  const keeps = (sub: WorkstreamNode<T>) =>
-    sub.total === 0 || (big.length >= 2 && sub.total >= GROUP_MIN);
+  const keepHeaders =
+    node.rows.length === 0 &&
+    (big.length >= 2 || node.subgroups.some((sub) => sub.total === 0));
   return {
     ...node,
     subgroups: node.subgroups.map((sub) =>
-      keeps(sub) ? foldSmall(sub) : inlined(sub),
+      keepHeaders ? foldSmall(sub) : inlined(sub),
     ),
   };
 }

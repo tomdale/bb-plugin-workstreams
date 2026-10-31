@@ -247,12 +247,14 @@ export function RowMenu({
 export function HeaderMenu({
   focus,
   onNewWork,
+  newWorkIn = [],
   snooze,
   children,
 }: {
   /** Focus on the workstream, or stop. */
   focus?: { focused: boolean; toggle: () => void };
   onNewWork?: () => void;
+  newWorkIn?: readonly { name: string; run: () => void }[];
   /** Snoozes every thread the header lists (see `groupRoots`). */
   snooze?: {
     /** Names the batch: "Snooze 3 threads". */
@@ -264,7 +266,8 @@ export function HeaderMenu({
 }) {
   const portalScope = usePortalScopeProps();
   const { server } = useSharedServerState();
-  if (!focus && !onNewWork && !snooze) return children;
+  if (!focus && !onNewWork && newWorkIn.length === 0 && !snooze)
+    return children;
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
@@ -280,7 +283,14 @@ export function HeaderMenu({
             </Item>
           ) : null}
           {onNewWork ? <Item onSelect={onNewWork}>New work</Item> : null}
-          {snooze && (focus || onNewWork) ? <Separator /> : null}
+          {newWorkIn.map((action) => (
+            <Item key={action.name} onSelect={action.run}>
+              New work in {action.name}
+            </Item>
+          ))}
+          {snooze && (focus || onNewWork || newWorkIn.length > 0) ? (
+            <Separator />
+          ) : null}
           {snooze ? (
             <ContextMenu.Sub>
               <SubTrigger>{snooze.label}</SubTrigger>

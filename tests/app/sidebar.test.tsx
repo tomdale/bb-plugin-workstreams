@@ -15,6 +15,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 import type { SnoozePreset } from "../../src/domain/snooze.ts";
+import { takeComposerPreset } from "../../src/app/composer/preset.ts";
 
 /** Snooze settings listing these presets, the first of them the default. */
 const snoozeSettings = (...presets: SnoozePreset[]) => ({
@@ -1726,26 +1727,23 @@ describe("nested workstreams", () => {
       topic("cli", "CLI", "auto"),
     ],
     groups: {
-      sec_auto: "auto",
       sec_alerts: "alerts",
       sec_cli: "cli",
     },
-    // Automations lists its own thread beside its subgroups, as a topic
-    // from before the partition rule does.
     layout: [
       {
         topicId: "auto",
         name: "Automations",
         prefix: ["Beacon"],
-        lists: true,
-        total: 3,
+        lists: false,
+        total: 6,
         children: [
           {
             topicId: "alerts",
             name: "Alert Investigations",
             prefix: [],
             lists: true,
-            total: 1,
+            total: 3,
             children: [],
           },
           {
@@ -1753,7 +1751,7 @@ describe("nested workstreams", () => {
             name: "CLI",
             prefix: [],
             lists: true,
-            total: 1,
+            total: 3,
             children: [],
           },
         ],
@@ -1761,13 +1759,11 @@ describe("nested workstreams", () => {
     ],
   };
   const nestedSections = [
-    section("sec_auto", "Beacon: Automations"),
     section("sec_alerts", "Beacon: Automations: Alert Investigations"),
     section("sec_cli", "Beacon: Automations: CLI"),
   ];
   // Each subgroup shows enough threads for its own header (`GROUP_MIN`).
   const nestedThreads = () => [
-    sidebarThread("mvp", { sectionId: "sec_auto", title: "Design MVP" }),
     sidebarThread("rebase", {
       sectionId: "sec_alerts",
       title: "Rebase alerts PR",
@@ -1803,7 +1799,7 @@ describe("nested workstreams", () => {
         name: "Beacon: Automations: Alert Investigations",
       });
     await waitFor(() => alerts());
-    // One top-level group, holding its own thread and both subgroups.
+    // One top-level group holds both subgroups.
     expect(
       slot
         .getAllByRole("region")
@@ -1812,7 +1808,6 @@ describe("nested workstreams", () => {
     ).toEqual(["Beacon: Automations"]);
     expect(within(alerts()).getByText("Alert Investigations")).toBeTruthy();
     expect(groupRows(slot, "Beacon: Automations")).toEqual([
-      "Design MVP",
       "Rebase alerts PR",
       "Triage alert noise",
       "Verify alerts in staging",
@@ -1826,7 +1821,6 @@ describe("nested workstreams", () => {
     );
     await waitFor(() =>
       expect(groupRows(slot, "Beacon: Automations")).toEqual([
-        "Design MVP",
         "Design CLI commands",
         "Write CLI docs",
         "Add CLI flags",
@@ -1835,21 +1829,68 @@ describe("nested workstreams", () => {
     slot.lifecycle.unmount();
   });
 
-  it("heads sibling workstreams with their shared topic when it has none", async () => {
+  it("flattens subgroup headers when the parent also holds threads", async () => {
     const slot = await mount(
-      nestedThreads().filter((thread) => thread.id !== "mvp"),
-      { ...options, sections: nestedSections.slice(1) },
+      [
+        sidebarThread("mvp", { sectionId: "sec_auto", title: "Design MVP" }),
+        ...nestedThreads(),
+      ],
+      {
+        ...options,
+        sections: [
+          section("sec_auto", "Beacon: Automations"),
+          ...nestedSections,
+        ],
+        catalog: {
+          ...catalog,
+          groups: { ...catalog.groups, sec_auto: "auto" },
+          layout: [{ ...catalog.layout[0]!, lists: true, total: 7 }],
+        },
+      },
     );
     await waitFor(() =>
-      expect(
-        within(slot.getByRole("region", { name: "Beacon: Automations" }))
-          .getAllByRole("region")
-          .map((region) => region.getAttribute("aria-label")),
-      ).toEqual([
-        "Beacon: Automations: Alert Investigations",
-        "Beacon: Automations: CLI",
-      ]),
+      expect(groupRows(slot, "Beacon: Automations")).toHaveLength(7),
     );
+    expect(
+      within(
+        slot.getByRole("region", { name: "Beacon: Automations" }),
+      ).queryAllByRole("region"),
+    ).toEqual([]);
+    expect(
+      within(
+        slot.getByRole("region", { name: "Beacon: Automations" }),
+      ).getByRole("link", { name: "Design MVP" }),
+    ).toBeTruthy();
+    for (const name of [
+      "Design CLI commands",
+      "Add CLI flags",
+      "Write CLI docs",
+    ]) {
+      const row = within(
+        slot.getByRole("region", { name: "Beacon: Automations" }),
+      )
+        .getByRole("link", { name })
+        .closest("li")!;
+      fireEvent.click(
+        within(row).getByRole("button", { name: /^Snooze until/ }),
+      );
+    }
+    await waitFor(() =>
+      expect(groupRows(slot, "Beacon: Automations")).toHaveLength(4),
+    );
+    const top = slot.getByRole("region", { name: "Beacon: Automations" });
+    expect(within(top).queryAllByRole("region")).toEqual([]);
+    fireEvent.contextMenu(top.querySelector(".group\\/row")!);
+    fireEvent.click(
+      await screen.findByRole("menuitem", {
+        name: "New work in Beacon: Automations: CLI",
+      }),
+    );
+    expect(takeComposerPreset()?.target).toEqual({ sectionId: "sec_cli" });
+    expect(slot.inspection.navigateCalls.at(-1)).toEqual({
+      method: "toCompose",
+      options: { focusPrompt: true },
+    });
     slot.lifecycle.unmount();
   });
 
@@ -1881,7 +1922,7 @@ describe("nested workstreams", () => {
     ).toBeTruthy();
     fireEvent.click(
       within(top()).getByRole("button", {
-        name: /^Snooze 4 threads in Beacon: Automations until/,
+        name: /^Snooze 3 threads in Beacon: Automations until/,
       }),
     );
     await waitFor(() =>
@@ -1893,7 +1934,7 @@ describe("nested workstreams", () => {
         .map((call) => [...(call.input as { threadIds: string[] }).threadIds]),
     ).toEqual([
       ["commands", "docs", "flags"],
-      ["mvp", "rebase", "triage", "verify"],
+      ["rebase", "triage", "verify"],
     ]);
     slot.lifecycle.unmount();
   });
@@ -1925,72 +1966,112 @@ describe("nested workstreams", () => {
 });
 
 describe("small groups", () => {
-  it("lists a small subgroup's threads in its parent's list, each labeled", async () => {
-    const topic = (id: string, name: string, parentId: string | null) => ({
-      id,
-      name,
-      description: "",
-      parentId,
-      aliases: [],
-    });
-    const node = (topicId: string, name: string, total: number) => ({
-      topicId,
-      name,
-      prefix: [],
-      lists: true,
-      total,
-      children: [],
-    });
-    const slot = await mount(
-      [
-        sidebarThread("a1", { sectionId: "sec_alerts", title: "Rebase PR" }),
-        sidebarThread("a2", { sectionId: "sec_alerts", title: "Verify" }),
-        sidebarThread("a3", { sectionId: "sec_alerts", title: "Triage" }),
-        sidebarThread("c1", { sectionId: "sec_cli", title: "Add flags" }),
-      ],
-      {
-        sections: [
-          section("sec_alerts", "Automations: Alert Investigations"),
-          section("sec_cli", "Automations: CLI"),
+  it.each([0, 3])(
+    "keeps sibling headers together with %i review threads",
+    async (reviewCount) => {
+      const topic = (id: string, name: string, parentId: string | null) => ({
+        id,
+        name,
+        description: "",
+        parentId,
+        aliases: [],
+      });
+      const node = (topicId: string, name: string, total: number) => ({
+        topicId,
+        name,
+        prefix: [],
+        lists: true,
+        total,
+        children: [],
+      });
+      const slot = await mount(
+        [
+          sidebarThread("a1", { sectionId: "sec_alerts", title: "Rebase PR" }),
+          sidebarThread("a2", { sectionId: "sec_alerts", title: "Verify" }),
+          sidebarThread("a3", { sectionId: "sec_alerts", title: "Triage" }),
+          sidebarThread("c1", { sectionId: "sec_cli", title: "Add flags" }),
+          ...Array.from({ length: reviewCount }, (_, i) =>
+            sidebarThread(`r${i}`, {
+              sectionId: "sec_review",
+              title: `Review ${i}`,
+            }),
+          ),
         ],
-        catalog: {
-          entities: [
-            topic("auto", "Automations", null),
-            topic("alerts", "Alert Investigations", "auto"),
-            topic("cli", "CLI", "auto"),
+        {
+          sections: [
+            section("sec_alerts", "Automations: Alert Investigations"),
+            section("sec_cli", "Automations: CLI"),
+            ...(reviewCount
+              ? [section("sec_review", "Automations: Review")]
+              : []),
           ],
-          groups: { sec_alerts: "alerts", sec_cli: "cli" },
-          layout: [
-            {
-              ...node("auto", "Automations", 4),
-              lists: false,
-              children: [
-                node("alerts", "Alert Investigations", 3),
-                node("cli", "CLI", 1),
-              ],
+          catalog: {
+            entities: [
+              topic("auto", "Automations", null),
+              topic("alerts", "Alert Investigations", "auto"),
+              topic("cli", "CLI", "auto"),
+              topic("review", "Review", "auto"),
+            ],
+            groups: {
+              sec_alerts: "alerts",
+              sec_cli: "cli",
+              sec_review: "review",
             },
-          ],
+            layout: [
+              {
+                ...node("auto", "Automations", 4 + reviewCount),
+                lists: false,
+                children: [
+                  node("alerts", "Alert Investigations", 3),
+                  node("cli", "CLI", 1),
+                  ...(reviewCount
+                    ? [node("review", "Review", reviewCount)]
+                    : []),
+                ],
+              },
+            ],
+          },
+          settings: { showRecent: false, showForYou: false },
         },
-        settings: { showRecent: false, showForYou: false },
-      },
-    );
-    const top = () => slot.getByRole("region", { name: "Automations" });
-    // One subgroup big enough for a header isn't two, so both list inline.
-    await waitFor(() =>
-      expect(groupRows(slot, "Automations")).toEqual([
-        "Rebase PR",
-        "Verify",
-        "Triage",
-        "Add flags",
-      ]),
-    );
-    expect(within(top()).queryAllByRole("region")).toEqual([]);
-    const row = within(top())
-      .getByRole("link", { name: "Add flags" })
-      .closest("li")!;
-    expect(within(row).getByText("CLI")).toBeTruthy();
-    slot.lifecycle.unmount();
-  });
+      );
+      const top = () => slot.getByRole("region", { name: "Automations" });
+      await waitFor(() =>
+        expect(groupRows(slot, "Automations")).toEqual([
+          "Rebase PR",
+          "Verify",
+          "Triage",
+          "Add flags",
+          ...Array.from({ length: reviewCount }, (_, i) => `Review ${i}`),
+        ]),
+      );
+      expect(
+        within(top())
+          .queryAllByRole("region")
+          .map((r) => r.getAttribute("aria-label")),
+      ).toEqual(
+        reviewCount
+          ? [
+              "Automations: Alert Investigations",
+              "Automations: CLI",
+              "Automations: Review",
+            ]
+          : [],
+      );
+      const row = within(top())
+        .getByRole("link", { name: "Add flags" })
+        .closest("li")!;
+      if (reviewCount) {
+        expect(row.closest("section")).toBe(
+          slot.getByRole("region", { name: "Automations: CLI" }),
+        );
+        expect(within(row).queryByText("CLI")).toBeNull();
+      } else {
+        expect(row.closest("section")).toBe(top());
+        expect(within(row).getByText("CLI")).toBeTruthy();
+      }
+      slot.lifecycle.unmount();
+    },
+  );
 
   it("gathers small top-level groups in Other, after the rest", async () => {
     const slot = await mount(
