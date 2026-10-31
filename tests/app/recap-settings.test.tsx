@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import type { PluginAppBuilder } from "@get-bb/plugin-sdk/app";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { registerReplyBlock } from "../../src/app/reply/register.ts";
 
-afterEach(cleanup);
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const PREFS = { required: true, corrections: 3, layout: "full" };
 
