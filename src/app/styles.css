@@ -462,12 +462,15 @@
   position: absolute;
   right: 0;
   left: 0;
-  /* Matches BB's native overflow fade: 1.5rem, background to transparent. */
-  height: 1.5rem;
+  /* Keep the background opaque at the plate edge, then feather it gently. */
+  height: 4rem;
   background: linear-gradient(
     to bottom in oklab,
-    var(--background),
-    transparent
+    var(--background) 0%,
+    color-mix(in oklab, var(--background) 90%, transparent) 20%,
+    color-mix(in oklab, var(--background) 60%, transparent) 50%,
+    color-mix(in oklab, var(--background) 20%, transparent) 80%,
+    transparent 100%
   );
   content: "";
 }

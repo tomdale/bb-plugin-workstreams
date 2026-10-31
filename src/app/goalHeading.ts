@@ -101,19 +101,27 @@ export function titleExitDistance(
   );
 }
 
-// Both copies travel the same distance over twice as much timeline scroll.
-const HEADING_SCROLL_RATIO = 0.5;
+// Both copies travel the same distance over 2.5 times as much timeline scroll.
+const HEADING_SCROLL_RATIO = 0.4;
 
 /** The compact copy starts one exit distance below its final position. */
 export function headingScroll(fromBottom: number, exitDistance: number) {
-  const moved = Math.min(
-    Math.max(0, fromBottom) * HEADING_SCROLL_RATIO,
-    exitDistance,
+  const t = Math.min(
+    Math.max(0, fromBottom) / (exitDistance / HEADING_SCROLL_RATIO),
+    1,
   );
+  // Blend linear and smoothstep: the copies ease at both ends while staying
+  // responsive to small scrolls and reaching their boundaries together.
+  const progress = (t + t * t * (3 - 2 * t)) / 2;
+  const moved = exitDistance * progress;
+  return { moved, remaining: exitDistance - moved, progress };
+}
+
+/** Keep the outgoing heading readable longer and let the incoming one brighten early. */
+export function headingOpacity(progress: number) {
   return {
-    moved,
-    remaining: exitDistance - moved,
-    progress: moved / exitDistance,
+    expanded: 1 - progress * progress,
+    compact: 1 - (1 - progress) * (1 - progress),
   };
 }
 

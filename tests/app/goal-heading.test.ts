@@ -4,6 +4,7 @@ import {
   compactBlock,
   eyebrowMetrics,
   headingHeight,
+  headingOpacity,
   headingScroll,
   pinnedHeight,
   titleExitDistance,
@@ -51,19 +52,29 @@ it("leaves the room reserved for a heading with no workstream alone", () => {
   );
 });
 
-it("moves both headings half a pixel per scroll pixel until the large title exits", () => {
+it("eases both copies together over a longer scroll and reaches both boundaries", () => {
   const distance = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 1);
+  const travel = distance * 2.5;
   const start = headingScroll(0, distance);
-  const middle = headingScroll(12, distance);
-  const halfway = headingScroll(distance, distance);
-  const finish = headingScroll(distance * 2, distance);
+  const early = headingScroll(travel * 0.25, distance);
+  const halfway = headingScroll(travel * 0.5, distance);
+  const late = headingScroll(travel * 0.75, distance);
+  const finish = headingScroll(travel, distance);
   expect(start).toEqual({ moved: 0, remaining: distance, progress: 0 });
-  expect(middle.moved).toBe(6);
-  expect(middle.remaining).toBe(distance - 6);
-  expect(halfway.progress).toBe(0.5);
+  expect(early.progress).toBeCloseTo(0.203125);
+  expect(late.progress).toBeCloseTo(1 - early.progress);
+  expect(early.moved + early.remaining).toBeCloseTo(distance);
+  expect(halfway.progress).toBeCloseTo(0.5);
   expect(finish).toEqual({ moved: distance, remaining: 0, progress: 1 });
-  expect(headingScroll(distance * 2 + 50, distance)).toEqual(finish);
+  expect(headingScroll(travel + 50, distance)).toEqual(finish);
   expect(headingScroll(-10, distance)).toEqual(start);
+});
+
+it("eases the outgoing and incoming opacity independently", () => {
+  expect(headingOpacity(0)).toEqual({ expanded: 1, compact: 0 });
+  expect(headingOpacity(0.25)).toEqual({ expanded: 0.9375, compact: 0.4375 });
+  expect(headingOpacity(0.75)).toEqual({ expanded: 0.4375, compact: 0.9375 });
+  expect(headingOpacity(1)).toEqual({ expanded: 0, compact: 1 });
 });
 
 it("accounts for a two-line phone title before finishing the reveal", () => {

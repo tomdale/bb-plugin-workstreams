@@ -14,6 +14,7 @@ import {
   compactBlock,
   eyebrowMetrics,
   headingHeight,
+  headingOpacity,
   headingScroll,
   pinnedHeight,
   titleExitDistance,
@@ -421,6 +422,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
     ? { moved: exitDistance, remaining: 0, progress: 1 }
     : headingScroll(settled ? fromBottom : 0, exitDistance);
   const collapsed = progress === 1;
+  const opacity = headingOpacity(progress);
   // When the title bar has no room, the compact copy sits in the timeline.
   const pinned = !!placement && placement.bar === null;
   const platePinnedHeight = pinnedHeight(base, eyebrow);
@@ -518,7 +520,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
           className="ws-goal-overlay__group"
           style={{
             transform: `translateY(${base * PAD_TOP - moved}px)`,
-            opacity: 1 - progress,
+            opacity: opacity.expanded,
             width: placement.pane.width,
           }}
         >
@@ -582,7 +584,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
           className="ws-goal-overlay__group"
           style={{
             transform: `translateY(${remaining}px)`,
-            opacity: progress,
+            opacity: opacity.compact,
             width: compactSpot.width,
           }}
         >

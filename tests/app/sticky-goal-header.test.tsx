@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, waitFor } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { emptyState, sidebarThread } from "./fixtures.ts";
+import { headingOpacity, headingScroll } from "../../src/app/goalHeading.ts";
 
 afterEach(() => {
   cleanup();
@@ -143,14 +144,19 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
     );
   const initial = groups().map(y);
   expect(groups().map((group) => Number(group.style.opacity))).toEqual([1, 0]);
+  const motion = headingScroll(10, initial[1]!);
   scroller.scrollTop = 590;
   scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() => expect(y(groups()[0]!)).toBeCloseTo(initial[0]! - 5));
-  expect(y(groups()[1]!)).toBeCloseTo(initial[1]! - 5);
+  await waitFor(() =>
+    expect(y(groups()[0]!)).toBeCloseTo(initial[0]! - motion.moved),
+  );
+  expect(y(groups()[1]!)).toBeCloseTo(initial[1]! - motion.moved);
   const partialOpacity = groups().map((group) => Number(group.style.opacity));
   expect(partialOpacity[0]).toBeGreaterThan(0);
   expect(partialOpacity[0]).toBeLessThan(1);
-  expect(partialOpacity[0]! + partialOpacity[1]!).toBeCloseTo(1);
+  const expectedOpacity = headingOpacity(motion.progress);
+  expect(partialOpacity[0]).toBeCloseTo(expectedOpacity.expanded);
+  expect(partialOpacity[1]).toBeCloseTo(expectedOpacity.compact);
   expect(partialOpacity[1]).toBeGreaterThan(0);
   expect(
     groups()[0]!.querySelector<HTMLElement>(".ws-sticky-goal__title")!.style
@@ -159,13 +165,15 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
     groups()[1]!.querySelector<HTMLElement>(".ws-sticky-goal__title")!.style
       .fontSize,
   );
-  scroller.scrollTop = 500;
+  scroller.scrollTop = 450;
   scroller.dispatchEvent(new Event("scroll"));
   await waitFor(() => expect(y(groups()[1]!)).toBe(0));
   expect(groups().map((group) => Number(group.style.opacity))).toEqual([0, 1]);
   scroller.scrollTop = 590;
   scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() => expect(y(groups()[1]!)).toBeCloseTo(initial[1]! - 5));
+  await waitFor(() =>
+    expect(y(groups()[1]!)).toBeCloseTo(initial[1]! - motion.moved),
+  );
   expect(groups().map((group) => Number(group.style.opacity))).toEqual(
     partialOpacity,
   );
