@@ -724,6 +724,10 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
   white-space: nowrap;
 }
 
+.ws-subagent-delivery-source {
+  display: none;
+}
+
 /* A reply block's section that arrives while the reply streams fades in
    without moving: opacity only, so nothing above or below it shifts. */
 @keyframes ws-reply-enter {

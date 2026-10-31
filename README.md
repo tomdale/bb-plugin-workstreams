@@ -494,11 +494,16 @@ which adds a message-block slot, you also get **Structured replies**:
   card shows. Past turns show those fields inline, without duplicate send
   actions. A malformed component shows its original source and a diagnostic
   without discarding the explanation or the recap.
+- Completion messages from the Subagents plugin show their reply blocks inline,
+  with the worker's name and transcript link. File links use the worker's
+  workspace. Unsupported, incomplete, or unverified deliveries keep BB's
+  original message.
 
 Workstreams detects the slot when its app loads and reports it to the server.
 Without the slot, Settings has no Structured replies row and agents use the
 recap tool; a setting turned on under the fork stays stored but has no effect.
-Reply blocks written earlier show as plain Markdown.
+Outside Subagents deliveries, reply blocks written earlier show as plain
+Markdown.
 
 ### Structured question card (`AskUserQuestion`)
 
