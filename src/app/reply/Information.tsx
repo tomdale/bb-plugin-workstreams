@@ -19,14 +19,17 @@ import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { MarkdownDocumentContext, RecapText } from "../composer/RecapCard.tsx";
+import { ReplyContext } from "./ReplyContext.tsx";
+import { isInlineProse } from "./opening.ts";
 import {
   evidenceFilePath,
   type ReplyEvidence,
   type ReplyPart,
+  type ReplyLeaf,
 } from "../../domain/replyComponents.ts";
 
 const Heading = ({ children }: { children: ReactNode }) => (
-  <h3 className="m-0 mb-2 text-[length:inherit] font-medium leading-[1.5] text-foreground">
+  <h3 className="m-0 mb-3 text-[1.08em] font-semibold leading-[1.5] text-foreground">
     {children}
   </h3>
 );
@@ -38,9 +41,7 @@ export const ReplyFiles = createContext<RecapFiles | null>(null);
 
 export function ReplyText({ markdown }: { markdown: string }) {
   const document = useContext(MarkdownDocumentContext);
-  return /\n[ \t]*\n|^[ \t]*([-*+] |\d+[.)] |#|>|```|~~~|\|)/m.test(
-    markdown,
-  ) ? (
+  return !isInlineProse(markdown) ? (
     <Markdown
       content={markdown}
       experimental_document={document}
@@ -58,10 +59,12 @@ export function Disclosure({
   title,
   children,
   open = false,
+  label,
 }: {
   title: string;
   children: ReactNode;
   open?: boolean;
+  label?: string;
 }) {
   const [expanded, setExpanded] = useState(open);
   const id = useId();
@@ -71,6 +74,7 @@ export function Disclosure({
         type="button"
         aria-expanded={expanded}
         aria-controls={id}
+        aria-label={label}
         onClick={() => setExpanded((value) => !value)}
         className="flex min-h-8 max-w-full max-md:pointer-coarse:min-h-11 cursor-pointer items-start gap-1.5 rounded-sm text-left text-[0.9em] font-medium leading-[1.6] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
@@ -127,7 +131,7 @@ function EvidenceLink({ item }: { item: ReplyEvidence }) {
 function Evidence({ items }: { items: ReplyEvidence[] | undefined }) {
   if (!items?.length) return null;
   return (
-    <Disclosure title={`Evidence (${items.length})`}>
+    <div aria-label="Evidence" className="min-w-0 border-t border-border pt-3">
       <ul className="m-0 list-none space-y-3 p-0">
         {items.map((item, i) => (
           <li key={i} className="min-w-0 text-[0.9em]">
@@ -140,7 +144,7 @@ function Evidence({ items }: { items: ReplyEvidence[] | undefined }) {
           </li>
         ))}
       </ul>
-    </Disclosure>
+    </div>
   );
 }
 
@@ -212,25 +216,9 @@ export function Information({ part }: { part: ReplyPart }) {
   switch (part.type) {
     case "context":
       content = (
-        <div className="min-w-0 space-y-1.5 text-[0.85em] leading-[1.7] text-muted-foreground">
-          <RecapText
-            text={part.topic}
-            typeClass="text-[length:inherit] leading-[inherit]"
-          />
-          {part.where && part.where !== location ? (
-            <p className="m-0 [overflow-wrap:anywhere]">
-              Reported location:{" "}
-              <code className="text-[0.95em]">{part.where}</code>
-            </p>
-          ) : null}
-          {location ? (
-            <p className="m-0 [overflow-wrap:anywhere]">
-              Current workspace:{" "}
-              <code className="text-[0.95em]">{location}</code>
-            </p>
-          ) : null}
+        <ReplyContext part={part} workspace={location}>
           {part.background ? <ReplyText markdown={part.background} /> : null}
-        </div>
+        </ReplyContext>
       );
       break;
     case "finding":
@@ -269,19 +257,33 @@ export function Information({ part }: { part: ReplyPart }) {
           <Heading>{part.title}</Heading>
           <div
             className={cn(
-              "grid min-w-0 gap-px overflow-hidden rounded-lg border border-border bg-border",
+              "min-w-0 divide-y divide-border",
               part.items.length === 2
-                ? "@min-[32rem]/information:grid-cols-2"
-                : "grid-cols-1",
+                ? "grid overflow-hidden rounded-lg border border-border @min-[32rem]/information:grid-cols-2 @min-[32rem]/information:divide-x @min-[32rem]/information:divide-y-0"
+                : "flex flex-col",
             )}
           >
             {part.items.map((item, i) => (
               <div
                 key={i}
-                className="min-w-0 space-y-2 bg-surface-recessed p-3.5"
+                className={cn(
+                  "min-w-0 space-y-2",
+                  part.items.length === 2
+                    ? "bg-surface-recessed/25 p-4"
+                    : "py-3.5",
+                )}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="text-[0.85em] font-medium">{item.name}</span>
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      part.items.length === 2
+                        ? "text-[0.85em]"
+                        : "text-[length:inherit]",
+                    )}
+                  >
+                    {item.name}
+                  </span>
                   {item.recommended ? (
                     <span className="text-[0.75em] text-(--ws-review-text)">
                       Recommended
@@ -290,7 +292,11 @@ export function Information({ part }: { part: ReplyPart }) {
                 </div>
                 <RecapText
                   text={item.summary}
-                  typeClass="text-[length:inherit] font-medium leading-[1.5]"
+                  typeClass={
+                    part.items.length === 2
+                      ? "text-[1.25em] font-medium leading-[1.4]"
+                      : "text-[0.95em] leading-[1.6]"
+                  }
                 />
                 {item.qualification ? (
                   <div className="text-[0.9em] text-muted-foreground">
@@ -298,7 +304,7 @@ export function Information({ part }: { part: ReplyPart }) {
                   </div>
                 ) : null}
                 {item.detail ? (
-                  <Disclosure title={`Details: ${item.name}`}>
+                  <Disclosure title="Details" label={`Details: ${item.name}`}>
                     <ReplyText markdown={item.detail} />
                   </Disclosure>
                 ) : null}
@@ -312,12 +318,12 @@ export function Information({ part }: { part: ReplyPart }) {
       content = (
         <div>
           <Heading>{part.title}</Heading>
-          <ol className="m-0 grid list-none gap-2 p-0 @min-[32rem]/information:grid-cols-2">
+          <ol className="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-2 p-0">
             {part.steps.map((step, i) => (
               <li
                 key={i}
                 className={cn(
-                  "flex min-w-0 items-start gap-3 rounded-md bg-surface-recessed px-3 py-2.5",
+                  "flex min-w-0 items-start gap-2 rounded-md bg-surface-recessed/30 px-3 py-2.5",
                   step.attention && "border-t-2 border-(--ws-needs-you-border)",
                 )}
               >
@@ -514,13 +520,13 @@ export function Information({ part }: { part: ReplyPart }) {
           {part.relationship === "peers" ? (
             part.children.map((child, i) => (
               <div key={i} className="@container/information min-w-0">
-                <Information part={child} />
+                <GroupContent child={child} />
               </div>
             ))
           ) : (
             <>
               <div className="@container/information min-w-0">
-                <Information part={part.children[0]!} />
+                <GroupContent child={part.children[0]!} />
               </div>
               <aside
                 aria-label="Supporting information"
@@ -528,7 +534,7 @@ export function Information({ part }: { part: ReplyPart }) {
               >
                 {part.children.slice(1).map((child, i) => (
                   <div key={i} className="@container/information min-w-0">
-                    <Information part={child} />
+                    <GroupContent child={child} />
                   </div>
                 ))}
               </aside>
@@ -549,5 +555,16 @@ export function Information({ part }: { part: ReplyPart }) {
     >
       {content}
     </section>
+  );
+}
+
+function GroupContent({ child }: { child: ReplyLeaf | ReplyLeaf[] }) {
+  const parts = Array.isArray(child) ? child : [child];
+  return (
+    <div className="min-w-0 space-y-7">
+      {parts.map((part, index) => (
+        <Information key={index} part={part} />
+      ))}
+    </div>
   );
 }

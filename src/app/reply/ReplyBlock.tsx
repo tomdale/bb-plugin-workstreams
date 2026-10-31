@@ -1,7 +1,7 @@
 /*
- * One reply in the timeline. Its recap fields appear here when their docked
- * card is absent; its explanation and information components stay in the
- * message. Unclosed replies use the host's original rendering.
+ * A reply's article keeps its answer and explanation together whether its
+ * compact recap is docked or historical. Historical recap fields close the
+ * article rather than interrupting its opening. Unclosed replies use the host.
  */
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { Markdown, useSdk, useBbNavigate } from "@get-bb/plugin-sdk/app";
@@ -19,6 +19,17 @@ import {
 } from "../../domain/reply.ts";
 import { Information, ReplyFiles, ReplyText } from "./Information.tsx";
 import { useDockedTurn } from "./useDockedTurn.ts";
+import { articleOpening, replyState } from "./opening.ts";
+
+const KIND_LABELS = {
+  answer: "Answer",
+  investigation: "Investigation",
+  change: "Change",
+  recommendation: "Recommendation",
+  proposal: "Proposal",
+  status: "Status",
+  handoff: "Handoff",
+} as const;
 
 type Document = ComponentProps<typeof Markdown>["experimental_document"];
 
@@ -65,25 +76,45 @@ function useReplyWorkspace(threadId: string | null) {
   return loaded?.threadId === threadId ? loaded : null;
 }
 
-function Headline({ text }: { text: string }) {
+function Headline({ text, prominent }: { text: string; prominent: boolean }) {
   return (
-    <div
-      role="heading"
-      aria-level={3}
+    <h2
       data-reply-headline=""
-      className="font-medium leading-[1.5]"
+      className={cn(
+        "m-0 leading-[1.28]",
+        prominent
+          ? "text-[1.5em] font-semibold tracking-[-0.025em] @min-[32rem]/reply:text-[1.9em]"
+          : "text-[length:inherit] font-medium",
+      )}
     >
       <RecapText
         text={text}
         typeClass="text-[length:inherit] leading-[inherit]"
       />
-    </div>
+    </h2>
   );
 }
 function CardPart({ card }: { card: ReplyCard }) {
+  if (
+    ![card.results, card.review, card.waitingOn, card.links].some(
+      (items) => items.length,
+    )
+  )
+    return null;
+  const state = replyState(card.state);
   return (
-    <div className="space-y-3">
-      {card.headline ? <Headline text={card.headline} /> : null}
+    <footer
+      data-reply-recap=""
+      className={cn(
+        "space-y-3 rounded-lg border border-border p-4 text-[0.9em]",
+        state?.frame,
+      )}
+    >
+      {state ? (
+        <p className={cn("m-0 text-[0.85em] font-medium", state.text)}>
+          {state.label}
+        </p>
+      ) : null}
       {card.results.length ? (
         <ul data-reply-results="" className="m-0 list-none space-y-1 p-0">
           {card.results.map((item, i) => (
@@ -122,7 +153,7 @@ function CardPart({ card }: { card: ReplyCard }) {
             </ul>
           </section>
         ))}
-    </div>
+    </footer>
   );
 }
 
@@ -148,12 +179,19 @@ export function ReplyBlock({
       : null;
   if (!reply) return null;
   const { card, headline, body, kind } = reply;
+  const title = headline ?? card?.headline;
+  const content = body.filter((part) => part.type !== "context");
+  const substantive = content.length > 0;
+  const opening =
+    title && substantive ? articleOpening(content) : { body: content };
   const showCard = card && docked === false;
-  if (!showCard && !headline && !body.length) return null;
+  const showHeadline = title && (substantive || !card || docked === false);
+  const state = replyState(card?.state);
+  if (!showHeadline && !showCard && !body.length) return null;
   return (
     <MarkdownDocumentContext.Provider value={document}>
       <ReplyFiles.Provider value={workspace?.files ?? null}>
-        <div
+        <article
           data-reply-block=""
           onClickCapture={(event) => {
             if (
@@ -190,29 +228,51 @@ export function ReplyBlock({
           data-reply-docked={
             card && docked !== false ? (docked ? "" : "pending") : undefined
           }
-          className="@container/reply my-2 min-w-0 space-y-6 text-foreground [overflow-wrap:anywhere]"
+          className="@container/reply my-2 min-w-0 space-y-7 text-foreground [overflow-wrap:anywhere]"
         >
           {body.map((part, index) =>
             part.type === "context" ? (
               <Information key={`context-${index}`} part={part} />
             ) : null,
           )}
+          {showHeadline ? (
+            <header className="space-y-2.5">
+              {substantive && (kind || state) ? (
+                <div
+                  data-reply-cue=""
+                  className="flex flex-wrap items-baseline gap-2 text-[0.8em] font-medium text-muted-foreground"
+                >
+                  {kind ? <span>{KIND_LABELS[kind]}</span> : null}
+                  {kind && state ? <span aria-hidden>·</span> : null}
+                  {state ? (
+                    <span className={state.text}>{state.label}</span>
+                  ) : null}
+                </div>
+              ) : null}
+              <Headline text={title} prominent={substantive} />
+              {opening.lead ? (
+                <div
+                  data-reply-lead=""
+                  className="text-[1.1em] leading-[1.65] text-muted-foreground"
+                >
+                  <ReplyText markdown={opening.lead} />
+                </div>
+              ) : null}
+            </header>
+          ) : null}
+          {opening.body.map((part, index) => (
+            <div
+              key={index}
+              className={cn(
+                "min-w-0",
+                status === "streaming" && "ws-reply-enter",
+              )}
+            >
+              <Information part={part} />
+            </div>
+          ))}
           {showCard ? <CardPart card={card} /> : null}
-          {headline ? <Headline text={headline} /> : null}
-          {body.map((part, index) =>
-            part.type === "context" ? null : (
-              <div
-                key={index}
-                className={cn(
-                  "min-w-0",
-                  status === "streaming" && "ws-reply-enter",
-                )}
-              >
-                <Information part={part} />
-              </div>
-            ),
-          )}
-        </div>
+        </article>
       </ReplyFiles.Provider>
     </MarkdownDocumentContext.Provider>
   );

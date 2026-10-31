@@ -1,11 +1,11 @@
 /**
  * Whether a message's turn is the one the docked recap card shows. The card
  * reads the thread's stored recap, which a reply block's card fields wrote,
- * so while it is docked the block leaves its headline and results to it.
+ * so the article only repeats the compact recap fields for historical or
+ * dismissed cards. Its primary answer heading remains in the article.
  *
- * Read from the plugin's shared server state, so every block on screen
- * shares one read. Null until that state has loaded: the block then draws
- * the docked layout, so its card fields never appear and then vanish.
+ * Every block shares one server-state read. While it loads, the article
+ * withholds its historical footer so recap fields do not appear then vanish.
  */
 import { useSharedServerState } from "../serverState.ts";
 

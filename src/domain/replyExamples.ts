@@ -53,14 +53,17 @@ export const COMPONENT_EXAMPLES: Record<
       {
         name: "Convert in the calculation",
         summary: "Keep callers in percentage units",
-        qualification: "Recommended for the current caller contract.",
+        qualification:
+          "Recommended for the current caller contract: callers already supply whole percentages, so one calculation can own the conversion.",
         recommended: true,
       },
       {
         name: "Change the caller contract",
         summary: "Pass a monetary discount",
-        qualification: "Requires checking and updating every caller.",
-        detail: "Use this only if callers already know the monetary discount.",
+        qualification:
+          "Requires checking and updating every caller. Choose this only if callers already know the monetary discount.",
+        detail:
+          "For an amount of 1000 cents, the caller would pass a 100-cent discount rather than a whole percentage of 10.",
       },
     ],
   },
@@ -138,10 +141,27 @@ export const COMPONENT_EXAMPLES: Record<
     type: "group",
     relationship: "supporting",
     children: [
-      {
-        type: "text",
-        body: "The caller passes a whole percentage. The calculation must convert that value to a fraction before applying it.",
-      },
+      [
+        {
+          type: "text",
+          body: "The caller passes a whole percentage. The calculation must convert that value to a fraction before applying it.",
+        },
+        {
+          type: "sequence",
+          title: "The conversion boundary",
+          steps: [
+            {
+              title: "Read a whole percentage",
+              detail: "The caller passes `10`.",
+            },
+            {
+              title: "Apply a fraction",
+              detail: "The calculation uses `0.10`.",
+              attention: true,
+            },
+          ],
+        },
+      ],
       {
         type: "finding",
         title: "Caller units",

@@ -76,7 +76,7 @@ const envelope = z.object({ reply: z.string() });
 const results = [];
 function flatten(parts: ReplyPart[]): ReplyPart[] {
   return parts.flatMap<ReplyPart>((part) =>
-    part.type === "group" ? [part, ...part.children] : [part],
+    part.type === "group" ? [part, ...part.children.flat()] : [part],
   );
 }
 for (const task of cases) {

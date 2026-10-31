@@ -478,27 +478,38 @@ which adds a message-block slot, you also get **Structured replies**:
 - The reply combines full Markdown explanations with information components:
   findings and evidence, comparisons, sequences, behavior changes, checks,
   delivery records, and recommendations. Components can be grouped as peers or
-  as an explanation with supporting evidence. A reply's kind is separate from
-  whether its work is complete, ready for review, or waiting.
-- Context identifies the broad task, relevant place, and background. Relative
-  evidence paths stay inside the message's workspace; external files use
-  explicit absolute paths. File line ranges are separate from literal filename
-  characters. A location obtained from BB is labeled **Current workspace** so it
-  is not confused with a historical report.
-- Qualifications stay beside the claims they limit. Failed, skipped, blocked,
-  and untested checks stay visible; passed checks and supporting evidence open
-  on demand. Explanations are not shortened or automatically folded based on
-  sentence or section counts. Authors can explicitly fold supporting material.
+  as an explanation with supporting evidence. A group entry can keep a list of
+  components together, such as prose and a causal sequence beside their sources.
+  Groups contain at most eight components in total and do not nest. A reply's
+  kind is separate from whether its work is complete, ready for review, or
+  waiting.
+- Substantive replies keep a distinct answer heading in the article, including
+  while the recap is docked. A leading prose paragraph receives introductory
+  styling without changing the rest of the explanation. Purpose and work-state
+  labels remain separate: completing an investigation does not assert that its
+  cause was established. Comparisons use quiet paired views or divided option
+  rows, and sequences reflow to fit their content column.
+- Context identifies the broad task, reported place, and background. The compact
+  **Workspace** control opens BB's **Current workspace** path without repeating
+  that full path in every opening. Relative evidence paths stay inside the
+  message's workspace; external files use explicit absolute paths. File line
+  ranges are separate from literal filename characters.
+- Qualifications stay beside the claims they limit. Evidence references and
+  their descriptions remain visible. Failed, skipped, blocked, and untested
+  checks stay visible; passed checks open on demand. Explanations are not
+  shortened or automatically folded based on sentence or section counts. Authors
+  can explicitly fold supporting excerpts, code, and logs.
 - Components contain reported information, not independently verified facts.
   Check and delivery scopes identify where and when a result applies. The
   read-only `WorkstreamsReplyExamples` tool supplies illustrative, validated
   examples only to sessions using Structured replies; it never executes work.
   Existing agent sessions may need a fresh start to receive a newly registered
   tool and its guidance.
-- The inline body leaves its recap fields to the docked card while that turn's
-  card shows. Past turns show those fields inline, without duplicate send
-  actions. A malformed component shows its original source and a diagnostic
-  without discarding the explanation or the recap.
+- A substantive article keeps its heading while the docked card owns the compact
+  recap fields. Historical and dismissed recaps close the article with their
+  results and review references, without duplicate send actions. A malformed
+  component shows its original source and a diagnostic without discarding the
+  explanation or the recap.
 - Completion messages from the Subagents plugin show their reply blocks inline,
   in a bordered panel labeled Subagent, with the worker's name and transcript
   link. They use the thread's message type size, including completions delivered

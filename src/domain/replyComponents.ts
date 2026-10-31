@@ -207,9 +207,18 @@ export const replyComponentSchema = z.union([
     .object({
       type: z.literal("group"),
       relationship: z.enum(["peers", "supporting"]),
-      children: z.array(replyLeafSchema).min(2).max(8),
+      children: z
+        .array(
+          z.union([replyLeafSchema, z.array(replyLeafSchema).min(1).max(8)]),
+        )
+        .min(2)
+        .max(8),
     })
-    .strict(),
+    .strict()
+    .refine(
+      (group) => group.children.flat().length <= 8,
+      "A group contains at most eight components.",
+    ),
 ]);
 export type ReplyLeaf = z.infer<typeof replyLeafSchema>;
 export type ReplyComponent = z.infer<typeof replyComponentSchema>;
@@ -378,6 +387,6 @@ export function componentText(part: ReplyPart): string {
     case "details":
       return `### ${part.title}\n\n${part.body}`;
     case "group":
-      return part.children.map(componentText).join("\n\n");
+      return part.children.flat().map(componentText).join("\n\n");
   }
 }
