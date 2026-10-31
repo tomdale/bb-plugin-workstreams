@@ -176,7 +176,6 @@ export function QuestionHistoryInline({
   }, [load]);
   useRealtime("changed", () => void load());
   const record = loaded?.rowId === row.id ? loaded.record : null;
-  const saved =
-    record?.status === "pending" && direct ? direct : (record ?? direct);
+  const saved = record?.result ? record : (direct ?? record);
   return saved ? <QuestionHistoryCard record={saved} /> : <Original />;
 }

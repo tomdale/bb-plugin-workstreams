@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup } from "@testing-library/react";
+import { cleanup, waitFor } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 const app = await loadPluginApp(() => import("../../../src/app/index.tsx"));
@@ -148,3 +148,60 @@ it("reconstructs every input and output as read-only content from the persisted 
   expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
   vi.unstubAllGlobals();
 });
+
+it.each(["pending", "unknown"] as const)(
+  "keeps the submitted form payload when the durable outcome is %s without a result",
+  async (status) => {
+    const { payload } = await import("./submission-fixture.ts");
+    const result = {
+      questions: [
+        {
+          question: "Keep my input?",
+          header: "Input",
+          options: [],
+          multiSelect: false,
+        },
+      ],
+      answers: { "Keep my input?": "Keep this answer" },
+    };
+    const slot = renderSlot(
+      app.timelineRenderers.find(
+        (p) => p.kind === "workstreams/ask-user-question",
+      )!,
+      {
+        row: {
+          id: "thread:form:input",
+          threadId: "thread",
+          turnId: null,
+          kind: "workstreams/ask-user-question",
+          toolName: null,
+          status: "completed",
+          startedAt: 123,
+          completedAt: 124,
+        },
+        payload: result,
+        presentation: null,
+        thread: { id: "thread", providerId: "pi" },
+        Original: () => <p>Original row</p>,
+      },
+      {
+        rpc: {
+          question_at: () => ({
+            id: "saved",
+            at: 123,
+            status,
+            payload,
+            result: null,
+          }),
+        },
+      },
+    );
+    await waitFor(() =>
+      expect(
+        slot.inspection.rpcCalls.some((call) => call.method === "question_at"),
+      ).toBe(true),
+    );
+    expect(slot.getByText("Keep this answer")).toBeTruthy();
+    expect(slot.queryByText("No answer was retained")).toBeNull();
+  },
+);
