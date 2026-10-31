@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   Markdown,
   useRealtime,
@@ -22,6 +23,37 @@ import {
 } from "./question-presentation.tsx";
 import { formatQuestionText } from "./question-markdown.ts";
 
+// BB's timeline pins layout changes to the bottom. A synthetic scroll session
+// lets its position keeper detach after the card grows; otherwise the disclosure
+// moves upward by the expanded height. Keep this scoped to the owning scroller
+// and only run it when the reader was at the bottom.
+function expandAtReadingPosition(card: HTMLElement, expand: () => void) {
+  const scroller = card.closest<HTMLElement>(".thread-scrollbar");
+  const atBottom =
+    scroller &&
+    scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop <= 4;
+  if (!scroller || !atBottom) {
+    expand();
+    return;
+  }
+  const top = card.getBoundingClientRect().top;
+  flushSync(expand);
+  const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+  const target = Math.max(
+    0,
+    Math.min(max, scroller.scrollTop + card.getBoundingClientRect().top - top),
+  );
+  if (max - target <= 4) return;
+  // Let BB refresh its scroll extent before moving away from the bottom.
+  scroller.scrollTop = max;
+  scroller.dispatchEvent(new Event("scroll"));
+  scroller.dispatchEvent(new WheelEvent("wheel", { deltaY: -1 }));
+  scroller.scrollTop = Math.max(0, target - 5);
+  scroller.dispatchEvent(new Event("scroll"));
+  scroller.scrollTop = target;
+  scroller.dispatchEvent(new Event("scroll"));
+}
+
 export function QuestionHistoryCard({ record }: { record: QuestionHistory }) {
   const scope = usePortalScopeProps();
   const [expanded, setExpanded] = useState(false);
@@ -40,7 +72,15 @@ export function QuestionHistoryCard({ record }: { record: QuestionHistory }) {
       <button
         type="button"
         aria-expanded={expanded}
-        onClick={() => setExpanded((value) => !value)}
+        onClick={(event) => {
+          if (expanded) {
+            setExpanded(false);
+          } else {
+            expandAtReadingPosition(event.currentTarget.parentElement!, () =>
+              setExpanded(true),
+            );
+          }
+        }}
         className="flex w-full cursor-pointer items-start gap-2 rounded text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon
