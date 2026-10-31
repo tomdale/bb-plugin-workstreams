@@ -47,6 +47,29 @@ describe("Workstreams prefs", () => {
     await world.harness.lifecycle.dispose();
   });
 
+  it("defaults title transitions to fade and persists either validated choice", async () => {
+    expect(parsePrefs({}).threads.headingTransition).toBe("fade");
+    expect(
+      parsePrefs({
+        threads: { headingTransition: "bad", showParentLink: true },
+      }).threads,
+    ).toMatchObject({
+      headingTransition: "fade",
+      showParentLink: true,
+    });
+    expect(
+      prefsPatchSchema.safeParse({ threads: { headingTransition: "bad" } })
+        .success,
+    ).toBe(false);
+    const world = await fakeWorld();
+    const db = openDatabase(world.bb);
+    for (const headingTransition of ["scroll", "fade"] as const) {
+      savePrefs(db, { threads: { headingTransition } });
+      expect(loadPrefs(db).threads.headingTransition).toBe(headingTransition);
+    }
+    await world.harness.lifecycle.dispose();
+  });
+
   it("shows the header Archive button unless it is turned off", async () => {
     expect(parsePrefs({}).threads.showArchiveButton).toBe(true);
     // Preferences stored before the button existed carry no value for it.
@@ -97,6 +120,7 @@ describe("Workstreams prefs", () => {
       },
       threads: {
         autoTitle: false,
+        headingTransition: "fade",
         showParentLink: true,
         showArchiveButton: true,
       },

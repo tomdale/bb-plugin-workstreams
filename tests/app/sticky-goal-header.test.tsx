@@ -4,6 +4,7 @@ import { cleanup, waitFor } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { emptyState, sidebarThread } from "./fixtures.ts";
 import { headingOpacity, headingScroll } from "../../src/app/goalHeading.ts";
+import { parsePrefs } from "../../src/domain/prefs.ts";
 
 afterEach(() => {
   cleanup();
@@ -54,7 +55,7 @@ function paneFixture({ recap }: { recap: boolean }) {
     </main>`;
 }
 
-async function mountHeading() {
+async function mountHeading(headingTransition: "fade" | "scroll" = "scroll") {
   stubResizeObserver();
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   const heading = app.appOverlays.find(
@@ -69,7 +70,12 @@ async function mountHeading() {
         sections: [],
         threads: [sidebarThread("t1", { title: "Ship the mobile polish" })],
       },
-      rpc: { state: () => emptyState() },
+      rpc: {
+        state: () => emptyState(),
+        prefs: () => ({
+          prefs: parsePrefs({ threads: { headingTransition } }),
+        }),
+      },
     },
   );
 }
@@ -197,26 +203,109 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
   slot.lifecycle.unmount();
 });
 
-it("starts fully compact when the timeline is too short for the large heading", async () => {
+it("crossfades stationary headings and switches modes on preference changes", async () => {
   paneFixture({ recap: false });
   const scroller = document.querySelector<HTMLElement>(
     '[data-test="messages"]',
   )!;
-  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 0, 900, 300),
-  );
-  const slot = await mountHeading();
-  await waitFor(() => {
-    const groups = overlay()!.querySelectorAll<HTMLElement>(
-      ".ws-goal-overlay__group",
-    );
-    expect([...groups].map((group) => Number(group.style.opacity))).toEqual([
-      0, 1,
-    ]);
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, value: 1000 },
+    clientHeight: { configurable: true, value: 400 },
+    scrollTop: { configurable: true, writable: true, value: 600 },
   });
-  expect(root()!.getAttribute("data-collapsed")).toBe("true");
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 48, 900, 672),
+  );
+  const header = document.querySelector("header")!;
+  vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 900, 48),
+  );
+  vi.spyOn(
+    header.querySelector(".bb-thread-title")!,
+    "getBoundingClientRect",
+  ).mockReturnValue(new DOMRect(0, 0, 80, 48));
+  vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(700, 0, 100, 48),
+  );
+  const slot = await mountHeading("fade");
+  scroller.scrollTop = 600;
+  scroller.dispatchEvent(new Event("scroll"));
+  const groups = () => [
+    ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
+  ];
+  await waitFor(() => expect(groups()).toHaveLength(2));
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  const transforms = groups().map((group) => group.style.transform);
+  expect(transforms[1]).toBe("translateY(0px)");
+  scroller.scrollTop = 550;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() =>
+    expect(Number(groups()[1]!.style.opacity)).toBeGreaterThan(0),
+  );
+  expect(groups().map((group) => group.style.transform)).toEqual(transforms);
+  const plate = overlay()!.querySelector<HTMLElement>(
+    ".ws-sticky-goal__plate",
+  )!;
+  expect(Number(plate.style.opacity)).toBeCloseTo(
+    Number(groups()[0]!.style.opacity),
+  );
+  expect(plate.style.transform).toBe("scaleY(1)");
+  await slot.behavior.emitRealtime("prefs", {
+    prefs: parsePrefs({ threads: { headingTransition: "scroll" } }),
+  });
+  await waitFor(() =>
+    expect(groups()[0]!.style.transform).not.toBe(transforms[0]),
+  );
+  expect(groups()[1]!.style.transform).not.toBe(transforms[1]);
+  expect(Number(plate.style.opacity)).toBe(1);
+  await slot.behavior.emitRealtime("prefs", {
+    prefs: parsePrefs({ threads: { headingTransition: "fade" } }),
+  });
+  await waitFor(() =>
+    expect(groups().map((group) => group.style.transform)).toEqual(transforms),
+  );
+  scroller.scrollTop = 450;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(Number(groups()[1]!.style.opacity)).toBe(1));
+  expect(Number(plate.style.opacity)).toBe(0);
+  expect(scroller.style.scrollPaddingTop).toBe("0px");
+  expect(
+    overlay()!
+      .querySelector<HTMLElement>(".ws-goal-background")!
+      .style.getPropertyValue("--ws-fade-below-bar"),
+  ).toBe("1");
   slot.lifecycle.unmount();
 });
+
+it.each(["fade", "scroll"] as const)(
+  "starts fully compact in %s mode when the timeline is short",
+  async (mode) => {
+    paneFixture({ recap: false });
+    const scroller = document.querySelector<HTMLElement>(
+      '[data-test="messages"]',
+    )!;
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 900, 300),
+    );
+    const slot = await mountHeading(mode);
+    await waitFor(() => {
+      const groups = overlay()!.querySelectorAll<HTMLElement>(
+        ".ws-goal-overlay__group",
+      );
+      expect([...groups].map((group) => Number(group.style.opacity))).toEqual([
+        0, 1,
+      ]);
+    });
+    expect(root()!.getAttribute("data-collapsed")).toBe("true");
+    expect(
+      Number(
+        overlay()!.querySelector<HTMLElement>(".ws-sticky-goal__plate")!.style
+          .opacity,
+      ),
+    ).toBe(1);
+    slot.lifecycle.unmount();
+  },
+);
 
 it("falls back to the body when the sliding surface is missing", async () => {
   paneFixture({ recap: false });

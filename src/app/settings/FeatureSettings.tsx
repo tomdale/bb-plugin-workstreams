@@ -190,6 +190,23 @@ export function ThreadsSettings() {
           }
         />
         <SettingRow
+          label="Title transition"
+          description="How the large heading changes to the compact title as you scroll."
+          control={
+            <SegmentedControl
+              label="Title transition"
+              value={prefs.threads.headingTransition}
+              options={[
+                { value: "fade", label: "Fade" },
+                { value: "scroll", label: "Scroll" },
+              ]}
+              onChange={(headingTransition) =>
+                update({ threads: { headingTransition } })
+              }
+            />
+          }
+        />
+        <SettingRow
           label="Show parent thread link"
           description="Add a link to the parent thread in child thread headers."
           control={

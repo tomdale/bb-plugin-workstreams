@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMediaQuery } from "@/components/ui/hooks/use-media-query";
 import { useGoalContext } from "./goalContext.ts";
+import { usePrefs } from "./prefs.ts";
 import {
   PAD_TOP,
   PHONE_QUERY,
@@ -390,6 +391,8 @@ function useSettled(mount: Mount | null): boolean {
 export function StickyGoalHeader(): React.ReactElement | null {
   const { threadId } = useBbContext();
   const context = useGoalContext(threadId);
+  const { prefs } = usePrefs();
+  const fadeOnly = (prefs?.threads.headingTransition ?? "fade") === "fade";
   const mount = useMessageScroller(threadId);
   const { fromBottom, fade } = useScrollState(mount?.scroller ?? null);
   const settled = useSettled(mount);
@@ -426,10 +429,19 @@ export function StickyGoalHeader(): React.ReactElement | null {
   // When the title bar has no room, the compact copy sits in the timeline.
   const pinned = !!placement && placement.bar === null;
   const platePinnedHeight = pinnedHeight(base, eyebrow);
-  const plateHeight = Math.max(
-    height * (1 - progress),
-    pinned ? platePinnedHeight * progress : 0,
-  );
+  // A pinned compact heading needs a solid plate; in the bar the full-size
+  // plate can instead fade away without moving under the large heading.
+  const plateHeight = fadeOnly
+    ? pinned
+      ? height * (1 - progress) + platePinnedHeight * progress
+      : height
+    : Math.max(
+        height * (1 - progress),
+        pinned ? platePinnedHeight * progress : 0,
+      );
+  const plateOpacity = fadeOnly && !pinned ? opacity.expanded : 1;
+  const scrollPadding =
+    fadeOnly && !pinned ? height * (1 - progress) : plateHeight;
   const fadeAnchor = plateHeight;
   useLayoutEffect(() => {
     if (!mount) return;
@@ -438,12 +450,12 @@ export function StickyGoalHeader(): React.ReactElement | null {
     // The reserved gap follows the heading height, which changes only when the
     // thread gains or loses a workstream line.
     mount.root.style.marginBottom = `${height}px`;
-    mount.scroller.style.scrollPaddingTop = `${plateHeight}px`;
+    mount.scroller.style.scrollPaddingTop = `${scrollPadding}px`;
     return () => {
       mount.root.className = "";
       delete mount.root.dataset.collapsed;
     };
-  }, [mount, collapsed, height, plateHeight]);
+  }, [mount, collapsed, height, scrollPadding]);
 
   // The heading replaces BB's own thread title in the title bar, but only
   // while it is actually drawn, so the title never shows twice.
@@ -503,8 +515,8 @@ export function StickyGoalHeader(): React.ReactElement | null {
       </div>
     );
 
-  // Both copies move by the same number of pixels. Clipping each at its own
-  // viewport makes the compact copy arrive exactly as the large title exits.
+  // In scroll mode the copies travel together; in fade mode each stays at
+  // its final position while its opacity follows the same scroll progress.
   const text = (
     <>
       <div
@@ -519,7 +531,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
         <div
           className="ws-goal-overlay__group"
           style={{
-            transform: `translateY(${base * PAD_TOP - moved}px)`,
+            transform: `translateY(${base * PAD_TOP - (fadeOnly ? 0 : moved)}px)`,
             opacity: opacity.expanded,
             width: placement.pane.width,
           }}
@@ -583,7 +595,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
         <div
           className="ws-goal-overlay__group"
           style={{
-            transform: `translateY(${remaining}px)`,
+            transform: `translateY(${fadeOnly ? 0 : remaining}px)`,
             opacity: opacity.compact,
             width: compactSpot.width,
           }}
@@ -613,9 +625,15 @@ export function StickyGoalHeader(): React.ReactElement | null {
             width: placement.background.width,
             "--ws-plate-height": `${fadeAnchor}px`,
             // Match the 1.5rem bar fade as the 4rem plate fade leaves.
-            "--ws-plate-fade-scale": 1 - progress * (1 - 1.5 / 4),
-            "--ws-fade-below-plate": fade && plateHeight > 0 ? "1" : "0",
-            "--ws-fade-below-bar": fade && collapsed && inBar ? "1" : "0",
+            "--ws-plate-fade-scale":
+              fadeOnly && !pinned ? 1 : 1 - progress * (1 - 1.5 / 4),
+            "--ws-fade-below-plate": fade && plateHeight > 0 ? plateOpacity : 0,
+            "--ws-fade-below-bar":
+              fade && inBar
+                ? fadeOnly
+                  ? opacity.compact
+                  : Number(collapsed)
+                : 0,
           } as React.CSSProperties
         }
       >
@@ -624,6 +642,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
             className="ws-sticky-goal__plate"
             style={{
               transform: `scaleY(${plateHeight / height})`,
+              opacity: plateOpacity,
             }}
           />
         </div>

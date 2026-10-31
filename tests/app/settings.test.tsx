@@ -229,6 +229,42 @@ it("describes title locking accurately", async () => {
   ).toBeTruthy();
 });
 
+it("chooses between fade and scroll title transitions", async () => {
+  const slot = await mount("threads");
+  const group = await slot.findByRole("radiogroup", {
+    name: "Title transition",
+  });
+  const fade = within(group).getByRole("radio", {
+    name: "Fade",
+  }) as HTMLInputElement;
+  const scroll = within(group).getByRole("radio", {
+    name: "Scroll",
+  }) as HTMLInputElement;
+  expect(fade.checked).toBe(true);
+  fireEvent.click(scroll);
+  await waitFor(() => expect(scroll.checked).toBe(true));
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
+    ).toHaveLength(1),
+  );
+  expect(
+    slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs")[0]
+      ?.input,
+  ).toEqual({ patch: { threads: { headingTransition: "scroll" } } });
+  fireEvent.click(fade);
+  await waitFor(() => expect(fade.checked).toBe(true));
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
+    ).toHaveLength(2),
+  );
+  expect(
+    slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs")[1]
+      ?.input,
+  ).toEqual({ patch: { threads: { headingTransition: "fade" } } });
+});
+
 it("saves the Titles and parent-link switches", async () => {
   const slot = await mount("threads");
   fireEvent.click(

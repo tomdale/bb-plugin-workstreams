@@ -407,9 +407,10 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
 - **Sticky goal header:** Displays the thread's workstream (in its deterministic
   hue) above the thread's goal title and—when the latest recap has a more
   specific turn goal—a subtitle below it. As you scroll away from the newest
-  message, the large heading slides and fades out over a feathered background
-  while a compact copy eases into the top bar (or stays pinned in the timeline
-  when the bar is too narrow).
+  message, the large heading fades out over a feathered background while a
+  compact copy fades into the top bar (or stays pinned in the timeline when the
+  bar is too narrow). In **Settings → Workstreams → Threads**, choose **Title
+  transition → Scroll** to have both headings slide as they fade.
 - **Thread header actions:**
   - **Parent thread** (optional, off by default): Opens the parent thread from a
     delegate's header.
