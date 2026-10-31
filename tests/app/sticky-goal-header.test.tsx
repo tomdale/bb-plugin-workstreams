@@ -110,6 +110,9 @@ it("draws the heading text inside the app's sliding surface so it travels with t
   await waitFor(() =>
     expect(overlay()!.textContent).toContain("Ship the mobile polish"),
   );
+  const background = overlay()!.querySelector(".ws-goal-background");
+  expect(background?.querySelector(".ws-sticky-goal__plate")).not.toBeNull();
+  expect(root()!.contains(background)).toBe(false);
   slot.lifecycle.unmount();
 });
 

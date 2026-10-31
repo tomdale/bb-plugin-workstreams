@@ -228,6 +228,8 @@ function useScrollState(scroller: HTMLElement | null): {
 type Placement = {
   /** In the timeline, at the scroller's top edge. */
   pane: { x: number; y: number; width: number };
+  /** The scroller's full width, at its top edge. */
+  background: { x: number; y: number; width: number };
   /** The timeline is phone-width: the title may wrap and the bar is cramped. */
   narrow: boolean;
   /** The timeline is too short to spare room for the expanded heading. */
@@ -299,6 +301,11 @@ function measurePlacement(mount: Mount, base: number): Placement {
   }
   return {
     pane,
+    background: {
+      x: scrollerRect.left - origin.left,
+      y: scrollerRect.top - origin.top,
+      width: scrollerRect.width,
+    },
     bar,
     narrow: scrollerRect.width < NARROW_PX,
     short: scrollerRect.height < SHORT_PX,
@@ -310,6 +317,9 @@ const samePlacement = (a: Placement | null, b: Placement): boolean =>
   Math.abs(a.pane.x - b.pane.x) < 0.5 &&
   Math.abs(a.pane.y - b.pane.y) < 0.5 &&
   Math.abs(a.pane.width - b.pane.width) < 0.5 &&
+  Math.abs(a.background.x - b.background.x) < 0.5 &&
+  Math.abs(a.background.y - b.background.y) < 0.5 &&
+  Math.abs(a.background.width - b.background.width) < 0.5 &&
   a.narrow === b.narrow &&
   a.short === b.short &&
   (a.bar === null) === (b.bar === null) &&
@@ -382,10 +392,9 @@ function useSettled(mount: Mount | null): boolean {
 }
 
 /**
- * Experimental in-pane prototype. A zero-height sticky anchor in the column of
- * BB's native message scroller carries the heading's plate (the plugin SDK has
- * no thread-content heading slot); the text is drawn in a fixed layer above the
- * app so that, once the timeline scrolls, it can glide up over the title bar.
+ * A zero-height anchor in BB's message column reserves space for the heading.
+ * Its plate and text share a layer above the pane, so neither can be displaced
+ * by the message column's bottom edge as the timeline scrolls.
  */
 export function StickyGoalHeader(): React.ReactElement | null {
   const { threadId } = useBbContext();
@@ -434,18 +443,6 @@ export function StickyGoalHeader(): React.ReactElement | null {
       ? "ws-sticky-goal-root ws-sticky-goal-root--animated"
       : "ws-sticky-goal-root";
     mount.root.dataset.collapsed = String(collapsed);
-    // Two feathered fades, each in place and each fading on its own: one
-    // hangs below the expanded plate, the other sits under the title bar once
-    // the heading has left. Neither moves with the heading.
-    mount.root.style.setProperty("--ws-plate-height", `${fadeAnchor}px`);
-    mount.root.style.setProperty(
-      "--ws-fade-below-plate",
-      fade && (!collapsed || pinned) ? "1" : "0",
-    );
-    mount.root.style.setProperty(
-      "--ws-fade-below-bar",
-      fade && collapsed && !pinned ? "1" : "0",
-    );
     // The reserved gap follows the heading height, which changes only when the
     // thread gains or loses a workstream line.
     mount.root.style.marginBottom = `${height}px`;
@@ -456,21 +453,9 @@ export function StickyGoalHeader(): React.ReactElement | null {
         : `${height}px`;
     return () => {
       mount.root.className = "";
-      mount.root.style.removeProperty("--ws-plate-height");
-      mount.root.style.removeProperty("--ws-fade-below-plate");
-      mount.root.style.removeProperty("--ws-fade-below-bar");
       delete mount.root.dataset.collapsed;
     };
-  }, [
-    mount,
-    collapsed,
-    pinned,
-    fade,
-    height,
-    fadeAnchor,
-    platePinnedHeight,
-    settled,
-  ]);
+  }, [mount, collapsed, pinned, height, platePinnedHeight, settled]);
 
   // The heading replaces BB's own thread title in the title bar, but only
   // while it is actually drawn, so the title never shows twice.
@@ -594,9 +579,20 @@ export function StickyGoalHeader(): React.ReactElement | null {
     </div>
   );
 
-  return (
+  return createPortal(
     <>
-      {createPortal(
+      <div
+        className="ws-goal-background"
+        style={
+          {
+            transform: `translate(${placement.background.x}px, ${placement.background.y}px)`,
+            width: placement.background.width,
+            "--ws-plate-height": `${fadeAnchor}px`,
+            "--ws-fade-below-plate": fade && (!collapsed || pinned) ? "1" : "0",
+            "--ws-fade-below-bar": fade && collapsed && !pinned ? "1" : "0",
+          } as React.CSSProperties
+        }
+      >
         <div
           className="ws-sticky-goal"
           style={{ height, opacity: inBar ? 0 : 1 }}
@@ -607,10 +603,10 @@ export function StickyGoalHeader(): React.ReactElement | null {
               transform: `translateY(${pinned ? platePinnedHeight - height : 0}px)`,
             }}
           />
-        </div>,
-        mount.root,
-      )}
-      {createPortal(text, mount.overlay)}
-    </>
+        </div>
+      </div>
+      {text}
+    </>,
+    mount.overlay,
   );
 }

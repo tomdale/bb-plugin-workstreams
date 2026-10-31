@@ -437,29 +437,28 @@
   color: var(--warning-text);
 }
 
-/* Sticky thread goal, set in the same type as the timeline text. Two parts:
-   a zero-height sticky anchor at the top of the message column
-   (.ws-sticky-goal-root) carries the plate, and a zero-size layer in BB's
-   sliding app surface (.ws-goal-overlay) draws the text over the pane, so
-   the text travels with the pane when a phone's sidebar or right panel
-   slides it aside. Scrolled away from the newest message the plate fades and
-   the text glides up over the title bar; only transforms and opacity change,
-   so nothing reflows. Once the timeline has scrolled away from its top, a
-   feathered fade lets messages dissolve beneath the plate (expanded) or the
-   title bar (collapsed). */
+/* A zero-height anchor reserves the heading's space in the message column.
+   The plate, fades, and text share a layer in BB's sliding app surface, so
+   they stay together as the timeline scrolls or a phone's pane slides aside.
+   Scrolling away from the newest message fades the plate and moves the text
+   to the title bar without reflow; the feathered fade follows the plate or
+   sits below the bar. */
 .ws-sticky-goal-root {
   position: sticky;
   top: 0;
   z-index: 20;
   flex: none;
   height: 0;
-  /* Extend over the column's gutters so scrolling text cannot peek out. */
-  margin-inline: -1rem;
-  /* The heading is decoration over the timeline, never a hit target. */
   pointer-events: none;
 }
-.ws-sticky-goal-root::before,
-.ws-sticky-goal-root::after {
+.ws-goal-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 0;
+}
+.ws-goal-background::before,
+.ws-goal-background::after {
   position: absolute;
   right: 0;
   left: 0;
@@ -473,29 +472,29 @@
   content: "";
 }
 /* Under the title bar, once the heading has gone. */
-.ws-sticky-goal-root::before {
+.ws-goal-background::before {
   top: 0;
   opacity: var(--ws-fade-below-bar, 0);
 }
 /* Under the expanded plate. */
-.ws-sticky-goal-root::after {
+.ws-goal-background::after {
   top: var(--ws-plate-height, 0px);
   opacity: var(--ws-fade-below-plate, 0);
 }
-.ws-sticky-goal-root--animated::before,
-.ws-sticky-goal-root--animated::after {
+.ws-goal-overlay--animated .ws-goal-background::before,
+.ws-goal-overlay--animated .ws-goal-background::after {
   transition:
     opacity 150ms ease,
     top 200ms ease;
 }
-.ws-sticky-goal-root--animated .ws-sticky-goal__plate {
+.ws-goal-overlay--animated .ws-sticky-goal__plate {
   transition: transform 200ms ease;
 }
 .ws-sticky-goal {
   position: absolute;
   inset: 0 0 auto;
 }
-.ws-sticky-goal-root--animated .ws-sticky-goal {
+.ws-goal-overlay--animated .ws-sticky-goal {
   transition: opacity 200ms ease;
 }
 .ws-sticky-goal__plate {
@@ -534,10 +533,10 @@
     opacity 200ms ease;
 }
 @media (prefers-reduced-motion: reduce) {
-  .ws-sticky-goal-root--animated .ws-sticky-goal__plate,
-  .ws-sticky-goal-root--animated::before,
-  .ws-sticky-goal-root--animated::after,
-  .ws-sticky-goal-root--animated .ws-sticky-goal,
+  .ws-goal-overlay--animated .ws-sticky-goal__plate,
+  .ws-goal-overlay--animated .ws-goal-background::before,
+  .ws-goal-overlay--animated .ws-goal-background::after,
+  .ws-goal-overlay--animated .ws-sticky-goal,
   .ws-goal-overlay--animated .ws-goal-overlay__group,
   .ws-goal-overlay--animated .ws-sticky-goal__workstream,
   .ws-goal-overlay--animated .ws-sticky-goal__title,
