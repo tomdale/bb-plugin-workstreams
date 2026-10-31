@@ -133,7 +133,9 @@ it("renders the complete saved reply outside the clipped bubble and restores it 
   expect(message.getByText("The controls fit the app")).toBeTruthy();
   expect(message.getByText("Reviewed all states")).toBeTruthy();
   expect(message.getByText("Review")).toBeTruthy();
-  expect(message.getByText("@thread:thr_worker")).toBeTruthy();
+  expect(
+    message.getByRole("link", { name: "Full transcript" }).getAttribute("href"),
+  ).toBe("/threads/thr_worker");
   expect(
     message.container
       .querySelector("[data-ws-subagent-delivery]")
