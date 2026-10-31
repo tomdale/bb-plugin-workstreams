@@ -26,7 +26,11 @@ import {
 import { WorkstreamIcon } from "../../WorkstreamIcon.tsx";
 import type { QueueCard } from "./card.ts";
 
-/** The card scales up as a whole, its type and spacing together. */
+/**
+ * The card scales up as a whole, its type and spacing together. Its 20px
+ * padding lands its text 24px in, the column the replies' keys and the
+ * action row share.
+ */
 const CARD_ZOOM = 1.15;
 
 /** A key, drawn as an outlined chip; the answers' digits and the buttons' letters match. */
@@ -118,7 +122,7 @@ export function ThreadCard({
     <div
       style={{ zoom: CARD_ZOOM, width: `${100 / CARD_ZOOM}%` }}
       className={cn(
-        "@container/recap overflow-hidden rounded-lg border px-4 pb-2 pt-3 text-foreground",
+        "@container/recap overflow-hidden rounded-lg border px-5 pb-2 pt-[15px] text-foreground",
         accent.card,
       )}
     >
@@ -205,7 +209,7 @@ export function SuggestionCard({
   return (
     <div
       style={{ zoom: CARD_ZOOM, width: `${100 / CARD_ZOOM}%` }}
-      className="rounded-lg border border-border px-4 pb-2 pt-3 text-foreground"
+      className="rounded-lg border border-border px-5 pb-2 pt-[15px] text-foreground"
     >
       <p className="text-[11px] font-medium leading-[1.6] text-muted-foreground">
         Suggestion
@@ -372,7 +376,7 @@ export function ThreadActions({
     <div className="mt-5 flex flex-wrap items-center gap-2.5 pl-6">
       {archiveLeads ? archive : null}
       <RowButton
-        icon={<Icon name="Reply" fallback="CornerUpLeft" />}
+        icon={<Icon name="ArrowTurnBackward" fallback="CornerDownLeft" />}
         label="Reply"
         keyLabel="R"
         onClick={onReply}
