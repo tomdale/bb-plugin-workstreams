@@ -13,8 +13,9 @@
  * gliding by the difference (`useQueueMotion`).
  *
  * The next items wait as a stack of cards behind the card, peeking out above
- * it. Acting moves on to the next; ↓ and → (or J) go to the next item and ↑ and
- * ← (or K) to the previous one, as do the footer's arrows, step through without acting, one card at a time while a key is held.
+ * it. Acting moves on to the next. ↓ and → (or J) step to the next item and ↑
+ * and ← (or K) to the previous one without acting, as do the footer's arrows,
+ * one card at a time while a key is held.
  *
  * Keys: 1–3 send a reply (⇧ edits it first), R reply, S snooze (1–6 in its
  * menu), E archive, O open, U undo, ↓ → skip ahead, ↑ ← skip back.
