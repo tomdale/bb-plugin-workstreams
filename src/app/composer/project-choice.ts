@@ -17,7 +17,9 @@ export function preserveProjectChoice(projectId: string, choice: Choice) {
   };
 }
 
-export function takeProjectChoice(projectId: string | null): Choice | undefined {
+export function takeProjectChoice(
+  projectId: string | null,
+): Choice | undefined {
   if (pending?.projectId !== projectId) return undefined;
   const choice = pending.choice;
   pending = null;
