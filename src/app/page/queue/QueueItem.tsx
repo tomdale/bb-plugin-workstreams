@@ -10,7 +10,7 @@
  * thread actions. Reply replaces the replies and the row in place, so the
  * card doesn't move.
  */
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
@@ -25,6 +25,7 @@ import {
 } from "../../snooze/SnoozeMenuItems.tsx";
 import { WorkstreamIcon } from "../../WorkstreamIcon.tsx";
 import type { QueueCard } from "./card.ts";
+import { LEAD as PILE_LEAD } from "./stackEngine.ts";
 
 /**
  * The card scales up as a whole, its type and spacing together. Its 20px
@@ -75,7 +76,7 @@ export function Heading({
   onPath?: () => void;
 }) {
   return (
-    <div className="mb-9">
+    <div className="mb-0.5">
       {heading.path ? (
         <button
           type="button"
@@ -98,106 +99,61 @@ export function Heading({
   );
 }
 
-/** How far each card behind the front one shows below it. */
-const STACK_STEP = 7;
-/** Cards behind the front one whose edges show; one more waits unseen. */
-const STACK_SHOWN = 2;
-
-/**
- * Where a card sits in the stack: slot −1 is the front, slot 0 the first
- * behind it. Every card is a whole, opaque card; behind the front its face
- * dims with depth (`face`) and its content is hidden (`.ws-stack-card`).
- * Past the shown slots a card is hidden (`opacity` 0), ready to come into
- * view when the stack moves up.
- */
-export function layerPose(slot: number): {
-  transform: string;
-  opacity: number;
-  face: number;
-} {
-  const depth = Math.max(0, slot + 1);
-  return {
-    transform:
-      depth === 0
-        ? "none"
-        : `translateY(${depth * STACK_STEP}px) scaleX(${1 - depth * 0.035})`,
-    opacity: slot < STACK_SHOWN ? 1 : 0,
-    face: slot < 0 ? 1 : 0.75 - Math.min(slot, STACK_SHOWN - 1) * 0.3,
-  };
-}
-
 export type StackCard = {
-  /** The queue item, so its card keeps one element as it moves between slots. */
+  /** The queue item, so its card keeps one element as it moves in the pile. */
   key: string;
-  /** The item's card (`ThreadCard` or `SuggestionCard`). */
+  /** The item's card content (`ThreadCard` or `SuggestionCard`). */
   node: ReactNode;
+  /** Border and surface colours of the card's frame (`threadFrame`). */
+  frame: string;
 };
 
 /**
- * The current card with the next ones stacked behind it as a deck, their
- * bottom edges showing. Each item keeps one element as it moves between
- * slots (`.ws-stack-card`): moving on, the card behind slides up into the
- * front and its content appears; going back, the front card settles into
- * the slot behind. Cards behind take the front card's height and hide their
- * content. `useQueueMotion` runs the rest: the front card going to the back
- * of the deck, or the earlier card coming out from behind it, and the front
- * card's height.
+ * The shown card with the next ones stacked behind it, each one element for as
+ * long as its item is in the pile (`useQueueMotion` poses them). A card is
+ * drawn in four layers: `base` (opaque page colour and shadow), `frame` (the
+ * border and surface at the card's drawn height, so a card behind a shorter
+ * one ends where that one ends), the `content` (always laid out at its natural
+ * height and clipped, never reflowed), and `shade` (page colour laid over a
+ * card in proportion to its depth). The stage reserves `PILE_LEAD` above the front
+ * card for the cards peeking out; the heading's bottom margin shrinks to match.
  */
 export function CardStack({
-  front,
-  behind,
+  cards,
+  stage,
 }: {
-  front: StackCard;
-  /** The next cards, nearest first; those past the shown slots stay hidden. */
-  behind: readonly StackCard[];
+  cards: readonly StackCard[];
+  stage: Ref<HTMLDivElement>;
 }) {
-  const shown = Math.min(behind.length, STACK_SHOWN);
+  // Cards keep their place in the DOM so moving one never reorders the others.
+  const order = useRef<string[]>([]);
+  const keys = new Set(cards.map((card) => card.key));
+  order.current = [
+    ...order.current.filter((key) => keys.has(key)),
+    ...cards
+      .map((card) => card.key)
+      .filter((key) => !order.current.includes(key)),
+  ];
+  const stable = [...cards].sort(
+    (a, b) => order.current.indexOf(a.key) - order.current.indexOf(b.key),
+  );
   return (
-    <div
-      data-queue-part="stack"
-      className="relative isolate"
-      style={{ paddingBottom: shown * STACK_STEP }}
-    >
-      {[front, ...behind].map(({ key, node }, index) => {
-        const slot = index - 1;
-        const pose = layerPose(slot);
-        const style = {
-          transform: pose.transform,
-          opacity: pose.opacity,
-          "--ws-stack-face": pose.face,
-        } as React.CSSProperties;
-        return slot < 0 ? (
-          <div
-            key={key}
-            data-queue-card={key}
-            data-queue-part="front"
-            data-slot={slot}
-            className="ws-stack-card relative z-[3] rounded-[11.5px] bg-background"
-            style={style}
-          >
+    <div ref={stage} data-queue-part="stack" className="ws-stage">
+      {stable.map(({ key, node, frame }) => (
+        <div
+          key={key}
+          data-queue-card={key}
+          className="ws-stack-card"
+          style={{ top: PILE_LEAD, visibility: "hidden" }}
+        >
+          <div data-card-base className="ws-card-base" />
+          <div data-card-frame className={cn("ws-card-frame", frame)} />
+          <div data-card-content className="relative">
             {node}
           </div>
-        ) : (
-          <div
-            key={key}
-            aria-hidden
-            inert
-            data-queue-card={key}
-            data-slot={slot}
-            data-behind=""
-            className="ws-stack-card pointer-events-none absolute inset-x-0 top-0 overflow-hidden rounded-[11.5px] bg-background"
-            style={{ ...style, bottom: shown * STACK_STEP, zIndex: -1 - slot }}
-          >
-            {node}
-          </div>
-        );
-      })}
-      {/* The leaving card's copy, passing over and then behind the deck. */}
-      <div
-        data-queue-ghosts
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-      />
+          <div data-card-shade className="ws-card-shade" />
+        </div>
+      ))}
     </div>
   );
 }
@@ -214,22 +170,8 @@ export function ThreadCard({
   files: RecapFiles | null;
   age: string;
 }) {
-  const accent =
-    card.kind === "recap"
-      ? ACCENT[card.recap.state]
-      : card.kind === "needs"
-        ? NEEDS
-        : card.kind === "failed"
-          ? FAILED
-          : NEUTRAL;
   return (
-    <div
-      style={{ zoom: CARD_ZOOM }}
-      className={cn(
-        "@container/recap overflow-hidden rounded-lg border px-5 pb-2 pt-[15px] text-foreground",
-        accent.card,
-      )}
-    >
+    <div style={{ zoom: CARD_ZOOM }} className={CONTENT}>
       {card.kind === "recap" ? (
         <RecapSummary
           recap={card.recap}
@@ -240,11 +182,35 @@ export function ThreadCard({
           age={age}
         />
       ) : (
-        <PlainCard card={card} accentText={accent.text} age={age} />
+        <PlainCard card={card} accentText={accentOf(card).text} age={age} />
       )}
     </div>
   );
 }
+
+/**
+ * A card's content sits inside its frame's border: the padding is the card's
+ * 20px plus the border's 1px, so its text lands 24px in (zoomed), the column
+ * the replies' keys and the action row share.
+ */
+const CONTENT =
+  "@container/recap overflow-hidden px-[21px] pb-[9px] pt-4 text-foreground";
+
+function accentOf(card: QueueCard) {
+  return card.kind === "recap"
+    ? ACCENT[card.recap.state]
+    : card.kind === "needs"
+      ? NEEDS
+      : card.kind === "failed"
+        ? FAILED
+        : NEUTRAL;
+}
+
+/** The border and surface colours of a thread card's frame. */
+export const threadFrame = (card: QueueCard) => accentOf(card).card;
+
+/** A suggestion's frame. */
+export const SUGGESTION_FRAME = "border-border";
 
 const NEUTRAL = { card: "border-border", text: "text-muted-foreground" };
 const NEEDS = {
@@ -311,10 +277,7 @@ export function SuggestionCard({
   moves: readonly SuggestionMove[];
 }) {
   return (
-    <div
-      style={{ zoom: CARD_ZOOM }}
-      className="overflow-hidden rounded-lg border border-border px-5 pb-2 pt-[15px] text-foreground"
-    >
+    <div style={{ zoom: CARD_ZOOM }} className={CONTENT}>
       <p className="text-[11px] font-medium leading-[1.6] text-muted-foreground">
         Suggestion
         <span className="ml-1 font-normal text-muted-foreground/80">

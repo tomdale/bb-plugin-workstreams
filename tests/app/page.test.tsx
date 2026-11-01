@@ -218,62 +218,63 @@ it("steps through the queue without acting", async () => {
   slot.lifecycle.unmount();
 });
 
-it("draws the leaving item until its exit ends, one leaving card at a time", async () => {
-  type Fake = {
-    onfinish: (() => void) | null;
-    oncancel: (() => void) | null;
-    cancel: () => void;
-  };
-  const started: { el: Element; animation: Fake }[] = [];
-  const animate = vi.fn(function (this: Element) {
-    const animation: Fake = {
-      onfinish: null,
-      oncancel: null,
-      cancel: () => animation.oncancel?.(),
-    };
-    started.push({ el: this, animation });
-    return animation;
-  });
+it("keeps one card per item in the stack, and only the front one live", async () => {
+  const slot = await mount();
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  const cards = () => [
+    ...slot.container.querySelectorAll<HTMLElement>("[data-queue-card]"),
+  ];
+  const front = () => cards().filter((el) => !el.hasAttribute("inert"));
+  // Every item in the window has its card; the shown one is the only live one.
+  expect(cards().length).toBe(2);
+  expect(front().map((el) => el.textContent)).toEqual([
+    expect.stringContaining("Asked which API"),
+  ]);
+  expect(
+    cards()
+      .filter((el) => el.hasAttribute("inert"))
+      .every((el) => el.getAttribute("aria-hidden") === "true"),
+  ).toBe(true);
+  const beta = cards().find((el) => el.dataset.queueCard === "b1");
+  press("ArrowRight");
+  await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+  // Without animation the change applies at once: the same card moved on.
+  expect(cards().find((el) => el.dataset.queueCard === "b1")).toBeUndefined();
+  expect(beta?.isConnected).toBe(false);
+  expect(front().map((el) => el.dataset.queueCard)).toEqual(["a1"]);
+  press("ArrowLeft");
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  expect(front().map((el) => el.dataset.queueCard)).toEqual(["b1"]);
+  slot.lifecycle.unmount();
+});
+
+it("moves the card to the back and releases it once it is out of sight", async () => {
+  const animate = vi.fn(() => ({ cancel() {}, onfinish: null }));
   Object.defineProperty(Element.prototype, "animate", {
     value: animate,
     configurable: true,
   });
-  const clock = vi.spyOn(performance, "now").mockReturnValue(1_000);
   try {
     const slot = await mount();
     await waitFor(() => expect(heading(slot)).toBe("Beta question"));
-    const copies = () =>
-      [
-        ...slot.container.querySelectorAll("[inert]:not([data-queue-card])"),
-      ].map((el) => el.textContent);
-    // Past the first item's own entrance, so the change isn't a held key.
-    clock.mockReturnValue(1_250);
+    const card = (id: string) =>
+      slot.container.querySelector<HTMLElement>(`[data-queue-card="${id}"]`);
     press("ArrowRight");
     await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
-    // The old heading, card, and actions leave as copies over the page.
-    expect(copies().some((text) => text?.includes("Beta question"))).toBe(true);
-    expect(copies().some((text) => text?.includes("Asked which API"))).toBe(
-      true,
+    // The old front card is still in the page, inert, while it moves behind.
+    expect(card("b1")?.hasAttribute("inert")).toBe(true);
+    expect(card("a1")?.hasAttribute("inert")).toBe(false);
+    // The new heading waits for the old one to fade, so it isn't shown yet.
+    const live = slot.container.querySelector<HTMLElement>(
+      '[data-queue-part="heading"]',
     );
-    // Going straight back is a held key: the heading and actions aren't
-    // copied again, and the card going to the back of the deck gives way to
-    // the earlier card, which comes back as itself, not a copy.
-    const cards = () =>
-      slot.container.querySelectorAll("[data-queue-ghosts] > *").length;
-    expect(cards()).toBe(1);
-    const before = copies().length;
-    clock.mockReturnValue(1_300);
-    press("ArrowLeft");
-    await waitFor(() => expect(heading(slot)).toBe("Beta question"));
-    expect(copies().length).toBe(before - 1);
-    expect(cards()).toBe(0);
-    // Each copy goes once its exit ends.
-    for (const { el, animation } of started)
-      if (el.hasAttribute("inert")) animation.onfinish?.();
-    expect(copies()).toEqual([]);
+    expect(live?.style.opacity).toBe("0");
+    await waitFor(() => expect(card("b1")).toBeNull(), { timeout: 4000 });
+    await waitFor(() => expect(live?.style.opacity).toBe(""), {
+      timeout: 4000,
+    });
     slot.lifecycle.unmount();
   } finally {
-    clock.mockRestore();
     delete (Element.prototype as { animate?: unknown }).animate;
   }
 });

@@ -11,9 +11,9 @@
  * (`useQueueMotion`), only when the item or receipt changes, so opening Reply
  * or holding ⇧ never moves it.
  *
- * The next items wait as a stack behind the card. Acting moves on to the
- * next; ← and → (or K and J, or the footer's arrows) step through without
- * acting.
+ * The next items wait as a stack of cards behind the card, peeking out above
+ * it. Acting moves on to the next; ← and → (or K and J, or the footer's
+ * arrows) step through without acting, one card at a time while a key is held.
  *
  * Keys: 1–3 send a reply (⇧ edits it first), R reply, S snooze (1–6 in its
  * menu), E archive, O open, U undo, ← → skip.
@@ -52,14 +52,17 @@ import {
   Composer,
   Heading,
   KeyChip,
+  SUGGESTION_FRAME,
   SuggestionCard,
   ThreadActions,
   ThreadCard,
+  threadFrame,
   type QueueHeading,
   type StackCard,
   type SuggestionMove,
 } from "./QueueItem.tsx";
 import { useQueueMotion, type Direction } from "./motion.ts";
+import { STACK_WINDOW } from "./stackEngine.ts";
 import { useQueueActions, type Receipt } from "./useQueueActions.ts";
 
 type Workstreams = ReturnType<typeof useWorkstreams>;
@@ -275,8 +278,12 @@ export function Queue({
     ? [`Accept and move ${movingCount(suggestion)} threads`, "Decline"]
     : threadAnswers;
 
+  // The pile: the shown item and the next ones, as cards.
+  const pile = current
+    ? remaining.slice(position, position + STACK_WINDOW)
+    : [];
   // Center the card and its actions; the receipt and heading sit above.
-  const motion = useQueueMotion(current, `${current}|${receipt ? 1 : 0}`);
+  const motion = useQueueMotion(current, `${current}|${receipt ? 1 : 0}`, pile);
 
   /** Shows another item: the next after acting or skipping, or one back. */
   const go = (id: string | null, toward: Direction) => {
@@ -292,7 +299,9 @@ export function Queue({
   };
   const skip = (step: 1 | -1) => {
     const next = remaining[position + step];
-    if (next) go(next, step === 1 ? "forward" : "back");
+    const toward = step === 1 ? "forward" : "back";
+    // A held key moves one card at a time, and takes no more than two ahead.
+    if (next && motion.accept(toward)) go(next, toward);
   };
   const undo = () => {
     const id = actions.undo();
@@ -453,8 +462,8 @@ export function Queue({
           title: suggestion.headline,
         }
       : null;
-  /** An item's card, for the front of the stack or a place behind it. */
-  const cardNode = (id: string): React.ReactNode => {
+  /** An item's card, for the pile. */
+  const stackCard = (id: string): StackCard | null => {
     const row = rowOf.get(id)?.thread;
     if (row) {
       const shownCard =
@@ -467,29 +476,51 @@ export function Queue({
               sent.get(id),
               isRunning(row),
             );
-      return shownCard ? (
-        <ThreadCard
-          card={shownCard}
-          threadId={id}
-          files={id === thread?.id ? files : null}
-          age={ago(row.latestAttentionAt, now)}
-        />
-      ) : null;
+      return shownCard
+        ? {
+            key: id,
+            frame: threadFrame(shownCard),
+            node: (
+              <ThreadCard
+                card={shownCard}
+                threadId={id}
+                files={id === thread?.id ? files : null}
+                age={ago(row.latestAttentionAt, now)}
+              />
+            ),
+          }
+        : null;
     }
     const s = suggestionOf.get(id);
-    return s ? (
-      <SuggestionCard
-        reason={s.reason}
-        moving={movingCount(s)}
-        moves={suggestionMoves(s)}
-      />
-    ) : null;
+    return s
+      ? {
+          key: id,
+          frame: SUGGESTION_FRAME,
+          node: (
+            <SuggestionCard
+              reason={s.reason}
+              moving={movingCount(s)}
+              moves={suggestionMoves(s)}
+            />
+          ),
+        }
+      : null;
   };
-  const front = current ? cardNode(current) : null;
-  // Two cards' edges show behind the front one; a third waits unseen.
-  const behind: StackCard[] = remaining
-    .slice(position + 1, position + 4)
-    .map((id) => ({ key: id, node: cardNode(id) }));
+  // A card leaving the pile (an item acted on has left the feed) is drawn as
+  // it last was until the motion has taken it out of sight.
+  const retained = useRef(new Map<string, StackCard>());
+  const cards = pile.flatMap((id) => stackCard(id) ?? []);
+  for (const card of cards) retained.current.set(card.key, card);
+  const leaving = motion
+    .held()
+    .filter((key) => !pile.includes(key))
+    .flatMap((key) => retained.current.get(key) ?? []);
+  for (const key of retained.current.keys())
+    if (
+      !cards.some((c) => c.key === key) &&
+      !leaving.some((c) => c.key === key)
+    )
+      retained.current.delete(key);
 
   const archiveLeads =
     card?.kind === "recap" &&
@@ -499,7 +530,10 @@ export function Queue({
   return (
     <HashColors.Provider value={hashColors}>
       <div className="relative h-full min-h-0 flex-1">
-        <div ref={motion.page} className="absolute inset-0 overflow-y-auto">
+        <div
+          ref={motion.page}
+          className="absolute inset-0 overflow-y-auto data-[moving]:overflow-y-hidden"
+        >
           <div
             ref={motion.column}
             className="mx-auto box-border w-full max-w-[720px] px-5 pb-24 pt-6"
@@ -517,10 +551,10 @@ export function Queue({
                 ) : null}
               </div>
               <div ref={motion.unit}>
-                {front && current ? (
+                {cards.length || leaving.length ? (
                   <CardStack
-                    front={{ key: current, node: front }}
-                    behind={behind}
+                    cards={[...cards, ...leaving]}
+                    stage={motion.stage}
                   />
                 ) : null}
                 <div key={`actions:${current}`} data-queue-part="actions">
@@ -588,7 +622,7 @@ export function Queue({
                   )}
                 </div>
               </div>
-              {/* The leaving item's copies, drawn over the page while they fade. */}
+              {/* The old heading and replies, drawn over the page while they fade. */}
               <div
                 ref={motion.ghosts}
                 aria-hidden

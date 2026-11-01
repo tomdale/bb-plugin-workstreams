@@ -548,38 +548,55 @@
 .dark .ws-queue-path {
   color: oklch(79% 0.13 var(--ws-hue, 250));
 }
-/* The queue's deck: each card moves between slots as the queue moves, on the
-   curve and duration of the rest of the change (queue/motion.ts). Every card
-   is opaque. Behind the front, a card's face dims with depth and fills the
-   front card's height, and its content is hidden: a card's content is its
-   face's children, or the children of a `display: contents` wrapper. */
+/* The queue's card stack (queue/motion.ts poses every card each frame). The
+   stage holds the pile above the front card, never takes clicks itself, and
+   is its own stacking context so cards draw over the replies below it.
+   A card is four layers: an opaque base with the shadow (which thins with
+   `--ws-shadow`), the frame (border and surface colours come from the card's
+   own classes), the content, and the page colour laid over it as depth shade.
+   Base, frame, and shade are sized to the card's drawn height. */
+.ws-stage {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  pointer-events: none;
+}
 .ws-stack-card {
-  transition:
-    transform 420ms cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 420ms cubic-bezier(0.32, 0.72, 0, 1);
+  position: absolute;
+  left: 0;
+  right: 0;
+  transform-origin: 50% 0;
+  will-change: transform;
+  pointer-events: auto;
 }
-.ws-stack-card > * {
-  opacity: var(--ws-stack-face, 1);
-  transition: opacity 420ms cubic-bezier(0.32, 0.72, 0, 1);
+.ws-stack-card[inert] {
+  pointer-events: none;
 }
-.ws-stack-card[data-behind] > * {
-  height: 100%;
+.ws-card-base,
+.ws-card-frame,
+.ws-card-shade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-radius: 11.5px;
+  pointer-events: none;
 }
-.ws-stack-card > * > :not(.contents),
-.ws-stack-card > * > .contents > * {
-  transition: opacity 200ms ease-out;
+.ws-card-base {
+  background: var(--background);
+  box-shadow:
+    0 1px 1px
+      color-mix(in oklab, black calc(3% * var(--ws-shadow, 1)), transparent),
+    0 8px 20px -10px
+      color-mix(in oklab, black calc(22% * var(--ws-shadow, 1)), transparent);
 }
-.ws-stack-card[data-behind] > * > :not(.contents),
-.ws-stack-card[data-behind] > * > .contents > * {
+.ws-card-frame {
+  border-style: solid;
+  border-width: 1.15px;
+}
+.ws-card-shade {
+  background: var(--background);
   opacity: 0;
-}
-@media (prefers-reduced-motion: reduce) {
-  .ws-stack-card,
-  .ws-stack-card > *,
-  .ws-stack-card > * > :not(.contents),
-  .ws-stack-card > * > .contents > * {
-    transition: none;
-  }
 }
 .ws-sticky-goal__workstream > span {
   overflow: hidden;

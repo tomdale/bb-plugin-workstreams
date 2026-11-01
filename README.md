@@ -607,9 +607,15 @@ above the composer:
 Open **Workstreams** in the main navigation panel. The page is a queue that
 shows one thing at a time that needs you: Up Next's threads in the sidebar's
 order, then the organizer's suggestions. The order holds while the page is open.
-The next items wait as a stack behind the current card, and acting on one moves
-on to the next. To look ahead or back without acting, use the footer's arrows,
-which also show where you are ("2 of 9"), or press `←` and `→` (or `K` and `J`).
+The next items wait as a stack of cards behind the current one, the next two
+peeking out above it. Acting on an item, or skipping it, tucks its card under:
+it drops clear of the stack, slips behind it, and rises to the back while the
+others move up a place; going back reverses the path. A card too tall to fit
+behind the next one fades away on its way. Presses are taken one card at a time
+(holding a key flicks cards off one after another), and under reduced motion the
+new item only fades in. To look ahead or back without acting, use the footer's
+arrows, which also show where you are ("2 of 9"), or press `←` and `→` (or `K`
+and `J`).
 
 Each thread shows its workstream (click it to open **Topics**) and title above
 its latest recap card. Under the card:
