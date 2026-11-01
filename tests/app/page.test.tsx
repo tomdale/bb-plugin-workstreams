@@ -380,19 +380,22 @@ it("shows the edit hint only on hover, focus, or while ⇧ is held, without movi
   slot.lifecycle.unmount();
 });
 
-it("sets the card's top from the page's height, not the item's", async () => {
+it("places the heading and the card from the page's height, not the item's", async () => {
   const slot = await mount();
   await waitFor(() => expect(heading(slot)).toBe("Beta question"));
   const block = () =>
     slot.container.querySelector<HTMLElement>('[data-queue-part="heading"]')!
       .parentElement!;
   const page = slot.container.querySelector<HTMLElement>(".overflow-y-auto")!;
+  const column = () => page.firstElementChild as HTMLElement;
   // The page is a size container, so `cqh` in the block's least height is
   // the page's height and a resize moves the card without a re-render.
   expect(page.className).toContain("[container-type:size]");
   expect(block().style.minHeight).toBe(HEADING_BLOCK_MIN_HEIGHT);
+  // The heading's place comes from the page's height alone, too.
+  expect(column().style.getPropertyValue("--ws-queue-top")).toBe(PAGE_TOP);
   expect(HEADING_BLOCK_MIN_HEIGHT).toBe(
-    `max(0px, calc(${CARD_TOP_FRACTION * 100}cqh - ${PAGE_TOP + LEAD}px))`,
+    `max(0px, calc(${CARD_TOP_FRACTION * 100}cqh - ${LEAD}px - ${PAGE_TOP}))`,
   );
   const first = block();
   press("ArrowRight");
@@ -400,6 +403,7 @@ it("sets the card's top from the page's height, not the item's", async () => {
   // The next item sets the same rule on the same block.
   expect(block()).toBe(first);
   expect(block().style.minHeight).toBe(HEADING_BLOCK_MIN_HEIGHT);
+  expect(column().style.getPropertyValue("--ws-queue-top")).toBe(PAGE_TOP);
   slot.lifecycle.unmount();
 });
 

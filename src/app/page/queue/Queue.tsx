@@ -6,15 +6,14 @@
  * and offers the earlier open threads.
  *
  * The order is kept while the page is open (`keepOrder`), so nothing jumps
- * while the user works. The heading is pinned near the top of the page and the
- * card stack sits lower, its top edge at a fixed share of the page's height
- * (`layout.ts`) so the card reads as centered; the replies and actions follow
- * it and the page grows downward. A receipt (drawn in the margin above the
- * heading), Reply, and ⇧ never move anything. Only a new item whose heading
- * wraps far enough to reach the card moves it, gliding down by the difference
- * (`useQueueMotion`); resizing the window moves it with the page's height. The
- * heading and the receipt crossfade to the next ones with a small drift in the
- * direction of travel.
+ * while the user works. The card stack's top edge sits at a fixed share of the
+ * page's height and the heading in a fixed place just above it (`layout.ts`);
+ * the replies and actions follow the card and the page grows downward. A
+ * receipt (drawn in the margin above the heading), Reply, and ⇧ never move
+ * anything. Only a new item whose heading wraps to more lines moves the card,
+ * gliding down by the difference (`useQueueMotion`); resizing the window moves
+ * both with the page's height. The heading and the receipt crossfade to the
+ * next ones with a small drift in the direction of travel.
  *
  * The next items wait as a stack of cards behind the card, peeking out above
  * it. Acting moves on to the next. ↓ and → (or J) step to the next item and ↑
@@ -552,8 +551,8 @@ export function Queue({
           className="absolute inset-0 overflow-y-auto [container-type:size] [scrollbar-gutter:stable] data-[moving]:overflow-y-hidden"
         >
           <div
-            className="mx-auto box-border w-full max-w-[720px] px-5 pb-24"
-            style={{ paddingTop: PAGE_TOP }}
+            className="mx-auto box-border w-full max-w-[720px] px-5 pb-24 pt-[var(--ws-queue-top)]"
+            style={{ "--ws-queue-top": PAGE_TOP } as React.CSSProperties}
           >
             <div ref={motion.content} className="relative">
               <div style={{ minHeight: HEADING_BLOCK_MIN_HEIGHT }}>
