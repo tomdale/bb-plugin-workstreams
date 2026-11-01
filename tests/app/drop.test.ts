@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { acceptsThreadDrop, planDrop } from "../../src/app/sidebar/drop.ts";
-import { EMPTY_ORDER } from "../../src/domain/order.ts";
 import { projectWorkstreams } from "../../src/domain/project.ts";
-import { thread } from "../domain/fixtures.ts";
+import { EMPTY_ORDER, thread } from "../domain/fixtures.ts";
 
 const now = 1_000_000;
 const sections = [

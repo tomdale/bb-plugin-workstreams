@@ -1,3 +1,4 @@
+import type { ManualOrder } from "../../src/domain/order.ts";
 import type { WorkstreamThread } from "../../src/domain/project.ts";
 
 export type TestThread = WorkstreamThread & {
@@ -39,3 +40,10 @@ export function rng(seed: number) {
     return state / 2 ** 32;
   };
 }
+
+/** The arrangement a sidebar has before anyone drags a row. */
+export const EMPTY_ORDER: ManualOrder = {
+  workstreams: [],
+  threads: {},
+  prioritized: [],
+};

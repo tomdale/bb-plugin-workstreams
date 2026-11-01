@@ -21,12 +21,6 @@ export type ManualOrder = {
   readonly prioritized: readonly string[];
 };
 
-export const EMPTY_ORDER: ManualOrder = {
-  workstreams: [],
-  threads: {},
-  prioritized: [],
-};
-
 /**
  * Sorts `items` by their position in `ids`. Unlisted items keep their
  * incoming relative order and go before the listed ones (`"first"`, so a new

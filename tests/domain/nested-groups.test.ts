@@ -10,9 +10,8 @@ import {
 } from "../../src/domain/groups.ts";
 import { DAY_MS, projectWorkstreams } from "../../src/domain/project.ts";
 import { planDrop } from "../../src/app/sidebar/drop.ts";
-import { EMPTY_ORDER } from "../../src/domain/order.ts";
 import type { LayoutNode } from "../../src/domain/layout.ts";
-import { thread, type TestThread } from "./fixtures.ts";
+import { EMPTY_ORDER, thread, type TestThread } from "./fixtures.ts";
 
 const now = 100 * DAY_MS;
 const entities = [
