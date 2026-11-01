@@ -68,6 +68,15 @@ export const DEFAULT_MODELS = {
     model: "openai/gpt-6-sol",
     reasoningLevel: "none",
   },
+  /**
+   * Placement's gate: the same closed choice as a typed question, used only
+   * when its answer is confident enough. An evaluation model that answers
+   * with a probability instead of text.
+   */
+  placementGate: {
+    kind: "gateway",
+    model: "openai/gpt-6-luna-decisions",
+  },
   /** Contextual categories and reviewed changes to the topic tree. */
   tidy: {
     kind: "gateway",
@@ -136,6 +145,15 @@ const GROUPS = {
     fullModel: [modelChoiceSchema, DEFAULT_MODELS.full],
     /** Placement: settles a root's topic from its requests. */
     placementModel: [modelChoiceSchema, DEFAULT_MODELS.placement],
+    /**
+     * Answer placement with a decision model's typed question when the answer
+     * is confident, falling back to the placement model otherwise. Off by
+     * default: on this machine's tree it settles 40% of calls, and about a
+     * fifth of what it settles differs from the placement model's pick.
+     */
+    placementGate: [z.boolean(), false],
+    /** The decision model that answers placement's question. */
+    placementGateModel: [modelChoiceSchema, DEFAULT_MODELS.placementGate],
   },
   organize: {
     /** Suggest splits and tidy edits to the topic tree for review. */

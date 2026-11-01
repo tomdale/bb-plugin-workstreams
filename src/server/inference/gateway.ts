@@ -19,6 +19,12 @@ import type { Usage } from "../../domain/trace.ts";
 
 export const WORKER_SYSTEM_PROMPT =
   "Classify supplied data. Return only the requested JSON. Never take actions.";
+/**
+ * The evaluation API carries no system message. This is the standing
+ * instruction a typed question amounts to, recorded on the call's trace.
+ */
+export const EVALUATE_SYSTEM =
+  "Answer one typed question about the supplied data with probabilities. Never take actions.";
 export const SYSTEM_PROMPT = WORKER_SYSTEM_PROMPT;
 export const PROVIDER = "vercel-ai-gateway";
 /** Omitted reasoning leaves the provider's default in control. */
@@ -35,6 +41,46 @@ export type Completion = {
   reasoning: string | null;
   stopReason: string | null;
 };
+
+/**
+ * A decision model's typed answer: a choice with its probability, never text.
+ * Placement's gate is the only caller, so only choice answers are read.
+ */
+export type EvaluationAnswer = {
+  readonly type?: string;
+  readonly choice?: string | null;
+  readonly confidence?: number | null;
+  readonly probabilities?: Record<string, number> | null;
+};
+
+const evaluationAnswer = z.object({
+  type: z.string().optional(),
+  choice: z.string().nullable().optional(),
+  confidence: z.number().nullable().optional(),
+  probabilities: z.record(z.string(), z.number()).nullable().optional(),
+  probability: z.number().nullable().optional(),
+  score: z.number().nullable().optional(),
+});
+
+const evaluationResponse = z.object({
+  answers: z.record(z.string(), evaluationAnswer),
+  usage: z
+    .object({
+      inputTokens: z.number().optional(),
+      outputTokens: z.number().optional(),
+    })
+    .optional(),
+  providerMetadata: z
+    .object({
+      gateway: z
+        .object({
+          cost: z.union([z.string(), z.number()]).optional(),
+          surchargeCost: z.union([z.string(), z.number()]).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+});
 
 const response = z.object({
   content: z.array(
@@ -223,5 +269,55 @@ export async function gatewayComplete(request: {
     // Bounded under the host contract's limit.
     reasoning: reasoning ? reasoning.slice(0, 100_000) : null,
     stopReason: body.stop_reason ?? null,
+  };
+}
+
+const EVALUATE_URL = "https://ai-gateway.vercel.sh/v1/evaluate";
+
+/**
+ * Asks a decision model one typed question over a closed set of answers. The
+ * answer arrives with its probability and no generated text, which is what
+ * makes an answer checkable in a way a completion's is not.
+ *
+ * The billed cost is the model's inference plus the gateway's per-call
+ * surcharge, which every call carries whether it generated text or not.
+ */
+export async function gatewayEvaluate(request: {
+  model: string;
+  state: string;
+  questions: Record<string, unknown>;
+  apiKey: string;
+  signal?: AbortSignal;
+}): Promise<{ answers: Record<string, EvaluationAnswer>; usage: Usage }> {
+  const res = await fetch(EVALUATE_URL, {
+    method: "POST",
+    signal: request.signal,
+    headers: {
+      "content-type": "application/json",
+      Authorization: `Bearer ${request.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: request.model,
+      state: request.state,
+      questions: request.questions,
+    }),
+  });
+  if (!res.ok) {
+    // The status and the gateway's one-line reason are what the fallback log
+    // needs; the body of a failed request never carries an answer.
+    const detail = (await res.text().catch(() => "")).slice(0, 200);
+    throw new Error(`AI Gateway returned ${res.status}. ${detail}`.trim());
+  }
+  const body = evaluationResponse.parse(await res.json());
+  const gateway = body.providerMetadata?.gateway;
+  const inference = Number(gateway?.cost ?? 0) || 0;
+  const surcharge = Number(gateway?.surchargeCost ?? 0) || 0;
+  return {
+    answers: body.answers,
+    usage: {
+      input: body.usage?.inputTokens ?? 0,
+      output: body.usage?.outputTokens ?? 0,
+      cost: inference + surcharge,
+    },
   };
 }

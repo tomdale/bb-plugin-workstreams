@@ -308,6 +308,29 @@ export function OrganizeSettings() {
           }
         />
         <SettingRow
+          label="Fast placement"
+          description="Ask a decision model placement's question and use its answer when it is confident, so a thread is filed in a fraction of a second. Anything less than confident is asked of the placement model as usual."
+          control={
+            <SettingSwitch
+              label="Fast placement"
+              checked={prefs.analysis.placementGate}
+              onChange={(placementGate) =>
+                update({ analysis: { placementGate } })
+              }
+            />
+          }
+        />
+        {prefs.analysis.placementGate ? (
+          <ModelField
+            label="Fast placement model"
+            description="The decision model that answers placement's question with a topic and a probability. It runs on AI Gateway directly, not as a BB worker."
+            choice={prefs.analysis.placementGateModel}
+            onChange={(placementGateModel) =>
+              update({ analysis: { placementGateModel } })
+            }
+          />
+        ) : null}
+        <SettingRow
           label="Organizing suggestions"
           description="Suggest lasting topic divisions and tidy edits. Topic changes wait for your acceptance; categories update automatically."
           control={

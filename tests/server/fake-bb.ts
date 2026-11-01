@@ -34,6 +34,28 @@ export type FakeCompletion = (call: {
 
 /** How the placement prompt opens, so a fake can tell it apart. */
 const PLACEMENT = "You file one agent thread under a topic";
+
+/** One typed answer, as a decision model returns it. */
+export type FakeGateAnswer = {
+  type?: string;
+  choice?: string | null;
+  confidence?: number | null;
+  probabilities?: Record<string, number> | null;
+};
+export type FakeGateCall = {
+  state: string;
+  questions: Record<string, unknown>;
+  model: string;
+  signal?: AbortSignal;
+};
+/**
+ * A decision model's answers by question name. Workstreams falls back to the
+ * generative call whenever they settle nothing, so a fake that answers
+ * nothing leaves every existing placement test on the generative path.
+ */
+export type FakeGate = (
+  call: FakeGateCall,
+) => Record<string, FakeGateAnswer> | Promise<Record<string, FakeGateAnswer>>;
 /** How the prompts that write titles open. */
 const NAMING = [
   "You name one new agent thread",
@@ -108,6 +130,8 @@ const DEFAULT_ANSWER = JSON.stringify({
 export async function fakeWorld(
   options: {
     complete?: FakeCompletion;
+    /** The decision model's answer to placement's typed question. */
+    evaluate?: FakeGate;
     /** Preferences the world starts with, as the settings view would save them. */
     prefs?: PrefsPatch;
     send?: (args: Record<string, unknown>) => Promise<void>;
@@ -131,6 +155,7 @@ export async function fakeWorld(
     (id) => ({ id, name: "Zebracorn", sources: [] }),
   );
   const workerCalls: Record<string, unknown>[] = [];
+  const evaluations: FakeGateCall[] = [];
   const markedUnread: string[] = [];
   /** Each environment's pull request attention; null or absent: none. */
   const pullRequests = new Map<string, string | null>();
@@ -172,6 +197,14 @@ export async function fakeWorld(
   const host = createFakePluginHost({
     pluginId: "workstreams",
     experimental_callHostRpc: async (call) => {
+      if (call.method === "evaluate") {
+        const given = { ...(call.input as FakeGateCall), signal: call.signal };
+        evaluations.push(given);
+        return {
+          answers: (await options.evaluate?.(given)) ?? {},
+          usage: { input: 400, output: 1, cost: 0.0001 },
+        };
+      }
       const input = call.input as {
         prompt: string;
         model: string;
@@ -479,6 +512,7 @@ export async function fakeWorld(
     completions,
     spawned,
     workerCalls,
+    evaluations,
     sent,
     markedUnread,
     pullRequests,

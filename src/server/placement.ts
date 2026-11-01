@@ -17,6 +17,10 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { ModelChoice } from "../domain/prefs.ts";
 import type { PlacementInput, PlacementOutput } from "../domain/placement.ts";
+import {
+  parsePlacementGate,
+  placementGateQuestion,
+} from "../domain/placementGate.ts";
 import { topicPath } from "../domain/topic-path.ts";
 import type { Database } from "./db.ts";
 import type { Inference } from "./model.ts";
@@ -46,6 +50,8 @@ export type PlacementQuestion = {
 /** Each first-send attempt is bounded; the turn's end places it otherwise. */
 const FIRST_REQUEST_TIMEOUT_MS = 15_000;
 const FIRST_REQUEST_RETRY_DELAYS_MS = [1_000, 2_000];
+/** A gate answer either arrives while the thread starts or stops mattering. */
+const GATE_TIMEOUT_MS = 8_000;
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -96,6 +102,12 @@ export class Placement {
       db: Database;
       inference: Inference;
       model: () => Promise<ModelChoice>;
+      /**
+       * Placement's gate: the decision model that answers its closed choice,
+       * or null when the gate is off. A confident answer replaces the call;
+       * everything else falls back to it.
+       */
+      gate: () => ModelChoice | null;
       topics: TopicStore;
       project: (projectId: string) => Promise<string | null>;
       /** The basis an automatic topic is settled from. */
@@ -219,6 +231,8 @@ export class Placement {
     options: { label: string; timeoutMs?: number; signal?: AbortSignal },
   ): Promise<{ answer: PlacementOutput; traceId: string | null }> {
     if (question.settled) return { answer: question.settled, traceId: null };
+    const gated = await this.askGate(threadId, question, options);
+    if (gated) return gated;
     const { value, traceId } = await this.deps.inference.run(
       "placement",
       question.input,
@@ -232,6 +246,57 @@ export class Placement {
       },
     );
     return { answer: value, traceId };
+  }
+
+  /**
+   * The confident pick, before the generative call: the same closed choice as
+   * a typed question. Null means ask the model — the gate is off or couldn't
+   * answer this tree, its answer was not confident enough, or asking it
+   * failed. A failure never fails the placement.
+   */
+  private async askGate(
+    threadId: string,
+    question: PlacementQuestion,
+    options: { label: string; timeoutMs?: number; signal?: AbortSignal },
+  ): Promise<{ answer: PlacementOutput; traceId: string | null } | null> {
+    const model = this.deps.gate();
+    if (!model) return null;
+    const asked = placementGateQuestion(question.input);
+    if (!asked) return null;
+    try {
+      const decided = await this.deps.inference.gate({
+        kind: "placement",
+        input: question.input,
+        question: asked,
+        model,
+        callLabel: "Placement gate",
+        label: options.label,
+        threadId,
+        links: [{ kind: "thread", ref: threadId }],
+        timeoutMs: Math.min(
+          options.timeoutMs ?? GATE_TIMEOUT_MS,
+          GATE_TIMEOUT_MS,
+        ),
+        signal: options.signal,
+        decide: (answers) => {
+          const picked = parsePlacementGate(answers, question.input);
+          if (!picked) return null;
+          const label = this.label(picked.answer.subjectId ?? "");
+          return {
+            value: picked.answer,
+            summary: `${label ?? "no topic"} · ${picked.confidence.toFixed(2)} confidence`,
+          };
+        },
+      });
+      if (!decided) return null;
+      return { answer: decided.value, traceId: decided.traceId };
+    } catch (error) {
+      // An abort means placement stopped mattering; anything else is the
+      // gate's own failure, which the generative call absorbs.
+      if (options.signal?.aborted) throw error;
+      this.deps.log(`Placement gate fell back: ${String(error)}`);
+      return null;
+    }
   }
 
   /**

@@ -71,6 +71,11 @@ export const traceSchema = traceSummarySchema.extend({
   stopReason: z.string().nullable(),
   /** The selected BB model, retained so provider-backed traces can replay. */
   modelChoice: modelChoiceSchema.optional(),
+  /**
+   * A typed question to a decision model, which is asked again by running the
+   * placement model rather than by replaying this call's state.
+   */
+  gate: z.boolean().optional(),
   /** The validated output, exactly as the parser returned it. */
   parsed: z.unknown(),
   /** What Workstreams stored or decided from it, when that differs. */

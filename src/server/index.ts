@@ -228,6 +228,12 @@ export default async function plugin(bb: BbPluginApi) {
         );
       return completeWorker(prompt, choice, signal, context);
     },
+    evaluate: async ({ state, questions, model }, signal) =>
+      hostRpc.call(
+        "evaluate",
+        { state, questions, model },
+        { hostId: await analysisHost(), timeoutMs: 25_000, signal },
+      ),
     traces,
     debug: async () => currentPrefs().advanced.debug,
     log: (message) => bb.log.warn(message),
@@ -315,6 +321,12 @@ export default async function plugin(bb: BbPluginApi) {
     db,
     inference,
     model: async () => currentPrefs().analysis.placementModel,
+    // With the gate on, a confident typed answer settles the topic without
+    // the placement call; anything else falls back to that call.
+    gate: () =>
+      currentPrefs().analysis.placementGate
+        ? currentPrefs().analysis.placementGateModel
+        : null,
     topics,
     project: projectName,
     // Only a new request re-places a thread: topic edits and model changes

@@ -28,6 +28,7 @@ async function setup() {
     db,
     inference: { run } as unknown as Inference,
     model: async () => ({ kind: "gateway", model: "test" }),
+    gate: () => null,
     topics,
     project: async () => "Project",
     basisOf: () => "first-request",

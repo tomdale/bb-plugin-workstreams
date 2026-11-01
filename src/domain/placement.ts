@@ -144,8 +144,12 @@ A topic about a different product is never a fit, however close: when the reques
 
 type PlacementChoices = Pick<PlacementInput, "entities" | "within">;
 
-/** The user's group choice constrains both generation and parsing, not just the prompt. */
-function choosable(input: PlacementChoices): Set<string> {
+/**
+ * The topics that can hold the thread: the user's group choice constrains both
+ * generation and parsing, not just the prompt. Placement's gate asks its
+ * closed choice over the same set.
+ */
+export function choosableTopics(input: PlacementChoices): Set<string> {
   if (input.within && !input.entities.some((e) => e.id === input.within))
     throw new Error("The destination topic is unavailable.");
   return new Set(
@@ -225,7 +229,7 @@ export function placementSchema(
   input: PlacementChoices,
 ): Record<string, unknown> {
   const ids = placementIds(input.entities);
-  const allowed = choosable(input);
+  const allowed = choosableTopics(input);
   const choices = [...ids]
     .filter(([id]) => allowed.has(id))
     .map(([, short]) => short);
@@ -299,7 +303,7 @@ export function parsePlacement(
   const parsed = outputSchema.parse(JSON.parse(stripFence(text)));
   if (parsed.topic != null && parsed.propose != null)
     throw new Error("Choose a topic or a proposal, never both.");
-  const allowed = choosable(input);
+  const allowed = choosableTopics(input);
   if (input.within && (!parsed.topic || parsed.propose))
     throw new Error(
       "The model did not choose an existing topic within the destination.",

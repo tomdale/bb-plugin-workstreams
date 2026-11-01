@@ -26,4 +26,32 @@ export const hostContract = defineRpcContract({
       stopReason: z.string().max(100).nullable().optional(),
     }),
   },
+  /**
+   * One typed question to a decision model, whose answers are choices with
+   * probabilities rather than generated text.
+   */
+  evaluate: {
+    input: z
+      .object({
+        state: z.string().min(1).max(80_000),
+        questions: z.record(z.string(), z.unknown()),
+        model: z
+          .string()
+          .regex(/^[\w.-]+\/[\w.-]+$/)
+          .max(100),
+      })
+      .strict(),
+    output: z.object({
+      answers: z.record(
+        z.string(),
+        z.object({
+          type: z.string().optional(),
+          choice: z.string().max(1_000).nullable().optional(),
+          confidence: z.number().nullable().optional(),
+          probabilities: z.record(z.string(), z.number()).nullable().optional(),
+        }),
+      ),
+      usage: usageSchema,
+    }),
+  },
 });

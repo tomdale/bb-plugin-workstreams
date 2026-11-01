@@ -35,6 +35,18 @@ topic; full hierarchy remains advisory there. Compare baseline and candidate
 with the same fixtures and scoring. See [classification.md](classification.md)
 for limits.
 
+## Placement gate
+
+`node eval/placementGate.ts` asks the placement gate's typed question over the
+same cases and scores its accepted answers with the same scorer, so a change to
+its threshold, question, or model is measured. `EVAL_MODEL` selects the decision
+model (default `openai/gpt-6-luna-decisions`), `EVAL_HOLDOUT=1` selects reserved
+cases, and `EVAL_OUTPUT` sets the report path (default
+`/tmp/placement-gate-eval.json`). A case the gate doesn't settle is reported as
+falling back, which is what the placement model would answer, so it is not a
+failure; an accepted answer the scorer rejects fails the run. Warm only: a cold
+placement answers with a proposal, which a typed question can't express.
+
 ## Categories
 
 `node eval/categories.ts` evaluates the production category prompt, schema, and

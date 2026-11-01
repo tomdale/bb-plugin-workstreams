@@ -41,12 +41,15 @@ import {
   type TraceKind,
   type TraceLink,
   type TraceStatus,
+  type Usage,
 } from "../domain/trace.ts";
 import {
+  EVALUATE_SYSTEM,
   PROVIDER,
   SYSTEM_PROMPT,
   THINKING,
   type Completion,
+  type EvaluationAnswer,
 } from "./inference/gateway.ts";
 import {
   gatewayModel,
@@ -213,6 +216,25 @@ export type Complete = (
     >
 >;
 
+/**
+ * One typed question to a decision model, which answers with choices and
+ * probabilities instead of generated text.
+ */
+export type Evaluate = (
+  request: {
+    state: string;
+    questions: Record<string, unknown>;
+    model: string;
+  },
+  signal?: AbortSignal,
+) => Promise<{
+  answers: Record<string, EvaluationAnswer>;
+  usage: Usage;
+}>;
+
+/** A call that never reached the model reports no usage rather than a guess. */
+const ZERO_USAGE: Usage = { input: 0, output: 0, cost: 0 };
+
 const message = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
@@ -223,6 +245,7 @@ export class Inference {
   constructor(
     private readonly deps: {
       complete: Complete;
+      evaluate: Evaluate;
       traces: TraceStore;
       /** Whether debug mode is on; read before every call. */
       debug: () => Promise<boolean>;
@@ -330,12 +353,137 @@ export class Inference {
   }
 
   /**
+   * Asks a decision model one typed question and records the call like any
+   * other, so the answer's probability is inspectable after the fact. Returns
+   * null when the answer settles nothing — below the caller's confidence bar,
+   * missing, or not answering a gateway model — and the caller falls back to
+   * the call this one would have replaced.
+   */
+  async gate<T>(request: {
+    kind: TraceKind;
+    input: unknown;
+    question: { state: string; questions: Record<string, unknown> };
+    model: ModelChoice;
+    /** The settled answer and its one-line summary, or null to fall back. */
+    decide: (
+      answers: Record<string, EvaluationAnswer>,
+    ) => { value: T; summary: string } | null;
+    callLabel: string;
+    threadId?: string;
+    label?: string;
+    links?: readonly TraceLink[];
+    signal?: AbortSignal;
+    timeoutMs?: number;
+  }): Promise<{ value: T; traceId: string | null } | null> {
+    const model = gatewayModel(request.model);
+    // A provider pick needs a worker thread, which can't answer typed questions.
+    if (model === null) return null;
+    const started = this.now();
+    const record = await this.deps.debug();
+    const save = (
+      status: TraceStatus,
+      answers: Record<string, EvaluationAnswer> | null,
+      decided: { value: T; summary: string } | null,
+      usage: Usage,
+      error: unknown,
+    ): string | null =>
+      record
+        ? this.safely(() =>
+            this.deps.traces.add(
+              {
+                at: started,
+                kind: request.kind,
+                status,
+                label: request.label ?? request.callLabel,
+                model: modelLabel(request.model),
+                modelChoice: request.model,
+                durationMs: this.now() - started,
+                replayOf: null,
+                provider: PROVIDER,
+                thinking: THINKING,
+                system: EVALUATE_SYSTEM,
+                prompt: `${request.question.state}\n\n${JSON.stringify(
+                  request.question.questions,
+                )}`,
+                input: boundedJson(request.input),
+                response: answers ? JSON.stringify(answers) : null,
+                reasoning: null,
+                stopReason: null,
+                usage,
+                parsed: decided?.value ?? null,
+                summary: decided?.summary ?? null,
+                outcome: decided
+                  ? { gate: "used" }
+                  : { gate: "fell back", reason: message(error) },
+                error: status === "failed" ? message(error) : null,
+                gate: true,
+              },
+              request.links ?? [],
+            ),
+          )
+        : null;
+    const timeout =
+      request.timeoutMs === undefined ? null : new AbortController();
+    const timer =
+      timeout &&
+      setTimeout(
+        () => timeout.abort(new Error("timed out")),
+        request.timeoutMs,
+      );
+    const signal =
+      timeout && request.signal
+        ? AbortSignal.any([request.signal, timeout.signal])
+        : (timeout?.signal ?? request.signal);
+    let result: Awaited<ReturnType<Evaluate>>;
+    try {
+      result = await this.deps.evaluate(
+        {
+          state: request.question.state,
+          questions: request.question.questions,
+          model,
+        },
+        signal,
+      );
+    } catch (error) {
+      if (request.signal?.aborted) throw request.signal.reason;
+      const failure = timeout?.signal.aborted
+        ? new Error(
+            `The model didn't answer within ${duration(request.timeoutMs!)}.`,
+          )
+        : error;
+      save("failed", null, null, ZERO_USAGE, failure);
+      throw failure;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    let decided: { value: T; summary: string } | null = null;
+    try {
+      decided = request.decide(result.answers);
+    } catch (error) {
+      save("invalid", result.answers, null, result.usage, error);
+      return null;
+    }
+    const traceId = save(
+      decided ? "ok" : "invalid",
+      result.answers,
+      decided,
+      result.usage,
+      decided ? null : new Error("no answer cleared the confidence bar"),
+    );
+    return decided ? { value: decided.value, traceId } : null;
+  }
+
+  /**
    * Sends a recorded prompt to its model again and records the answer as a
    * replay of the original. Nothing Workstreams stores changes.
    */
   async replay(traceId: string): Promise<Trace> {
     const original = this.deps.traces.get(traceId);
     if (!original) throw new UserError("That model call is no longer stored.");
+    if (original.gate)
+      throw new UserError(
+        "That call was a typed question to a decision model; running the placement model again is the equivalent.",
+      );
     const spec = MODEL_CALLS[original.kind] as unknown as Spec;
     const result = await this.call(original.kind, {
       prompt: original.prompt,
