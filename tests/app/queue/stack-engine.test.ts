@@ -219,6 +219,64 @@ describe("the stack engine", () => {
     expectSettled(q);
   });
 
+  it("drops a card no lower under a held key than a single move does", () => {
+    const deepest = (q: ReturnType<typeof queue>) => {
+      const low = new Map<string, number>();
+      for (const frame of q.frames)
+        for (const c of frame.cards)
+          if (c.painted) low.set(c.key, Math.max(low.get(c.key) ?? 0, c.top));
+      return low;
+    };
+    // The lowest a card's top gets in a single move, from each start.
+    let single = 0;
+    for (let start = 0; start < 6; start++) {
+      const q = queue(start);
+      q.press("forward");
+      q.run(3000);
+      single = Math.max(single, deepest(q).get(KEYS[start]!)!);
+    }
+    // Held, each card tucks under while earlier ones are still on their way
+    // behind the pile; it clears only the pile, not them, so it lands no
+    // farther down than a single move would.
+    const q = queue(0);
+    for (let ms = 0; ms < 1500; ms += 33) {
+      q.press("forward");
+      q.run(33);
+    }
+    q.run(4000);
+    for (const [key, top] of deepest(q))
+      expect(top, key).toBeLessThanOrEqual(single + 1);
+  });
+
+  it("pulls a card no lower under a held key than a single move does", () => {
+    const deepest = (q: ReturnType<typeof queue>) => {
+      const low = new Map<string, number>();
+      for (const frame of q.frames)
+        for (const c of frame.cards)
+          if (c.painted) low.set(c.key, Math.max(low.get(c.key) ?? 0, c.top));
+      return low;
+    };
+    // The lowest a card's top gets in a single move back, from each start.
+    let single = 0;
+    for (let start = 0; start < 6; start++) {
+      const q = queue(start + 50);
+      q.press("back");
+      q.run(3000);
+      single = Math.max(single, deepest(q).get(KEYS[start + 49]!)!);
+    }
+    // Held, each card comes out while the last is still rising into the
+    // front; it aims for where that card is going, so it drops no farther
+    // down than a single move would.
+    const q = queue(50);
+    for (let ms = 0; ms < 1500; ms += 33) {
+      q.press("back");
+      q.run(33);
+    }
+    q.run(4000);
+    for (const [key, top] of deepest(q))
+      expect(top, key).toBeLessThanOrEqual(single + 1);
+  });
+
   it("holds back a key held in the other direction the same way", () => {
     const q = queue(50);
     for (let ms = 0; ms < 1500; ms += 33) {

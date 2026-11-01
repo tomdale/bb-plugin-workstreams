@@ -71,12 +71,14 @@ const TURN_MS = 260;
 const TALL_RECEDE = 100;
 const TALL_AIM = 0.5;
 /** A vanishing card is gone by this share of the way to its aim; its fade
- * follows the power `VANISH_EASE`, relaxes over `VANISH_RELAX` ms, and over
- * `VANISH_RETURN` ms for a card coming back out. */
+ * follows the power `VANISH_EASE`, takes at least `VANISH_MIN_MS`, relaxes
+ * over `VANISH_RELAX` ms, and over `VANISH_RETURN` ms for a card coming back
+ * out. */
 const VANISH_AT = 0.85;
 const VANISH_EASE = 2.5;
 const VANISH_RELAX = 120;
 const VANISH_RETURN = 180;
+const VANISH_MIN_MS = 200;
 /** The next move may start this long after the last one. */
 const STEP_GAP = 90;
 /** While presses wait (a held key), and until the cards that moved then
@@ -656,6 +658,12 @@ export class StackEngine {
    * got there: a card dropping away goes behind any that dropped before it,
    * and a card coming to the front goes in front of everything. Cards being
    * pulled out from the back come out in the order they were asked for.
+   *
+   * Cards leaving the queue behind the pile (parked) are drawn under the ones
+   * still in it, each in front of those that left before it. So a card tucking
+   * under while earlier ones are still on their way down and behind (a held
+   * key) passes in front of them and only has to clear the pile, instead of
+   * dropping below each of them in turn and landing farther down every time.
    */
   private layer(c: Card): number {
     const M = 100;
@@ -664,7 +672,9 @@ export class StackEngine {
       : c.phase === "enter"
         ? 1 + c.pos / M
         : c.transit
-          ? 2 + (M - c.pos) / M
+          ? c.parked
+            ? 2 + c.pos / (2 * M)
+            : 2 + (M - c.pos) / M
           : 10 + (M - c.pos) * 2;
   }
 
@@ -711,11 +721,19 @@ export class StackEngine {
     const f = this.front();
     return Math.min(this.natBottom(k), Math.max(LEAD + f.h, this.natBottom(f)));
   }
-  private clearLine(c: Card, change: Partial<Card>): number {
-    return (
-      Math.max(LEAD, ...this.flipsWith(c, change).map((k) => this.reach(k))) +
-      GAP
-    );
+  private clearLine(
+    c: Card,
+    change: Partial<Card>,
+    reach = (k: Card) => this.reach(k),
+  ): number {
+    return Math.max(LEAD, ...this.flipsWith(c, change).map(reach)) + GAP;
+  }
+  /** How far down card `k` will reach once it gets where it is going, for a
+   * card rising into the front; any other card's reach now. */
+  private settledReach(k: Card): number {
+    if (!k.top) return this.reach(k);
+    const t = this.target(k);
+    return Math.min(this.natBottom(k), LEAD + sc(t.z) * (t.y + k.h));
   }
   private span(k: Card): [number, number] {
     return [
@@ -786,12 +804,15 @@ export class StackEngine {
     }
     if (c.phase === "enter") {
       // Slide down out of the back of the pile until clear of every card it
-      // will pass in front of.
-      const clear = this.clearLine(c, {
-        phase: "rest",
-        transit: false,
-        top: this.aboveTops(),
-      });
+      // will pass in front of. A card still rising into the front (a held
+      // key) counts where it is going, not where it is, so each card pulled
+      // out aims no lower than the last; it waits there, if it must, for that
+      // card to rise clear before coming to the front.
+      const clear = this.clearLine(
+        c,
+        { phase: "rest", transit: false, top: this.aboveTops() },
+        (k) => this.settledReach(k),
+      );
       return {
         y: (clear - LEAD) / sc(-ZDROP) + OVERSHOOT,
         z: -ZDROP,
@@ -913,7 +934,13 @@ export class StackEngine {
         0,
         1,
       );
-      c.g = Math.max(c.g, u ** VANISH_EASE);
+      // A card that turns around close to its aim (a short rise) would fade
+      // all at once by its progress alone; it never fades faster than
+      // `VANISH_MIN_MS` from start to gone.
+      c.g = Math.max(
+        c.g,
+        Math.min(u ** VANISH_EASE, c.g + (dt * 1000) / VANISH_MIN_MS),
+      );
       if (c.g > 0.995) {
         c.g = 1;
         c.gone = true;
