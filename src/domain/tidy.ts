@@ -155,7 +155,7 @@ export type SplitInput = {
   readonly decisions: readonly string[];
 };
 
-export const SUBGROUP_RULES = `Subgroups are the simplest, clearest groups a person would name without effort, each named for an area of work, never a task, pull request, bug, or repository. Clarity beats symmetry: a plain "PR Upkeep" beside "Alert Investigations" is better than a contrived name invented to keep siblings alike, and an "X & Y" name is usually a sign of contrivance. Put work about the whole group in a plainly named subgroup such as "Planning", never a catch-all like "General" or "Other". Prefer at least 2 threads per subgroup; keep a one-thread subgroup only for a genuinely distinct area. Name subgroups in Title Case, keeping product names' own spelling, and don't repeat the group's name in them ("Design", not "Automations Design"). Judge each thread by what it is about.`;
+const SUBGROUP_RULES = `Subgroups are the simplest, clearest groups a person would name without effort, each named for an area of work, never a task, pull request, bug, or repository. Clarity beats symmetry: a plain "PR Upkeep" beside "Alert Investigations" is better than a contrived name invented to keep siblings alike, and an "X & Y" name is usually a sign of contrivance. Put work about the whole group in a plainly named subgroup such as "Planning", never a catch-all like "General" or "Other". Prefer at least 2 threads per subgroup; keep a one-thread subgroup only for a genuinely distinct area. Name subgroups in Title Case, keeping product names' own spelling, and don't repeat the group's name in them ("Design", not "Automations Design"). Judge each thread by what it is about.`;
 
 /** The group's subtopics a thread can be filed in: those without subtopics. */
 const fileable = (input: Pick<SplitInput, "topics" | "topicId">) =>
@@ -323,7 +323,7 @@ export type TidyInput = {
   readonly declined: readonly string[];
 };
 
-export const TIDY_RULES = `You maintain the topic tree that groups someone's agent threads in a sidebar. Propose at most ${TIDY_EDITS_MAX} edits that make the tree a clean, stable map of their work, or none when it is already clean. Each edit is shown to the user with your reason, so make each one worth a click.
+const TIDY_RULES = `You maintain the topic tree that groups someone's agent threads in a sidebar. Propose at most ${TIDY_EDITS_MAX} edits that make the tree a clean, stable map of their work, or none when it is already clean. Each edit is shown to the user with your reason, so make each one worth a click.
 
 Good trees: top-level topics are contexts (an employer, a personal toolbox, personal life) once there is evidence for at least two; below them, products or areas; below those, capabilities. Names are areas, never tasks, questions, pull requests, or bugs. One home per area: merge duplicates and near-duplicates. A topic that belongs to a larger product goes under it. Topics side by side that are parts of one larger product or area get a new parent: create it, listing them as children. Refile threads that sit under the wrong product. A repository or workspace used to route or coordinate work is not a product. Name topics in Title Case, keeping product names' own spelling.
 

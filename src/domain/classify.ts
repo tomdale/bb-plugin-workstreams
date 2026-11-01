@@ -19,7 +19,7 @@ export type Entity = Omit<z.infer<typeof entitySchema>, "aliases"> & {
 };
 
 /** The largest topic tree a prompt may carry. */
-export const TOPIC_TREE_MAX = 500;
+const TOPIC_TREE_MAX = 500;
 
 const proposalSchema = z
   .object({

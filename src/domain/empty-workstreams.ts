@@ -1,6 +1,6 @@
 /** A short-lived place to start the next thread, never a permanent empty row. */
 export const EMPTY_WORKSTREAM_GRACE_MS = 10 * 60_000;
-export const EMPTY_WORKSTREAM_LIMIT = 3;
+const EMPTY_WORKSTREAM_LIMIT = 3;
 
 /** Last time a workstream had a visible, non-archived, unsnoozed thread. */
 export type LastPopulatedAt = Readonly<Record<string, number>>;

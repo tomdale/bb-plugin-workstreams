@@ -185,7 +185,7 @@ function stepDeclarations(name: string, color: string, text: string | null) {
  * `usePortalScopeProps`. Matches BB's own utility scoping
  * (`pluginScopeRoots`), so tokens reach everything Tailwind classes reach.
  */
-export const TOKEN_ROOTS =
+const TOKEN_ROOTS =
   '[data-bb-plugin="workstreams"], [data-bb-plugin-root]:not([data-bb-plugin])';
 
 /**
@@ -194,7 +194,7 @@ export const TOKEN_ROOTS =
  * value comes from {@link THEME_COLORS} or a re-validated `#rrggbb`, never
  * from raw input.
  */
-export function colorTokenDeclarations(colors: ColorPrefs): string[] {
+function colorTokenDeclarations(colors: ColorPrefs): string[] {
   const scheme = colorSchemeSchema.safeParse(colors.scheme);
   const lines: string[] = [];
   for (const token of COLOR_TOKENS) {

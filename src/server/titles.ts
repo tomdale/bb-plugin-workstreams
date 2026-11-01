@@ -7,7 +7,7 @@ import { observeTitle, type TitleRecord } from "../domain/titles.ts";
 
 type Row = { observed: string | null; written: string | null; locked: number };
 
-export function readTitleRecord(
+function readTitleRecord(
   db: Database,
   threadId: string,
 ): TitleRecord | undefined {

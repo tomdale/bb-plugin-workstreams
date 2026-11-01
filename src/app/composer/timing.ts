@@ -4,7 +4,7 @@
  * enough to say what the work is, it is routed on a short debounce so the
  * preview keeps up. Any keystroke also cancels the routing call in flight.
  */
-export const SHORT_DRAFT_CHARS = 20;
+const SHORT_DRAFT_CHARS = 20;
 export const SHORT_PAUSE_MS = 900;
 export const DEBOUNCE_MS = 250;
 

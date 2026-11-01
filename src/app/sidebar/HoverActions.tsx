@@ -19,9 +19,9 @@ import { cn } from "@/lib/utils";
 import { Hint } from "../Hint.tsx";
 
 /** How long the pointer rests on the button before its menu opens. */
-export const MENU_OPEN_DELAY_MS = 350;
+const MENU_OPEN_DELAY_MS = 350;
 /** How long the menu survives the pointer leaving it or its button. */
-export const MENU_CLOSE_DELAY_MS = 200;
+const MENU_CLOSE_DELAY_MS = 200;
 
 /**
  * Keeps a row action out of sight, and out of the layout so the title keeps

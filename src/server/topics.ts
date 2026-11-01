@@ -12,7 +12,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { getMeta, setMeta, type Database } from "./db.ts";
 
 /** Bump to settle every thread's topic again with changed classification rules. */
-export const CLASSIFICATION_VERSION = "topics-v6";
+const CLASSIFICATION_VERSION = "topics-v6";
 
 /**
  * The basis of an automatic topic: what it was placed from. Only the user's

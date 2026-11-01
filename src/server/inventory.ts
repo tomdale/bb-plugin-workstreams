@@ -40,7 +40,7 @@ export function displayTitle(thread: {
   );
 }
 
-export function toInventoryThread(thread: ThreadResponse): InventoryThread {
+function toInventoryThread(thread: ThreadResponse): InventoryThread {
   return {
     id: thread.id,
     title: displayTitle(thread),

@@ -7,7 +7,7 @@ import { UserError } from "./service.ts";
 type Sdk = BbPluginApi["sdk"];
 type Thread = Awaited<ReturnType<Sdk["threads"]["list"]>>[number];
 
-export function archiveIdle(thread: Thread): boolean {
+function archiveIdle(thread: Thread): boolean {
   return (
     thread.status === "idle" &&
     thread.runtime.displayStatus === "idle" &&

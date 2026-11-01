@@ -1351,7 +1351,7 @@ export function WorkstreamsThreadList({
 }
 
 /** The band of threads most worth the user's attention (see `selectUpNext`). */
-export const UP_NEXT = "Up Next";
+const UP_NEXT = "Up Next";
 
 /**
  * An overlay band. A plain band collapses from its header. A boxed band is an

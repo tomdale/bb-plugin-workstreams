@@ -413,7 +413,7 @@ const timeOf = (date: Date) =>
   });
 
 /** A clock time for labels: "9 AM", "6:30 PM". */
-export const clockLabel = (hour: number, minute: number) =>
+const clockLabel = (hour: number, minute: number) =>
   timeOf(new Date(2000, 0, 1, hour, minute));
 
 /** A weekday's full local name; 2023 began on a Sunday. */
@@ -513,7 +513,7 @@ export function snoozeChoices(
 }
 
 /** A compact wake time beside a choice: "2:15 PM", "Thu 9 AM", "Oct 7". */
-export function wakeHint(until: number | null, now: number): string {
+function wakeHint(until: number | null, now: number): string {
   if (until === null) return "";
   const date = new Date(until);
   const today = new Date(now);

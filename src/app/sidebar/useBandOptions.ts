@@ -6,7 +6,7 @@ export type BandSortOption = readonly [BandSort, string];
 export type BandOptions = Record<BandId, { sort: BandSort; grouped: boolean }>;
 
 export const BAND_OPTIONS_KEY = "workstreams:v1:band-options";
-export const DEFAULT_BAND_OPTIONS: BandOptions = {
+const DEFAULT_BAND_OPTIONS: BandOptions = {
   recent: { sort: "activity", grouped: false },
   snoozed: { sort: "wake", grouped: false },
   archived: { sort: "archived", grouped: true },
@@ -22,7 +22,7 @@ function validSort(id: BandId, value: string): value is BandSort {
   );
 }
 
-export function readBandOptions(): BandOptions {
+function readBandOptions(): BandOptions {
   try {
     const stored = JSON.parse(
       window.localStorage.getItem(BAND_OPTIONS_KEY) ?? "{}",
