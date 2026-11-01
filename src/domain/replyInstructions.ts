@@ -5,7 +5,7 @@
  */
 import { REPLY_BLOCK } from "./reply.ts";
 export const REPLY_EXAMPLES_TOOL = "WorkstreamsReplyExamples";
-const MARKERS = `Put \`:::${REPLY_BLOCK}\` and any attributes on their own line, with attributes immediately after the marker and no space after the colons or before \`{\`. Close with \`:::\` on its own line. Use a top-level block. Fenced code works inside; if a line must contain only \`:::\`, use \`::::reply\` and \`::::\` around the reply.`;
+const MARKERS = `Put \`:::${REPLY_BLOCK}\` and its attributes on their own line, with no space after the colons or before \`{\`. Use a top-level block, closed with \`:::\` alone on a line. Fenced code works inside; a line that must be only \`:::\` goes inside \`::::reply\` and \`::::\`.`;
 
 export function replyInstructions(withRecap: boolean): string {
   return withRecap ? withCard() : alone();
@@ -21,7 +21,7 @@ function withCard(): string {
 Set state="complete", state="review", or state="waiting" on the opener; optional kind is answer, investigation, change, recommendation, proposal, status, or handoff, independently of state.
 State covers what this thread owns: complete when all authorized work is finished; review when a finished result awaits inspection, testing, merging, or shipping; waiting while an async result this thread needs is still running. Work elsewhere counts while this thread owns follow-up; a route that leaves the destination owning the follow-up is complete, and its Next names how the destination reports back. Waiting requires timeout="<seconds>" (1–86400), a realistic polling interval; the card prompts a status check at expiry.
 Recap fields set the card and sidebar; use terse inline Markdown without closing periods.
-Card fields: start with # and a present-tense fact (at most 80 characters), -ing for waiting. Complete/review replies with bodies put 1–3 - [x] results immediately after the headline. Advice results state the recommendation, not an implemented change. Results: concrete outcomes, most important first, about 12 words each, with relevant commit and PR links. Explain outcomes in the body without repeating them.
+Card fields: start with # and a present-tense fact (at most 80 characters), -ing for waiting. Complete/review replies with bodies put 1–3 - [x] results immediately after the headline; a waiting card keeps only its headline, Waiting on, and timeout, so results and explanation go in the body. Advice results state the recommendation, not an implemented change. Results: concrete outcomes, most important first, about 12 words each, with relevant commit and PR links. Explain outcomes in the body without repeating them.
 Reserved ### sections: Review (review state only, required): 1–3 steps to inspect the result and what to expect. Links (review only) lists [title](location) review targets: HTTPS or absolute paths. Waiting on (waiting only) lists one @thread:<id> task per awaited agent. Next (required for complete and review; only a short factual answer with nothing left open omits it): 1–3 Title: message actions; labels at most 28 characters. Messages are self-contained requests; whitespace and closing periods are normalized. Next names each thing this reply leaves open: a pull request unopened, unmerged, or awaiting review; a result only the user can check on their own machine or display; a decision they still own; a step the body names but nobody did; an optional improvement or unauthorized change you recommended; for a handoff, how the destination reports back. An unauthorized action is a Next item, not a question card, unless the reply cannot stand without the answer; Next never requests approval or executes. Do authorized continuations yourself.
 Example:
 :::reply{state="review" kind="change"}
@@ -29,7 +29,7 @@ Example:
 - [x] Callers pass whole percentages; conversion stays beside the calculation
 
 \`\`\`workstreams
-{"type":"context","topic":"Coupon calculation","background":"Review the percentage fix while keeping caller units unchanged."}
+{"type":"context","topic":"Coupon calculation","background":"Review the percentage fix with caller units unchanged."}
 \`\`\`
 
 \`\`\`workstreams

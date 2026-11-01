@@ -78,6 +78,11 @@ describe("next-action instruction contract", () => {
       /The only reply that omits Next, because nothing is left open:[\s\S]*?# Python 3\.9 or newer/,
     );
   });
+  it("names what a waiting card keeps, so its results stay in the prose", () => {
+    expect(replyInstructions(true)).toContain(
+      "a waiting card keeps only its headline, Waiting on, and timeout",
+    );
+  });
 });
 
 describe("configure", () => {
