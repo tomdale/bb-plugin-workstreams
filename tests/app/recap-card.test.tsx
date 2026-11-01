@@ -1480,7 +1480,7 @@ it("explains a titled action without a description by the message it sends", asy
   expect(hint.textContent).toContain("Run the full test suite");
 });
 
-it("edits an overflow action into the composer without sending", async () => {
+it("edits an overflow action into the composer while Shift is held", async () => {
   vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
     function (this: HTMLElement) {
       return this.classList.contains("basis-0") ? 80 : 0;
@@ -1499,9 +1499,21 @@ it("edits an overflow action into the composer without sending", async () => {
   fireEvent(window, new Event("resize"));
   const trigger = await slot.findByRole("button", { name: "Next actions" });
   fireEvent.keyDown(trigger, { key: "ArrowDown" });
-  fireEvent.click(
-    await slot.findByRole("menuitem", { name: "Edit in composer" }),
-  );
+  const item = await slot.findByRole("menuitem", { name: "Review the diff" });
+  // The menu keeps no edit rows of its own; Shift turns a pick into an edit.
+  expect(slot.queryByRole("menuitem", { name: "Edit in composer" })).toBeNull();
+  expect(slot.queryByText("Edit in composer")).toBeNull();
+
+  fireEvent.keyDown(window, { key: "Shift" });
+  const indicator = await slot.findByText("Edit in composer");
+  expect(
+    indicator.parentElement?.querySelector('kbd[aria-label="Shift"]'),
+  ).toBeTruthy();
+  fireEvent.keyUp(window, { key: "Shift" });
+  await waitFor(() => expect(slot.queryByText("Edit in composer")).toBeNull());
+
+  fireEvent.keyDown(window, { key: "Shift" });
+  fireEvent.click(item);
 
   expect(slot.inspection.composer.text).toBe("Please Review the diff");
   expect(slot.inspection.composer.focusCount).toBe(1);

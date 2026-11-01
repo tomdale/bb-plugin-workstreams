@@ -1130,18 +1130,58 @@ function ActionHint({
           <span>Click to send</span>
           <span aria-hidden>·</span>
           <span className="flex items-center gap-1">
-            <kbd
-              aria-label="Shift"
-              className="inline-flex h-4 min-w-4 items-center justify-center rounded-[3px] border border-border px-0.5 font-sans text-[10px] leading-none"
-            >
-              ⇧
-            </kbd>
+            <ShiftKey />
             <span>click to edit</span>
           </span>
         </span>
       ) : null}
     </>
   );
+}
+
+/** The `⇧` a hint shows for the key that turns a pick into an edit. */
+function ShiftKey() {
+  return (
+    <kbd
+      aria-label="Shift"
+      className="inline-flex h-4 min-w-4 items-center justify-center rounded-[3px] border border-border px-0.5 font-sans text-[10px] leading-none"
+    >
+      ⇧
+    </kbd>
+  );
+}
+
+/**
+ * Whether Shift is held, while `active`. A menu row sends on a plain pick and
+ * edits in the composer on a Shift pick, but the menu's select event carries
+ * no modifier, so the menu reads the key from the keyboard and shows its
+ * Shift hint while it is down.
+ */
+function useShiftHeld(active: boolean) {
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      setHeld(false);
+      return;
+    }
+    // The menu keeps focus inside itself, so Shift still reaches the window.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Shift") setHeld(true);
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Shift") setHeld(false);
+    };
+    const onBlur = () => setHeld(false);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [active]);
+  return held;
 }
 
 /** Actions stay as individual buttons only when all fit on one line. */
@@ -1156,6 +1196,7 @@ function NextActions({
 }) {
   const [pending, setPending] = useState(false);
   const [menu, setMenu] = useState(false);
+  const shiftHeld = useShiftHeld(menu);
   const portalScope = usePortalScopeProps();
   const composer = useComposer();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -1241,28 +1282,33 @@ function NextActions({
               className="z-50 min-w-52 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
             >
               {actions.map((action, index) => (
-                <Fragment key={index}>
-                  <DropdownMenu.Item
-                    disabled={pending || !onSend}
-                    onSelect={() => void send(nextActionMessage(action))}
-                    className="flex cursor-pointer flex-col gap-0.5 rounded-md px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent data-[disabled]:opacity-50"
-                  >
-                    <span>{nextActionTitle(action)}</span>
-                    {typeof action === "string" ? null : (
-                      <span className="text-xs text-muted-foreground">
-                        {action.description ?? action.message}
-                      </span>
-                    )}
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item
-                    onSelect={() => compose(nextActionMessage(action))}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent data-[disabled]:opacity-50"
-                  >
-                    <Icon name="Edit" aria-hidden className="size-3.5" />
-                    Edit in composer
-                  </DropdownMenu.Item>
-                </Fragment>
+                <DropdownMenu.Item
+                  key={index}
+                  disabled={pending || !onSend}
+                  onSelect={() => {
+                    const message = nextActionMessage(action);
+                    if (shiftHeld) compose(message);
+                    else void send(message);
+                  }}
+                  className="flex cursor-pointer flex-col gap-0.5 rounded-md px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent data-[disabled]:opacity-50"
+                >
+                  <span>{nextActionTitle(action)}</span>
+                  {typeof action === "string" ? null : (
+                    <span className="text-xs text-muted-foreground">
+                      {action.description ?? action.message}
+                    </span>
+                  )}
+                </DropdownMenu.Item>
               ))}
+              {shiftHeld ? (
+                <>
+                  <DropdownMenu.Separator className="my-1 h-px bg-border" />
+                  <DropdownMenu.Label className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-muted-foreground">
+                    <ShiftKey />
+                    <span>Edit in composer</span>
+                  </DropdownMenu.Label>
+                </>
+              ) : null}
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>

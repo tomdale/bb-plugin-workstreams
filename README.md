@@ -509,8 +509,10 @@ of each turn using `WorkstreamsRecap`, rendered as a card above the composer:
   improvements as self-contained actions, including recommendations in the
   reply. Agents execute authorized continuations and use question cards for
   blocking input or approval. Answers without a useful follow-up need no action.
-  **Click** a button to send its prompt immediately; **Shift-click** (or choose
-  **Edit in composer** from the overflow menu) to insert it for editing.
+  **Click** a button to send its prompt immediately; **Shift-click** to insert
+  it for editing. When the buttons do not fit, **Next actions** collapses into a
+  menu where a pick sends its prompt, and holding `Shift` shows an **Edit in
+  composer** hint that makes the pick insert it instead.
 - **Dismiss and restore:** Click **Dismiss recap** (`×`) to hide the card (and
   cancel any pending waiting-recap countdown); click the **Show recap** pill to
   restore it.
@@ -658,14 +660,15 @@ Each opens as its own view with **Back**. Deep links still work:
 
 ## Commands and keyboard shortcuts
 
-| Command / Shortcut                                              | Where                             | Action                                                                                          |
-| --------------------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `Workstreams: next Up Next thread` (`Cmd+Alt+J` / `Ctrl+Alt+J`) | Global command palette / shortcut | Opens the next thread in Up Next, wrapping to the top.                                          |
-| `Workstreams: snooze this thread`                               | Command palette (active thread)   | Snoozes the current thread using your configured **Click to snooze** default preset.            |
-| `Workstreams: wake this snoozed thread`                         | Command palette (snoozed thread)  | Wakes the current snoozed thread immediately.                                                   |
-| `1`–`3`, `Shift`, `R`, `S`, `E`, `O`, `U`, `←`/`→`              | Workstreams page                  | Sends a reply (`Shift` edits it first), replies, snoozes, archives, opens, undoes, or skips.    |
-| `Shift+Click`                                                   | Recap card **Next action** button | Copies the suggested prompt into the composer for editing instead of sending immediately.       |
-| `1`–`4`, `Enter` / `Shift+Enter`                                | `AskUserQuestion` card            | Selects an option by number; submits the answer (`Enter`) or inserts a newline (`Shift+Enter`). |
+| Command / Shortcut                                              | Where                             | Action                                                                                           |
+| --------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `Workstreams: next Up Next thread` (`Cmd+Alt+J` / `Ctrl+Alt+J`) | Global command palette / shortcut | Opens the next thread in Up Next, wrapping to the top.                                           |
+| `Workstreams: snooze this thread`                               | Command palette (active thread)   | Snoozes the current thread using your configured **Click to snooze** default preset.             |
+| `Workstreams: wake this snoozed thread`                         | Command palette (snoozed thread)  | Wakes the current snoozed thread immediately.                                                    |
+| `1`–`3`, `Shift`, `R`, `S`, `E`, `O`, `U`, `←`/`→`              | Workstreams page                  | Sends a reply (`Shift` edits it first), replies, snoozes, archives, opens, undoes, or skips.     |
+| `Shift+Click`                                                   | Recap card **Next action** button | Copies the suggested prompt into the composer for editing instead of sending immediately.        |
+| `Shift`+pick                                                    | Recap card **Next actions** menu  | Copies the chosen prompt into the composer; holding `Shift` shows the **Edit in composer** hint. |
+| `1`–`4`, `Enter` / `Shift+Enter`                                | `AskUserQuestion` card            | Selects an option by number; submits the answer (`Enter`) or inserts a newline (`Shift+Enter`).  |
 
 ---
 
