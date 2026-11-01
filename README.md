@@ -506,6 +506,10 @@ which adds a message-block slot, you also get **Structured replies**:
 - Agents end each turn with a `:::reply` block instead of calling the recap
   tool; its headline and results become the recap card. Card text preserves
   inline Markdown and is not clipped to the recap tool's character limits.
+- Standalone message directives such as
+  `::inline-vis{source="thread-storage" file="report.html"}` render through BB's
+  installed directive plugins in body order, including after card sections or
+  Details. Missing or disabled directive plugins leave the source readable.
 - The body renders as plain Markdown through BB's renderer. Full explanations,
   qualifications, checks, delivery records, and supporting details stay visible.
   Information components are converted to Markdown in source order, including

@@ -224,6 +224,7 @@ export type ReplyLeaf = z.infer<typeof replyLeafSchema>;
 export type ReplyComponent = z.infer<typeof replyComponentSchema>;
 export const replyPartSchema = z.union([
   replyComponentSchema,
+  z.object({ type: z.literal("directive"), source: z.string() }).strict(),
   z
     .object({ type: z.literal("unparsed"), source: z.string(), error: text })
     .strict(),
@@ -313,6 +314,8 @@ export function componentText(part: ReplyPart): string {
   switch (part.type) {
     case "text":
       return part.body;
+    case "directive":
+      return part.source;
     case "pending":
       return "";
     case "unparsed":

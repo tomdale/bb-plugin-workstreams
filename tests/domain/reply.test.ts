@@ -164,6 +164,61 @@ describe("composed replies", () => {
     expect(toText(data)).toContain("### Not done\n\n- [ ] Push the branch");
   });
 
+  it.each([
+    '::inline-vis{source="thread-storage" file="sidebar-section-labels.html"}',
+    '::inline-vis{source="workspace" file="reports/demo.html" height="400"}',
+    '::inline-vis{file="notes.md"}',
+    '::unknown-preview{file="report.html"}',
+  ])("preserves a standalone directive in body order: %s", (directive) => {
+    const message = block(`Before.\n\n${directive}\n\nAfter.`);
+    const data = read(message);
+    expect(data.body).toEqual([
+      { type: "text", body: "Before." },
+      { type: "directive", source: directive },
+      { type: "text", body: "After." },
+    ]);
+    expect(toText(data)).toBe(`Before.\n\n${directive}\n\nAfter.`);
+    expect(JSON.parse(JSON.stringify(data))).toEqual(data);
+    const serverInput = lastReplyBlock(message)!;
+    expect(parse(serverInput, { status: serverInput.status })).toEqual({
+      ok: true,
+      data,
+    });
+  });
+
+  it.each(["Review", "Next", "Waiting on", "Links", "Details"])(
+    "keeps a directive after %s in the body",
+    (section) => {
+      const directive =
+        '::inline-vis{source="thread-storage" file="sidebar-section-labels.html"}';
+      const data = read(
+        `:::reply{state="review"}\n# Preview ready\n- [x] Created the report\n\n### ${section}\n- Inspect the report\n\n${directive}\n\nAfter.\n:::\n`,
+      );
+      expect(data.body.slice(-2)).toEqual([
+        { type: "directive", source: directive },
+        { type: "text", body: "After." },
+      ]);
+      expect(Object.values(data.card!).flat().join("\n")).not.toContain(
+        directive,
+      );
+    },
+  );
+
+  it("keeps incomplete and code-quoted directives as literal Markdown", () => {
+    const directive = '::inline-vis{file="report.html"}';
+    for (const source of [
+      `\`${directive}\``,
+      `\`\`\`text\n${directive}\n\`\`\``,
+      '::inline-vis{source="thread-storage" file="report.html"',
+    ])
+      expect(read(block(source)).body).toEqual([
+        { type: "text", body: source },
+      ]);
+    expect(read(`:::reply\n${directive}`, true).body).toEqual([
+      { type: "directive", source: directive },
+    ]);
+  });
+
   it("keeps ordinary code and headings inside it as Markdown", () => {
     const source =
       "### Example\n\n```ts\n// ### not a section\nconst x = 1;\n```";

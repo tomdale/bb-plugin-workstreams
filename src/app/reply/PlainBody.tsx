@@ -92,6 +92,9 @@ export function PlainBody({
   switch (part.type) {
     case "text":
       return md(part.body);
+    case "directive":
+      // A document context disables BB's inherited message directive renderers.
+      return <Markdown content={part.source} />;
     case "pending":
       return <p role="status">Receiving information…</p>;
     case "unparsed":

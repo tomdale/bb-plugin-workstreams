@@ -204,7 +204,11 @@ export function parse(
       const nodes: RootContent[] = [];
       while (tree.children[i + 1] && !isHeading(tree.children[i + 1]!)) {
         const next = tree.children[i + 1]!;
-        if (next.type === "code" && next.lang === COMPONENT_FENCE) break;
+        if (
+          next.type === "leafDirective" ||
+          (next.type === "code" && next.lang === COMPONENT_FENCE)
+        )
+          break;
         nodes.push(tree.children[++i]!);
       }
       card[field].push(...sectionLines(nodes, source));
@@ -215,12 +219,21 @@ export function parse(
       const nodes: RootContent[] = [];
       while (tree.children[i + 1] && !isHeading(tree.children[i + 1]!)) {
         const next = tree.children[i + 1]!;
-        if (next.type === "code" && next.lang === COMPONENT_FENCE) break;
+        if (
+          next.type === "leafDirective" ||
+          (next.type === "code" && next.lang === COMPONENT_FENCE)
+        )
+          break;
         nodes.push(tree.children[++i]!);
       }
       const markdown = slice(nodes, source);
       if (markdown)
         body.push({ type: "details", title: DETAILS_LABEL, body: markdown });
+      continue;
+    }
+    if (node.type === "leafDirective") {
+      flush();
+      body.push({ type: "directive", source: slice([node], source) });
       continue;
     }
     if (node.type === "code" && node.lang === COMPONENT_FENCE) {

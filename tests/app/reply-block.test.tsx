@@ -107,6 +107,27 @@ const finding = COMPONENT_EXAMPLES.finding as Extract<
   { type: "finding" }
 >;
 
+it("renders directives with message context while prose keeps workspace routing", async () => {
+  const directive =
+    '::inline-vis{source="thread-storage" file="sidebar-section-labels.html"}';
+  const view = draw(`:::reply\nBefore.\n\n${directive}\n\nAfter.\n:::\n`);
+  await waitFor(() => {
+    const prose = view.container.querySelector('[data-markdown="Before."]');
+    expect(JSON.parse(prose!.getAttribute("data-document")!)).toMatchObject({
+      threadId: "t1",
+      rootPath: "/work/shop",
+    });
+  });
+  const markdown = [...view.container.querySelectorAll("[data-markdown]")];
+  expect(markdown.map((node) => node.getAttribute("data-markdown"))).toEqual([
+    "Before.",
+    directive,
+    "After.",
+  ]);
+  expect(markdown[1]!.hasAttribute("data-document")).toBe(false);
+  expect(markdown[2]!.hasAttribute("data-document")).toBe(true);
+});
+
 it("registers version 1 and the existing readable text view", () => {
   const block = registration();
   expect(block.versions).toEqual([1]);
