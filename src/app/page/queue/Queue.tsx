@@ -419,11 +419,20 @@ export function Queue({
       )
         return;
       const k = keys.current;
+      // The replies and thread actions answer only once they are visible and live.
+      const actions = motion.page.current?.querySelector<HTMLElement>(
+        '[data-queue-part="actions"]',
+      );
+      const acting =
+        !!actions &&
+        !actions.hasAttribute("inert") &&
+        Number(actions.style.opacity || 1) >= 0.5;
       const digit = /^Digit([1-9])$/.exec(event.code)?.[1];
       const key = event.key.toLowerCase();
       if (key === "u") k.undo();
       else if (key === "arrowright" || key === "j") k.skip(1);
       else if (key === "arrowleft" || key === "k") k.skip(-1);
+      else if (!acting) return;
       else if (digit) k.answer(Number(digit) - 1, event.shiftKey);
       else if (!k.thread || k.suggestion) return;
       else if (key === "r") setReplying({ id: k.thread.id, text: "" });
@@ -532,7 +541,7 @@ export function Queue({
       <div className="relative h-full min-h-0 flex-1">
         <div
           ref={motion.page}
-          className="absolute inset-0 overflow-y-auto data-[moving]:overflow-y-hidden"
+          className="absolute inset-0 overflow-y-auto [scrollbar-gutter:stable] data-[moving]:overflow-y-hidden"
         >
           <div
             ref={motion.column}

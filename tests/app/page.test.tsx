@@ -279,6 +279,42 @@ it("moves the card to the back and releases it once it is out of sight", async (
   }
 });
 
+it("ignores item shortcuts while the replies fade in, and focuses a composer once they are live", async () => {
+  const animate = vi.fn(() => ({ cancel() {}, onfinish: null }));
+  Object.defineProperty(Element.prototype, "animate", {
+    value: animate,
+    configurable: true,
+  });
+  try {
+    const slot = await mount();
+    await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+    const actions = () =>
+      slot.container.querySelector<HTMLElement>('[data-queue-part="actions"]')!;
+    press("ArrowRight");
+    await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+    expect(actions().hasAttribute("inert")).toBe(true);
+    for (const key of ["r", "s", "e", "o", "1"]) press(key);
+    press("2", { shiftKey: true });
+    expect(slot.queryByRole("textbox")).toBeNull();
+    expect(slot.inspection.sidebarActionCalls).toEqual([]);
+    expect(
+      slot.inspection.rpcCalls.some((c) => c.method === "threadArchive"),
+    ).toBe(false);
+    expect(slot.queryByRole("status")).toBeNull();
+    // A composer opened by pointer meanwhile takes focus once the replies are live.
+    fireEvent.click(slot.getByRole("button", { name: /^Reply/ }));
+    const field = slot.getByRole("textbox", { name: "Reply to Alpha work" });
+    (document.activeElement as HTMLElement | null)?.blur();
+    await waitFor(() => expect(actions().hasAttribute("inert")).toBe(false), {
+      timeout: 4000,
+    });
+    expect(document.activeElement).toBe(field);
+    slot.lifecycle.unmount();
+  } finally {
+    delete (Element.prototype as { animate?: unknown }).animate;
+  }
+});
+
 it("opens the item's thread", async () => {
   const slot = await mount();
   await waitFor(() => expect(heading(slot)).toBe("Beta question"));

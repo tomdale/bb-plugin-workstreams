@@ -149,10 +149,15 @@ export type CardView = {
   h: number;
   /** The page colour laid over the card, 0–1; its shadow thins as it rises. */
   shade: number;
-  /** Where the card's top and drawn bottom edges fall, in stage px. */
+};
+
+/** Where a card's edges fall, in stage px; the engine's own geometry, which
+ * the page doesn't draw from and tests read through `StackEngine.edges`. */
+export type CardEdges = {
   top: number;
+  /** The drawn bottom edge. */
   bottom: number;
-  /** Where the bottom edge of the whole card would fall, clipped or not. */
+  /** The bottom edge of the whole card, clipped or not. */
   natBottom: number;
 };
 
@@ -243,6 +248,7 @@ export class StackEngine {
       this.head = { ...this.head, state: "pending" };
       this.below = { ...this.below, state: "pending" };
     }
+    this.admit();
     this.prune();
     this.fill();
     this.repose(null);
@@ -272,27 +278,42 @@ export class StackEngine {
     if (!this.isBusy()) this.settleExactly();
   }
 
+  /** Where each card's edges fall now, by key. */
+  edges(): Map<string, CardEdges> {
+    this.measureVis();
+    return new Map(
+      [...this.cards.values()].map((c) => {
+        const free = c.phase !== "rest" || c.transit;
+        return [
+          c.key,
+          {
+            top: this.natTop(c),
+            bottom:
+              free || c.vis >= c.h
+                ? this.natBottom(c)
+                : LEAD + sc(c.z) * (c.y + c.vis),
+            natBottom: this.natBottom(c),
+          },
+        ];
+      }),
+    );
+  }
+
   /** The state to draw now. */
   frame(): StackFrame {
     this.measureVis();
     const cards = [...this.cards.values()].map((c): CardView => {
-      const s = sc(c.z);
-      const free = c.phase !== "rest" || c.transit;
       return {
         key: c.key,
         painted: this.painted(c) && (c.h === 0 || c.vis >= 2),
         interactive:
           c === this.order[0] && c.phase === "rest" && !c.transit && c.g < 0.5,
         layer: this.layer(c),
-        scale: s,
+        scale: sc(c.z),
         y: c.y,
         vis: c.vis,
         h: c.h,
         shade: this.shadeOf(c),
-        top: this.natTop(c),
-        bottom:
-          free || c.vis >= c.h ? this.natBottom(c) : LEAD + s * (c.y + c.vis),
-        natBottom: this.natBottom(c),
       };
     });
     const age = this.time - this.head.t0;
@@ -400,6 +421,21 @@ export class StackEngine {
         this.order.splice(this.order.indexOf(c), 1);
         this.park(c, true);
       }
+  }
+
+  /** Seats a wanted card the pile doesn't hold where it falls between the
+   * front and the last wanted card the pile does hold, so none inside the
+   * pile is left without a pose. Cards before the front come in through
+   * `move`, and those past the last through `fill`. */
+  private admit() {
+    const front = this.want.indexOf(this.order[0]?.key ?? "");
+    if (front < 0) return;
+    let last = front;
+    for (const c of this.order) last = Math.max(last, this.want.indexOf(c.key));
+    this.want.forEach((key, at) => {
+      if (at <= front || at > last || this.cards.has(key)) return;
+      this.order.splice(Math.min(at, this.order.length), 0, this.create(key));
+    });
   }
 
   /** Brings the cards that follow the last wanted one into the pile. */
@@ -565,6 +601,8 @@ export class StackEngine {
       this.repose(back);
     }
     this.owed = this.owed * dir > 0 ? this.owed - dir : 0;
+    // The hint directed the moves owed; once they are taken it says nothing.
+    if (!this.owed) this.hint = undefined;
     this.head = { state: "run", t0: this.time, op: 1 };
     const op = this.below.op;
     this.below = { state: "out", t0: this.time - (1 - op) * BELOW_OUT, op };

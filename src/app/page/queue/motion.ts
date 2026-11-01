@@ -110,6 +110,17 @@ function copyOf(el: HTMLElement): HTMLElement {
   return copy;
 }
 
+/** A composer opened while the replies were inert couldn't take focus then;
+ * it takes it once they are live, unless the user has focused something. */
+function focusComposer(actions: HTMLElement) {
+  const active = document.activeElement;
+  if (active && active !== document.body) return;
+  const field = actions.querySelector("textarea");
+  if (!field) return;
+  field.focus();
+  field.setSelectionRange(field.value.length, field.value.length);
+}
+
 const toggle = (el: HTMLElement, name: string, on: boolean, value = "") => {
   if (on !== el.hasAttribute(name))
     on ? el.setAttribute(name, value) : el.removeAttribute(name);
@@ -196,7 +207,11 @@ export function useQueueMotion(
         const live = partOf(root, part);
         if (live) {
           live.style.opacity = now < 1 ? now.toFixed(3) : "";
-          if (part === "actions") toggle(live, "inert", now < 0.5);
+          if (part === "actions") {
+            const wasInert = live.hasAttribute("inert");
+            toggle(live, "inert", now < 0.5);
+            if (wasInert && now >= 0.5) focusComposer(live);
+          }
         }
         const copy = copies.current[part];
         if (copy) {
@@ -447,14 +462,16 @@ export function useQueueMotion(
 
   useEffect(() => {
     const clk = clock.current;
-    const glides = gliding.current;
     const ghostLayer = ghosts.current;
     return () => {
       if (clk.raf) cancelAnimationFrame(clk.raf);
       clk.raf = 0;
       observer.current?.disconnect();
       observer.current = null;
-      for (const animation of glides) animation.cancel();
+      for (const animation of gliding.current) animation.cancel();
+      gliding.current = [];
+      // The remount observes the cards again, so none counts as already seen.
+      cards.current = new Map();
       ghostLayer?.replaceChildren();
     };
   }, []);

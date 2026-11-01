@@ -1,10 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
   StackEngine,
+  type CardEdges,
   type CardView,
   type Direction,
   type StackFrame,
 } from "../../../src/app/page/queue/stackEngine.ts";
+
+/** A card as drawn, with where its edges fall. */
+type View = CardView & CardEdges;
+type Frame = Omit<StackFrame, "cards"> & { cards: View[] };
+
+/** The engine's frame with every card's edges joined to it. */
+function snap(engine: StackEngine): Frame {
+  const frame = engine.frame();
+  const edges = engine.edges();
+  return {
+    ...frame,
+    cards: frame.cards.map((c) => ({ ...c, ...edges.get(c.key)! })),
+  };
+}
 
 /** The mockup's six cards, from a tall recap to a single line. */
 const HEIGHTS: Record<string, number> = {
@@ -31,28 +46,28 @@ function queue(start = 0) {
   let at = start;
   const window = () => KEYS.slice(at, at + 4);
   engine.sync(window());
-  const frames: StackFrame[] = [engine.frame()];
+  const frames: Frame[] = [snap(engine)];
   const run = (ms: number) => {
     for (let t = 0; t < ms; t += DT * 1000) {
       engine.step(DT);
-      frames.push(engine.frame());
+      frames.push(snap(engine));
     }
   };
   const press = (direction: Direction) => {
     if (!engine.accept(direction)) return false;
     at += direction === "forward" ? 1 : -1;
     engine.sync(window(), direction);
-    frames.push(engine.frame());
+    frames.push(snap(engine));
     return true;
   };
   return { engine, frames, run, press, released, at: () => at, window };
 }
 
-const byKey = (frame: StackFrame) =>
+const byKey = (frame: Frame) =>
   new Map(frame.cards.map((c) => [c.key, c] as const));
 
 /** What the mockup's frame checker looked for between consecutive frames. */
-function problems(frames: StackFrame[], jump = 40): string[] {
+function problems(frames: Frame[], jump = 40): string[] {
   const out: string[] = [];
   for (let n = 1; n < frames.length; n++) {
     const a = byKey(frames[n - 1]!);
@@ -101,11 +116,11 @@ function problems(frames: StackFrame[], jump = 40): string[] {
   return out;
 }
 
-const overlap = (x: CardView, y: CardView) =>
+const overlap = (x: View, y: View) =>
   Math.min(x.bottom, y.bottom) - Math.max(x.top, y.top);
 
 /** Whether a third painted card in front of both hides where they overlap. */
-function covered(x: CardView, y: CardView, all: CardView[]) {
+function covered(x: View, y: View, all: View[]) {
   const top = Math.max(x.top, y.top);
   const bottom = Math.min(x.bottom, y.bottom);
   return all.some(
@@ -335,7 +350,7 @@ describe("the stack engine", () => {
     const first = q.engine.frame();
     expect(first.heading.now).toBe(0);
     expect(first.replies.now).toBe(0);
-    let shown: StackFrame | null = null;
+    let shown: Frame | null = null;
     let headingDone = false;
     for (let ms = 0; ms < 3000; ms += 16.7) {
       q.run(16.7);
@@ -349,5 +364,32 @@ describe("the stack engine", () => {
     const front = shown!.cards.find((c) => c.interactive)!;
     for (const c of shown!.cards.filter((c) => c.painted))
       expect(c.bottom).toBeLessThanOrEqual(front.bottom + 8);
+  });
+
+  it("poses a wanted card behind the front that the pile didn't hold", () => {
+    const q = queue(0);
+    q.run(100);
+    // An undo brings back an item between the front and the next one.
+    const want = [KEYS[0]!, "x9", KEYS[1]!, KEYS[2]!];
+    q.engine.sync(want, "back");
+    q.run(3000);
+    expect(q.engine.keys().sort()).toEqual([...want].sort());
+    const frame = snap(q.engine);
+    expect(frame.busy).toBe(false);
+    const cards = byKey(frame);
+    want.forEach((key, slot) => {
+      expect(cards.get(key)!.painted).toBe(slot < 3);
+      expect(cards.get(key)!.interactive).toBe(slot === 0);
+    });
+    const tops = want.map((key) => cards.get(key)!.top);
+    expect(tops[1]!).toBeLessThan(tops[0]!);
+    expect(tops[2]!).toBeLessThan(tops[1]!);
+  });
+
+  it("forgets a hint once the moves it directed are taken", () => {
+    const q = queue(0);
+    q.engine.sync(KEYS.slice(1, 5), "forward");
+    q.run(3000);
+    expect((q.engine as unknown as { hint: unknown }).hint).toBeUndefined();
   });
 });

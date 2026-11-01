@@ -27,11 +27,8 @@ import { WorkstreamIcon } from "../../WorkstreamIcon.tsx";
 import type { QueueCard } from "./card.ts";
 import { LEAD as PILE_LEAD } from "./stackEngine.ts";
 
-/**
- * The card scales up as a whole, its type and spacing together. Its 20px
- * padding lands its text 24px in, the column the replies' keys and the
- * action row share.
- */
+/** The card scales up as a whole, its type and spacing together (`CONTENT`
+ * sets the padding that lands its text 24px in). */
 const CARD_ZOOM = 1.15;
 
 /** A key, drawn as an outlined chip; the answers' digits and the buttons' letters match. */
@@ -190,7 +187,7 @@ export function ThreadCard({
 
 /**
  * A card's content sits inside its frame's border: the padding is the card's
- * 20px plus the border's 1px, so its text lands 24px in (zoomed), the column
+ * 20px plus the border's 1px, which `CARD_ZOOM` scales to 24px, the column
  * the replies' keys and the action row share.
  */
 const CONTENT =
