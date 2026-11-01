@@ -11,6 +11,7 @@ import { useHostPickerRow } from "./host-picker-row.ts";
 import { WorkstreamPicker } from "./WorkstreamPicker.tsx";
 import { takeComposerPreset } from "./preset.ts";
 import { topicProject } from "../../domain/topicProject.ts";
+import { preserveProjectChoice, takeProjectChoice } from "./project-choice.ts";
 
 export function NewThreadRouting() {
   const rpc = useRpc<RpcContract>();
@@ -39,17 +40,20 @@ export function NewThreadRouting() {
     setCheckedRoot(true);
     setComposerRoot(primary);
     const draftKey = composer.key;
-    const nativeModel = new NewWorkModel({
-      route: async (prompt, pickedProjectId) =>
-        (await rpc.call("preview", {
-          prompt,
-          pickedProjectId,
-          draftKey,
-        })) as Preview,
-      cancelRoute: () => {
-        void rpc.call("previewCancel", { draftKey }).catch(() => {});
+    const nativeModel = new NewWorkModel(
+      {
+        route: async (prompt, pickedProjectId) =>
+          (await rpc.call("preview", {
+            prompt,
+            pickedProjectId,
+            draftKey,
+          })) as Preview,
+        cancelRoute: () => {
+          void rpc.call("previewCancel", { draftKey }).catch(() => {});
+        },
       },
-    });
+      takeProjectChoice(composer.scope.projectId),
+    );
     // Opened from a workstream's ＋: the thread starts with its topic.
     const preset = takeComposerPreset();
     if (preset) nativeModel.selectWorkstream(preset.target, preset.label);
@@ -89,8 +93,13 @@ export function NewThreadRouting() {
       const projects = await sdk.projects.list({});
       if (!live || !projects.some((project) => project.id === projectId))
         return;
-      if (composer.selection?.projectId !== projectId)
+      if (composer.selection?.projectId === projectId) return;
+      const release = preserveProjectChoice(projectId, model.snapshot());
+      try {
         await composer.setSelection({ projectId });
+      } finally {
+        release();
+      }
     })().catch((error) => {
       if (live) model.reportError(error);
     });

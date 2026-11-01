@@ -91,7 +91,10 @@ export class NewWork {
   private pending = false;
   private eventIds = 0;
 
-  constructor(private deps: NewWorkDeps) {
+  constructor(
+    private deps: NewWorkDeps,
+    choice?: Pick<NewWorkState, "identity" | "decision">,
+  ) {
     this.state = {
       text: "",
       identity: null,
@@ -101,6 +104,7 @@ export class NewWork {
       error: null,
       errors: 0,
       events: [],
+      ...choice,
     };
   }
 
