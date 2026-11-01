@@ -238,6 +238,7 @@ it("draws the leaving item until its exit ends, one leaving card at a time", asy
     value: animate,
     configurable: true,
   });
+  const clock = vi.spyOn(performance, "now").mockReturnValue(1_000);
   try {
     const slot = await mount();
     await waitFor(() => expect(heading(slot)).toBe("Beta question"));
@@ -246,7 +247,7 @@ it("draws the leaving item until its exit ends, one leaving card at a time", asy
         ...slot.container.querySelectorAll("[inert]:not([data-queue-card])"),
       ].map((el) => el.textContent);
     // Past the first item's own entrance, so the change isn't a held key.
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    clock.mockReturnValue(1_250);
     press("ArrowRight");
     await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
     // The old heading, card, and actions leave as copies over the page.
@@ -261,6 +262,7 @@ it("draws the leaving item until its exit ends, one leaving card at a time", asy
       slot.container.querySelectorAll("[data-queue-ghosts] > *").length;
     expect(cards()).toBe(1);
     const before = copies().length;
+    clock.mockReturnValue(1_300);
     press("ArrowLeft");
     await waitFor(() => expect(heading(slot)).toBe("Beta question"));
     expect(copies().length).toBe(before - 1);
@@ -271,6 +273,7 @@ it("draws the leaving item until its exit ends, one leaving card at a time", asy
     expect(copies()).toEqual([]);
     slot.lifecycle.unmount();
   } finally {
+    clock.mockRestore();
     delete (Element.prototype as { animate?: unknown }).animate;
   }
 });
