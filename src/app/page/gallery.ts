@@ -257,7 +257,7 @@ export const SPECIMENS: readonly Specimen[] = [
   {
     title: "An investigation",
     intro:
-      "One reply carrying the reading half of the vocabulary: prose, a folded Details section, and six components, including evidence with a file range and a peer group.",
+      "One reply carrying the reading half of the vocabulary: prose, a Details section, and six components, including evidence with a file range and a peer group.",
     messages: [
       { from: "user", text: "Holding ↓ on the queue skips ahead. Why?" },
       {
@@ -273,7 +273,7 @@ export const SPECIMENS: readonly Specimen[] = [
           "sequence",
           "comparison",
           "group (peers)",
-          "Details fold",
+          "Details section",
         ],
       },
     ],
@@ -281,7 +281,7 @@ export const SPECIMENS: readonly Specimen[] = [
   {
     title: "A change delivered",
     intro:
-      "The follow-up reply: what changed, what was run, where it stands, and what to do next — plus a bare directive and a folded Details component.",
+      "The follow-up reply: what changed, what was run, where it stands, and what to do next. The bare directive on its own line renders through bb's installed directive plugins; without one, its source stays readable, as here.",
     messages: [
       { from: "user", text: "Fix it, and show me what you ran." },
       {
@@ -308,7 +308,7 @@ export const SPECIMENS: readonly Specimen[] = [
       {
         from: "agent",
         block: fallbacks,
-        features: ["unparsed component", "pending fence"],
+        features: ["unparsed component"],
       },
     ],
   },
