@@ -30,12 +30,6 @@ import { forgetTitle, observeThreadTitle, writeTitleRecord } from "./titles.ts";
 
 type Sdk = BbPluginApi["sdk"];
 
-export type WorkstreamRecord = {
-  description: string | null;
-  descriptionSource: "generated" | "user";
-  createdBy: "user" | "workstreams";
-};
-
 export class UserError extends Error {}
 
 export class WorkstreamService {
@@ -78,28 +72,10 @@ export class WorkstreamService {
   }
 
   state(): {
-    workstreams: Record<string, WorkstreamRecord>;
     lastReconciledAt: number | null;
     lastPopulatedAt: LastPopulatedAt;
   } {
-    const workstreams: Record<string, WorkstreamRecord> = {};
-    for (const row of this.db
-      .prepare(
-        "SELECT section_id, description, description_source, created_by FROM ws_workstream",
-      )
-      .all() as {
-      section_id: string;
-      description: string | null;
-      description_source: WorkstreamRecord["descriptionSource"];
-      created_by: WorkstreamRecord["createdBy"];
-    }[])
-      workstreams[row.section_id] = {
-        description: row.description,
-        descriptionSource: row.description_source,
-        createdBy: row.created_by,
-      };
     return {
-      workstreams,
       lastReconciledAt: this.lastReconciledAt,
       lastPopulatedAt: this.lastPopulatedAt(),
     };
