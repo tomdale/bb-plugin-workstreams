@@ -38,7 +38,6 @@ export const actionSchema = z.enum([
   /** An organizing suggestion you accepted changed the topic tree. */
   "suggestion",
 ]);
-export type Action = z.infer<typeof actionSchema>;
 
 export const statusSchema = z.enum([
   "applied",
@@ -141,7 +140,6 @@ const undoSchema = z.union([
   /** Undone in reverse order as one change. */
   z.object({ kind: z.literal("batch"), steps: z.array(stepSchema) }),
 ]);
-export type UndoPlan = z.infer<typeof undoSchema>;
 
 const refSchema = z.object({ id: z.string(), name: z.string() });
 
@@ -155,17 +153,12 @@ export const entrySchema = z.object({
   threads: z.array(refSchema),
   workstreams: z.array(refSchema),
   undo: undoSchema.nullable(),
-  undoes: z.string().nullable(),
-  undoneBy: z.string().nullable(),
   detail: z.string().nullable(),
 });
 export type JournalEntry = z.infer<typeof entrySchema>;
 
-export type NewEntry = Omit<
-  JournalEntry,
-  "id" | "at" | "undoes" | "undoneBy" | "detail" | "status"
-> &
-  Partial<Pick<JournalEntry, "undoes" | "detail" | "status">>;
+export type NewEntry = Omit<JournalEntry, "id" | "at" | "detail" | "status"> &
+  Partial<Pick<JournalEntry, "detail" | "status">>;
 
 const RATIONALE_MAX = 120;
 const RETAIN_MS = 90 * 24 * 60 * 60 * 1000;
@@ -180,8 +173,6 @@ type Row = {
   rationale: string;
   subject: string;
   undo: string | null;
-  undoes: string | null;
-  undone_by: string | null;
   detail: string | null;
 };
 
@@ -200,8 +191,6 @@ function fromRow(row: Row): JournalEntry {
     threads: subject.threads,
     workstreams: subject.workstreams,
     undo: row.undo ? JSON.parse(row.undo) : null,
-    undoes: row.undoes,
-    undoneBy: row.undone_by,
     detail: row.detail,
   });
 }
@@ -215,18 +204,16 @@ export class Journal {
   add(entry: NewEntry): JournalEntry {
     const full: JournalEntry = {
       status: "applied",
-      undoes: null,
       detail: null,
       ...entry,
       id: randomUUID(),
       at: this.now(),
       rationale: clip(entry.rationale),
-      undoneBy: null,
     };
     this.db
       .prepare(
-        `INSERT INTO ws_journal (id, at, action, source, status, rationale, subject, undo, undoes, undone_by, detail)
-         VALUES (@id, @at, @action, @source, @status, @rationale, @subject, @undo, @undoes, NULL, @detail)`,
+        `INSERT INTO ws_journal (id, at, action, source, status, rationale, subject, undo, detail)
+         VALUES (@id, @at, @action, @source, @status, @rationale, @subject, @undo, @detail)`,
       )
       .run({
         id: full.id,
@@ -240,7 +227,6 @@ export class Journal {
           workstreams: full.workstreams,
         }),
         undo: full.undo ? JSON.stringify(full.undo) : null,
-        undoes: full.undoes,
         detail: full.detail,
       });
     this.prune();
@@ -295,12 +281,10 @@ export class Journal {
     };
   }
 
-  markUndone(id: string, undoneBy: string): void {
+  markUndone(id: string): void {
     this.db
-      .prepare(
-        "UPDATE ws_journal SET status = 'undone', undone_by = ? WHERE id = ?",
-      )
-      .run(undoneBy, id);
+      .prepare("UPDATE ws_journal SET status = 'undone' WHERE id = ?")
+      .run(id);
   }
 
   private prune(): void {

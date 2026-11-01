@@ -88,7 +88,6 @@ export type SuggestionView = {
    * the model which subgroup each goes in.
    */
   arrivals: { id: string; title: string }[];
-  traceId: string | null;
 };
 
 export type SuggestionsState = {
@@ -110,7 +109,6 @@ type Row = {
   at: number;
   decided_at: number | null;
   detail: string | null;
-  trace_id: string | null;
 };
 
 /** What the last tidy pass saw, for its triggers. */
@@ -231,7 +229,6 @@ export class Suggestions {
         change: review?.change ?? null,
         arrivals: review?.arrivals ?? [],
         headline: review?.change ? changeHeadline(review.change) : row.summary,
-        traceId: row.trace_id,
       };
     });
   }
@@ -395,7 +392,7 @@ export class Suggestions {
       if (this.declinedSplit(topic.id, threads)) continue;
       tried[topic.id] = this.now();
       setMeta(this.deps.db, SPLITS_KEY, JSON.stringify(tried));
-      const { value, traceId } = await this.deps.inference.run(
+      const { value } = await this.deps.inference.run(
         "split",
         {
           topics,
@@ -410,7 +407,7 @@ export class Suggestions {
           links: threads.map((t) => ({ kind: "thread" as const, ref: t.id })),
         },
       );
-      this.propose(randomUUID(), "split", value.split, value.reason, traceId);
+      this.propose(randomUUID(), "split", value.split, value.reason);
     }
   }
 
@@ -536,22 +533,21 @@ export class Suggestions {
       decisions: this.decisions(),
       declined: this.declined(),
     };
-    const { value, traceId } = await this.deps.inference.run("tidy", input, {
+    const { value } = await this.deps.inference.run("tidy", input, {
       model: await this.deps.model(),
       label: `${roots.length} threads, ${topics.length} topics`,
     });
     const pass = randomUUID();
     const tree = this.tree();
     for (const { edit, reason } of value)
-      if (!refusal(edit, tree))
-        this.propose(pass, "edit", edit, reason, traceId);
+      if (!refusal(edit, tree)) this.propose(pass, "edit", edit, reason);
   }
 
   /** Proposes the moves topic names imply (see `prefixMoves`). */
   private prefixes(): void {
     const pass = randomUUID();
     for (const { edit, reason } of prefixMoves(this.tree()))
-      this.propose(pass, "edit", edit, reason, null);
+      this.propose(pass, "edit", edit, reason);
   }
 
   // Shared ----------------------------------------------------------------
@@ -562,7 +558,6 @@ export class Suggestions {
     kind: "split" | "edit",
     body: TidyEdit | Split,
     reason: string,
-    traceId: string | null,
   ): void {
     const key = editKey(body);
     const known = this.deps.db
@@ -573,8 +568,8 @@ export class Suggestions {
     if (known) return;
     this.deps.db
       .prepare(
-        `INSERT INTO ws_suggestion(id, pass_id, kind, body, reason, summary, key, status, at, trace_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+        `INSERT INTO ws_suggestion(id, pass_id, kind, body, reason, summary, key, status, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       )
       .run(
         randomUUID(),
@@ -585,7 +580,6 @@ export class Suggestions {
         describeEdit(body, this.names()),
         key,
         this.now(),
-        traceId,
       );
   }
 

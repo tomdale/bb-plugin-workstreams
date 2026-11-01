@@ -57,11 +57,6 @@ export function section(id: string, name: string): PluginSidebarSection {
 }
 
 export const emptyState = () => ({
-  workstreams: {},
-  placements: {},
   analysis: {},
   recaps: {},
-  proposals: [],
-  bootstrapped: true,
-  lastReconciledAt: null,
 });

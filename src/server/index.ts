@@ -21,7 +21,6 @@ import { ProjectAssociations } from "./projectAssociations.ts";
 import type { ProjectChoice } from "../domain/projectChoice.ts";
 import { Reclassification } from "./reclassification.ts";
 import { sectionMembers } from "./cleanup.ts";
-import { WorkstreamMap } from "./map.ts";
 import { ComposerPreview, type Preview } from "./preview.ts";
 import { TopicStore, topicBasis } from "./topics.ts";
 import { ComposedDrafts, type ComposedIdentity } from "./composed-drafts.ts";
@@ -257,7 +256,6 @@ export default async function plugin(bb: BbPluginApi) {
       bb.log.warn(`Retitling ${threadId} failed: ${String(error)}`);
     }
   };
-  const map = new WorkstreamMap(db);
   const topics = new TopicStore(db);
   const projectAssociations = new ProjectAssociations({
     db,
@@ -1136,12 +1134,10 @@ export default async function plugin(bb: BbPluginApi) {
     taskReclassify: ({ threadId }) =>
       userFacing(async () => reclassifyTask({ threadId })),
     state: async () => ({
-      ...service.state(),
-      workstreams: Object.fromEntries(map.list().map((r) => [r.sectionId, r])),
+      lastPopulatedAt: service.lastPopulatedAt(),
       analysis: analyzer.all(),
       recaps: recaps.all(),
       dismissedRecaps: recaps.dismissedIds(),
-      bootstrapped: organizerInstance.isDone(),
       organization: organizerInstance.state(),
       order: loadOrder(db),
       snoozes: snoozes.all(),
@@ -1343,7 +1339,6 @@ export default async function plugin(bb: BbPluginApi) {
     recaps,
     organizer: organizerInstance,
     reclassification,
-    map,
     traces,
     topics,
     inference,

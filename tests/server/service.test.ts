@@ -124,12 +124,11 @@ describe("reconciler", () => {
       action: "delete-workstream",
       rationale: "Deleted Alpha outside Workstreams",
     });
-    const state = await rpc<{ workstreams: Record<string, unknown> }>(
-      w,
-      "state",
-      null,
+    const listed = await w.harness.behavior.runCli(["list", "--json"]);
+    expect(listed.exitCode).toBe(0);
+    expect(JSON.parse(listed.stdout).workstreams).not.toContainEqual(
+      expect.objectContaining({ id: alpha.id }),
     );
-    expect(state.workstreams[alpha.id]).toBeUndefined();
   });
 });
 

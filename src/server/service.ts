@@ -71,16 +71,6 @@ export class WorkstreamService {
     return this.serial(task);
   }
 
-  state(): {
-    lastReconciledAt: number | null;
-    lastPopulatedAt: LastPopulatedAt;
-  } {
-    return {
-      lastReconciledAt: this.lastReconciledAt,
-      lastPopulatedAt: this.lastPopulatedAt(),
-    };
-  }
-
   /**
    * Applies a title that Workstreams inferred as the thread's goal, under the
    * retitle policy. `revision` is the thread revision the goal
@@ -188,13 +178,12 @@ export class WorkstreamService {
         threads: original.threads,
         workstreams: original.workstreams,
         undo: null,
-        undoes: original.id,
         detail:
           skipped > 0
             ? `${skipped} part(s) had changed again and were left alone.`
             : null,
       });
-      this.journal.markUndone(original.id, entry.id);
+      this.journal.markUndone(original.id);
       this.onChange();
       return entry;
     });
@@ -654,6 +643,11 @@ export class WorkstreamService {
     if (JSON.stringify(next) === JSON.stringify(previous)) return false;
     setMeta(this.db, "last-populated-workstreams", JSON.stringify(next));
     return true;
+  }
+
+  /** The BB section's name as of the last reconcile, or null when it is gone. */
+  sectionName(sectionId: string): string | null {
+    return this.lastSections.find((s) => s.id === sectionId)?.name ?? null;
   }
 
   /** Visible, non-archived threads as of the last reconcile. */

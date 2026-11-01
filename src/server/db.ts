@@ -441,6 +441,18 @@ const MIGRATIONS = [
   // Traces once linked to proposals, sections, and organize runs. Those kinds
   // no longer parse, so a row left behind would fail the trace that owns it.
   "DELETE FROM ws_trace_link WHERE kind NOT IN ('thread', 'entry')",
+  // The organizer recorded that its first pass had run; the state payload was
+  // its only reader, and that field is gone.
+  "DELETE FROM ws_meta WHERE key = 'bootstrapped'",
+  // A journal row recorded which entry an undo reversed, and which entry
+  // undone it; the original's own status records that, and nothing reads
+  // either column.
+  "ALTER TABLE ws_journal DROP COLUMN undoes",
+  "ALTER TABLE ws_journal DROP COLUMN undone_by",
+  // A suggestion kept the trace that proposed it, which no view offers.
+  "ALTER TABLE ws_suggestion DROP COLUMN trace_id",
+  // Analysis stored six keys from model schemas it no longer asks for.
+  `UPDATE ws_analysis SET result = json_remove(result, '$.title', '$.subject', '$.drift', '$.driftSectionId', '$.objective', '$.identityVersion') WHERE result IS NOT NULL`,
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

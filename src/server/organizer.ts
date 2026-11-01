@@ -117,10 +117,6 @@ export class Organizer {
     return state;
   }
 
-  isDone(): boolean {
-    return getMeta(this.deps.db, "bootstrapped") === "1";
-  }
-
   dispose(): void {
     this.disposed = true;
     if (this.debounceTimer) {
@@ -575,7 +571,6 @@ export class Organizer {
         entities,
       });
 
-      setMeta(this.deps.db, "bootstrapped", "1");
       setMeta(
         this.deps.db,
         LAYOUT_KEY,

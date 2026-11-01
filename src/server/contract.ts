@@ -41,18 +41,6 @@ const analysisSchema = z.object({
   traceId: z.string().nullable().default(null),
 });
 
-const recordSchema = z.object({
-  sectionId: z.string(),
-  name: z.string(),
-  description: z.string().nullable(),
-  descriptionSource: z.enum(["generated", "user"]),
-  aliases: z.array(z.string()),
-  /** The topic the workstream belongs to; its name and description come from it. */
-  topicId: z.string().nullable(),
-  createdBy: z.enum(["user", "workstreams"]),
-  updatedAt: z.number(),
-});
-
 const assignmentProvenanceSchema = z.enum([
   "manual",
   "inherited",
@@ -130,9 +118,6 @@ export const organizerStateSchema = z.object({
 
 export type OrganizerState = z.infer<typeof organizerStateSchema>;
 export type OrganizerStateGroup = z.infer<typeof organizerStateGroupSchema>;
-export type OrganizerStateGroupMember = z.infer<
-  typeof organizerStateGroupMemberSchema
->;
 export type OrganizerStateUnresolved = z.infer<
   typeof organizerStateNoTopicSchema
 >;
@@ -281,7 +266,6 @@ const suggestionsStateSchema = z.object({
       change: suggestionChangeSchema.nullable(),
       headline: z.string(),
       arrivals: z.array(z.object({ id: z.string(), title: z.string() })),
-      traceId: z.string().nullable(),
     }),
   ),
   running: z.boolean(),
@@ -598,14 +582,11 @@ export const rpcContract = defineRpcContract({
   state: {
     input: z.null(),
     output: z.object({
-      workstreams: z.record(z.string(), recordSchema),
       analysis: z.record(z.string(), analysisSchema),
       /** Agent recaps for each thread's latest turn, dismissed ones included. */
       recaps: z.record(z.string(), recapSchema).default({}),
       /** Ids of the recaps above whose docked card is dismissed. */
       dismissedRecaps: z.array(z.string()).default([]),
-      bootstrapped: z.boolean(),
-      lastReconciledAt: z.number().nullable(),
       /** Recent visible population, shared across clients and reloads. */
       lastPopulatedAt: z.record(z.string(), z.number()).default({}),
       /** The sidebar's drag-and-drop order. */

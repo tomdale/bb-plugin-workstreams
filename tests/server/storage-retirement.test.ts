@@ -256,3 +256,90 @@ it("drops the workstream columns and meta keys nothing reads", async () => {
     await host.harness.lifecycle.dispose();
   }
 });
+it("drops undoes, undone_by, and trace_id and rewrites stored analysis keys", async () => {
+  const host = createFakePluginHost({ pluginId: "dead-columns" });
+  try {
+    const migrate = host.bb.storage.migrate.bind(host.bb.storage);
+    const spy = vi
+      .spyOn(host.bb.storage, "migrate")
+      .mockImplementation((db, migrations) => {
+        const boundary = migrations.indexOf(
+          "ALTER TABLE ws_journal DROP COLUMN undoes",
+        );
+        expect(boundary).toBeGreaterThan(0);
+        return migrate(db, migrations.slice(0, boundary));
+      });
+    const db = openDatabase(host.bb);
+    db.prepare(
+      `INSERT INTO ws_journal(id, at, action, source, status, rationale, subject, undo, undoes, undone_by, detail)
+       VALUES ('j1', 1, 'undo', 'user', 'applied', 'Undid: renamed', '{"threads":[],"workstreams":[]}', NULL, 'earlier', 'j0', NULL)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO ws_suggestion(id, pass_id, kind, body, reason, summary, key, status, at, trace_id)
+       VALUES ('s1', 'p1', 'split', '{}', 'Because', 'Split it', 'k1', 'pending', 2, 'trace-1')`,
+    ).run();
+    db.prepare(
+      "INSERT INTO ws_analysis(thread_id, revision, at, result) VALUES ('t1', 1, 3, ?)",
+    ).run(
+      JSON.stringify({
+        recap: "Working.",
+        state: "in_progress",
+        needsYou: false,
+        revision: 1,
+        at: 3,
+        model: "openai/gpt-6-sol",
+        title: "Old title",
+        subject: "Old subject",
+        drift: true,
+        driftSectionId: "sec_1",
+        objective: "Old objective",
+        identityVersion: 2,
+      }),
+    );
+    spy.mockRestore();
+    openDatabase(host.bb);
+    expect(db.prepare("SELECT * FROM ws_journal").get()).toEqual({
+      id: "j1",
+      at: 1,
+      action: "undo",
+      source: "user",
+      status: "applied",
+      rationale: "Undid: renamed",
+      subject: '{"threads":[],"workstreams":[]}',
+      undo: null,
+      detail: null,
+    });
+    expect(JSON.parse(storedSuggestion(db))).toEqual({
+      id: "s1",
+      kind: "split",
+      status: "pending",
+    });
+    expect(JSON.parse(storedAnalysis(db))).toEqual({
+      recap: "Working.",
+      state: "in_progress",
+      needsYou: false,
+      revision: 1,
+      at: 3,
+      model: "openai/gpt-6-sol",
+    });
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
+
+function storedSuggestion(db: ReturnType<typeof openDatabase>): string {
+  const row = db
+    .prepare("SELECT id, kind, status FROM ws_suggestion WHERE id = 's1'")
+    .get() as { id: string; kind: string; status: string };
+  return JSON.stringify(row);
+}
+
+function storedAnalysis(db: ReturnType<typeof openDatabase>): string {
+  return (
+    db
+      .prepare("SELECT result FROM ws_analysis WHERE thread_id = 't1'")
+      .get() as {
+      result: string;
+    }
+  ).result;
+}

@@ -21,12 +21,9 @@ type Rpc = ReturnType<typeof useRpc<RpcContract>>;
 
 function emptyState(): ServerState {
   return {
-    workstreams: {},
     analysis: {},
     recaps: {},
     dismissedRecaps: [],
-    bootstrapped: false,
-    lastReconciledAt: null,
     lastPopulatedAt: {},
     order: { workstreams: [], threads: {}, prioritized: [] },
     snoozes: {},

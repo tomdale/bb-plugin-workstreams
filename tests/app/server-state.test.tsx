@@ -46,11 +46,9 @@ afterEach(() => {
 
 function state(revision = 1): ServerState {
   return {
-    workstreams: {},
     analysis: {},
     recaps: {},
-    bootstrapped: true,
-    lastReconciledAt: revision,
+    pendingSuggestions: revision,
     order: { workstreams: [], threads: {}, prioritized: [] },
     snoozes: {},
     snoozePrefs: DEFAULT_SNOOZE_PREFS,
@@ -86,7 +84,7 @@ function mount({
     consumers.set(id, value);
     return (
       <output data-testid={`consumer-${id}`}>
-        {value.server.lastReconciledAt}
+        {value.server.pendingSuggestions ?? 0}
       </output>
     );
   }
@@ -197,9 +195,7 @@ describe("shared server state", () => {
     const { consumers } = mount({
       reorder: vi.fn(() => writes.shift()!.promise),
     });
-    await waitFor(() =>
-      expect(consumers.get(0)!.server.bootstrapped).toBe(true),
-    );
+    await waitFor(() => expect(consumers.get(0)!.server.loaded).toBe(true));
     const first = consumers
       .get(0)!
       .reorder({ kind: "threads", groupId: "a", ids: ["a1"] });
@@ -226,9 +222,7 @@ describe("shared server state", () => {
     const { consumers } = mount({
       setSnoozePrefs: vi.fn(() => writes.shift()!.promise),
     });
-    await waitFor(() =>
-      expect(consumers.get(0)!.server.bootstrapped).toBe(true),
-    );
+    await waitFor(() => expect(consumers.get(0)!.server.loaded).toBe(true));
     const first = consumers.get(0)!.saveSnoozePrefs({ default: "1h" });
     const second = consumers.get(0)!.saveSnoozePrefs({ default: "activity" });
     secondWrite.resolve({
@@ -273,19 +267,18 @@ describe("shared server state", () => {
     });
     await slot.behavior.emitRealtime("changed", {});
     await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
-    firstRead.resolve({ ...state(2), bootstrapped: false });
+    firstRead.resolve(state(2));
     await Promise.resolve();
-    expect(consumers.get(0)!.server.lastReconciledAt).not.toBe(2);
+    expect(consumers.get(0)!.server.pendingSuggestions).not.toBe(2);
     write.resolve({
       order: { workstreams: ["a"], threads: {}, prioritized: [] },
     });
     await mutation;
     await waitFor(() => expect(read).toHaveBeenCalledTimes(3));
-    secondRead.resolve({ ...state(3), bootstrapped: false });
+    secondRead.resolve(state(3));
     await waitFor(() =>
-      expect(consumers.get(0)!.server.lastReconciledAt).toBe(3),
+      expect(consumers.get(0)!.server.pendingSuggestions).toBe(3),
     );
-    expect(consumers.get(0)!.server.bootstrapped).toBe(false);
   });
 
   it("rolls back rejected preferences and shows authoritative normalization", async () => {
@@ -535,7 +528,7 @@ describe("shared server state", () => {
     expect(read).toHaveBeenCalledTimes(1);
     expect(realtime.active.size).toBe(1);
     for (const value of consumers.values()) {
-      expect(value.server.bootstrapped).toBe(false);
+      expect(value.server.loaded).not.toBe(true);
       expect(value.rpc).toBe(consumers.get(0)!.rpc);
       expect(value.refresh).toBe(consumers.get(0)!.refresh);
     }
@@ -567,7 +560,7 @@ describe("shared server state", () => {
     expect(read).toHaveBeenCalledTimes(1);
     await act(async () => requests[0]!.resolve(state(1)));
     expect(read).toHaveBeenCalledTimes(2);
-    expect(consumers.get(0)!.server.lastReconciledAt).toBeNull();
+    expect(consumers.get(0)!.server.pendingSuggestions).toBeUndefined();
     await act(async () => {
       requests[1]!.resolve(state(2));
       await refresh;
@@ -710,7 +703,7 @@ describe("shared server state", () => {
     }) as ReturnType<typeof vi.fn<() => Promise<ServerState>>>;
     const { slot, consumers, assertRevision, Suite } = mount({ read });
     await act(async () => {});
-    expect(consumers.get(0)!.server.bootstrapped).toBe(false);
+    expect(consumers.get(0)!.server.loaded).not.toBe(true);
     read.mockImplementation(async () => state(2));
     slot.lifecycle.rerender(<Suite count={4} />);
     await assertRevision(2, 4);

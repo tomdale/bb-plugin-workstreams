@@ -80,7 +80,6 @@ it("preserves recent population in storage across service instances, without rev
     () => now,
   );
   expect(service.lastPopulatedAt()).toEqual({ [fresh.id]: now });
-  expect(service.state().lastPopulatedAt[old.id]).toBeUndefined();
 });
 
 it("cleans up a retained section after expiry without another lifecycle event or forced rebuild", async () => {

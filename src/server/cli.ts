@@ -21,7 +21,6 @@ import { isCurrent } from "../domain/analysis.ts";
 import { needsAttention, workView } from "../domain/status.ts";
 import type { Analyzer, StoredAnalysis } from "./analyzer.ts";
 import type { Organizer } from "./organizer.ts";
-import type { WorkstreamMap } from "./map.ts";
 import {
   listActiveThreads,
   listSections,
@@ -209,7 +208,6 @@ export function registerCli(
     analyzer,
     recaps,
     organizer,
-    map,
     traces,
     arrangement,
     topics,
@@ -231,7 +229,6 @@ export function registerCli(
     recaps: AgentRecaps;
     organizer: Organizer;
     reclassification?: Reclassification;
-    map: WorkstreamMap;
     traces: TraceStore;
     topics: TopicStore;
     inference?: Inference;
@@ -1126,7 +1123,7 @@ export function registerCli(
             const effectiveSectionId =
               rootThread?.sectionId ?? thread.sectionId;
             const sectionName = effectiveSectionId
-              ? (map.get(effectiveSectionId)?.name ?? effectiveSectionId)
+              ? (service.sectionName(effectiveSectionId) ?? effectiveSectionId)
               : "Unfiled";
             if (options.json) {
               return {

@@ -8,7 +8,6 @@ import {
   experimental_useSidebarThreads,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
-import type { MapRecord } from "../server/map.ts";
 import { projectWorkstreams, type Projection } from "../domain/project.ts";
 import {
   EMPTY_WORKSTREAM_GRACE_MS,
@@ -42,14 +41,11 @@ export type ServerState = {
    * as the snooze preset list, wait for it so a default can't replace them.
    */
   loaded?: boolean;
-  workstreams: Record<string, MapRecord>;
   analysis: Record<string, StoredAnalysis>;
   /** Agent recaps for each thread's latest turn. */
   recaps: Record<string, Recap>;
   /** Ids of the recaps above whose docked card is dismissed. */
   dismissedRecaps?: string[];
-  bootstrapped: boolean;
-  lastReconciledAt: number | null;
   lastPopulatedAt?: LastPopulatedAt;
   order: ManualOrder;
   snoozes: Record<string, ThreadSnooze>;
@@ -69,7 +65,7 @@ export function useServerState() {
   return useSharedServerState();
 }
 
-export { workView, type WorkView } from "../domain/status.ts";
+export type { WorkView } from "../domain/status.ts";
 
 /** Refreshes ages each minute, or at an earlier visibility deadline. */
 export function useNow(intervalMs = 60_000, deadline?: number): number {
