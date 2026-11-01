@@ -8,6 +8,8 @@ it.each([
   "The inspection did not reproduce the reported behavior",
   "This does not establish the reported behavior or identify a root cause",
   "The root cause remains unknown",
+  "No runtime evidence or reproduced behavior identifies a root cause",
+  "The report neither confirms an infinite loop nor identifies its cause",
 ])("recognizes explicit uncertainty about a reported defect: %s", (text) => {
   expect(unresolvedCauseQualified([], text)).toBe(true);
 });

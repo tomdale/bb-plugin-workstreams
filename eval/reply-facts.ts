@@ -9,7 +9,7 @@ export function unresolvedCauseQualified(
     parts.some(
       (part) => part.type === "finding" && part.certainty !== "observed",
     ) ||
-    /no root cause|cause.{0,50}(unknown|unresolved|not established)|cannot.{0,30}(determine|establish)|unverified|not reproduced|did not reproduce|does not.{0,100}(establish|identify).{0,80}(root cause|behavior)/i.test(
+    /no root cause|cause.{0,50}(unknown|unresolved|not established)|cannot.{0,30}(determine|establish)|unverified|not reproduced|did not reproduce|does not.{0,100}(establish|identify).{0,80}(root cause|behavior)|no.{0,80}(identif\w*|establish\w*|confirm\w*).{0,25}root cause|(neither|nor).{0,60}cause/i.test(
       text,
     )
   );
