@@ -65,6 +65,25 @@ subject, repeats nothing its listing shows, and fits a sidebar row
 - `EVAL_REPETITIONS`: default `3`
 - `EVAL_OUTPUT`: default `/tmp/title-eval.json`
 
+## Thread goals
+
+`node eval/goals.ts` evaluates the production Full analysis prompt, schema, and
+parser on synthetic implementation, refactoring, design, and audit requests.
+Cases include misleading recap headlines, housekeeping and testing follow-ups, a
+genuine change of purpose, and a user-owned title. Goals must retain the settled
+outcome through intermediate steps and follow changes in user intent.
+
+- `EVAL_MODEL`: default `openai/gpt-6-sol-fast`
+- `EVAL_REASONING_LEVEL`: default `none`
+- `EVAL_REPETITIONS`: 1–20; default `3`
+- `EVAL_OUTPUT`: default `/tmp/goal-eval.json`
+
+Reports retain responses, usage, cost, latency, and word counts even on
+failures. Subject checks and exact preservation checks are heuristics; word
+counts outside the usual 12–20 words are advisory. Inspect the generated
+sentences for clarity, success-first framing, and useful detail. This small
+synthetic set is not a production accuracy or reader-comprehension estimate.
+
 ## Tidy passes
 
 `node eval/tidy.ts` runs the tidy prompt, schema, and parser on synthetic topic

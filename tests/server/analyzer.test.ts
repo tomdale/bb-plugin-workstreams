@@ -31,6 +31,7 @@ async function setup(complete?: FakeCompletion) {
 type Analysis = {
   recap: string;
   goal: string | null;
+  threadGoal: string | null;
   state: string;
   revision: number;
   reported?: boolean;
@@ -55,6 +56,94 @@ const analyses = (w: World) =>
   );
 
 describe("idle analysis", () => {
+  it("preserves the independent goal through recaps and housekeeping and updates changed intent", async () => {
+    let threadGoal: unknown =
+      "Make review code easier to navigate without changing its behavior.";
+    const w = await setup(() =>
+      JSON.stringify({
+        recap: "Working",
+        state: "in_progress",
+        threadGoal,
+        goal: { verb: "Refactoring", subject: "review code" },
+      }),
+    );
+    w.addThread("t1", { status: "idle", latestAttentionAt: 10 });
+    w.converse("t1", ["Refactor the review code without changing behavior"]);
+    await w.harness.behavior.callRpc("refresh", null);
+    await w.harness.behavior.runCli(["analyze", "t1"]);
+    const original = threadGoal;
+    expect((await state(w)).analysis.t1?.threadGoal).toBe(original);
+
+    await w.harness.behavior.resolveAgentConfiguration(
+      makePluginAgentConfigurationContext({
+        thread: { id: "t1", parentThreadId: null },
+      }),
+    );
+    w.threads.set("t1", { ...w.threads.get("t1")!, latestAttentionAt: 20 });
+    w.turn("t1");
+    await w.harness.behavior.callAgentTool(
+      RECAP_TOOL,
+      {
+        state: "complete",
+        goal: "Changed directories",
+        latest: ["Fixed local links"],
+      },
+      { threadId: "t1" },
+    );
+    const asked = analyses(w).length;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await idle(w, "t1");
+    await settle(6_000);
+    expect(analyses(w)).toHaveLength(asked);
+    expect((await state(w)).analysis.t1?.threadGoal).toBe(original);
+
+    for (threadGoal of [null, {}, " ", "x".repeat(241)]) {
+      w.converse("t1", ["Where are the files?"]);
+      await w.harness.behavior.runCli(["analyze", "t1"]);
+      expect(analyses(w).at(-1)?.prompt).toContain(String(original));
+      expect((await state(w)).analysis.t1?.threadGoal).toBe(original);
+    }
+    threadGoal =
+      "Help PR authors see open findings without losing resolved feedback.";
+    w.converse("t1", [
+      "Let's design a review comment with open findings and resolved history",
+    ]);
+    await w.harness.behavior.runCli(["analyze", "t1"]);
+    expect((await state(w)).analysis.t1?.threadGoal).toBe(threadGoal);
+  });
+
+  it("backfills a current analysis's missing goal without needing a new request", async () => {
+    const w = await setup(() =>
+      JSON.stringify({
+        recap: "Done",
+        state: "done",
+        threadGoal: "Keep builds fresh without manual cache clearing.",
+      }),
+    );
+    w.addThread("t1", { status: "idle", latestAttentionAt: 10 });
+    w.converse("t1", ["Fix stale builds"]);
+    await w.harness.behavior.callRpc("refresh", null);
+    await w.harness.behavior.runCli(["analyze", "t1"]);
+    const db = w.bb.storage.database();
+    const previous = (await state(w)).analysis.t1!;
+    const { threadGoal: _goal, ...old } = previous;
+    db.prepare("UPDATE ws_analysis SET result = ? WHERE thread_id = 't1'").run(
+      JSON.stringify(old),
+    );
+    const asked = analyses(w).length;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await w.harness.behavior.runCli(["analyze"]);
+    await settle(0);
+    expect(analyses(w).length).toBeGreaterThan(asked);
+    expect((await state(w)).analysis.t1?.threadGoal).toBe(
+      "Keep builds fresh without manual cache clearing.",
+    );
+    const after = analyses(w).length;
+    await w.harness.behavior.runCli(["analyze"]);
+    await settle(0);
+    expect(analyses(w)).toHaveLength(after);
+  });
+
   it("supplies preceding substantive requests when the latest follow-ups are procedural", async () => {
     const w = await setup();
     w.addThread("t1", { status: "idle", latestAttentionAt: 10 });
@@ -348,30 +437,35 @@ describe("idle analysis", () => {
     });
     // The inferred title is not sent to clients.
     expect(analysis.t1).not.toHaveProperty("title");
-    // The result is current and the thread has a topic, so nothing is
-    // analyzed again.
+    // A current result without an independent outcome is backfilled even
+    // when the thread's topic is already settled.
     new TopicStore(openDatabase(w.bb)).assign("t1", null, {
       provenance: "manual",
     });
     await expect(w.harness.behavior.runCli(["analyze"])).resolves.toMatchObject(
       {
-        stdout: expect.stringContaining("Queued 0 threads"),
+        stdout: expect.stringContaining("Queued 1 thread"),
       },
     );
   });
 
-  it("prints the goal, which is the thread's title, when asked to analyze one thread", async () => {
+  it("prints the title and independent goal when asked to analyze one thread", async () => {
     const w = await setup(() =>
       JSON.stringify({
         recap: "Working.",
         state: "in_progress",
-        goal: "Make onboarding easier to complete",
+        goal: "Improving onboarding",
+        threadGoal:
+          "Help new users complete onboarding without needing support.",
       }),
     );
     w.addThread("t1", { latestAttentionAt: 10 });
     await w.harness.behavior.callRpc("refresh", null);
     const { stdout } = await w.harness.behavior.runCli(["analyze", "t1"]);
-    expect(stdout).toContain("Goal: Make onboarding easier to complete");
+    expect(stdout).toContain("Title: Improving onboarding");
+    expect(stdout).toContain(
+      "Goal: Help new users complete onboarding without needing support.",
+    );
   });
 
   it("never writes a goal carried over from before the cap as a title", async () => {

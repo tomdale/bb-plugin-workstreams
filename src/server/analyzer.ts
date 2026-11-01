@@ -6,7 +6,7 @@
  *
  * What a run asks depends on what changed:
  *
- * - After a new request from you, Full analysis settles the title and
+ * - After a new request from you, Full analysis settles the title and goal and
  *   describes the turn when the agent didn't report, and placement settles a
  *   root's topic alongside it (see `Placement`). It keeps a title Workstreams
  *   wrote unless the goal changed, and never names over one you gave.
@@ -260,6 +260,7 @@ export class Analyzer {
           {
             revision: row.revision,
             needsTopicRetry: Boolean(result?.topicError),
+            needsGoal: result?.threadGoal === undefined,
           },
         ] as const;
       }),
@@ -279,6 +280,7 @@ export class Analyzer {
         previous &&
         previous.revision >= thread.latestAttentionAt &&
         !previous.needsTopicRetry &&
+        !previous.needsGoal &&
         !untopiced
       )
         continue;
@@ -420,6 +422,7 @@ export class Analyzer {
         previous &&
         previous.revision >= revision &&
         !previous.topicError &&
+        previous.threadGoal !== undefined &&
         !this.settleTopic.has(threadId)
       )
         return previous;
@@ -429,6 +432,7 @@ export class Analyzer {
         this.settleTopic.delete(threadId) &&
         !force &&
         previous !== undefined &&
+        previous.threadGoal !== undefined &&
         previous.revision >= revision;
 
       const started = this.now();
@@ -458,7 +462,7 @@ export class Analyzer {
               }),
             )
         : null;
-      const full = force || !settled;
+      const full = force || !settled || previous?.threadGoal === undefined;
       let result: StoredAnalysis;
       let topicAnswer: PlacementOutput | null = null;
       let topicTraceId: string | null = null;
@@ -481,6 +485,7 @@ export class Analyzer {
         const input: FullAnalysisInput = {
           title: displayTitle(thread),
           titledBy,
+          threadGoal: previous?.threadGoal ?? null,
           continuation: full
             ? await this.continuation(thread, context.requests)
             : null,
@@ -516,6 +521,9 @@ export class Analyzer {
         result = {
           ...status,
           goal: full ? (output.goal ?? kept) : (previous?.goal ?? null),
+          threadGoal: full
+            ? (output.threadGoal ?? previous?.threadGoal ?? null)
+            : (previous?.threadGoal ?? null),
           reported: reported !== null,
           requestsKey: full
             ? context.requestsKey

@@ -6,10 +6,11 @@
  * - Quick analysis sees one request. A thread's first request gets its
  *   opening title within seconds, before the first turn ends; a draft in the
  *   New thread composer gets a title and a topic to preview.
- * - Full analysis runs when a turn ends. It sees the requests, the agent's
- *   final reply, and the agent's own report, so it settles the title, and
- *   gives the turn's status when the agent didn't report one. Placement
- *   settles the topic (see placement.ts).
+ * - Full analysis runs when a turn ends. After new requests, full mode
+ *   settles the title and thread goal from the user's evolving purpose.
+ *   The final reply and agent report provide turn context. Status mode carries
+ *   the title and goal forward. Either mode supplies the turn's status when
+ *   the agent didn't report one. Placement settles the topic (see placement.ts).
  *
  * Both write a title as two parts, an -ing verb and its subject, which code
  * joins (`composeTitle`), so the form is the output's shape rather than a rule
@@ -44,12 +45,13 @@ export type WorkState = (typeof WORK_STATES)[number];
 
 export const RECAP_MAX = 140;
 /**
- * A thread's goal is its title: the sidebar row, the heading, and every other
- * place that names the thread show the same phrase. A sidebar row shows about
- * 34 characters before it truncates, so titles aim there (`TITLE_RULES`);
+ * A thread's title names it consistently in the sidebar, heading, and every
+ * other list. A sidebar row shows about 34 characters before it truncates, so titles aim there (`TITLE_RULES`);
  * this is BB's own cap for generated titles, past which a title is dropped.
  */
 export const GOAL_MAX = 48;
+/** A safety bound for a thread goal's short sentence; oversized output is refused. */
+export const THREAD_GOAL_MAX = 240;
 /** A request is excerpted to this much for Quick analysis. */
 const QUICK_REQUEST_CHARS = 1500;
 
@@ -58,8 +60,13 @@ export type ThreadAnalysis = {
   readonly recap: string;
   readonly state: WorkState;
   readonly needsYou: string | null;
-  /** The goal the thread works toward, which is also its title. */
+  /** The title last settled by analysis. */
   readonly goal: string | null;
+  /**
+   * The desired outcome below the title. Undefined requests catch-up for an
+   * older row; null records an analysis that couldn't establish an outcome.
+   */
+  readonly threadGoal?: string | null;
   readonly topicError?: string;
   /** The thread's `latestAttentionAt` when it was analyzed. */
   readonly revision: number;
@@ -68,7 +75,7 @@ export type ThreadAnalysis = {
   /** The thread's agent reported this turn, so its status came from the report. */
   readonly reported?: boolean;
   /**
-   * The requests the goal and topic were last settled from. A turn that adds
+   * The requests the title, goal, and topic were last settled from. A turn that adds
    * no request carries them forward instead of asking again.
    */
   readonly requestsKey?: string | null;
@@ -255,6 +262,7 @@ const PROMPT_TAGS = [
   "listed_under",
   "parent_thread",
   "continuation_context",
+  "thread_goal",
   "checkout",
   "hint",
   "group",
@@ -454,6 +462,8 @@ export type FullAnalysisInput = {
   /** The title BB displays: the thread's own, or BB's placeholder. */
   readonly title: string;
   readonly titledBy: TitledBy;
+  /** The settled outcome; null model output keeps it through intermediate steps. */
+  readonly threadGoal?: string | null;
   /** Bounded context from an explicitly referenced continuation thread. */
   readonly continuation?: string | null;
   readonly listing?: ThreadListing | null;
@@ -466,7 +476,7 @@ export type FullAnalysisInput = {
   /** The agent's own report of this turn; its status needs no inference. */
   readonly report?: AgentReport | null;
   /**
-   * `full` settles the title because the requests changed; `status` only
+   * `full` settles the title and thread goal; `status` only
    * describes how the turn ended.
    */
   readonly mode: "full" | "status";
@@ -518,6 +528,10 @@ function titleField(titledBy: TitledBy): string {
   An audit or proposal stays an audit or proposal until implementation is requested. ${when}`;
 }
 
+const THREAD_GOAL_RULES = `- threadGoal: the desired outcome of the thread, in one short, explicit sentence, usually 12–20 words. Name the subject so it makes sense on its own. Lead with success: what should become possible, clearer, or reliably true for the user. Prefer the concrete benefit over stylistic adjectives such as "quieter" or "better". Lead with the problem only when the motivation would otherwise be unclear. Retain only details needed to recognize the purpose; leave implementation choices, acceptance criteria, progress, and completion claims to the turn recap.
+  Examples: "Copy the focused thread's link with a customizable keyboard shortcut." "Make the review code easier to navigate without changing its behavior." "Help PR authors see open findings at a glance without losing access to resolved feedback." "Determine whether the action upgrade is safe to retain and which risks need addressing."
+  Follow the user's evolving purpose across the conversation. Keep the settled outcome through testing, shipping, housekeeping, side questions, and requests to continue. Change it when the user's purpose changes, such as moving from auditing to implementing or from reviewing code to designing comments. The agent's report describes the latest turn, not the thread's purpose. Return null to keep the settled outcome while it still fits, or when the requests do not establish a purpose; otherwise return the sentence.`;
+
 const TITLE_SECTION: Record<TitledBy, string> = {
   workstreams: "The thread's title, which Workstreams wrote:",
   other: "The thread's title, which BB or an agent gave it:",
@@ -537,6 +551,10 @@ export function fullAnalysisPrompt(input: FullAnalysisInput): string {
     fields.push(STATUS_FIELDS);
     keys.push('"recap": string', '"state": string', '"needsYou": string|null');
   }
+  if (input.mode === "full") {
+    fields.push(THREAD_GOAL_RULES);
+    keys.push('"threadGoal": string|null');
+  }
   const naming = namesThread(input);
   if (naming) {
     fields.push(titleField(input.titledBy));
@@ -545,6 +563,10 @@ export function fullAnalysisPrompt(input: FullAnalysisInput): string {
   const sections = [
     `${TITLE_SECTION[input.titledBy]}\n${tagged("title", redact(input.title))}`,
   ];
+  if (input.mode === "full")
+    sections.push(
+      `The settled thread outcome:\n${tagged("thread_goal", redact(input.threadGoal ?? "(not yet established)"))}`,
+    );
   if (naming && (input.listing?.group || input.listing?.parent))
     sections.push(listingBlock(input.listing));
   if (input.continuation)
@@ -605,6 +627,11 @@ export function fullAnalysisSchema(
     properties.state = { type: "string", enum: [...WORK_STATES] };
     properties.needsYou = { type: ["string", "null"] };
   }
+  if (input.mode === "full")
+    properties.threadGoal = {
+      type: ["string", "null"],
+      maxLength: THREAD_GOAL_MAX,
+    };
   if (namesThread(input)) properties.goal = titleFieldSchema;
   return {
     type: "object",
@@ -620,11 +647,20 @@ const fullOutputSchema = z.object({
   state: z.enum(WORK_STATES).catch("in_progress").optional(),
   needsYou: clipped(80).nullable().catch(null).optional(),
   goal: titlePartsSchema.optional(),
+  threadGoal: z
+    .string()
+    .transform((text) => text.replace(/\s+/g, " ").trim())
+    .pipe(z.string().min(1).max(THREAD_GOAL_MAX))
+    .nullable()
+    .catch(null)
+    .optional(),
   names: nameObservationsSchema.catch(emptyObservations).optional(),
 });
 
 export type FullAnalysisOutput = {
   names: NameObservations;
+  /** A new desired outcome, or null to keep the settled goal. */
+  threadGoal: string | null;
   /** Present only when the agent didn't report the turn. */
   status: { recap: string; state: WorkState; needsYou: string | null } | null;
   /**
@@ -654,6 +690,7 @@ export function parseFullAnalysis(
   return {
     status,
     names: parsed.names ?? emptyObservations(),
+    threadGoal: input.mode === "full" ? (parsed.threadGoal ?? null) : null,
     goal: namesThread(input) ? composeTitle(parsed.goal, input.listing) : null,
   };
 }

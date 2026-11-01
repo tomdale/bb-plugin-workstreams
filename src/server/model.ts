@@ -162,7 +162,8 @@ export function summarize(
       const a = value as OutputOf<"full-analysis">;
       return [
         a.status ? a.status.state.replace("_", " ") : "reported",
-        a.goal ? `goal “${a.goal}”` : null,
+        a.goal ? `title “${a.goal}”` : null,
+        a.threadGoal ? `goal “${a.threadGoal}”` : null,
       ]
         .filter(Boolean)
         .join(" · ");

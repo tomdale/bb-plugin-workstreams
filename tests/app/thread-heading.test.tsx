@@ -17,7 +17,7 @@ function Heading() {
   return (
     <div>
       <h2>{context.title}</h2>
-      <p aria-label="subtask">{context.subtask ?? "none"}</p>
+      <p aria-label="goal">{context.goal ?? "none"}</p>
       <p aria-label="workstream">{context.workstream?.name ?? "unfiled"}</p>
     </div>
   );
@@ -85,24 +85,35 @@ it("shows BB's placeholder for an untitled thread, not a placeholder of its own"
   slot.lifecycle.unmount();
 });
 
-it("shows the recap's goal beneath only when it adds to the title", async () => {
-  const thread = sidebarThread("t1", { title: "Fix stale build cache" });
-  const recap = (goal: string) => ({
-    t1: { goal, state: "review", at: 1 },
+it("shows the analyzed outcome even while running, never the latest recap headline", async () => {
+  const thread = sidebarThread("t1", {
+    title: "Fix stale build cache",
+    status: "active",
   });
-  const added = await mount(thread, {
-    recaps: recap("Cleared the build cache"),
+  const goal = "Keep builds fresh without clearing the cache manually.";
+  const slot = await mount(thread, {
+    analysis: {
+      t1: { ...analysis("Fix stale build cache"), threadGoal: goal },
+    },
+    recaps: { t1: { goal: "Changed directories", state: "review", at: 2 } },
   });
-  await added.findByRole("heading", { level: 2 });
-  expect(added.getByLabelText("subtask").textContent).toBe(
-    "Cleared the build cache",
-  );
-  added.lifecycle.unmount();
+  await slot.findByRole("heading", { level: 2 });
+  expect(slot.getByLabelText("goal").textContent).toBe(goal);
+  expect(slot.queryByText("Changed directories")).toBeNull();
+  slot.lifecycle.unmount();
+});
 
-  const same = await mount(thread, { recaps: recap("Fix stale build cache") });
-  await same.findByRole("heading", { level: 2 });
-  expect(same.getByLabelText("subtask").textContent).toBe("none");
-  same.lifecycle.unmount();
+it("omits an unknown or repeated outcome rather than falling back to recaps", async () => {
+  const thread = sidebarThread("t1", { title: "Fix stale build cache" });
+  for (const threadGoal of [undefined, null, "Fix stale build cache"]) {
+    const slot = await mount(thread, {
+      analysis: { t1: { ...analysis("Fix stale build cache"), threadGoal } },
+      recaps: { t1: { goal: "Changed directories", state: "review", at: 2 } },
+    });
+    await slot.findByRole("heading", { level: 2 });
+    expect(slot.getByLabelText("goal").textContent).toBe("none");
+    slot.lifecycle.unmount();
+  }
 });
 
 it("renders nothing for a thread BB doesn't list", async () => {

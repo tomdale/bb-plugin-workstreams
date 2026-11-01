@@ -154,6 +154,15 @@ Full analysis settles:
   result. They aim under `34` characters; titles over `48` are dropped rather
   than clipped. If you rename a thread outside Workstreams, Full analysis stops
   titling it until the title is cleared.
+- **Goal:** A concise desired outcome shown below the thread title, independent
+  of recap headlines. It is usually one sentence of 12–20 words, with an
+  explicit subject and only enough detail to recognize the purpose. It leads
+  with success, or with the problem when the motivation would otherwise be
+  unclear. Goals follow changes in your purpose, not testing, shipping,
+  housekeeping, or completion updates. Full analysis settles them after new
+  requests even when you gave the thread its title; turns without new requests
+  carry the goal forward. Existing open threads receive goals through analysis
+  catch-up. Until a goal is available, the subtitle is omitted.
 - **Fallback recap and status:** Only when the agent did not call
   `WorkstreamsRecap`, Full analysis supplies a one-line recap, work state
   (`needs_decision`, `review`, `blocked`, `in_progress`, or `done`), and a short
@@ -418,12 +427,13 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
 ### Thread view and header
 
 - **Sticky goal header:** Displays the thread's workstream (in its deterministic
-  hue) above the thread's goal title and—when the latest recap has a more
-  specific turn goal—a subtitle below it. As you scroll away from the newest
-  message, the large heading fades out over a feathered background while a
-  compact copy fades into the top bar (or stays pinned in the timeline when the
-  bar is too narrow). In **Settings → Workstreams → Threads**, choose **Title
-  transition → Scroll** to have both headings slide as they fade.
+  hue) above the thread title and its concise, success-first goal below it. The
+  goal describes the thread's desired outcome, independently of the latest recap
+  headline, and remains visible while later turns run. As you scroll away from
+  the newest message, the large heading fades out over a feathered background
+  while a compact copy fades into the top bar (or stays pinned in the timeline
+  when the bar is too narrow). In **Settings → Workstreams → Threads**, choose
+  **Title transition → Scroll** to have both headings slide as they fade.
 - **Thread header actions:**
   - **Parent thread** (optional, off by default): Opens the parent thread from a
     delegate's header.

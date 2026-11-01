@@ -576,7 +576,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
               {context.title}
             </h2>
           )}
-          {context.subtask && (
+          {context.goal && (
             <div
               className="ws-sticky-goal__subtitle"
               style={{
@@ -584,7 +584,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
                 transform: `translateY(${eyebrowBlock + titleBlock}px)`,
               }}
             >
-              {context.subtask}
+              {context.goal}
             </div>
           )}
         </div>

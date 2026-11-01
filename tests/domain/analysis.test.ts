@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   GOAL_MAX,
   RECAP_MAX,
+  THREAD_GOAL_MAX,
   fullAnalysisPrompt,
   fullAnalysisSchema,
   isCurrent,
@@ -38,6 +39,81 @@ const base: FullAnalysisInput = {
 };
 
 describe("Full analysis", () => {
+  it("settles an outcome independently of titles and reported headlines", () => {
+    const input: FullAnalysisInput = {
+      ...base,
+      titledBy: "you",
+      threadGoal: "Keep builds fresh without clearing the cache manually.",
+      report: {
+        state: "complete",
+        headline: "Changed directories",
+        latest: [],
+      },
+    };
+    const prompt = fullAnalysisPrompt(input);
+    expect(prompt).toContain('"threadGoal": string|null');
+    expect(prompt).toContain("usually 12–20 words");
+    expect(prompt).toContain("Lead with success");
+    expect(prompt).toContain(
+      "Keep the settled outcome through testing, shipping, housekeeping",
+    );
+    expect(prompt).toContain(
+      "<thread_goal>\nKeep builds fresh without clearing the cache manually.",
+    );
+    expect(prompt).not.toContain('"goal": {');
+    expect(fullAnalysisSchema(input)).toHaveProperty("properties.threadGoal");
+    expect(
+      parseFullAnalysis(
+        JSON.stringify({
+          threadGoal: "Keep builds fresh without clearing the cache manually.",
+          goal: { verb: "Changing", subject: "directories" },
+        }),
+        input,
+      ),
+    ).toMatchObject({
+      goal: null,
+      status: null,
+      threadGoal: "Keep builds fresh without clearing the cache manually.",
+    });
+  });
+
+  it("rejects malformed outcomes without losing other analysis fields", () => {
+    for (const threadGoal of [
+      null,
+      "",
+      "  ",
+      42,
+      {},
+      "x".repeat(THREAD_GOAL_MAX + 1),
+    ]) {
+      expect(
+        parseFullAnalysis(
+          JSON.stringify({ recap: "Done", state: "done", threadGoal }),
+          base,
+        ),
+      ).toMatchObject({ status: { state: "done" }, threadGoal: null });
+    }
+    expect(
+      parseFullAnalysis(
+        JSON.stringify({
+          recap: "Done",
+          threadGoal: "  Keep builds\n fresh.  ",
+        }),
+        base,
+      ).threadGoal,
+    ).toBe("Keep builds fresh.");
+    const statusOnly = { ...base, mode: "status" } as const;
+    expect(fullAnalysisSchema(statusOnly)).not.toHaveProperty(
+      "properties.threadGoal",
+    );
+    expect(
+      parseFullAnalysis(
+        JSON.stringify({ recap: "Done", threadGoal: "Unexpected change" }),
+        statusOnly,
+      ).threadGoal,
+    ).toBeNull();
+  });
+
   it("bounds a decision prompt to the advertised 80 characters", () => {
     const parsed = parseFullAnalysis(
       JSON.stringify({
@@ -90,6 +166,7 @@ describe("Full analysis", () => {
       "recap",
       "state",
       "needsYou",
+      "threadGoal",
       "goal",
     ]);
     expect(required({ ...base, mode: "status" })).toEqual([
@@ -103,7 +180,7 @@ describe("Full analysis", () => {
         ...base,
         report: { state: "complete", headline: "Done", latest: [] },
       }),
-    ).toEqual(["names", "goal"]);
+    ).toEqual(["names", "threadGoal", "goal"]);
   });
 
   it("doesn't ask for status the agent already reported", () => {
@@ -120,6 +197,7 @@ describe("Full analysis", () => {
     expect(parsed).toEqual({
       status: null,
       names: { products: [], features: [] },
+      threadGoal: null,
       goal: "Fixing stale build cache",
     });
   });
@@ -133,6 +211,7 @@ describe("Full analysis", () => {
     ).toEqual({
       names: { products: [], features: [] },
       status: { recap: "Waiting on CI", state: "blocked", needsYou: null },
+      threadGoal: null,
       goal: null,
     });
   });

@@ -534,7 +534,10 @@ export function registerCli(
                   : [
                       `${result.state.replace("_", " ")}${result.reported ? " (reported)" : ""} · ${seconds}s · ${result.model}`,
                       result.recap,
-                      ...(result.goal ? [`Goal: ${result.goal}`] : []),
+                      ...(result.goal ? [`Title: ${result.goal}`] : []),
+                      ...(result.threadGoal
+                        ? [`Goal: ${result.threadGoal}`]
+                        : []),
                       `Topic: ${topics.assignment(positionals.thread).label ?? "none"}`,
                       ...(result.needsYou
                         ? [`Up Next: ${result.needsYou}`]

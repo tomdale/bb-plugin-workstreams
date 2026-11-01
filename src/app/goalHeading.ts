@@ -4,8 +4,8 @@
  *
  * Every size is a multiple of the timeline's body font size, so the heading
  * scales with the text around it. Expanded, the heading is the most prominent
- * text on the page: the workstream line, a large title, and the current
- * subtask. Scrolled away from the newest message it collapses into a compact
+ * text on the page: the workstream line, a large title, and the thread's
+ * desired outcome. Scrolled away from the newest message it collapses into a compact
  * workstream-over-goal block, in the title bar when there is room and pinned
  * at the top of the timeline when there is not.
  */

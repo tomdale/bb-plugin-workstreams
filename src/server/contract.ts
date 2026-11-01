@@ -30,8 +30,9 @@ const analysisSchema = z.object({
   recap: z.string(),
   state: z.enum(WORK_STATES),
   needsYou: z.string().nullable(),
-  // What the thread is for, which is also its title. Older rows predate goals.
+  // The title last settled by analysis, separate from the outcome below it.
   goal: z.string().nullable().default(null),
+  threadGoal: z.string().nullable().default(null),
   topicError: z.string().optional(),
   revision: z.number(),
   at: z.number(),
