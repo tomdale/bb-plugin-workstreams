@@ -453,6 +453,29 @@ const MIGRATIONS = [
   "ALTER TABLE ws_suggestion DROP COLUMN trace_id",
   // Analysis stored six keys from model schemas it no longer asks for.
   `UPDATE ws_analysis SET result = json_remove(result, '$.title', '$.subject', '$.drift', '$.driftSectionId', '$.objective', '$.identityVersion') WHERE result IS NOT NULL`,
+  // Undo no longer restores a deleted workstream's description or edits one:
+  // those steps referred to columns that are going away, so a batch keeps only
+  // the steps that still reverse something.
+  `UPDATE ws_journal
+     SET undo = json_set(undo, '$.steps', (
+       SELECT json_group_array(item.value) FROM json_each(undo, '$.steps') AS item
+       WHERE json_extract(item.value, '$.kind') NOT IN ('metadata', 'restore-section')
+     ))
+   WHERE json_extract(undo, '$.kind') = 'batch'
+     AND (undo LIKE '%"metadata"%' OR undo LIKE '%"restore-section"%')`,
+  "UPDATE ws_journal SET undo = NULL WHERE json_extract(undo, '$.kind') IN ('metadata', 'restore-section')",
+  "DELETE FROM ws_meta WHERE key LIKE 'restore-section:%'",
+  // Proposal entries could not be applied once their feature was retired, and
+  // they were the only rows with the retired action and source.
+  "DELETE FROM ws_journal WHERE action = 'proposal'",
+  // Workstream records kept a description, aliases, and revisions for an editor
+  // that no longer exists; the organizer reads only who created the record.
+  "ALTER TABLE ws_workstream DROP COLUMN description",
+  "ALTER TABLE ws_workstream DROP COLUMN description_source",
+  "ALTER TABLE ws_workstream DROP COLUMN aliases",
+  "ALTER TABLE ws_workstream DROP COLUMN metadata_revision",
+  "ALTER TABLE ws_workstream DROP COLUMN updated_at",
+  "ALTER TABLE ws_workstream DROP COLUMN created_at",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

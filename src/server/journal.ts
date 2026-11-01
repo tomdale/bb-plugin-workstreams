@@ -12,7 +12,6 @@ const sourceSchema = z.enum([
   "router",
   "handoff",
   "auto",
-  "proposal",
   "bootstrap",
 ]);
 export type Source = z.infer<typeof sourceSchema>;
@@ -23,10 +22,8 @@ const actionSchema = z.enum([
   "rename-workstream",
   "delete-workstream",
   "undo",
-  /** Several changes applied and undone together (bootstrap, proposals). */
+  /** Several changes applied and undone together. */
   "batch",
-  /** A retained workstream proposal entry from an earlier plugin version. */
-  "proposal",
   "edit-workstream",
   "project-association",
   /** A thread started from the New thread composer. */
@@ -44,7 +41,6 @@ const statusSchema = z.enum([
   "partial",
   "undone",
   "failed",
-  "pending",
   "dismissed",
 ]);
 
@@ -60,35 +56,6 @@ const stepSchema = z.discriminatedUnion("kind", [
     from: projectAssociationSchema,
     to: projectAssociationSchema.extend({ revision: z.number() }),
     disableLearning: z.boolean().optional(),
-  }),
-  z.object({
-    kind: z.literal("restore-section"),
-    sectionId: z.string(),
-    name: z.string(),
-    archivedThreads: z.array(
-      z.object({ id: z.string(), archivedAt: z.number() }),
-    ),
-    metadata: z.object({
-      description: z.string().nullable(),
-      aliases: z.array(z.string()),
-      source: z.enum(["user", "generated"]),
-      createdBy: z.enum(["user", "workstreams"]),
-    }),
-  }),
-  z.object({
-    kind: z.literal("metadata"),
-    sectionId: z.string(),
-    from: z.object({
-      description: z.string().nullable(),
-      aliases: z.array(z.string()),
-      source: z.enum(["user", "generated"]),
-    }),
-    to: z.object({
-      description: z.string().nullable(),
-      aliases: z.array(z.string()),
-      source: z.enum(["user", "generated"]),
-      revision: z.number(),
-    }),
   }),
   z.object({
     kind: z.literal("move"),

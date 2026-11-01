@@ -175,15 +175,6 @@ it("filters internal calls, exposes metadata and event internals, and opens the 
     slot.getByRole("combobox", { name: "Filter by action" }),
     "Model calls",
   );
-  fireEvent.click(slot.getByRole("checkbox", { name: "Needs review" }));
-  expect(
-    slot.getByRole("combobox", { name: "Filter by action" }),
-  ).toHaveProperty("value", "");
-  expect(slot.queryByText("bad")).toBeNull();
-  chooseOption(
-    slot.getByRole("combobox", { name: "Filter by action" }),
-    "Model calls",
-  );
   expect(slot.getByText("bad")).toBeTruthy();
 });
 
@@ -261,7 +252,7 @@ it("reports when filters match no activity", async () => {
   await slot.findByText("Moved a thread");
   chooseOption(
     slot.getByRole("combobox", { name: "Filter by action" }),
-    "Proposal",
+    "Removed topic",
   );
   expect(await slot.findByText("No matching activity.")).toBeTruthy();
 });

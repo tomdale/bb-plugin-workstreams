@@ -162,9 +162,8 @@ export class WorkstreamService {
           : [original.undo];
       let skipped = 0;
       let done = 0;
-      const restored = new Map<string, string>();
       for (const step of steps) {
-        const result = await this.undoStep(step, restored);
+        const result = await this.undoStep(step);
         done += result.done;
         skipped += result.skipped;
       }
@@ -192,75 +191,12 @@ export class WorkstreamService {
   /** Reverts one step; returns how many parts were reverted and skipped. */
   private async undoStep(
     step: UndoStep,
-    restored = new Map<string, string>(),
   ): Promise<{ done: number; skipped: number }> {
     const sdk = this.sdk();
-    if (step.kind === "restore-section") {
-      const sections = await listSections(sdk);
-      // Reuse only a section this Undo previously recreated, never a namesake.
-      const restoreKey = `restore-section:${step.sectionId}`;
-      const previousId = getMeta(this.db, restoreKey);
-      let section = previousId
-        ? sections.find((s) => s.id === previousId)
-        : undefined;
-      if (!section) {
-        if (
-          sections.some((s) => s.name.toLowerCase() === step.name.toLowerCase())
-        )
-          return { done: 0, skipped: 1 + step.archivedThreads.length };
-        section = await sdk.threadSections.create({ name: step.name });
-        setMeta(this.db, restoreKey, section.id);
-        this.db
-          .prepare(
-            "INSERT INTO ws_workstream(section_id,description,description_source,created_by,created_at,updated_at,aliases) VALUES (?,?,?,?,?,?,?)",
-          )
-          .run(
-            section.id,
-            step.metadata.description,
-            step.metadata.source,
-            step.metadata.createdBy,
-            this.now(),
-            this.now(),
-            JSON.stringify(step.metadata.aliases),
-          );
-        this.seeSection(section.id, section.name);
-      }
-      restored.set(step.sectionId, section.id);
-      let done = 1,
-        skipped = 0;
-      for (const member of step.archivedThreads) {
-        const thread = await sdk.threads
-          .get({ threadId: member.id })
-          .catch(() => null);
-        if (
-          !thread ||
-          thread.sectionId !== null ||
-          thread.archivedAt !== member.archivedAt
-        ) {
-          skipped++;
-          continue;
-        }
-        await sdk.threads.update({
-          threadId: member.id,
-          sectionId: section.id,
-        });
-        done++;
-      }
-      return { done, skipped };
-    }
     if (step.kind === "move") {
       let done = 0;
       let skipped = 0;
-      for (const originalMove of step.moves) {
-        const move = {
-          ...originalMove,
-          from: originalMove.from
-            ? (restored.get(originalMove.from) ?? originalMove.from)
-            : null,
-          to: originalMove.to
-            ? (restored.get(originalMove.to) ?? originalMove.to)
-            : null,
-        };
+      for (const move of step.moves) {
         if (
           move.from &&
           !(await listSections(sdk)).some((s) => s.id === move.from)
@@ -348,40 +284,6 @@ export class WorkstreamService {
       this.onTopicsRestored();
       return { done: 1, skipped: 0 };
     }
-    if (step.kind === "metadata") {
-      const row = this.db
-        .prepare(
-          "SELECT description, aliases, description_source, metadata_revision FROM ws_workstream WHERE section_id = ?",
-        )
-        .get(step.sectionId) as
-        | {
-            description: string | null;
-            aliases: string;
-            description_source: string;
-            metadata_revision: number;
-          }
-        | undefined;
-      if (
-        !row ||
-        row.description !== step.to.description ||
-        row.aliases !== JSON.stringify(step.to.aliases) ||
-        row.description_source !== step.to.source ||
-        row.metadata_revision !== step.to.revision
-      )
-        return { done: 0, skipped: 1 };
-      this.db
-        .prepare(
-          "UPDATE ws_workstream SET description = ?, aliases = ?, description_source = ?, metadata_revision = metadata_revision + 1, updated_at = ? WHERE section_id = ?",
-        )
-        .run(
-          step.from.description,
-          JSON.stringify(step.from.aliases),
-          step.from.source,
-          this.now(),
-          step.sectionId,
-        );
-      return { done: 1, skipped: 0 };
-    }
     const sections = await listSections(sdk);
     const current = sections.find((s) => s.id === step.sectionId);
     if (!current || current.name !== step.to) return { done: 0, skipped: 1 };
@@ -455,10 +357,10 @@ export class WorkstreamService {
           if (before === undefined) {
             this.db
               .prepare(
-                `INSERT INTO ws_workstream (section_id, description, description_source, created_by, created_at, updated_at)
-                 VALUES (?, NULL, 'generated', 'user', ?, ?) ON CONFLICT(section_id) DO NOTHING`,
+                `INSERT INTO ws_workstream (section_id, created_by)
+                 VALUES (?, 'user') ON CONFLICT(section_id) DO NOTHING`,
               )
-              .run(section.id, at, at);
+              .run(section.id);
             if (seeded) {
               this.journal.add({
                 action: "create-workstream",

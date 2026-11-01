@@ -399,14 +399,13 @@ export class Organizer {
               section = { id: created.id, name: created.name };
               changes.created.push(created.id);
               changes.name(created.id, created.name);
-              const now = this.now();
               this.deps.db
                 .prepare(
-                  `INSERT INTO ws_workstream (section_id, description, description_source, created_by, created_at, updated_at)
-               VALUES (?, NULL, 'generated', 'workstreams', ?, ?)
+                  `INSERT INTO ws_workstream (section_id, created_by)
+               VALUES (?, 'workstreams')
                ON CONFLICT(section_id) DO UPDATE SET created_by = 'workstreams'`,
                 )
-                .run(created.id, now, now);
+                .run(created.id);
               this.deps.topics.bindGroup(created.id, entityId);
               groupBindings.set(created.id, entityId);
               this.deps.service.seeSection(created.id, created.name);

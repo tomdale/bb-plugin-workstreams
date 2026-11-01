@@ -37,7 +37,6 @@ const ACTION_LABEL: Record<Entry["action"], string> = {
   "delete-workstream": "Delete",
   undo: "Undo",
   batch: "Reorganize",
-  proposal: "Proposal",
   "edit-workstream": "Edit",
   "project-association": "Project",
   route: "New thread",
@@ -53,7 +52,6 @@ const ACTION_HELP: Record<Entry["action"], string> = {
   "delete-workstream": "A workstream was removed. Its threads are not deleted.",
   undo: "A previous Workstreams change was reversed.",
   batch: "Several organization changes were applied together.",
-  proposal: "Workstreams suggested an organization change for your decision.",
   "edit-workstream": "A workstream’s description or settings were changed.",
   "project-association":
     "A topic’s associated project was learned, changed, or reviewed.",
@@ -74,11 +72,6 @@ const ENTRY_STATUS: Record<
     description:
       "This organization change was applied. It does not mean the thread’s work is complete.",
   },
-  pending: {
-    label: "Awaiting decision",
-    description:
-      "This proposed change has not been applied. It is waiting for your decision.",
-  },
   partial: {
     label: "Partially applied",
     description:
@@ -95,7 +88,7 @@ const ENTRY_STATUS: Record<
   },
   dismissed: {
     label: "Dismissed",
-    description: "This proposal was declined without applying the change.",
+    description: "This suggestion was declined without applying the change.",
   },
 };
 
@@ -105,7 +98,6 @@ const SOURCE_LABEL: Record<Entry["source"], string> = {
   router: "router",
   handoff: "handoff",
   auto: "automatic",
-  proposal: "proposal",
   bootstrap: "bootstrap",
 };
 
@@ -155,7 +147,6 @@ export function Activity({
   const [external, setExternal] = useState(false);
   const [workstream, setWorkstream] = useState("");
   const [action, setAction] = useState("");
-  const [needsReview, setNeedsReview] = useState(focus !== null);
   const [showCalls, setShowCalls] = useState(modelCalls);
   const [callKind, setCallKind] = useState<TraceKind | "">("");
   const [failuresOnly, setFailuresOnly] = useState(false);
@@ -255,11 +246,10 @@ export function Activity({
       (!workstream || entry.workstreams.some((w) => w.id === workstream)) &&
       (!action ||
         (!debug && action === MODEL_CALLS) ||
-        entry.action === action) &&
-      (!needsReview || entry.status === "pending"),
+        entry.action === action),
   );
   const shownCalls =
-    debug && showCalls && !needsReview && (!action || action === MODEL_CALLS)
+    debug && showCalls && (!action || action === MODEL_CALLS)
       ? calls.filter(
           (trace) =>
             (!callKind || trace.kind === callKind) &&
@@ -284,12 +274,7 @@ export function Activity({
   const hasAnyVisibleActivity =
     (entries?.length ?? 0) > 0 ||
     (debug && calls.length > 0) ||
-    Boolean(
-      workstream ||
-      action ||
-      needsReview ||
-      (debug && (callKind || failuresOnly)),
-    );
+    Boolean(workstream || action || (debug && (callKind || failuresOnly)));
   const days: { label: string; items: Item[] }[] = [];
   for (const item of items) {
     const label = day(item.at);
@@ -332,28 +317,10 @@ export function Activity({
             setAction(next);
             setCallKind("");
             setFailuresOnly(false);
-            if (next === MODEL_CALLS) {
-              setShowCalls(true);
-              setNeedsReview(false);
-            }
+            if (next === MODEL_CALLS) setShowCalls(true);
           }}
           className={filterSelectClass}
         />
-        <label className="flex items-center gap-1.5">
-          <input
-            type="checkbox"
-            checked={needsReview}
-            onChange={(event) => {
-              setNeedsReview(event.target.checked);
-              if (event.target.checked) {
-                setCallKind("");
-                setFailuresOnly(false);
-                if (action === MODEL_CALLS) setAction("");
-              }
-            }}
-          />
-          Needs review
-        </label>
         <label className="flex items-center gap-1.5">
           <input
             type="checkbox"
@@ -402,7 +369,6 @@ export function Activity({
                 setTraceLimit(TRACE_PAGE);
                 setShowCalls(true);
                 setAction(MODEL_CALLS);
-                setNeedsReview(false);
               }}
               className={filterSelectClass}
             />
@@ -415,7 +381,6 @@ export function Activity({
                   if (event.target.checked) {
                     setShowCalls(true);
                     setAction(MODEL_CALLS);
-                    setNeedsReview(false);
                   }
                 }}
               />
@@ -598,7 +563,6 @@ export function Activity({
       ))}
       {debug &&
       showCalls &&
-      !needsReview &&
       (!action || action === MODEL_CALLS) &&
       moreCalls ? (
         <button

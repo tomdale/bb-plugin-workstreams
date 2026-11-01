@@ -600,7 +600,7 @@ describe("automatic update coordinator lifecycle", () => {
     const userSec = w.addSection("Docs");
     openDatabase(w.bb)
       .prepare(
-        "INSERT INTO ws_workstream (section_id, created_by, created_at, updated_at) VALUES (?, 'user', 1, 1) ON CONFLICT(section_id) DO UPDATE SET created_by = 'user'",
+        "INSERT INTO ws_workstream (section_id, created_by) VALUES (?, 'user') ON CONFLICT(section_id) DO UPDATE SET created_by = 'user'",
       )
       .run(userSec.id);
 

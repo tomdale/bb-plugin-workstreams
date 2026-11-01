@@ -238,16 +238,7 @@ it("drops the workstream columns and meta keys nothing reads", async () => {
     spy.mockRestore();
     openDatabase(host.bb);
     expect(db.prepare("SELECT * FROM ws_workstream").all()).toEqual([
-      {
-        section_id: "sec_1",
-        description: "Notes",
-        description_source: "generated",
-        created_by: "user",
-        created_at: 1,
-        updated_at: 2,
-        aliases: "[]",
-        metadata_revision: 0,
-      },
+      { section_id: "sec_1", created_by: "user" },
     ]);
     expect(db.prepare("SELECT key FROM ws_meta ORDER BY key").all()).toEqual([
       { key: "prefs" },
@@ -343,3 +334,87 @@ function storedAnalysis(db: ReturnType<typeof openDatabase>): string {
     }
   ).result;
 }
+it("retires the metadata undo steps and the proposal log entries", async () => {
+  const host = createFakePluginHost({ pluginId: "undo-retirement" });
+  try {
+    const migrate = host.bb.storage.migrate.bind(host.bb.storage);
+    const spy = vi
+      .spyOn(host.bb.storage, "migrate")
+      .mockImplementation((db, migrations) => {
+        const boundary = migrations.findIndex(
+          (migration) =>
+            typeof migration === "string" &&
+            migration.includes("restore-section"),
+        );
+        expect(boundary).toBeGreaterThan(0);
+        return migrate(db, migrations.slice(0, boundary));
+      });
+    const db = openDatabase(host.bb);
+    const insert = db.prepare(
+      `INSERT INTO ws_journal(id, at, action, source, status, rationale, subject, undo, detail)
+       VALUES (@id, 1, @action, @source, 'applied', 'Reason', '{"threads":[],"workstreams":[]}', @undo, NULL)`,
+    );
+    insert.run({
+      id: "j-batch",
+      action: "batch",
+      source: "auto",
+      undo: JSON.stringify({
+        kind: "batch",
+        steps: [
+          {
+            kind: "metadata",
+            sectionId: "sec_1",
+            from: { description: null, aliases: [], source: "generated" },
+            to: {
+              description: "Notes",
+              aliases: ["n"],
+              source: "user",
+              revision: 1,
+            },
+          },
+          {
+            kind: "move",
+            moves: [{ threadId: "t1", from: null, to: "sec_1" }],
+          },
+        ],
+      }),
+    });
+    insert.run({
+      id: "j-proposal",
+      action: "proposal",
+      source: "proposal",
+      undo: null,
+    });
+    db.prepare(
+      "INSERT INTO ws_workstream(section_id, description, created_by, created_at, updated_at, aliases) VALUES ('sec_1', 'Notes', 'user', 1, 2, '[\"n\"]')",
+    ).run();
+    db.prepare(
+      "INSERT INTO ws_meta(key, value) VALUES ('restore-section:sec_1', 'sec_2')",
+    ).run();
+    spy.mockRestore();
+    openDatabase(host.bb);
+    const batch = db
+      .prepare("SELECT undo FROM ws_journal WHERE id = 'j-batch'")
+      .get() as { undo: string };
+    expect(JSON.parse(batch.undo)).toEqual({
+      kind: "batch",
+      steps: [
+        { kind: "move", moves: [{ threadId: "t1", from: null, to: "sec_1" }] },
+      ],
+    });
+    expect(
+      db.prepare("SELECT id FROM ws_journal WHERE id = 'j-proposal'").get(),
+    ).toBeUndefined();
+    expect(db.prepare("SELECT * FROM ws_workstream").get()).toEqual({
+      section_id: "sec_1",
+      created_by: "user",
+    });
+    expect(
+      db
+        .prepare("SELECT key FROM ws_meta WHERE key LIKE 'restore-section:%'")
+        .get(),
+    ).toBeUndefined();
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});

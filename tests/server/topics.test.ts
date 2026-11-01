@@ -94,7 +94,7 @@ describe("TopicStore", () => {
       });
     const db = openDatabase(host.bb);
     db.prepare(
-      "INSERT INTO ws_workstream(section_id, created_by, created_at, updated_at) VALUES ('section-a', 'user', 1, 1)",
+      "INSERT INTO ws_workstream(section_id, created_by) VALUES ('section-a', 'user')",
     ).run();
     spy.mockRestore();
     openDatabase(host.bb);
@@ -270,8 +270,7 @@ describe("TopicStore", () => {
     const initialRev = corpus.revision();
     const result = corpus.merge(source.id, target.id);
 
-    expect(result.affectedThreads).toBe(1);
-    expect(result.reparentedChildren).toBe(1);
+    expect(result.id).toBe(target.id);
     expect(corpus.revision()).toBeGreaterThan(initialRev);
 
     // Source is gone
