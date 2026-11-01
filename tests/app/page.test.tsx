@@ -202,6 +202,20 @@ it("edits a reply before sending with shift and a number", async () => {
   slot.lifecycle.unmount();
 });
 
+it("steps with ↓ and ↑ without scrolling the page, and not from a text field", async () => {
+  const slot = await mount();
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  expect(press("ArrowDown")).toBe(false);
+  await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+  expect(press("ArrowUp")).toBe(false);
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  fireEvent.click(slot.getByRole("button", { name: /^Reply/ }));
+  const box = await slot.findByRole("textbox");
+  fireEvent.keyDown(box, { key: "ArrowDown" });
+  expect(heading(slot)).toBe("Beta question");
+  slot.lifecycle.unmount();
+});
+
 it("steps through the queue without acting", async () => {
   const slot = await mount();
   await waitFor(() => expect(heading(slot)).toBe("Beta question"));

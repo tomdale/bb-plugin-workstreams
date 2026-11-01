@@ -6,17 +6,18 @@
  * and offers the earlier open threads.
  *
  * The order is kept while the page is open (`keepOrder`), so nothing jumps
- * while the user works. The card and its actions sit centered in the page,
- * with the receipt and heading above; the page centers again, gliding there
- * (`useQueueMotion`), only when the item or receipt changes, so opening Reply
- * or holding ⇧ never moves it.
+ * while the user works. The heading and card start at a fixed
+ * distance from the top of the page and the page grows downward, so a receipt
+ * (drawn in the margin above the heading), Reply, and ⇧ never move them. Only
+ * a new item whose heading wraps to a different number of lines moves the card,
+ * gliding by the difference (`useQueueMotion`).
  *
  * The next items wait as a stack of cards behind the card, peeking out above
- * it. Acting moves on to the next; ← and → (or K and J, or the footer's
- * arrows) step through without acting, one card at a time while a key is held.
+ * it. Acting moves on to the next; ↓ and → (or J) go to the next item and ↑ and
+ * ← (or K) to the previous one, as do the footer's arrows, step through without acting, one card at a time while a key is held.
  *
  * Keys: 1–3 send a reply (⇧ edits it first), R reply, S snooze (1–6 in its
- * menu), E archive, O open, U undo, ← → skip.
+ * menu), E archive, O open, U undo, ↓ → skip ahead, ↑ ← skip back.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -282,8 +283,7 @@ export function Queue({
   const pile = current
     ? remaining.slice(position, position + STACK_WINDOW)
     : [];
-  // Center the card and its actions; the receipt and heading sit above.
-  const motion = useQueueMotion(current, `${current}|${receipt ? 1 : 0}`, pile);
+  const motion = useQueueMotion(current, pile);
 
   /** Shows another item: the next after acting or skipping, or one back. */
   const go = (id: string | null, toward: Direction) => {
@@ -430,8 +430,10 @@ export function Queue({
       const digit = /^Digit([1-9])$/.exec(event.code)?.[1];
       const key = event.key.toLowerCase();
       if (key === "u") k.undo();
-      else if (key === "arrowright" || key === "j") k.skip(1);
-      else if (key === "arrowleft" || key === "k") k.skip(-1);
+      else if (key === "arrowdown" || key === "arrowright" || key === "j")
+        k.skip(1);
+      else if (key === "arrowup" || key === "arrowleft" || key === "k")
+        k.skip(-1);
       else if (!acting) return;
       else if (digit) k.answer(Number(digit) - 1, event.shiftKey);
       else if (!k.thread || k.suggestion) return;
@@ -543,12 +545,9 @@ export function Queue({
           ref={motion.page}
           className="absolute inset-0 overflow-y-auto [scrollbar-gutter:stable] data-[moving]:overflow-y-hidden"
         >
-          <div
-            ref={motion.column}
-            className="mx-auto box-border w-full max-w-[720px] px-5 pb-24 pt-6"
-          >
+          <div className="mx-auto box-border w-full max-w-[720px] px-5 pb-24 pt-9">
             <div ref={motion.content} className="relative">
-              <div ref={motion.above}>
+              <div>
                 <ReceiptLine receipt={receipt} onUndo={undo} />
                 {heading ? (
                   <div key={current} data-queue-part="heading">
@@ -709,7 +708,7 @@ function ReceiptLine({
   receipt: Receipt | null;
   onUndo: () => void;
 }) {
-  if (!receipt) return <div className="h-5" aria-hidden />;
+  if (!receipt) return null;
   const title = <span className="text-foreground/80">{receipt.title}</span>;
   const text =
     receipt.kind === "sent" ? (
@@ -730,7 +729,7 @@ function ReceiptLine({
       role="status"
       data-queue-part="receipt"
       className={cn(
-        "mb-[22px] flex h-5 min-w-0 items-center gap-3 text-[13px] text-muted-foreground",
+        "absolute inset-x-0 -top-[30px] flex h-5 min-w-0 items-center gap-3 text-[13px] text-muted-foreground",
       )}
     >
       <span className="min-w-0 truncate">{text}</span>

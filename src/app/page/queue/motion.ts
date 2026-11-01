@@ -15,8 +15,9 @@
  * clock: the old ones are copies taken just before the change (`capture`) that
  * fade out where they were, and the live ones are held back until the engine
  * lets them in (the replies only once no moving card passes over them). The
- * page glides to its new center when the item or receipt changes, and never for
- * Reply or ⇧. Under reduced motion the new item only fades in. Without
+ * column is pinned at a fixed top; when a new item's heading wraps to a
+ * different number of lines the card glides by the difference, and Reply and ⇧
+ * never move it. Under reduced motion the new item only fades in. Without
  * `requestAnimationFrame` and Web Animations (tests) every change applies at
  * once.
  */
@@ -28,7 +29,6 @@ import {
   useRef,
 } from "react";
 import {
-  LEAD,
   StackEngine,
   type Direction as EngineDirection,
   type StackFrame,
@@ -36,12 +36,10 @@ import {
 
 export type Direction = EngineDirection;
 
-/** The page glide and the card's corner radius (twice `rounded-lg`, zoomed). */
+/** The glide to a card's new place and its corner radius (twice `rounded-lg`, zoomed). */
 const SETTLE_MS = 420;
 const EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
 const CORNER = 11.5;
-/** The least space kept above the heading. */
-const MIN_TOP = 24;
 /** The most the clock advances in one frame, so a stalled tab doesn't leap. */
 const MAX_FRAME_MS = 50;
 
@@ -127,25 +125,17 @@ const toggle = (el: HTMLElement, name: string, on: boolean, value = "") => {
 };
 
 /**
- * Centers the unit (stack and replies) in the page with the receipt and
- * heading above it, and runs each change of item as one motion.
+ * Runs each change of item as one motion in a column pinned at a fixed top.
  *
- * `item` is the item shown; `centerKey` changes whenever the page should
- * center again (the item or receipt changed), never for Reply or ⇧; `pile` is
- * the shown item and the next ones, in order. Call `capture` just before
- * changing the item, from the event that changes it, so the old heading and
- * replies can fade where they were; `accept` first when the change is a skip
- * from a key or button, so held keys queue no more than two.
+ * `item` is the item shown; `pile` is the shown item and the next ones, in
+ * order. Call `capture` just before changing the item, from the event that
+ * changes it, so the old heading and replies can fade where they were; `accept`
+ * first when the change is a skip from a key or button, so held keys queue no
+ * more than two.
  */
-export function useQueueMotion(
-  item: string | null,
-  centerKey: string,
-  pile: readonly string[],
-) {
+export function useQueueMotion(item: string | null, pile: readonly string[]) {
   const page = useRef<HTMLDivElement>(null);
-  const column = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
-  const above = useRef<HTMLDivElement>(null);
   const unit = useRef<HTMLDivElement>(null);
   const ghosts = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -278,26 +268,6 @@ export function useQueueMotion(
     engine.current!.setHeights(heights);
   }, []);
 
-  const center = useCallback(() => {
-    const box = page.current;
-    const col = column.current;
-    if (!box || !col) return;
-    // The unit as it will be once the stage has grown or shrunk to the front
-    // card, and the heading with the room the pile's cards peek out into.
-    const stageEl = stage.current;
-    const unitHeight =
-      (unit.current?.offsetHeight ?? 0) -
-      (stageEl?.offsetHeight ?? 0) +
-      (stageEl ? engine.current!.frontHeight() : 0);
-    const aboveHeight =
-      (above.current?.offsetHeight ?? 0) + (stageEl ? LEAD : 0);
-    const top = Math.max(
-      MIN_TOP,
-      box.clientHeight / 2 - unitHeight / 2 - aboveHeight,
-    );
-    col.style.paddingTop = `${top}px`;
-  }, []);
-
   const pieceOf = useCallback(
     (el: HTMLElement): Piece => {
       const top = yOf(el);
@@ -386,7 +356,6 @@ export function useQueueMotion(
       snap = null;
     for (const animation of gliding.current) animation.cancel();
     gliding.current = [];
-    center();
     if (!root || !unitEl || !page.current) return;
     const unitY = yOf(unitEl);
     const fromY = snap?.unitY ?? restY.current;
@@ -394,12 +363,6 @@ export function useQueueMotion(
     if (!motionAvailable()) return;
     const itemChanged = item !== lastItem.current;
     lastItem.current = item;
-    // A new receipt fades in where it appears; the item's motion is separate.
-    const receipt = partOf(root, "receipt");
-    if (receipt && receipt !== lastReceipt.current)
-      receipt.animate([{ opacity: 0 }, {}], { duration: 200, easing: EASE });
-    lastReceipt.current = receipt;
-
     if (reducedMotion()) {
       if (itemChanged)
         for (const part of FADED)
@@ -410,25 +373,25 @@ export function useQueueMotion(
       return;
     }
 
-    // The whole column glides from where the unit was to its new center.
+    // The card and replies glide from where the unit was to where it now sits;
+    // the heading stays put and only fades.
     const shift = fromY === null ? 0 : fromY - unitY;
     if (Math.abs(shift) > 0.5)
       gliding.current.push(
-        root.animate([{ transform: `translateY(${shift}px)` }, {}], {
+        unitEl.animate([{ transform: `translateY(${shift}px)` }, {}], {
           duration: SETTLE_MS,
           easing: EASE,
         }),
       );
 
-    // The old heading and replies fade where they were; the copies ride the
-    // glide too, so they are placed against where the page is going.
+    // The old heading and replies fade where they were.
     const layer = ghosts.current;
     if (!layer || !snap || !itemChanged) return;
     for (const part of FADED) {
       const piece = snap.pieces[part];
       if (!piece) continue;
       copies.current[part]?.remove();
-      const y = yOf(layer) + shift;
+      const y = yOf(layer);
       const x = layer.getBoundingClientRect().left;
       Object.assign(piece.copy.style, {
         position: "absolute",
@@ -447,18 +410,20 @@ export function useQueueMotion(
       copies.current[part] = piece.copy;
     }
     write(engine.current!.frame());
-    // `centerKey` covers every change of item and receipt.
+    // Only a change of item moves the column.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [centerKey]);
+  }, [item]);
 
-  // Centering follows the page's size; the item's motion doesn't.
-  useEffect(() => {
-    const box = page.current;
-    if (!box || typeof ResizeObserver === "undefined") return;
-    const watch = new ResizeObserver(() => center());
-    watch.observe(box);
-    return () => watch.disconnect();
-  }, [center]);
+  // A new receipt fades in where it appears; it takes no layout space, so it
+  // moves nothing.
+  useLayoutEffect(() => {
+    const root = content.current;
+    if (!root || !motionAvailable()) return;
+    const receipt = partOf(root, "receipt");
+    if (receipt && receipt !== lastReceipt.current)
+      receipt.animate([{ opacity: 0 }, {}], { duration: 200, easing: EASE });
+    lastReceipt.current = receipt;
+  });
 
   useEffect(() => {
     const clk = clock.current;
@@ -482,9 +447,7 @@ export function useQueueMotion(
 
   return {
     page,
-    column,
     content,
-    above,
     unit,
     ghosts,
     stage,

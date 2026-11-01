@@ -614,8 +614,12 @@ others move up a place; going back reverses the path. A card too tall to fit
 behind the next one fades away on its way. Presses are taken one card at a time
 (holding a key flicks cards off one after another), and under reduced motion the
 new item only fades in. To look ahead or back without acting, use the footer's
-arrows, which also show where you are ("2 of 9"), or press `←` and `→` (or `K`
-and `J`).
+arrows, which also show where you are ("2 of 9"), or press `↓`, `→` or `J` for
+the next item and `↑`, `←` or `K` for the previous one. The heading and card
+stay at a fixed distance from the top of the page and the page grows downward,
+so opening Reply, holding `Shift`, or a receipt appearing above never moves
+them; the card only glides when the next item's heading wraps to a different
+number of lines.
 
 Each thread shows its workstream (click it to open **Topics**) and title above
 its latest recap card. Under the card:
@@ -666,15 +670,15 @@ Each opens as its own view with **Back**. Deep links still work:
 
 ## Commands and keyboard shortcuts
 
-| Command / Shortcut                                              | Where                             | Action                                                                                           |
-| --------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `Workstreams: next Up Next thread` (`Cmd+Alt+J` / `Ctrl+Alt+J`) | Global command palette / shortcut | Opens the next thread in Up Next, wrapping to the top.                                           |
-| `Workstreams: snooze this thread`                               | Command palette (active thread)   | Snoozes the current thread using your configured **Click to snooze** default preset.             |
-| `Workstreams: wake this snoozed thread`                         | Command palette (snoozed thread)  | Wakes the current snoozed thread immediately.                                                    |
-| `1`–`3`, `Shift`, `R`, `S`, `E`, `O`, `U`, `←`/`→`              | Workstreams page                  | Sends a reply (`Shift` edits it first), replies, snoozes, archives, opens, undoes, or skips.     |
-| `Shift+Click`                                                   | Recap card **Next action** button | Copies the suggested prompt into the composer for editing instead of sending immediately.        |
-| `Shift`+pick                                                    | Recap card **Next actions** menu  | Copies the chosen prompt into the composer; holding `Shift` shows the **Edit in composer** hint. |
-| `1`–`4`, `Enter` / `Shift+Enter`                                | `AskUserQuestion` card            | Selects an option by number; submits the answer (`Enter`) or inserts a newline (`Shift+Enter`).  |
+| Command / Shortcut                                              | Where                             | Action                                                                                                                             |
+| --------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `Workstreams: next Up Next thread` (`Cmd+Alt+J` / `Ctrl+Alt+J`) | Global command palette / shortcut | Opens the next thread in Up Next, wrapping to the top.                                                                             |
+| `Workstreams: snooze this thread`                               | Command palette (active thread)   | Snoozes the current thread using your configured **Click to snooze** default preset.                                               |
+| `Workstreams: wake this snoozed thread`                         | Command palette (snoozed thread)  | Wakes the current snoozed thread immediately.                                                                                      |
+| `1`–`3`, `Shift`, `R`, `S`, `E`, `O`, `U`, `↑`/`↓`/`←`/`→`      | Workstreams page                  | Sends a reply (`Shift` edits it first), replies, snoozes, archives, opens, undoes, or skips (`↓`/`→`/`J` ahead, `↑`/`←`/`K` back). |
+| `Shift+Click`                                                   | Recap card **Next action** button | Copies the suggested prompt into the composer for editing instead of sending immediately.                                          |
+| `Shift`+pick                                                    | Recap card **Next actions** menu  | Copies the chosen prompt into the composer; holding `Shift` shows the **Edit in composer** hint.                                   |
+| `1`–`4`, `Enter` / `Shift+Enter`                                | `AskUserQuestion` card            | Selects an option by number; submits the answer (`Enter`) or inserts a newline (`Shift+Enter`).                                    |
 
 ---
 
