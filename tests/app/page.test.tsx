@@ -218,7 +218,7 @@ it("steps through the queue without acting", async () => {
   slot.lifecycle.unmount();
 });
 
-it("draws the leaving item until its exit ends, and none for a held key", async () => {
+it("draws the leaving item until its exit ends, one leaving card at a time", async () => {
   type Fake = {
     onfinish: (() => void) | null;
     oncancel: (() => void) | null;
@@ -254,11 +254,16 @@ it("draws the leaving item until its exit ends, and none for a held key", async 
     expect(copies().some((text) => text?.includes("Asked which API"))).toBe(
       true,
     );
-    // Going straight back is a held key: nothing more is copied.
+    // Going straight back is a held key: the heading and actions aren't
+    // copied again, and the earlier leaving card gives way to this one.
+    const cards = () =>
+      slot.container.querySelectorAll("[data-queue-ghosts] > *").length;
+    expect(cards()).toBe(1);
     const before = copies().length;
     press("ArrowLeft");
     await waitFor(() => expect(heading(slot)).toBe("Beta question"));
     expect(copies().length).toBe(before);
+    expect(cards()).toBe(1);
     // Each copy goes once its exit ends.
     for (const { el, animation } of started)
       if (el.hasAttribute("inert")) animation.onfinish?.();

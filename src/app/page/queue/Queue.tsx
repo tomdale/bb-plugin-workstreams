@@ -517,7 +517,14 @@ export function Queue({
               </div>
               <div ref={motion.unit}>
                 {front && current ? (
-                  <CardStack itemKey={current} front={front} behind={behind} />
+                  <CardStack
+                    front={{
+                      key: current,
+                      edge: cardEdge(card),
+                      node: front,
+                    }}
+                    behind={behind}
+                  />
                 ) : null}
                 <div key={`actions:${current}`} data-queue-part="actions">
                   {thread && card ? (

@@ -548,15 +548,21 @@
 .dark .ws-queue-path {
   color: oklch(79% 0.13 var(--ws-hue, 250));
 }
-/* A card behind the queue's front card moves up or down a slot as the queue
-   moves; the curve and duration match the front card's (queue/motion.ts). */
-.ws-stack-layer {
+/* The queue's cards move between slots in the stack as the queue moves; the
+   curve and duration match the rest of the change (queue/motion.ts). A card's
+   surface stays opaque; its edge fades with depth, and a card past the shown
+   slots fades out at the back. */
+.ws-stack-card {
   transition:
-    transform 280ms cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 280ms cubic-bezier(0.4, 0, 0.2, 1);
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.ws-stack-edge {
+  transition: opacity 320ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 @media (prefers-reduced-motion: reduce) {
-  .ws-stack-layer {
+  .ws-stack-card,
+  .ws-stack-edge {
     transition: none;
   }
 }

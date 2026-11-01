@@ -116,23 +116,30 @@ const STACK_STEP = 7;
 const STACK_SHOWN = 2;
 
 /**
- * Where a card sits in the stack: slot 0 is the first behind the front, and
- * slot −1 the front itself. Past the shown slots a card is hidden, ready to
- * come into view when the stack moves up.
+ * Where a card sits in the stack: slot −1 is the front, slot 0 the first
+ * behind it. A card's surface stays opaque in every slot, so no card ever
+ * shows through another; only its edge fades with depth (`edge`). Past the
+ * shown slots a card is hidden (`opacity` 0), ready to come into view when
+ * the stack moves up.
  */
 export function layerPose(slot: number): {
   transform: string;
   opacity: number;
+  edge: number;
 } {
   const depth = slot + 1;
   return {
-    transform: `translateY(${depth * STACK_STEP}px) scaleX(${1 - depth * 0.035})`,
-    opacity: slot < 0 ? 1 : slot < STACK_SHOWN ? 0.75 - slot * 0.3 : 0,
+    transform:
+      depth === 0
+        ? "none"
+        : `translateY(${depth * STACK_STEP}px) scaleX(${1 - depth * 0.035})`,
+    opacity: slot < STACK_SHOWN ? 1 : 0,
+    edge: slot < 0 ? 1 : 0.75 - Math.min(slot, STACK_SHOWN - 1) * 0.3,
   };
 }
 
 export type StackCard = {
-  /** The queue item, so a card keeps its element as it moves up or down a slot. */
+  /** The queue item, so its card keeps one element as it moves between slots. */
   key: string;
   /** Its border color by state (`cardEdge`). */
   edge: string;
@@ -140,18 +147,18 @@ export type StackCard = {
 
 /**
  * The current card with the next ones stacked behind it, their bottom edges
- * showing. Each card behind keeps its element while it moves between slots,
- * so the stack moves up a slot as the queue moves on and back down going
- * back (`.ws-stack-layer`); `useQueueMotion` runs the front card's change.
+ * showing. Each item keeps one element as it moves between slots: moving on,
+ * the first card behind slides up into the front and its content appears;
+ * going back, the front card slides down into the stack (`.ws-stack-card`).
+ * Cards behind take the front card's height and show only their surface.
+ * `useQueueMotion` runs the rest of the change: the leaving card, the front
+ * card's height, and its content fading in.
  */
 export function CardStack({
-  itemKey,
   front,
   behind,
 }: {
-  /** The item shown; the front card is drawn fresh for each. */
-  itemKey: string;
-  front: ReactNode;
+  front: StackCard & { node: ReactNode };
   /** The next cards, nearest first; those past the shown slots stay hidden. */
   behind: readonly StackCard[];
 }) {
@@ -162,30 +169,50 @@ export function CardStack({
       className="relative isolate"
       style={{ paddingBottom: shown * STACK_STEP }}
     >
-      {behind.map(({ key, edge }, slot) => (
-        <div
-          key={key}
-          aria-hidden
-          data-queue-layer={key}
-          data-slot={slot}
-          className={cn(
-            "ws-stack-layer pointer-events-none absolute inset-x-0 top-0 rounded-[11.5px] border bg-background",
-            edge,
-          )}
-          style={{
-            bottom: shown * STACK_STEP,
-            zIndex: -1 - slot,
-            ...layerPose(slot),
-          }}
-        />
-      ))}
+      {[front, ...behind].map(({ key, edge }, index) => {
+        const slot = index - 1;
+        const pose = layerPose(slot);
+        return slot < 0 ? (
+          <div
+            key={key}
+            data-queue-card={key}
+            data-queue-part="front"
+            data-slot={slot}
+            className="ws-stack-card relative z-[3] rounded-[11.5px] bg-background"
+            style={{ transform: pose.transform, opacity: pose.opacity }}
+          >
+            {front.node}
+          </div>
+        ) : (
+          <div
+            key={key}
+            aria-hidden
+            data-queue-card={key}
+            data-slot={slot}
+            className="ws-stack-card pointer-events-none absolute inset-x-0 top-0 rounded-[11.5px] bg-background"
+            style={{
+              bottom: shown * STACK_STEP,
+              zIndex: -1 - slot,
+              transform: pose.transform,
+              opacity: pose.opacity,
+            }}
+          >
+            <div
+              className={cn(
+                "ws-stack-edge absolute inset-0 rounded-[11.5px] border",
+                edge,
+              )}
+              style={{ opacity: pose.edge }}
+            />
+          </div>
+        );
+      })}
+      {/* The leaving card's copy: over the front moving on, under it going back. */}
       <div
-        key={itemKey}
-        data-queue-part="front"
-        className="relative rounded-[11.5px] bg-background"
-      >
-        {front}
-      </div>
+        data-queue-ghosts
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+      />
     </div>
   );
 }
@@ -301,7 +328,7 @@ export function SuggestionCard({
   return (
     <div
       style={{ zoom: CARD_ZOOM }}
-      className="rounded-lg border border-border px-5 pb-2 pt-[15px] text-foreground"
+      className="overflow-hidden rounded-lg border border-border px-5 pb-2 pt-[15px] text-foreground"
     >
       <p className="text-[11px] font-medium leading-[1.6] text-muted-foreground">
         Suggestion
