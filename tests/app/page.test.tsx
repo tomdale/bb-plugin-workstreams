@@ -242,9 +242,9 @@ it("draws the leaving item until its exit ends, one leaving card at a time", asy
     const slot = await mount();
     await waitFor(() => expect(heading(slot)).toBe("Beta question"));
     const copies = () =>
-      [...slot.container.querySelectorAll("[inert]")].map(
-        (el) => el.textContent,
-      );
+      [
+        ...slot.container.querySelectorAll("[inert]:not([data-queue-card])"),
+      ].map((el) => el.textContent);
     // Past the first item's own entrance, so the change isn't a held key.
     await new Promise((resolve) => setTimeout(resolve, 250));
     press("ArrowRight");
@@ -255,15 +255,16 @@ it("draws the leaving item until its exit ends, one leaving card at a time", asy
       true,
     );
     // Going straight back is a held key: the heading and actions aren't
-    // copied again, and the earlier leaving card gives way to this one.
+    // copied again, and the card going to the back of the deck gives way to
+    // the earlier card, which comes back as itself, not a copy.
     const cards = () =>
       slot.container.querySelectorAll("[data-queue-ghosts] > *").length;
     expect(cards()).toBe(1);
     const before = copies().length;
     press("ArrowLeft");
     await waitFor(() => expect(heading(slot)).toBe("Beta question"));
-    expect(copies().length).toBe(before);
-    expect(cards()).toBe(1);
+    expect(copies().length).toBe(before - 1);
+    expect(cards()).toBe(0);
     // Each copy goes once its exit ends.
     for (const { el, animation } of started)
       if (el.hasAttribute("inert")) animation.onfinish?.();

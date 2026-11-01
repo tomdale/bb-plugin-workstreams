@@ -49,7 +49,6 @@ import { actionMessage, cardOf, nextActionsOf } from "./card.ts";
 import {
   Answers,
   CardStack,
-  cardEdge,
   Composer,
   Heading,
   KeyChip,
@@ -454,41 +453,43 @@ export function Queue({
           title: suggestion.headline,
         }
       : null;
-  const front: React.ReactNode =
-    thread && card ? (
-      <ThreadCard
-        card={card}
-        threadId={thread.id}
-        files={files}
-        age={ago(thread.latestAttentionAt, now)}
-      />
-    ) : suggestion ? (
+  /** An item's card, for the front of the stack or a place behind it. */
+  const cardNode = (id: string): React.ReactNode => {
+    const row = rowOf.get(id)?.thread;
+    if (row) {
+      const shownCard =
+        id === thread?.id
+          ? card
+          : cardOf(
+              row,
+              ws.work(row),
+              ws.server.recaps[id],
+              sent.get(id),
+              isRunning(row),
+            );
+      return shownCard ? (
+        <ThreadCard
+          card={shownCard}
+          threadId={id}
+          files={id === thread?.id ? files : null}
+          age={ago(row.latestAttentionAt, now)}
+        />
+      ) : null;
+    }
+    const s = suggestionOf.get(id);
+    return s ? (
       <SuggestionCard
-        reason={suggestion.reason}
-        moving={movingCount(suggestion)}
-        moves={suggestionMoves(suggestion)}
+        reason={s.reason}
+        moving={movingCount(s)}
+        moves={suggestionMoves(s)}
       />
     ) : null;
+  };
+  const front = current ? cardNode(current) : null;
   // Two cards' edges show behind the front one; a third waits unseen.
   const behind: StackCard[] = remaining
     .slice(position + 1, position + 4)
-    .map((id) => {
-      const next = rowOf.get(id)?.thread;
-      return {
-        key: id,
-        edge: cardEdge(
-          next
-            ? cardOf(
-                next,
-                ws.work(next),
-                ws.server.recaps[id],
-                sent.get(id),
-                isRunning(next),
-              )
-            : null,
-        ),
-      };
-    });
+    .map((id) => ({ key: id, node: cardNode(id) }));
 
   const archiveLeads =
     card?.kind === "recap" &&
@@ -518,11 +519,7 @@ export function Queue({
               <div ref={motion.unit}>
                 {front && current ? (
                   <CardStack
-                    front={{
-                      key: current,
-                      edge: cardEdge(card),
-                      node: front,
-                    }}
+                    front={{ key: current, node: front }}
                     behind={behind}
                   />
                 ) : null}

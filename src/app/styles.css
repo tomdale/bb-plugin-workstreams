@@ -548,21 +548,36 @@
 .dark .ws-queue-path {
   color: oklch(79% 0.13 var(--ws-hue, 250));
 }
-/* The queue's cards move between slots in the stack as the queue moves; the
-   curve and duration match the rest of the change (queue/motion.ts). A card's
-   surface stays opaque; its edge fades with depth, and a card past the shown
-   slots fades out at the back. */
+/* The queue's deck: each card moves between slots as the queue moves, on the
+   curve and duration of the rest of the change (queue/motion.ts). Every card
+   is opaque. Behind the front, a card's face dims with depth and fills the
+   front card's height, and its content is hidden: a card's content is its
+   face's children, or the children of a `display: contents` wrapper. */
 .ws-stack-card {
   transition:
-    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 320ms cubic-bezier(0.32, 0.72, 0, 1);
+    transform 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 420ms cubic-bezier(0.32, 0.72, 0, 1);
 }
-.ws-stack-edge {
-  transition: opacity 320ms cubic-bezier(0.32, 0.72, 0, 1);
+.ws-stack-card > * {
+  opacity: var(--ws-stack-face, 1);
+  transition: opacity 420ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.ws-stack-card[data-behind] > * {
+  height: 100%;
+}
+.ws-stack-card > * > :not(.contents),
+.ws-stack-card > * > .contents > * {
+  transition: opacity 200ms ease-out;
+}
+.ws-stack-card[data-behind] > * > :not(.contents),
+.ws-stack-card[data-behind] > * > .contents > * {
+  opacity: 0;
 }
 @media (prefers-reduced-motion: reduce) {
   .ws-stack-card,
-  .ws-stack-edge {
+  .ws-stack-card > *,
+  .ws-stack-card > * > :not(.contents),
+  .ws-stack-card > * > .contents > * {
     transition: none;
   }
 }

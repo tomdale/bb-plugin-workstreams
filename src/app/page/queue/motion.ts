@@ -1,25 +1,25 @@
 /**
- * The queue's change of item as one calm motion, built like a stack of real
- * cards: every card's surface stays opaque, so nothing ever shows through a
- * card, and only content fades.
+ * The queue's change of item as flipping through a deck of cards. Every card
+ * is a whole, opaque card, so nothing ever shows through one.
  *
- * Moving on, the front card lifts off the top and fades as it goes; the
- * first card behind it slides up into the front (`CardStack` keeps one
- * element per item, so this is the same card moving), takes the new item's
- * height, and its content fades in once the old card has cleared. Going back
- * is the reverse: the earlier card comes down onto the stack and the front
- * one sinks into the first slot behind it. The heading and actions fade
+ * Moving on, the front card goes to the back of the deck: it lifts, passes
+ * behind the stack at the top of its rise, and settles into the back slot as
+ * it fades away. The card behind it, already showing its content, slides up
+ * into the front (`CardStack` keeps one element per item, so this is the
+ * same card moving) and takes its own height. Going back is the reverse: the
+ * earlier card comes out from behind the deck, rises over it, and drops onto
+ * the front, covering the card it lands on. The heading and actions fade
  * through to the new item's, and the page glides to its new center.
  *
- * Only the leaving card, heading, and actions are copies of their DOM, taken
- * just before the change (`capture`) and drawn in place while they leave.
- * Each change starts from wherever the last one had got to: the glide, the
- * front card's height, and the stack's CSS transitions all retarget, and an
- * earlier leaving card is dropped, so held keys never stack up motion or
- * leave stray cards. A change within `RAPID_MS` of the last (a held arrow
- * key) is quicker and copies no heading or actions. Under reduced motion the
- * new item only fades in. Without Web Animations (tests) every change applies
- * at once.
+ * The card going to the back, the old heading, and the old actions are
+ * copies of their DOM, taken just before the change (`capture`). Each change
+ * starts from wherever the last one had got to: the glide, the front card's
+ * height, and the stack's CSS transitions all retarget, and an earlier card
+ * still in flight is dropped, so held keys never stack up motion or leave
+ * stray cards. A change within `RAPID_MS` of the last (a held arrow key)
+ * runs quicker and copies no heading or actions. Under reduced motion the
+ * new item only fades in. Without Web Animations (tests) every change
+ * applies at once.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { layerPose } from "./QueueItem.tsx";
@@ -27,18 +27,24 @@ import { layerPose } from "./QueueItem.tsx";
 export type Direction = "forward" | "back";
 
 /** The page glide, the cards' moves between slots, and the height change. */
-const SETTLE_MS = 320;
+const SETTLE_MS = 420;
 /** Matches `.ws-stack-card`'s transition in styles.css. */
 const EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
-/** The leaving card: it moves off quickly and is gone before it settles. */
+/** A card going to the back of the deck, or coming out from behind it: up
+ * and over (`OVER`), then down into its place (`EASE`). */
+const DECK_MS = 560;
+const RAPID_DECK_MS = 260;
+const OVER = "cubic-bezier(0.4, 0, 0.6, 1)";
+/** How high, in card heights, a card rises to pass over or behind the deck. */
+const LIFT = 0.55;
+/** The slot past the shown ones, where a card waits unseen at the back. */
+const STACK_BACK = 2;
+/** The old heading and actions fade out; the new ones fade in after. */
 const EXIT_MS = 220;
 const EXIT_FADE_MS = 120;
 const EXIT_EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
-/** How far the leaving card lifts away, or the earlier one comes down from. */
-const LIFT_PX = 24;
-/** The new item's content fades in once the old card has mostly cleared. */
 const IN_DELAY_MS = 100;
-const IN_MS = 160;
+const IN_MS = 200;
 /** A change this soon after the last one is a held key, and runs quicker. */
 const RAPID_MS = 200;
 const RAPID_MS_EACH = 120;
@@ -166,7 +172,7 @@ export function useQueueMotion(item: string | null, centerKey: string) {
   }, []);
 
   const pieceOf = useCallback(
-    (el: HTMLElement, blank = false): Piece => {
+    (el: HTMLElement): Piece => {
       const copy = copyOf(el);
       // Draw it as it looked, partway through a fade or move included.
       const style = getComputedStyle(el);
@@ -183,7 +189,7 @@ export function useQueueMotion(item: string | null, centerKey: string) {
           (node, index) => node?.children[index],
           copy,
         ) as HTMLElement | undefined;
-        if (child) child.style.opacity = blank ? "0" : (faded[i] ?? "1");
+        if (child) child.style.opacity = faded[i] ?? "1";
       });
       const top = yOf(el);
       const rect = el.getBoundingClientRect();
@@ -213,9 +219,7 @@ export function useQueueMotion(item: string | null, centerKey: string) {
           const el = partOf(root, part);
           if (el) pieces.push(pieceOf(el));
         }
-      // A held key's leaving card goes as a bare surface, so its text never
-      // crosses the next card's as that brightens in.
-      const card = front ? pieceOf(front, rapid) : null;
+      const card = front ? pieceOf(front) : null;
       pending.current = {
         direction,
         from: shown.current,
@@ -261,7 +265,7 @@ export function useQueueMotion(item: string | null, centerKey: string) {
     const direction = snap?.direction ?? "forward";
     const toward = direction === "forward" ? 1 : -1;
     const rapid = snap?.rapid ?? false;
-    const settle = rapid ? RAPID_MS_EACH : SETTLE_MS;
+    const settle = rapid ? RAPID_DECK_MS : SETTLE_MS;
 
     // The whole column glides from where the unit was to its new center.
     const shift = fromY === null ? 0 : fromY - unitY;
@@ -306,8 +310,9 @@ export function useQueueMotion(item: string | null, centerKey: string) {
     // center follow it.
     const front = partOf(root, "front");
     const face = faceOf(front);
+    const frontHeight = face?.getBoundingClientRect().height ?? 0;
     if (face && snap?.frontHeight != null) {
-      const height = face.getBoundingClientRect().height;
+      const height = frontHeight;
       const zoom = Number(getComputedStyle(face).zoom) || 1;
       if (Math.abs(snap.frontHeight - height) > 0.5)
         running.current.push(
@@ -321,54 +326,124 @@ export function useQueueMotion(item: string | null, centerKey: string) {
         );
     }
 
-    // A card new to the stack comes in from the next slot: from below moving
-    // on, from the front going back. The earlier card, coming back to the
-    // front, comes down onto the stack from above.
+    const deck = rapid ? RAPID_DECK_MS : DECK_MS;
+    const lift = (height: number) =>
+      `translateY(${-LIFT * height}px) scale(0.98)`;
+    const back = layerPose(STACK_BACK).transform;
+
+    // Cards new to the stack: the earlier card, going back, comes out from
+    // behind the deck, rises over it, and drops onto the front; any other
+    // comes in from the next slot down.
     if (snap) {
       for (const [key, el] of cardsOf(root)) {
         if (snap.cards.has(key)) continue;
         const slot = Number(el.dataset.slot);
-        const from =
-          slot < 0 && direction === "back"
-            ? { transform: `translateY(${-LIFT_PX}px)`, opacity: 0 }
-            : direction === "forward"
-              ? { transform: layerPose(slot + 1).transform, opacity: 0 }
-              : { transform: layerPose(slot - 1).transform };
-        el.animate([from, {}], { duration: settle, easing: EASE });
-        if (slot < 0)
-          el.animate([{ opacity: 0 }, {}], {
-            duration: rapid ? RAPID_MS_EACH : EXIT_FADE_MS,
-            easing: EXIT_EASE,
-          });
+        if (slot < 0 && direction === "back") {
+          const height = frontHeight;
+          // The card it lands on keeps its content in view until covered.
+          const covered = cardsOf(root).find(
+            ([, card]) => card.dataset.slot === "0",
+          )?.[1];
+          for (const child of contentOf(faceOf(covered ?? null)))
+            child.animate(
+              [
+                { opacity: 1 },
+                { opacity: 1, offset: 0.55 },
+                { opacity: 0, offset: 0.7 },
+                { opacity: 0 },
+              ],
+              { duration: deck },
+            );
+          el.animate(
+            [
+              { transform: back, zIndex: -10, opacity: 0 },
+              {
+                transform: back,
+                zIndex: -10,
+                opacity: 1,
+                offset: 0.1,
+                easing: OVER,
+              },
+              { transform: lift(height), zIndex: -10, offset: 0.549 },
+              {
+                transform: lift(height),
+                zIndex: 3,
+                offset: 0.55,
+                easing: EASE,
+              },
+              { transform: "none", zIndex: 3, opacity: 1 },
+            ],
+            { duration: deck },
+          );
+        } else
+          el.animate(
+            [{ transform: layerPose(slot + 1).transform, opacity: 0 }, {}],
+            { duration: settle, easing: EASE },
+          );
       }
     }
 
-    // The new item's content fades in once the old card has cleared it.
-    if (rapid || !snap) fadeIn(root, 0, RAPID_MS_EACH, 0, 0.4);
-    else fadeIn(root, IN_DELAY_MS, IN_MS, 4 * toward, 0);
+    fadeIn(
+      root,
+      rapid || !snap ? 0 : IN_DELAY_MS,
+      rapid ? RAPID_MS_EACH : IN_MS,
+      rapid || !snap ? 0 : 4 * toward,
+      rapid ? 0.4 : 0,
+    );
 
-    // The old card leaves: off the top moving on, over the new front; into
-    // the first slot going back, under it. At most one card is leaving.
+    // Moving on, the front card goes to the back of the deck: it lifts, passes
+    // behind the stack at the top of its rise, and settles into the back,
+    // taking the new front card's height. At most one card is in flight.
     if (stackLayer) stackLayer.replaceChildren();
-    if (snap?.card && placeCard) {
+    if (snap?.card && placeCard && direction === "forward") {
       placeCard();
       const copy = snap.card.copy;
-      copy.style.zIndex = direction === "forward" ? "4" : "1";
-      const away =
-        direction === "forward"
-          ? `translateY(${-LIFT_PX}px)`
-          : layerPose(0).transform;
-      copy.animate([{}, { transform: away }], {
-        duration: rapid ? RAPID_MS_EACH : EXIT_MS,
-        easing: EXIT_EASE,
-        fill: "forwards",
-      });
-      const exit = copy.animate([{}, { opacity: 0 }], {
-        duration: rapid ? RAPID_MS_EACH : EXIT_FADE_MS,
-        easing: "ease-out",
-        fill: "forwards",
-      });
-      exit.onfinish = exit.oncancel = () => copy.remove();
+      const from = snap.frontHeight ?? copy.offsetHeight;
+      const to = frontHeight || from;
+      copy.style.overflow = "hidden";
+      const start = copy.style.transform || "none";
+      const flight = copy.animate(
+        [
+          { transform: start, zIndex: 20, height: `${from}px`, easing: OVER },
+          {
+            transform: lift(from),
+            zIndex: 20,
+            height: `${from}px`,
+            offset: 0.45,
+          },
+          {
+            transform: lift(from),
+            zIndex: -10,
+            height: `${from}px`,
+            offset: 0.451,
+            easing: EASE,
+          },
+          {
+            transform: back,
+            zIndex: -10,
+            height: `${to}px`,
+            opacity: 1,
+            offset: 0.9,
+          },
+          { transform: back, zIndex: -10, height: `${to}px`, opacity: 0 },
+        ],
+        { duration: deck, fill: "forwards" },
+      );
+      // Behind the deck its content is hidden, as every card's there is.
+      for (const child of contentOf(faceOf(copy)))
+        child.animate(
+          [
+            {},
+            { opacity: 1, offset: 0.45 },
+            { opacity: 0, offset: 0.55 },
+            { opacity: 0 },
+          ],
+          {
+            duration: deck,
+            fill: "forwards",
+          },
+        );
+      flight.onfinish = flight.oncancel = () => copy.remove();
     }
 
     // The old heading and actions fade where they were.
@@ -431,9 +506,9 @@ function shiftOf(el: HTMLElement): number {
 }
 
 /**
- * Fades in the new item from opacity `from`: the heading and actions rise
- * `rise` pixels (negative settles down), and the front card's content fades
- * inside its card, whose surface stays opaque.
+ * Fades in the new item's heading and actions from opacity `from`, rising
+ * `rise` pixels (negative settles down). The front card's content fades in
+ * by its own transition (`.ws-stack-card`).
  */
 function fadeIn(
   root: HTMLElement,
@@ -442,12 +517,6 @@ function fadeIn(
   rise: number,
   from: number,
 ) {
-  const timing: KeyframeAnimationOptions = {
-    delay,
-    duration,
-    easing: "ease-out",
-    fill: "backwards",
-  };
   for (const part of PARTS) {
     const el = partOf(root, part);
     if (!el) continue;
@@ -455,8 +524,11 @@ function fadeIn(
       rise === 0
         ? { opacity: from }
         : { opacity: from, transform: `translateY(${rise}px)` };
-    el.animate([start, {}], { ...timing, easing: EASE });
+    el.animate([start, {}], {
+      delay,
+      duration,
+      easing: EASE,
+      fill: "backwards",
+    });
   }
-  for (const child of contentOf(faceOf(partOf(root, "front"))))
-    child.animate([{ opacity: from }, {}], timing);
 }
