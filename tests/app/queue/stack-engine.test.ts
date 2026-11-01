@@ -277,6 +277,23 @@ describe("the stack engine", () => {
       expect(top, key).toBeLessThanOrEqual(single + 1);
   });
 
+  it("keeps a held back key's moves when the page re-renders between them", () => {
+    // The page syncs the pile on every render, with no direction except on
+    // the render a press causes; the moves a held key still owes must
+    // survive those.
+    const q = queue(50);
+    for (let ms = 0; ms < 1500; ms += 33) {
+      q.press("back");
+      for (let t = 0; t < 33; t += DT * 1000) {
+        q.engine.sync(q.window());
+        q.run(DT * 1000);
+      }
+    }
+    q.run(4000);
+    expect(problems(q.frames)).toEqual([]);
+    expectSettled(q);
+  });
+
   it("holds back a key held in the other direction the same way", () => {
     const q = queue(50);
     for (let ms = 0; ms < 1500; ms += 33) {

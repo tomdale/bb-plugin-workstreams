@@ -238,10 +238,14 @@ export class StackEngine {
     const next = this.want[0];
     const known = (key: string | undefined) =>
       key !== undefined && this.cards.has(key);
+    // A front the pile doesn't hold, with no direction, is a jump (the feed
+    // changed under it), and the pile is rebuilt. Not while moves are owed: a
+    // held back key's next card comes in only when its move is taken, and the
+    // page syncs again on every render in between.
     if (
       instant ||
       this.cards.size === 0 ||
-      (!hint && next !== front?.key && !known(next))
+      (!hint && !this.owed && next !== front?.key && !known(next))
     ) {
       this.reset();
       return;
