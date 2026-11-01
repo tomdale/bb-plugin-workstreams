@@ -647,7 +647,7 @@ export function Queue({
           >
             <SkipButton
               label="Previous"
-              icon="ChevronLeft"
+              icon="ChevronUp"
               disabled={position <= 0}
               onClick={() => skip(-1)}
             />
@@ -657,7 +657,7 @@ export function Queue({
             </span>
             <SkipButton
               label="Next"
-              icon="ChevronRight"
+              icon="ChevronDown"
               disabled={position >= remaining.length - 1}
               onClick={() => skip(1)}
             />

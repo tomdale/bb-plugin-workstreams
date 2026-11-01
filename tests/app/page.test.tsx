@@ -224,6 +224,14 @@ it("steps through the queue without acting", async () => {
   expect(slot.getByRole("navigation", { name: "Queue" }).textContent).toBe(
     "2 of 2",
   );
+  // The footer's arrows point the way the cards move: up and down.
+  const icon = (name: string) =>
+    slot
+      .getByRole("button", { name })
+      .querySelector("[data-icon]")
+      ?.getAttribute("data-icon");
+  expect(icon("Previous")).toBe("ChevronUp");
+  expect(icon("Next")).toBe("ChevronDown");
   fireEvent.click(slot.getByRole("button", { name: "Previous" }));
   await waitFor(() => expect(heading(slot)).toBe("Beta question"));
   expect(
