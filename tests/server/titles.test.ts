@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { PrefsPatch } from "../../src/domain/prefs.ts";
 import { fakeWorld } from "./fake-bb.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
@@ -22,14 +23,11 @@ type Entry = {
  * retain it on later turns. The last response repeats.
  */
 const requests: string[] = [];
-async function setup(
-  goals: (string | null)[],
-  settings?: Record<string, string | boolean>,
-) {
+async function setup(goals: (string | null)[], prefs?: PrefsPatch) {
   requests.length = 0;
   let call = 0;
   world = await fakeWorld({
-    settings,
+    prefs,
     // Placement calls share the model; only Full analysis names goals.
     complete: ({ prompt }) =>
       JSON.stringify({
@@ -178,7 +176,9 @@ describe("keeping thread titles current", () => {
     vi.useRealTimers();
     await kept.harness.lifecycle.dispose();
 
-    const off = await setup(["Fix stale build cache"], { autoTitle: false });
+    const off = await setup(["Fix stale build cache"], {
+      threads: { autoTitle: false },
+    });
     off.addThread("t1", { title: null });
     await rpc(off, "refresh", null);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });

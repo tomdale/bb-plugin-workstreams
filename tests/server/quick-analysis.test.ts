@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
+import type { PrefsPatch } from "../../src/domain/prefs.ts";
 import { fakeWorld, type FakeCompletion } from "./fake-bb.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
@@ -83,11 +84,8 @@ function models(answers: {
   };
 }
 
-async function setup(
-  complete: FakeCompletion,
-  settings?: Record<string, string | boolean>,
-) {
-  world = await fakeWorld({ complete, settings });
+async function setup(complete: FakeCompletion, prefs?: PrefsPatch) {
+  world = await fakeWorld({ complete, prefs });
   return world;
 }
 
@@ -339,7 +337,7 @@ describe("naming a thread from its opening request", () => {
 
   it("makes no call when titles are turned off", async () => {
     const w = await setup(models({ opening: ["Fix stale build cache"] }), {
-      autoTitle: false,
+      threads: { autoTitle: false },
     });
     newThread(w);
     await firstMessage(w);
@@ -404,7 +402,7 @@ describe("naming a thread from its opening request", () => {
               }),
             )
           : analysis("Speed up the monorepo build"),
-      { debug: true },
+      { advanced: { debug: true } },
     );
     newThread(w);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -634,7 +632,7 @@ describe("naming a thread from its opening request", () => {
 
   it("records the call on the trace, linked to the title it wrote", async () => {
     const w = await setup(models({ opening: ["Fix stale build cache"] }), {
-      debug: true,
+      advanced: { debug: true },
     });
     newThread(w);
     await firstMessage(w);
@@ -677,7 +675,7 @@ describe("naming a thread from its opening request", () => {
     const pending = gate();
     const w = await setup(
       ({ prompt }) => (isOpening(prompt) ? pending.answer : analysis(null)),
-      { debug: true },
+      { advanced: { debug: true } },
     );
     newThread(w);
     await firstMessage(w);

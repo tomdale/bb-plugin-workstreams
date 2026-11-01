@@ -8,7 +8,8 @@ import {
   makeThreadResponse,
 } from "@get-bb/plugin-sdk/testing";
 import plugin from "../../src/server/index.ts";
-import { migrateLegacyPrefs, savePrefs } from "../../src/server/prefs.ts";
+import { savePrefs } from "../../src/server/prefs.ts";
+import type { PrefsPatch } from "../../src/domain/prefs.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 import { placementIds } from "../../src/domain/placement.ts";
@@ -107,7 +108,8 @@ const DEFAULT_ANSWER = JSON.stringify({
 export async function fakeWorld(
   options: {
     complete?: FakeCompletion;
-    settings?: Record<string, string | boolean>;
+    /** Preferences the world starts with, as the settings view would save them. */
+    prefs?: PrefsPatch;
     send?: (args: Record<string, unknown>) => Promise<void>;
     spawn?: (args: Record<string, unknown>) => Promise<Thread>;
   } = {},
@@ -169,7 +171,6 @@ export async function fakeWorld(
   const text = (value: string) => [{ type: "text", text: value }];
   const host = createFakePluginHost({
     pluginId: "workstreams",
-    settings: { understandingAutomatic: false, ...options.settings },
     experimental_callHostRpc: async (call) => {
       const input = call.input as {
         prompt: string;
@@ -195,30 +196,6 @@ export async function fakeWorld(
         : { ...given, text: translate(given.text), usage, stopReason: "stop" };
     },
     sdk: {
-      plugins: {
-        getSettings: async ({ pluginId }: { pluginId: string }) => {
-          if (pluginId !== "workstreams") throw new Error("Unknown plugin");
-          const values = Object.fromEntries(
-            Object.entries(options.settings ?? {}).map(([key, value]) => [
-              (
-                {
-                  showParentThreadLink: "showParentThreadLink",
-                  showForYou: "showForYou",
-                  showRecent: "showRecent",
-                  model: "model",
-                  autoTitle: "autoTitle",
-                  hostId: "hostId",
-                  organizeModel: "organizeModel",
-                  homeProjectId: "homeProjectId",
-                  debug: "debug",
-                } as Record<string, string>
-              )[key] ?? key,
-              value,
-            ]),
-          );
-          return { ok: true, schema: {}, values };
-        },
-      },
       projects: {
         // A distinctive name that must never reach a model prompt.
         list: async () => [...projects],
@@ -461,12 +438,7 @@ export async function fakeWorld(
     } as never,
   });
   await plugin(host.bb);
-  if (options.settings) {
-    const db = host.bb.storage.database();
-    savePrefs(db, migrateLegacyPrefs(options.settings));
-    if (typeof options.settings.suggestions === "boolean")
-      savePrefs(db, { newWork: { suggestions: options.settings.suggestions } });
-  }
+  if (options.prefs) savePrefs(host.bb.storage.database(), options.prefs);
   // Let the load-time reconcile and analysis catch-up run on the empty world
   // before tests act, then seed explicitly.
   await new Promise((resolve) => setTimeout(resolve, 5));

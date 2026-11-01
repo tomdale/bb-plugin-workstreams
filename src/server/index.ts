@@ -61,7 +61,7 @@ import { isSnoozed, MAX_SNOOZE_MS } from "../domain/snooze.ts";
 import { wakesOnEvents, type WakeEvent } from "../domain/wake.ts";
 import { workView } from "../domain/status.ts";
 import { SnoozeWaker } from "./snoozeWake.ts";
-import { hasPrefs, loadPrefs, savePrefs, seedPrefs } from "./prefs.ts";
+import { loadPrefs, savePrefs, seedPrefs } from "./prefs.ts";
 import { gatewayModel, type ModelChoice } from "../domain/prefs.ts";
 import { runWorker as completeWithWorker } from "./inference/worker.ts";
 
@@ -72,19 +72,7 @@ const RECONCILE_DEBOUNCE_MS = 1_500;
 
 export default async function plugin(bb: BbPluginApi) {
   const db = openDatabase(bb);
-  if (!hasPrefs(db)) {
-    try {
-      const legacy = await bb.sdk.plugins.getSettings({
-        pluginId: "workstreams",
-      });
-      seedPrefs(db, legacy.values);
-    } catch (error) {
-      bb.log.warn(
-        `Could not migrate Workstreams settings; using defaults: ${String(error)}`,
-      );
-      seedPrefs(db, null);
-    }
-  }
+  seedPrefs(db);
   const journal = new Journal(db);
   const notify = () => bb.realtime.publish("changed", {});
   const snoozes = new ThreadSnoozes(db);

@@ -44,7 +44,7 @@ const isQuick = (prompt: string) =>
 
 async function setup(debug: boolean, complete?: FakeCompletion) {
   world = await fakeWorld({
-    settings: { debug },
+    prefs: { advanced: { debug } },
     complete:
       complete ??
       (({ prompt }) =>

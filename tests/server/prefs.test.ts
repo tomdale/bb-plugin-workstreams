@@ -6,12 +6,7 @@ import {
 } from "../../src/domain/prefs.ts";
 import { DEFAULT_COLORS } from "../../src/domain/colors.ts";
 import { openDatabase, setMeta } from "../../src/server/db.ts";
-import {
-  loadPrefs,
-  migrateLegacyPrefs,
-  savePrefs,
-  seedPrefs,
-} from "../../src/server/prefs.ts";
+import { loadPrefs, savePrefs, seedPrefs } from "../../src/server/prefs.ts";
 import { fakeWorld } from "./fake-bb.ts";
 
 describe("Workstreams prefs", () => {
@@ -111,75 +106,12 @@ describe("Workstreams prefs", () => {
     await world.harness.lifecycle.dispose();
   });
 
-  it("maps old declarative values without requiring BB settings registration", () => {
-    expect(
-      migrateLegacyPrefs({
-        showParentThreadLink: true,
-        showForYou: false,
-        showRecent: false,
-        model: "google/old-model",
-        autoTitle: false,
-        hostId: "host-a",
-        organizeModel: "openai/old-organize",
-        homeProjectId: "project-a",
-        debug: true,
-      }),
-    ).toEqual({
-      sidebar: {
-        showForYou: false,
-        showRecent: false,
-        showSnoozed: true,
-        showArchived: true,
-        phoneHome: true,
-        recentLimit: 5,
-        groupSort: "alphabetical",
-        timestamps: "show",
-        threadCount: "collapsed",
-        waitingCount: "collapsed",
-      },
-      threads: {
-        autoTitle: false,
-        headingTransition: "fade",
-        showParentLink: true,
-        showArchiveButton: true,
-      },
-      newWork: {
-        homeProjectId: "project-a",
-        suggestions: true,
-      },
-      analysis: {
-        quickModel: { kind: "gateway", model: "google/old-model" },
-        fullModel: { kind: "gateway", model: "openai/old-organize" },
-        placementModel: DEFAULT_MODELS.placement,
-      },
-      organize: { suggestions: true, tidyModel: DEFAULT_MODELS.tidy },
-      colors: { scheme: "workstreams", ...DEFAULT_COLORS },
-      advanced: { hostId: "host-a", debug: true },
-    });
-    expect(migrateLegacyPrefs({}).analysis.fullModel).toEqual(
-      DEFAULT_MODELS.full,
-    );
-  });
-
   it("merges patches, clamps Recent limits, and seeds only once", async () => {
     const world = await fakeWorld();
     const db = openDatabase(world.bb);
     db.prepare("DELETE FROM ws_meta WHERE key = 'prefs'").run();
-    const seeded = seedPrefs(db, {
-      model: "google/legacy",
-      showParentThreadLink: true,
-      showForYou: false,
-      showRecent: false,
-      autoTitle: false,
-      hostId: "host-a",
-      organizeModel: "openai/organize",
-      homeProjectId: "project-a",
-      debug: true,
-    });
-    expect(seeded.analysis.quickModel).toEqual({
-      kind: "gateway",
-      model: "google/legacy",
-    });
+    const seeded = seedPrefs(db);
+    expect(seeded.analysis.quickModel).toEqual(DEFAULT_MODELS.quick);
     expect(
       savePrefs(db, {
         sidebar: { recentLimit: 100, showSnoozed: false, showArchived: false },
@@ -189,7 +121,7 @@ describe("Workstreams prefs", () => {
       showSnoozed: false,
       showArchived: false,
     });
-    expect(seedPrefs(db, { model: "google/new" }).analysis.quickModel).toEqual(
+    expect(seedPrefs(db).analysis.quickModel).toEqual(
       seeded.analysis.quickModel,
     );
     expect(loadPrefs(db).sidebar).toMatchObject({
