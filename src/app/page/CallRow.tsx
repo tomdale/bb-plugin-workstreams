@@ -19,10 +19,15 @@ const EVENT: Record<TraceKind, { label: string; description: string }> = {
     description:
       "After a turn ended, the model settled the thread's goal, and its status when the agent didn't report one. This is an assessment, not proof that a change was applied.",
   },
+  categories: {
+    label: "Categories",
+    description:
+      "The model assessed the topic's current thread collection and proposed an arrangement into contextual categories. Topic assignments are unchanged.",
+  },
   split: {
     label: "Split suggestion",
     description:
-      "A busy topic's threads were divided into subgroups, as a suggestion for you to accept or decline.",
+      "The model assessed a first-level topic for lasting child topics and a complete filing plan, for you to accept or decline.",
   },
   tidy: {
     label: "Tidy suggestions",

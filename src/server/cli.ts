@@ -37,6 +37,7 @@ import {
 import type { TraceStore } from "./trace.ts";
 import type { StoredOrder } from "./order.ts";
 import type { TopicStore } from "./topics.ts";
+import type { TopicMigration } from "./topicMigration.ts";
 import type { Reclassification } from "./reclassification.ts";
 import { buildForest } from "../domain/tree.ts";
 import type { Topic, TopicAssignment } from "../domain/topics.ts";
@@ -215,6 +216,7 @@ export function registerCli(
     reclassifyTask,
     reclassification,
     suggestions,
+    topicMigration,
   }: {
     /** The sidebar's stored order and prioritized workstreams. */
     arrangement: {
@@ -229,6 +231,7 @@ export function registerCli(
     reclassification?: Reclassification;
     traces: TraceStore;
     topics: TopicStore;
+    topicMigration?: TopicMigration;
     currentPrefs?: () => Prefs;
     notify?: () => void;
     reclassifyTask?: (input: {
@@ -797,6 +800,92 @@ export function registerCli(
               stdout: options.json
                 ? JSON.stringify(result)
                 : `${result.changed} changed, ${result.skipped} skipped`,
+            };
+          },
+        }),
+        "topics migration preview": cliCommand({
+          summary:
+            "Preview a two-level topic migration without changing assignments",
+          options: {
+            mapping: {
+              type: "string",
+              description: "JSON choices and newTopics for reviewed filing",
+            },
+            json: {
+              type: "boolean",
+              description: "Print the complete review plan",
+            },
+          },
+          async run({ options }) {
+            if (!topicMigration)
+              throw new PluginCliError("Topic migration is unavailable.");
+            const plan = topicMigration.preview(
+              options.mapping ? JSON.parse(options.mapping) : {},
+            );
+            return {
+              exitCode: 0,
+              stdout: options.json
+                ? JSON.stringify(plan, null, 2)
+                : [
+                    `Plan: ${plan.id}`,
+                    `${plan.removed.length} deeper topics; ${plan.changes.length} assignments; ${plan.blockers.length} blockers`,
+                    ...plan.blockers
+                      .slice(0, SHOW_LIMIT)
+                      .map(
+                        (blocker) =>
+                          `${blocker.threadId ?? blocker.topicId}: ${blocker.reason}`,
+                      ),
+                    "Inspect the complete plan with --json before applying it.",
+                  ].join("\n"),
+            };
+          },
+        }),
+        "topics migration apply": cliCommand({
+          summary:
+            "Apply a reviewed topic migration while its facts still match",
+          positionals: [
+            {
+              name: "plan",
+              description: "Reviewed migration plan ID",
+              required: true,
+            },
+          ],
+          options: { json: { type: "boolean", description: "Print JSON" } },
+          async run({ positionals, options }) {
+            if (!topicMigration)
+              throw new PluginCliError("Topic migration is unavailable.");
+            const result = await service.exclusive(async () =>
+              topicMigration.apply(positionals.plan),
+            );
+            organizer.trigger(0);
+            notify?.();
+            return {
+              exitCode: 0,
+              stdout: options.json
+                ? JSON.stringify(result, null, 2)
+                : `Updated ${result.changed} assignments; recovery snapshot ${result.backupId}`,
+            };
+          },
+        }),
+        "topics migration backup": cliCommand({
+          summary: "Read the recovery snapshot of an applied topic migration",
+          positionals: [
+            {
+              name: "backup",
+              description: "Recovery snapshot ID",
+              required: true,
+            },
+          ],
+          async run({ positionals }) {
+            if (!topicMigration)
+              throw new PluginCliError("Topic migration is unavailable.");
+            return {
+              exitCode: 0,
+              stdout: JSON.stringify(
+                topicMigration.backup(positionals.backup),
+                null,
+                2,
+              ),
             };
           },
         }),

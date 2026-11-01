@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { LayoutNode } from "../../src/domain/layout.ts";
+import type { CategoryGeneration } from "../../src/domain/categories.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
@@ -95,6 +96,7 @@ async function mount(
       }[];
       groups: Record<string, string>;
       layout?: LayoutNode[];
+      categories?: Record<string, CategoryGeneration>;
     };
     archived?: {
       status: "loading" | "ready" | "error";
@@ -2384,6 +2386,58 @@ describe("small groups", () => {
       slot.lifecycle.unmount();
     },
   );
+
+  it("renders categories as row headings within the same workstream and keeps delegates with their roots", async () => {
+    const threads = Array.from({ length: 7 }, (_, i) =>
+      sidebarThread(`t${i}`, { title: `Task ${i}`, sectionId: "sec_vertex" }),
+    );
+    threads.push(
+      sidebarThread("delegate", {
+        title: "Delegated task",
+        parentThreadId: "t0",
+        sectionId: "sec_vertex",
+      }),
+    );
+    const slot = await mount(threads, {
+      sections: [section("sec_vertex", "Vertex")],
+      settings: { showRecent: false, showForYou: false },
+      catalog: {
+        entities: [
+          {
+            id: "vertex",
+            name: "Vertex",
+            description: "Product",
+            parentId: null,
+            aliases: [],
+          },
+        ],
+        groups: { sec_vertex: "vertex" },
+        categories: {
+          vertex: {
+            id: "generation",
+            categories: [
+              { id: "billing", name: "Billing", threadIds: ["t0", "t1", "t2"] },
+              {
+                id: "access",
+                name: "Access Control",
+                threadIds: ["t3", "t4", "t5"],
+              },
+            ],
+          },
+        },
+      },
+    });
+    await slot.findByRole("heading", { name: "Billing" });
+    expect(slot.getByRole("heading", { name: "Access Control" })).toBeTruthy();
+    expect(slot.queryByRole("region", { name: "Billing" })).toBeNull();
+    const group = slot.getByRole("region", { name: "Vertex" });
+    expect(
+      within(group).getByRole("link", { name: "Delegated task" }),
+    ).toBeTruthy();
+    expect(within(group).getByRole("link", { name: "Task 6" })).toBeTruthy();
+    expect(within(group).getAllByRole("link")).toHaveLength(8);
+    slot.lifecycle.unmount();
+  });
 
   it("keeps small top-level workstreams under their own headers", async () => {
     const slot = await mount(

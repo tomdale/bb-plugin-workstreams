@@ -57,6 +57,47 @@ const sample = () => [
 ];
 
 describe("Home screen", () => {
+  it("shows the same contextual categories without introducing workstream identities", async () => {
+    const slot = await mountHome({
+      threads: Array.from({ length: 6 }, (_, i) =>
+        sidebarThread(`t${i}`, { title: `Task ${i}`, sectionId: "sec_vertex" }),
+      ),
+      sections: [section("sec_vertex", "Vertex")],
+      prefs: { showForYou: false, showRecent: false },
+      catalog: {
+        entities: [
+          {
+            id: "vertex",
+            name: "Vertex",
+            description: "Product",
+            parentId: null,
+            aliases: [],
+          },
+        ],
+        groups: { sec_vertex: "vertex" },
+        assignments: {},
+        revision: 1,
+        categories: {
+          vertex: {
+            id: "generation",
+            categories: [
+              { id: "billing", name: "Billing", threadIds: ["t0", "t1", "t2"] },
+              {
+                id: "access",
+                name: "Access Control",
+                threadIds: ["t3", "t4", "t5"],
+              },
+            ],
+          },
+        },
+      },
+    });
+    await slot.findByRole("heading", { name: "Billing" });
+    expect(slot.getByRole("heading", { name: "Access Control" })).toBeTruthy();
+    expect(slot.queryByRole("region", { name: "Billing" })).toBeNull();
+    expect(links(region(slot, "Vertex"))).toHaveLength(6);
+    slot.lifecycle.unmount();
+  });
   it("takes BB's place inside its compact home", async () => {
     const slot = await mountHome({ threads: sample() });
     await slot.findByRole("region", { name: "Up Next" });

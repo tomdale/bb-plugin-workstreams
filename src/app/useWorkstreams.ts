@@ -105,6 +105,7 @@ export function useWorkstreams() {
             entities: catalog.entities,
             bindings: catalog.groups,
             layout: catalog.layout,
+            categories: catalog.categories,
           }
         : undefined,
     [catalog],

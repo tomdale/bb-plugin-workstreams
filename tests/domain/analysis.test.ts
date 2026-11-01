@@ -340,20 +340,22 @@ describe("Quick analysis", () => {
 });
 
 describe("strict Quick output schema", () => {
-  it("types nullable IDs explicitly and limits them to known IDs", () => {
-    const nullableId = {
-      type: ["string", "null"],
-      enum: [null, "lumen", "cache"],
-    };
+  it("limits filing to leaves and new parents to first-level topics", () => {
     expect(quickAnalysisSchema({ entities })).toMatchObject({
       type: "object",
       additionalProperties: false,
       properties: {
-        subjectId: nullableId,
+        subjectId: { type: ["string", "null"], enum: [null, "cache"] },
         proposed: {
           anyOf: [
             { type: "null" },
-            { type: "object", properties: { parentId: nullableId } },
+            {
+              type: "object",
+              properties: {
+                parentId: { type: ["string", "null"], enum: [null, "lumen"] },
+                ancestors: { maxItems: 1 },
+              },
+            },
           ],
         },
       },

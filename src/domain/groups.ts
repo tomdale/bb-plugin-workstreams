@@ -18,6 +18,7 @@
  * carry its name. Empty subgroups and their empty ancestors disappear
  * immediately.
  */
+import type { CategoryGeneration } from "./categories.ts";
 import { layoutLabel, type LayoutNode } from "./layout.ts";
 import type { Group, Projection, WorkstreamThread } from "./project.ts";
 
@@ -35,6 +36,7 @@ export type WorkstreamTopics = {
   readonly bindings: Readonly<Record<string, string>>;
   /** The groups the organizer last applied; absent before its first pass. */
   readonly layout?: readonly LayoutNode[];
+  readonly categories?: Readonly<Record<string, CategoryGeneration>>;
 };
 
 /**
@@ -47,8 +49,7 @@ export type WorkstreamNode<T extends WorkstreamThread> = Group<T> & {
   /** The topic it shows; null for a section bound to no known topic. */
   readonly topicId: string | null;
   /**
-   * The name to show, "Prefix: Name" with the prefix dimmed: the names of
-   * collapsed contexts and families, or a promoted group's ancestors.
+   * The topic name with its first-level container as a dimmed prefix.
    */
   readonly label: string;
   /** False for a header that only heads subgroups, which no BB section backs. */
@@ -61,6 +62,7 @@ export type WorkstreamNode<T extends WorkstreamThread> = Group<T> & {
    * parent's list, each labeled with its name.
    */
   readonly inline?: boolean;
+  readonly categories?: CategoryGeneration;
 };
 
 /**
@@ -293,7 +295,14 @@ export function nestGroups<T extends WorkstreamThread>(
           : null,
       ),
     );
-  return [...nested, ...alone].sort((a, b) => first(a) - first(b));
+  const withCategories = (node: WorkstreamNode<T>): WorkstreamNode<T> => ({
+    ...node,
+    categories: node.topicId ? topics?.categories?.[node.topicId] : undefined,
+    subgroups: node.subgroups.map(withCategories),
+  });
+  return [...nested, ...alone]
+    .sort((a, b) => first(a) - first(b))
+    .map(withCategories);
 }
 
 /**

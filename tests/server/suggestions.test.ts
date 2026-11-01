@@ -11,7 +11,7 @@ afterEach(async () => {
   world = null;
 });
 
-const SPLIT = "it is splitting into subgroups";
+const SPLIT = "Consider whether this first-level topic";
 const REPAIR = "holds threads beside its subgroups";
 const TIDY = "You maintain the topic tree";
 
@@ -63,7 +63,7 @@ const tidyEdit = (fields: Record<string, unknown>) => ({
 });
 
 describe("split suggestions", () => {
-  it("proposes splitting a topic past 5 threads, and accepting files every thread", async () => {
+  it("previews a lasting topic division on request, and accepting files every thread", async () => {
     const { w, topics, run, decide, rpc } = await setup({
       split: () => ({
         reason: "Planning apart from triggers",
@@ -118,7 +118,7 @@ describe("split suggestions", () => {
     expect(topics.subtopics(auto.id)).toBe(0);
 
     expect((await decide([split!.id], "accept")).applied).toEqual([split!.id]);
-    expect(topics.getById(auto.id)?.partitioned).toBe(true);
+    expect(topics.subtopics(auto.id)).toBe(2);
     expect(topics.assignment("t1").label).toBe("Automations: Planning");
     expect(topics.assignment("t6").label).toBe("Automations: Triggers");
 
@@ -132,6 +132,47 @@ describe("split suggestions", () => {
     await rpc("undo", { entryId: entry.id });
     expect(topics.subtopics(auto.id)).toBe(0);
     expect(topics.assignment("t1").entityId).toBe(auto.id);
+  });
+
+  it("reviews archived filing choices by name and preserves their provenance", async () => {
+    const { w, topics, run, decide, rpc } = await setup({
+      split: () => ({
+        reason: "Separates billing from access control.",
+        subgroups: [
+          { name: "Billing", description: "Billing" },
+          { name: "Access Control", description: "Permissions" },
+        ],
+        threads: [
+          { id: "r1", subgroup: "Billing" },
+          { id: "r2", subgroup: "Billing" },
+          { id: "r3", subgroup: "Access Control" },
+        ],
+      }),
+    });
+    const product = topics.create("Harbor");
+    for (const id of ["a", "b"]) {
+      w.addThread(id, { title: `Billing ${id}` });
+      topics.assign(id, product.id);
+    }
+    w.addThread("archived", {
+      title: "Archived permissions",
+      archivedAt: Date.now(),
+    });
+    topics.assign("archived", product.id, {
+      provenance: "manual",
+      evidence: "original",
+    });
+    await rpc("refresh");
+    const plan = (await run()).suggestions.find(
+      (suggestion) => suggestion.kind === "split",
+    )!;
+    expect(JSON.stringify(plan.change)).toContain("Archived permissions");
+    expect((await decide([plan.id], "accept")).applied).toEqual([plan.id]);
+    expect(topics.assignment("archived")).toMatchObject({
+      label: "Harbor: Access Control",
+      provenance: "manual",
+      evidence: "original",
+    });
   });
 
   it("still applies after threads move, close, or join, filing newcomers", async () => {

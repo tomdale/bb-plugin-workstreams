@@ -20,7 +20,7 @@ import type { PlacementInput, PlacementOutput } from "../domain/placement.ts";
 import { topicPath } from "../domain/topic-path.ts";
 import type { Database } from "./db.ts";
 import type { Inference } from "./model.ts";
-import { isSubstantiveRequest } from "./requests.ts";
+import { isSubstantiveRequest, placementRequests } from "./requests.ts";
 import { continuationThreadId } from "./requestProvenance.ts";
 import type { TopicStore } from "./topics.ts";
 
@@ -65,7 +65,6 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
 /** Roots that point at other repositories before a checkout coordinates. */
 const COORDINATION_AT = 2;
 
-const ROUTED = /^\[bb message from thread:[^\]]*\]\s*/i;
 const GITHUB_REPO = /github\.com\/([\w.-]+)\/([\w.-]+)/gi;
 const CODE_PATH = /(?:~|\/Users\/[\w.-]+)\/Code\/[\w./+-]+/g;
 
@@ -82,16 +81,6 @@ export function pointsElsewhere(text: string, checkout: string): boolean {
     if (!path.startsWith(checkout)) return true;
   }
   return false;
-}
-
-/** First, second, and latest substantive requests, oldest first. */
-export function placementRequests(requests: readonly string[]): string[] {
-  const substantive = requests
-    .map((text) => text.replace(ROUTED, "").trim())
-    .filter(isSubstantiveRequest);
-  return [
-    ...new Set([substantive[0], substantive[1], substantive.at(-1)]),
-  ].filter((text): text is string => Boolean(text));
 }
 
 export class Placement {

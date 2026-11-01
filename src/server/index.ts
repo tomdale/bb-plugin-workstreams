@@ -13,6 +13,10 @@ import { registerAgentInstructions } from "./agents.ts";
 import { Analyzer } from "./analyzer.ts";
 import { RecapArchive } from "./archive.ts";
 import { Organizer } from "./organizer.ts";
+import { Categories } from "./categories.ts";
+import { categoryEvidence } from "./categoryEvidence.ts";
+import { topicDivisionEvidence } from "./topicDivisionEvidence.ts";
+import { TopicMigration } from "./topicMigration.ts";
 import { buildForest } from "../domain/tree.ts";
 import { Placement } from "./placement.ts";
 import { isSubstantiveRequest } from "./requests.ts";
@@ -258,6 +262,7 @@ export default async function plugin(bb: BbPluginApi) {
     }
   };
   const topics = new TopicStore(db);
+  const topicMigration = new TopicMigration({ db, topics, journal });
   const projectAssociations = new ProjectAssociations({
     db,
     sdk: () => bb.sdk,
@@ -292,11 +297,12 @@ export default async function plugin(bb: BbPluginApi) {
     traceId: string | null,
   ) => {
     try {
+      const revision = topics.revision();
       const changed = topics.applyAnalysis(threadId, answer, kind, basis);
       inference.annotate(traceId, {
         topic: changed ? "applied" : "not applied: the thread keeps its topic",
       });
-      if (changed) {
+      if (changed || topics.revision() !== revision) {
         notify();
         triggerOrganizer();
       }
@@ -453,6 +459,81 @@ export default async function plugin(bb: BbPluginApi) {
   const questions = new QuestionStore(db, bb);
   registerQuestionTool(bb, questions);
   registerAgentInstructions(bb, recaps);
+  const categories: Categories = new Categories({
+    db,
+    collections: () => {
+      const entities = topics.list();
+      const assignments = topics.assignments();
+      const analysis = analyzer.all();
+      const roots = buildForest(service.threads())
+        .roots.map((root) => root.thread)
+        .filter(
+          (root) =>
+            !root.isHidden &&
+            !root.isArchived &&
+            !isSnoozed(snoozes.get(root.id), Date.now()),
+        );
+      return entities
+        .filter(
+          (topic) =>
+            takesThreads(topic.id, entities) &&
+            topicAncestors(topic.id, entities).length <= 2,
+        )
+        .map((topic) => ({
+          topicId: topic.id,
+          label: topicPath(topic.id, entities),
+          roots: roots
+            .filter((root) => assignments[root.id]?.entityId === topic.id)
+            .map((root) => ({
+              id: root.id,
+              title: root.title,
+              work: analysis[root.id]?.threadGoal ?? "",
+              workKey: analysis[root.id]?.requestsKey ?? "",
+            })),
+        }));
+    },
+    classify: async (input, signal) =>
+      (
+        await inference.run(
+          "categories",
+          await categoryEvidence(bb.sdk, input, signal, (id, basis) =>
+            categories.pendingRequest(id, basis),
+          ),
+          {
+            model: currentPrefs().organize.tidyModel,
+            label: input.label,
+            signal,
+            links: input.roots.map((root) => ({
+              kind: "thread" as const,
+              ref: root.id,
+            })),
+          },
+        )
+      ).value,
+    changed: (topicId, reason) => {
+      const label = topics.getById(topicId)
+        ? topicPath(topicId, topics.list())
+        : topicId;
+      const current = categories.generations()[topicId];
+      const titles = new Map(
+        service.threads().map((thread) => [thread.id, thread.title]),
+      );
+      journal.add({
+        action: "categories",
+        source: "auto",
+        rationale: reason,
+        threads: [],
+        workstreams: [...topics.groups()]
+          .filter(([, id]) => id === topicId)
+          .map(([id]) => ({ id, name: label })),
+        undo: null,
+        detail: `${label}\n${current ? current.categories.map((category) => `${category.name}: ${category.threadIds.map((id) => titles.get(id) ?? id).join(", ")}`).join("\n") : "No active categories"}`,
+      });
+      notify();
+    },
+    log: (message) => bb.log.warn(message),
+  });
+  bb.onDispose(() => categories.dispose());
   const organizerInstance = new Organizer({
     sdk: () => bb.sdk,
     db,
@@ -463,7 +544,12 @@ export default async function plugin(bb: BbPluginApi) {
     members: (sectionId) => sectionMembers(bb.sdk, sectionId),
     journal,
     onChange: notify,
-    onPass: () => {
+    onPass: (rebuild) => {
+      void categories
+        .reconcile(rebuild)
+        .catch((error) =>
+          bb.log.warn(`Categorizing collections failed: ${String(error)}`),
+        );
       suggestions.check();
       learnProjects();
     },
@@ -483,6 +569,10 @@ export default async function plugin(bb: BbPluginApi) {
         .filter((thread) => !thread.isHidden && !thread.isArchived),
     checkout: (threadId) => placement.checkoutOf(threadId),
     coordination: () => placement.coordinationWorkspaces(),
+    splitThreads: (topicId) =>
+      topicDivisionEvidence(bb.sdk, topics, topicId, (id) =>
+        placement.checkoutOf(id),
+      ),
     layout: () => organizerInstance.layout(),
     onChange: (topicsChanged) => {
       notify();
@@ -614,17 +704,21 @@ export default async function plugin(bb: BbPluginApi) {
       ctx.origin !== null &&
       ctx.attempt === "start-turn" &&
       Date.now() - ctx.thread.createdAt < 10 * 60_000;
+    const substantive =
+      isSubstantiveRequest(ctx.input.text) &&
+      (await withoutSubagentDeliveries(bb.sdk, ctx.thread.id, [ctx.input.text]))
+        .length > 0;
+    if (substantive)
+      void categories
+        .requestChanged(ctx.thread.id, ctx.input.text)
+        .catch((error) =>
+          bb.log.warn(
+            `Scheduling category assessment failed: ${String(error)}`,
+          ),
+        );
     if (!fresh) {
       // A newer request needs placement from the turn's complete context.
-      if (
-        isSubstantiveRequest(ctx.input.text) &&
-        (
-          await withoutSubagentDeliveries(bb.sdk, ctx.thread.id, [
-            ctx.input.text,
-          ])
-        ).length > 0
-      )
-        placement.cancelFirstRequest(ctx.thread.id);
+      if (substantive) placement.cancelFirstRequest(ctx.thread.id);
       quick.onDispatch(ctx);
       return { action: "proceed" };
     }
@@ -1009,8 +1103,20 @@ export default async function plugin(bb: BbPluginApi) {
     reclassificationPreview: async ({ threadIds }) =>
       reclassification.preview(threadIds),
     reclassificationApply: async ({ planId }) => reclassification.apply(planId),
+    topicMigrationPreview: (input) => topicMigration.preview(input ?? {}),
+    topicMigrationApply: ({ planId }) =>
+      userFacing(async () => {
+        const result = await service.exclusive(async () =>
+          topicMigration.apply(planId),
+        );
+        triggerOrganizer(0);
+        notify();
+        return result;
+      }),
+    topicMigrationBackup: ({ backupId }) => topicMigration.backup(backupId),
     catalog: async () => ({
       ...topics.state(),
+      categories: categories.generations(),
       layout: organizerInstance.layout(),
     }),
     catalogCreate: ({ name, description, parentId, aliases }) =>
@@ -1150,7 +1256,11 @@ export default async function plugin(bb: BbPluginApi) {
       order: loadOrder(db),
       snoozes: snoozes.all(),
       snoozePrefs: loadSnoozePrefs(db),
-      catalog: { ...topics.state(), layout: organizerInstance.layout() },
+      catalog: {
+        ...topics.state(),
+        layout: organizerInstance.layout(),
+        categories: categories.generations(),
+      },
       pendingSuggestions: suggestions.pendingCount(),
     }),
     setSnoozePrefs: ({ patch }) =>
@@ -1334,6 +1444,7 @@ export default async function plugin(bb: BbPluginApi) {
   });
 
   registerCli(bb, {
+    topicMigration,
     arrangement: {
       load: () => loadOrder(db),
       setPrioritized: (ids) => {

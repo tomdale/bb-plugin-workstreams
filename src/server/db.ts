@@ -343,7 +343,6 @@ const MIGRATIONS = [
   "UPDATE ws_corpus_subject SET source = 'manual' WHERE source = 'selected'",
   // `classified` is the earlier name for an automatic topic, which is `full`.
   "UPDATE ws_corpus_subject SET source = 'full' WHERE source = 'classified'",
-  // A topic whose subtopics a volume split created keeps its header.
   "ALTER TABLE ws_corpus_entity ADD COLUMN partitioned INTEGER NOT NULL DEFAULT 0",
   // Each root's checkout, and whether its requests point at other
   // repositories, for placement's checkout hints.
@@ -476,6 +475,14 @@ const MIGRATIONS = [
   "ALTER TABLE ws_workstream DROP COLUMN metadata_revision",
   "ALTER TABLE ws_workstream DROP COLUMN updated_at",
   "ALTER TABLE ws_workstream DROP COLUMN created_at",
+  "ALTER TABLE ws_corpus_entity DROP COLUMN partitioned",
+  `UPDATE ws_topic_snapshot SET entities = (
+     SELECT json_group_array(json_remove(item.value, '$.partitioned'))
+     FROM json_each(ws_topic_snapshot.entities) AS item
+   ) WHERE json_valid(entities)`,
+  "DELETE FROM ws_meta WHERE key = 'suggestions_splits'",
+  `UPDATE ws_suggestion SET status = 'stale', detail = 'Review a scope-based topic division under the two-level identity rules.'
+   WHERE kind = 'split' AND status = 'pending'`,
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

@@ -21,7 +21,7 @@ const DONE = JSON.stringify({
 });
 describe("grouping regressions", () => {
   it.each([1, 4])(
-    "counts %i done roots toward splitting and merging back",
+    "keeps topic workstreams stable with %i done roots as population changes",
     async (doneCount) => {
       world = await fakeWorld();
       const w = world;
@@ -30,11 +30,6 @@ describe("grouping regressions", () => {
       const p = topics.create("Product", "Product");
       const a = topics.create("Planning", "Planning", p.id);
       const b = topics.create("Triggers", "Triggers", p.id);
-      // A split made these subgroups, so Product keeps its header rather
-      // than collapsing into a prefix like a context.
-      db.prepare(
-        "UPDATE ws_corpus_entity SET partitioned = 1 WHERE id = ?",
-      ).run(p.id);
       for (let i = 0; i < 6; i++) {
         w.addThread(`t${i}`, {
           status: "idle",
@@ -49,11 +44,14 @@ describe("grouping regressions", () => {
       }
       const atThreshold = (await rebuild(w)).state;
       expect(atThreshold.counts.totalRoots).toBe(5);
-      expect(atThreshold.groups).toEqual([
-        expect.objectContaining({ name: "Product", totalCount: 5 }),
-      ]);
+      expect(atThreshold.groups).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Product: Planning", totalCount: 3 }),
+          expect.objectContaining({ name: "Product: Triggers", totalCount: 2 }),
+        ]),
+      );
 
-      // A sixth visible root splits the group, whether or not it's done.
+      // Completion and population leave topic section identities unchanged.
       w.threads.get("t5")!.archivedAt = null;
       const split = (await rebuild(w)).state;
       expect(split.groups.map((g: { name: string }) => g.name).sort()).toEqual([
@@ -66,16 +64,19 @@ describe("grouping regressions", () => {
         completedRoots: doneCount,
       });
 
-      // It stays split down to 4, and shows one list again at 3.
+      // Small populations still keep the same two topic-backed sections.
       w.threads.get("t0")!.archivedAt = 20;
       w.threads.get("t1")!.archivedAt = 20;
       expect((await rebuild(w)).state.groups).toHaveLength(2);
       w.threads.get("t2")!.archivedAt = 20;
       const merged = (await rebuild(w)).state;
       expect(merged.counts.totalRoots).toBe(3);
-      expect(merged.groups).toEqual([
-        expect.objectContaining({ name: "Product", totalCount: 3 }),
-      ]);
+      expect(merged.groups).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Product: Planning", totalCount: 1 }),
+          expect.objectContaining({ name: "Product: Triggers", totalCount: 2 }),
+        ]),
+      );
     },
   );
   it("replans when completion changes while projection is fetching a live root", async () => {

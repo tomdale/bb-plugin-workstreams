@@ -1,6 +1,8 @@
 import { topicPath } from "../domain/topic-path.ts";
 import {
   topicAncestors,
+  assertTopicLevels,
+  assertProposalLevels,
   resolveProposal,
   type AssignmentProvenance,
   type TopicAssignment,
@@ -129,6 +131,16 @@ export function restoreTopics(
     if (!row || topicsFingerprint(db) !== fingerprint) return false;
     const current = parseInt(getMeta(db, "catalog_revision") ?? "1", 10) || 1;
     const entities = JSON.parse(row.entities) as Row[];
+    try {
+      assertTopicLevels(
+        entities.map((entity) => ({
+          id: entity.id as string,
+          parentId: entity.parent_id as string | null,
+        })),
+      );
+    } catch {
+      return false;
+    }
     const kept = new Set(entities.map((entity) => entity.id as string));
     const now = new Map(
       (
@@ -233,7 +245,7 @@ export class TopicStore {
   list(): Topic[] {
     const rows = this.db
       .prepare(
-        "SELECT id, name, description, parent_id, aliases, partitioned, project_id, project_source, project_revision FROM ws_corpus_entity ORDER BY id",
+        "SELECT id, name, description, parent_id, aliases, project_id, project_source, project_revision FROM ws_corpus_entity ORDER BY id",
       )
       .all() as {
       id: string;
@@ -241,7 +253,6 @@ export class TopicStore {
       description: string;
       parent_id: string | null;
       aliases: string;
-      partitioned: number;
       project_id: string | null;
       project_source: Topic["projectSource"];
       project_revision: number;
@@ -252,7 +263,6 @@ export class TopicStore {
       description: row.description,
       parentId: row.parent_id,
       aliases: JSON.parse(row.aliases) as string[],
-      partitioned: row.partitioned === 1,
       projectId: row.project_id,
       projectSource: row.project_source,
       projectRevision: row.project_revision,
@@ -270,14 +280,12 @@ export class TopicStore {
     ).n;
   }
 
-  /** Visible, non-archived roots assigned to `entityId` itself. */
+  /** Stored assignments keep a topic in use, including archived work. */
   heldThreads(entityId: string): number {
     return (
       this.db
         .prepare(
-          `SELECT COUNT(*) AS n FROM ws_corpus_subject s
-           JOIN ws_seen_thread t ON t.thread_id = s.thread_id
-           WHERE s.entity_id = ?`,
+          `SELECT COUNT(*) AS n FROM ws_corpus_subject WHERE entity_id = ?`,
         )
         .get(entityId) as { n: number }
     ).n;
@@ -340,6 +348,7 @@ export class TopicStore {
     if (parentId !== null && !this.getById(parentId))
       throw new Error(`Unknown topic parent: ${parentId}`);
     this.assertParentChainAcyclic(parentId);
+    assertProposalLevels({ name, description, parentId }, this.list());
 
     const cleanDescription = description.trim();
     const cleanAliasList = cleanAliases(aliases);
@@ -358,7 +367,6 @@ export class TopicStore {
       description: cleanDescription,
       parentId,
       aliases: cleanAliasList,
-      partitioned: false,
       projectId: null,
       projectSource: null,
       projectRevision: 0,
@@ -389,6 +397,7 @@ export class TopicStore {
       if (parentId !== null && !this.getById(parentId))
         throw new Error(`Unknown topic parent: ${parentId}`);
       this.assertParentChainAcyclic(parentId);
+      assertProposalLevels({ name, description, parentId }, this.list());
       this.assertTakesSubtopics(parentId);
 
       const existing = this.resolve(cleanName, parentId);
@@ -420,7 +429,6 @@ export class TopicStore {
         description: cleanDescription,
         parentId,
         aliases: cleanAliasList,
-        partitioned: false,
         projectId: null,
         projectSource: null,
         projectRevision: 0,
@@ -456,11 +464,22 @@ export class TopicStore {
       const resolved = resolveProposal(draft, this.list());
       if (resolved.subjectId !== null) return this.getById(resolved.subjectId)!;
       const proposal = resolved.proposed;
+      assertProposalLevels(proposal, this.list());
       let parent = proposal.parentId ?? null;
-      // Subgroups come only from splits, so a new topic beneath one that
-      // holds threads files the thread in that topic instead.
-      if (parent !== null && this.heldThreads(parent) > 0)
+      // Adding the first child needs a reviewed plan for the whole collection.
+      if (parent !== null && this.heldThreads(parent) > 0) {
+        const requests = this.divisionRequests();
+        const scope = {
+          name: proposal.name,
+          description: proposal.description,
+        };
+        if (JSON.stringify(requests[parent]) !== JSON.stringify(scope)) {
+          requests[parent] = scope;
+          setMeta(this.db, "topic_division_requests", JSON.stringify(requests));
+          this.bumpRevision();
+        }
         return this.getById(parent)!;
+      }
       for (const ancestor of proposal.ancestors ?? [])
         parent = this.insertDiscovered(
           ancestor.name,
@@ -714,6 +733,8 @@ export class TopicStore {
       ) {
         return this.assignment(threadId);
       }
+      if (entityId !== null && topicAncestors(entityId, this.list()).length > 2)
+        throw new Error("Topic identity has at most two levels.");
       if (entityId !== null && existing?.entity_id !== entityId)
         this.assertTakesThreads(entityId);
 
@@ -798,13 +819,13 @@ export class TopicStore {
         : answer.proposed
           ? this.rememberProposal(answer.proposed)
           : null;
-      // An answer naming a topic that is gone, or that has subtopics (only a
-      // topic without them holds threads), keeps the thread's topic. Placement
-      // still settled it from these requests, so it isn't asked again until a
-      // new request arrives.
+      // An unavailable or non-fileable topic preserves the current assignment.
+      // Retain the request basis so unrelated turns do not repeat the same call.
       if (
         (answer.subjectId && !entity) ||
-        (entity && this.subtopics(entity.id) > 0)
+        (entity &&
+          (this.subtopics(entity.id) > 0 ||
+            topicAncestors(entity.id, this.list()).length > 2))
       ) {
         if (kind === "full" && basis)
           this.db
@@ -817,6 +838,20 @@ export class TopicStore {
         return false;
       }
       const entityId = entity?.id ?? null;
+      if (
+        row &&
+        current === "inherited" &&
+        row.entity_id === entityId &&
+        !answer.scopeShift
+      ) {
+        if (kind === "full" && basis && row.evidence !== basis)
+          this.db
+            .prepare(
+              "UPDATE ws_corpus_subject SET evidence = ? WHERE thread_id = ?",
+            )
+            .run(basis, rootId);
+        return false;
+      }
       if (
         row &&
         row.entity_id === entityId &&
@@ -883,7 +918,12 @@ export class TopicStore {
   inheritTopic(threadId: string, entityId: string): boolean {
     // A topic with subtopics holds no threads; placement settles the thread
     // with this topic as its hint.
-    if (!this.getById(entityId) || this.subtopics(entityId) > 0) return false;
+    if (
+      !this.getById(entityId) ||
+      this.subtopics(entityId) > 0 ||
+      topicAncestors(entityId, this.list()).length > 2
+    )
+      return false;
     const current = this.assignment(threadId);
     if (current.provenance !== null && current.provenance !== "quick")
       return false;
@@ -892,11 +932,9 @@ export class TopicStore {
   }
 
   /**
-   * Splits a topic into subgroups: files each of its visible threads in one
-   * of `subgroups`, creating the ones it lacks beneath it (a name that
-   * matches an existing subtopic reuses it), and marks it partitioned so it
-   * keeps its header. Every visible thread it holds must be listed exactly
-   * once; threads keep their provenance. Returns the subgroups in order.
+   * Applies a reviewed division of a first-level topic into lasting child
+   * topics. Every stored assignment, including archived work, appears exactly
+   * once and retains its provenance and basis. Matching children are reused.
    */
   split(
     entityId: string,
@@ -909,14 +947,14 @@ export class TopicStore {
     return this.db.transaction(() => {
       const entity = this.getById(entityId);
       if (!entity) throw new Error(`Unknown topic: ${entityId}`);
+      if (entity.parentId !== null)
+        throw new Error("Only a first-level topic can gain child topics.");
       if (subgroups.length === 0)
         throw new Error("A split needs at least one subgroup.");
       const held = (
         this.db
           .prepare(
-            `SELECT s.thread_id FROM ws_corpus_subject s
-             JOIN ws_seen_thread t ON t.thread_id = s.thread_id
-             WHERE s.entity_id = ?`,
+            `SELECT thread_id FROM ws_corpus_subject WHERE entity_id = ?`,
           )
           .all(entityId) as { thread_id: string }[]
       ).map((row) => row.thread_id);
@@ -950,12 +988,45 @@ export class TopicStore {
             .run(topic.id, threadId);
         result.push(topic);
       }
-      this.db
-        .prepare("UPDATE ws_corpus_entity SET partitioned = 1 WHERE id = ?")
-        .run(entityId);
+      this.consumeDivisionRequest(entityId);
       this.bumpRevision();
       return result;
     })();
+  }
+
+  divisionRequests(): Record<string, { name: string; description: string }> {
+    try {
+      const parsed = JSON.parse(
+        getMeta(this.db, "topic_division_requests") ?? "{}",
+      );
+      if (
+        typeof parsed !== "object" ||
+        parsed === null ||
+        Array.isArray(parsed)
+      )
+        return {};
+      return Object.fromEntries(
+        Object.entries(parsed).filter(([, value]) => {
+          const scope = value as {
+            name?: unknown;
+            description?: unknown;
+          } | null;
+          return (
+            scope &&
+            typeof scope.name === "string" &&
+            typeof scope.description === "string"
+          );
+        }),
+      ) as Record<string, { name: string; description: string }>;
+    } catch {
+      return {};
+    }
+  }
+
+  consumeDivisionRequest(topicId: string): void {
+    const requests = this.divisionRequests();
+    delete requests[topicId];
+    setMeta(this.db, "topic_division_requests", JSON.stringify(requests));
   }
 
   /** The basis the thread's automatic topic was settled from, if any. */
@@ -1169,6 +1240,7 @@ export class TopicStore {
       this.db
         .prepare("UPDATE ws_corpus_entity SET parent_id = ? WHERE id = ?")
         .run(newParentId, entity.id);
+      assertTopicLevels(this.list());
 
       this.bumpRevision();
       return { ...entity, parentId: newParentId };
@@ -1393,10 +1465,7 @@ export class TopicStore {
 
       mergeSubtree(source, target);
 
-      // Verify acyclic invariant across all entities
-      for (const e of this.list()) {
-        this.assertParentChainAcyclic(e.id);
-      }
+      assertTopicLevels(this.list());
 
       this.bumpRevision();
 

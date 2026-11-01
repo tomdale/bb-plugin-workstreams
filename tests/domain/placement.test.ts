@@ -6,10 +6,8 @@ import {
   placementSchema,
   type PlacementInput,
 } from "../../src/domain/placement.ts";
-import {
-  placementRequests,
-  pointsElsewhere,
-} from "../../src/server/placement.ts";
+import { pointsElsewhere } from "../../src/server/placement.ts";
+import { placementRequests } from "../../src/server/requests.ts";
 
 const topic = (
   id: string,
@@ -20,7 +18,7 @@ const topic = (
 
 const entities = [
   topic("vercel", "Vercel", null),
-  topic("auto", "Automations", "vercel", "The Automations product"),
+  topic("auto", "Automations", null, "The Automations product"),
   topic("planning", "Planning", "auto", "Design and rollout"),
   topic("triggers", "Triggers", "auto", "Events that start runs"),
   topic("review", "Code Review", "vercel"),
@@ -33,7 +31,7 @@ const input: PlacementInput = {
   checkout: "/Users/me/Code/Repos/api/main",
   entities,
   counts: { planning: 2, triggers: 1 },
-  hints: ["It continues a thread filed under Vercel: Automations: Planning."],
+  hints: ["It continues a thread filed under Automations: Planning."],
   current: null,
 };
 
@@ -41,20 +39,20 @@ describe("placementPrompt", () => {
   it("lists topics by name slug, marking the ones that can't hold threads", () => {
     const ids = placementIds(entities);
     expect([...ids.entries()]).toEqual([
-      ["vercel", "vercel"],
       ["auto", "automations"],
       ["planning", "planning"],
       ["triggers", "triggers"],
+      ["vercel", "vercel"],
       ["review", "code-review"],
     ]);
     const prompt = placementPrompt(input);
     expect(prompt).toContain("- [vercel] Vercel (has subtopics)");
     expect(prompt).toContain(
-      "    - [planning] Planning — Design and rollout (2 threads)",
+      "  - [planning] Planning — Design and rollout (2 threads)",
     );
     expect(prompt).toContain("  - [code-review] Code Review (0 threads)");
     expect(prompt).toContain(
-      "<hint>\nIt continues a thread filed under Vercel: Automations: Planning.\n</hint>",
+      "<hint>\nIt continues a thread filed under Automations: Planning.\n</hint>",
     );
     expect(prompt).toContain(
       "<checkout>\n/Users/me/Code/Repos/api/main\n</checkout>",
@@ -91,7 +89,7 @@ describe("placementPrompt", () => {
       "code-review",
     ]);
     expect(schema.properties.propose.anyOf[1]!.properties!.parent.enum).toEqual(
-      [null, "vercel", "automations", "planning", "triggers", "code-review"],
+      [null, "automations", "vercel"],
     );
   });
 });
@@ -184,7 +182,7 @@ describe("placement within a user-chosen group", () => {
     expect(schema.properties.topic.enum).toEqual(["planning", "triggers"]);
     expect(schema.properties.propose).toEqual({ type: "null" });
     expect(placementPrompt(scoped)).toContain(
-      '<group id="automations">\nVercel: Automations\n</group>',
+      '<group id="automations">\nAutomations\n</group>',
     );
     expect(
       parsePlacement('{"topic":"planning","propose":null}', scoped).subjectId,
@@ -244,6 +242,13 @@ describe("placement evidence", () => {
       ]),
     ).toEqual(["Fix the cache", "Also the CLI", "Ship it"]);
     expect(placementRequests(["Only one", "yes"])).toEqual(["Only one"]);
+    expect(
+      placementRequests([
+        "Build billing",
+        "Work on access control",
+        "Build billing",
+      ]),
+    ).toEqual(["Build billing", "Work on access control", "Build billing"]);
   });
 
   it("tells requests that point at another repository", () => {

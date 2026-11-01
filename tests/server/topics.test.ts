@@ -32,14 +32,13 @@ describe("TopicStore", () => {
       name: "Up Next",
       description: "Upcoming tasks",
       parentId: null,
-      ancestors: [
-        { name: "Lantern", description: "Product" },
-        { name: "Sidebar", description: "Navigation" },
-      ],
+      ancestors: [{ name: "Lantern", description: "Product" }],
     });
     const product = corpus.resolve("Lantern")!;
-    const sidebar = corpus.resolve("Sidebar", product.id)!;
-    expect(child.parentId).toBe(sidebar.id);
+    expect(child.parentId).toBe(product.id);
+    expect(() => corpus.create("Deeper", "", child.id)).toThrow(
+      "at most two levels",
+    );
   });
   it("records a proposal that restates existing ancestry under that ancestry", () => {
     const { corpus } = store();
@@ -261,10 +260,8 @@ describe("TopicStore", () => {
       "LegacyAlpha",
     ]);
     const target = corpus.create("NewBeta", "New beta feature");
-    // Legacy storage: a thread filed beside a subtopic, which no visible
-    // thread makes invalid here.
-    corpus.assign("t-alpha", source.id);
     const child = corpus.create("ChildFeature", "Child of alpha", source.id);
+    corpus.assign("t-alpha", child.id);
     corpus.bindGroup("sec-alpha", source.id);
 
     const initialRev = corpus.revision();
@@ -276,9 +273,9 @@ describe("TopicStore", () => {
     // Source is gone
     expect(corpus.getById(source.id)).toBeNull();
 
-    // Assignment updated to target
+    // The child keeps its thread while its parent changes.
     const assignment = corpus.assignment("t-alpha");
-    expect(assignment.entityId).toBe(target.id);
+    expect(assignment.entityId).toBe(child.id);
     expect(assignment.status).toBe("assigned");
 
     // Child reparented to target
@@ -298,7 +295,10 @@ describe("TopicStore", () => {
     const { corpus } = store();
     const root = corpus.create("Root", "Root item");
     const child = corpus.create("Child", "Child item", root.id);
-    const grandchild = corpus.create("Grandchild", "Grandchild item", child.id);
+    expect(() =>
+      corpus.create("Grandchild", "Grandchild item", child.id),
+    ).toThrow("at most two levels");
+    const sibling = corpus.create("Sibling", "Sibling item", root.id);
 
     // Reparent self
     expect(() => corpus.reparent(child.id, child.id)).toThrow(
@@ -306,12 +306,11 @@ describe("TopicStore", () => {
     );
 
     // Reparent ancestor under descendant creates cycle
-    expect(() => corpus.reparent(root.id, grandchild.id)).toThrow(/cycle/);
     expect(() => corpus.reparent(root.id, child.id)).toThrow(/cycle/);
 
     // Valid reparenting succeeds
-    const reparented = corpus.reparent(grandchild.id, root.id);
-    expect(reparented.parentId).toBe(root.id);
+    const reparented = corpus.reparent(sibling.id, null);
+    expect(reparented.parentId).toBeNull();
   });
 
   it("keeps manual selections stable across restart and analyses", () => {
@@ -472,87 +471,35 @@ describe("TopicStore", () => {
     expect(corpus.revision()).toBeGreaterThan(revBefore);
   });
 
-  it("nested merge recursively merges matching children, reparents grandchildren, and preserves all references", () => {
-    const { corpus, db } = store();
-    // Structure:
-    // Target:
-    //   TargetRoot
-    //     Backend (targetBackend)
-    //       Database (targetDb)
-    //
-    // Source:
-    //   SourceRoot
-    //     Backend (sourceBackend)
-    //       Database (sourceDb)
-    //         Migrations (sourceMigrations) [grandchild with subject assignment]
-    //       Queue (sourceQueue) [child under Backend with no target counterpart]
+  it("merges matching second-level topics and preserves leaf references", () => {
+    const { corpus } = store();
     const targetRoot = corpus.create("TargetRoot");
     const targetBackend = corpus.create("Backend", "", targetRoot.id);
-    const targetDb = corpus.create("Database", "", targetBackend.id);
-
     const sourceRoot = corpus.create("SourceRoot");
     const sourceBackend = corpus.create("Backend", "", sourceRoot.id);
-    const sourceDb = corpus.create("Database", "", sourceBackend.id);
-    const sourceMigrations = corpus.create("Migrations", "", sourceDb.id);
-    const sourceQueue = corpus.create("Queue", "", sourceBackend.id);
-
-    // Legacy storage that files threads beside subtopics.
-    const legacy = (threadId: string, entityId: string) =>
-      db
-        .prepare(
-          "INSERT INTO ws_corpus_subject(thread_id, entity_id, source) VALUES (?, ?, 'manual')",
-        )
-        .run(threadId, entityId);
-    legacy("t-source-root", sourceRoot.id);
-    legacy("t-source-backend", sourceBackend.id);
-    legacy("t-source-db", sourceDb.id);
-    corpus.assign("t-migrations", sourceMigrations.id);
-    corpus.assign("t-queue", sourceQueue.id);
-
+    const migrations = corpus.create("Migrations", "", sourceRoot.id);
+    const queue = corpus.create("Queue", "", sourceRoot.id);
+    corpus.assign("t-backend", sourceBackend.id);
+    corpus.assign("t-migrations", migrations.id);
+    corpus.assign("t-queue", queue.id);
     corpus.bindGroup("sec-backend", sourceBackend.id);
-    corpus.bindGroup("sec-migrations", sourceMigrations.id);
+    corpus.bindGroup("sec-migrations", migrations.id);
 
     corpus.merge(sourceRoot.id, targetRoot.id);
 
-    // SourceRoot is deleted
     expect(corpus.getById(sourceRoot.id)).toBeNull();
-    // SourceBackend was merged into targetBackend and deleted
     expect(corpus.getById(sourceBackend.id)).toBeNull();
-    // SourceDb was merged into targetDb and deleted
-    expect(corpus.getById(sourceDb.id)).toBeNull();
-
-    // SourceMigrations reparented under targetDb!
-    const reparentedMigrations = corpus.getById(sourceMigrations.id);
-    expect(reparentedMigrations?.parentId).toBe(targetDb.id);
-
-    // SourceQueue reparented under targetBackend!
-    const reparentedQueue = corpus.getById(sourceQueue.id);
-    expect(reparentedQueue?.parentId).toBe(targetBackend.id);
-
-    // Descendant topicAncestors works cleanly without crashes or missing identities
-    const entities = corpus.list();
-    const migrationAncestors = topicAncestors(sourceMigrations.id, entities);
-    expect(migrationAncestors).toEqual([
-      sourceMigrations.id,
-      targetDb.id,
-      targetBackend.id,
+    expect(corpus.getById(migrations.id)?.parentId).toBe(targetRoot.id);
+    expect(corpus.getById(queue.id)?.parentId).toBe(targetRoot.id);
+    expect(topicAncestors(migrations.id, corpus.list())).toEqual([
+      migrations.id,
       targetRoot.id,
     ]);
-
-    // Assignments successfully migrated
-    expect(corpus.assignment("t-source-root").entityId).toBe(targetRoot.id);
-    expect(corpus.assignment("t-source-backend").entityId).toBe(
-      targetBackend.id,
-    );
-    expect(corpus.assignment("t-source-db").entityId).toBe(targetDb.id);
-    expect(corpus.assignment("t-migrations").entityId).toBe(
-      sourceMigrations.id,
-    );
-    expect(corpus.assignment("t-queue").entityId).toBe(sourceQueue.id);
-
-    // Group bindings migrated
+    expect(corpus.assignment("t-backend").entityId).toBe(targetBackend.id);
+    expect(corpus.assignment("t-migrations").entityId).toBe(migrations.id);
+    expect(corpus.assignment("t-queue").entityId).toBe(queue.id);
     expect(corpus.groups().get("sec-backend")).toBe(targetBackend.id);
-    expect(corpus.groups().get("sec-migrations")).toBe(sourceMigrations.id);
+    expect(corpus.groups().get("sec-migrations")).toBe(migrations.id);
   });
 
   it("merge rolls back completely on alias collision with no partial updates", () => {
@@ -568,8 +515,7 @@ describe("TopicStore", () => {
     const source = corpus.create("Source", "Source entity", parentB.id, [
       "ConflictAlias",
     ]);
-    const sourceChild = corpus.create("Child", "Source child", source.id);
-    corpus.assign("t-child", sourceChild.id);
+    corpus.assign("t-child", source.id);
 
     const revBefore = corpus.revision();
 
@@ -578,8 +524,7 @@ describe("TopicStore", () => {
 
     // All entities still exist and are untouched (transaction rolled back)
     expect(corpus.getById(source.id)).not.toBeNull();
-    expect(corpus.getById(sourceChild.id)?.parentId).toBe(source.id);
-    expect(corpus.assignment("t-child").entityId).toBe(sourceChild.id);
+    expect(corpus.assignment("t-child").entityId).toBe(source.id);
     expect(corpus.revision()).toBe(revBefore);
   });
 
@@ -638,8 +583,37 @@ describe("TopicStore", () => {
     });
   });
 
-  it("lets Full analysis narrow an inherited topic without a scope shift", () => {
+  it("keeps inherited priority when a proposed child still needs a reviewed filing plan", () => {
     const { corpus } = store();
+    const product = corpus.create("Product", "A multi-capability product");
+    corpus.assign("i", product.id, { provenance: "inherited" });
+    expect(
+      corpus.applyAnalysis(
+        "i",
+        {
+          subjectId: null,
+          proposed: {
+            name: "Billing",
+            description: "Billing capability",
+            parentId: product.id,
+          },
+          scopeShift: false,
+        },
+        "full",
+        "new-request",
+      ),
+    ).toBe(false);
+    expect(corpus.assignment("i")).toMatchObject({
+      entityId: product.id,
+      provenance: "inherited",
+      evidence: "new-request",
+    });
+    expect(corpus.subtopics(product.id)).toBe(0);
+    expect(corpus.divisionRequests()[product.id]?.name).toBe("Billing");
+  });
+
+  it("lets Full analysis narrow an inherited topic without a scope shift", () => {
+    const { corpus, db } = store();
     const product = corpus.create("Product", "");
     const other = corpus.create("Other", "");
     const answer = (
@@ -650,11 +624,11 @@ describe("TopicStore", () => {
       proposed: proposed ? { ...proposed, description: "" } : null,
       scopeShift: false,
     });
-    corpus.assign("i", product.id, { provenance: "inherited" });
-    corpus.assign("j", product.id, { provenance: "inherited" });
-    // Legacy storage: threads filed beside the subtopic, which no visible
-    // thread makes invalid here.
     const feature = corpus.create("Feature", "", product.id);
+    for (const id of ["i", "j"])
+      db.prepare(
+        "INSERT INTO ws_corpus_subject(thread_id, entity_id, source) VALUES (?, ?, 'inherited')",
+      ).run(id, product.id);
     // A sibling or the same topic is no narrowing.
     expect(corpus.applyAnalysis("i", answer(other.id), "full", "k1")).toBe(
       false,
@@ -673,16 +647,17 @@ describe("TopicStore", () => {
       entityId: feature.id,
       provenance: "full",
     });
-    // So does a new topic proposed beneath it.
+    // Narrowing remains within the two-level identity limit.
     expect(
       corpus.applyAnalysis(
         "j",
-        answer(null, { name: "CLI commands", parentId: feature.id }),
+        answer(null, { name: "CLI commands", parentId: product.id }),
         "full",
         "k4",
       ),
-    ).toBe(true);
-    expect(corpus.assignment("j").label).toBe("Product: Feature: CLI commands");
+    ).toBe(false);
+    expect(corpus.assignment("j").entityId).toBe(product.id);
+    expect(corpus.divisionRequests()[product.id]?.name).toBe("CLI commands");
   });
 
   it("inherits a topic only into a thread with none or a quick guess", () => {

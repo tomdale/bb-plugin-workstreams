@@ -5,7 +5,13 @@
  */
 import { z } from "zod";
 import { redact } from "./redact.ts";
-import { resolveProposal, type DraftSubjectProposal } from "./topics.ts";
+import {
+  assertProposalLevels,
+  resolveProposal,
+  takesThreads,
+  topicAncestors,
+  type DraftSubjectProposal,
+} from "./topics.ts";
 
 export const entitySchema = z.object({
   id: z.string(),
@@ -43,7 +49,7 @@ const proposalSchema = z
             .transform((d) => d ?? ""),
         }),
       )
-      .max(5)
+      .max(1)
       .nullish(),
   })
   // The model omits an unused proposal instead of returning null, so an
@@ -94,11 +100,11 @@ export function topicTreeBlock(entities: readonly Entity[]): string {
 /** Quick's topic ownership, capability discovery, and proposal format. */
 export const CLASSIFICATION_RULES = `Ownership: User requests and explicit diagnoses establish the object being built, changed, reviewed, or studied, and outrank titles, summaries, project hints, and familiar topic names. Privately identify the primary deliverable, owner, capability, and supported subcapability. A follow-up build, review, or issue submission retains the diagnosed owner unless requests shift scope. A symptom's location is not proof of defect ownership. Project names locate work but do not establish its user-facing owner. Repository, backend, scheduler, hosting platform, agent provider, shell, and execution-tool names locate work; they own it only when the requested change concerns them. Review work belongs to the reviewed capability. Shared platform capabilities and contracts belong to the platform; consuming products retain their own features. For cross-product work choose the primary deliverable. A named research effort, document, or knowledge artifact can own its own topic independently of the products it compares. Research about several agent tools belongs to that research effort, not to the platform used to conduct it. Return no topic when no primary deliverable or owner is supported. A URL or opaque reference without scope evidence supports at most a known product, not an inferred feature. Use supplied scope, not assumed real-world product associations; descriptions contain only supported facts.
 
-Matching: Compare local names, aliases, descriptions, and full ancestry. Choose the most specific topic whose documented scope covers the work, including topics no thread has now. A broad topic, one whose documented scope spans several distinct capabilities as a platform or multi-feature product does, fits work on it as a whole (its overall design, direction, or a change across its capabilities) and work whose capability the evidence does not identify. Work on one of its capabilities belongs to that capability's topic, existing or proposed. A topic covering a single capability, such as a single-purpose tool, covers its fixes, refactors, reviews, and artifacts without a narrower child: a topic describing provider routing already covers a routing fix; a topic describing automation-run infrastructure covers its artifacts. A topic fits only under the owner the request names: when the request says which product, platform, or tool the work belongs to, a topic beneath a different owner does not fit however closely its description matches, and a new topic under the named owner is the answer. Choose the topic independently of how threads are grouped. Do not decide placement, continuation, or execution settings.
+Matching: Compare local names, aliases, descriptions, and full ancestry. Choose a topic without children at the first or second level whose documented scope covers the work, including topics no thread has now. Within a known owner, propose a supported new leaf when none of its listed leaves covers the requested capability; ownership alone does not make an existing leaf a match. A first-level topic with children is a container; choose a supported child or propose a meaningfully named lasting area beneath it. A broad topic, one whose documented scope spans several distinct capabilities as a platform or multi-feature product does, fits work on it as a whole (its overall design, direction, or a change across its capabilities) and work whose capability the evidence does not identify. Within a broad first-level topic, work on one supported lasting capability belongs to that capability's topic, existing or proposed. A second-level topic covers its finer areas itself; categories arrange that topic's current threads. A topic covering a single capability, such as a single-purpose tool, covers its fixes, refactors, reviews, and artifacts without a narrower child: a topic describing provider routing already covers a routing fix; a topic describing automation-run infrastructure covers its artifacts. A topic fits only under the owner the request names: when the request says which product, platform, or tool the work belongs to, a topic beneath a different owner does not fit however closely its description matches, and a new topic under the named owner is the answer. Choose the topic independently of how threads are grouped. Do not decide placement, continuation, or execution settings.
 
-Discovery: Use the established owner's recognizable name as root. A separately named tool product stays intact; a product's SDK is a capability under that product. Topics below a product are user-facing capabilities, not implementation layers or lifecycle buckets. Components, integrations, and display modes belong to a supported owner rather than becoming roots. Subcapabilities belong under their supported immediate parent. When work concerns a distinct, lasting user-facing capability within a topic and no existing topic covers it, propose that capability as the topic's child, such as a product's billing, its mobile app, its command-line interface, or one of its display modes. A capability is a lasting area that later work would also belong to: name it for the area ("Billing", "Mobile app"), never for the task, change, pull request, defect, or a single control or command ("Fix flaky checks", "PR 482", "Export button"). Add intermediate topics only when evidence supports distinct capabilities. Preserve explicit intermediate capabilities: a waiting recap can be product → Recaps → Waiting; an SDK message-block contract can be product → SDK → Message blocks. These illustrate structure, not prescribed product names. Triggering or consuming another capability, or targeting an object, does not establish parentage. Manual and automated operation are modes, not separate topics. When specificity is unclear, choose a supported ancestor.
+Discovery: Use the established owner's recognizable name as root. A separately named tool product stays intact; a product's SDK is a capability under that product. When the requests establish both a product and a distinct lasting capability, represent both even in an empty tree: the capability is name, and the missing product is the single ancestors entry. The existing product need not already be in the tree. Do not hide an explicitly supported capability only in a new product's description. When only the product is supported, propose that product alone with ancestors []. Topics below a product are user-facing capabilities, not implementation layers or lifecycle buckets. Components, integrations, and display modes belong to a supported owner rather than becoming roots. A second-level topic covers its finer distinctions; categories organize the threads currently within it. When work concerns a distinct, lasting user-facing capability within a first-level topic and no existing topic covers it, propose that capability as the topic's child, such as a product's billing, its mobile app, its command-line interface, or one of its display modes. A capability is a lasting area that later work would also belong to: name it for the area ("Billing", "Mobile app"), never for the task, change, pull request, defect, or a single control or command ("Fix flaky checks", "PR 482", "Export button"). Use one level for a product or area without a supported division. Add a second level only for a distinct, lasting scope that can be assigned from a thread's own requests independently of the other threads present. Either level may name a product, capability, or category of products: Vertex; Vercel Agent → Code Review; bb → Workstreams Plugin; Toolbelt → Skills. Two levels is the whole identity path, including the root. Use meaningfully named areas rather than a General or Other catch-all. Thread volume and recurring sidebar categories do not establish topic parentage. Triggering or consuming another capability, or targeting an object, does not establish parentage. Manual and automated operation are modes, not separate topics. When specificity is unclear, choose a supported ancestor.
 
-Represent a proposal using local names without colons or product prefixes. parentId references the deepest existing ancestor, or null when none applies. ancestors lists missing parents from outermost to immediate parent; name is the leaf. Limit missing ancestors to five; choose a nearer supported ancestor if more are needed. Leave unsupported parentage null. Give an existing topic OR a proposal, never both; vague ownership gives both null.
+Represent a proposal using local names without colons or product prefixes. parentId references the deepest existing ancestor, or null when none applies. ancestors lists missing parents from outermost to immediate parent; name is the leaf. The existing parent path, missing ancestors, and leaf together must fit within two levels. At most one missing ancestor is possible, only when parentId is null. Leave unsupported parentage null. Give an existing topic OR a proposal, never both; vague ownership gives both null.
 Existing topic: "subjectId":"existing id","proposed":null
 New topic: "subjectId":null,"proposed":{"name":"local name","description":"supported scope","parentId":null,"ancestors":[{"name":"missing parent local name","description":"scope"}]}
 No topic: "subjectId":null,"proposed":null`;
@@ -119,12 +125,29 @@ export function parseTopic(
     (subjectId && !ids.has(subjectId)) ||
     (proposed?.parentId && !ids.has(proposed.parentId)) ||
     (subjectId && proposed) ||
+    (subjectId &&
+      (topicAncestors(subjectId, entities).length > 2 ||
+        !takesThreads(subjectId, entities))) ||
     proposed?.name.includes(":") ||
     proposed?.ancestors?.some((a) => a.name.includes(":"))
   )
     throw new Error("The model named an unsupported topic.");
   if (!proposed) return { subjectId, proposed: null };
   const resolved = resolveProposal(proposed, entities);
+  if (resolved.proposed) {
+    assertProposalLevels(resolved.proposed, entities);
+    if (
+      (resolved.proposed.parentId || resolved.proposed.ancestors?.length) &&
+      /^(general|other)$/i.test(resolved.proposed.name)
+    )
+      throw new Error("A child topic needs a meaningful area name.");
+  }
+  if (
+    resolved.subjectId &&
+    (topicAncestors(resolved.subjectId, entities).length > 2 ||
+      !takesThreads(resolved.subjectId, entities))
+  )
+    throw new Error("The model chose a topic that cannot hold threads.");
   return resolved.subjectId !== null
     ? { subjectId: resolved.subjectId, proposed: null }
     : { subjectId: null, proposed: resolved.proposed };

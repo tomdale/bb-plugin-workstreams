@@ -145,7 +145,7 @@ describe("merging a lone subtopic into its parent", () => {
 });
 
 describe("split", () => {
-  it("files every visible thread in a subgroup and marks the topic partitioned", () => {
+  it("files each stored assignment in a reviewed child topic", () => {
     const { topics, see } = store();
     const product = topics.create("Automations");
     see("a", "b", "c");
@@ -157,7 +157,7 @@ describe("split", () => {
       { name: "Planning", description: "Design", threadIds: ["a"] },
       { name: "Triggers", description: "Events", threadIds: ["b", "c"] },
     ]);
-    expect(topics.getById(product.id)?.partitioned).toBe(true);
+    expect(topics.subtopics(product.id)).toBe(2);
     expect(topics.assignment("a").entityId).toBe(planning!.id);
     expect(topics.assignment("b")).toMatchObject({
       entityId: triggers!.id,

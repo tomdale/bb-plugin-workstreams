@@ -72,6 +72,58 @@ describe("planDrop", () => {
     });
   });
 
+  it("reorders within a category without treating another category as a filing destination", () => {
+    const categorized = {
+      ...topics,
+      categories: {
+        a: {
+          id: "generation",
+          categories: [
+            { id: "one", name: "One", threadIds: ["a1", "a2"] },
+            { id: "two", name: "Two", threadIds: ["a3"] },
+          ],
+        },
+      },
+    };
+    expect(
+      planDrop(
+        threadDrop({
+          threadId: "a3",
+          fromGroupId: "sec_a",
+          overThreadId: "a1",
+        }),
+        projection,
+        sections,
+        EMPTY_ORDER,
+        categorized,
+      ),
+    ).toEqual({ reorder: null });
+    expect(
+      planDrop(
+        threadDrop({
+          threadId: "a2",
+          fromGroupId: "sec_a",
+          overThreadId: "a1",
+        }),
+        projection,
+        sections,
+        EMPTY_ORDER,
+        categorized,
+      ),
+    ).toEqual({
+      reorder: { kind: "threads", groupId: "sec_a", ids: ["a2", "a1", "a3"] },
+    });
+    expect(
+      planDrop(
+        threadDrop({ overThreadId: "a1" }),
+        projection,
+        sections,
+        EMPTY_ORDER,
+        categorized,
+      ).assign,
+    ).toEqual({ threadId: "b1", entityId: "a" });
+  });
+
   it.each([
     { overThreadId: "a2", below: false, ids: ["a1", "b1", "a2", "a3"] },
     { overThreadId: "a2", below: true, ids: ["a1", "a2", "b1", "a3"] },

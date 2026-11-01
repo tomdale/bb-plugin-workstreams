@@ -24,6 +24,7 @@ const actionSchema = z.enum([
   "undo",
   /** Several changes applied and undone together. */
   "batch",
+  "categories",
   "edit-workstream",
   "project-association",
   /** A thread started from the New thread composer. */

@@ -6,6 +6,7 @@ import type {
   PluginSidebarSection,
   PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
+import type { TopicState } from "../../src/domain/topics.ts";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 
 export { section, sidebarThread };
@@ -34,6 +35,7 @@ export type HomeOptions = {
   status?: "loading" | "ready" | "error";
   prefs?: SidebarPrefs;
   analysis?: Record<string, unknown>;
+  catalog?: TopicState;
   recaps?: Record<string, unknown>;
   order?: { workstreams?: string[]; prioritized?: string[] };
   snoozes?: Record<
@@ -112,6 +114,7 @@ export async function mountHome(options: HomeOptions = {}) {
           await options.gates?.state;
           return {
             ...emptyState(),
+            ...(options.catalog ? { catalog: options.catalog } : {}),
             analysis: options.analysis ?? {},
             recaps: options.recaps ?? {},
             order: {

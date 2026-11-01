@@ -4,6 +4,12 @@
  * live call, its debug trace, and a replay from the inspector.
  */
 import {
+  categoryPrompt,
+  categorySchema,
+  parseCategories,
+  type CategoryInput,
+} from "../domain/categories.ts";
+import {
   fullAnalysisPrompt,
   fullAnalysisSchema,
   parseFullAnalysis,
@@ -67,6 +73,12 @@ export const MODEL_CALLS = {
     prompt: (input: PlacementInput) => placementPrompt(input),
     parse: (text: string, input: PlacementInput) => parsePlacement(text, input),
     schema: (input: PlacementInput) => placementSchema(input),
+  },
+  categories: {
+    prompt: (input: CategoryInput) => categoryPrompt(input),
+    parse: (text: string, input: CategoryInput) => parseCategories(text, input),
+    schema: (input: CategoryInput) => categorySchema(input),
+    maxTokens: 12_000,
   },
   split: {
     prompt: (input: SplitInput) => splitPrompt(input),
@@ -142,11 +154,23 @@ export function summarize(
         .filter(Boolean)
         .join(" · ");
     }
+    case "categories": {
+      const decision = value as OutputOf<"categories">;
+      return decision.keep
+        ? "kept categories"
+        : decision.categories
+            .map(
+              (category) => `${category.name} (${category.threadIds.length})`,
+            )
+            .join(", ");
+    }
     case "split": {
       const { split } = value as OutputOf<"split">;
-      return split.subgroups
-        .map((g) => `${g.name} (${g.threadIds.length})`)
-        .join(", ");
+      return split.subgroups.length
+        ? split.subgroups
+            .map((g) => `${g.name} (${g.threadIds.length})`)
+            .join(", ")
+        : "kept one-level topic";
     }
     case "tidy": {
       const edits = value as OutputOf<"tidy">;

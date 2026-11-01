@@ -1,5 +1,9 @@
 import type { TopicAnswer } from "../src/domain/classify.ts";
-import { resolveProposal } from "../src/domain/topics.ts";
+import {
+  assertProposalLevels,
+  resolveProposal,
+  topicAncestors,
+} from "../src/domain/topics.ts";
 import type { ClassifyInput } from "./classification-cases.ts";
 type Result = TopicAnswer;
 /** Evaluation-only synonym sets; production routing never uses them. Score baseline and candidate with the same sets. */
@@ -8,12 +12,9 @@ const aliases: Record<string, RegExp> = {
     /^(automations?|automation runs|automation scheduling|scheduled actions|action scheduling|actions)$/i,
   Investigations: /^(investigations?|alert investigations?)$/i,
   Recaps: /^(recaps?|summaries|summary cards)$/i,
-  Waiting: /^(waiting|waiting (recaps?|state)|countdowns?)$/i,
   Questions: /^(questions?|question (cards?|answers?)|q&a( cards?)?)$/i,
   Providers: /^(providers?|provider([ -]id)? routing|provider integration)$/i,
   SDK: /^(sdk|plugin sdk)$/i,
-  "Message blocks":
-    /^(message[ -]blocks?( contract)?|message[ -]block contracts?)$/i,
   "Gutter mode":
     /^(gutter( mode| display)?|floating gutter( display| mode)?|floating( mode| display)?)$/i,
 };
@@ -25,12 +26,27 @@ export function scoreClassification(
   expectNew?: { outside?: string; inside?: string },
   kind: "quick" | "placement" = "quick",
 ) {
-  if (expectNew) {
-    // Resolved as production resolves it, so a proposal that restates an
-    // existing ancestor is anchored there rather than counted as a new root.
-    const resolved = value.proposed
+  let resolved: ReturnType<typeof resolveProposal> | null = null;
+  try {
+    resolved = value.proposed
       ? resolveProposal(value.proposed, input.entities)
       : null;
+    if (resolved?.proposed)
+      assertProposalLevels(resolved.proposed, input.entities);
+    const selected = value.subjectId ?? resolved?.subjectId;
+    if (selected && topicAncestors(selected, input.entities).length > 2)
+      throw new Error("Topic depth exceeds two levels.");
+  } catch {
+    return {
+      owner: false,
+      capability: false,
+      hierarchy: false,
+      exact: false,
+      pass: false,
+    };
+  }
+  if (expectNew) {
+    // Resolve restated ancestry before measuring scope and depth.
     const ancestry: string[] = [];
     let anchor = resolved?.proposed?.parentId ?? null;
     while (anchor && !ancestry.includes(anchor)) {
@@ -91,7 +107,7 @@ export function scoreClassification(
     path.length === 1
       ? owner
       : actual.some((name) => matches(name, path.at(-1)!));
-  // More-specific descendants are permitted; every required parent must remain in order.
+  // Every required parent remains in order within the two-level identity limit.
   const hierarchy =
     actual.length >= path.length &&
     path.every((name, i) => !!actual[i] && matches(actual[i]!, name));

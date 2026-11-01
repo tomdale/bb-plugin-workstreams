@@ -309,7 +309,7 @@ export function OrganizeSettings() {
         />
         <SettingRow
           label="Organizing suggestions"
-          description="Suggest splitting busy topics and tidying the topic tree. Nothing changes until you accept a suggestion."
+          description="Suggest lasting topic divisions and tidy edits. Topic changes wait for your acceptance; categories update automatically."
           control={
             <SettingSwitch
               label="Organizing suggestions"
@@ -319,8 +319,8 @@ export function OrganizeSettings() {
           }
         />
         <ModelField
-          label="Suggestions model"
-          description="Writes organizing suggestions, at most once a day unless you ask for them."
+          label="Organization model"
+          description="Organizes current thread collections into categories and writes topic suggestions for review."
           choice={prefs.organize.tidyModel}
           onChange={(tidyModel) => update({ organize: { tidyModel } })}
         />

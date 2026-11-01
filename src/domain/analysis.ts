@@ -18,6 +18,7 @@
  */
 import { z } from "zod";
 import { redact } from "./redact.ts";
+import { takesThreads, topicAncestors } from "./topics.ts";
 import {
   CLASSIFICATION_RULES,
   parseTopic,
@@ -363,10 +364,10 @@ export function quickAnalysisSchema(
       properties: { goal: titleFieldSchema },
       required: ["goal"],
     };
-  const nullableId = {
+  const nullableId = (ids: string[]) => ({
     type: ["string", "null"],
-    enum: [null, ...input.entities.map((e) => e.id)],
-  };
+    enum: [null, ...ids],
+  });
   const ancestor = {
     type: "object",
     additionalProperties: false,
@@ -378,7 +379,15 @@ export function quickAnalysisSchema(
     additionalProperties: false,
     properties: {
       goal: titleFieldSchema,
-      subjectId: nullableId,
+      subjectId: nullableId(
+        input.entities
+          .filter(
+            (entity) =>
+              takesThreads(entity.id, input.entities!) &&
+              topicAncestors(entity.id, input.entities!).length <= 2,
+          )
+          .map((entity) => entity.id),
+      ),
       proposed: {
         anyOf: [
           { type: "null" },
@@ -388,8 +397,12 @@ export function quickAnalysisSchema(
             properties: {
               name: { type: "string" },
               description: { type: "string" },
-              parentId: nullableId,
-              ancestors: { type: "array", items: ancestor },
+              parentId: nullableId(
+                input.entities
+                  .filter((entity) => entity.parentId === null)
+                  .map((entity) => entity.id),
+              ),
+              ancestors: { type: "array", items: ancestor, maxItems: 1 },
             },
             required: ["name", "description", "parentId", "ancestors"],
           },

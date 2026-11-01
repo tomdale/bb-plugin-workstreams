@@ -1,30 +1,16 @@
-/**
- * Organizing suggestions: the two calls that propose changes to the topic
- * tree, their prompts, schemas, and parsers, and the partition rule's guards.
- * Pure, so the server, trace replays, and tests share one definition.
- *
- * - A split partitions a busy topic without subtopics into subgroups, every
- *   thread in exactly one (docs/organization.md). The same call repairs a
- *   topic that holds threads beside subtopics, filing each of its threads in
- *   a subgroup.
- * - A tidy pass proposes at most `TIDY_EDITS_MAX` edits that make the tree a
- *   clean, stable map of the work, each with a reason. It sees the
- *   decisions you made by hand and the suggestions you declined, so it
- *   doesn't reopen them.
- *
- * Nothing here changes anything: suggestions apply only when accepted.
- * Topics appear in prompts by slugs of their names (`fork-core`) and threads
- * by short IDs (`r1`), mapped back from the same input.
+/*
+ * Model contracts for reviewed topic divisions and tidy edits. Validation
+ * keeps assignments in leaf topics and resulting paths within two levels.
+ * Contextual category inference uses categories.ts and separate collection state.
+ * Prompt IDs map back through their input, so unsupported IDs never file work.
  */
 import { z } from "zod";
 import { HEADER, redact, stripFence, tagged } from "./analysis.ts";
 import { placementIds } from "./placement.ts";
 import { takesThreads, topicAncestors } from "./topics.ts";
-import { SPLIT_ABOVE, startsWith } from "./layout.ts";
+import { startsWith } from "./layout.ts";
 
 const TIDY_EDITS_MAX = 8;
-/** A split makes at most this many subgroups. */
-const SUBGROUPS_MAX = 5;
 const TIDY_THREADS_PER_TOPIC = 12;
 
 type TidyTopic = {
@@ -40,6 +26,7 @@ export type SuggestThread = {
   readonly id: string;
   readonly title: string;
   readonly checkout: string | null;
+  readonly work?: string;
   /** Its topic; null for Unfiled. */
   readonly topicId: string | null;
 };
@@ -69,6 +56,7 @@ export type TidyEdit =
 
 export type Split = {
   readonly topicId: string;
+  readonly threadTitles?: Readonly<Record<string, string>>;
   /** It files the threads of a topic that holds them beside subtopics. */
   readonly repair?: boolean;
   readonly subgroups: readonly {
@@ -129,7 +117,7 @@ function treeBlock(
 }
 
 const threadLine = (short: string, thread: SuggestThread) =>
-  `- [${short}] ${line(thread.title, 90)}${thread.checkout ? ` (checkout ${line(thread.checkout, 80)})` : ""}`;
+  `- [${short}] ${line(thread.title, 90)}${thread.work ? ` — ${line(thread.work, 1200)}` : ""}${thread.checkout ? ` (checkout ${line(thread.checkout, 80)})` : ""}`;
 
 const memoryBlocks = (
   decisions: readonly string[],
@@ -147,6 +135,10 @@ const memoryBlocks = (
 // Split -------------------------------------------------------------------
 
 export type SplitInput = {
+  readonly proposedScope?: {
+    readonly name: string;
+    readonly description: string;
+  };
   readonly topics: readonly TidyTopic[];
   readonly held: Held;
   /** The topic to split, or to repair when it has subtopics already. */
@@ -155,7 +147,7 @@ export type SplitInput = {
   readonly decisions: readonly string[];
 };
 
-const SUBGROUP_RULES = `Subgroups are the simplest, clearest groups a person would name without effort, each named for an area of work, never a task, pull request, bug, or repository. Clarity beats symmetry: a plain "PR Upkeep" beside "Alert Investigations" is better than a contrived name invented to keep siblings alike, and an "X & Y" name is usually a sign of contrivance. Put work about the whole group in a plainly named subgroup such as "Planning", never a catch-all like "General" or "Other". Prefer at least 2 threads per subgroup; keep a one-thread subgroup only for a genuinely distinct area. Name subgroups in Title Case, keeping product names' own spelling, and don't repeat the group's name in them ("Design", not "Automations Design"). Judge each thread by what it is about.`;
+const SUBGROUP_RULES = `Child topics identify lasting products, capabilities, or maintained areas within a broad first-level topic. Each scope must be supported by the requests and independently assignable to a future thread without comparing it with other threads. A single-purpose tool covers its fixes, refactors, and reviews without children for those stages. Thread volume and recurring categories do not establish lasting scope. Name each child for its supported scope, rather than General or Other, so future filing follows the area instead of leftover membership. Give every listed thread one supported home and leave the division unapplied if a complete supported plan is unavailable. Topic identity has at most two levels total: these children are leaves. Name them in Title Case, preserving product spelling, without repeating their parent's name.`;
 
 /** The group's subtopics a thread can be filed in: those without subtopics. */
 const fileable = (input: Pick<SplitInput, "topics" | "topicId">) =>
@@ -177,7 +169,7 @@ export function splitPrompt(input: SplitInput): string {
   const repair = input.topics.some((t) => t.parentId === input.topicId);
   const intro = repair
     ? `This group of agent threads holds threads beside its subgroups, and a group holds threads or subgroups, never both. File each of its own threads below in an existing immediate subgroup without subtopics, using its exact name from the tree, or in a new subgroup when none fits. ${SUBGROUP_RULES}`
-    : `This group of agent threads has grown past ${SPLIT_ABOVE} threads, so it is splitting into subgroups. Every thread must go into exactly one subgroup; none stays in the group itself. Propose 2–${SUBGROUPS_MAX} subgroups. ${SUBGROUP_RULES}`;
+    : `Consider whether this first-level topic has a supported division into two or more lasting child topics. Propose a complete filing plan for the user to review. ${SUBGROUP_RULES} For this first division, if no useful lasting division meets these tests, return empty subgroups and threads arrays and explain in reason why the topic should stay one level.`;
   return `${HEADER}
 
 You organize someone's agent threads in a sidebar.
@@ -190,6 +182,7 @@ ${tagged("topic_tree", treeBlock(input.topics, input.held, ids))}
 The group:
 ${tagged("group", `${line(path, 200)}${group.description ? ` — ${line(group.description, 300)}` : ""}`)}
 
+${input.proposedScope ? `A newly identified area to assess, not an established division:\n${tagged("hint", `${line(input.proposedScope.name, 80)} — ${line(input.proposedScope.description, 300)}`)}\n` : ""}
 Its threads:
 ${tagged("threads", input.threads.map((t) => threadLine(rIds.get(t.id)!, t)).join("\n"))}
 ${memoryBlocks(input.decisions, []).join("\n\n")}
@@ -264,19 +257,31 @@ export type SplitOutput = { split: Split; reason: string };
 
 /**
  * Checks a split against the threads it was asked about: every thread in
- * exactly one named subgroup, and, for a fresh split, at least two subgroups
- * in use. Throws on an answer that breaks either.
+ * exactly one named child topic. An empty fresh plan means no lasting
+ * division is supported; a proposed division needs at least two scopes.
  */
 export function parseSplit(text: string, input: SplitInput): SplitOutput {
   const parsed = splitOutput.parse(JSON.parse(stripFence(text)));
+  const parent = input.topics.find((topic) => topic.id === input.topicId);
+  if (!parent || parent.parentId !== null)
+    throw new Error("Only a first-level topic can gain child topics.");
+  if (
+    parsed.subgroups.length === 0 &&
+    parsed.threads.length === 0 &&
+    !input.topics.some((topic) => topic.parentId === input.topicId)
+  )
+    return {
+      split: { topicId: input.topicId, subgroups: [] },
+      reason: parsed.reason,
+    };
   const byShort = new Map(
     [...threadIds(input.threads)].map(([id, short]) => [short, id]),
   );
   const existing = fileable(input).map((t) => t.name);
   const names = new Map<string, { name: string; description: string }>();
   for (const group of parsed.subgroups) {
-    if (!validName(group.name))
-      throw new Error(`Unsupported subgroup name: ${group.name}`);
+    if (!validName(group.name) || /^(general|other)$/i.test(group.name))
+      throw new Error(`Unsupported child topic name: ${group.name}`);
     const key = group.name.toLowerCase();
     if (!names.has(key)) names.set(key, group);
   }
@@ -303,8 +308,6 @@ export function parseSplit(text: string, input: SplitInput): SplitOutput {
   const repair = input.topics.some((t) => t.parentId === input.topicId);
   if (!repair && subgroups.length < 2)
     throw new Error("A split needs at least two subgroups.");
-  if (subgroups.length > SUBGROUPS_MAX + existing.length)
-    throw new Error("The split made too many subgroups.");
   return {
     split: { topicId: input.topicId, ...(repair ? { repair } : {}), subgroups },
     reason: parsed.reason,
@@ -327,7 +330,7 @@ const TIDY_RULES = `You maintain the topic tree that groups someone's agent thre
 
 Good trees: top-level topics are contexts (an employer, a personal toolbox, personal life) once there is evidence for at least two; below them, products or areas; below those, capabilities. Names are areas, never tasks, questions, pull requests, or bugs. One home per area: merge duplicates and near-duplicates. A topic that belongs to a larger product goes under it. Topics side by side that are parts of one larger product or area get a new parent: create it, listing them as children. Refile threads that sit under the wrong product. A repository or workspace used to route or coordinate work is not a product. Name topics in Title Case, keeping product names' own spelling.
 
-A topic holds threads or subtopics, never both: never move a topic under one that holds threads, never refile a thread into a topic with subtopics, and never merge a topic that holds threads with one that has subtopics. To give such a topic one home with a topic that has subtopics, move it under that topic instead, renamed for its area. Busy topics split into subgroups on their own, so don't propose splits.
+A topic holds threads or subtopics, never both: never move a topic under one that holds threads, never refile a thread into a topic with subtopics, and never merge a topic that holds threads with one that has subtopics. To give such a topic one home with a topic that has subtopics, move it under that topic instead, renamed for its area. Topic identity has at most two levels total, including roots. Move a topic beneath another only when its entire subtree fits within that limit. Topic divisions into lasting areas require a reviewed complete filing plan; volume-based categories are separate, so do not propose a division merely because a topic is busy.
 
 Edits:
 - merge {from, into}: move every thread and subtopic of \`from\` into \`into\` and delete \`from\`
@@ -628,6 +631,28 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
     !isNew(id) &&
     !isNew(ancestor) &&
     topicAncestors(id, state.topics).includes(ancestor);
+  const depth = (id: string | null) =>
+    id === null
+      ? 0
+      : byId.has(id)
+        ? topicAncestors(id, state.topics).length
+        : null;
+  const height = (id: string) => {
+    const base = depth(id);
+    if (base === null) return 1;
+    return Math.max(
+      1,
+      ...state.topics
+        .filter((topic) => topicAncestors(topic.id, state.topics).includes(id))
+        .map(
+          (topic) => topicAncestors(topic.id, state.topics).length - base + 1,
+        ),
+    );
+  };
+  const tooDeep = (parent: string | null, subtreeHeight: number) => {
+    const parentDepth = depth(parent);
+    return parentDepth !== null && parentDepth + subtreeHeight > 2;
+  };
   switch (edit.op) {
     case "move":
       if (!isNew(edit.topic) && hasKids(edit.topic))
@@ -635,6 +660,14 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
       return null;
     case "create":
       if (!edit.children.every(exists)) return "A topic it names is gone.";
+      if (
+        tooDeep(
+          edit.parent,
+          1 +
+            (edit.children.length ? Math.max(...edit.children.map(height)) : 0),
+        )
+      )
+        return "Topic identity has at most two levels.";
       if (holds(edit.parent))
         return "Its parent holds threads, so it can't take subtopics.";
       if (
@@ -646,6 +679,8 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
         return "It would put a topic inside itself.";
       return null;
     case "reparent":
+      if (tooDeep(edit.parent, height(edit.topic)))
+        return "Topic identity has at most two levels.";
       if (holds(edit.parent))
         return "The new parent holds threads, so it can't take subtopics.";
       if (
@@ -674,6 +709,11 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
             (t) => t.parentId === edit.into && t.id !== edit.from,
           ));
       if (threads > 0 && kids) return "It would put threads beside subtopics.";
+      const finalDepth = within(edit.into, edit.from)
+        ? depth(edit.from)
+        : depth(edit.into);
+      if (kids && finalDepth !== null && finalDepth >= 2)
+        return "Topic identity has at most two levels.";
       return null;
     }
     case "rename":

@@ -37,6 +37,7 @@ const ACTION_LABEL: Record<Entry["action"], string> = {
   "delete-workstream": "Delete",
   undo: "Undo",
   batch: "Reorganize",
+  categories: "Categories",
   "edit-workstream": "Edit",
   "project-association": "Project",
   route: "New thread",
@@ -52,6 +53,8 @@ const ACTION_HELP: Record<Entry["action"], string> = {
   "delete-workstream": "A workstream was removed. Its threads are not deleted.",
   undo: "A previous Workstreams change was reversed.",
   batch: "Several organization changes were applied together.",
+  categories:
+    "The current thread collection's categories changed without changing topic assignments.",
   "edit-workstream": "A workstream’s description or settings were changed.",
   "project-association":
     "A topic’s associated project was learned, changed, or reviewed.",

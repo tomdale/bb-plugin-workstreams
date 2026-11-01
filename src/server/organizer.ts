@@ -8,12 +8,7 @@ import type { CleanupMember } from "./cleanup.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { TopicStore } from "./topics.ts";
 import { activeHome } from "../domain/regroup.ts";
-import {
-  EMPTY_LAYOUT_STATE,
-  layoutGroups,
-  type LayoutNode,
-  type LayoutState,
-} from "../domain/layout.ts";
+import { layoutGroups, type LayoutNode } from "../domain/layout.ts";
 import { assignmentEvidence } from "./evidence.ts";
 import { topicPath } from "../domain/topic-path.ts";
 import type { TopicAssignment, Topic } from "../domain/topics.ts";
@@ -40,15 +35,15 @@ type OrganizerDeps = {
   journal?: Journal;
   onChange: () => void;
   /** A pass applied; organizing suggestions may be due. */
-  onPass?: () => void;
+  onPass?: (rebuild: boolean) => void;
   now?: () => number;
 };
 
 const KEY = "live_organization";
-/** The last applied layout: its state for the thresholds' gaps, and its groups. */
+/** The last applied topic layout, shared by sidebar and Home. */
 const LAYOUT_KEY = "layout";
 
-type StoredLayout = { state: LayoutState; nodes: LayoutNode[] };
+type StoredLayout = { nodes: LayoutNode[] };
 class SupersededPlan extends Error {}
 
 const DEFAULT_COUNTS: OrganizerStateCounts = {
@@ -187,12 +182,11 @@ export class Organizer {
     if (raw)
       try {
         const parsed = JSON.parse(raw) as Partial<StoredLayout>;
-        if (parsed.state && Array.isArray(parsed.nodes))
-          return parsed as StoredLayout;
+        if (Array.isArray(parsed.nodes)) return parsed as StoredLayout;
       } catch {
-        // A damaged record starts the gaps over.
+        return { nodes: [] };
       }
-    return { state: EMPTY_LAYOUT_STATE, nodes: [] };
+    return { nodes: [] };
   }
 
   /** The groups the last pass applied, which the sidebar and Home draw. */
@@ -229,7 +223,7 @@ export class Organizer {
       .update(
         JSON.stringify({
           catalogRevision: this.deps.topics.revision(),
-          layout: this.storedLayout().state,
+          layout: this.storedLayout().nodes,
           retainedEmpty: [
             ...this.deps.service.retainedEmptyWorkstreams(),
           ].sort(),
@@ -284,6 +278,7 @@ export class Organizer {
         this.lastSyncedHash === snapshotHash &&
         currentState.status === "idle"
       ) {
+        this.deps.onPass?.(false);
         return currentState;
       }
 
@@ -312,7 +307,6 @@ export class Organizer {
       const layout = layoutGroups({
         topics: entities,
         counts,
-        previous: this.storedLayout().state,
       });
       const selectedEntityIds = [...layout.listed];
 
@@ -569,7 +563,7 @@ export class Organizer {
       setMeta(
         this.deps.db,
         LAYOUT_KEY,
-        JSON.stringify({ state: layout.state, nodes: layout.nodes }),
+        JSON.stringify({ nodes: layout.nodes }),
       );
 
       this.lastSyncedHash = this.fingerprint(
@@ -579,7 +573,7 @@ export class Organizer {
       );
 
       const saved = this.save(finalState);
-      this.deps.onPass?.();
+      this.deps.onPass?.(isForced);
       return saved;
     } catch (err) {
       if (signal.aborted || this.disposed) return this.state();

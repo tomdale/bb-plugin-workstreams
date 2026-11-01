@@ -1,28 +1,16 @@
-/**
- * Organizing suggestions (docs/organization.md): splits of busy topics and
- * tidy edits to the topic tree, which change nothing until you accept them.
+/*
+ * Reviewed changes to durable topic identity. Placement can identify a lasting
+ * area within a populated first-level topic; its division request asks for a
+ * complete filing plan rather than adding a child around existing threads.
+ * Asking for suggestions also considers divisions explicitly. Volume-based
+ * categories have their own lifecycle and never change this tree.
  *
- * - A split is asked for when a topic without subtopics passes
- *   `SPLIT_ABOVE` visible roots, or holds threads beside subtopics, at most
- *   once a day per topic.
- * - A tidy pass runs at most once a day, after `TIDY_NEW_TOPICS` new topics
- *   or `TIDY_NEW_ROOTS` new roots since the last one, or when the sidebar is
- *   messy: Unfiled roots plus one-thread groups reach `MESSY_AT` and that set
- *   changed since the last pass. While earlier tidy edits wait for review, no
- *   new pass runs on its own. Asking for suggestions runs both now.
- * - Tidy sees what you decided by hand and what you declined, and an edit
- *   identical to a declined one is dropped, so settled questions stay
- *   settled.
- *
- * Accepting applies a suggestion through the topic store, whose partition
- * rule refuses anything that would put threads beside subtopics, and logs it
- * in Activity with an undo that restores the tree as it was. A split applies
- * to its group as it is then (`splitNow`): threads that left are left out, and
- * threads that joined are filed by one more split call.
+ * Tidy keeps its daily cadence, change thresholds, and accepted/declined
+ * memory. Every accepted edit passes the topic store's two-level and leaf-only
+ * guards and is recorded with a guarded topic snapshot for Undo.
  */
 import { randomUUID } from "node:crypto";
 import type { LayoutNode } from "../domain/layout.ts";
-import { SPLIT_ABOVE } from "../domain/layout.ts";
 import type { ModelChoice } from "../domain/prefs.ts";
 import type { Topic } from "../domain/topics.ts";
 import {
@@ -141,7 +129,6 @@ const refs = (edit: TidyEdit): (string | null)[] => {
 };
 
 const TIDY_KEY = "suggestions_tidy";
-const SPLITS_KEY = "suggestions_splits";
 
 export class Suggestions {
   private running: Promise<void> | null = null;
@@ -161,6 +148,7 @@ export class Suggestions {
       enabled: () => boolean;
       /** Visible, non-archived roots. */
       roots: () => readonly SuggestRoot[];
+      splitThreads?: (topicId: string) => Promise<SuggestThread[]>;
       checkout: (threadId: string) => string | null;
       coordination: () => string[];
       layout: () => readonly LayoutNode[];
@@ -381,23 +369,30 @@ export class Suggestions {
           .all() as { body: string }[]
       ).map((row) => (JSON.parse(row.body) as Split).topicId),
     );
-    const tried = this.tried();
+    const requests = this.deps.topics.divisionRequests();
     for (const topic of topics) {
       const count = held[topic.id] ?? 0;
-      const kids = topics.some((t) => t.parentId === topic.id);
-      const due = kids ? count > 0 : count > SPLIT_ABOVE;
-      if (!due || pending.has(topic.id)) continue;
-      if (!manual && this.now() - (tried[topic.id] ?? 0) < DAY_MS) continue;
-      const threads = this.threads().filter((t) => t.topicId === topic.id);
+      const hasChildren = topics.some((child) => child.parentId === topic.id);
+      if (
+        topic.parentId !== null ||
+        count === 0 ||
+        (count < 2 && !hasChildren) ||
+        pending.has(topic.id)
+      )
+        continue;
+      if (!manual && !requests[topic.id]) continue;
+      const threads = this.deps.splitThreads
+        ? await this.deps.splitThreads(topic.id)
+        : this.threads().filter((t) => t.topicId === topic.id);
       if (this.declinedSplit(topic.id, threads)) continue;
-      tried[topic.id] = this.now();
-      setMeta(this.deps.db, SPLITS_KEY, JSON.stringify(tried));
+      this.deps.topics.consumeDivisionRequest(topic.id);
       const { value } = await this.deps.inference.run(
         "split",
         {
           topics,
           held,
           topicId: topic.id,
+          proposedScope: requests[topic.id],
           threads,
           decisions: this.decisions(),
         },
@@ -407,7 +402,18 @@ export class Suggestions {
           links: threads.map((t) => ({ kind: "thread" as const, ref: t.id })),
         },
       );
-      this.propose(randomUUID(), "split", value.split, value.reason);
+      if (value.split.subgroups.length > 0)
+        this.propose(
+          randomUUID(),
+          "split",
+          {
+            ...value.split,
+            threadTitles: Object.fromEntries(
+              threads.map((thread) => [thread.id, thread.title]),
+            ),
+          },
+          value.reason,
+        );
     }
   }
 
@@ -431,14 +437,6 @@ export class Suggestions {
           members
       );
     });
-  }
-
-  private tried(): Record<string, number> {
-    try {
-      return JSON.parse(getMeta(this.deps.db, SPLITS_KEY) ?? "{}");
-    } catch {
-      return {};
-    }
   }
 
   // Tidy ------------------------------------------------------------------
@@ -595,13 +593,13 @@ export class Suggestions {
       .run(status, this.now(), detail, id);
   }
 
-  /** Visible roots filed directly in each topic. */
+  /** Stored root assignments, so a reviewed division includes archived filing. */
   private held(): Held {
     const out: Record<string, number> = {};
     const assignments = this.deps.topics.assignments();
-    for (const root of this.deps.roots()) {
-      const id = assignments[root.id]?.entityId;
-      if (id) out[id] = (out[id] ?? 0) + 1;
+    for (const assignment of Object.values(assignments)) {
+      const id = assignment.entityId;
+      if (id && !assignment.inheritedFrom) out[id] = (out[id] ?? 0) + 1;
     }
     return out;
   }
@@ -622,9 +620,9 @@ export class Suggestions {
       topics: this.deps.topics.list(),
       held: this.held(),
       threadTopic: Object.fromEntries(
-        this.deps
-          .roots()
-          .map((root) => [root.id, assignments[root.id]?.entityId ?? null]),
+        Object.values(assignments)
+          .filter((assignment) => !assignment.inheritedFrom)
+          .map((assignment) => [assignment.threadId, assignment.entityId]),
       ),
     };
   }
@@ -697,7 +695,10 @@ export class Suggestions {
     const context: ChangeContext = {
       topics: known.topics,
       threadTopic: tree.threadTopic,
-      title: (id) => known.titles.get(id) ?? "Untitled thread",
+      title: (id) =>
+        known.titles.get(id) ??
+        ("subgroups" in body ? body.threadTitles?.[id] : undefined) ??
+        "Untitled thread",
       creates,
     };
     return {
@@ -834,7 +835,10 @@ export class Suggestions {
             topics: [...topics, ...proposed],
             held: this.held(),
             topicId: split.topicId,
-            threads: this.threads().filter((t) => arrivals.has(t.id)),
+            threads: (this.deps.splitThreads
+              ? await this.deps.splitThreads(split.topicId)
+              : this.threads()
+            ).filter((t) => arrivals.has(t.id)),
             decisions: this.decisions(),
           },
           {

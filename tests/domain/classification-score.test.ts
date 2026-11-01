@@ -20,7 +20,8 @@ it("accepts capability synonyms while rejecting flattened required ancestry", ()
       c.expected,
       true,
     );
-  expect(score(["Loom", "Summaries", "Waiting state"]).pass).toBe(true);
+  expect(score(["Loom", "Summaries"]).pass).toBe(true);
+  expect(score(["Loom", "Summaries", "Waiting state"]).pass).toBe(false);
   expect(score(["Loom", "Waiting Recap"]).owner).toBe(true);
   expect(score(["Loom", "Waiting Recap"]).hierarchy).toBe(false);
 });

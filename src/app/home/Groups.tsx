@@ -1,7 +1,8 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { UNSORTED_ID, type Group, type Row } from "../../domain/project.ts";
+import { categoryRows } from "../../domain/categoryRows.ts";
 import type { WorkstreamNode } from "../../domain/groups.ts";
 import { shortWake, type ThreadSnooze } from "../../domain/snooze.ts";
 import { workstreamHue } from "../../domain/workstreamHue.ts";
@@ -250,18 +251,35 @@ function GroupSection({
     "subgroups" in group ? group.subgroups.filter((sub) => !sub.inline) : [];
   // Its own rows, then each inline group's, labeled with that group's name.
   const blocks = [
-    { rows: group.rows, label: undefined as string | undefined },
+    { group, label: undefined as string | undefined },
     ...("subgroups" in group ? inlineGroups(group) : []).map((sub) => ({
-      rows: sub.rows,
+      group: sub,
       label: sub.label.split(/:\s*/).at(-1),
     })),
-  ];
+  ].flatMap(({ group: source, label }) =>
+    categoryRows(
+      source.rows,
+      "categories" in source ? source.categories : undefined,
+    ).map((category) => ({
+      rows: category.rows,
+      label,
+      heading: category.name
+        ? label
+          ? `${label} · ${category.name}`
+          : category.name
+        : undefined,
+    })),
+  );
   const rows = open
     ? blocks.flatMap((block) =>
         unfoldedRows(
           block.rows,
           (row) => !env.isOpen(treeKey(row.thread.id), true),
-        ).map((row) => ({ row, label: block.label })),
+        ).map((row, index) => ({
+          row,
+          label: block.label,
+          heading: index === 0 ? block.heading : undefined,
+        })),
       )
     : [];
   const descendants = new Map(
@@ -330,29 +348,36 @@ function GroupSection({
       </h3>
       {open ? (
         <ul className="ws-home-rows" role="list">
-          {rows.map(({ row, label }: { row: Row<Thread>; label?: string }) => {
+          {rows.map(({ row, label, heading }) => {
             const children = descendants.get(row.thread.id) ?? 0;
             return (
-              <HomeRow
-                key={row.thread.id}
-                thread={row.thread}
-                work={env.work(row.thread)}
-                now={env.now}
-                variant="group"
-                depth={row.depth}
-                showMarkSlot
-                showAge={env.showAge}
-                trailing={label}
-                disclosure={
-                  row.hasChildren
-                    ? {
-                        open: env.isOpen(treeKey(row.thread.id), true),
-                        count: children,
-                        toggle: () => env.toggle(treeKey(row.thread.id), true),
-                      }
-                    : undefined
-                }
-              />
+              <Fragment key={row.thread.id}>
+                {heading ? (
+                  <li className="list-none px-2 pt-2 pb-0.5 text-xs font-medium text-muted-foreground">
+                    <h4 className="m-0 truncate">{heading}</h4>
+                  </li>
+                ) : null}
+                <HomeRow
+                  thread={row.thread}
+                  work={env.work(row.thread)}
+                  now={env.now}
+                  variant="group"
+                  depth={row.depth}
+                  showMarkSlot
+                  showAge={env.showAge}
+                  trailing={label}
+                  disclosure={
+                    row.hasChildren
+                      ? {
+                          open: env.isOpen(treeKey(row.thread.id), true),
+                          count: children,
+                          toggle: () =>
+                            env.toggle(treeKey(row.thread.id), true),
+                        }
+                      : undefined
+                  }
+                />
+              </Fragment>
             );
           })}
         </ul>

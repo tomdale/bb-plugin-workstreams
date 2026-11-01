@@ -56,15 +56,8 @@ export const entities = [
   {
     id: "recap",
     name: "Recaps",
-    description: "Task summaries",
+    description: "Task summaries, waiting countdowns, and async status checks",
     parentId: "work",
-    aliases: [],
-  },
-  {
-    id: "waiting",
-    name: "Waiting",
-    description: "Summary countdowns and async checks",
-    parentId: "recap",
     aliases: [],
   },
   {
@@ -84,15 +77,8 @@ export const entities = [
   {
     id: "sdk",
     name: "SDK",
-    description: "Plugin interfaces",
+    description: "Plugin interfaces and shared rich message-block contracts",
     parentId: "platform",
-    aliases: [],
-  },
-  {
-    id: "blocks",
-    name: "Message blocks",
-    description: "Shared rich output contracts",
-    parentId: "sdk",
     aliases: [],
   },
   {
@@ -165,7 +151,7 @@ const base: Case[] = [
     "waiting-schema",
     "Schema compatibility",
     "Fix Loom waiting recap schema for countdowns and async status checks.",
-    "waiting",
+    "recap",
   ],
   [
     "symptom-owner",
@@ -189,7 +175,7 @@ const base: Case[] = [
     "shared-primary",
     "Loom output design",
     "Primary deliverable: Harbor SDK message-block contract. Update Loom as the first consumer.",
-    "blocks",
+    "sdk",
   ],
   [
     "shared-consumer",
@@ -213,13 +199,13 @@ const base: Case[] = [
     "holdout-sdk",
     "Beacon rendering",
     "Implement Harbor's SDK Message blocks contract; Beacon consumes it but the reusable SDK interface is the primary change.",
-    "blocks",
+    "sdk",
   ],
   [
     "holdout-waiting",
     "Timer schema",
     "Loom Recaps has a Waiting feature. Update its async countdown schema, not another product's timers.",
-    "waiting",
+    "recap",
   ],
   [
     "ambiguous",
@@ -354,8 +340,64 @@ const specific = (
   },
 });
 
+const broadProduct: Entity[] = [
+  {
+    id: "broad",
+    name: "Harbor",
+    description:
+      "Multi-capability application platform with billing, access control, and deployments",
+    parentId: null,
+    aliases: [],
+  },
+];
+
 export const cases: Case[] = [
   ...base,
+  {
+    id: "scope-first-child",
+    warmOnly: true,
+    expected: null,
+    expectNew: { inside: "broad" },
+    input: {
+      prompt: "Enterprise sign-in",
+      entities: broadProduct,
+      requests: [
+        "Implement single sign-on for Harbor's access control capability. This is the access control area, not work across the platform.",
+      ],
+    },
+  },
+  {
+    id: "scope-whole-product",
+    warmOnly: true,
+    expected: "broad",
+    input: {
+      prompt: "Platform roadmap",
+      entities: broadProduct,
+      requests: [
+        "Plan Harbor's overall roadmap across billing, access control, and deployments. The deliverable is the direction of the product as a whole.",
+      ],
+    },
+  },
+  {
+    id: "scope-single-purpose",
+    warmOnly: true,
+    expected: "relay",
+    input: {
+      prompt: "Fixing routing cache",
+      entities: [
+        {
+          id: "relay",
+          name: "Relay",
+          description: "Single-purpose tool for provider routing",
+          parentId: null,
+          aliases: [],
+        },
+      ],
+      requests: [
+        "Fix the provider routing cache in Relay and review the routing change.",
+      ],
+    },
+  },
   {
     id: "owner-shift-over-hints",
     expected: "questions",
@@ -398,7 +440,7 @@ export const cases: Case[] = [
     "specific-new",
     "Automation run history",
     "Add a run history view to Beacon automations where users browse past runs, what triggered them, and their results.",
-    { inside: "jobs" },
+    { topic: "jobs" },
   ),
   specific(
     "specific-whole",

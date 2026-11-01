@@ -4,6 +4,7 @@
  * opening title.
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { withoutSubagentDeliveries } from "./requestProvenance.ts";
 
 type Sdk = BbPluginApi["sdk"];
 
@@ -31,6 +32,35 @@ export const isSubstantiveRequest = (text: string) =>
   !/^(?:continue|keep going|go ahead|proceed|yes|yep|ok(?:ay)?|thanks|thank you)[.!\s]*$/i.test(
     text.trim(),
   );
+
+const requestText = (text: string) =>
+  text.replace(/^\[bb message from thread:[^\]]*\]\s*/i, "").trim();
+
+/** Selects request positions, so repeating an earlier request still establishes the latest work. */
+export function placementRequests(requests: readonly string[]): string[] {
+  const substantive = requests.map(requestText).filter(isSubstantiveRequest);
+  return [...new Set([0, 1, substantive.length - 1])]
+    .filter((index) => index >= 0 && index < substantive.length)
+    .map((index) => substantive[index]!);
+}
+
+/** Request context shared by category assessments and reviewed topic divisions. */
+export async function requestEvidence(
+  sdk: Sdk,
+  threadId: string,
+): Promise<string[]> {
+  const [opening, history] = await Promise.all([
+    openingRequest(sdk, threadId),
+    sdk.threads.promptHistory({ threadId, limit: "50" }),
+  ]);
+  const recent = history.map((prompt) => inputText(prompt.input)).reverse();
+  const requests =
+    opening && requestText(recent[0] ?? "") !== requestText(opening)
+      ? [opening, ...recent]
+      : recent;
+  const clean = await withoutSubagentDeliveries(sdk, threadId, requests);
+  return placementRequests(clean);
+}
 
 /** The first user request among a thread's `client/turn/requested` events. */
 export function openingOf(

@@ -131,6 +131,17 @@ export function planDrop<T extends WorkstreamThread>(
       },
     };
   }
+  const topicId = topics?.bindings[group.id];
+  const categories = topicId
+    ? topics?.categories?.[topicId]?.categories
+    : undefined;
+  if (categories && drop.overThreadId !== null) {
+    const categoryOf = (id: string) =>
+      categories.find((category) => category.threadIds.includes(id))?.id ??
+      null;
+    if (categoryOf(drop.threadId) !== categoryOf(drop.overThreadId))
+      return { reorder: null };
+  }
   let ids: string[];
   if (drop.overThreadId === null) {
     // Dropped on a group header: the top of that group.

@@ -105,6 +105,7 @@ import {
   RowActions,
   rowActionClass,
 } from "./HoverActions.tsx";
+import { categoryRows } from "../../domain/categoryRows.ts";
 import { Hint } from "../Hint.tsx";
 import { usePrefs } from "../prefs.ts";
 
@@ -759,11 +760,24 @@ export function WorkstreamsThreadList({
    * their own and take thread drops, but reorder and focus only with their
    * top-level group.
    */
+  const renderCategorizedTrees = (group: ThreadNode, label?: string) =>
+    categoryRows(group.rows, group.categories).map((category) => (
+      <Fragment key={category.id ?? "unplaced"}>
+        {category.name ? (
+          <li className="list-none px-2 pt-2 pb-0.5 text-xs font-medium text-muted-foreground">
+            <h4 className="m-0 truncate">
+              {label ? `${label} · ${category.name}` : category.name}
+            </h4>
+          </li>
+        ) : null}
+        {renderTrees({ ...group, rows: category.rows }, label)}
+      </Fragment>
+    ));
   const renderGroupBody = (group: ThreadNode): ReactNode => [
-    <Fragment key="trees">{renderTrees(group)}</Fragment>,
+    <Fragment key="trees">{renderCategorizedTrees(group)}</Fragment>,
     ...inlineGroups(group).map((sub) => (
       <Fragment key={`inline:${sub.id}`}>
-        {renderTrees(sub, shortLabel(sub.label))}
+        {renderCategorizedTrees(sub, shortLabel(sub.label))}
       </Fragment>
     )),
     ...group.subgroups

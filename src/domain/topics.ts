@@ -1,3 +1,4 @@
+import type { CategoryGeneration } from "./categories.ts";
 import type { LayoutNode } from "./layout.ts";
 
 export type Topic = {
@@ -9,11 +10,6 @@ export type Topic = {
   projectId?: string | null;
   projectSource?: "manual" | "learned" | "disabled" | null;
   projectRevision?: number;
-  /**
-   * Its subtopics are subgroups a volume split created, so it always keeps
-   * its header (see `layoutGroups`).
-   */
-  partitioned?: boolean;
 };
 
 /**
@@ -45,6 +41,7 @@ export type TopicState = {
   revision: number;
   /** The groups the organizer last applied (see `layoutGroups`). */
   layout?: readonly LayoutNode[];
+  categories?: { [topicId: string]: CategoryGeneration };
 };
 
 type DraftAncestor = {
@@ -85,6 +82,29 @@ export function topicAncestors(
     current = entity.parentId;
   }
   return result;
+}
+
+export function assertTopicLevels(
+  entities: readonly { id: string; parentId: string | null }[],
+): void {
+  for (const entity of entities)
+    if (topicAncestors(entity.id, entities).length > 2)
+      throw new Error(
+        "Topic identity has at most two levels. Review the topic migration before applying this tree.",
+      );
+}
+
+export function assertProposalLevels(
+  proposal: DraftSubjectProposal,
+  entities: readonly { id: string; parentId: string | null }[],
+): void {
+  const depth =
+    (proposal.parentId
+      ? topicAncestors(proposal.parentId, entities).length
+      : 0) +
+    (proposal.ancestors?.length ?? 0) +
+    1;
+  if (depth > 2) throw new Error("Topic identity has at most two levels.");
 }
 
 /** A proposal resolved against the topic tree: an existing topic, or a discovery. */

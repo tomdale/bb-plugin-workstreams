@@ -9,19 +9,24 @@ rather than relying on summaries. These product rules are Tom's decisions:
 change one only when he asks, never route around it. A root's topic determines
 its workstream: a sidebar move is recorded and reverted, and a thread changes
 group only through the user's action, an accepted suggestion, or placement after
-a new request. A topic holds threads or subtopics, never both; every write that
-would put visible threads beside subtopics is refused. Automatic changes and
-observed outside changes are recorded in Activity, with undo where supported.
-Invalid model output never files a thread or clears a valid assignment. Up Next
-is the short ranked list of roots most worth the user's attention, shared by the
-sidebar, phone Home, and the next-Up-Next command (`src/domain/upNext.ts`).
-`docs/organization.md` details the organizer. `README.md` is the user-facing
-reference; update it with any user-visible change. In UI copy, questions, and
-reports, use the terms `README.md` and the app already use; do not coin new
-ones. `ISSUES.md` records known limits. When a feature is retired, delete its
-code, settings, and tests rather than leaving compatibility shims. Measure
-before optimizing analysis: check live traces and costs, and evaluate prompt or
-model changes with `eval/` (see `eval/README.md`).
+a new request. Topic identity has at most two levels total. A topic holds
+assignments or child topics, never both; stored assignments, including archived
+work, require a reviewed complete filing plan before children can be added.
+Categories organize a leaf topic's current roots at either depth, separately
+from topic assignments and native sections: create at six roots, discard at
+three or fewer, and reconsider the whole collection on membership or substantive
+work changes without a throttle. Automatic changes and observed outside changes
+are recorded in Activity, with undo where supported. Invalid model output never
+files a thread or clears a valid assignment. Up Next is the short ranked list of
+roots most worth the user's attention, shared by the sidebar, phone Home, and
+the next-Up-Next command (`src/domain/upNext.ts`). `docs/organization.md`
+details the organizer. `README.md` is the user-facing reference; update it with
+any user-visible change. In UI copy, questions, and reports, use the terms
+`README.md` and the app already use; do not coin new ones. `ISSUES.md` records
+known limits. When a feature is retired, delete its code, settings, and tests
+rather than leaving compatibility shims. Measure before optimizing analysis:
+check live traces and costs, and evaluate prompt or model changes with `eval/`
+(see `eval/README.md`).
 
 Before changing UI, agent tools or instructions, or the SDK dependency, read
 `.agents/skills/bb-plugin-guidelines/SKILL.md`, installed from

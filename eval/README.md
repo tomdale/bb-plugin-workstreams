@@ -35,6 +35,30 @@ topic; full hierarchy remains advisory there. Compare baseline and candidate
 with the same fixtures and scoring. See [classification.md](classification.md)
 for limits.
 
+## Categories
+
+`node eval/categories.ts` evaluates the production category prompt, schema, and
+parser against synthetic collections. Cases cover creation at either topic
+depth, keeping a useful arrangement, arrivals, departures, changed work, and
+untrusted text in evidence. `EVAL_HOLDOUT=1` uses reserved cases. Partition
+checks ignore category-name wording; stability cases also require the explicit
+keep decision. This measures the supplied collections, not production grouping
+accuracy.
+
+- `EVAL_MODEL`: defaults to the Organization model's shipped default
+- `EVAL_REASONING_LEVEL`: defaults to that model's shipped reasoning level
+- `EVAL_REPETITIONS`: 1–3; default `1`
+- `EVAL_BUDGET`: reported-cost budget with per-call headroom; default `$5`,
+  maximum `$10`
+- `EVAL_OUTPUT`: default `/tmp/category-eval.json`
+
+The runner is serial, bounds output and call duration, and retains responses,
+validation failures, costs, and latency. Keep private baseline and candidate
+reports outside the public repository. An existing topic-split prompt can be
+compared on creation partitions, but cannot serve as a baseline for the category
+keep, persistence, or discard contracts it does not implement. Account for spend
+across separate runs when applying an overall authorization limit.
+
 ## Group drops
 
 `node eval/group-drops.ts` evaluates the production Placement prompt, schema,

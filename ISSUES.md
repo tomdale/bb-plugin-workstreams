@@ -22,17 +22,20 @@ usage. The requested completion API is recorded in the BB SDK wishlist,
 `docs/bb-sdk-wishlist.md` in tomdale/bb-plugins. Do not infer total spend from
 the sum of reported costs when worker calls exist.
 
-### Topics from before the partition rule
+### Topic discovery without a matching known area
 
-**Evidence:** `src/domain/layout.ts`, `src/server/suggestions.ts`.
+**Evidence:** `eval/classification-cases.ts`, `src/domain/classify.ts`, and
+`src/domain/placement.ts`.
 
-A topic that held threads beside subtopics before the rule keeps both until a
-repair suggestion is accepted, and the sidebar lists its own threads beside its
-subgroups meanwhile. Archived threads keep their topic when it later gets
-subtopics; unarchived, they sit beside the subgroups until repaired.
+Quick analysis can choose a similarly described topic under the wrong owner when
+the correct area is absent. Cold discovery can also establish a product without
+its supported capability, or qualify a new root with a capability name.
+Structural validation enforces leaf-only filing and the two-level limit, not
+semantic accuracy. A small synthetic evaluation is not a production accuracy
+estimate.
 
-**Workaround:** Accept the repair suggestion, or refile the threads into
-subtopics yourself.
+**Workaround:** Review topic previews and lasting divisions. Placement settles
+the topic from request evidence; manual filing remains authoritative.
 
 ### Placement and suggestion evidence
 

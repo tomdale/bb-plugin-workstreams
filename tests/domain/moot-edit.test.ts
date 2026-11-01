@@ -49,9 +49,7 @@ describe("mootEdit", () => {
   it("leaves rule breaks, which may pass later, to refusal", () => {
     const edit = { op: "reparent" as const, topic: "cli", parent: "todo" };
     expect(mootEdit(edit, state)).toBeNull();
-    expect(refusal(edit, state)).toBe(
-      "The new parent holds threads, so it can't take subtopics.",
-    );
+    expect(refusal(edit, state)).toBe("Topic identity has at most two levels.");
   });
 });
 
@@ -85,7 +83,7 @@ describe("prefixMoves", () => {
     ]);
   });
 
-  it("moves under the longest name that matches", () => {
+  it("moves under a matching owner only when the subtree still fits two levels", () => {
     const moves = prefixMoves(
       tree([
         { id: "va", name: "Vercel Agent", parentId: null },
@@ -96,7 +94,6 @@ describe("prefixMoves", () => {
       ]),
     );
     expect(moves.map((m) => m.edit)).toEqual([
-      { op: "reparent", topic: "va", parent: "v", name: "Agent" },
       { op: "reparent", topic: "cr", parent: "va", name: "Code Review" },
     ]);
   });

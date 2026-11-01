@@ -68,7 +68,7 @@ export const DEFAULT_MODELS = {
     model: "openai/gpt-6-sol",
     reasoningLevel: "none",
   },
-  /** Suggestions: splits and tidy edits to the topic tree, for review. */
+  /** Contextual categories and reviewed changes to the topic tree. */
   tidy: {
     kind: "gateway",
     model: "anthropic/claude-sonnet-5.5",

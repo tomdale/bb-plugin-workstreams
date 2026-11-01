@@ -303,7 +303,7 @@ it("drops undoes, undone_by, and trace_id and rewrites stored analysis keys", as
     expect(JSON.parse(storedSuggestion(db))).toEqual({
       id: "s1",
       kind: "split",
-      status: "pending",
+      status: "stale",
     });
     expect(JSON.parse(storedAnalysis(db))).toEqual({
       recap: "Working.",

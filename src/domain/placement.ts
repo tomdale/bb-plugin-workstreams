@@ -6,8 +6,9 @@
  * The choice is closed: only a topic without subtopics holds threads, so a
  * topic with subtopics is listed for context but can't be chosen. When no
  * topic fits, the answer may propose one new topic, named for a lasting area
- * of work. Hints (the topic of the thread this one continues, the checkout's
- * usual topic) are evidence the model weighs, never overrides.
+ * of work. Quick's composer preview can propose a missing product and its
+ * capability together; Placement supplies one new name and an existing parent.
+ * Hints (continuations and checkouts) inform the choice without overriding it.
  *
  * Topic IDs are long and opaque, so the prompt names topics by slugs of their
  * names (`fork-core`), and the parser maps them back from the same input.
@@ -15,7 +16,12 @@
 import { z } from "zod";
 import { excerpt, HEADER, redact, stripFence, tagged } from "./analysis.ts";
 import type { TopicAnswer } from "./classify.ts";
-import { resolveProposal, takesThreads, topicAncestors } from "./topics.ts";
+import {
+  assertProposalLevels,
+  resolveProposal,
+  takesThreads,
+  topicAncestors,
+} from "./topics.ts";
 
 /** Requests are excerpted to this much each. */
 const REQUEST_CHARS = 1200;
@@ -132,9 +138,9 @@ function treeBlock(input: PlacementInput, ids: Map<string, string>): string {
   return rows.length ? rows.join("\n") : "(no topics yet)";
 }
 
-const PLACEMENT_RULES = `Choose the topic this thread's work belongs to: the most specific listed topic whose scope genuinely covers it. Topics marked "has subtopics" hold subtopics, never threads, so they can't be chosen: choose one of their subtopics, or propose a new subtopic of the same kind inside them. If no topic covers the work, propose one new topic: the product, area, or capability that later threads would also belong to, named for that area ("Billing", "Mobile app"), never for this thread's task, question, pull request, or bug, and never for a repository or workspace used to route or coordinate work. Give it a parent when it belongs inside an existing topic.
+const PLACEMENT_RULES = `Choose the topic this thread's work belongs to: the most specific listed topic whose scope genuinely covers it. Topics marked "has subtopics" hold subtopics, never threads, so they can't be chosen: choose one of their subtopics, or propose a new subtopic of the same kind inside them. A broad first-level topic covers the product as a whole or work without a supported narrower area. When requests establish a distinct lasting capability within that broad product, propose the child topic rather than using the broad product as the final identity. A single-purpose tool covers its fixes, refactors, and reviews without children for those tasks. If no topic covers the work, propose one new topic: the product, area, or capability that later threads would also belong to, named for that area ("Billing", "Mobile app"), never for this thread's task, question, pull request, or bug, and never for a repository or workspace used to route or coordinate work. Topic identity has at most two levels total, including the root. Give a new topic a parent only when that parent is first-level. Choose an existing second-level topic for work on its finer areas. Use meaningful lasting areas rather than General or Other. Thread volume does not establish child topics.
 
-A topic about a different product is never a fit, however close: when the requests name the product, platform, or tool the work belongs to, a topic beneath a different owner doesn't fit however closely its description matches, and a new topic under the named owner is the answer. A tool used only as the method for otherwise unspecified work doesn't make the work about that tool, and a bare URL or reference supports at most a product the requests name; with no supported owner, give no topic. Name new topics in Title Case, keeping product names' own spelling. Hints are evidence, not rules.`;
+A topic about a different product is never a fit, however close: when the requests name the product, platform, or tool the work belongs to, a topic beneath a different owner doesn't fit however closely its description matches, and a new topic under the named owner is the answer. A tool used only as the method for otherwise unspecified work doesn't make the work about that tool, and a bare URL or reference supports at most a product the requests name; with no supported owner, give no topic. When proposing a new first-level topic, use the owner's recognizable product name, not that name joined to a capability or an implementation layer. In this call, propose supplies one new topic; parent names an existing first-level topic or is null. When the product is absent, establish its recognizable product name as the root first. Work on a product's SDK establishes that product first too, rather than a root named for the product plus SDK. An independently named tool product keeps its whole name. Name new topics in Title Case, keeping product names' own spelling. Hints are evidence, not rules.`;
 
 type PlacementChoices = Pick<PlacementInput, "entities" | "within">;
 
@@ -147,6 +153,7 @@ function choosable(input: PlacementChoices): Set<string> {
       .filter(
         (e) =>
           takesThreads(e.id, input.entities) &&
+          topicAncestors(e.id, input.entities).length <= 2 &&
           (!input.within ||
             topicAncestors(e.id, input.entities).includes(input.within)),
       )
@@ -242,7 +249,16 @@ export function placementSchema(
                   description: { type: "string" },
                   parent: {
                     type: ["string", "null"],
-                    enum: [null, ...ids.values()],
+                    enum: [
+                      null,
+                      ...[...ids]
+                        .filter(
+                          ([id]) =>
+                            input.entities.find((entity) => entity.id === id)
+                              ?.parentId === null,
+                        )
+                        .map(([, short]) => short),
+                    ],
                   },
                 },
                 required: ["name", "description", "parent"],
@@ -309,7 +325,16 @@ export function parsePlacement(
   );
   // A proposal that names an existing topic is that topic. One with
   // subtopics can't hold the thread; applying it keeps the thread's topic.
-  if (resolved.subjectId !== null)
+  if (resolved.subjectId !== null) {
+    if (!allowed.has(resolved.subjectId))
+      throw new Error("The model chose a topic that can't hold threads.");
     return { subjectId: resolved.subjectId, proposed: null, scopeShift };
+  }
+  assertProposalLevels(resolved.proposed, input.entities);
+  if (
+    resolved.proposed.parentId &&
+    /^(general|other)$/i.test(resolved.proposed.name)
+  )
+    throw new Error("A child topic needs a meaningful area name.");
   return { subjectId: null, proposed: resolved.proposed, scopeShift };
 }

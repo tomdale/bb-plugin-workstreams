@@ -1,3 +1,5 @@
+import { topicMigrationInput } from "../domain/topicMigration.ts";
+import { categoryGenerationSchema } from "../domain/categories.ts";
 import type { LayoutNode } from "../domain/layout.ts";
 import type { SuggestionChange } from "../domain/suggestion-change.ts";
 import { defineRpcContract } from "@get-bb/plugin-sdk";
@@ -199,7 +201,6 @@ const entitySchema = z.object({
   description: z.string(),
   parentId: z.string().nullable(),
   aliases: z.array(z.string()),
-  partitioned: z.boolean().optional(),
   projectId: z.string().min(1).nullable().optional(),
   projectSource: z
     .enum(["manual", "learned", "disabled"])
@@ -225,6 +226,7 @@ const catalogStateSchema = z.object({
   assignments: z.record(z.string(), topicAssignmentSchema),
   revision: z.number(),
   layout: z.array(layoutNodeSchema).optional(),
+  categories: z.record(z.string(), categoryGenerationSchema).optional(),
 });
 
 const topicPlaceSchema = z.array(
@@ -494,6 +496,50 @@ export const rpcContract = defineRpcContract({
   setRecapPrefs: {
     input: z.object({ patch: recapPrefsSchema.partial() }),
     output: z.object({ prefs: recapPrefsSchema }),
+  },
+  topicMigrationPreview: {
+    input: topicMigrationInput.nullable(),
+    output: z.object({
+      id: z.string(),
+      fingerprint: z.string(),
+      topics: z.array(entitySchema),
+      removed: z.array(
+        z.object({
+          id: z.string(),
+          path: z.string(),
+          targetId: z.string(),
+          projectId: z.string().nullable(),
+          projectSource: z
+            .enum(["manual", "learned", "disabled"])
+            .nullable()
+            .optional(),
+        }),
+      ),
+      changes: z.array(
+        z.object({
+          threadId: z.string(),
+          from: z.string(),
+          to: z.string(),
+          topicId: z.string(),
+          source: z.string(),
+        }),
+      ),
+      blockers: z.array(
+        z.object({
+          threadId: z.string().nullable(),
+          topicId: z.string(),
+          reason: z.string(),
+        }),
+      ),
+    }),
+  },
+  topicMigrationApply: {
+    input: z.object({ planId: z.string().min(1) }),
+    output: z.object({ backupId: z.string(), changed: z.number() }),
+  },
+  topicMigrationBackup: {
+    input: z.object({ backupId: z.string().min(1) }),
+    output: z.unknown(),
   },
   catalog: {
     input: z.null(),
