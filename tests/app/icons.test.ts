@@ -2,11 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import {
-  NO_WORKSTREAM_ICON,
-  TAG_ICON,
-  WORKSTREAM_ICON,
-} from "../../src/app/workstream-icon.ts";
+import { TAG_ICON, WORKSTREAM_ICON } from "../../src/app/workstream-icon.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const manifest = JSON.parse(
@@ -20,7 +16,6 @@ describe("the plugin's declared icons", () => {
   // the UI uses for a Workstreams entity must be declared in the manifest.
   it.each([
     ["workstream", WORKSTREAM_ICON],
-    ["workstream-none", NO_WORKSTREAM_ICON],
     ["tag", TAG_ICON],
   ])("declares %s under the name the UI uses", (key, name) => {
     expect(name).toBe(`workstreams/${key}`);
