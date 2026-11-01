@@ -3,7 +3,6 @@ import { makePluginAgentConfigurationContext } from "@get-bb/plugin-sdk/testing"
 import { fakeWorld } from "./fake-bb.ts";
 import { WORKER_THREAD_MARKER } from "../../src/domain/worker.ts";
 import { RECAP_INSTRUCTIONS } from "../../src/domain/recap.ts";
-import { NEXT_ACTION_INSTRUCTIONS } from "../../src/domain/nextActionInstructions.ts";
 import {
   replyInstructions,
   REPLY_EXAMPLES_TOOL,
@@ -150,7 +149,9 @@ describe("configure", () => {
     const unknown = await resolve(w, { id: "hidden-helper" });
     expect(delivered(unknown)).not.toContain("workstream");
     expect(delivered(unknown)).toContain("WorkstreamsRecap");
-    expect(delivered(unknown)).toContain(NEXT_ACTION_INSTRUCTIONS);
+    expect(delivered(unknown)).toContain(
+      "Include concrete recommendations and unresolved optional improvements",
+    );
   });
 
   it("configures unseen threads independently of role metadata freshness", async () => {
@@ -307,8 +308,14 @@ describe("configure", () => {
       const text = contributions.join("\n\n");
       expect(text).toContain(QUESTION_INSTRUCTIONS);
       const recap = !options.sideChat && !options.noRecap;
-      if (recap) expect(text).toContain(NEXT_ACTION_INSTRUCTIONS);
-      else expect(text).not.toContain(NEXT_ACTION_INSTRUCTIONS);
+      if (recap)
+        expect(text).toContain(
+          "Include concrete recommendations and unresolved optional improvements",
+        );
+      else
+        expect(text).not.toContain(
+          "Include concrete recommendations and unresolved optional improvements",
+        );
       // With Structured replies on, the reply instruction carries the recap
       // contract and the session has no recap tool.
       if (recap && !options.replies) expect(text).toContain(RECAP_INSTRUCTIONS);
