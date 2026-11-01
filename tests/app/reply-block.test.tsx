@@ -12,9 +12,9 @@ import { registerReplyBlock } from "../../src/app/reply/register.ts";
 import {
   componentFence,
   COMPONENT_EXAMPLES,
-  COMPOSED_SAMPLES,
 } from "../../src/domain/replyExamples.ts";
 import { blockInput } from "../domain/replyFixtures.ts";
+import { COMPOSED_SAMPLES } from "../domain/replySamples.ts";
 
 vi.mock("@get-bb/plugin-sdk/app", async (importActual) => {
   const actual = await importActual<typeof import("@get-bb/plugin-sdk/app")>();

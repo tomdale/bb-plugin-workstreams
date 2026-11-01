@@ -8,7 +8,6 @@ import {
 } from "../../src/domain/replyComponents.ts";
 import {
   COMPONENT_EXAMPLES,
-  COMPOSED_SAMPLES,
   componentFence,
 } from "../../src/domain/replyExamples.ts";
 import {
@@ -18,7 +17,7 @@ import {
 import { recapInputFromCard } from "../../src/domain/replyRecap.ts";
 import { blockInput } from "./replyFixtures.ts";
 import { onlyReplyBlock, lastReplyBlock } from "../../src/domain/replyText.ts";
-import { REPLY_SAMPLES } from "./replySamples.ts";
+import { COMPOSED_SAMPLES, REPLY_SAMPLES } from "./replySamples.ts";
 
 function read(message: string, streaming = false): Reply {
   const { status, ...input } = blockInput(message, { streaming });

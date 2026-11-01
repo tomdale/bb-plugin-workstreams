@@ -8,7 +8,7 @@ import { RECAP_TOOL, type RecapFiles } from "../../src/domain/recap.ts";
 import { fakeWorld } from "./fake-bb.ts";
 import plugin from "../../src/server/index.ts";
 import { replyInstructions } from "../../src/domain/replyInstructions.ts";
-import { COMPOSED_SAMPLES } from "../../src/domain/replyExamples.ts";
+import { COMPOSED_SAMPLES } from "../domain/replySamples.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 const worlds: World[] = [];
