@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
-import {
-  act,
-  cleanup,
-  fireEvent,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 

@@ -382,7 +382,7 @@ describe("TopicStore", () => {
   it("validates scoped name and alias collisions on rename and reparent", () => {
     const { corpus } = store();
     const root = corpus.create("Root", "");
-    const a = corpus.create("Alpha", "first", root.id, ["AliasA"]);
+    corpus.create("Alpha", "first", root.id, ["AliasA"]);
     const b = corpus.create("Beta", "second", root.id);
 
     // Renaming to existing name under same parent fails
@@ -513,7 +513,7 @@ describe("TopicStore", () => {
     corpus.bindGroup("sec-backend", sourceBackend.id);
     corpus.bindGroup("sec-migrations", sourceMigrations.id);
 
-    const result = corpus.merge(sourceRoot.id, targetRoot.id);
+    corpus.merge(sourceRoot.id, targetRoot.id);
 
     // SourceRoot is deleted
     expect(corpus.getById(sourceRoot.id)).toBeNull();
@@ -587,7 +587,7 @@ describe("TopicStore", () => {
   it("mutation no-ops do not bump revision for identical assign and clear", () => {
     const { corpus } = store();
     const entity = corpus.create("Feature", "Feature desc");
-    const a1 = corpus.assign("t1", entity.id, { provenance: "manual" });
+    corpus.assign("t1", entity.id, { provenance: "manual" });
     const rev1 = corpus.revision();
 
     // Assigning identical entity, provenance, and evidence is a no-op

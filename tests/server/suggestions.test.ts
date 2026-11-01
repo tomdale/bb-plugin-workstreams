@@ -349,7 +349,7 @@ describe("tidy suggestions", () => {
 
 describe("an edit that needs a declined create", () => {
   it("is retired with the create it needs", async () => {
-    const { w, topics, run, decide, rpc } = await setup({
+    const { topics, run, decide, rpc } = await setup({
       tidy: () => ({
         edits: [
           tidyEdit({

@@ -201,7 +201,7 @@ describe("CLI topics commands", () => {
   });
 
   it("topics merge merges source into target and preserves assignments", async () => {
-    const { w, corpus, storage, shelves, rootThread } = await setup();
+    const { w, corpus, shelves, rootThread } = await setup();
     const other = corpus.create("Legacy Shelves", "Old", null, ["OldRacks"]);
 
     const mergeRes = await w.harness.behavior.runCli([
@@ -223,12 +223,7 @@ describe("CLI topics commands", () => {
 
     // Storage already has alias "Warehouse" in root scope.
     // Shelves is a child of Storage. Let's create an entity with an alias in Shelves' scope.
-    const sibling = corpus.create(
-      "Drawers",
-      "Drawers feature",
-      shelves.parentId,
-      ["Cabinets"],
-    );
+    corpus.create("Drawers", "Drawers feature", shelves.parentId, ["Cabinets"]);
 
     // Attempting to edit Shelves with a name change AND a conflicting alias with Drawers ("Cabinets")
     const failRes = await w.harness.behavior.runCli([

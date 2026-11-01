@@ -18,9 +18,9 @@ as a direct Gateway call. Usage, cost, and reasoning metadata are unavailable;
 worker traces use `usage: null`, not fabricated zero usage.
 
 **Workaround:** Use a Gateway model for constrained Quick analysis and reported
-usage. The requested completion API is recorded in the repository's
-[BB SDK wishlist](../docs/bb-sdk-wishlist.md#plugins-call-the-users-ai-service-and-model-catalog).
-Do not infer total spend from the sum of reported costs when worker calls exist.
+usage. The requested completion API is recorded in the BB SDK wishlist,
+`docs/bb-sdk-wishlist.md` in tomdale/bb-plugins. Do not infer total spend from
+the sum of reported costs when worker calls exist.
 
 ### Topics from before the partition rule
 

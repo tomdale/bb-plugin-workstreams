@@ -2,13 +2,11 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { emptyState, section, sidebarThread } from "./fixtures.ts";
+import { emptyState } from "./fixtures.ts";
 import { chooseOption } from "./select.ts";
 
 beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
-
-const body = () => within(document.body);
 
 const summary = (id: string, overrides: Record<string, unknown> = {}) => ({
   id,
@@ -23,22 +21,6 @@ const summary = (id: string, overrides: Record<string, unknown> = {}) => ({
   error: null,
   summary: "review · Alpha",
   threads: ["t1"],
-  ...overrides,
-});
-const full = (id: string, overrides: Record<string, unknown> = {}) => ({
-  ...summary(id),
-  provider: "vercel-ai-gateway",
-  thinking: "off",
-  system: "Classify supplied data. Return only the requested JSON.",
-  prompt: "Return only JSON.\n\nYou describe one agent thread…",
-  input: { title: "Alpha parser" },
-  response: '{"recap":"Parser fixed.","drift":{"workstream":"Beta"}}',
-  reasoning: "**Spotting the drift**\n\nThe latest request is Beta work.",
-  stopReason: "stop",
-  parsed: { recap: "Parser fixed.", drift: { workstream: "Beta" } },
-  outcome: { driftTarget: "Beta" },
-  links: [{ kind: "thread", ref: "t1" }],
-  replays: [],
   ...overrides,
 });
 

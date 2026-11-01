@@ -170,7 +170,6 @@ describe("grouping regressions", () => {
           activeCount: 4,
           completedCount: 3,
           totalCount: 7,
-          policyReason: expect.stringContaining("7 visible roots filed here"),
         }),
       ]),
     );

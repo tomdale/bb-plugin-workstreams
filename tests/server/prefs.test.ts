@@ -4,7 +4,6 @@ import {
   parsePrefs,
   prefsPatchSchema,
 } from "../../src/domain/prefs.ts";
-import { DEFAULT_COLORS } from "../../src/domain/colors.ts";
 import { openDatabase, setMeta } from "../../src/server/db.ts";
 import { loadPrefs, savePrefs, seedPrefs } from "../../src/server/prefs.ts";
 import { fakeWorld } from "./fake-bb.ts";

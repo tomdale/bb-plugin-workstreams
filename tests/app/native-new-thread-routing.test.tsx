@@ -7,7 +7,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { useComposer } from "@get-bb/plugin-sdk/app";
 import { NewThreadRouting } from "../../src/app/composer/NewThreadRouting.tsx";
 import { setComposerPreset } from "../../src/app/composer/preset.ts";

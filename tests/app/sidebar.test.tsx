@@ -15,7 +15,6 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 import type { SnoozePreset } from "../../src/domain/snooze.ts";
-import { takeComposerPreset } from "../../src/app/composer/preset.ts";
 
 /** Snooze settings listing these presets, the first of them the default. */
 const snoozeSettings = (...presets: SnoozePreset[]) => ({

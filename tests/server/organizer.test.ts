@@ -383,7 +383,7 @@ describe("automatic update coordinator lifecycle", () => {
       entityId: lantern.id,
     });
 
-    const state1 = await rebuildOrg(w);
+    await rebuildOrg(w);
     const sec1 = w.sections.find((s) => s.name === "Lantern")!.id;
 
     // Trigger second pass with new thread in same product
