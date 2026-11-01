@@ -24,6 +24,42 @@ it("accepts capability synonyms while rejecting flattened required ancestry", ()
   expect(score(["Loom", "Waiting Recap"]).owner).toBe(true);
   expect(score(["Loom", "Waiting Recap"]).hierarchy).toBe(false);
 });
+it("scores cold Placement's single root proposal separately from Quick's hierarchy", () => {
+  const c = cases.find((c) => c.id === "waiting-schema")!;
+  const value = {
+    subjectId: null,
+    proposed: {
+      name: "Loom",
+      description: "Agent organization",
+      parentId: null,
+    },
+  };
+  expect(
+    scoreClassification(
+      value,
+      c.input,
+      c.expected,
+      true,
+      undefined,
+      "placement",
+    ),
+  ).toMatchObject({ owner: true, hierarchy: false, pass: true });
+  expect(
+    scoreClassification(value, c.input, c.expected, true, undefined, "quick")
+      .pass,
+  ).toBe(false);
+  expect(
+    scoreClassification(
+      { ...value, proposed: { ...value.proposed, name: "Harbor" } },
+      c.input,
+      c.expected,
+      true,
+      undefined,
+      "placement",
+    ).pass,
+  ).toBe(false);
+});
+
 it("rejects a familiar title's wrong capability despite a correct owner", () => {
   const c = cases.find((c) => c.id === "misleading-title")!;
   const result = scoreClassification(

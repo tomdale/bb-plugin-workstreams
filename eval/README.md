@@ -10,7 +10,8 @@ Run `node eval/classification.ts` for placement, or
 `EVAL_KIND=quick node eval/classification.ts` for the actual Quick prompt,
 output schema, and parser. Quick flattens a synthetic case's requests into one
 opening request; it does not measure conversation trajectories or the production
-repair retry. Placement sees the requests without hints or a checkout.
+repair retry. Placement receives generated titles and optional conflicting
+hints, checkouts, and current assignments; scoped cases also check `scopeShift`.
 
 - `EVAL_MODEL`: model ID; default `openai/gpt-6-sol` for placement and
   `openai/gpt-6-luna-fast` for Quick
@@ -28,8 +29,11 @@ being normalized into guessed topic IDs.
 
 Compare warm main and holdout runs, cold hierarchy choices, and repetitions when
 changing a prompt or model. Measure latency against the 15-second first-send
-budget. A small perfect synthetic run is not a production accuracy estimate. See
-[classification.md](classification.md) for scoring limitations.
+budget. A small perfect synthetic run is not a production accuracy estimate.
+Cold Placement checks root ownership because its output can propose only one
+topic; full hierarchy remains advisory there. Compare baseline and candidate
+with the same fixtures and scoring. See [classification.md](classification.md)
+for limits.
 
 ## Group drops
 
@@ -102,15 +106,20 @@ name their own edit's topics, and checks renames on moves.
 ## Composed replies
 
 `node eval/replies.ts` makes paid, tool-free Gateway calls against synthetic
-investigation, change, recommendation, uncertainty, and short-answer tasks. It
-uses the production instructions, component examples, parser, and recap
-validation. Checks cover one closed whole-message reply, usable recaps and
-required result lists, malformed components, reported test counts, explicit
-uncertainty cues, and unnecessary content in short answers. Preferred component
-selections are recorded as advisory notes, not failures: a valid composition can
-explain a fact in prose or use another suitable component. The uncertainty check
-is a phrase/status heuristic; inspect the recorded replies to judge whether
-their claims are true.
+investigation, change, recommendation, uncertainty, waiting, body-only, and
+short-answer tasks. It uses the production instructions, component examples,
+parser, and recap validation. Checks cover one closed whole-message reply,
+usable recaps and required result lists, malformed components, reported test
+counts, explicit uncertainty cues, actionable optional advice, waiting-agent
+details, body-only formatting, and unnecessary content in short answers. Test
+counts may appear in prose or optional structured totals. Prose scoring
+recognizes explicit numeric or zero-through-ten word counts next to
+passed/failed/skipped; inspect other wording in recorded responses before
+treating a count failure as a factual error. Preferred component selections are
+recorded as advisory notes, not failures: a valid composition can explain a fact
+in prose or use another suitable component. The uncertainty check is a
+phrase/status heuristic; inspect the recorded replies to judge whether their
+claims are true.
 
 - `EVAL_MODEL`: default `openai/gpt-6-luna`
 - `EVAL_REASONING_LEVEL`: default `medium`

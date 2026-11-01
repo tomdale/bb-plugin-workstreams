@@ -180,7 +180,8 @@ describe("split suggestions", () => {
     });
 
     expect((await decide([split!.id], "accept")).applied).toEqual([split!.id]);
-    expect(prompts[1]).toContain('"Planning", "Triggers"');
+    expect(prompts[1]).toContain("[planning] Planning");
+    expect(prompts[1]).toContain("[triggers] Triggers");
     expect(topics.assignment("t1").label).toBe("Automations: Planning");
     expect(topics.assignment("t7").label).toBe("Automations: Triggers");
     // The thread that moved away stays where it went.
@@ -190,7 +191,7 @@ describe("split suggestions", () => {
   it("repairs a topic that holds threads beside subtopics", async () => {
     const { w, topics, run, decide, rpc } = await setup({
       split: (prompt) => {
-        expect(prompt).toContain('"Triggers"');
+        expect(prompt).toContain("[triggers] Triggers");
         return {
           reason: "Files the loose thread",
           subgroups: [{ name: "Triggers", description: "" }],

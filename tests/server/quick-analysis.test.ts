@@ -144,6 +144,28 @@ async function finishTurn(w: World, id: string, at: number) {
 }
 
 describe("naming a thread from its opening request", () => {
+  it("repairs title-only output using only the fields that call requests", async () => {
+    let attempts = 0;
+    const w = await setup(() =>
+      attempts++ === 0
+        ? "not JSON"
+        : JSON.stringify({
+            goal: { verb: "fixing", subject: "stale build cache" },
+          }),
+    );
+    newThread(w);
+    await firstMessage(w);
+    await vi.waitFor(() =>
+      expect(w.threads.get("t1")?.title).toBe("Fixing stale build cache"),
+    );
+    expect(openingCalls(w)).toHaveLength(2);
+    const repair = openingCalls(w)[1]!.prompt;
+    expect(repair).toContain(
+      "Validation requirement: return only a JSON object with the requested fields",
+    );
+    expect(repair).not.toMatch(/subjectId|topic_tree/);
+  });
+
   it("titles it while its first turn is still running, without waiting on the model", async () => {
     const pending = gate();
     const w = await setup(({ prompt }) =>

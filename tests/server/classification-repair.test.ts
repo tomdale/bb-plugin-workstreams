@@ -34,6 +34,9 @@ describe("bounded classification repair", () => {
       subjectId: topicId,
     });
     expect(w.completions).toHaveLength(2);
+    expect(w.completions[1]!.prompt).toContain(
+      "subjectId must be exactly an ID in square brackets in <topic_tree>",
+    );
   });
   it("keeps a usable title and leaves topic unresolved after two invalid responses", async () => {
     world = await fakeWorld({

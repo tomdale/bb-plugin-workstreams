@@ -139,7 +139,7 @@ const memoryBlocks = (
       ? `Decisions the user made by hand; keep them and build on them:\n${tagged("decisions", decisions.map((d) => `- ${line(d, 200)}`).join("\n"))}`
       : null,
     declined.length
-      ? `Suggestions the user declined; don't propose them again, or anything that undoes the decisions above, unless the threads involved have changed:\n${tagged("declined", declined.map((d) => `- ${line(d, 200)}`).join("\n"))}`
+      ? `Suggestions the user declined; don't propose them again or undo the decisions above:\n${tagged("declined", declined.map((d) => `- ${line(d, 200)}`).join("\n"))}`
       : null,
   ].filter(Boolean);
 
@@ -174,9 +174,8 @@ export function splitPrompt(input: SplitInput): string {
     .map((id) => input.topics.find((t) => t.id === id)!.name)
     .join(" › ");
   const repair = input.topics.some((t) => t.parentId === input.topicId);
-  const existing = fileable(input);
   const intro = repair
-    ? `This group of agent threads holds threads beside its subgroups, and a group holds threads or subgroups, never both. File each of its own threads below in one of its subgroups${existing.length ? ` (${existing.map((t) => `"${line(t.name, 60)}"`).join(", ")})` : ""}, using a subgroup's exact name, or in a new subgroup when none fits. ${SUBGROUP_RULES}`
+    ? `This group of agent threads holds threads beside its subgroups, and a group holds threads or subgroups, never both. File each of its own threads below in an existing immediate subgroup without subtopics, using its exact name from the tree, or in a new subgroup when none fits. ${SUBGROUP_RULES}`
     : `This group of agent threads has grown past ${SPLIT_ABOVE} threads, so it is splitting into subgroups. Every thread must go into exactly one subgroup; none stays in the group itself. Propose 2–${SUBGROUPS_MAX} subgroups. ${SUBGROUP_RULES}`;
   return `${HEADER}
 

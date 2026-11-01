@@ -1,8 +1,7 @@
 /**
- * Classification: choosing the most specific topic a thread is about, or
- * proposing a new one. Quick analysis and Full analysis both ask for a topic
- * with these rules and parse the answer with `parseTopic`, so a thread is
- * classified the same way whether from its first request or a finished turn.
+ * Topic classification for Quick's composer preview: topic identity, proposal
+ * rules, and answer validation. Placement has a separate leaf-only filing and
+ * single-topic proposal contract.
  */
 import { z } from "zod";
 import { redact } from "./redact.ts";
@@ -92,10 +91,7 @@ export function topicTreeBlock(entities: readonly Entity[]): string {
   return rows.length ? rows.join("\n") : "(no topics yet)";
 }
 
-/**
- * How to choose a topic. Shared verbatim by every prompt that classifies, so
- * the classification eval measures the rules production uses.
- */
+/** Quick's topic ownership, capability discovery, and proposal format. */
 export const CLASSIFICATION_RULES = `Ownership: User requests and explicit diagnoses establish the object being built, changed, reviewed, or studied, and outrank titles, summaries, project hints, and familiar topic names. Privately identify the primary deliverable, owner, capability, and supported subcapability. A follow-up build, review, or issue submission retains the diagnosed owner unless requests shift scope. A symptom's location is not proof of defect ownership. Project names locate work but do not establish its user-facing owner. Repository, backend, scheduler, hosting platform, agent provider, shell, and execution-tool names locate work; they own it only when the requested change concerns them. Review work belongs to the reviewed capability. Shared platform capabilities and contracts belong to the platform; consuming products retain their own features. For cross-product work choose the primary deliverable. A named research effort, document, or knowledge artifact can own its own topic independently of the products it compares. Research about several agent tools belongs to that research effort, not to the platform used to conduct it. Return no topic when no primary deliverable or owner is supported. A URL or opaque reference without scope evidence supports at most a known product, not an inferred feature. Use supplied scope, not assumed real-world product associations; descriptions contain only supported facts.
 
 Matching: Compare local names, aliases, descriptions, and full ancestry. Choose the most specific topic whose documented scope covers the work, including topics no thread has now. A broad topic, one whose documented scope spans several distinct capabilities as a platform or multi-feature product does, fits work on it as a whole (its overall design, direction, or a change across its capabilities) and work whose capability the evidence does not identify. Work on one of its capabilities belongs to that capability's topic, existing or proposed. A topic covering a single capability, such as a single-purpose tool, covers its fixes, refactors, reviews, and artifacts without a narrower child: a topic describing provider routing already covers a routing fix; a topic describing automation-run infrastructure covers its artifacts. A topic fits only under the owner the request names: when the request says which product, platform, or tool the work belongs to, a topic beneath a different owner does not fit however closely its description matches, and a new topic under the named owner is the answer. Choose the topic independently of how threads are grouped. Do not decide placement, continuation, or execution settings.

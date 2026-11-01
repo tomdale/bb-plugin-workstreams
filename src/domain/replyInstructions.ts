@@ -5,16 +5,14 @@
  */
 import { REPLY_BLOCK } from "./reply.ts";
 export const REPLY_EXAMPLES_TOOL = "WorkstreamsReplyExamples";
-const BODY = `Body: write the answer and reasoning as Markdown paragraphs. Keep causal connections. Choose headings and order for this reply. Keep uncertainty and qualifications beside their claims. Keep supporting detail with the explanation it supports.
-Orient a returning reader with a context component: broad task, relevant place, brief background. Name actors and describe observable behavior. Distinguish passed from untested and pushed from deployed. Use complete sentences. Explain reasons when they help the reader understand a conclusion or decision. Actions name their effect. A short reply needs no components.`;
-const MARKERS = `Open with \`:::${REPLY_BLOCK}\` alone on a line; put any attributes on that same line, with no space after the colons or before \`{\`, and close with \`:::\` on its own line. Use a top-level block. Fenced code works inside; if a line must contain only \`:::\`, use \`::::reply\` and \`::::\` around the reply.`;
+const MARKERS = `Put \`:::${REPLY_BLOCK}\` and any attributes on their own line, with attributes immediately after the marker and no space after the colons or before \`{\`. Close with \`:::\` on its own line. Use a top-level block. Fenced code works inside; if a line must contain only \`:::\`, use \`::::reply\` and \`::::\` around the reply.`;
 
 export function replyInstructions(withRecap: boolean): string {
   return withRecap ? withCard() : alone();
 }
 
 function alone(): string {
-  return `When you need input, put any explanation in a reply block before calling the question tool; the question card ends the turn. Otherwise, end your final reply with one :::reply block containing the answer, explanation, completion details, and relevant commit or PR links. ${MARKERS}\n${BODY}`;
+  return `When required input is missing, put the explanation in a reply block before calling the available question-card tool; the card ends the turn. Otherwise put the entire final answer, explanation, completion details, and relevant commit or PR links in one reply block. ${MARKERS}`;
 }
 
 /** A question card owns the reply when input is required; other turns carry recap fields. */
@@ -23,9 +21,8 @@ function withCard(): string {
 Set state="complete", state="review", or state="waiting" on the opener; optional kind is answer, investigation, change, recommendation, proposal, status, or handoff, independently of state.
 State covers this thread's responsibilities: complete when all authorized work is finished; review when a finished result awaits inspection, testing, merging, or shipping; waiting for an async result this thread needs to resume work. Work elsewhere counts while this thread owns follow-up. Waiting requires timeout="<seconds>" (1–86400), a realistic polling interval. The card counts down; if the turn remains current at expiry, Workstreams prompts a status check.
 Recap fields update the card and sidebar; use terse inline Markdown without closing periods.
-Card fields: start with # and a present-tense fact (at most 80 characters), -ing for waiting. Complete/review replies with bodies put 1–3 - [x] results immediately after the headline. Advice needs a result stating the recommendation or finding, even without file changes. Results: concrete outcomes, most important first, about 12 words each, with relevant commit and PR links. Explain outcomes in the body without repeating them.
-Reserved ### sections: Review (review only) has 1–3 steps to inspect the result and what to expect. Links (review only) lists [title](location) review targets, HTTPS or absolute paths. Waiting on (waiting only) lists one @thread:<id> task per awaited agent. Next (complete/review): 1–3 Title: message actions; labels at most 28 characters, messages sent verbatim. After completed work, offer 1–3 self-contained next actions whenever the user has a useful follow-up to take or request. Include concrete recommendations and unresolved optional improvements identified in the reply. Before complete/review, check blockers and authorized continuations; do authorized work yourself and use question cards for required input or approval. Omit next actions when none are useful, including one-line answers without follow-up. A one-line answer without follow-up uses only the # headline.
-${BODY}
+Card fields: start with # and a present-tense fact (at most 80 characters), -ing for waiting. Complete/review replies with bodies put 1–3 - [x] results immediately after the headline. Advice results state the recommendation or finding, not an implemented change. Results: concrete outcomes, most important first, about 12 words each, with relevant commit and PR links. Explain outcomes in the body without repeating them.
+Reserved ### sections: Review (review state only, required): 1–3 steps to inspect the result and what to expect. Links (review only) lists [title](location) review targets: HTTPS or absolute paths. Waiting on (waiting only) lists one @thread:<id> task per awaited agent. Next (complete/review): 1–3 Title: message actions; labels at most 28 characters. Messages are self-contained user requests; whitespace and closing periods are normalized. After completed work, offer 1–3 useful optional follow-up requests or questions. Put concrete not-yet-authorized changes recommended in the body into Next, including advice-only recommendations, and include unresolved optional improvements. Next offers future work without requesting blocking approval or executing it. Do authorized continuations yourself; required input or approval belongs in question cards. Omit Next when none are useful. A one-line answer without follow-up uses only the # headline.
 Example with illustrative details:
 :::reply{state="review" kind="change"}
 # The coupon applies a percentage
@@ -50,22 +47,30 @@ The calculation divides the percentage by 100 before applying it to the amount, 
 Short answer:
 :::reply{state="complete"}
 # Python 3.9 or newer
+:::
+Advice-only example:
+:::reply{state="complete" kind="recommendation"}
+# Renaming the label preserves behavior
+- [x] The recommendation matches the stored value without changing execution
+
+### Next
+- Rename the label: Rename the setting label and add a regression test
 :::`;
 }
 
-export const REPLY_COMPONENT_INSTRUCTIONS = `Compose information inside the body with JSON objects in fenced code blocks tagged workstreams. Call ${REPLY_EXAMPLES_TOOL} for the types you need before writing them. Its examples are illustrative, not facts about this thread. Place each fence at the body's top level, outside lists or quotes. Components retain information and relationships; the body displays their full contents as plain Markdown. Each fence contains one object. Ordinary code uses its own language tag.
-For a substantive reply, start its body with context. Give an investigation's conclusion, certainty, and evidence in a finding; show before/after behavior in a change; state a recommendation with its reason and qualification in a recommendation. Use prose to explain the causal reasoning and connect those pieces. These are defaults for relevant information, not requirements to add unrelated components.
-Use concrete words and omit filler. Put conditions first; say whether checks ran locally or in CI.
-Choose by the reader's question:
-context: what are we working on, where, and what background matters? topic, optional where and background.
-finding: what did we establish, how certain is it, and why does it matter? title, explanation, certainty (observed|inferred|unknown), optional consequence and evidence.
-comparison: how do these options differ? title and 2–8 items, each name, summary, optional qualification, detail, recommended. Put a consequential trade-off in qualification; use detail for supporting explanation. Compare with reasons and consequential trade-offs; numerical scores require a stated measurement or scoring method. Put essential reasons in summary or qualification; detail adds support.
-sequence: what happens in what order? title and steps with title, optional detail and attention.
-change: what changed for the reader? title, before, after, optional unchanged and limitation. A limitation stays beside the change.
-checks: what was checked and what remains unverified? title, scope, items with name, status (passed|failed|skipped|blocked|untested), optional detail and evidence. Optional testTotals {passed,failed,skipped} contains actual nonnegative counts. A clean run may need only a sentence.
-delivery: which stages really happened? title, scope, stages with name, status (done|pending|blocked|unknown), detail, optional evidence. Distinguish committed, pushed, built, installed, and deployed. A reported stage does not independently prove it happened.
-recommendation: what do you recommend and why? choice, reason, optional qualification. State the boundary beside it.
-details: supporting material with title and body (Markdown). Keep required actions and important qualifications with the explanation or component they qualify.
-group: related information; relationship="peers" for comparable pieces or "supporting" for an explanation with support. children has 2–8 entries: a component or a nonempty list kept together, at most 8 components total. Groups do not nest. A text child has type="text" and body (full Markdown).
-Evidence: plain label, optional detail, location (HTTPS or literal file path), line and endLine (1-based file range). Use links to real reports, source, or artifacts; distinguish a mock presentation check from verifying the claims in the mock. Relative files stay in the workspace; external files require an absolute path. Link factual claims to evidence and preserve uncertainty; component status is an agent report, not host verification.
-Each component takes only the named fields. Keep values as complete readable Markdown; the Markdown body preserves full values, including supporting detail. Components that don't help the reader can be omitted. Shared context, sources and actions should not be repeated on every piece. A reply's kind describes its purpose; choose the components its information needs. Ask required questions through the question card; these components display information and do not collect approval or execute work.`;
+export const REPLY_COMPONENT_INSTRUCTIONS = `Write the answer and causal reasoning in complete Markdown paragraphs; name actors and observable behavior, use concrete words, put conditions first, and keep qualifications beside their claims. Supporting detail stays with its explanation. Actions name their effect. Distinguish local from CI checks, passed from untested, and committed, built, pushed, installed, and deployed.
+For substantive replies, orient the reader with context; investigations use finding for conclusion/certainty/evidence, changes use change for before/after, and advice uses recommendation for choice/reason/boundary. These are defaults, not requirements for unrelated components. Short replies need no components; a clean test run may need only a sentence.
+Compose components as one JSON object per workstreams fence at the body's top level, outside lists or quotes. Call ${REPLY_EXAMPLES_TOOL} for needed types before authoring them; its examples are illustrative, not thread evidence. Ordinary code uses its own language tag. Values are complete readable Markdown, preserved in the text body. Use every required field and only named fields; omit only those marked optional:
+context: topic; optional where, background.
+text: body (Markdown).
+finding: title, explanation, certainty (observed|inferred|unknown); optional consequence, evidence.
+comparison: title, 2–8 items with name, summary; optional qualification, detail, recommended. Essential reasons belong in summary or qualification; consequential trade-offs in qualification; supporting explanation in detail. Numerical scores need a stated measurement or scoring method.
+sequence: title, steps with title; optional detail, attention per step.
+change: title, before, after; optional unchanged, limitation beside the change.
+checks: title, scope, items with name, status (passed|failed|skipped|blocked|untested); optional detail, evidence per item. Optional testTotals {passed,failed,skipped} uses actual nonnegative counts.
+delivery: title, scope, stages with name, status (done|pending|blocked|unknown), detail; optional evidence per stage. Reported status is not independent proof.
+recommendation: choice, reason; optional qualification beside the recommendation.
+details: title, body (Markdown). Required actions and important qualifications stay with what they qualify.
+group: relationship="peers" for comparable pieces or "supporting" for explanation plus support. children: 2–8 components or nonempty lists kept together, at most 8 components total; no nested groups.
+Evidence: label; optional detail, location (HTTPS or literal file path), line, endLine (1-based). Link factual claims to real reports, source, or artifacts and preserve uncertainty. Distinguish a mock's presentation check from verifying its claims. Workspace files use relative paths; external files use absolute paths.
+Choose components for the reply's purpose, omit unhelpful ones, and share context, sources, and actions without repeating them per piece. Components display information; required input and approval use question cards, not components.`;

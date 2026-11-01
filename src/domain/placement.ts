@@ -164,6 +164,19 @@ export function placementPrompt(input: PlacementInput): string {
   );
   const sections = [
     `The topic tree, where indentation expresses parentage and each topic's ID is in square brackets:\n${tagged("topic_tree", treeBlock(input, ids))}`,
+    input.within
+      ? `The user's destination group:\n${tagged(
+          "group",
+          line(
+            topicAncestors(input.within, input.entities)
+              .reverse()
+              .map((id) => input.entities.find((e) => e.id === id)!.name)
+              .join(": "),
+            300,
+          ),
+          { id: ids.get(input.within) },
+        )}`
+      : null,
     input.title
       ? `The thread's generated title:\n${tagged("title", line(input.title, 120))}`
       : null,
@@ -187,13 +200,7 @@ You file one agent thread under a topic, for someone who switches between dozens
 
 ${
   input.within
-    ? `The user moved this thread into ${line(
-        topicAncestors(input.within, input.entities)
-          .reverse()
-          .map((id) => input.entities.find((e) => e.id === id)!.name)
-          .join(": "),
-        300,
-      )}. Choose the existing topic within that group whose scope best covers the thread's work. This destination is the user's decision: the old topic, project, checkout, and hints cannot move it outside that group. Choose a topic without subtopics. Do not propose a new topic or leave the thread unfiled.`
+    ? `The user moved this thread into the destination identified by the group block. Choose the existing topic within that group whose scope best covers the thread's work. This destination is the user's decision: the old topic, project, checkout, and hints cannot move it outside that group. Choose a topic without subtopics. Do not propose a new topic or leave the thread unfiled.`
     : PLACEMENT_RULES
 }
 

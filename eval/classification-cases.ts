@@ -1,4 +1,5 @@
 import type { Entity } from "../src/domain/classify.ts";
+import type { PlacementInput } from "../src/domain/placement.ts";
 
 /** One classification case's evidence, as Full analysis is shown it. */
 export type ClassifyInput = {
@@ -7,6 +8,7 @@ export type ClassifyInput = {
   entities: Entity[];
   project?: string | null;
   requests?: string[];
+  placement?: Pick<PlacementInput, "title" | "checkout" | "hints" | "current">;
 };
 export const entities = [
   {
@@ -126,6 +128,7 @@ type Case = {
   expectNew?: { outside?: string; inside?: string };
   /** The case tests the topic tree it carries, so it has no cold form. */
   warmOnly?: boolean;
+  scopeShift?: boolean;
 };
 const base: Case[] = [
   [
@@ -353,6 +356,44 @@ const specific = (
 
 export const cases: Case[] = [
   ...base,
+  {
+    id: "owner-shift-over-hints",
+    expected: "questions",
+    scopeShift: true,
+    input: {
+      prompt: "Building provider routing",
+      entities,
+      project: "Harbor",
+      requests: [
+        "Fix Loom question answers rendering as raw JSON. The question card is the deliverable, not Harbor provider routing.",
+      ],
+      placement: {
+        title: "Building provider routing",
+        checkout: "/work/harbor/providers",
+        hints: ["Continues work filed under Harbor: Providers."],
+        current: { label: "Harbor: Providers", inherited: true },
+      },
+    },
+  },
+  {
+    id: "diagnosed-owner-through-shipping",
+    expected: "providers",
+    scopeShift: false,
+    input: {
+      prompt: "Shipping plugin build",
+      entities,
+      requests: [
+        "Diagnosis: Harbor core provider routing sends the wrong provider ID. Fix core routing.",
+        "Build and submit the follow-up issue for the diagnosed defect; the affected Loom plugin is a consumer.",
+      ],
+      placement: {
+        title: "Shipping Loom plugin",
+        checkout: "/work/loom",
+        hints: ["Checkout normally contains Loom Recaps work."],
+        current: { label: "Harbor: Providers", inherited: true },
+      },
+    },
+  },
   specific(
     "specific-new",
     "Automation run history",

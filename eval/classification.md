@@ -6,8 +6,8 @@ or workstreams. Fixtures are synthetic; production has no fixture-specific rules
 or synonym tables.
 
 `EVAL_KIND=quick` selects the actual Quick prompt, schema, and parser; the
-default is Full analysis. Quick combines synthetic requests into one opening
-request and does not evaluate temporal behavior. `EVAL_MODEL` selects the model,
+default is Placement. Quick combines synthetic requests into one opening request
+and does not evaluate temporal behavior. `EVAL_MODEL` selects the model,
 `EVAL_REASONING_LEVEL` selects effort, `EVAL_OUTPUT` selects the report,
 `EVAL_COLD=1` removes known topics, `EVAL_REPETITIONS` repeats cases, and
 `EVAL_HOLDOUT=1` selects reserved variants. Reports retain raw responses and
@@ -19,7 +19,10 @@ Cases cover product and capability ownership, repositories, scheduling, sibling
 capabilities, misleading titles, schema work, symptom versus defect ownership,
 follow-up work, display modes, shared SDK deliverables, infrastructure
 consumers, and unresolved requests. Holdouts test misleading titles and explicit
-ancestry.
+ancestry. Placement receives each case's generated title and optional
+conflicting checkout, hints, and current assignment. Cases with an expected
+scope change also check `scopeShift`; Quick does not claim to measure that
+field.
 
 The specificity cases test work on one capability of a broad topic with no topic
 for that capability: the answer is a new topic beneath the broad one. Work on
@@ -34,11 +37,14 @@ choosing the pane, the app, or no topic fails, and a proposal is anchored as
 production anchors it. These cases test the tree they carry, so cold runs skip
 them.
 
-Warm acceptance requires the expected existing topic. Cold acceptance checks
-owner, capability, and ordered ancestry against evaluation-only synonyms;
-more-specific descendants are permitted. Exact local-name path matching is
-reported separately. Scores do not evaluate invented descriptions or guarantee
-extra descendants are useful.
+Warm acceptance requires the expected existing topic or supported proposal. Cold
+Quick acceptance checks owner, capability, and ordered ancestry against
+evaluation-only synonyms; more-specific descendants are permitted. Cold
+Placement can propose only one topic, so acceptance checks root ownership, while
+capability and hierarchy matches remain advisory. Reports state the acceptance
+criterion and retain hierarchy and exact-path measurements separately. Compare
+baseline and candidate using the same runner, fixtures, and scoring. Scores do
+not evaluate invented descriptions or guarantee extra descendants are useful.
 
 Rerun public and holdout splits after changing a prompt or model. Do not treat
 exact-match failures as a semantic error rate or a successful hierarchy score as

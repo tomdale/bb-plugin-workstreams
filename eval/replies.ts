@@ -19,6 +19,7 @@ import { onlyReplyBlock } from "../src/domain/replyText.ts";
 import { parse, toText } from "../src/domain/reply.ts";
 import { recapInputFromCard } from "../src/domain/replyRecap.ts";
 import type { ReplyPart } from "../src/domain/replyComponents.ts";
+import { testCountProblems, unresolvedCauseQualified } from "./reply-facts.ts";
 
 const cases = [
   {
@@ -45,6 +46,7 @@ const cases = [
     request:
       "Recommend how to fix the retry setting confusion. The loop correctly performs one attempt plus the configured retries; changing it would alter existing behavior. Renaming the label to Retries matches the stored value and docs. Explain your recommendation and compare the trade-offs. It is advice only; do not ask for approval or implement anything.",
     expected: ["recommendation", "comparison"],
+    next: true,
   },
   {
     id: "uncertain",
@@ -54,6 +56,24 @@ const cases = [
       "Investigate a report that the retry loop sometimes runs forever. The only evidence available is a configuration file with maxRetries=4. You have no runtime logs, could not reproduce the behavior, and have finished the authorized inspection. Explain what the configuration establishes, what it does not establish, and what evidence would be needed. Do not assert that you found a root cause.",
     expected: ["finding"],
     uncertain: true,
+  },
+  {
+    id: "waiting",
+    state: "waiting",
+    types: [],
+    request:
+      "The authorized implementation is finished, but this thread owns follow-up on independent verification in @thread:thr_eval_worker. That worker is still running and its result is needed before finishing. Report the actual status and check again in 60 seconds; do not claim all work is complete or ask the user to do the status check.",
+    expected: [],
+    waiting: true,
+  },
+  {
+    id: "body-only",
+    state: null,
+    types: ["context", "finding"],
+    request:
+      "Explain this supplied result: the loop performs one initial attempt and four retries, so five total attempts. This answer uses Structured replies with recaps disabled; explain the result without recap state, result checkboxes, or recap sections.",
+    expected: ["finding"],
+    bodyOnly: true,
   },
   {
     id: "short",
@@ -88,15 +108,16 @@ for (const task of cases) {
       const examples = task.types
         .map((type) => componentFence(COMPONENT_EXAMPLES[type]))
         .join("\n\n");
+      const withRecap = !("bodyOnly" in task && task.bodyOnly);
       completion = await gatewayComplete({
         apiKey,
         model,
         reasoningLevel: process.env.EVAL_REASONING_LEVEL ?? "medium",
-        maxTokens: 4096,
+        maxTokens: 8192,
         signal: AbortSignal.timeout(90_000),
         outputSchema: envelope.toJSONSchema(),
         // BB delivers tool instructions before the contributed reply contract.
-        systemPrompt: `You are answering a person in BB. Return JSON with one field, reply, whose string contains the full human-facing reply following the instructions below. The examples tool has already returned the examples supplied with the task; proceed to the final reply.\n\n${REPLY_COMPONENT_INSTRUCTIONS}\n\n${replyInstructions(true)}`,
+        systemPrompt: `You are answering a person in BB. Return JSON with one field, reply, whose string contains the full human-facing reply following the instructions below. The examples tool has already returned the examples supplied with the task; proceed to the final reply.\n\n${REPLY_COMPONENT_INSTRUCTIONS}\n\n${replyInstructions(withRecap)}`,
         prompt: `The examples tool returned these illustrative component examples:\n${examples}\n\nTask:\n${task.request}`,
       });
       const answer = envelope.parse(JSON.parse(completion.text)).reply;
@@ -113,11 +134,42 @@ for (const task of cases) {
           parts = flatten(data.body),
           types = parts.map((part) => part.type);
         const recap = data.card ? recapInputFromCard(data.card) : null;
-        if (!recap?.ok) problems.push("No usable recap");
+        if (!withRecap) {
+          if (data.card) problems.push("Body-only reply includes recap fields");
+        } else if (!recap?.ok) problems.push("No usable recap");
         else if (recap.input.state !== task.state)
           problems.push(
             `Expected ${task.state} recap, received ${recap.input.state}`,
           );
+        if ("next" in task && task.next && !data.card?.next.length)
+          problems.push(
+            "Advice identifies an optional improvement without an actionable Next item",
+          );
+        if (
+          "waiting" in task &&
+          task.waiting &&
+          recap?.ok &&
+          recap.input.state === "waiting"
+        ) {
+          if (
+            recap.input.timeout !== 60 ||
+            !recap.input.waitingAgents?.some(
+              (agent) => agent.threadId === "thr_eval_worker",
+            )
+          )
+            problems.push(
+              "Waiting recap omits the supplied worker or polling interval",
+            );
+          if (
+            data.card?.results.length ||
+            data.card?.next.length ||
+            data.card?.review.length ||
+            data.card?.links.length
+          )
+            problems.push(
+              "Waiting recap includes completed results or optional actions",
+            );
+        }
         if (
           parts.some(
             (part) => part.type === "unparsed" || part.type === "pending",
@@ -143,12 +195,7 @@ for (const task of cases) {
         if (
           "uncertain" in task &&
           task.uncertain &&
-          !parts.some(
-            (part) => part.type === "finding" && part.certainty !== "observed",
-          ) &&
-          !/no root cause|cause.{0,50}(unknown|unresolved|not established)|cannot.{0,30}(determine|establish)|unverified|not reproduced/i.test(
-            toText(data),
-          )
+          !unresolvedCauseQualified(parts, toText(data))
         )
           problems.push("No explicit qualification of the unresolved cause");
         if (
@@ -158,18 +205,8 @@ for (const task of cases) {
           !data.card.results.length
         )
           problems.push("Substantive reply has no recap results");
-        if ("totals" in task) {
-          const checks = parts.find((part) => part.type === "checks");
-          const totals =
-            checks?.type === "checks" ? checks.testTotals : undefined;
-          if (
-            !totals ||
-            totals.passed !== task.totals.passed ||
-            totals.failed !== task.totals.failed ||
-            totals.skipped !== task.totals.skipped
-          )
-            problems.push("Reported test totals differ from supplied facts");
-        }
+        if ("totals" in task)
+          problems.push(...testCountProblems(parts, toText(data), task.totals));
       }
       results.push({
         id: task.id,
@@ -178,6 +215,7 @@ for (const task of cases) {
         problems,
         selectionNotes,
         reply: answer,
+        stopReason: completion.stopReason,
         text: read?.ok ? toText(read.data) : null,
         usage: completion.usage,
         durationMs: Math.round(performance.now() - start),
@@ -189,6 +227,7 @@ for (const task of cases) {
         pass: false,
         problems: [error instanceof Error ? error.message : String(error)],
         rawCompletion: completion?.text ?? null,
+        stopReason: completion?.stopReason ?? null,
         usage: completion?.usage ?? null,
         durationMs: Math.round(performance.now() - start),
       });
@@ -202,6 +241,8 @@ await writeFile(
       model,
       instructionHash: createHash("sha256")
         .update(replyInstructions(true))
+        .update("\0")
+        .update(replyInstructions(false))
         .update("\0")
         .update(REPLY_COMPONENT_INSTRUCTIONS)
         .digest("hex"),

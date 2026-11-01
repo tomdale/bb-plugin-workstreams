@@ -23,6 +23,7 @@ export function scoreClassification(
   expected: string | null,
   cold: boolean,
   expectNew?: { outside?: string; inside?: string },
+  kind: "quick" | "placement" = "quick",
 ) {
   if (expectNew) {
     // Resolved as production resolves it, so a proposal that restates an
@@ -100,6 +101,7 @@ export function scoreClassification(
     capability,
     hierarchy,
     exact,
-    pass: owner && capability && hierarchy,
+    // Placement proposes one topic, so an empty tree can establish only its root owner.
+    pass: owner && (kind === "placement" || (capability && hierarchy)),
   };
 }

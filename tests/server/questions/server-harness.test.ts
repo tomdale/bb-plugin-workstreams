@@ -86,6 +86,14 @@ describe("provider gating", () => {
       );
       expect(resolved.tools).toEqual([]);
       expect(resolved.instructions).toContain(QUESTION_INSTRUCTIONS);
+      expect(resolved.instructions).toContain("provider's native tool");
+      expect(resolved.instructions).toContain(
+        "Follow the available tool's name and schema",
+      );
+      expect(resolved.instructions).toContain("when supported");
+      expect(resolved.instructions).not.toMatch(
+        /call AskUserQuestion|always offers freeform|including image and file attachments/,
+      );
     },
   );
 

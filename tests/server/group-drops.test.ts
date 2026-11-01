@@ -52,7 +52,7 @@ describe("moving into a multi-topic workstream", () => {
     expect(w.threads.get("root")!.sectionId).not.toBeNull();
     expect(
       w.completions.filter((c) =>
-        c.prompt.includes("The user moved this thread into Workstreams"),
+        c.prompt.includes('<group id="workstreams">\nWorkstreams\n</group>'),
       ),
     ).toHaveLength(1);
   });

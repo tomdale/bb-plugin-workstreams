@@ -6,6 +6,7 @@ import { RECAP_INSTRUCTIONS } from "../../src/domain/recap.ts";
 import {
   replyInstructions,
   REPLY_EXAMPLES_TOOL,
+  REPLY_COMPONENT_INSTRUCTIONS,
 } from "../../src/domain/replyInstructions.ts";
 import {
   COMPONENT_EXAMPLES,
@@ -36,22 +37,19 @@ describe("next-action instruction contract", () => {
   ])(
     "offers optional improvements after completed work in the %s",
     (_, text) => {
-      expect(text).toContain(
-        "After completed work, offer 1–3 self-contained next actions whenever the user has a useful follow-up to take or request",
+      expect(text).toMatch(/after completed work[^.]*offer[^.]*useful/i);
+      expect(text).toContain("optional follow-up requests or questions");
+      expect(text).toContain("including advice-only recommendations");
+      expect(text).toContain("not-yet-authorized changes recommended");
+      expect(text).toContain("unresolved optional improvements");
+      expect(text).toMatch(
+        /not blocking approval|without requesting blocking approval/,
       );
-      expect(text).toContain(
-        "Include concrete recommendations and unresolved optional improvements identified in the reply",
-      );
-      expect(text).toContain(
-        "Before complete/review, check blockers and authorized continuations",
-      );
-      expect(text).toContain("do authorized work yourself");
-      expect(text).toContain(
-        "use question cards for required input or approval",
-      );
-      expect(text).toContain(
-        "Omit next actions when none are useful, including one-line answers without follow-up",
-      );
+      expect(text).toMatch(/automatic execution|executing it/);
+      expect(text).toContain("Do authorized continuations yourself");
+      expect(text).toMatch(/required[^.]*question.card/);
+      expect(text).toMatch(/Omit[^.]*when none are useful/);
+      expect(text).toMatch(/short (factual )?answer|one-line answer/);
     },
   );
 });
@@ -94,7 +92,7 @@ describe("configure", () => {
       "WorkstreamsRecap",
       "AskUserQuestion",
     ]);
-    expect(delivered(task)).toContain("End every turn with WorkstreamsRecap");
+    expect(delivered(task)).toContain(RECAP_INSTRUCTIONS);
     const kid = await resolve(w, { id: "kid", parentThreadId: "task" });
     expect(delivered(kid)).toEqual(delivered(task));
     expect(kid.tools.map((tool) => tool.name)).toEqual(
@@ -130,7 +128,7 @@ describe("configure", () => {
       "WorkstreamsRecap",
       "AskUserQuestion",
     ]);
-    expect(delivered(normal)).toContain("End every turn with WorkstreamsRecap");
+    expect(delivered(normal)).toContain(RECAP_INSTRUCTIONS);
   });
 
   it("stays out of side chats, and gives unknown threads only the recap", async () => {
@@ -149,9 +147,7 @@ describe("configure", () => {
     const unknown = await resolve(w, { id: "hidden-helper" });
     expect(delivered(unknown)).not.toContain("workstream");
     expect(delivered(unknown)).toContain("WorkstreamsRecap");
-    expect(delivered(unknown)).toContain(
-      "Include concrete recommendations and unresolved optional improvements",
-    );
+    expect(delivered(unknown)).toContain(RECAP_INSTRUCTIONS);
   });
 
   it("configures unseen threads independently of role metadata freshness", async () => {
@@ -168,7 +164,7 @@ describe("configure", () => {
       },
     );
     expect(fresh.instructions).not.toContain("Alpha");
-    expect(delivered(fresh)).toContain("End every turn with WorkstreamsRecap");
+    expect(delivered(fresh)).toContain(RECAP_INSTRUCTIONS);
     const copy = await resolve(
       w,
       { id: "hidden-fork" },
@@ -307,15 +303,22 @@ describe("configure", () => {
       // Each requirement reaches the agent whole.
       const text = contributions.join("\n\n");
       expect(text).toContain(QUESTION_INSTRUCTIONS);
+      const composed = options.replies && !options.sideChat;
+      expect(text.split(REPLY_COMPONENT_INSTRUCTIONS).length - 1).toBe(
+        composed ? 1 : 0,
+      );
+      expect(
+        (text.match(/Write the answer and causal reasoning/g) ?? []).length,
+      ).toBe(composed ? 1 : 0);
+      if (composed && !options.noRecap)
+        expect(text).toMatch(
+          /Review \(review state only, required\): 1–3 steps/,
+        );
+
       const recap = !options.sideChat && !options.noRecap;
       if (recap)
-        expect(text).toContain(
-          "Include concrete recommendations and unresolved optional improvements",
-        );
-      else
-        expect(text).not.toContain(
-          "Include concrete recommendations and unresolved optional improvements",
-        );
+        expect(text).toContain("not-yet-authorized changes recommended");
+      else expect(text).not.toContain("not-yet-authorized changes recommended");
       // With Structured replies on, the reply instruction carries the recap
       // contract and the session has no recap tool.
       if (recap && !options.replies) expect(text).toContain(RECAP_INSTRUCTIONS);

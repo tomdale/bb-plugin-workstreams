@@ -63,30 +63,28 @@ it.each([
   ).toBe(false);
 });
 
-it("explains when to keep collaborating instead of reporting a completed turn", () => {
-  expect(RECAP_TOOL_DESCRIPTION).toContain(
-    "all work this thread owns is finished",
-  );
-  expect(RECAP_TOOL_DESCRIPTION).toContain("keep collaborating");
-  expect(RECAP_TOOL_DESCRIPTION).toContain("question-card tool");
-  expect(RECAP_TOOL_DESCRIPTION).toContain("as a substitute for that question");
+it("distinguishes recap selection from required user input", () => {
+  expect(RECAP_TOOL_DESCRIPTION).toMatch(/finished result|async task/i);
+  expect(RECAP_TOOL_DESCRIPTION).toMatch(/input[^.]*question-card tool/i);
+  expect(RECAP_TOOL_DESCRIPTION).toMatch(/explanations before calling/i);
+  expect(RECAP_TOOL_DESCRIPTION).toMatch(/ends the turn/i);
 });
 
-it.each([RECAP_TOOL_DESCRIPTION, RECAP_INSTRUCTIONS])(
-  "scopes recap state to owned responsibilities in each instruction surface",
-  (instructions) => {
-    expect(instructions).toContain(
-      "responsibilities this thread owns under the user's request",
-    );
-    expect(instructions).toContain("all work this thread owns is finished");
-    expect(instructions).toContain(
-      "Work continuing elsewhere affects this recap only while this thread owns follow-up",
-    );
-    expect(instructions).toContain(
-      "waiting only while an async task is running whose result this thread needs to resume work it still owns",
-    );
-  },
-);
+it("scopes the attached recap policy to owned work and real completion", () => {
+  expect(RECAP_INSTRUCTIONS).toContain(
+    "responsibilities this thread owns under the user's request",
+  );
+  expect(RECAP_INSTRUCTIONS).toContain("all work this thread owns is finished");
+  expect(RECAP_INSTRUCTIONS).toContain(
+    "Work continuing elsewhere affects this recap only while this thread owns follow-up",
+  );
+  expect(RECAP_INSTRUCTIONS).toMatch(
+    /waiting only[^.]*async task[^.]*resume owned work/,
+  );
+  expect(RECAP_INSTRUCTIONS).toMatch(
+    /Keep collaborating[^.]*intermediate step is not completion/,
+  );
+});
 
 it("advertises named parameters on a concrete root object", () => {
   const schema = recapToolSchema.toJSONSchema({ io: "input" });

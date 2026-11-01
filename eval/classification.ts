@@ -53,13 +53,14 @@ try {
           (text, i) => ({ text, initial: i === 0, id: `request-${i + 1}` }),
         );
         const placement: PlacementInput = {
-          title: null,
+          title: test.input.prompt,
           requests: requests.map((r) => r.text),
           project: test.input.project ?? null,
           checkout: null,
           entities,
           hints: [],
           current: null,
+          ...test.input.placement,
         };
         const quick = {
           request: requests.map((r) => r.text).join("\n\n"),
@@ -100,7 +101,17 @@ try {
             const parsed = parseQuickAnalysis(response, quick);
             if (parsed.topicError) throw new Error(parsed.topicError);
             topic = parsed;
-          } else topic = parsePlacement(response, placement);
+          } else {
+            const placed = parsePlacement(response, placement);
+            if (
+              test.scopeShift !== undefined &&
+              placed.scopeShift !== test.scopeShift
+            )
+              throw new Error(
+                `Expected scopeShift=${test.scopeShift}, received ${placed.scopeShift}`,
+              );
+            topic = placed;
+          }
           const value: TopicAnswer = {
             subjectId: topic.subjectId,
             proposed: topic.proposed,
@@ -135,6 +146,7 @@ try {
                   test.expected,
                   cold,
                   test.expectNew,
+                  kind,
                 )),
           });
         } catch (error) {
@@ -169,7 +181,12 @@ await writeFile(
       mode: cold ? "cold" : "warm",
       split: holdout ? "holdout" : "main",
       repetitions,
-      acceptedHierarchy: accepted,
+      accepted,
+      acceptance:
+        cold && kind === "placement"
+          ? "root ownership; hierarchy is advisory for single-topic proposals"
+          : "owner, capability, and hierarchy",
+      hierarchyMatches: results.filter((r) => r.hierarchy).length,
       exactMatches: results.filter((r) => r.exact).length,
       total: results.length,
       p95Ms: durations[Math.max(0, Math.ceil(durations.length * 0.95) - 1)],
