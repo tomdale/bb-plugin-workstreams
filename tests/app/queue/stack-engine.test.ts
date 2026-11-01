@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  HELD_STEP_MS,
   StackEngine,
   type CardEdges,
   type CardView,
@@ -151,7 +152,81 @@ function expectSettled(q: ReturnType<typeof queue>) {
   expect(last.height).toBeCloseTo(34 + heightOf(q.window()[0]!), 1);
 }
 
+/** What the engine holds privately, for what no frame shows. */
+type Inside = {
+  lastStep: number;
+  cards: Map<string, { top: number; pos: number; y: number; z: number }>;
+};
+
+/**
+ * Holds a key for `ms` with a press every 33 ms, as the page repeats one,
+ * with the engine's moves counted. With `resync`, the page's render syncs the
+ * pile every frame with no direction, as it does between presses.
+ */
+function hold(direction: Direction, ms: number, resync: boolean) {
+  const q = queue(direction === "back" ? 50 : 0);
+  const inside = q.engine as unknown as Inside;
+  const starts: number[] = [];
+  let last = inside.lastStep;
+  const stale: string[] = [];
+  for (let t = 0; t < ms; t += DT * 1000) {
+    if (Math.round(t) % 33 < 17) q.press(direction);
+    if (resync) q.engine.sync(q.window());
+    q.run(DT * 1000);
+    if (inside.lastStep !== last) {
+      last = inside.lastStep;
+      starts.push(Math.round(last));
+    }
+    // A card that has reached the hidden slot is covered: it holds no tier.
+    for (const [key, c] of inside.cards)
+      if (
+        c.top &&
+        c.pos >= 3 &&
+        Math.abs(c.y - 4) < 1 &&
+        Math.abs(c.z + 156) < 1
+      )
+        stale.push(`${key} at ${Math.round(t)}`);
+  }
+  return { q, starts, stale };
+}
+
 describe("the stack engine", () => {
+  it.each([true, false])(
+    "steps through cards at the same pace held back and held on (resync %s)",
+    (resync) => {
+      const forward = hold("forward", 3000, resync);
+      const back = hold("back", 3000, resync);
+      expect(Math.abs(forward.starts.length - back.starts.length)).toBeLessThan(
+        2,
+      );
+      expect(back.starts.length).toBeGreaterThan(5);
+      for (const { starts } of [forward, back])
+        // The first press moves at once; the rest keep the held pace.
+        starts
+          .slice(1)
+          .forEach((t, n) =>
+            expect(t - starts[n]!).toBeGreaterThanOrEqual(HELD_STEP_MS - 20),
+          );
+      for (const { q, stale } of [forward, back]) {
+        expect(stale).toEqual([]);
+        expect(problems(q.frames)).toEqual([]);
+        q.run(4000);
+        expect(problems(q.frames)).toEqual([]);
+        expectSettled(q);
+      }
+    },
+  );
+
+  it("moves a single press at once, even just after a hold", () => {
+    const q = queue(1);
+    const inside = q.engine as unknown as Inside;
+    q.press("back");
+    expect(inside.lastStep).toBe(0);
+    q.run(HELD_STEP_MS * 4);
+    expect(q.press("forward")).toBe(true);
+    expect(inside.lastStep).toBeGreaterThan(0);
+  });
+
   it("starts settled with the shown item in front and two peeking out", () => {
     const q = queue();
     q.run(50);

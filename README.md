@@ -614,8 +614,9 @@ The next items wait as a stack of cards behind the current one, the next two
 peeking out above it. Acting on an item, or skipping it, tucks its card under:
 it drops clear of the stack, slips behind it, and rises to the back while the
 others move up a place; going back reverses the path. A card too tall to fit
-behind the next one fades away on its way. Presses are taken one card at a time
-(holding a key flicks cards off one after another), and under reduced motion the
+behind the next one fades away on its way. Presses are taken one card at a time:
+holding `↑` or `↓` steps through cards at the same steady pace in both
+directions (a press after a pause moves at once), and under reduced motion the
 new item only fades in. To look ahead or back without acting, use the footer's
 arrows, which also show where you are ("2 of 9"), or press `↓`, `→` or `J` for
 the next item and `↑`, `←` or `K` for the previous one. The card stack's top
