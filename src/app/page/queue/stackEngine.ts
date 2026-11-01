@@ -32,21 +32,32 @@
  * wanted pile with `sync`; the engine takes the moves that get it there one at
  * a time (`STEP_GAP`, one card leaving at once), a little faster while more
  * wait. `accept` is how a caller keeps held keys from queuing more than two.
- * - Moves back coalesce. A move back brings out the newest wanted card, the
- *   only one that makes the trip (out from behind the pile, down clear of it,
- *   up into the front), and takes every press owed. Each wanted card it skips
- *   is seated behind it (`admit`): it waits hidden until that card has risen
- *   to cover the pile (`after`, `covers`), then slides up into its slot, or
- *   stays hidden past the visible ones. A skipped card never drops below the
- *   pile and nothing waits for it. A card that was still rising into the front
- *   when the move was taken does not finish its trip: its place in the pile
- *   moved back, so it settles there, and the next trip waits only for it to
- *   rise clear. `accept` takes a press back at most every `BACK_PACE_MS`, two
- *   waiting at most, so a held `↑` steps at about the pace of a held `↓`.
- * - A move back waits for the cards it would push out of sight to have let go
- *   of their draw tier (`pushesOutATop`), which they do as soon as they are in
- *   place and clear (`canGiveUpTop`), or at once when covered by a card in
- *   front: a hidden card holding a tier would be drawn over the pile.
+ * - A held `↑` plays a held `↓` in reverse. While presses back wait (a burst),
+ *   each card coming back follows a set path instead of a spring: the
+ *   time-reverse of the trip it takes leaving the front onto the same
+ *   neighbours with `↓` held, recorded by running a scratch engine (`trip`).
+ *   The card plays that trip backward (`Script`, `playScript`): down out of
+ *   the back of the pile, clear below it, then up onto the front, changing
+ *   draw order at the mirrored moment. Springs can't be played backward, which
+ *   is why the path is replayed, not simulated. Every draw-order change in the
+ *   reversed timeline reverses one that was clear going forward, so no card
+ *   passes through another; a card that finds it isn't clear waits.
+ * - Each card comes up just as the one before it has landed, so cards arrive at
+ *   the pace they leave a held `↓` (`paced`), each landing on top of the one
+ *   before. Pulled cards stay in the pile while on their way, though the
+ *   wanted pile is ahead of them (`prune`, `trim`), and the cards they cover
+ *   move back a place only as each lands (`place`).
+ * - What can't be reversed. A card rising over a taller card behind it drags
+ *   that card's lower edge with it, and no edge moves faster than
+ *   `RISE_MAX_SPEED` there, so such a rise is slower than the drop it
+ *   reverses. The first card of a burst starts on springs, as a single `↑`
+ *   does, and joins its path if it has barely moved when the second press
+ *   comes (`joinBurst`).
+ * - A single `↑`, the first after a pause, a card still on screen when it is
+ *   pulled, and a `↑` while `↓` is held all run on springs. A press the other
+ *   way hands a card in flight on its path back to the springs with its pose
+ *   and speed (`unscript`), and it turns around as any card does; so does a
+ *   card whose path can't come up in front of the pile.
  */
 export type Direction = "forward" | "back";
 
@@ -78,9 +89,27 @@ const HIDE_Y = 4;
 /** How far past the clear point a moving card aims, so it is still moving
  * when it gets there. */
 const OVERSHOOT = 40;
-/** A card that made the trip covers the pile once its top is this near the
- * pile's origin, px. */
-const COVER_AT = 30;
+/** A card rising into the front over a taller card behind it moves no faster
+ * than this, px/s: that card is drawn no taller than the front one, so its
+ * lower edge moves as fast, and an edge that moves more than 16 px a frame in
+ * view is a jump (a little under that, for the card's own motion). */
+const RISE_MAX_SPEED = 860;
+/** A card rising on springs with a card on a path waiting behind it goes
+ * this much faster over its last `TAIL_PX` px. */
+const TAIL_PX = 40;
+const TAIL_RATE = 1.6;
+/** A card on springs joins a path if it is within this many px of it (of `y`
+ * and depth), among the path's first `JOIN_POSES` poses. */
+const JOIN_PX = 10;
+const JOIN_POSES = 120;
+/** A card on a path counts as landed once it is within this many px of where
+ * it ends. */
+const SETTLED_PX = 8;
+/** A card that can't come up in front of the pile for this long, ms, goes
+ * back to its springs: what it must clear is not what its path was made for. */
+const WAIT_MS = 150;
+/** The longest trip a scratch engine records, ms. */
+const TRIP_MAX_MS = 4000;
 /** A turnaround's target glides from where it was heading to where it now
  * goes over this long, so the card curves back instead of snapping. */
 const TURN_MS = 260;
@@ -103,13 +132,6 @@ const STEP_GAP = 90;
  * settle, no card's top or bottom edge moves faster than this, px/s: 38 px a frame at 60 Hz, a little under the fastest a
  * single move gets. */
 const HELD_MAX_SPEED = 2280;
-/** A held or repeated press back is taken no sooner than this after the last
- * one, about the pace a held press on settles at, so a held back key steps
- * through the queue at that pace however many cards each trip skips. */
-const BACK_PACE_MS = 180;
-/** Presses back that may wait at once: the card that will make the trip and
- * one it skips. */
-const BACK_WAITING = 2;
 /** How near a card's pose is to its target (px of `y`, depth) to count as in
  * place. */
 const IN_PLACE_PX = 6;
@@ -163,12 +185,47 @@ type Card = {
    * it settles, so it doesn't speed up once the key is let go. */
   held: boolean;
   turn: { from: Pose; t0: number } | null;
-  /** A card a move back skipped waits hidden until this card, the one that
-   * made the trip, covers the pile; then it slides up into its place. */
-  after: Card | null;
+  /** The set path it follows coming back during a burst, instead of springs. */
+  script: Script | null;
+  /** Its place in the pile as the springs last aimed for it (see `place`). */
+  eff: number;
+  /** Turned back behind the pile while still coming out of it: it stays
+   * behind the cards that were pulled out before it. */
+  returned: boolean;
+  /** Pulled back while still in sight from leaving: it stays in front of the
+   * cards still leaving behind the pile, which it was the last of. */
+  seen: boolean;
   /** Left toward the back (or out of the window): waits out of sight to be
    * released, and is always at least as deep as the hidden slot. */
   parked: boolean;
+};
+
+/** A card's pose at one instant of a trip. */
+type Sample = { y: number; z: number; p: number; f: number; g: number };
+
+/** A card leaving the front with `↓` held, one pose per `SUBSTEP`: from rest in
+ * front to out of sight behind the pile. */
+type Trip = {
+  poses: Sample[];
+  /** The first pose after the card turned behind the pile. */
+  turn: number;
+};
+
+/** A trip played backward: `poses[0]` is out of sight at the back. */
+type Script = {
+  poses: Sample[];
+  /** The first pose that is on the way up into the front, where the card
+   * changes draw order. */
+  rise: number;
+  /** How far along the path the card is, in poses (fractional). */
+  u: number;
+  /** From each pose, how long the rest of the path takes if the card rises
+   * over a taller card throughout, ms. */
+  left: number[];
+  /** The card has risen onto the front, so the cards it covers move back. */
+  landed: boolean;
+  /** How long it has waited, ms, to come up in front of the pile. */
+  waited: number;
 };
 
 /** What the page needs to draw one card. */
@@ -223,6 +280,10 @@ export class StackEngine {
   /** Cards out of the pile, oldest first, waiting out of sight for release. */
   private parked: Card[] = [];
   private want: readonly string[] = [];
+  /** The items in queue order as the engine has seen them across the wanted
+   * piles, so which way a change went is known even for a card the pile no
+   * longer holds. */
+  private line: string[] = [];
   private hint: Direction | undefined;
   private shown: string | undefined;
   /** Moves the caller's changes have asked for and the engine has not taken:
@@ -231,8 +292,16 @@ export class StackEngine {
   private heights = new Map<string, number>();
   private time = 0;
   private lastStep = -1e9;
-  /** When the last press back was taken. */
-  private lastBack = -1e9;
+  /** Which way the last press went, and whether presses back are coming while
+   * cards are still on their way (a held key), so the cards follow set
+   * paths. The engine's clock stops when it is idle, so a pause can't be
+   * told by time. */
+  private lastPress: Direction | undefined;
+  private burst = false;
+  /** Trips already recorded, by the cards and heights they were for. */
+  private trips = new Map<string, Trip | null>();
+  /** A scratch engine that records one trip: presses wait throughout. */
+  private recording = false;
   private lay = { h: 0, v: 0 };
   private below: Part = { state: "idle", t0: 0, op: 1 };
 
@@ -265,7 +334,10 @@ export class StackEngine {
    * at once, and so does a pile it cannot reach by moving.
    */
   sync(want: readonly string[], hint?: Direction, instant = false) {
+    const repeated =
+      hint === "back" && this.lastPress === "back" && this.isBusy();
     this.want = want.slice(0, WINDOW);
+    this.noteLine();
     if (hint) this.hint = hint;
     const front = this.order[0];
     const next = this.want[0];
@@ -285,7 +357,11 @@ export class StackEngine {
     }
     if (next !== this.shown) {
       this.shown = next;
-      if (hint === "back") this.lastBack = this.time;
+      if (hint) {
+        this.burst = repeated;
+        this.lastPress = hint;
+        if (repeated) this.joinBurst();
+      }
       this.owed +=
         hint === "back" ? -1 : hint === "forward" ? 1 : this.nextDir();
       this.below = { ...this.below, state: "pending" };
@@ -297,6 +373,29 @@ export class StackEngine {
     this.pump();
   }
 
+  /** Merges the wanted pile into the known order of items: the items before
+   * it and those past it that it doesn't repeat keep their places. */
+  private noteLine() {
+    const first = this.want[0];
+    if (first === undefined) return;
+    const at = this.line.indexOf(first);
+    if (at < 0) {
+      this.line = [...this.want];
+      return;
+    }
+    const wanted = new Set(this.want);
+    this.line = [
+      ...this.line
+        .slice(Math.max(0, at - 64), at)
+        .filter((k) => !wanted.has(k)),
+      ...this.want,
+      ...this.line
+        .slice(at)
+        .filter((k) => !wanted.has(k))
+        .slice(0, 64),
+    ];
+  }
+
   /**
    * Whether a press toward `direction` may be taken now: at most two wait,
    * so a held key flicks cards off one after another instead of queuing a
@@ -304,10 +403,8 @@ export class StackEngine {
    */
   accept(direction: Direction): boolean {
     const n = this.outstanding();
-    if (direction === "forward" ? n < 0 : n > 0) return true;
-    if (direction === "back" && this.time - this.lastBack < BACK_PACE_MS)
-      return false;
-    return Math.abs(n) < (direction === "back" ? BACK_WAITING : 2);
+    if (n === 0 || (direction === "forward" ? n < 0 : n > 0)) return true;
+    return Math.abs(n) < 2;
   }
 
   /** Advances the simulation by `dt` seconds, in substeps of 1/240 s. */
@@ -408,7 +505,10 @@ export class StackEngine {
       low: 0,
       held: false,
       turn: null,
-      after: null,
+      script: null,
+      eff: this.cards.size,
+      returned: false,
+      seen: false,
       parked: false,
     };
     Object.assign(card, this.restPose(card, VIS));
@@ -436,21 +536,76 @@ export class StackEngine {
   private repose(except: Card | null) {
     this.pile().forEach((c, pos) => {
       if (c !== except && c.pos !== pos) {
-        c.from = c.pos;
+        c.from = c.eff;
         c.hold = this.time + pos * STAGGER;
       }
       c.pos = pos;
     });
+    this.markPlaces();
   }
 
-  /** Cards the caller no longer wants sit out of the pile, behind the front. */
+  /** A card's place in the pile to aim for: its index, less one for each card
+   * in front of it still on its way up into the front, which has not yet
+   * landed to push it back. */
+  private place(c: Card): number {
+    let ahead = 0;
+    for (const k of this.order)
+      if (k.pos < c.pos && k.script && !k.script.landed) ahead++;
+    return c.pos - ahead;
+  }
+
+  private markPlaces() {
+    for (const c of this.pile()) c.eff = this.place(c);
+  }
+
+  /** Hands a card on a set path back to the springs where it is, moving at
+   * the speed it has. */
+  private unscript(c: Card) {
+    c.script = null;
+  }
+
+  /** Cards the caller no longer wants sit out of the pile, behind the front.
+   * A card on a path or still rising into the front, and the cards behind it,
+   * stay: the wanted pile runs ahead of what is on screen while cards are
+   * still on their way, and a card that doesn't cover the pile yet can't hide
+   * the cards parked under it. */
   private prune() {
     const wanted = new Set(this.want);
-    for (const c of [...this.order.slice(1)])
-      if (!wanted.has(c.key)) {
-        this.order.splice(this.order.indexOf(c), 1);
-        this.park(c, true);
-      }
+    const flying = this.order.findIndex((c) => c.script || c.top);
+    for (const c of [...this.order.slice(1)]) {
+      const at = this.order.indexOf(c);
+      if (wanted.has(c.key) || (flying >= 0 && at >= flying)) continue;
+      if (this.sinksThroughOthers(c)) continue;
+      this.order.splice(at, 1);
+      this.park(c, true);
+    }
+  }
+
+  /** Whether putting a card out of the pile would swap its draw order with a
+   * card it overlaps on screen: it goes behind every card still in the pile.
+   * Until it is out of sight, or hidden by the front card, it stays in. */
+  private sinksThroughOthers(c: Card): boolean {
+    if (!this.painted(c) || this.coveredByFront(c)) return false;
+    const behind = 10 + (100 - this.pile().length) * 2;
+    const [t, b] = this.span(c);
+    return [...this.cards.values()].some((k) => {
+      if (k === c || !this.painted(k)) return false;
+      if (this.layer(c) > this.layer(k) === behind > this.layer(k))
+        return false;
+      const [kt, kb] = this.span(k);
+      return Math.min(b, kb) - Math.max(t, kt) > 1;
+    });
+  }
+
+  /** Parks the cards past the window once they are out of sight: with cards
+   * still on their way, the ones behind them are still on screen. */
+  private trim() {
+    while (this.order.length > WINDOW) {
+      const tail = this.order.at(-1)!;
+      if (tail.script || this.place(tail) < VIS) break;
+      this.order.pop();
+      this.park(tail, true);
+    }
   }
 
   /** Seats a wanted card the pile doesn't hold where it falls between the
@@ -465,12 +620,25 @@ export class StackEngine {
     this.want.forEach((key, at) => {
       if (at <= front || at > last || this.order.some((c) => c.key === key))
         return;
+      // A card still sinking out of sight waits until the front card hides
+      // it, so taking its place in the draw order can't be seen.
+      const waiting = this.parked.find((c) => c.key === key);
+      if (waiting && this.painted(waiting) && !this.coveredByFront(waiting))
+        return;
       const card = this.revive(key);
       // One still dropping away from the front just stays where it is.
       if (card.phase === "exit") card.phase = "rest";
       this.order.splice(Math.min(at - front, this.order.length), 0, card);
-      if (!card.transit) card.after = this.order[0] ?? null;
     });
+  }
+
+  /** Whether a wanted card the engine parked is still to be seated again. */
+  private unseated(): boolean {
+    return this.want.some(
+      (k) =>
+        !this.order.some((c) => c.key === k) &&
+        this.parked.some((c) => c.key === k),
+    );
   }
 
   /** Brings the cards that follow the last wanted one into the pile. */
@@ -527,7 +695,10 @@ export class StackEngine {
         low: 0,
         held: false,
         turn: null,
-        after: null,
+        script: null,
+        eff: pos,
+        returned: false,
+        seen: false,
         parked: false,
         h: this.heights.get(c.key) ?? c.h,
         v: { y: 0, z: 0, p: 0, f: 0 },
@@ -536,9 +707,11 @@ export class StackEngine {
     });
     this.hint = undefined;
     this.owed = 0;
+    this.line = [...this.want];
     this.shown = this.want[0];
     this.lastStep = -1e9;
-    this.lastBack = -1e9;
+    this.lastPress = undefined;
+    this.burst = false;
     this.lay = { h: this.order[0]?.h ?? 0, v: 0 };
     this.below = { state: "idle", t0: this.time, op: 1 };
     this.measureVis();
@@ -555,6 +728,9 @@ export class StackEngine {
     if (front.key === next) return 0;
     if (!next) return 1;
     if (this.order.some((c) => c.key === next)) return 1;
+    // The queue order says which side of the front the wanted item is on.
+    const [f, n] = [this.line.indexOf(front.key), this.line.indexOf(next)];
+    if (f >= 0 && n >= 0 && f !== n) return n > f ? 1 : -1;
     return !this.want.includes(front.key) && this.hint === "forward" ? 1 : -1;
   }
 
@@ -573,60 +749,56 @@ export class StackEngine {
    * still moving.
    */
   private pump() {
-    while (this.time - this.lastStep >= STEP_GAP) {
+    for (;;) {
       const dir = this.nextDir();
       if (!dir) break;
-      const flying = dir > 0 ? "exit" : "enter";
-      if ([...this.cards.values()].some((c) => c.phase === flying)) break;
-      if (dir > 0 ? this.order[VIS]?.transit : this.pushesOutATop()) break;
+      // A burst of presses back plays set paths a `↓` interval apart.
+      const paced = dir < 0 && this.burst;
+      if (paced ? !this.paced() : this.time - this.lastStep < STEP_GAP) break;
+      if (!paced) {
+        const flying = dir > 0 ? "exit" : "enter";
+        if ([...this.cards.values()].some((c) => c.phase === flying)) break;
+      }
+      const edge = this.order[dir > 0 ? VIS : VIS - 1];
+      if (edge && (dir > 0 ? edge.transit : edge.top && !paced)) break;
       this.lastStep = this.time;
       this.move(dir);
     }
   }
 
-  /** How many presses back the next move takes at once: it brings out the
-   * newest wanted card, and every wanted card between it and the front the
-   * pile holds is a card it skips. */
-  private backSteps(): number {
-    const front = this.order[0];
-    return Math.max(1, front ? this.want.indexOf(front.key) : 1);
-  }
-
-  /** Whether the next move back would push a card still holding a draw tier
-   * (rising into the front) out of sight, where it would be drawn over the
-   * pile with nothing covering it. */
-  private pushesOutATop(): boolean {
-    const k = this.backSteps();
-    return this.order.some((c, at) => at + k >= VIS && c.top);
-  }
-
   private move(dir: 1 | -1) {
     if (dir > 0) {
       const leaving = this.order.shift()!;
+      this.unscript(leaving);
       this.park(leaving);
       if (leaving.phase === "enter" || leaving.transit) {
         // Still behind: it just returns.
+        if (leaving.phase === "enter") leaving.returned = true;
         leaving.phase = "rest";
         leaving.transit = true;
       } else {
         if (!leaving.top) leaving.top = this.behindTops();
         leaving.phase = "exit";
+        leaving.returned = false;
         leaving.transit = false;
         leaving.shrink = false;
       }
       this.fill();
       this.repose(leaving);
     } else {
-      const back = this.revive(this.want[0]!);
+      // The card just before the front, so every card makes its trip.
+      const index = this.comingBack();
+      const back = this.revive(this.want[index]!);
       this.order.unshift(back);
       this.admit();
-      while (this.order.length > WINDOW) this.park(this.order.pop()!, true);
       if (back.phase === "exit") {
         // Still in front: it comes straight back.
         back.phase = "rest";
       } else {
         const unseen = !this.painted(back);
         back.gone = false;
+        back.seen = !unseen && !back.returned;
+        if (unseen) back.returned = false;
         if (unseen) {
           // It is covered by the front card, so it can be put at a depth where
           // it fits behind it at full height without anything visible
@@ -650,18 +822,255 @@ export class StackEngine {
         back.phase = "enter";
         back.transit = true;
         back.top = 0;
+        const trip = unseen && this.burst ? this.trip(index) : null;
+        if (trip)
+          this.start(
+            back,
+            trip,
+            this.heights.get(this.want[index + 1] ?? "") ?? 0,
+          );
       }
       this.repose(back);
+      this.trim();
     }
-    // A move back brings out the newest wanted card and puts every card it
-    // skips straight into its place, so it takes all the presses owed.
-    this.owed = dir < 0 || this.owed * dir <= 0 ? 0 : this.owed - dir;
+    this.owed = this.owed * dir > 0 ? this.owed - dir : 0;
     // The hint directed the moves owed; once they are taken it says nothing.
-    if (!this.owed) this.hint = undefined;
+    if (!this.owed) {
+      this.hint = undefined;
+      this.burst = false;
+    }
     const op = this.below.op;
     this.below = { state: "out", t0: this.time - (1 - op) * BELOW_OUT, op };
     this.shown = this.want[0] ?? this.shown;
     this.measureVis();
+  }
+
+  // ---- Set paths -----------------------------------------------------------
+
+  /** The pile index of the card the next move back brings out: the one just
+   * before the front. */
+  private comingBack(): number {
+    const at = this.want.indexOf(this.order[0]?.key ?? "");
+    return at > 0 ? at - 1 : 0;
+  }
+
+  /** When a card on its way up into the front will have landed, ms: for one
+   * on a path, once the cards pulled before it have come up and it has done
+   * its own rise; for one on springs, by how far it still has to go. */
+  private landsAt(c: Card): number {
+    const s = c.script;
+    if (!s)
+      return c.top ? this.time + Math.max(0, this.natTop(c) - LEAD) / 0.4 : 0;
+    const i = Math.min(Math.floor(s.u), s.poses.length - 1);
+    if (s.landed) return this.time + s.left[i]!;
+    const own = this.time + Math.max(0, s.rise - s.u) * SUBSTEP * 1000;
+    let before = 0;
+    for (const k of this.order)
+      if (k.pos > c.pos) before = Math.max(before, this.landsAt(k));
+    return Math.max(own, before) + s.left[s.rise]!;
+  }
+
+  /** Whether a move back may be taken now in a burst. A held `↓` takes a card
+   * every time one has turned behind the pile, so a card here comes up in
+   * front of the pile just as the one before it has landed. That fixes when
+   * it must start. */
+  private paced(): boolean {
+    if (this.time - this.lastStep < STEP_GAP) return false;
+    const trip = this.trip(this.comingBack());
+    if (!trip) return true;
+    const rise = trip.poses.length - trip.turn;
+    const last = Math.max(
+      -1e9,
+      ...[...this.cards.values()].map((c) => this.landsAt(c)),
+    );
+    return this.time + rise * SUBSTEP * 1000 >= last;
+  }
+
+  /** The trip the card at `index` in the wanted pile would take leaving the
+   * front onto the cards behind it with `↓` held. */
+  private trip(index: number): Trip | null {
+    const key = this.want
+      .slice(index)
+      .map((k) => `${k}:${this.heights.get(k) ?? 0}`)
+      .join("|");
+    if (this.trips.has(key)) return this.trips.get(key)!;
+    const trip = this.record(this.want.slice(index));
+    if (this.trips.size > 16) this.trips.clear();
+    this.trips.set(key, trip);
+    return trip;
+  }
+
+  /** Records the trip by running a scratch engine, with presses waiting as in
+   * a held key, until the card is out of sight behind the pile. */
+  private record(pile: readonly string[]): Trip | null {
+    const [key, ...rest] = pile;
+    if (key === undefined || rest.length === 0) return null;
+    const scratch = new StackEngine();
+    scratch.heights = new Map(this.heights);
+    scratch.recording = true;
+    scratch.sync(pile);
+    if (pile.length >= WINDOW) {
+      // The card that fills the hidden place when this one leaves.
+      const filler = "\0filler";
+      scratch.heights.set(filler, this.heights.get(rest.at(-1)!) ?? 0);
+      rest.push(filler);
+    }
+    scratch.sync(rest, "forward");
+    const card = scratch.cards.get(key);
+    if (!card) return null;
+    const poses: Sample[] = [pose(card)];
+    let turn = -1;
+    for (let t = 0; t < TRIP_MAX_MS; t += SUBSTEP * 1000) {
+      scratch.tick(SUBSTEP);
+      const c = scratch.cards.get(key);
+      if (!c) break;
+      poses.push(pose(c));
+      if (turn < 0 && c.phase !== "exit") turn = poses.length - 1;
+    }
+    return turn < 1 || turn >= poses.length - 1 ? null : { poses, turn };
+  }
+
+  /** Puts a card on the reverse of a trip, to come up in front of a card
+   * `behind` tall. A card unseen at the back starts at its start; one already
+   * on springs joins the path only if it has barely left the back, at the
+   * pose on the path nearest where it is (reported by the return value). */
+  private start(c: Card, trip: Trip, behind: number, joining = false): boolean {
+    const poses = [...trip.poses].reverse();
+    const rise = poses.length - trip.turn;
+    const left = Array<number>(poses.length).fill(0);
+    const second = this.slot(1);
+    const below = LEAD + sc(second.z) * (second.y + behind);
+    // The path is as good as done once the card is within `SETTLED_PX` of
+    // where it ends: what is left can't be told from rest, and the next card
+    // may come up.
+    const end = edgesOf(c.h, poses[poses.length - 1]!);
+    let done = poses.length - 1;
+    while (
+      done > 0 &&
+      edgesOf(c.h, poses[done - 1]!).every(
+        (e, k) => Math.abs(e - end[k]!) <= SETTLED_PX,
+      )
+    )
+      done--;
+    for (let i = poses.length - 2; i >= 0; i--) {
+      const [t0, b0] = edgesOf(c.h, poses[i]!);
+      const [t1, b1] = edgesOf(c.h, poses[i + 1]!);
+      const moved = Math.max(Math.abs(t1 - t0), Math.abs(b1 - b0));
+      // Over the card it will cover (now at the second place), it is slowed.
+      const slow =
+        i >= rise && b1 < below
+          ? Math.max(1, moved / (RISE_MAX_SPEED * SUBSTEP))
+          : 1;
+      left[i] = i >= done ? 0 : left[i + 1]! + slow * SUBSTEP * 1000;
+    }
+    let from = 0;
+    if (joining) {
+      let best = JOIN_PX;
+      for (let i = 0; i < Math.min(rise, JOIN_POSES); i++) {
+        const d = Math.hypot(poses[i]!.y - c.y, poses[i]!.z - c.z);
+        if (d < best) [best, from] = [d, i];
+      }
+      if (best >= JOIN_PX) return false;
+    }
+    c.script = { poses, rise, u: from, left, landed: false, waited: 0 };
+    Object.assign(c, poses[from], { gone: false, held: true, turn: null });
+    const next = poses[Math.min(from + 1, poses.length - 1)]!;
+    for (const a of AXES) c.v[a] = (next[a] - poses[from]![a]) / SUBSTEP;
+    return true;
+  }
+
+  /** A card pulled by the first press of a burst has barely moved by the time
+   * the second comes, and takes the path the later cards take. */
+  private joinBurst() {
+    const c = this.order[0];
+    const index = c ? this.want.indexOf(c.key) : -1;
+    if (!c || c.script || c.phase !== "enter" || !c.transit || index < 0)
+      return;
+    const trip = this.trip(index);
+    if (trip)
+      this.start(
+        c,
+        trip,
+        this.heights.get(this.want[index + 1] ?? "") ?? 0,
+        true,
+      );
+  }
+
+  /** Whether a card behind `c` is taller than it, so it is drawn only as tall
+   * as `c` reaches. */
+  private coversTaller(c: Card): boolean {
+    return [...this.cards.values()].some(
+      (k) =>
+        k !== c &&
+        k.phase === "rest" &&
+        !k.transit &&
+        !k.script &&
+        this.layer(k) < this.layer(c) &&
+        this.natBottom(k) > this.natBottom(c) - 2,
+    );
+  }
+
+  /**
+   * Moves a card along its path by one tick. At the mirrored moment of the
+   * trip's turn the card comes up in front of the pile, which it does only
+   * once it is clear of the cards it would swap order with and the cards
+   * pulled before it have come up; until then it waits at that pose. Rising
+   * over a taller card it is slowed to `RISE_MAX_SPEED`. The speed it leaves
+   * in `v` is what the springs take over if the path is dropped.
+   */
+  private playScript(c: Card, s: Script, dt: number) {
+    const last = s.poses.length - 1;
+    const at = (u: number): Sample => {
+      const i = Math.min(Math.floor(u), last);
+      const a = s.poses[i]!;
+      const b = s.poses[Math.min(i + 1, last)]!;
+      const k = u - i;
+      return {
+        y: a.y + (b.y - a.y) * k,
+        z: a.z + (b.z - a.z) * k,
+        p: a.p + (b.p - a.p) * k,
+        f: a.f + (b.f - a.f) * k,
+        g: a.g + (b.g - a.g) * k,
+      };
+    };
+    const from = at(s.u);
+    let next = Math.min(s.u + dt / SUBSTEP, last);
+    const reaching = !s.landed && next >= s.rise;
+    if (reaching) next = s.rise;
+    else if (s.landed && this.coversTaller(c)) {
+      const [t0, b0] = edgesOf(c.h, from);
+      const [t1, b1] = edgesOf(c.h, at(next));
+      const moved = Math.max(Math.abs(t1 - t0), Math.abs(b1 - b0));
+      if (moved > RISE_MAX_SPEED * dt)
+        next = s.u + ((next - s.u) * RISE_MAX_SPEED * dt) / moved;
+    }
+    s.u = next;
+    const now = at(next);
+    Object.assign(c, now);
+    for (const a of AXES) c.v[a] = (now[a] - from[a]) / dt;
+    c.held = true;
+    if (reaching) {
+      const change = {
+        phase: "rest" as const,
+        transit: false,
+        top: this.aboveTops(),
+      };
+      const older = this.order.some(
+        (k) => k !== c && k.script && !k.script.landed && k.pos > c.pos,
+      );
+      if (!older && this.clearOf(c, change)) {
+        Object.assign(c, change);
+        s.landed = true;
+      } else if (
+        // Waiting for a card that is still coming up is the order of things;
+        // nothing coming up means what blocks it will not move.
+        this.order.some((k) => k !== c && (k.script || k.top))
+          ? (s.waited += dt * 1000) > 4 * WAIT_MS
+          : (s.waited += dt * 1000) > WAIT_MS
+      )
+        this.unscript(c);
+    }
+    if (s.landed && next >= last) c.script = null;
   }
 
   // ---- Poses ---------------------------------------------------------------
@@ -736,10 +1145,16 @@ export class StackEngine {
     return c.top
       ? c.top
       : c.phase === "enter"
-        ? 1 + c.pos / M
+        ? c.returned
+          ? 0.5 + c.pos / (2 * M)
+          : c.seen
+            ? 2.06 + c.pos / (2 * M)
+            : 1 + c.pos / M
         : c.transit
           ? c.parked
-            ? 2 + c.pos / (2 * M)
+            ? c.returned
+              ? 0.5 + c.pos / (2 * M)
+              : 2 + c.pos / (2 * M)
             : 2 + (M - c.pos) / M
           : 10 + (M - c.pos) * 2;
   }
@@ -798,7 +1213,7 @@ export class StackEngine {
    * card rising into the front; any other card's reach now. */
   private settledReach(k: Card): number {
     if (!k.top) return this.reach(k);
-    const t = this.restPose(k, k.pos);
+    const t = this.restPose(k, this.place(k));
     return Math.min(this.natBottom(k), LEAD + sc(t.z) * (t.y + k.h));
   }
   private span(k: Card): [number, number] {
@@ -885,11 +1300,7 @@ export class StackEngine {
         p: 1.2,
       };
     }
-    const pos = c.hold > this.time ? c.from : c.pos;
-    if (c.after && !c.transit) {
-      if (this.covers(c.after)) c.after = null;
-      else return this.restPose(c, VIS);
-    }
+    const pos = c.hold > this.time ? c.from : this.place(c);
     return c.transit ? this.transitPose(c, pos) : this.restPose(c, pos);
   }
 
@@ -974,15 +1385,6 @@ export class StackEngine {
     );
   }
 
-  /** Whether card `n`, the card a skipped card waits behind, hides the top of
-   * the pile: it is the front at rest, or has risen into the front. One that
-   * has left the pile hides nothing, and nothing waits for it. */
-  private covers(n: Card): boolean {
-    if (this.cards.get(n.key) !== n || n.parked || n.gone) return true;
-    if (n.phase !== "rest" || n.transit) return false;
-    return !n.top || this.natTop(n) <= LEAD + COVER_AT;
-  }
-
   /** Whether a card in front of the pile may give up its draw tier now:
    * settled and clear of the cards it would swap order with, or on its way out
    * of sight (at the hidden slot or past it) entirely under a card in front
@@ -1038,7 +1440,7 @@ export class StackEngine {
         c.gone = false;
       return;
     }
-    if (this.vanishes(c, c.hold > this.time ? c.from : c.pos)) {
+    if (this.vanishes(c, c.hold > this.time ? c.from : this.place(c))) {
       c.low = Math.max(c.low, this.natTop(c));
       const t = this.target(c);
       const aimTop = LEAD + sc(t.z) * t.y;
@@ -1080,8 +1482,19 @@ export class StackEngine {
   private tick(dt: number) {
     this.time += dt * 1000;
     this.pump();
-    const waiting = this.nextDir() !== 0;
+    const waiting = this.nextDir() !== 0 || this.recording;
+    const queued = this.order.some((k) => k.script && !k.script.landed);
+    if (this.unseated()) {
+      this.admit();
+      this.repose(null);
+    }
+    this.markPlaces();
+    this.trim();
     for (const c of this.cards.values()) {
+      if (c.script) {
+        this.playScript(c, c.script, dt);
+        continue;
+      }
       const t = this.targetOf(c);
       // A card rising into the front keeps its own pace while presses wait: a
       // taller card behind it is drawn no taller than it, so that card's
@@ -1093,9 +1506,16 @@ export class StackEngine {
         c,
         t,
         (c.phase === "rest" ? OMEGA : EXIT_OMEGA) *
-          (waiting && !rising ? 1.3 : 1),
+          (waiting && !rising ? 1.3 : 1) *
+          // The last few px of a rise are slow on springs; a card on its way
+          // up behind it can't come up until they are done.
+          (rising && queued && Math.abs(t.y - c.y) < TAIL_PX ? TAIL_RATE : 1),
         dt,
-        c.held ? HELD_MAX_SPEED : undefined,
+        c.held
+          ? rising && this.coversTaller(c)
+            ? RISE_MAX_SPEED
+            : HELD_MAX_SPEED
+          : undefined,
       );
       this.updateVanish(c, dt);
       if (c.phase === "exit") {
@@ -1114,7 +1534,7 @@ export class StackEngine {
           top: this.aboveTops(),
         };
         const first = ![...this.cards.values()].some(
-          (o) => o.phase === "enter" && o.pos > c.pos,
+          (o) => o.phase === "enter" && !o.script && o.pos > c.pos,
         );
         if (
           first &&
@@ -1168,13 +1588,20 @@ export class StackEngine {
   }
 
   private isBusy(): boolean {
-    if (this.nextDir() !== 0) return true;
+    if (this.nextDir() !== 0 || this.unseated()) return true;
     if (this.below.state !== "idle") return true;
     const front = this.front();
     if (Math.abs(front.h - this.lay.h) > 0.05 || Math.abs(this.lay.v) > 0.5)
       return true;
     for (const c of this.cards.values()) {
-      if (c.phase !== "rest" || c.transit || c.top || c.turn || c.g > 0.001)
+      if (
+        c.script ||
+        c.phase !== "rest" ||
+        c.transit ||
+        c.top ||
+        c.turn ||
+        c.g > 0.001
+      )
         return true;
       if (c.hold > this.time) return true;
       const t = this.target(c);
@@ -1195,6 +1622,12 @@ export class StackEngine {
     this.lay.v = 0;
   }
 }
+
+/** The top and bottom edges of a card `h` tall at a pose, in stage px. */
+const edgesOf = (h: number, a: Sample) =>
+  [LEAD + sc(a.z) * a.y, LEAD + sc(a.z) * (a.y + h)] as const;
+
+const pose = (c: Card): Sample => ({ y: c.y, z: c.z, p: c.p, f: c.f, g: c.g });
 
 const TO_BACK = { phase: "rest", transit: true, top: 0 } as const;
 
@@ -1220,6 +1653,9 @@ const EMPTY_FRONT: Card = {
   low: 0,
   held: false,
   turn: null,
-  after: null,
+  script: null,
+  eff: 0,
+  returned: false,
+  seen: false,
   parked: false,
 };

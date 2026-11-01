@@ -248,7 +248,7 @@ describe("the stack engine", () => {
       expect(top, key).toBeLessThanOrEqual(single + 1);
   });
 
-  it("pulls a card no lower under a held key than a single move does", () => {
+  it("pulls a card no lower under a held key than it goes in", () => {
     const deepest = (q: ReturnType<typeof queue>) => {
       const low = new Map<string, number>();
       for (const frame of q.frames)
@@ -256,25 +256,39 @@ describe("the stack engine", () => {
           if (c.painted) low.set(c.key, Math.max(low.get(c.key) ?? 0, c.top));
       return low;
     };
-    // The lowest a card's top gets in a single move back, from each start.
-    let single = 0;
-    for (let start = 0; start < 6; start++) {
-      const q = queue(start + 50);
-      q.press("back");
+    // A held back key plays the reverse of the trip a card takes leaving, so
+    // each card comes out no lower than it goes in, by a single move on or by
+    // a held key.
+    const goesIn = new Map<string, number>();
+    for (let at = 41; at < 50; at++) {
+      const q = queue(at);
+      q.press("forward");
       q.run(3000);
-      single = Math.max(single, deepest(q).get(KEYS[start + 49]!)!);
+      goesIn.set(KEYS[at]!, deepest(q).get(KEYS[at]!)!);
+    }
+    // Held, a card drops as low as the cards it leaves with let it, which
+    // depends on where in the run it goes: take every place it can have.
+    for (let from = 41; from < 50; from++) {
+      const held = queue(from);
+      for (let ms = 0; ms < 1500; ms += 33) {
+        held.press("forward");
+        held.run(33);
+      }
+      held.run(4000);
+      for (const [key, top] of deepest(held))
+        goesIn.set(key, Math.max(goesIn.get(key) ?? 0, top));
     }
     // Held, each card comes out while the last is still rising into the
-    // front; it aims for where that card is going, so it drops no farther
-    // down than a single move would.
+    // front.
     const q = queue(50);
     for (let ms = 0; ms < 1500; ms += 33) {
       q.press("back");
       q.run(33);
     }
     q.run(4000);
-    for (const [key, top] of deepest(q))
-      expect(top, key).toBeLessThanOrEqual(single + 1);
+    const out = deepest(q);
+    for (const key of KEYS.slice(41, 50))
+      expect(out.get(key)!, key).toBeLessThanOrEqual(goesIn.get(key)! + 1);
   });
 
   it("keeps a held back key's moves when the page re-renders between them", () => {
@@ -498,25 +512,56 @@ const inner = (engine: StackEngine) =>
   (engine as unknown as { cards: Map<string, { top: number; phase: string }> })
     .cards;
 
+/** Holds `direction` for `ms` from the current state of `q`, a press every
+ * 33 ms, with a re-render sync every frame when `resync`. */
+function holdMore(
+  q: ReturnType<typeof queue>,
+  direction: Direction,
+  ms: number,
+  resync: boolean,
+) {
+  for (let t = 0; t < ms; t += 33) {
+    q.press(direction);
+    for (let f = 0; f < 33; f += DT * 1000) {
+      if (resync) q.engine.sync(q.window());
+      q.run(DT * 1000);
+    }
+  }
+}
+
+/** Whether a frame paints `key` as the front card: nearest, within a few
+ * pixels of the front's place (the next card lands on it a beat later), with
+ * none of its depth shading. */
+const atFront = (frame: Frame, key: string) => {
+  const c = byKey(frame).get(key);
+  if (!c?.painted || Math.abs(c.top - 34) > 12 || c.shade > 0.05) return false;
+  return frame.cards.every((o) => !o.painted || o.layer <= c.layer);
+};
+
 describe("a held key's pace", () => {
   it.each([false, true])(
-    "steps back within 2 of on (re-render syncs: %s)",
+    "steps back within 1 of on (re-render syncs: %s)",
     (resync) => {
       const on = hold("forward", 0, resync).steps;
       const back = hold("back", 50, resync).steps;
       expect(on).toBeGreaterThan(10);
-      expect(Math.abs(back - on)).toBeLessThanOrEqual(2);
+      expect(Math.abs(back - on)).toBeLessThanOrEqual(1);
     },
   );
 
   it.each([false, true])(
-    "moves smoothly, skipping cards, and settles (re-render syncs: %s)",
+    "brings every card to the front, smoothly, and settles (re-render syncs: %s)",
     (resync) => {
       for (const start of [50, 30, 9]) {
         const { q } = hold("back", start, resync);
         q.run(4000);
-        expect(problems(q.frames)).toEqual([]);
+        expect(problems(q.frames), `from ${start}`).toEqual([]);
         expectSettled(q);
+        for (const key of KEYS.slice(q.at(), start))
+          expect(
+            q.frames.some((f) => atFront(f, key)),
+            `${key} reached the front`,
+          ).toBe(true);
       }
     },
   );
@@ -539,53 +584,92 @@ describe("a held key's pace", () => {
   );
 
   it.each([false, true])(
-    "never drops a skipped card below the pile (re-render syncs: %s)",
+    "plays a held back key as the reverse of a held on key (re-render syncs: %s)",
     (resync) => {
-      // A card that was never in front while the burst ran: its trip was
-      // skipped, so its top stays above the pile's bottom edge.
-      const trips = new Set<string>();
-      const { q } = hold("back", 50, resync, 3000, (q) => {
-        for (const [key, c] of inner(q.engine))
-          if (c.phase === "enter") trips.add(key);
+      // Cards that left the front 200 ms apart come back 200 ms apart, each
+      // landing on the one before, and the card that left last comes back
+      // first.
+      const on = hold("forward", 0, resync);
+      on.q.run(4000);
+      const left = new Map<string, number>();
+      on.q.frames.forEach((f, n) => {
+        for (const c of f.cards)
+          if (!left.has(c.key) && !c.interactive && c.top > 40)
+            left.set(c.key, n);
       });
-      q.run(4000);
-      const skipped = KEYS.slice(q.at() + 1, 50).filter((k) => !trips.has(k));
-      expect(skipped.length).toBeGreaterThan(0);
-      for (const f of q.frames) {
-        const cards = f.cards.filter((c) => c.painted);
-        const bottom = Math.max(
-          ...cards.filter((c) => !skipped.includes(c.key)).map((c) => c.bottom),
-          0,
-        );
-        for (const c of cards)
-          if (skipped.includes(c.key))
-            expect(c.top, c.key).toBeLessThanOrEqual(bottom);
+      const back = hold("back", 50, resync);
+      back.q.run(4000);
+      const came = new Map<string, number>();
+      back.q.frames.forEach((f, n) => {
+        for (const key of KEYS.slice(back.q.at(), 50))
+          if (!came.has(key) && atFront(f, key)) came.set(key, n);
+      });
+      const gaps = (m: Map<string, number>) =>
+        [...m.values()].slice(1).map((n, i) => n - [...m.values()][i]!);
+      const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+      expect(mean(gaps(came)) * DT * 1000).toBeGreaterThan(150);
+      expect(mean(gaps(came)) * DT * 1000).toBeLessThan(260);
+      expect(mean(gaps(left)) * DT * 1000).toBeGreaterThan(150);
+      expect(mean(gaps(left)) * DT * 1000).toBeLessThan(260);
+    },
+  );
+
+  it.each([false, true])(
+    "turns around cleanly when held on, then back (re-render syncs: %s)",
+    (resync) => {
+      const found: string[] = [];
+      for (const wait of [200, 450, 700, 1000, 1400]) {
+        const q = queue(20);
+        q.run(100);
+        q.frames.length = 0;
+        holdMore(q, "forward", wait, resync);
+        holdMore(q, "back", 1000, resync);
+        q.run(4000);
+        found.push(...problems(q.frames).map((m) => `${wait} ms: ${m}`));
+        expectSettled(q);
       }
+      expect(found).toEqual([]);
     },
   );
 
   it.each([false, true])(
     "turns around cleanly when reversed mid-burst (re-render syncs: %s)",
     (resync) => {
-      for (const wait of [200, 450, 700, 1000]) {
+      const found: string[] = [];
+      for (const wait of [200, 450, 700, 1000, 1400]) {
+        for (const then of [33, 600]) {
+          const q = queue(50);
+          q.run(100);
+          q.frames.length = 0;
+          holdMore(q, "back", wait, resync);
+          holdMore(q, "forward", then, resync);
+          q.run(4000);
+          found.push(
+            ...problems(q.frames).map((m) => `${wait}+${then} ms: ${m}`),
+          );
+          expectSettled(q);
+        }
+      }
+      expect(found).toEqual([]);
+    },
+  );
+
+  it.each([false, true])(
+    "turns around cleanly when held back, then on, then back (re-render syncs: %s)",
+    (resync) => {
+      const found: string[] = [];
+      for (const wait of [450, 800]) {
         const q = queue(50);
         q.run(100);
         q.frames.length = 0;
-        const frames = (ms: number, direction: Direction) => {
-          for (let t = 0; t < ms; t += 33) {
-            q.press(direction);
-            for (let f = 0; f < 33; f += DT * 1000) {
-              if (resync) q.engine.sync(q.window());
-              q.run(DT * 1000);
-            }
-          }
-        };
-        frames(wait, "back");
-        frames(33, "forward");
+        holdMore(q, "back", wait, resync);
+        holdMore(q, "forward", 400, resync);
+        holdMore(q, "back", 800, resync);
         q.run(4000);
-        expect(problems(q.frames), `after ${wait} ms`).toEqual([]);
+        found.push(...problems(q.frames).map((m) => `${wait} ms: ${m}`));
         expectSettled(q);
       }
+      expect(found).toEqual([]);
     },
   );
 });
