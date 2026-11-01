@@ -485,6 +485,10 @@ export class Analyzer {
         const input: FullAnalysisInput = {
           title: displayTitle(thread),
           titledBy,
+          preserveTitle:
+            !force &&
+            (settled ||
+              (previous !== undefined && previous.revision >= revision)),
           threadGoal: previous?.threadGoal ?? null,
           continuation: full
             ? await this.continuation(thread, context.requests)
@@ -515,7 +519,9 @@ export class Analyzer {
         // or you gave it, or else the title last settled for it, which a turn
         // that started meanwhile kept from being applied.
         const kept =
-          titledBy === "workstreams" || titledBy === "you"
+          input.preserveTitle ||
+          titledBy === "workstreams" ||
+          titledBy === "you"
             ? input.title
             : (previous?.goal ?? null);
         result = {

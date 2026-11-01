@@ -462,6 +462,8 @@ export type FullAnalysisInput = {
   /** The title BB displays: the thread's own, or BB's placeholder. */
   readonly title: string;
   readonly titledBy: TitledBy;
+  /** Goal-only catch-up leaves the already-settled title untouched. */
+  readonly preserveTitle?: boolean;
   /** The settled outcome; null model output keeps it through intermediate steps. */
   readonly threadGoal?: string | null;
   /** Bounded context from an explicitly referenced continuation thread. */
@@ -483,8 +485,9 @@ export type FullAnalysisInput = {
 };
 
 /** Whether the analysis names the thread: only after new requests, and never over your own title. */
-const namesThread = (input: Pick<FullAnalysisInput, "mode" | "titledBy">) =>
-  input.mode === "full" && input.titledBy !== "you";
+const namesThread = (
+  input: Pick<FullAnalysisInput, "mode" | "titledBy" | "preserveTitle">,
+) => input.mode === "full" && input.titledBy !== "you" && !input.preserveTitle;
 
 const REQUEST_CHARS = 1500;
 const INITIAL_CHARS = 1800;
@@ -598,7 +601,10 @@ ${fields.join("\n")}`;
 
 /** JSON Schema for exactly the fields the prompt asks for. */
 export function fullAnalysisSchema(
-  input: Pick<FullAnalysisInput, "report" | "mode" | "titledBy">,
+  input: Pick<
+    FullAnalysisInput,
+    "report" | "mode" | "titledBy" | "preserveTitle"
+  >,
 ): Record<string, unknown> {
   const properties: Record<string, unknown> = {
     names: {
@@ -673,7 +679,10 @@ export type FullAnalysisOutput = {
 /** Strips an optional Markdown fence, then validates against what was asked. */
 export function parseFullAnalysis(
   text: string,
-  input: Pick<FullAnalysisInput, "report" | "mode" | "titledBy" | "listing">,
+  input: Pick<
+    FullAnalysisInput,
+    "report" | "mode" | "titledBy" | "listing" | "preserveTitle"
+  >,
 ): FullAnalysisOutput {
   const raw: unknown = JSON.parse(stripFence(text));
   const parsed = fullOutputSchema.parse(raw);

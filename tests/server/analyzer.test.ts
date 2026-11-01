@@ -112,12 +112,14 @@ describe("idle analysis", () => {
     expect((await state(w)).analysis.t1?.threadGoal).toBe(threadGoal);
   });
 
-  it("backfills a current analysis's missing goal without needing a new request", async () => {
+  it("backfills a current analysis's missing goal without needing a new request or changing its title", async () => {
+    let title = "Fixing stale builds";
     const w = await setup(() =>
       JSON.stringify({
         recap: "Done",
         state: "done",
         threadGoal: "Keep builds fresh without manual cache clearing.",
+        goal: title,
       }),
     );
     w.addThread("t1", { status: "idle", latestAttentionAt: 10 });
@@ -126,6 +128,7 @@ describe("idle analysis", () => {
     await w.harness.behavior.runCli(["analyze", "t1"]);
     const db = w.bb.storage.database();
     const previous = (await state(w)).analysis.t1!;
+    title = "Changing directories";
     const { threadGoal: _goal, ...old } = previous;
     db.prepare("UPDATE ws_analysis SET result = ? WHERE thread_id = 't1'").run(
       JSON.stringify(old),
@@ -138,6 +141,9 @@ describe("idle analysis", () => {
     expect((await state(w)).analysis.t1?.threadGoal).toBe(
       "Keep builds fresh without manual cache clearing.",
     );
+    expect(analyses(w).at(-1)?.prompt).not.toContain('"goal": {');
+    expect((await state(w)).analysis.t1?.goal).toBe("Fixing stale builds");
+    expect(w.threads.get("t1")!.title).toBe("Fixing stale builds");
     const after = analyses(w).length;
     await w.harness.behavior.runCli(["analyze"]);
     await settle(0);
