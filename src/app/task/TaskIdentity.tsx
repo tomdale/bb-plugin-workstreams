@@ -43,7 +43,6 @@ export type TopicButtonProps = {
   isFork?: boolean;
   isClassifying?: boolean;
   isCompact?: boolean;
-  className?: string;
   onClick?: () => void;
   disabled?: boolean;
 };
@@ -55,7 +54,6 @@ export function TopicButton({
   isFork = false,
   isClassifying = false,
   isCompact = false,
-  className = "",
   onClick,
   disabled = false,
 }: TopicButtonProps) {
@@ -79,7 +77,7 @@ export function TopicButton({
       title={`Topic: ${displayLabel} (${source})`}
       className={`ws-task-identity ${
         label ? "" : "ws-task-identity-unresolved"
-      } ${isCompact ? "ws-task-identity-compact" : ""} ${className}`}
+      } ${isCompact ? "ws-task-identity-compact" : ""}`}
     >
       <Icon
         name={isClassifying ? "Spinner" : TAG_ICON}
@@ -263,19 +261,11 @@ export function TopicPicker({
 export type TaskIdentityProps = {
   threadId: string;
   isCompactViewport?: boolean;
-  className?: string;
-  readOnly?: boolean;
-  onAssigned?: (entityId: string) => void;
-  onAutomatic?: () => void;
 };
 
 export function TaskIdentity({
   threadId,
   isCompactViewport = false,
-  className = "",
-  readOnly = false,
-  onAssigned,
-  onAutomatic,
 }: TaskIdentityProps) {
   const { server, rpc, refresh } = useSharedServerState();
   const [open, setOpen] = useState(false);
@@ -295,7 +285,6 @@ export function TaskIdentity({
   const selectTopic = async (entityId: string) => {
     await rpc.call("taskAssign", { threadId, entityId });
     await refresh();
-    onAssigned?.(entityId);
   };
 
   // Automatic hands the topic back to Workstreams, which settles it now with
@@ -305,7 +294,6 @@ export function TaskIdentity({
     try {
       await rpc.call("taskReclassify", { threadId });
       await refresh();
-      onAutomatic?.();
     } finally {
       setClassifying(false);
     }
@@ -319,12 +307,11 @@ export function TaskIdentity({
       isFork={isFork}
       isClassifying={classifying}
       isCompact={isCompactViewport}
-      className={className}
       {...props}
     />
   );
 
-  if (readOnly || isFork) return button({ disabled: true });
+  if (isFork) return button({ disabled: true });
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

@@ -295,37 +295,6 @@ export class Journal {
     };
   }
 
-  /** Updates a pending proposal once it is applied, dismissed, or expired. */
-  update(
-    id: string,
-    patch: Partial<
-      Pick<
-        JournalEntry,
-        "status" | "rationale" | "detail" | "undo" | "threads" | "workstreams"
-      >
-    >,
-  ): void {
-    const current = this.get(id);
-    if (!current) return;
-    const next = { ...current, ...patch };
-    this.db
-      .prepare(
-        `UPDATE ws_journal SET status = @status, rationale = @rationale, detail = @detail,
-           undo = @undo, subject = @subject WHERE id = @id`,
-      )
-      .run({
-        id,
-        status: next.status,
-        rationale: clip(next.rationale),
-        detail: next.detail,
-        undo: next.undo ? JSON.stringify(next.undo) : null,
-        subject: JSON.stringify({
-          threads: next.threads,
-          workstreams: next.workstreams,
-        }),
-      });
-  }
-
   markUndone(id: string, undoneBy: string): void {
     this.db
       .prepare(

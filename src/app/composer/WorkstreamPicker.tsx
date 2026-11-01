@@ -26,8 +26,6 @@ import {
 } from "./picker-options.tsx";
 import "./route-picker.css";
 
-export { matchesEntity } from "./picker-options.tsx";
-
 export function IdentityControl({ newWork }: { newWork: NewWork }) {
   const state = useSyncExternalStore(newWork.subscribe, newWork.snapshot);
   const display = identityDisplay(state);

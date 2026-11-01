@@ -189,24 +189,6 @@ export type Complete = (
     >
 >;
 
-/** The trace behind a failed call, when debug mode recorded one. */
-export function traceIdOf(error: unknown): string | null {
-  const id =
-    error && typeof error === "object"
-      ? (error as { traceId?: unknown }).traceId
-      : undefined;
-  return typeof id === "string" ? id : null;
-}
-
-function withTrace(error: unknown, traceId: string | null): unknown {
-  if (traceId && error && typeof error === "object")
-    Object.defineProperty(error, "traceId", {
-      value: traceId,
-      configurable: true,
-    });
-  return error;
-}
-
 const message = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
@@ -232,7 +214,7 @@ export class Inference {
   /**
    * Builds the prompt for `kind` from `input`, calls the model, and parses
    * the response. With debug mode on, records the call and returns its trace
-   * id; a failure carries the id too (see `traceIdOf`).
+   * id.
    */
   async run<K extends TraceKind>(
     kind: K,
@@ -319,7 +301,7 @@ export class Inference {
         } else if (!result.ok) result = repaired;
       }
     }
-    if (!result.ok) throw withTrace(result.error, result.traceId);
+    if (!result.ok) throw result.error;
     return { value: result.value as OutputOf<K>, traceId: result.traceId };
   }
 
