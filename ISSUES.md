@@ -100,15 +100,14 @@ policies apply to conversation excerpts sent for analysis.
   times (a failed turn then counts when its attention moved after the snooze)
   and how each turn first read, so a turn re-analyzed after a restart counts by
   its new reading.
-- **Activity compatibility values:** Old proposal action/link kinds remain
-  readable because retained Activity rows and traces can still use them.
+- **Activity compatibility values:** The retired proposal action stays in the
+  journal's action list because retained Activity rows still use it.
 - **Retitle enablement checks:** Re-checking title settings after awaited SDK
   work protects against a setting change during the request, not redundant
   validation.
 
 ## Regression coverage for confirmed defects
 
-- Topic edit refresh and retry: `tests/app/catalog.test.tsx`.
 - Topic dialog name, description, and alias limits:
   `tests/app/topic-dialog-limits.test.tsx`.
 - Activity debug filters and empty states: `tests/app/activity-debug.test.tsx`.
