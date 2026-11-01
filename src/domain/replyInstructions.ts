@@ -27,8 +27,8 @@ function alone(): string {
  */
 function withRecapTool(): string {
   return `When required input is missing, put the explanation in a reply block before calling the available question-card tool; the card ends the turn. Otherwise the whole reply is one reply block — the answer, however short, then the explanation, completion details, and relevant commit or PR links — and you end the turn with the ${RECAP_TOOL} tool call. The recap card comes from that call, so the block sets no state and carries no headline, results, or Next. ${MARKERS}
-Example, with optional kind (answer, investigation, change, recommendation, proposal, status, or handoff) set inside the braces, and one component in each fence:
-:::reply{kind="change"}
+Example, with one component in each fence:
+:::reply
 # Arrow keys follow the card order
 Holding a key flips one card at a time.
 

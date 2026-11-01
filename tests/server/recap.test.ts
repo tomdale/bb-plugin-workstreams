@@ -1000,10 +1000,7 @@ describe("turn endings with reply blocks", () => {
   it("stores the recap of a turn whose block is followed by the tool call", async () => {
     const s = await world({ replies: true });
     const turnId = s.w.turn("t1");
-    s.w.say(
-      "t1",
-      ':::reply{kind="change"}\n# Arrow keys follow the card order\n:::\n',
-    );
+    s.w.say("t1", ":::reply\n# Arrow keys follow the card order\n:::\n");
     await s.report();
     await idleWith(s, "Done.");
     expect((await s.card()).recap).toMatchObject({ state: "complete", turnId });

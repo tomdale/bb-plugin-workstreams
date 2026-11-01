@@ -28,7 +28,7 @@ vi.mock("@get-bb/plugin-sdk/app", async (importActual) => {
 afterEach(cleanup);
 const id = "12345678-1234-1234-1234-123456789abc";
 const header = `Subagent "Review" (${id}) completed. `;
-const reply = `:::reply{state="complete" kind="investigation"}
+const reply = `:::reply{state="complete"}
 # The controls fit the app
 - [x] Reviewed all states
 

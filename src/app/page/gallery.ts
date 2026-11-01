@@ -23,14 +23,14 @@ export type Specimen = {
   messages: readonly GalleryMessage[];
 };
 
-const block = (kind: string, parts: readonly string[]): string =>
-  [`:::reply{v="1" kind="${kind}"}`, ...parts, ":::"].join("\n\n");
+const block = (parts: readonly string[]): string =>
+  [`:::reply{v="1"}`, ...parts, ":::"].join("\n\n");
 
 /** A bare directive, rendered by bb's installed directive plugins. */
 const DIRECTIVE =
   '::inline-vis{source="thread-storage" file="queue-replay.html"}';
 
-const investigation = block("investigation", [
+const investigation = block([
   "# The held key reads the card's position from the render that started the burst",
   "Key auto-repeat fires about thirty times a second, and every repeat runs the same handler, captured when the card was where the burst began. The card moves once, and each later repeat asks for the same move again — so the queue appears to skip ahead by however many repeats arrived before the next render.",
   componentFence({
@@ -131,7 +131,7 @@ const investigation = block("investigation", [
   "The handler is registered in an effect whose dependency list includes the focused index, so it is rebuilt after each render. A keydown that arrives before React commits the new index runs the previous closure. Wrapping the index in a ref keeps the closure stable and lets every event read the value the last commit wrote.",
 ]);
 
-const delivered = block("change", [
+const delivered = block([
   "# The held key moves the card one place per press",
   "The handler now reads the card's position from a ref, so a burst of repeats all see the position the last commit wrote. Held keys are capped at two cards ahead, and a burst longer than that is dropped rather than queued.",
   DIRECTIVE,
@@ -223,7 +223,7 @@ const delivered = block("change", [
   } satisfies ReplyComponent),
 ]);
 
-const fallbacks = block("change", [
+const fallbacks = block([
   "# Two parts that cannot be displayed as written",
   "A fence that is still arriving shows a placeholder until its closing line lands. A fence that closes with something the component schema rejects keeps its source readable, with the reason above it.",
   componentFence({
@@ -236,7 +236,7 @@ const fallbacks = block("change", [
 ]);
 
 const older = [
-  ':::reply{state="review" kind="change"}',
+  ':::reply{state="review"}',
   "# The queue cap holds at two cards",
   "- [x] Held keys move one card per press",
   "- [x] A burst longer than two cards is dropped",

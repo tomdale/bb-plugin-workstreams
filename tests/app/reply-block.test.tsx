@@ -161,13 +161,8 @@ it.each(Object.entries(COMPONENT_EXAMPLES))(
 );
 it.each(Object.entries(COMPOSED_SAMPLES))(
   "renders the %s body without composed treatment",
-  async (kind, source) => {
+  async (_sample, source) => {
     const view = draw(source, { docked: { turnId: "turn1" } });
-    expect(
-      view.container
-        .querySelector("[data-reply-kind]")
-        ?.getAttribute("data-reply-kind"),
-    ).toBe(kind);
     expect(
       view.container.querySelectorAll("[data-markdown]").length,
     ).toBeGreaterThan(0);

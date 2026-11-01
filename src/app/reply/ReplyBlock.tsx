@@ -82,7 +82,6 @@ export function ReplyBlock({
   return (
     <div
       data-reply-block=""
-      data-reply-kind={reply.kind}
       data-reply-docked={
         reply.card && docked !== false ? (docked ? "" : "pending") : undefined
       }

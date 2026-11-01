@@ -232,16 +232,6 @@ export const replyPartSchema = z.union([
 ]);
 export type ReplyPart = z.infer<typeof replyPartSchema>;
 
-export const REPLY_KINDS = [
-  "answer",
-  "investigation",
-  "change",
-  "recommendation",
-  "proposal",
-  "status",
-  "handoff",
-] as const;
-
 function encodedFilePath(path: string): string | null {
   try {
     return path.split("/").map(encodeURIComponent).join("/");

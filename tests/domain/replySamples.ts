@@ -145,7 +145,7 @@ I push the checked changes and watch the new CI run.
 
 /** All three replies keep explanations separate from their compact recap fields. */
 export const COMPOSED_SAMPLES = {
-  investigation: `:::reply{state="complete" kind="investigation"}
+  investigation: `:::reply{state="complete"}
 # The coupon treats percentages as cents
 - [x] The calculation subtracts the supplied number directly
 
@@ -163,7 +163,7 @@ ${componentFence(COMPONENT_EXAMPLES.comparison)}
 - Fix the calculation: Correct the percentage calculation and test it
 :::
 `,
-  change: `:::reply{state="review" kind="change"}
+  change: `:::reply{state="review"}
 # The coupon applies a percentage
 - [x] The calculation converts whole percentages to fractions
 
@@ -184,7 +184,7 @@ ${componentFence({ type: "group", relationship: "peers", children: [COMPONENT_EX
 - Check callers: Check the other coupon callers for the same unit mismatch
 :::
 `,
-  recommendation: `:::reply{state="complete" kind="recommendation"}
+  recommendation: `:::reply{state="complete"}
 # Keep the caller’s percentage contract
 - [x] Converting in the calculation avoids a caller migration
 

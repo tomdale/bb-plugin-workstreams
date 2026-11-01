@@ -29,9 +29,8 @@ const block = (body: string) => `:::reply\n${body}\n:::\n`;
 describe("composed replies", () => {
   it.each(Object.entries(COMPOSED_SAMPLES))(
     "reads the %s sample and its recap",
-    (kind, message) => {
+    (_sample, message) => {
       const data = read(message);
-      expect(data.kind).toBe(kind);
       expect(data.card?.state).toBeDefined();
       expect(
         data.body.some(
@@ -483,14 +482,13 @@ describe("delivered instructions", () => {
     );
   });
   it("teaches an example that parses through the production path", () => {
-    const example = /^:::reply\{[^\n]*\n[\s\S]*?\n:::$/m.exec(
+    const example = /^:::reply(?:\{[^\n]*\})?\n[\s\S]*?\n:::$/m.exec(
       replyInstructions(true),
     )![0];
     const { status, ...input } = blockInput(example);
     const data = parse(input, { status });
     expect(data.ok).toBe(true);
     if (!data.ok) return;
-    expect(data.data.kind).toBe("change");
     // The card belongs to the tool call, so the block carries none of it.
     expect(data.data.card).toBeUndefined();
     expect(data.data.body.some((part) => part.type === "change")).toBe(true);

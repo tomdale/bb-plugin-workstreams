@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { subagentDelivery } from "../../src/domain/subagentDelivery.ts";
 
 const id = "12345678-1234-1234-1234-123456789abc";
-const reply = `:::reply{state="complete" kind="investigation"}
+const reply = `:::reply{state="complete"}
 # The review is complete
 - [x] Reviewed the behavior
 

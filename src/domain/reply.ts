@@ -8,7 +8,6 @@ import { z } from "zod";
 import {
   COMPONENT_FENCE,
   componentText,
-  REPLY_KINDS,
   replyComponentSchema,
   replyPartSchema,
   type ReplyPart,
@@ -44,7 +43,6 @@ export const replySchema = z
   .object({
     card: replyCardSchema.optional(),
     headline: z.string().optional(),
-    kind: z.enum(REPLY_KINDS).optional(),
     body: z.array(replyPartSchema),
   })
   .strict();
@@ -276,12 +274,10 @@ export function parse(
   flush();
   if (!headline && !body.length && !partial)
     return { ok: false, error: "The reply is empty." };
-  const kind = z.enum(REPLY_KINDS).safeParse(attributes?.kind);
   return {
     ok: true,
     data: {
       ...(card ? { card } : headline ? { headline } : {}),
-      ...(kind.success ? { kind: kind.data } : {}),
       body,
     },
   };
