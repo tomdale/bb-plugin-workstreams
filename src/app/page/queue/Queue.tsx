@@ -6,11 +6,15 @@
  * and offers the earlier open threads.
  *
  * The order is kept while the page is open (`keepOrder`), so nothing jumps
- * while the user works. The heading and card start at a fixed
- * distance from the top of the page and the page grows downward, so a receipt
- * (drawn in the margin above the heading), Reply, and ⇧ never move them. Only
- * a new item whose heading wraps to a different number of lines moves the card,
- * gliding by the difference (`useQueueMotion`).
+ * while the user works. The heading is pinned near the top of the page and the
+ * card stack sits lower, its top edge at a fixed share of the page's height
+ * (`layout.ts`) so the card reads as centered; the replies and actions follow
+ * it and the page grows downward. A receipt (drawn in the margin above the
+ * heading), Reply, and ⇧ never move anything. Only a new item whose heading
+ * wraps far enough to reach the card moves it, gliding down by the difference
+ * (`useQueueMotion`); resizing the window moves it with the page's height. The
+ * heading and the receipt crossfade to the next ones with a small drift in the
+ * direction of travel.
  *
  * The next items wait as a stack of cards behind the card, peeking out above
  * it. Acting moves on to the next. ↓ and → (or J) step to the next item and ↑
@@ -63,6 +67,7 @@ import {
   type StackCard,
   type SuggestionMove,
 } from "./QueueItem.tsx";
+import { HEADING_BLOCK_MIN_HEIGHT, PAGE_TOP } from "./layout.ts";
 import { useQueueMotion, type Direction } from "./motion.ts";
 import { STACK_WINDOW } from "./stackEngine.ts";
 import { useQueueActions, type Receipt } from "./useQueueActions.ts";
@@ -544,11 +549,14 @@ export function Queue({
       <div className="relative h-full min-h-0 flex-1">
         <div
           ref={motion.page}
-          className="absolute inset-0 overflow-y-auto [scrollbar-gutter:stable] data-[moving]:overflow-y-hidden"
+          className="absolute inset-0 overflow-y-auto [container-type:size] [scrollbar-gutter:stable] data-[moving]:overflow-y-hidden"
         >
-          <div className="mx-auto box-border w-full max-w-[720px] px-5 pb-24 pt-9">
+          <div
+            className="mx-auto box-border w-full max-w-[720px] px-5 pb-24"
+            style={{ paddingTop: PAGE_TOP }}
+          >
             <div ref={motion.content} className="relative">
-              <div>
+              <div style={{ minHeight: HEADING_BLOCK_MIN_HEIGHT }}>
                 <ReceiptLine receipt={receipt} onUndo={undo} />
                 {heading ? (
                   <div key={current} data-queue-part="heading">
@@ -729,6 +737,7 @@ function ReceiptLine({
     <div
       role="status"
       data-queue-part="receipt"
+      data-receipt-key={`${receipt.itemId}:${receipt.kind}`}
       className={cn(
         "absolute inset-x-0 -top-[30px] flex h-5 min-w-0 items-center gap-3 text-[13px] text-muted-foreground",
       )}

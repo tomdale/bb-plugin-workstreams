@@ -11,15 +11,18 @@
  * and visibility, without re-rendering React. Only the settled front card is
  * interactive; every other card is `inert` and `aria-hidden`.
  *
- * The heading and the replies fade through to the new item's, on the same
- * clock: the old ones are copies taken just before the change (`capture`) that
- * fade out where they were, and the live ones are held back until the engine
- * lets them in (the replies only once no moving card passes over them). The
- * column is pinned at a fixed top; when a new item's heading wraps to a
- * different number of lines the card glides by the difference, and Reply and ⇧
- * never move it. Under reduced motion the new item only fades in. Without
- * `requestAnimationFrame` and Web Animations (tests) every change applies at
- * once.
+ * The heading, the receipt, and the replies change through copies of the old
+ * ones taken just before the change (`capture`), drawn over the page where
+ * they were so nothing in the layout moves. The heading and the receipt
+ * crossfade with a small drift in the direction the pile went, the path line
+ * leading the title (`crossfade`), as Web Animations of their own: a new press
+ * starts again from what is on screen rather than queueing behind them. The
+ * replies instead fade out at once and in again on the engine's clock, once
+ * no moving card passes over them. The column is pinned at a fixed top; when a
+ * new item's heading wraps far enough that the card would sit under it, the
+ * card glides down by the difference, and Reply and ⇧ never move it. Under
+ * reduced motion everything only fades. Without `requestAnimationFrame` and
+ * Web Animations (tests) every change applies at once.
  */
 import {
   useCallback,
@@ -43,9 +46,29 @@ const CORNER = 11.5;
 /** The most the clock advances in one frame, so a stalled tab doesn't leap. */
 const MAX_FRAME_MS = 50;
 
-/** The parts the engine fades, by `data-queue-part`. */
+/**
+ * The parts that fade through to the next item's, by `data-queue-part`. The
+ * engine times the replies; the heading runs `crossfade`.
+ */
 const FADED = ["heading", "actions"] as const;
 type Faded = (typeof FADED)[number];
+
+/**
+ * The heading's and receipt's crossfade. The outgoing text drifts `DRIFT`px
+ * one way as it fades and the incoming rises from the other, easing out; the
+ * title follows the path line by `STAGGER` ms. A change that starts while the
+ * last is still running takes `RAPID` of the time, so held keys read as one
+ * steady flick. Reduced motion drops the drift and the stagger.
+ */
+const DRIFT = 6;
+const FADE_OUT_MS = 180;
+const FADE_IN_MS = 280;
+const STAGGER = 40;
+const RAPID = 0.6;
+const REDUCED_MS = 160;
+const FADE_EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
+/** A direction recorded by `capture` speaks for a change this soon after it. */
+const DIRECTION_MS = 600;
 
 /** A copy of a heading or the replies as they were, fading out in place. */
 type Piece = {
@@ -119,6 +142,71 @@ function focusComposer(actions: HTMLElement) {
   field.setSelectionRange(field.value.length, field.value.length);
 }
 
+/** `1` when the pile went forward (the old text drifts up), `-1` back. */
+type Sign = 1 | -1;
+
+/** The lines of a heading, each its own thing to animate; anything else is one line. */
+function linesOf(root: HTMLElement) {
+  const lines = [...root.querySelectorAll<HTMLElement>("[data-queue-line]")];
+  return lines.length
+    ? lines.map((el) => ({
+        el,
+        delay: el.dataset.queueLine === "title" ? 1 : 0,
+      }))
+    : [{ el: root, delay: 0 }];
+}
+
+/**
+ * Crossfades a heading or receipt: `entering` (live, in place) comes in while
+ * `leaving` (a copy drawn over it) goes out, and the copy is removed once it
+ * is gone. Opacity and transform only.
+ */
+function crossfade(
+  entering: HTMLElement | null,
+  leaving: HTMLElement | null,
+  sign: Sign,
+  { rapid, reduced }: { rapid: boolean; reduced: boolean },
+) {
+  const scale = rapid ? RAPID : 1;
+  const drift = reduced ? 0 : DRIFT;
+  const stagger = reduced ? 0 : STAGGER * scale;
+  const ms = (full: number) => (reduced ? REDUCED_MS : full * scale);
+  const options = (
+    duration: number,
+    delay: number,
+  ): KeyframeAnimationOptions => ({
+    duration,
+    delay,
+    easing: FADE_EASE,
+    fill: "both",
+  });
+  if (entering)
+    for (const { el, delay } of linesOf(entering))
+      el.animate(
+        [
+          { opacity: 0, transform: `translateY(${sign * drift}px)` },
+          { opacity: 1, transform: "translateY(0)" },
+        ],
+        options(ms(FADE_IN_MS), delay * stagger),
+      );
+  if (leaving) {
+    const done = linesOf(leaving).map(({ el, delay }) => {
+      const now = getComputedStyle(el);
+      return el.animate(
+        [
+          { opacity: now.opacity, transform: now.transform },
+          { opacity: 0, transform: `translateY(${-sign * drift}px)` },
+        ],
+        options(ms(FADE_OUT_MS), delay * stagger),
+      ).finished;
+    });
+    Promise.all(done).then(
+      () => leaving.remove(),
+      () => leaving.remove(),
+    );
+  }
+}
+
 const toggle = (el: HTMLElement, name: string, on: boolean, value = "") => {
   if (on !== el.hasAttribute(name))
     on ? el.setAttribute(name, value) : el.removeAttribute(name);
@@ -154,7 +242,14 @@ export function useQueueMotion(item: string | null, pile: readonly string[]) {
   const restY = useRef<number | null>(null);
   const lastItem = useRef(item);
   const lastFront = useRef<string | undefined>(undefined);
-  const lastReceipt = useRef<HTMLElement | null>(null);
+  /** The receipt on show, with a copy kept current to leave as. */
+  const lastReceipt = useRef<{ key: string; copy: HTMLElement } | null>(null);
+  /** The last change's direction and when, for what changes with it. */
+  const lastDirection = useRef<{ direction: Direction; at: number } | null>(
+    null,
+  );
+  /** When the heading's and receipt's crossfades last began. */
+  const lastCrossfade = useRef({ heading: -1e9, receipt: -1e9 });
   const shown = useRef(item);
   shown.current = item;
   const moving = useRef(false);
@@ -211,7 +306,6 @@ export function useQueueMotion(item: string | null, pile: readonly string[]) {
           } else copy.style.opacity = old.toFixed(3);
         }
       };
-      fade("heading", frame.heading.now, frame.heading.old);
       fade("actions", frame.replies.now, frame.replies.old);
     }
     // Cards leave the page's edge while they move; it doesn't scroll for them.
@@ -286,15 +380,39 @@ export function useQueueMotion(item: string | null, pile: readonly string[]) {
   const capture = useCallback(
     (direction: Direction) => {
       hint.current = direction;
+      lastDirection.current = { direction, at: performance.now() };
       const root = content.current;
       const unitEl = unit.current;
       if (!root || !unitEl || !page.current || !motionAvailable()) return;
-      if (reducedMotion()) return;
+      const reduced = reducedMotion();
       const pieces: Snapshot["pieces"] = {};
       for (const part of FADED) {
         const el = partOf(root, part);
-        // A part that is not showing has nothing to fade out.
-        if (el && Number(getComputedStyle(el).opacity || 1) > 0.05)
+        // Under reduced motion the replies only fade in; no copy is kept.
+        if (!el || (reduced && part === "actions")) continue;
+        if (part === "heading") {
+          // The heading may be mid-crossfade itself; the copy takes up from
+          // what is drawn, so a quick next press leaves from there.
+          const lines = [
+            ...el.querySelectorAll<HTMLElement>("[data-queue-line]"),
+          ];
+          if (
+            !lines.length ||
+            Number(getComputedStyle(lines.at(-1)!).opacity) <= 0.05
+          )
+            continue;
+          const piece = pieceOf(el);
+          const frozen =
+            piece.copy.querySelectorAll<HTMLElement>("[data-queue-line]");
+          lines.forEach((line, i) => {
+            const drawn = getComputedStyle(line);
+            frozen[i]!.style.opacity = drawn.opacity;
+            frozen[i]!.style.transform =
+              drawn.transform === "none" ? "" : drawn.transform;
+          });
+          pieces[part] = piece;
+        } else if (Number(getComputedStyle(el).opacity || 1) > 0.05)
+          // Replies that are not showing have nothing to fade out.
           pieces[part] = pieceOf(el);
       }
       pending.current = {
@@ -362,20 +480,17 @@ export function useQueueMotion(item: string | null, pile: readonly string[]) {
     if (!motionAvailable()) return;
     const itemChanged = item !== lastItem.current;
     lastItem.current = item;
-    if (reducedMotion()) {
-      if (itemChanged)
-        for (const part of FADED)
-          partOf(root, part)?.animate([{ opacity: 0 }, {}], {
-            duration: 160,
-            easing: EASE,
-          });
-      return;
-    }
+    const reduced = reducedMotion();
+    if (reduced && itemChanged)
+      partOf(root, "actions")?.animate([{ opacity: 0 }, {}], {
+        duration: REDUCED_MS,
+        easing: EASE,
+      });
 
-    // The card and replies glide from where the unit was to where it now sits;
-    // the heading stays put and only fades.
+    // The card and replies glide from where the unit was to where it now sits
+    // (when a longer heading pushes the card down); the heading stays put.
     const shift = fromY === null ? 0 : fromY - unitY;
-    if (Math.abs(shift) > 0.5)
+    if (!reduced && Math.abs(shift) > 0.5)
       gliding.current.push(
         unitEl.animate([{ transform: `translateY(${shift}px)` }, {}], {
           duration: SETTLE_MS,
@@ -383,12 +498,13 @@ export function useQueueMotion(item: string | null, pile: readonly string[]) {
         }),
       );
 
-    // The old heading and replies fade where they were.
+    // The old heading and replies are drawn where they were while they fade,
+    // and the new heading comes in over the old.
     const layer = ghosts.current;
-    if (!layer || !snap || !itemChanged) return;
+    if (!itemChanged) return;
     for (const part of FADED) {
-      const piece = snap.pieces[part];
-      if (!piece) continue;
+      const piece = snap?.pieces[part];
+      if (!layer || !piece) continue;
       copies.current[part]?.remove();
       const y = yOf(layer);
       const x = layer.getBoundingClientRect().left;
@@ -399,6 +515,7 @@ export function useQueueMotion(item: string | null, pile: readonly string[]) {
         left: `${piece.x - x}px`,
         width: `${piece.width}px`,
       });
+      if (part === "heading") piece.copy.dataset.queueGhost = "heading";
       layer.append(piece.copy);
       const child = piece.copy.firstElementChild;
       const drift = child
@@ -406,22 +523,62 @@ export function useQueueMotion(item: string | null, pile: readonly string[]) {
         : 0;
       if (Math.abs(drift) > 0.5)
         piece.copy.style.top = `${piece.y - y - drift}px`;
-      copies.current[part] = piece.copy;
+      if (part === "actions") copies.current[part] = piece.copy;
     }
+    // A heading still leaving from the change before is dropped, not queued.
+    for (const old of layer?.querySelectorAll('[data-queue-ghost="heading"]') ??
+      [])
+      if (old !== snap?.pieces.heading?.copy) old.remove();
+    const now = performance.now();
+    crossfade(
+      partOf(root, "heading"),
+      snap?.pieces.heading?.copy ?? null,
+      signOf(),
+      {
+        rapid: now - lastCrossfade.current.heading < FADE_IN_MS,
+        reduced,
+      },
+    );
+    lastCrossfade.current.heading = now;
     write(engine.current!.frame());
     // Only a change of item moves the column.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
 
-  // A new receipt fades in where it appears; it takes no layout space, so it
-  // moves nothing.
+  /** Which way the last change went, or `1` for one nobody captured. */
+  const signOf = (): Sign => {
+    const last = lastDirection.current;
+    return last?.direction === "back" ? -1 : 1;
+  };
+
+  // A new receipt crossfades with the one it replaces, in the same corner of
+  // the page; neither takes layout space, so nothing moves. A change nobody
+  // directed (a receipt that expires) only fades.
   useLayoutEffect(() => {
     const root = content.current;
-    if (!root || !motionAvailable()) return;
+    const layer = ghosts.current;
+    if (!root || !layer || !motionAvailable()) return;
     const receipt = partOf(root, "receipt");
-    if (receipt && receipt !== lastReceipt.current)
-      receipt.animate([{ opacity: 0 }, {}], { duration: 200, easing: EASE });
-    lastReceipt.current = receipt;
+    const key = receipt?.dataset.receiptKey ?? null;
+    const was = lastReceipt.current;
+    if ((was?.key ?? null) !== key) {
+      const now = performance.now();
+      const directed =
+        lastDirection.current !== null &&
+        now - lastDirection.current.at < DIRECTION_MS;
+      const leaving = was?.copy ?? null;
+      if (leaving) {
+        leaving.dataset.queueGhost = "receipt";
+        layer.append(leaving);
+      }
+      crossfade(receipt, leaving, directed ? signOf() : 1, {
+        rapid: now - lastCrossfade.current.receipt < FADE_IN_MS,
+        reduced: reducedMotion() || !directed,
+      });
+      lastCrossfade.current.receipt = now;
+    }
+    lastReceipt.current =
+      receipt && key ? { key, copy: copyOf(receipt) } : null;
   });
 
   useEffect(() => {

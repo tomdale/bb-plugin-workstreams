@@ -79,10 +79,8 @@ const VANISH_RELAX = 120;
 const VANISH_RETURN = 180;
 /** The next move may start this long after the last one. */
 const STEP_GAP = 90;
-/** Heading: the old fades out, then the new fades in. Replies: the old fade
- * out at once; the new wait (no card passing over them) and fade in. */
-const HEAD_OUT = 100;
-const HEAD_IN = 180;
+/** Replies: the old fade out at once; the new wait (no card passing over
+ * them) and fade in. */
 const BELOW_OUT = 90;
 const BELOW_WAIT = 160;
 const BELOW_IN = 180;
@@ -165,9 +163,8 @@ export type StackFrame = {
   cards: CardView[];
   /** The stage's height: the room above the front card plus its height. */
   height: number;
-  /** Opacities of the old heading and replies fading out (kept as copies)
-   * and of the new ones fading in. */
-  heading: { old: number; now: number };
+  /** Opacities of the old replies fading out (kept as a copy) and of the
+   * new ones fading in. */
   replies: { old: number; now: number };
   /** Whether anything is still moving, so the caller can stop its clock. */
   busy: boolean;
@@ -195,7 +192,6 @@ export class StackEngine {
   private time = 0;
   private lastStep = -1e9;
   private lay = { h: 0, v: 0 };
-  private head: Part = { state: "idle", t0: 0, op: 1 };
   private below: Part = { state: "idle", t0: 0, op: 1 };
 
   constructor(private readonly onRelease: (key: string) => void = () => {}) {}
@@ -245,7 +241,6 @@ export class StackEngine {
       this.shown = next;
       this.owed +=
         hint === "back" ? -1 : hint === "forward" ? 1 : this.nextDir();
-      this.head = { ...this.head, state: "pending" };
       this.below = { ...this.below, state: "pending" };
     }
     this.admit();
@@ -316,26 +311,10 @@ export class StackEngine {
         shade: this.shadeOf(c),
       };
     });
-    const age = this.time - this.head.t0;
-    const heading = this.head;
     const replies = this.below;
     return {
       cards,
       height: (this.want.length || this.order.length ? LEAD : 0) + this.lay.h,
-      heading: {
-        old:
-          heading.state === "pending"
-            ? 1
-            : heading.state === "run"
-              ? clamp(1 - age / HEAD_OUT, 0, 1)
-              : 0,
-        now:
-          heading.state === "pending"
-            ? 0
-            : heading.state === "run"
-              ? clamp((age - HEAD_OUT) / HEAD_IN, 0, 1)
-              : 1,
-      },
       replies: {
         old:
           replies.state === "pending" || replies.state === "out"
@@ -502,7 +481,6 @@ export class StackEngine {
     this.shown = this.want[0];
     this.lastStep = -1e9;
     this.lay = { h: this.order[0]?.h ?? 0, v: 0 };
-    this.head = { state: "idle", t0: this.time, op: 1 };
     this.below = { state: "idle", t0: this.time, op: 1 };
     this.measureVis();
   }
@@ -603,7 +581,6 @@ export class StackEngine {
     this.owed = this.owed * dir > 0 ? this.owed - dir : 0;
     // The hint directed the moves owed; once they are taken it says nothing.
     if (!this.owed) this.hint = undefined;
-    this.head = { state: "run", t0: this.time, op: 1 };
     const op = this.below.op;
     this.below = { state: "out", t0: this.time - (1 - op) * BELOW_OUT, op };
     this.shown = this.want[0] ?? this.shown;
@@ -988,22 +965,12 @@ export class StackEngine {
     this.tickParts();
   }
 
-  /** Heading and replies: the old fade at once; the new ones follow, the
-   * replies once no moving card is passing over them. */
+  /** Replies: the old fade at once; the new ones follow once no moving card
+   * is passing over them. */
   private tickParts() {
-    if (
-      (this.head.state === "pending" || this.below.state === "pending") &&
-      this.nextDir() === 0
-    ) {
+    if (this.below.state === "pending" && this.nextDir() === 0)
       // The change was taken back before any card moved.
-      this.head = { state: "idle", t0: this.time, op: 1 };
       this.below = { state: "idle", t0: this.time, op: 1 };
-    }
-    if (
-      this.head.state === "run" &&
-      this.time - this.head.t0 >= HEAD_OUT + HEAD_IN
-    )
-      this.head = { state: "idle", t0: this.time, op: 1 };
     const b = this.below;
     const age = this.time - b.t0;
     if (b.state === "out") {
@@ -1022,7 +989,7 @@ export class StackEngine {
 
   private isBusy(): boolean {
     if (this.nextDir() !== 0) return true;
-    if (this.head.state !== "idle" || this.below.state !== "idle") return true;
+    if (this.below.state !== "idle") return true;
     const front = this.front();
     if (Math.abs(front.h - this.lay.h) > 0.05 || Math.abs(this.lay.v) > 0.5)
       return true;

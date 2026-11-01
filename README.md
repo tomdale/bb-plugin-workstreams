@@ -618,24 +618,32 @@ behind the next one fades away on its way. Presses are taken one card at a time
 (holding a key flicks cards off one after another), and under reduced motion the
 new item only fades in. To look ahead or back without acting, use the footer's
 arrows, which also show where you are ("2 of 9"), or press `↓`, `→` or `J` for
-the next item and `↑`, `←` or `K` for the previous one. The heading and card
-stay at a fixed distance from the top of the page and the page grows downward,
-so opening Reply, holding `Shift`, or a receipt appearing above never moves
-them; the card only glides when the next item's heading wraps to a different
-number of lines.
+the next item and `↑`, `←` or `K` for the previous one. The heading stays pinned
+near the top of the page, and the card stack sits lower, its top edge about
+`30%` of the way down the page, so the card reads as centered. The replies and
+actions follow the card and the page grows downward, so opening Reply, holding
+`Shift`, or a receipt appearing above never moves anything. The stack keeps that
+place from item to item and follows the window as you resize it; it only glides
+down when the next item's heading is long enough to reach it. The heading and
+the receipt line crossfade to the next ones, drifting a few pixels the way the
+cards go (up when you move on, down when you go back), the workstream line just
+ahead of the title; under reduced motion they only fade.
 
 Each thread shows its workstream (click it to open **Topics**) and title above
 its latest recap card. Under the card:
 
 - **Replies:** the agent's proposed next messages, in full. Click one or press
   `1`–`3` to send it; hold `Shift` while clicking or pressing the number to edit
-  it in the composer first.
+  it in the composer first. A hint saying so fades in while the pointer is over
+  the replies, a reply has keyboard focus, or `Shift` is held.
 - **Reply** (`R`) opens a composer in place of the replies: `Enter` sends,
   `Shift+Enter` adds a line, `Esc` goes back.
 - **Snooze…** (`S`) opens the snooze presets at the button; press `1`–`6` to
   choose one, or **Custom…**.
 - **Archive** (`E`) and **Open** (`O`). On a complete recap with no replies,
   Archive comes first.
+
+The row of actions is centered in the column.
 
 A suggestion shows the topics its threads would move to (new ones marked), with
 **Accept and move N threads** (`1`) and **Decline** (`2`).

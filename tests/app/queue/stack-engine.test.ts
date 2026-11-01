@@ -344,21 +344,17 @@ describe("the stack engine", () => {
     expect(q.engine.frame().busy).toBe(false);
   });
 
-  it("fades the heading out and in, and the replies once nothing passes over", () => {
+  it("fades the replies out and in once nothing passes over", () => {
     const q = queue(0);
     q.press("forward");
     const first = q.engine.frame();
-    expect(first.heading.now).toBe(0);
     expect(first.replies.now).toBe(0);
     let shown: Frame | null = null;
-    let headingDone = false;
     for (let ms = 0; ms < 3000; ms += 16.7) {
       q.run(16.7);
       const f = q.frames.at(-1)!;
-      if (f.heading.now === 1) headingDone = true;
       if (!shown && f.replies.now > 0) shown = f;
     }
-    expect(headingDone).toBe(true);
     expect(q.frames.at(-1)!.replies.now).toBe(1);
     // The replies stay hidden while the leaving card is over them.
     const front = shown!.cards.find((c) => c.interactive)!;

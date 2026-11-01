@@ -83,13 +83,17 @@ export function Heading({
               ? undefined
               : ({ "--ws-hue": heading.hue } as React.CSSProperties)
           }
+          data-queue-line="path"
           className="ws-queue-path -ml-0.5 flex max-w-full cursor-pointer items-center gap-1 text-[13px] font-[550] tracking-[0.01em]"
         >
           <WorkstreamIcon className="text-current" />
           <span className="truncate">{heading.path}</span>
         </button>
       ) : null}
-      <h1 className="mt-1 text-[22px] font-[450] leading-[1.3] tracking-[-0.015em] text-foreground/75 [text-wrap:balance]">
+      <h1
+        data-queue-line="title"
+        className="mt-1 text-[22px] font-[450] leading-[1.3] tracking-[-0.015em] text-foreground/75 [text-wrap:balance]"
+      >
         {heading.title}
       </h1>
     </div>
@@ -329,7 +333,7 @@ export function Answers({
   onAnswer: (index: number, edit: boolean) => void;
 }) {
   return (
-    <>
+    <div className="group/replies">
       <ol aria-label="Replies" className="m-0 mt-3 grid list-none p-0">
         {answers.map((text, index) => (
           <li key={index}>
@@ -352,14 +356,16 @@ export function Answers({
       {editable && answers.length ? (
         <p
           className={cn(
-            "mb-0 ml-14 mt-1 text-xs transition-colors max-md:pointer-coarse:hidden",
-            shift ? "text-foreground/70" : "text-muted-foreground/80",
+            "mb-0 ml-14 mt-1 text-xs opacity-0 transition-[opacity,color] duration-200 ease-out group-hover/replies:opacity-100 group-has-[:focus-visible]/replies:opacity-100 max-md:pointer-coarse:hidden",
+            shift
+              ? "text-foreground/70 opacity-100"
+              : "text-muted-foreground/80",
           )}
         >
           hold ⇧ to edit before sending
         </p>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -437,7 +443,7 @@ export function ThreadActions({
     />
   );
   return (
-    <div className="mt-5 flex flex-wrap items-center gap-2.5 pl-6">
+    <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
       {archiveLeads ? archive : null}
       <RowButton
         icon={<Icon name="ArrowTurnBackward" fallback="CornerDownLeft" />}

@@ -3,6 +3,12 @@ import { afterEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
+import {
+  CARD_TOP_FRACTION,
+  HEADING_BLOCK_MIN_HEIGHT,
+  PAGE_TOP,
+} from "../../src/app/page/queue/layout.ts";
+import { LEAD } from "../../src/app/page/queue/stackEngine.ts";
 
 afterEach(() => {
   cleanup();
@@ -278,19 +284,122 @@ it("moves the card to the back and releases it once it is out of sight", async (
     // The old front card is still in the page, inert, while it moves behind.
     expect(card("b1")?.hasAttribute("inert")).toBe(true);
     expect(card("a1")?.hasAttribute("inert")).toBe(false);
-    // The new heading waits for the old one to fade, so it isn't shown yet.
-    const live = slot.container.querySelector<HTMLElement>(
-      '[data-queue-part="heading"]',
-    );
-    expect(live?.style.opacity).toBe("0");
     await waitFor(() => expect(card("b1")).toBeNull(), { timeout: 4000 });
-    await waitFor(() => expect(live?.style.opacity).toBe(""), {
-      timeout: 4000,
-    });
     slot.lifecycle.unmount();
   } finally {
     delete (Element.prototype as { animate?: unknown }).animate;
   }
+});
+
+it("crossfades the heading with a drift that follows the direction of travel", async () => {
+  const animate = vi.fn(
+    (_keyframes: Keyframe[], _options: KeyframeAnimationOptions) => ({
+      cancel() {},
+      finished: new Promise<void>(() => {}),
+    }),
+  );
+  Object.defineProperty(Element.prototype, "animate", {
+    value: animate,
+    configurable: true,
+  });
+  try {
+    const slot = await mount();
+    await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+    const drifts = () =>
+      animate.mock.calls.flatMap(([keyframes]) =>
+        keyframes[0]?.opacity === 0 ? [String(keyframes[0].transform)] : [],
+      );
+    const ghosts = () =>
+      slot.container.querySelectorAll('[data-queue-ghost="heading"]');
+    press("ArrowRight");
+    await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+    // Forward, the new heading rises from below and the old one stays drawn
+    // over the same place until it has gone.
+    expect(drifts()).toContain("translateY(6px)");
+    expect(ghosts().length).toBe(1);
+    expect(ghosts()[0]!.textContent).toContain("Beta question");
+    // Both lines of a heading start together, the title later.
+    const delays = animate.mock.calls
+      .filter(([keyframes]) => keyframes[0]?.opacity === 0)
+      .map(([, options]) => options.delay);
+    expect(delays).toContain(0);
+    expect(delays).toContain(40);
+    animate.mockClear();
+    press("ArrowLeft");
+    await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+    expect(drifts()).toContain("translateY(-6px)");
+    // The old copy is dropped, not queued behind the new one.
+    expect(ghosts().length).toBe(1);
+    slot.lifecycle.unmount();
+  } finally {
+    delete (Element.prototype as { animate?: unknown }).animate;
+  }
+});
+
+it("centers the thread actions in the column", async () => {
+  const slot = await mount();
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  press("ArrowRight");
+  await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+  const row = slot.getByRole("button", { name: /^Reply/ }).parentElement!;
+  expect(row.className).toContain("justify-center");
+  expect(row.className).not.toMatch(/\bpl-\d/);
+  expect(row.children.length).toBe(4);
+  slot.lifecycle.unmount();
+});
+
+it("shows the edit hint only on hover, focus, or while ⇧ is held, without moving anything", async () => {
+  const slot = await mount();
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  press("ArrowRight");
+  await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+  const hint = () => slot.getByText("hold ⇧ to edit before sending");
+  const first = hint();
+  const classes = () => first.className.split(/\s+/);
+  // Always laid out (so its space is reserved); hidden and revealed by
+  // opacity alone, on hover of the replies or keyboard focus within them.
+  expect(first.closest(".group\\/replies")).toBe(
+    slot.getByRole("list", { name: "Replies" }).parentElement,
+  );
+  expect(classes()).toContain("opacity-0");
+  expect(classes()).toContain("group-hover/replies:opacity-100");
+  expect(classes()).toContain("group-has-[:focus-visible]/replies:opacity-100");
+  expect(classes()).not.toContain("hidden");
+  expect(classes()).not.toContain("invisible");
+  // ⇧ shows it, brighter, whatever the pointer does.
+  fireEvent.keyDown(window, { key: "Shift" });
+  expect(hint()).toBe(first);
+  expect(classes()).toContain("opacity-100");
+  expect(classes()).not.toContain("opacity-0");
+  expect(classes()).toContain("text-foreground/70");
+  fireEvent.keyUp(window, { key: "Shift" });
+  expect(hint()).toBe(first);
+  expect(classes()).toContain("opacity-0");
+  expect(classes()).not.toContain("text-foreground/70");
+  slot.lifecycle.unmount();
+});
+
+it("sets the card's top from the page's height, not the item's", async () => {
+  const slot = await mount();
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  const block = () =>
+    slot.container.querySelector<HTMLElement>('[data-queue-part="heading"]')!
+      .parentElement!;
+  const page = slot.container.querySelector<HTMLElement>(".overflow-y-auto")!;
+  // The page is a size container, so `cqh` in the block's least height is
+  // the page's height and a resize moves the card without a re-render.
+  expect(page.className).toContain("[container-type:size]");
+  expect(block().style.minHeight).toBe(HEADING_BLOCK_MIN_HEIGHT);
+  expect(HEADING_BLOCK_MIN_HEIGHT).toBe(
+    `max(0px, calc(${CARD_TOP_FRACTION * 100}cqh - ${PAGE_TOP + LEAD}px))`,
+  );
+  const first = block();
+  press("ArrowRight");
+  await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+  // The next item sets the same rule on the same block.
+  expect(block()).toBe(first);
+  expect(block().style.minHeight).toBe(HEADING_BLOCK_MIN_HEIGHT);
+  slot.lifecycle.unmount();
 });
 
 it("ignores item shortcuts while the replies fade in, and focuses a composer once they are live", async () => {
