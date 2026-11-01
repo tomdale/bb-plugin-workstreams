@@ -21,6 +21,7 @@ import { topicPath } from "../domain/topic-path.ts";
 import type { Database } from "./db.ts";
 import type { Inference } from "./model.ts";
 import { isSubstantiveRequest } from "./requests.ts";
+import { continuationThreadId } from "./requestProvenance.ts";
 import type { TopicStore } from "./topics.ts";
 
 type Sdk = BbPluginApi["sdk"];
@@ -382,11 +383,7 @@ export class Placement {
     const hints: string[] = [];
     const started = this.startHints.get(thread.id);
     if (started) hints.push(started);
-    const referenced =
-      [...requests]
-        .reverse()
-        .map((text) => text.match(/@thread:([\w-]+)/)?.[1])
-        .find(Boolean) ?? thread.sourceThreadId;
+    const referenced = continuationThreadId(thread.sourceThreadId, requests);
     if (referenced && referenced !== thread.id) {
       const source = this.deps.topics.assignment(referenced);
       if (source.label)

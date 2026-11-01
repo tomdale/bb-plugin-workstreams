@@ -34,7 +34,16 @@ import type { ModelChoice } from "../domain/prefs.ts";
 import type { Database } from "./db.ts";
 import { displayTitle, type InventoryThread } from "./inventory.ts";
 import { modelLabel, type Inference } from "./model.ts";
-import { inputText, isSubstantiveRequest, openingOf } from "./requests.ts";
+import {
+  inputText,
+  isSubstantiveRequest,
+  openingOf,
+  senderOfStart,
+} from "./requests.ts";
+import {
+  continuationThreadId,
+  withoutSubagentDeliveries,
+} from "./requestProvenance.ts";
 import { observeThreadTitle } from "./titles.ts";
 import { assignmentEvidence, threadEvidence } from "./evidence.ts";
 
@@ -309,7 +318,7 @@ export class Analyzer {
     const assignmentKey = assignmentEvidence(assignment);
     const context = await this.context(thread);
     const question = await placement.question(
-      thread,
+      { ...thread, sourceThreadId: context.sourceThreadId },
       context.requests.map((r) => r.text),
       { force: true, ...options },
     );
@@ -422,7 +431,7 @@ export class Analyzer {
       const placing =
         this.deps.placement && this.placement(thread.id).isTask
           ? await this.deps.placement.question(
-              thread,
+              { ...thread, sourceThreadId: context.sourceThreadId },
               context.requests.map((r) => r.text),
             )
           : null;
@@ -468,7 +477,11 @@ export class Analyzer {
               (previous !== undefined && previous.revision >= revision)),
           threadGoal: previous?.threadGoal ?? null,
           continuation: full
-            ? await this.continuation(thread, context.requests)
+            ? await this.continuation(
+                thread.id,
+                context.sourceThreadId,
+                context.requests,
+              )
             : null,
           listing: full ? (this.deps.listing?.(thread) ?? null) : null,
           requests: context.requests,
@@ -628,11 +641,12 @@ export class Analyzer {
   ): Promise<{
     requests: FullAnalysisInput["requests"];
     requestsKey: string;
+    sourceThreadId: string | null;
     lastAssistantText: string | null;
   }> {
     const sdk = this.deps.sdk();
     const [history, first] = await Promise.all([
-      sdk.threads.promptHistory({ threadId: thread.id, limit: "12" }),
+      sdk.threads.promptHistory({ threadId: thread.id, limit: "50" }),
       sdk.threads.events.list({
         threadId: thread.id,
         types: ["client/turn/requested"],
@@ -640,18 +654,23 @@ export class Analyzer {
         limit: "4",
       }),
     ]);
-    const recent = history
-      .map((prompt) => inputText(prompt.input))
-      .filter(isSubstantiveRequest)
-      .slice(0, 6)
-      .reverse();
     const firstRequest = openingOf(first) ?? "";
-    const opening = isSubstantiveRequest(firstRequest) ? firstRequest : "";
+    const [clean, cleanFirst] = await Promise.all([
+      withoutSubagentDeliveries(
+        sdk,
+        thread.id,
+        history.map((prompt) => inputText(prompt.input)),
+      ),
+      withoutSubagentDeliveries(sdk, thread.id, [firstRequest]),
+    ]);
+    const opening = cleanFirst[0] ?? "";
+    const recent = clean.filter(isSubstantiveRequest).slice(0, 6).reverse();
+    const substantiveOpening = isSubstantiveRequest(opening) ? opening : "";
     const requests = [
-      ...(opening && !recent.includes(opening)
-        ? [{ text: opening, initial: true }]
+      ...(substantiveOpening && !recent.includes(substantiveOpening)
+        ? [{ text: substantiveOpening, initial: true }]
         : []),
-      ...recent.map((text) => ({ text, initial: text === opening })),
+      ...recent.map((text) => ({ text, initial: text === substantiveOpening })),
     ];
     // The idle event's text describes its own turn only; otherwise read the
     // latest output.
@@ -668,21 +687,22 @@ export class Analyzer {
       requestsKey: createHash("sha256")
         .update(JSON.stringify(requests.map((r) => r.text)))
         .digest("hex"),
+      sourceThreadId: thread.sourceThreadId ?? senderOfStart(first),
       lastAssistantText,
     };
   }
 
   /** Continuations retain bounded intent, not an entire foreign transcript. */
   private async continuation(
-    thread: Awaited<ReturnType<Sdk["threads"]["get"]>>,
+    threadId: string,
+    sourceThreadId: string | null,
     requests: FullAnalysisInput["requests"],
   ): Promise<string | null> {
-    const referenced =
-      [...requests]
-        .reverse()
-        .map((request) => request.text.match(/@thread:([\w-]+)/)?.[1])
-        .find(Boolean) ?? thread.sourceThreadId;
-    if (!referenced || referenced === thread.id) return null;
+    const referenced = continuationThreadId(
+      sourceThreadId,
+      requests.map((request) => request.text),
+    );
+    if (!referenced || referenced === threadId) return null;
     const stored = this.get(referenced);
     try {
       const sdk = this.deps.sdk();

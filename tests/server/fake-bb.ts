@@ -247,9 +247,16 @@ export async function fakeWorld(
       },
       threads: {
         getPluginMetadata: async () => ({}),
-        promptHistory: async ({ threadId }: { threadId: string }) =>
+        promptHistory: async ({
+          threadId,
+          limit,
+        }: {
+          threadId: string;
+          limit?: string;
+        }) =>
           [...(conversations.get(threadId)?.requests ?? [])]
             .reverse()
+            .slice(0, Number(limit ?? 50))
             .map((value, i) => ({
               id: `p${i}`,
               createdAt: i,

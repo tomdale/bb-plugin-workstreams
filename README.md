@@ -213,18 +213,21 @@ and turns without a new request never re-place a thread.
 
 - **Evidence:** the thread's generated title; its first, second, and latest
   substantive requests (a routed request is read without its
-  `[bb message from thread:…]` wrapper); its project; and its checkout.
+  `[bb message from thread:…]` wrapper); its project; and its checkout. Subagent
+  results verified against Subagents' run records are not requests. If those
+  records are unavailable, Workstreams keeps the message rather than discarding
+  a possible user request.
 - **Closed choice:** only topics without subtopics can be chosen. When none
   fits, placement may propose one new topic named for a lasting area of work,
   never for a task, pull request, or bug. A proposed subtopic of a topic that
   holds threads files the thread in that topic instead: subgroups come only from
   splits.
-- **Hints, not rules:** the topic of the thread it continues (`@thread:` or a
-  fork's source); the workstream or thread it was started from when that topic
-  has subtopics; and the topic most threads in its checkout have. A checkout
-  whose threads point at other repositories (at least two of them name a GitHub
-  repository or a `~/Code` path outside it) coordinates work elsewhere, so it
-  gives no hint.
+- **Hints, not rules:** the topic of the thread it continues (a fork's source or
+  an explicit `Continue from @thread:…` request); the workstream or thread it
+  was started from when that topic has subtopics; and the topic most threads in
+  its checkout have. A checkout whose threads point at other repositories (at
+  least two of them name a GitHub repository or a `~/Code` path outside it)
+  coordinates work elsewhere, so it gives no hint.
 - **Provenance:** placement writes `full` topics under the priority above, and
   every update re-validates live thread evidence, assignment state, and
   topic-tree freshness before writing. An answer that supplies both an existing

@@ -45,6 +45,26 @@ export function openingOf(
   );
 }
 
+/** The agent that actually started a root, not an agent that later messaged it. */
+export function senderOfStart(
+  requested: readonly { data?: unknown }[],
+): string | null {
+  for (const event of requested) {
+    const data = event.data as {
+      source?: unknown;
+      initiator?: unknown;
+      senderThreadId?: unknown;
+    } | null;
+    if (
+      data?.source === "spawn" &&
+      data.initiator === "agent" &&
+      typeof data.senderThreadId === "string"
+    )
+      return data.senderThreadId;
+  }
+  return null;
+}
+
 /**
  * The thread's opening request, or null before BB has recorded one. It is
  * recorded when the first turn is requested, before that turn starts.

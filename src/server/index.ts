@@ -16,6 +16,7 @@ import { Organizer } from "./organizer.ts";
 import { buildForest } from "../domain/tree.ts";
 import { Placement } from "./placement.ts";
 import { isSubstantiveRequest } from "./requests.ts";
+import { withoutSubagentDeliveries } from "./requestProvenance.ts";
 import { Suggestions } from "./suggestions.ts";
 import { ProjectAssociations } from "./projectAssociations.ts";
 import type { ProjectChoice } from "../domain/projectChoice.ts";
@@ -615,7 +616,14 @@ export default async function plugin(bb: BbPluginApi) {
       Date.now() - ctx.thread.createdAt < 10 * 60_000;
     if (!fresh) {
       // A newer request needs placement from the turn's complete context.
-      if (isSubstantiveRequest(ctx.input.text))
+      if (
+        isSubstantiveRequest(ctx.input.text) &&
+        (
+          await withoutSubagentDeliveries(bb.sdk, ctx.thread.id, [
+            ctx.input.text,
+          ])
+        ).length > 0
+      )
         placement.cancelFirstRequest(ctx.thread.id);
       quick.onDispatch(ctx);
       return { action: "proceed" };
