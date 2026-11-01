@@ -548,11 +548,7 @@ export const rpcContract = defineRpcContract({
       sourceEntityId: z.string().min(1),
       targetEntityId: z.string().min(1),
     }),
-    output: z.object({
-      target: entitySchema,
-      affectedThreads: z.number(),
-      reparentedChildren: z.number(),
-    }),
+    output: z.object({ target: entitySchema }),
   },
   /** Chooses an existing leaf within the user's destination group and sets it manually. */
   taskMove: {

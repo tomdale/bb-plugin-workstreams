@@ -1073,10 +1073,10 @@ export default async function plugin(bb: BbPluginApi) {
       }),
     catalogMerge: ({ sourceEntityId, targetEntityId }) =>
       userFacing(async () => {
-        const result = topics.merge(sourceEntityId, targetEntityId);
+        const target = topics.merge(sourceEntityId, targetEntityId);
         organizerInstance.trigger();
         notify();
-        return result;
+        return { target };
       }),
     taskMove: ({ threadId, entityId }) =>
       userFacing(async () => {

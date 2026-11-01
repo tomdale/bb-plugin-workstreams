@@ -1196,14 +1196,7 @@ export class TopicStore {
     });
   }
 
-  merge(
-    sourceEntityId: string,
-    targetEntityId: string,
-  ): {
-    target: Topic;
-    affectedThreads: number;
-    reparentedChildren: number;
-  } {
+  merge(sourceEntityId: string, targetEntityId: string): Topic {
     if (sourceEntityId === targetEntityId) {
       throw new Error("Cannot merge an entity into itself");
     }
@@ -1284,9 +1277,6 @@ export class TopicStore {
         }
       }
 
-      let totalAffectedThreads = 0;
-      let totalReparentedChildren = 0;
-
       // If target is descendant of source, reparent target to source.parentId before processing source's subtree
       if (targetIsDescendantOfSource) {
         this.db
@@ -1296,12 +1286,11 @@ export class TopicStore {
 
       const mergeSubtree = (src: Topic, dst: Topic) => {
         // 1. Move subjects assigned to src -> dst
-        const subjectUpdate = this.db
+        this.db
           .prepare(
             "UPDATE ws_corpus_subject SET entity_id = ? WHERE entity_id = ?",
           )
           .run(dst.id, src.id);
-        totalAffectedThreads += subjectUpdate.changes;
 
         // 2. Handle group bindings
         const dstGroup = this.db
@@ -1393,7 +1382,6 @@ export class TopicStore {
             this.db
               .prepare("UPDATE ws_corpus_entity SET parent_id = ? WHERE id = ?")
               .run(dst.id, child.id);
-            totalReparentedChildren++;
           }
         }
 
@@ -1412,12 +1400,7 @@ export class TopicStore {
 
       this.bumpRevision();
 
-      const updatedTarget = this.getById(target.id)!;
-      return {
-        target: updatedTarget,
-        affectedThreads: totalAffectedThreads,
-        reparentedChildren: totalReparentedChildren,
-      };
+      return this.getById(target.id)!;
     })();
   }
 

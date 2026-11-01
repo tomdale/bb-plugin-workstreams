@@ -1074,18 +1074,18 @@ export function registerCli(
             const source = resolveTopic(topics, positionals.source);
             const target = resolveTopic(topics, positionals.target);
             try {
-              const result = topics.merge(source.id, target.id);
+              const merged = topics.merge(source.id, target.id);
               notify?.();
               organizer.trigger();
               if (options.json) {
                 return {
                   exitCode: 0,
-                  stdout: JSON.stringify({ entity: result }, null, 2),
+                  stdout: JSON.stringify({ entity: merged }, null, 2),
                 };
               }
               return {
                 exitCode: 0,
-                stdout: `Merged "${source.name}" into "${target.name}" (${result.target.id}).`,
+                stdout: `Merged "${source.name}" into "${target.name}" (${merged.id}).`,
               };
             } catch (err) {
               throw new PluginCliError(

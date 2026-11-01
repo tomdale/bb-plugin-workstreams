@@ -140,12 +140,8 @@ describe("Catalog and Task Identity RPC Contract", () => {
     const mergeRes = (await w.harness.behavior.callRpc("catalogMerge", {
       sourceEntityId: alpha.id,
       targetEntityId: beta.id,
-    })) as {
-      target: { name: string; aliases: string[] };
-      affectedThreads: number;
-    };
+    })) as { target: { name: string; aliases: string[] } };
 
-    expect(mergeRes.affectedThreads).toBe(1);
     expect(mergeRes.target.aliases).toContain("AlphaRenamed");
 
     // Thread is now assigned to Beta
