@@ -98,29 +98,31 @@ export function ProjectSuggestions({
           className="space-y-2 rounded-md border border-border p-3"
         >
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="min-w-0 flex-1 font-medium">
+            <span className="min-w-24 basis-full truncate font-medium sm:basis-0 sm:flex-1">
               {suggestion.topic}
             </span>
-            <span className="text-muted-foreground">
+            <span className="min-w-0 max-w-full break-words text-muted-foreground">
               {suggestion.fromProject} →{" "}
               {suggestion.toProject ?? "No associated project"}
             </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => void decide(suggestion.id, "accept")}
-            >
-              Accept
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => void decide(suggestion.id, "decline")}
-            >
-              Decline
-            </Button>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => void decide(suggestion.id, "accept")}
+              >
+                Accept
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => void decide(suggestion.id, "decline")}
+              >
+                Decline
+              </Button>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">{suggestion.reason}</p>
           <details className="text-xs">
@@ -137,7 +139,7 @@ export function ProjectSuggestions({
                   >
                     {thread.name}
                   </button>
-                  <span className="text-muted-foreground">
+                  <span className="min-w-0 truncate text-muted-foreground">
                     {thread.project}
                   </span>
                 </li>
