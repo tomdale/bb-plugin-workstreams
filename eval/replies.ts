@@ -121,6 +121,9 @@ if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 5)
   throw Error("EVAL_REPETITIONS must be 1–5");
 const envelope = z.object({ reply: z.string() });
 const results = [];
+/** A response the gateway cut off mid-answer says nothing about the instructions. */
+const cutOff = (stopReason: string | null) =>
+  stopReason === "length" || stopReason === "max_tokens";
 function flatten(parts: ReplyPart[]): ReplyPart[] {
   return parts.flatMap<ReplyPart>((part) =>
     part.type === "group" ? [part, ...part.children.flat()] : [part],
@@ -147,6 +150,19 @@ for (const task of cases) {
         systemPrompt: `You are answering a person in BB. Return JSON with one field, reply, whose string contains the full human-facing reply following the instructions below. The examples tool has already returned the examples supplied with the task; proceed to the final reply.\n\n${REPLY_COMPONENT_INSTRUCTIONS}\n\n${replyInstructions(withRecap)}`,
         prompt: `The examples tool returned these illustrative component examples:\n${examples}\n\nTask:\n${task.request}`,
       });
+      if (cutOff(completion.stopReason)) {
+        results.push({
+          id: task.id,
+          run,
+          skipped: true,
+          reason: `The answer was cut off at the token limit (${completion.stopReason}); rerun this case.`,
+          rawCompletion: completion.text,
+          stopReason: completion.stopReason,
+          usage: completion.usage,
+          durationMs: Math.round(performance.now() - start),
+        });
+        continue;
+      }
       const answer = envelope.parse(JSON.parse(completion.text)).reply;
       const block = onlyReplyBlock(answer);
       const read =
@@ -290,7 +306,8 @@ await writeFile(
   ),
 );
 console.log(
-  `${results.filter((result) => result.pass).length}/${results.length} reply format cases pass; ${results.flatMap((result) => ("selectionNotes" in result ? result.selectionNotes : [])).length} preferred-component selection notes; report: ${output}`,
+  `${results.filter((result) => "pass" in result && result.pass).length}/${results.filter((result) => "pass" in result).length} reply format cases pass; ${results.flatMap((result) => ("selectionNotes" in result ? result.selectionNotes : [])).length} preferred-component selection notes; ${results.filter((result) => "skipped" in result).length} cut off and unscored; report: ${output}`,
 );
-if (!results.length || results.some((result) => !result.pass))
+const scored = results.filter((result) => "pass" in result);
+if (!scored.length || scored.some((result) => !result.pass))
   process.exitCode = 1;

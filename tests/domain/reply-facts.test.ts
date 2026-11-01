@@ -31,6 +31,7 @@ it.each([
   "Eight tests passed; one skipped",
   "Eight local tests passed; one remote integration test was skipped",
   "Passed: 8, failed: 0, skipped: 1",
+  "Eight local tests passed; one skipped integration test",
 ])(
   "accepts explicit prose counts without requiring a checks component: %s",
   (text) => {
@@ -59,6 +60,7 @@ it.each([
   "8 tests passed and 2 skipped",
   "8 tests passed and 1 skipped, 2 failed",
   "Tests passed",
+  "Eight local tests passed; the integration test was skipped",
 ])("rejects incorrect or missing supplied counts: %s", (text) => {
   expect(testCountProblems([], text, expected).length).toBeGreaterThan(0);
 });

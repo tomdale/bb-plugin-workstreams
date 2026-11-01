@@ -115,12 +115,13 @@ after completed work including a handoff and a shipped change, a route to a
 running thread reported as complete, waiting-agent details, body-only
 formatting, and unnecessary content in short answers. Test counts may appear in
 prose or optional structured totals. Prose scoring recognizes explicit numeric
-or zero-through-ten word counts next to passed/failed/skipped; inspect other
-wording in recorded responses before treating a count failure as a factual
-error. Preferred component selections are recorded as advisory notes, not
-failures: a valid composition can explain a fact in prose or use another
-suitable component. The uncertainty check is a phrase/status heuristic; inspect
-the recorded replies to judge whether their claims are true.
+or zero-through-ten word counts beside passed/failed/skipped, including a count
+written as an adjective ("one skipped integration test"); inspect other wording
+in recorded responses before treating a count failure as a factual error.
+Preferred component selections are recorded as advisory notes, not failures: a
+valid composition can explain a fact in prose or use another suitable component.
+The uncertainty check is a phrase/status heuristic; inspect the recorded replies
+to judge whether their claims are true.
 
 - `EVAL_MODEL`: default `openai/gpt-6-luna`
 - `EVAL_REASONING_LEVEL`: default `medium`
@@ -129,14 +130,15 @@ the recorded replies to judge whether their claims are true.
 - `EVAL_OUTPUT`: report path; default `/tmp/reply-eval.json`
 
 Reports preserve the reply, readable text, usage, cost, and latency even when
-validation fails. The runner exits nonzero on a failed or empty run. Examples
-are supplied as if the read-only guide tool had returned them; the model's reply
-is wrapped in a JSON field for the shared Gateway runner. Reply guidance uses
-the system role, with tool guidance before the main reply contract as BB
-delivers it, and the synthetic request uses the user role, so a request for a
-brief answer does not replace the reply-format contract. This checks format and
-supplied facts, not tool selection, real harness turn ordering, visual
-rendering, or reader comprehension. Those need separate checks.
+validation fails. A run the gateway cuts off at its token limit is recorded as
+skipped and left out of the pass rate. The runner exits nonzero on a failed or
+empty run. Examples are supplied as if the read-only guide tool had returned
+them; the model's reply is wrapped in a JSON field for the shared Gateway
+runner. Reply guidance uses the system role, with tool guidance before the main
+reply contract as BB delivers it, and the synthetic request uses the user role,
+so a request for a brief answer does not replace the reply-format contract. This
+checks format and supplied facts, not tool selection, real harness turn
+ordering, visual rendering, or reader comprehension. Those need separate checks.
 
 ## Status fixtures
 

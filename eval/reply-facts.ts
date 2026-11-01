@@ -69,6 +69,14 @@ export function testCountProblems(
     new RegExp(`\\b(passed|failed|skipped)\\s*[:=]?\\s*(${number})\\b`, "gi"),
   ))
     record(match[1]!, match[2]!);
+  // A count written as an adjective, as in "one skipped integration test".
+  for (const match of text.matchAll(
+    new RegExp(
+      `\\b(${number})\\s+(passed|failed|skipped)\\s+(?:[A-Za-z][\\w-]*\\s+){0,3}(?:tests?|checks?|cases?|specs?)\\b`,
+      "gi",
+    ),
+  ))
+    record(match[2]!, match[1]!);
 
   for (const [key, actual] of reported)
     if (actual.some((value) => value !== expected[key]))
