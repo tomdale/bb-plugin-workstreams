@@ -56,13 +56,16 @@ type Faded = (typeof FADED)[number];
 /**
  * The heading's and receipt's crossfade. The outgoing text drifts `DRIFT`px
  * one way as it fades and the incoming rises from the other, easing out; the
- * title follows the path line by `STAGGER` ms. A change that starts while the
+ * title follows the path line by `STAGGER` ms. The incoming text waits
+ * `IN_DELAY_MS`, by which time the outgoing text is mostly gone, so the two
+ * never read as overlapping lines. A change that starts while the
  * last is still running takes `RAPID` of the time, so held keys read as one
  * steady flick. Reduced motion drops the drift and the stagger.
  */
 const DRIFT = 6;
-const FADE_OUT_MS = 180;
-const FADE_IN_MS = 280;
+const FADE_OUT_MS = 140;
+const IN_DELAY_MS = 70;
+const FADE_IN_MS = 240;
 const STAGGER = 40;
 const RAPID = 0.6;
 const REDUCED_MS = 160;
@@ -187,7 +190,10 @@ function crossfade(
           { opacity: 0, transform: `translateY(${sign * drift}px)` },
           { opacity: 1, transform: "translateY(0)" },
         ],
-        options(ms(FADE_IN_MS), delay * stagger),
+        options(
+          ms(FADE_IN_MS),
+          (reduced ? 0 : IN_DELAY_MS * scale) + delay * stagger,
+        ),
       );
   if (leaving) {
     const done = linesOf(leaving).map(({ el, delay }) => {

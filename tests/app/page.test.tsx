@@ -318,12 +318,13 @@ it("crossfades the heading with a drift that follows the direction of travel", a
     expect(drifts()).toContain("translateY(6px)");
     expect(ghosts().length).toBe(1);
     expect(ghosts()[0]!.textContent).toContain("Beta question");
-    // Both lines of a heading start together, the title later.
+    // The new heading waits for the old one to mostly fade, the path line
+    // first and the title after it.
     const delays = animate.mock.calls
       .filter(([keyframes]) => keyframes[0]?.opacity === 0)
       .map(([, options]) => options.delay);
-    expect(delays).toContain(0);
-    expect(delays).toContain(40);
+    expect(delays).toContain(70);
+    expect(delays).toContain(110);
     animate.mockClear();
     press("ArrowLeft");
     await waitFor(() => expect(heading(slot)).toBe("Beta question"));
