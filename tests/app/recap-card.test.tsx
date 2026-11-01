@@ -1025,8 +1025,8 @@ it("shows structured review steps with expected results", async () => {
     recap: {
       state: "review",
       review: [
-        { step: "Open Appearance", expect: "Dark is available" },
-        { step: "Reload Settings", expect: "Dark stays selected" },
+        { text: "Open Appearance", detail: "Dark is available" },
+        { text: "Reload Settings", detail: "Dark stays selected" },
       ],
     },
   });

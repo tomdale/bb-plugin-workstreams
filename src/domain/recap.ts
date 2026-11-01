@@ -70,48 +70,24 @@ const genericRecapItem = (max?: number) =>
     })
     .strict();
 
-const legacyRecapItem = (max?: number) =>
-  z
-    .object({
-      step: line(max).describe("Legacy alias for text"),
-      expect: line(max).optional().describe("Legacy alias for detail"),
-    })
-    .strict();
-
 const recapItemSchema = (max?: number) =>
-  z.union([line(max), genericRecapItem(max), legacyRecapItem(max)]);
+  z.union([line(max), genericRecapItem(max)]);
 
-export type RecapItem =
-  | string
-  | { text: string; detail?: string }
-  | { step: string; expect?: string };
+export type RecapItem = string | { text: string; detail?: string };
 
 export type StoredRecapItem = string | { text: string; detail?: string };
 
 export function itemParts(item: RecapItem): { text: string; detail?: string } {
   if (typeof item === "string") return { text: item };
-  if ("text" in item) {
-    return {
-      text: item.text,
-      ...(item.detail !== undefined ? { detail: item.detail } : {}),
-    };
-  }
   return {
-    text: item.step,
-    ...(item.expect !== undefined ? { detail: item.expect } : {}),
+    text: item.text,
+    ...(item.detail !== undefined ? { detail: item.detail } : {}),
   };
 }
 
 const storedRecapItemSchema: z.ZodType<StoredRecapItem> = z.union([
   z.string(),
   z.object({ text: z.string(), detail: z.string().optional() }).strict(),
-  z
-    .object({ step: z.string(), expect: z.string().optional() })
-    .strict()
-    .transform((item): { text: string; detail?: string } => ({
-      text: item.step,
-      ...(item.expect ? { detail: item.expect } : {}),
-    })),
 ]);
 /** One review action, optionally with the result the user should see. */
 const reviewStepSchema = recapItemSchema(160);
@@ -357,8 +333,6 @@ export const recapSchema = z
     at: z.number(),
     state: z.enum(RECAP_STATES),
     goal: z.string(),
-    /** When present in stored data, its value takes precedence over goal. */
-    task: z.string().optional(),
     waitingAgents: z.array(fullWaitingAgentSchema).optional(),
     latest: z.array(storedRecapItemSchema).default([]),
     timeout: z.number().optional(),
@@ -371,9 +345,8 @@ export const recapSchema = z
     /** Suggested next messages, offered as buttons; empty while waiting. */
     next: z.array(fullNextActionSchema).default([]),
   })
-  .transform(({ task, waitingAgents, ...recap }) => ({
+  .transform(({ waitingAgents, ...recap }) => ({
     ...recap,
-    ...(typeof task === "string" ? { goal: task } : {}),
     ...(waitingAgents ? { waitingAgents } : {}),
   }));
 export type Recap = z.infer<typeof recapSchema>;

@@ -142,3 +142,75 @@ it("keeps title ownership when the columns nothing reads are dropped", async () 
     await host.harness.lifecycle.dispose();
   }
 });
+it("rewrites stored review steps and drops the retired recap title", async () => {
+  const host = createFakePluginHost({ pluginId: "recap-item-shape" });
+  try {
+    const migrate = host.bb.storage.migrate.bind(host.bb.storage);
+    const spy = vi
+      .spyOn(host.bb.storage, "migrate")
+      .mockImplementation((db, migrations) => {
+        // Recaps as they were while an item could be `{ step, expect }` and a
+        // Waiting title could be stored as `task`.
+        const boundary = migrations.findIndex(
+          (migration) =>
+            typeof migration === "string" &&
+            migration.includes("json_group_array"),
+        );
+        expect(boundary).toBeGreaterThan(0);
+        return migrate(db, migrations.slice(0, boundary));
+      });
+    const db = openDatabase(host.bb);
+    const insert = db.prepare(
+      "INSERT INTO ws_agent_recap(thread_id, recap) VALUES (?, ?)",
+    );
+    insert.run(
+      "t1",
+      JSON.stringify({
+        id: "r1",
+        turnId: "turn-1",
+        at: 1,
+        state: "review",
+        goal: "One",
+        latest: [],
+        review: [
+          { step: "Open settings", expect: "The panel opens" },
+          "Read it",
+        ],
+        links: [],
+      }),
+    );
+    insert.run(
+      "t2",
+      JSON.stringify({
+        id: "r2",
+        turnId: "turn-2",
+        at: 2,
+        state: "waiting",
+        goal: "Waiting for tests",
+        task: "Retired title",
+        tasks: ["Retired list"],
+        review: [],
+        links: [],
+      }),
+    );
+    spy.mockRestore();
+    openDatabase(host.bb);
+    const stored = (threadId: string) =>
+      JSON.parse(
+        (
+          db
+            .prepare("SELECT recap FROM ws_agent_recap WHERE thread_id = ?")
+            .get(threadId) as { recap: string }
+        ).recap,
+      );
+    expect(stored("t1").review).toEqual([
+      { text: "Open settings", detail: "The panel opens" },
+      "Read it",
+    ]);
+    expect(stored("t2")).not.toHaveProperty("task");
+    expect(stored("t2")).not.toHaveProperty("tasks");
+    expect(stored("t2").goal).toBe("Waiting for tests");
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});

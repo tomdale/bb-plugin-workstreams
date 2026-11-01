@@ -493,22 +493,6 @@ it("reads stored recaps without next actions as offering none", () => {
   expect(recapSchema.parse(stored).next).toEqual([]);
 });
 
-it("moves the stored Waiting task title into goal", () => {
-  const recap = recapSchema.parse({
-    id: "r",
-    turnId: "t",
-    at: 1,
-    state: "waiting",
-    goal: "Old waiting goal",
-    task: "Waiting for tests",
-    timeout: 60,
-    review: [],
-    links: [],
-  });
-  expect(recap.goal).toBe("Waiting for tests");
-  expect(recap).not.toHaveProperty("task");
-});
-
 it("keeps legacy string lists and reads structured review JSON", () => {
   const stored = {
     id: "r",
@@ -518,7 +502,7 @@ it("keeps legacy string lists and reads structured review JSON", () => {
     goal: "Goal",
     latest: ["Legacy result"],
     review: JSON.stringify([
-      { step: "Open Settings", expect: "The panel appears" },
+      { text: "Open Settings", detail: "The panel appears" },
     ]),
     links: [],
   };
@@ -578,34 +562,14 @@ it("uses the goal as the single Waiting title", () => {
   expect(recapMarkdown(recap)).toContain("Building UI and running tests");
 });
 
-it("normalizes legacy step/expect items to generic text/detail", () => {
-  const parsed = recapInputSchema.parse({
+it("rejects the retired step/expect item shape", () => {
+  const parsed = recapInputSchema.safeParse({
     state: "review",
     goal: "Compatibility check",
-    latest: [
-      {
-        step: "Implemented generic items",
-        expect: "step and expect still work",
-      },
-    ],
+    latest: [{ step: "Implemented generic items", expect: "Kept working" }],
     review: [{ step: "Run tests", expect: "All tests pass" }],
   });
-  const recap = toRecap(parsed, { id: "r", turnId: "t", at: 1 });
-  expect(recap.latest).toEqual([
-    {
-      text: "Implemented generic items",
-      detail: "step and expect still work",
-    },
-  ]);
-  expect(recap.review).toEqual([
-    { text: "Run tests", detail: "All tests pass" },
-  ]);
-  expect(recapMarkdown(recap)).toContain(
-    "- Implemented generic items\n  - step and expect still work",
-  );
-  expect(recapMarkdown(recap)).toContain(
-    "**Review:** Run tests\n  - All tests pass",
-  );
+  expect(parsed.success).toBe(false);
 });
 
 it("measures inline Markdown by its visible text", () => {

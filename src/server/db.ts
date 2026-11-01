@@ -403,6 +403,33 @@ const MIGRATIONS = [
     UNIQUE(entity_id, association_revision, project_id)
   )`,
   "DROP TABLE IF EXISTS ws_name_observation",
+  // Recaps written before an item was `{ text, detail }` kept their review
+  // steps as `{ step, expect }`. Rewriting them lets the recap schema describe
+  // one item shape for a stored recap and for the tool that writes a new one.
+  // `item.type` reads each element's JSON type; `json_type(item.value)` would
+  // parse a plain step string as JSON and fail.
+  `UPDATE ws_agent_recap
+     SET recap = json_set(recap, '$.review', (
+       SELECT json_group_array(CASE
+         WHEN item.type = 'object' THEN CASE
+           WHEN json_type(item.value, '$.step') IS NULL THEN item.value
+           WHEN json_type(item.value, '$.expect') IS NULL THEN json(json_remove(
+             json_set(item.value, '$.text', json_extract(item.value, '$.step')),
+             '$.step'))
+           ELSE json(json_remove(
+             json_set(item.value, '$.text', json_extract(item.value, '$.step'),
+                      '$.detail', json_extract(item.value, '$.expect')),
+             '$.step', '$.expect'))
+         END
+         ELSE item.value END)
+       FROM json_each(recap, '$.review') AS item))
+   WHERE json_type(recap, '$.review') = 'array'
+     AND json_array_length(recap, '$.review') > 0
+     AND recap LIKE '%"step"%'`,
+  // `task` was the Waiting title before `goal` held it everywhere, and `tasks`
+  // is the list `task` replaced; both are stored without a reader.
+  "UPDATE ws_agent_recap SET recap = json_remove(recap, '$.task') WHERE json_type(recap, '$.task') IS NOT NULL",
+  "UPDATE ws_agent_recap SET recap = json_remove(recap, '$.tasks') WHERE json_type(recap, '$.tasks') IS NOT NULL",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {
