@@ -463,3 +463,129 @@ describe("the stack engine", () => {
     expect((q.engine as unknown as { hint: unknown }).hint).toBeUndefined();
   });
 });
+
+/**
+ * Holds `direction` for `ms`, a press every 33 ms (taken if the engine
+ * accepts it), the way the page drives it: with `resync`, the page also
+ * syncs the pile, with no direction, on every frame in between, as each
+ * re-render does. Returns the presses the page took, and the lowest a
+ * card's top has been while it was not the front or behind the pile.
+ */
+function hold(
+  direction: Direction,
+  start: number,
+  resync: boolean,
+  ms = 3000,
+  check?: (q: ReturnType<typeof queue>) => void,
+) {
+  const q = queue(start);
+  q.run(100);
+  q.frames.length = 0;
+  let steps = 0;
+  for (let t = 0; t < ms; t += 33) {
+    if (q.press(direction)) steps++;
+    for (let f = 0; f < 33; f += DT * 1000) {
+      if (resync) q.engine.sync(q.window());
+      q.run(DT * 1000);
+      check?.(q);
+    }
+  }
+  return { q, steps };
+}
+
+/** The engine's cards by key, for the tests that look inside it. */
+const inner = (engine: StackEngine) =>
+  (engine as unknown as { cards: Map<string, { top: number; phase: string }> })
+    .cards;
+
+describe("a held key's pace", () => {
+  it.each([false, true])(
+    "steps back within 2 of on (re-render syncs: %s)",
+    (resync) => {
+      const on = hold("forward", 0, resync).steps;
+      const back = hold("back", 50, resync).steps;
+      expect(on).toBeGreaterThan(10);
+      expect(Math.abs(back - on)).toBeLessThanOrEqual(2);
+    },
+  );
+
+  it.each([false, true])(
+    "moves smoothly, skipping cards, and settles (re-render syncs: %s)",
+    (resync) => {
+      for (const start of [50, 30, 9]) {
+        const { q } = hold("back", start, resync);
+        q.run(4000);
+        expect(problems(q.frames)).toEqual([]);
+        expectSettled(q);
+      }
+    },
+  );
+
+  it.each([false, true])(
+    "keeps hidden cards from holding a draw tier (re-render syncs: %s)",
+    (resync) => {
+      const { q } = hold("back", 50, resync, 3000, (q) => {
+        const last = q.frames.at(-1)!;
+        for (const c of last.cards)
+          if (!c.painted && !c.interactive)
+            expect(
+              inner(q.engine).get(c.key)?.top,
+              `${c.key} is hidden but holds a tier`,
+            ).toBe(0);
+      });
+      q.run(4000);
+      expectSettled(q);
+    },
+  );
+
+  it.each([false, true])(
+    "never drops a skipped card below the pile (re-render syncs: %s)",
+    (resync) => {
+      // A card that was never in front while the burst ran: its trip was
+      // skipped, so its top stays above the pile's bottom edge.
+      const trips = new Set<string>();
+      const { q } = hold("back", 50, resync, 3000, (q) => {
+        for (const [key, c] of inner(q.engine))
+          if (c.phase === "enter") trips.add(key);
+      });
+      q.run(4000);
+      const skipped = KEYS.slice(q.at() + 1, 50).filter((k) => !trips.has(k));
+      expect(skipped.length).toBeGreaterThan(0);
+      for (const f of q.frames) {
+        const cards = f.cards.filter((c) => c.painted);
+        const bottom = Math.max(
+          ...cards.filter((c) => !skipped.includes(c.key)).map((c) => c.bottom),
+          0,
+        );
+        for (const c of cards)
+          if (skipped.includes(c.key))
+            expect(c.top, c.key).toBeLessThanOrEqual(bottom);
+      }
+    },
+  );
+
+  it.each([false, true])(
+    "turns around cleanly when reversed mid-burst (re-render syncs: %s)",
+    (resync) => {
+      for (const wait of [200, 450, 700, 1000]) {
+        const q = queue(50);
+        q.run(100);
+        q.frames.length = 0;
+        const frames = (ms: number, direction: Direction) => {
+          for (let t = 0; t < ms; t += 33) {
+            q.press(direction);
+            for (let f = 0; f < 33; f += DT * 1000) {
+              if (resync) q.engine.sync(q.window());
+              q.run(DT * 1000);
+            }
+          }
+        };
+        frames(wait, "back");
+        frames(33, "forward");
+        q.run(4000);
+        expect(problems(q.frames), `after ${wait} ms`).toEqual([]);
+        expectSettled(q);
+      }
+    },
+  );
+});
