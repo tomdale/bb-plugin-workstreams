@@ -2,8 +2,8 @@
  * The Workstreams page is the queue: one thing at a time that needs the
  * user (see `Queue`). Everything else waits behind the dim ⋯ in the corner:
  * Activity (the journal), Topics (the organizer's health, its suggestions,
- * and the topic tree), and, in debug mode, the model calls. Each opens as a
- * full view with Back.
+ * and the topic tree), the Gallery (a specimen of every reply-block part),
+ * and, in debug mode, the model calls. Each opens as a full view with Back.
  */
 import { useLayoutEffect, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -17,18 +17,20 @@ import {
   snoozeMenuContentClass,
 } from "../snooze/SnoozeMenuItems.tsx";
 import { Activity } from "./Activity.tsx";
+import { Gallery } from "./Gallery.tsx";
 import { TopicsTab } from "./topics/TopicsTab.tsx";
 import { Queue } from "./queue/Queue.tsx";
 
 type View =
   | { kind: "queue" }
   | { kind: "topics" }
+  | { kind: "gallery" }
   | { kind: "activity"; focus: string | null; modelCalls: boolean };
 
 /**
  * `subPath` deep links open a view: `activity[/<entry>]`, `debug` (model
- * calls), and `topics`. `organization`, `catalog`, and `map` name views that
- * are now part of Topics and still open it.
+ * calls), `gallery`, and `topics`. `organization`, `catalog`, and `map` name
+ * views that are now part of Topics and still open it.
  */
 function viewOf(subPath: string): View {
   const [head, ...rest] = subPath.split("/");
@@ -45,6 +47,7 @@ function viewOf(subPath: string): View {
       focus: rest.join("/") || null,
       modelCalls: false,
     };
+  if (head === "gallery") return { kind: "gallery" };
   if (head === "debug")
     return { kind: "activity", focus: null, modelCalls: true };
   return { kind: "queue" };
@@ -76,10 +79,12 @@ export function WorkstreamsPage({
           Back
         </button>
         <h1 className="mt-3 text-[15px] font-semibold tracking-tight">
-          {view.kind === "topics" ? "Topics" : "Activity"}
+          {VIEW_TITLES[view.kind]}
         </h1>
         {view.kind === "topics" ? (
           <TopicsTab ws={ws} query="" />
+        ) : view.kind === "gallery" ? (
+          <Gallery />
         ) : (
           <Activity
             rpc={ws.rpc}
@@ -95,6 +100,13 @@ export function WorkstreamsPage({
     </div>
   );
 }
+
+const VIEW_TITLES: Record<View["kind"], string> = {
+  queue: "",
+  topics: "Topics",
+  gallery: "Gallery",
+  activity: "Activity",
+};
 
 /** The dim ⋯ in the corner, for everything that isn't the queue. */
 function PageMenu({ onOpen }: { onOpen: (view: View) => void }) {
@@ -129,6 +141,12 @@ function PageMenu({ onOpen }: { onOpen: (view: View) => void }) {
             onSelect={() => onOpen({ kind: "topics" })}
           >
             Topics
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            className={item}
+            onSelect={() => onOpen({ kind: "gallery" })}
+          >
+            Gallery
           </DropdownMenu.Item>
           {debug ? (
             <DropdownMenu.Item
