@@ -106,11 +106,12 @@ name their own edit's topics, and checks renames on moves.
 ## Composed replies
 
 `node eval/replies.ts` makes paid, tool-free Gateway calls against synthetic
-investigation, change, recommendation, uncertainty, waiting, body-only, and
-short-answer tasks. It uses the production instructions, component examples,
-parser, and recap validation. Checks cover one closed whole-message reply,
-usable recaps and required result lists, malformed components, reported test
-counts, explicit uncertainty cues, actionable optional advice, waiting-agent
+investigation, change, shipped-change, recommendation, handoff, uncertainty,
+waiting, body-only, and short-answer tasks. It uses the production instructions,
+component examples, parser, and recap validation. Checks cover one closed
+whole-message reply, usable recaps and required result lists, malformed
+components, reported test counts, explicit uncertainty cues, required Next items
+after completed work including a handoff and a shipped change, waiting-agent
 details, body-only formatting, and unnecessary content in short answers. Test
 counts may appear in prose or optional structured totals. Prose scoring
 recognizes explicit numeric or zero-through-ten word counts next to

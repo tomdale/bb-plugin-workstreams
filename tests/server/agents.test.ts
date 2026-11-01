@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { makePluginAgentConfigurationContext } from "@get-bb/plugin-sdk/testing";
 import { fakeWorld } from "./fake-bb.ts";
 import { WORKER_THREAD_MARKER } from "../../src/domain/worker.ts";
-import { RECAP_INSTRUCTIONS } from "../../src/domain/recap.ts";
+import { RECAP_INSTRUCTIONS, recapToolSchema } from "../../src/domain/recap.ts";
 import {
   replyInstructions,
   REPLY_EXAMPLES_TOOL,
@@ -35,23 +35,40 @@ describe("next-action instruction contract", () => {
     ["recap tool", RECAP_INSTRUCTIONS],
     ["reply block", replyInstructions(true)],
   ])(
-    "offers optional improvements after completed work in the %s",
+    "requires optional follow-ups after completed work in the %s",
     (_, text) => {
-      expect(text).toMatch(/after completed work[^.]*offer[^.]*useful/i);
-      expect(text).toContain("optional follow-up requests or questions");
-      expect(text).toContain("including advice-only recommendations");
-      expect(text).toContain("not-yet-authorized changes recommended");
-      expect(text).toContain("unresolved optional improvements");
+      expect(text).toMatch(/required for complete and review/);
+      expect(text).toMatch(
+        /only a short factual answer with nothing left open omits it/,
+      );
+      expect(text).toMatch(
+        /a pull request unopened, unmerged, or awaiting review/,
+      );
+      expect(text).toMatch(/a result only the user can check/);
+      expect(text).toMatch(/a decision they still own/);
+      expect(text).toMatch(/an optional improvement or unauthorized change/);
       expect(text).toMatch(
         /not blocking approval|without requesting blocking approval/,
       );
       expect(text).toMatch(/automatic execution|executing it/);
       expect(text).toContain("Do authorized continuations yourself");
-      expect(text).toMatch(/required[^.]*question.card/);
-      expect(text).toMatch(/Omit[^.]*when none are useful/);
-      expect(text).toMatch(/short (factual )?answer|one-line answer/);
+      expect(text).toMatch(/required (input|decisions)[^.]*question cards/);
     },
   );
+  it("states the same Next requirement in the recap field schema", () => {
+    const description = recapToolSchema.shape.next.description ?? "";
+    expect(description).toContain("required except for a short factual answer");
+    expect(description).toContain("how the destination reports back");
+  });
+  it("shows a completed change that carries no Next only in the short-answer exception", () => {
+    const text = replyInstructions(true);
+    expect(text).toMatch(
+      /kind="change"\}[\s\S]*?### Next\n- Try it on your display/,
+    );
+    expect(text).toMatch(
+      /The only reply that omits Next, because nothing is left open:[\s\S]*?# Python 3\.9 or newer/,
+    );
+  });
 });
 
 describe("configure", () => {
@@ -316,9 +333,8 @@ describe("configure", () => {
         );
 
       const recap = !options.sideChat && !options.noRecap;
-      if (recap)
-        expect(text).toContain("not-yet-authorized changes recommended");
-      else expect(text).not.toContain("not-yet-authorized changes recommended");
+      if (recap) expect(text).toContain("required for complete and review");
+      else expect(text).not.toContain("required for complete and review");
       // With Structured replies on, the reply instruction carries the recap
       // contract and the session has no recap tool.
       if (recap && !options.replies) expect(text).toContain(RECAP_INSTRUCTIONS);

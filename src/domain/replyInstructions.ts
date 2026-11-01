@@ -19,11 +19,11 @@ function alone(): string {
 function withCard(): string {
   return `When user input is required, end with a question card; explain before calling it. Otherwise finish authorized work, then end with one reply block as the entire final message, with no later text or tools. ${MARKERS}
 Set state="complete", state="review", or state="waiting" on the opener; optional kind is answer, investigation, change, recommendation, proposal, status, or handoff, independently of state.
-State covers this thread's responsibilities: complete when all authorized work is finished; review when a finished result awaits inspection, testing, merging, or shipping; waiting for an async result this thread needs to resume work. Work elsewhere counts while this thread owns follow-up. Waiting requires timeout="<seconds>" (1–86400), a realistic polling interval. The card counts down; if the turn remains current at expiry, Workstreams prompts a status check.
-Recap fields update the card and sidebar; use terse inline Markdown without closing periods.
-Card fields: start with # and a present-tense fact (at most 80 characters), -ing for waiting. Complete/review replies with bodies put 1–3 - [x] results immediately after the headline. Advice results state the recommendation or finding, not an implemented change. Results: concrete outcomes, most important first, about 12 words each, with relevant commit and PR links. Explain outcomes in the body without repeating them.
-Reserved ### sections: Review (review state only, required): 1–3 steps to inspect the result and what to expect. Links (review only) lists [title](location) review targets: HTTPS or absolute paths. Waiting on (waiting only) lists one @thread:<id> task per awaited agent. Next (complete/review): 1–3 Title: message actions; labels at most 28 characters. Messages are self-contained user requests; whitespace and closing periods are normalized. After completed work, offer 1–3 useful optional follow-up requests or questions. Put concrete not-yet-authorized changes recommended in the body into Next, including advice-only recommendations, and include unresolved optional improvements. Next offers future work without requesting blocking approval or executing it. Do authorized continuations yourself; required input or approval belongs in question cards. Omit Next when none are useful. A one-line answer without follow-up uses only the # headline.
-Example with illustrative details:
+State covers what this thread owns: complete when all authorized work is finished; review when a finished result awaits inspection, testing, merging, or shipping; waiting while an async result this thread needs is still running. Work elsewhere counts while this thread owns follow-up. Waiting requires timeout="<seconds>" (1–86400), a realistic polling interval; the card prompts a status check at expiry.
+Recap fields set the card and sidebar; use terse inline Markdown without closing periods.
+Card fields: start with # and a present-tense fact (at most 80 characters), -ing for waiting. Complete/review replies with bodies put 1–3 - [x] results immediately after the headline. Advice results state the recommendation, not an implemented change. Results: concrete outcomes, most important first, about 12 words each, with relevant commit and PR links. Explain outcomes in the body without repeating them.
+Reserved ### sections: Review (review state only, required): 1–3 steps to inspect the result and what to expect. Links (review only) lists [title](location) review targets: HTTPS or absolute paths. Waiting on (waiting only) lists one @thread:<id> task per awaited agent. Next (required for complete and review; only a short factual answer with nothing left open omits it): 1–3 Title: message actions; labels at most 28 characters. Messages are self-contained requests; whitespace and closing periods are normalized. Next names each thing this reply leaves open: a pull request unopened, unmerged, or awaiting review; a result only the user can check on their own machine or display; a decision they still own; a step the body names but nobody did; an optional improvement or unauthorized change you recommended; for a handoff, how the destination reports back. Next offers future work without requesting blocking approval or executing it. Do authorized continuations yourself; required input or approval belongs in question cards.
+Example:
 :::reply{state="review" kind="change"}
 # The coupon applies a percentage
 - [x] Callers pass whole percentages; conversion stays beside the calculation
@@ -44,7 +44,15 @@ The calculation divides the percentage by 100 before applying it to the amount, 
 ### Next
 - Check callers: Check the other coupon callers for the same unit mismatch
 :::
-Short answer:
+Completed change:
+:::reply{state="complete" kind="change"}
+# Arrow keys follow the card order
+- [x] Holding a key flips cards one at a time
+
+### Next
+- Try it on your display: Confirm holding ↓ flips one card at a time
+:::
+The only reply that omits Next, because nothing is left open:
 :::reply{state="complete"}
 # Python 3.9 or newer
 :::

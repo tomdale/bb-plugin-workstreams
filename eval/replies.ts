@@ -58,6 +58,24 @@ const cases = [
     uncertain: true,
   },
   {
+    id: "handoff",
+    state: "complete",
+    types: ["context"],
+    request:
+      "The user asked for a review of pull request 42 in another repository. That review now belongs to @thread:thr_eval_dest, which is running it, so this thread's work is done. Report the routing and name the destination after the live destination thread was confirmed running. Do not do the review here.",
+    expected: ["context"],
+    next: true,
+  },
+  {
+    id: "shipped-change",
+    state: ["complete", "review"],
+    types: ["change", "checks"],
+    request:
+      "Report a finished fix to the retry setting label. Facts: the label now says Retries; the retry loop and saved settings are unchanged. Five local tests passed with no failures or skips. The change is committed on branch fix/retry-label and nothing is pushed; publishing is the user's decision.",
+    expected: ["change"],
+    next: true,
+  },
+  {
     id: "waiting",
     state: "waiting",
     types: [],
@@ -137,9 +155,13 @@ for (const task of cases) {
         if (!withRecap) {
           if (data.card) problems.push("Body-only reply includes recap fields");
         } else if (!recap?.ok) problems.push("No usable recap");
-        else if (recap.input.state !== task.state)
+        else if (
+          !(Array.isArray(task.state) ? task.state : [task.state]).includes(
+            recap.input.state,
+          )
+        )
           problems.push(
-            `Expected ${task.state} recap, received ${recap.input.state}`,
+            `Expected ${[task.state].flat().join(" or ")} recap, received ${recap.input.state}`,
           );
         if ("next" in task && task.next && !data.card?.next.length)
           problems.push(
