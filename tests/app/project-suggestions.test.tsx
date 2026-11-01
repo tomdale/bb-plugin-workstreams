@@ -52,6 +52,12 @@ it.each(["accept", "decline"] as const)(
       await waitFor(() =>
         expect(call).toHaveBeenCalledWith("undo", { entryId: "entry" }),
       );
+      await screen.findByText("Project association restored.");
+      await waitFor(() =>
+        expect(document.activeElement).toBe(
+          screen.getByRole("region", { name: "Project associations" }),
+        ),
+      );
     } else expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   },
 );

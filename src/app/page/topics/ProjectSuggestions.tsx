@@ -14,7 +14,7 @@ export function ProjectSuggestions({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [entryId, setEntryId] = useState<string | null>(null);
-  const [kept, setKept] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const root = useRef<HTMLElement | null>(null);
   const needsFocus = useRef(false);
   const generation = useRef(0);
@@ -52,7 +52,7 @@ export function ProjectSuggestions({
         decision,
       });
       setEntryId(decision === "accept" ? entry.id : null);
-      setKept(decision === "decline");
+      setNotice(decision === "decline" ? "Project association kept." : null);
       await read();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -62,11 +62,13 @@ export function ProjectSuggestions({
   };
   const undo = async () => {
     if (!entryId) return;
+    needsFocus.current = true;
     setBusy(true);
     setError(null);
     try {
       await ws.rpc.call("undo", { entryId });
       setEntryId(null);
+      setNotice("Project association restored.");
       await read();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -74,7 +76,7 @@ export function ProjectSuggestions({
       setBusy(false);
     }
   };
-  if (!suggestions.length && !entryId && !error && !kept) return null;
+  if (!suggestions.length && !entryId && !error && !notice) return null;
   return (
     <section
       ref={root}
@@ -144,9 +146,9 @@ export function ProjectSuggestions({
           </details>
         </div>
       ))}
-      {kept ? (
+      {notice ? (
         <p role="status" className="text-xs text-muted-foreground">
-          Project association kept.
+          {notice}
         </p>
       ) : null}
       {entryId ? (
