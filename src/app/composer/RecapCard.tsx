@@ -1164,7 +1164,8 @@ function useShiftHeld(active: boolean) {
       setHeld(false);
       return;
     }
-    // The menu keeps focus inside itself, so Shift still reaches the window.
+    // Watched on the window, which the menu's trapped focus only helps: Shift
+    // pressed before the menu opens, or while a row has focus, both count.
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Shift") setHeld(true);
     };
