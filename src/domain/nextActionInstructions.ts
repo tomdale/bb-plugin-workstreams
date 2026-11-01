@@ -1,0 +1,2 @@
+export const NEXT_ACTION_INSTRUCTIONS =
+  "After completed work, offer 1–3 self-contained next actions whenever the user has a useful follow-up to take or request. Include concrete recommendations and unresolved optional improvements identified in the reply. Before complete/review, check blockers and authorized continuations; do authorized work yourself and use question cards for required input or approval. Omit next actions when none are useful, including one-line answers without follow-up.";

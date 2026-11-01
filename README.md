@@ -472,9 +472,13 @@ of each turn using `WorkstreamsRecap`, rendered as a card above the composer:
 - **Interactive tokens:** `@thread:<id>` mentions render as clickable thread
   chips; Git commit hashes (`7–40` hex characters containing letters and digits)
   render shortened with configurable digit/letter tints and click-to-copy.
-- **Next actions:** Up to `3` suggested follow-up buttons. **Click** a button to
-  send its prompt immediately; **Shift-click** (or choose **Edit in composer**
-  from the overflow menu) to insert the prompt into the composer for editing.
+- **Next actions:** Up to `3` suggested follow-up buttons. After completed work,
+  agents surface concrete useful recommendations and unresolved optional
+  improvements as self-contained actions, including recommendations in the
+  reply. Agents execute authorized continuations and use question cards for
+  blocking input or approval. Answers without a useful follow-up need no action.
+  **Click** a button to send its prompt immediately; **Shift-click** (or choose
+  **Edit in composer** from the overflow menu) to insert it for editing.
 - **Dismiss and restore:** Click **Dismiss recap** (`×`) to hide the card (and
   cancel any pending waiting-recap countdown); click the **Show recap** pill to
   restore it.

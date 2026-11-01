@@ -3,6 +3,7 @@ import { makePluginAgentConfigurationContext } from "@get-bb/plugin-sdk/testing"
 import { fakeWorld } from "./fake-bb.ts";
 import { WORKER_THREAD_MARKER } from "../../src/domain/worker.ts";
 import { RECAP_INSTRUCTIONS } from "../../src/domain/recap.ts";
+import { NEXT_ACTION_INSTRUCTIONS } from "../../src/domain/nextActionInstructions.ts";
 import {
   replyInstructions,
   REPLY_EXAMPLES_TOOL,
@@ -27,6 +28,33 @@ let world: World | null = null;
 afterEach(async () => {
   await world?.harness.lifecycle.dispose();
   world = null;
+});
+
+describe("next-action instruction contract", () => {
+  it.each([
+    ["recap tool", RECAP_INSTRUCTIONS],
+    ["reply block", replyInstructions(true)],
+  ])(
+    "offers optional improvements after completed work in the %s",
+    (_, text) => {
+      expect(text).toContain(
+        "After completed work, offer 1–3 self-contained next actions whenever the user has a useful follow-up to take or request",
+      );
+      expect(text).toContain(
+        "Include concrete recommendations and unresolved optional improvements identified in the reply",
+      );
+      expect(text).toContain(
+        "Before complete/review, check blockers and authorized continuations",
+      );
+      expect(text).toContain("do authorized work yourself");
+      expect(text).toContain(
+        "use question cards for required input or approval",
+      );
+      expect(text).toContain(
+        "Omit next actions when none are useful, including one-line answers without follow-up",
+      );
+    },
+  );
 });
 
 describe("configure", () => {
@@ -122,9 +150,7 @@ describe("configure", () => {
     const unknown = await resolve(w, { id: "hidden-helper" });
     expect(delivered(unknown)).not.toContain("workstream");
     expect(delivered(unknown)).toContain("WorkstreamsRecap");
-    expect(delivered(unknown)).toContain(
-      "Include one to three relevant next actions whenever the user can take or request one",
-    );
+    expect(delivered(unknown)).toContain(NEXT_ACTION_INSTRUCTIONS);
   });
 
   it("configures unseen threads independently of role metadata freshness", async () => {
@@ -281,6 +307,8 @@ describe("configure", () => {
       const text = contributions.join("\n\n");
       expect(text).toContain(QUESTION_INSTRUCTIONS);
       const recap = !options.sideChat && !options.noRecap;
+      if (recap) expect(text).toContain(NEXT_ACTION_INSTRUCTIONS);
+      else expect(text).not.toContain(NEXT_ACTION_INSTRUCTIONS);
       // With Structured replies on, the reply instruction carries the recap
       // contract and the session has no recap tool.
       if (recap && !options.replies) expect(text).toContain(RECAP_INSTRUCTIONS);

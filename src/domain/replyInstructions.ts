@@ -4,6 +4,7 @@
  * remains within BB's per-text budget.
  */
 import { REPLY_BLOCK } from "./reply.ts";
+import { NEXT_ACTION_INSTRUCTIONS } from "./nextActionInstructions.ts";
 export const REPLY_EXAMPLES_TOOL = "WorkstreamsReplyExamples";
 const BODY = `Body: write the answer and reasoning as Markdown paragraphs. Keep causal connections. Choose headings and order for this reply. Keep uncertainty and qualifications beside their claims. Keep supporting detail with the explanation it supports.
 Orient a returning reader with a context component: broad task, relevant place, brief background. Name actors and describe observable behavior. Distinguish passed from untested and pushed from deployed. Use complete sentences. Explain reasons when they help the reader understand a conclusion or decision. Actions name their effect. A short reply needs no components.`;
@@ -19,12 +20,12 @@ function alone(): string {
 
 /** A question card owns the reply when input is required; other turns carry recap fields. */
 function withCard(): string {
-  return `When the user's answer is required, end with a question card; put any explanation before that tool call. Otherwise, finish authorized work and end with one reply block as the whole final message, with no text or tool call after it. ${MARKERS}
+  return `When user input is required, end with a question card; explain before calling it. Otherwise finish authorized work, then end with one reply block as the entire final message, with no later text or tools. ${MARKERS}
 Set state="complete", state="review", or state="waiting" on the opener; optional kind is answer, investigation, change, recommendation, proposal, status, or handoff, independently of state.
-State covers work this thread owns: complete when all authorized work is finished; review when a finished result awaits the user to inspect, test, merge, or ship; waiting only for an async result this thread must check to resume work. Work elsewhere counts only while this thread owns follow-up. Before complete/review, check blockers and authorized continuations. Continue work or ask for required input. Waiting also sets timeout="<seconds>" (1–86400), a realistic time until you check again. The card counts down; if that turn is still current at expiry, Workstreams prompts a status check.
+State covers this thread's responsibilities: complete when all authorized work is finished; review when a finished result awaits inspection, testing, merging, or shipping; waiting for an async result this thread needs to resume work. Work elsewhere counts while this thread owns follow-up. Waiting requires timeout="<seconds>" (1–86400), a realistic polling interval. The card counts down; if the turn remains current at expiry, Workstreams prompts a status check.
 Recap fields update the card and sidebar; use terse inline Markdown without closing periods.
-Card fields: start with # and one short present-tense sentence stating what is true (at most 80 characters), -ing for waiting. If a complete or review reply has a body, put 1–3 - [x] results immediately after the headline, before any body content. Advice still needs a result stating the recommendation or finding, even with no file changes. Results are concrete outcomes, most important first, about 12 words each, with relevant commit and PR links. The body explains the outcomes rather than repeating their sentences.
-Reserved ### sections: Review (review only) has 1–3 steps to inspect the result and what to expect. Links (review only) lists [title](location) review targets, HTTPS or absolute paths. Waiting on (waiting only) lists one @thread:<id> task per awaited agent. Next (complete/review) lists 1–3 Title: message actions the user might request, with short labels (at most 28 characters) and self-contained messages sent verbatim. Include a next action when the user has a useful next step; never offer work you should do yourself. For a one-line answer, use only the # headline inside the block.
+Card fields: start with # and a present-tense fact (at most 80 characters), -ing for waiting. Complete/review replies with bodies put 1–3 - [x] results immediately after the headline. Advice needs a result stating the recommendation or finding, even without file changes. Results: concrete outcomes, most important first, about 12 words each, with relevant commit and PR links. Explain outcomes in the body without repeating them.
+Reserved ### sections: Review (review only) has 1–3 steps to inspect the result and what to expect. Links (review only) lists [title](location) review targets, HTTPS or absolute paths. Waiting on (waiting only) lists one @thread:<id> task per awaited agent. Next (complete/review): 1–3 Title: message actions; labels at most 28 characters, messages sent verbatim. ${NEXT_ACTION_INSTRUCTIONS} A one-line answer without follow-up uses only the # headline.
 ${BODY}
 Example with illustrative details:
 :::reply{state="review" kind="change"}
