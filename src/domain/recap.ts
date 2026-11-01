@@ -120,7 +120,6 @@ const nextActionSchema = z.union([
     .strict(),
 ]);
 export type NextAction = z.infer<typeof nextActionSchema>;
-export type NextActionInput = z.input<typeof nextActionSchema>;
 
 export const linkSchema = z
   .object({
