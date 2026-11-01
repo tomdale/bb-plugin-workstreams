@@ -213,10 +213,9 @@ describe("the stack engine", () => {
     q.run(4000);
     expect(taken).toBeLessThan(1500 / 33);
     expect(q.at()).toBe(taken);
-    // Cards move a little faster while presses wait (1.3 times), so a card
-    // clearing a tall one still below the pile moves farther per frame than
-    // a single move does (the mockup does the same).
-    expect(problems(q.frames, 100)).toEqual([]);
+    // Cards move a little faster while presses wait (1.3 times), but no edge
+    // moves farther per frame than in a single move.
+    expect(problems(q.frames)).toEqual([]);
     expectSettled(q);
   });
 
@@ -227,7 +226,7 @@ describe("the stack engine", () => {
       q.run(33);
     }
     q.run(4000);
-    expect(problems(q.frames, 100)).toEqual([]);
+    expect(problems(q.frames)).toEqual([]);
     expectSettled(q);
   });
 

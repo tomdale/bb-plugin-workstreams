@@ -79,6 +79,10 @@ const VANISH_RELAX = 120;
 const VANISH_RETURN = 180;
 /** The next move may start this long after the last one. */
 const STEP_GAP = 90;
+/** While presses wait (a held key), and until the cards that moved then
+ * settle, no card's top or bottom edge moves faster than this, px/s: 38 px a frame at 60 Hz, a little under the fastest a
+ * single move gets. */
+const HELD_MAX_SPEED = 2280;
 /** Replies: the old fade out at once; the new wait (no card passing over
  * them) and fade in. */
 const BELOW_OUT = 90;
@@ -125,6 +129,9 @@ type Card = {
   gone: boolean;
   /** The lowest its top has been since it began vanishing. */
   low: number;
+  /** Moved while presses waited (a held key); its speed stays capped until
+   * it settles, so it doesn't speed up once the key is let go. */
+  held: boolean;
   turn: { from: Pose; t0: number } | null;
   /** Left toward the back (or out of the window): waits out of sight to be
    * released, and is always at least as deep as the hidden slot. */
@@ -357,6 +364,7 @@ export class StackEngine {
       g: 0,
       gone: false,
       low: 0,
+      held: false,
       turn: null,
       parked: false,
     };
@@ -469,6 +477,7 @@ export class StackEngine {
         g: 0,
         gone: false,
         low: 0,
+        held: false,
         turn: null,
         parked: false,
         h: this.heights.get(c.key) ?? c.h,
@@ -819,17 +828,41 @@ export class StackEngine {
     c.low = this.natTop(c);
   }
 
+  /**
+   * Springs card `c` one substep toward `t`. With `maxSpeed`, a step that
+   * would move either of its edges on screen faster than that is shortened,
+   * and its velocity with it, so the card keeps its course at a capped speed.
+   */
   private integrate(
     c: Card,
     t: Pose & { f: number },
     omega: number,
     dt: number,
+    maxSpeed?: number,
   ) {
     const k = omega * omega;
     const d = 2 * omega; // critically damped: no overshoot
+    const was = {
+      y: c.y,
+      z: c.z,
+      top: this.natTop(c),
+      bottom: this.natBottom(c),
+    };
     for (const a of AXES) {
       c.v[a] += (k * (t[a] - c[a]) - d * c.v[a]) * dt;
       c[a] += c.v[a] * dt;
+    }
+    if (maxSpeed === undefined) return;
+    const moved = Math.max(
+      Math.abs(this.natTop(c) - was.top),
+      Math.abs(this.natBottom(c) - was.bottom),
+    );
+    const limit = maxSpeed * dt;
+    if (moved <= limit) return;
+    const s = limit / moved;
+    for (const a of ["y", "z"] as const) {
+      c[a] = was[a] + (c[a] - was[a]) * s;
+      c.v[a] *= s;
     }
   }
 
@@ -910,11 +943,14 @@ export class StackEngine {
     const waiting = this.nextDir() !== 0;
     for (const c of this.cards.values()) {
       const t = this.targetOf(c);
+      if (waiting) c.held = true;
+      else if (c.held && this.settled(c, t)) c.held = false;
       this.integrate(
         c,
         t,
         (c.phase === "rest" ? OMEGA : EXIT_OMEGA) * (waiting ? 1.3 : 1),
         dt,
+        c.held ? HELD_MAX_SPEED : undefined,
       );
       this.updateVanish(c, dt);
       if (c.phase === "exit") {
@@ -1038,6 +1074,7 @@ const EMPTY_FRONT: Card = {
   g: 0,
   gone: false,
   low: 0,
+  held: false,
   turn: null,
   parked: false,
 };
