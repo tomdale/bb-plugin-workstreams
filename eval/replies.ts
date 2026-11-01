@@ -62,7 +62,7 @@ const cases = [
     state: "complete",
     types: ["context"],
     request:
-      "The user asked for a review of pull request 42 in another repository. That review now belongs to @thread:thr_eval_dest, which is running it, so this thread's work is done. Report the routing and name the destination after the live destination thread was confirmed running. Do not do the review here.",
+      "The user asked for a review of pull request 42 in another repository. That review belongs to @thread:thr_eval_dest, which finished it and posted its findings there; this thread's work is done and the user has not read those findings yet. Report the routing and name the destination. Do not do the review here.",
     expected: ["context"],
     next: true,
   },
