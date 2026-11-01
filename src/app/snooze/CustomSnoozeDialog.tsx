@@ -17,7 +17,7 @@ import {
 } from "./RuleFields.tsx";
 
 /** What Custom… offers: every preset kind, and a one-off date and time. */
-export const CUSTOM_SNOOZE_KINDS: readonly SnoozeDraftKind[] = [
+const CUSTOM_SNOOZE_KINDS: readonly SnoozeDraftKind[] = [
   "duration",
   "time",
   "date",

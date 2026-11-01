@@ -27,7 +27,7 @@ import { threadEvidence } from "./evidence.ts";
 type Sdk = BbPluginApi["sdk"];
 
 /** Gives up on a model that hasn't answered; Full analysis covers it. */
-export const OPENING_TIMEOUT_MS = 15_000;
+const OPENING_TIMEOUT_MS = 15_000;
 /**
  * Calls in flight at once. A thread that finds them busy isn't marked tried,
  * so its next `thread.active` or the next sweep can name it; otherwise its
@@ -50,7 +50,7 @@ export type OpeningThread = {
 };
 
 /** The part of BB's `message.dispatch` context that tells a first message. */
-export type OpeningDispatch = {
+type OpeningDispatch = {
   readonly thread: OpeningThread;
   readonly attempt: string;
   /** Set on a thread's first message; follow-ups, steers, and retries have none. */

@@ -20,7 +20,7 @@ const processor = unified()
   .use(remarkDirective);
 
 /** What bb hands a block's `parse`, plus the block's status. */
-export type ReplyBlockInput = {
+type ReplyBlockInput = {
   attributes: Record<string, string>;
   source: string;
   tree: Root;

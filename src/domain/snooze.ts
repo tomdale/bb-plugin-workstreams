@@ -86,12 +86,7 @@ export const WEEKDAYS = [
  * - a weekday: the coming one, never today, so Monday on a Monday is a
  *   week out.
  */
-export const SNOOZE_DAYS = [
-  "today",
-  "tomorrow",
-  "workday",
-  ...WEEKDAYS,
-] as const;
+const SNOOZE_DAYS = ["today", "tomorrow", "workday", ...WEEKDAYS] as const;
 export type SnoozeDay = (typeof SNOOZE_DAYS)[number];
 
 /**
@@ -124,7 +119,7 @@ export type SnoozeRuleKind = SnoozeRule["kind"];
 export const MAX_SNOOZE_PRESETS = 6;
 export const MAX_PRESET_LABEL = 40;
 
-export const snoozePresetSchema = z.object({
+const snoozePresetSchema = z.object({
   /** Stable across edits and reordering; the default names a preset by it. */
   id: z.string().min(1).max(64),
   /** The menu label; empty labels the preset by its rule (`ruleLabel`). */
@@ -482,7 +477,7 @@ export const wakeSentence = (
   return text[0]!.toUpperCase() + text.slice(1);
 };
 
-export type SnoozeChoice = {
+type SnoozeChoice = {
   readonly id: string;
   readonly label: string;
   readonly rule: SnoozeRule;

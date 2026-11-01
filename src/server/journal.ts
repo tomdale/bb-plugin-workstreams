@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Database } from "./db.ts";
 
-export const sourceSchema = z.enum([
+const sourceSchema = z.enum([
   "user",
   "external",
   "router",
@@ -17,7 +17,7 @@ export const sourceSchema = z.enum([
 ]);
 export type Source = z.infer<typeof sourceSchema>;
 
-export const actionSchema = z.enum([
+const actionSchema = z.enum([
   "move",
   "create-workstream",
   "rename-workstream",
@@ -39,7 +39,7 @@ export const actionSchema = z.enum([
   "suggestion",
 ]);
 
-export const statusSchema = z.enum([
+const statusSchema = z.enum([
   "applied",
   "partial",
   "undone",

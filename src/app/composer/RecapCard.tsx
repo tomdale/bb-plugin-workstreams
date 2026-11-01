@@ -116,9 +116,9 @@ const CompactContext = createContext(false);
 type MarkdownDocument = NonNullable<
   React.ComponentProps<typeof Markdown>["experimental_document"]
 >;
-export const MarkdownDocumentContext = createContext<
-  MarkdownDocument | undefined
->(undefined);
+const MarkdownDocumentContext = createContext<MarkdownDocument | undefined>(
+  undefined,
+);
 const useBodyClass = () =>
   useContext(CompactContext) ? COMPACT_BODY_CLASS : BODY_CLASS;
 
@@ -131,7 +131,7 @@ const MARKDOWN_CLASS =
  * copies the full hash.
  */
 /** The user's hash colors; null fields use the theme's default tints. */
-export type HashColorPrefs = { digits: string | null; letters: string | null };
+type HashColorPrefs = { digits: string | null; letters: string | null };
 const NO_HASH_COLORS: HashColorPrefs = { digits: null, letters: null };
 export const HashColors = createContext<HashColorPrefs>(NO_HASH_COLORS);
 
@@ -248,7 +248,7 @@ const ROW_CLASS =
   "grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3 gap-y-0.5 py-2 @max-[24rem]/recap:grid-cols-1";
 export const LABEL_CLASS = `pt-px text-[11px] font-medium leading-[1.6] ${PHONE_SECONDARY}`;
 
-export function Glyph({
+function Glyph({
   path,
   className,
   filled = false,
@@ -1050,7 +1050,7 @@ function nextActionTitle(action: NextAction): string {
 }
 
 /** Footer buttons (suggested actions and Archive) share one size and style. */
-export const FOOTER_BUTTON = `h-7 max-w-none shrink-0 whitespace-nowrap border-border bg-transparent px-2.5 text-[11.5px] font-medium text-foreground hover:bg-transparent hover:text-foreground ${PHONE_SECONDARY} max-md:pointer-coarse:h-9`;
+const FOOTER_BUTTON = `h-7 max-w-none shrink-0 whitespace-nowrap border-border bg-transparent px-2.5 text-[11.5px] font-medium text-foreground hover:bg-transparent hover:text-foreground ${PHONE_SECONDARY} max-md:pointer-coarse:h-9`;
 
 const NEXT_ACTION_ACCENT: Record<Recap["state"], string> = {
   waiting: "text-(--ws-waiting-text)",

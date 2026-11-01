@@ -31,7 +31,7 @@ const shownPath = (id: string, entities: readonly Topic[]) =>
   topicPath(id, entities).replace(/: /g, " › ");
 
 /** Open root threads per topic, each topic counting its subtopics'. */
-export function topicCounts(
+function topicCounts(
   entities: readonly Topic[],
   assignments: Readonly<Record<string, { entityId: string | null }>>,
   roots: Iterable<string>,

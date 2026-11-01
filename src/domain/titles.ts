@@ -41,7 +41,7 @@ const same = (a: string, b: string) =>
   a.replace(/\s+/g, " ").trim().toLowerCase() ===
   b.replace(/\s+/g, " ").trim().toLowerCase();
 
-export type RetitleSkip =
+type RetitleSkip =
   "no-suggestion" | "too-long" | "unchanged" | "stale" | "titled" | "manual";
 
 /**

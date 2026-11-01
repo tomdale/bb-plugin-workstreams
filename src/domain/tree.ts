@@ -19,7 +19,7 @@ export type TreeNode<T extends TreeThread> = {
   readonly children: TreeNode<T>[];
 };
 
-export type Forest<T extends TreeThread> = {
+type Forest<T extends TreeThread> = {
   readonly roots: TreeNode<T>[];
   /** Root thread of each input thread's tree, keyed by thread id. */
   readonly rootOf: ReadonlyMap<string, T>;
@@ -29,7 +29,7 @@ export type Forest<T extends TreeThread> = {
   readonly cycleIds: readonly string[];
 };
 
-export type ForestOrder<T> = {
+type ForestOrder<T> = {
   roots?: (a: T, b: T) => number;
   children?: (a: T, b: T) => number;
 };

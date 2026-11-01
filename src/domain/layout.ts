@@ -33,10 +33,10 @@
  */
 
 export const SPLIT_ABOVE = 5;
-export const MERGE_AT = 3;
-export const PROMOTE_AT = 0.4;
-export const DEMOTE_BELOW = 0.3;
-export const MAX_LEVELS = 3;
+const MERGE_AT = 3;
+const PROMOTE_AT = 0.4;
+const DEMOTE_BELOW = 0.3;
+const MAX_LEVELS = 3;
 
 export type LayoutTopic = {
   readonly id: string;

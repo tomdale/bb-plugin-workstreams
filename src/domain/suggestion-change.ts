@@ -13,7 +13,7 @@
 import type { Split, TidyEdit } from "./tidy.ts";
 import { topicAncestors } from "./topics.ts";
 
-export type PathPart = {
+type PathPart = {
   readonly name: string;
   /** Accepting the suggestion creates this topic. */
   readonly created: boolean;
@@ -36,7 +36,7 @@ export type ChangeMove = {
  * `split` partitions a topic's threads into new subtopics; `file` moves the
  * threads a topic holds beside its subtopics into them.
  */
-export type ChangeOp =
+type ChangeOp =
   "refile" | "split" | "file" | "merge" | "reparent" | "rename" | "create";
 
 export type SuggestionChange = {

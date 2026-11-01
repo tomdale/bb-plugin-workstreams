@@ -49,7 +49,7 @@ export type SnoozeDraft = {
  * Whether a draft wakes early on events: always for "Until there's an update",
  * else the user's choice, else the kind's default.
  */
-export function draftWakesOnEvents(draft: SnoozeDraft): boolean {
+function draftWakesOnEvents(draft: SnoozeDraft): boolean {
   if (draft.kind === "activity") return true;
   return draft.events ?? defaultWakeOnEvents(draft.kind);
 }
@@ -57,7 +57,7 @@ export function draftWakesOnEvents(draft: SnoozeDraft): boolean {
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** A `datetime-local` value (local time, minutes precision). */
-export function toLocalInput(time: number): string {
+function toLocalInput(time: number): string {
   const d = new Date(time);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
@@ -89,7 +89,7 @@ export function draftOf(
   };
 }
 
-export type DraftResult =
+type DraftResult =
   | {
       readonly ok: true;
       readonly until: number | null;

@@ -24,7 +24,7 @@ import type { ReorderChange } from "../useWorkstreams.ts";
 import type { Drop } from "./dnd.tsx";
 
 /** A cross-group drop sets the root's topic before saving its destination order. */
-export type DropPlan = {
+type DropPlan = {
   assign?: { threadId: string; entityId: string | null; within?: true };
   reorder: ReorderChange | null;
 };

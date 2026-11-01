@@ -57,16 +57,16 @@ import {
 } from "./topics.ts";
 
 export const DAY_MS = 24 * 60 * 60_000;
-export const TIDY_NEW_TOPICS = 3;
-export const TIDY_NEW_ROOTS = 5;
-export const MESSY_AT = 4;
+const TIDY_NEW_TOPICS = 3;
+const TIDY_NEW_ROOTS = 5;
+const MESSY_AT = 4;
 /** How long an automatic check waits for changes to settle. */
 const CHECK_DEBOUNCE_MS = 2_000;
 
-export type SuggestionStatus = "pending" | "accepted" | "declined" | "stale";
+type SuggestionStatus = "pending" | "accepted" | "declined" | "stale";
 
 /** A suggestion as review shows it. */
-export type SuggestionView = {
+type SuggestionView = {
   id: string;
   kind: "split" | "edit";
   summary: string;
@@ -120,7 +120,7 @@ type TidyMemo = {
 };
 
 /** A visible root as suggestions read it. */
-export type SuggestRoot = { id: string; title: string };
+type SuggestRoot = { id: string; title: string };
 
 /** An edit that needs a topic another suggestion of its pass creates. */
 class NotYet extends Error {}

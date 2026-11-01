@@ -7,7 +7,7 @@
 import { z } from "zod";
 
 /** "minimal" is the stored value of the layout shown as Compact. */
-export const RECAP_LAYOUTS = ["full", "minimal"] as const;
+const RECAP_LAYOUTS = ["full", "minimal"] as const;
 export type RecapLayout = (typeof RECAP_LAYOUTS)[number];
 
 export const RECAP_LAYOUT_OPTIONS: readonly {

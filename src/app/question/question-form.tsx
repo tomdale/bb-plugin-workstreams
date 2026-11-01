@@ -558,7 +558,7 @@ function useScrollFade(ref: RefObject<HTMLElement | null>) {
   };
 }
 
-export interface QuestionFormProps {
+interface QuestionFormProps {
   persistenceKey?: string;
   questions: readonly Question[];
   disabled: boolean;

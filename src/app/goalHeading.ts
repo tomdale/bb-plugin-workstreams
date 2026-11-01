@@ -13,11 +13,11 @@
 export const TITLE_SIZE = 1.5;
 export const SUBTITLE_SIZE = 0.92;
 export const TITLE_LINE = 4 / 3;
-export const SUBTITLE_LINE = 1.4;
+const SUBTITLE_LINE = 1.4;
 export const PAD_TOP = 0.85;
-export const PAD_BOTTOM = 0.65;
+const PAD_BOTTOM = 0.65;
 /** Workstream line plus the gap before the title, when there is a workstream. */
-export const EYEBROW_BLOCK = 1.25;
+const EYEBROW_BLOCK = 1.25;
 /** In the title bar the title is set at this multiple of body size. */
 export const TITLE_BAR_TITLE_SIZE = 0.95;
 /** Padding above and below the heading when it stays pinned in the timeline. */
@@ -38,7 +38,7 @@ export const PHONE_QUERY = "(max-width: 767px) and (pointer: coarse)";
  * secondary text in there, so it keeps one reading size and one reserved
  * height whether the heading is expanded or compact.
  */
-export type Eyebrow = {
+type Eyebrow = {
   /** Font size in px. */
   readonly size: number;
   /** Scale applied while the heading is compact. */

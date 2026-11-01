@@ -5,7 +5,7 @@ export type BandSort = "activity" | "title" | "wake" | "archived";
 export type BandSortOption = readonly [BandSort, string];
 export type BandOptions = Record<BandId, { sort: BandSort; grouped: boolean }>;
 
-export const BAND_OPTIONS_KEY = "workstreams:v1:band-options";
+const BAND_OPTIONS_KEY = "workstreams:v1:band-options";
 const DEFAULT_BAND_OPTIONS: BandOptions = {
   recent: { sort: "activity", grouped: false },
   snoozed: { sort: "wake", grouped: false },

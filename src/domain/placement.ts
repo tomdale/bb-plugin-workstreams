@@ -25,7 +25,7 @@ const REQUEST_CHARS = 1200;
  */
 const PLACEMENT_TOPICS_MAX = 450;
 
-export type PlacementTopic = {
+type PlacementTopic = {
   readonly id: string;
   readonly name: string;
   readonly description: string | null;

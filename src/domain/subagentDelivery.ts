@@ -1,7 +1,7 @@
 import { parse, REPLY_VERSIONS, type Reply } from "./reply.ts";
 import { onlyReplyBlock } from "./replyText.ts";
 
-export type SubagentEnvelope = {
+type SubagentEnvelope = {
   runId: string;
   threadId: string;
   title: string;

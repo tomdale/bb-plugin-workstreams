@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-export type SelectOption<V extends string> = {
+type SelectOption<V extends string> = {
   readonly value: V;
   readonly label: string;
 };

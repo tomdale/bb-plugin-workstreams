@@ -23,14 +23,14 @@ import {
 } from "./upNext.ts";
 
 /** Where a root is filed: its top-level workstream and the path to its own. */
-export type FeedPlace = {
+type FeedPlace = {
   /** The top-level workstream's id, or {@link UNSORTED_ID} for Unfiled. */
   readonly topId: string;
   /** Names from the top-level workstream down to the root's own. */
   readonly path: readonly string[];
 };
 
-export type FeedPlan<T extends UpNextThread> = {
+type FeedPlan<T extends UpNextThread> = {
   /** Up Next's rows, then the ones behind Show more, most urgent first. */
   readonly upNext: readonly Row<T>[];
   /** Every other open root, newest first. */

@@ -51,7 +51,7 @@ export const THREAD_GOAL_MAX = 240;
 const QUICK_REQUEST_CHARS = 1500;
 
 /** A stored Full analysis result, keyed to the turn it describes. */
-export type ThreadAnalysis = {
+type ThreadAnalysis = {
   readonly recap: string;
   readonly state: WorkState;
   readonly needsYou: string | null;
@@ -90,7 +90,7 @@ export function clip(text: string, max: number): string {
 }
 
 /** One line, without the quotes or closing period models sometimes add. */
-export function cleanGoal(text: string): string {
+function cleanGoal(text: string): string {
   return text
     .replace(/\s+/g, " ")
     .trim()
@@ -126,7 +126,7 @@ const TITLE_RULES = `Two parts that read together as "<verb> <subject>", naming 
   - subject: what the verb acts on, as it reads after the verb: the most specific words that tell this thread apart from similar work ("export job timeouts", not "export issues"), at most 3 words besides an identifier, no articles, lowercase except names and acronyms. With the verb, at most 34 characters: drop the least telling word to fit ("billing export retry queue" becomes "export retry queue"). Keep an identifier the request uses to tell sibling work apart, such as a phase or step number ("Step 2 schema"), but never an opaque ID. Name a pull request or issue by its subject; only when the subject is unknown, by its number ("PR 1207"). Name what a plan or document is about, not the document. Leave out names the listing shows and generic words such as plan, work, task, or changes.`;
 
 /** The title as a model writes it. */
-export type TitleParts = { readonly verb: string; readonly subject: string };
+type TitleParts = { readonly verb: string; readonly subject: string };
 
 /** The title field of an output schema: its parts, or null for none. */
 const titleFieldSchema = {
@@ -227,7 +227,7 @@ function dropListedName(
 }
 
 /** The listing as prompt context, or nothing when it says nothing. */
-export function listingBlock(listing: ThreadListing | null | undefined) {
+function listingBlock(listing: ThreadListing | null | undefined) {
   if (!listing?.group && !listing?.parent) return "";
   return [
     'Where the thread is listed. Its title is read beside these, so leave out their names and products and name what tells this thread apart. Under "Atlas: Billing", "Fixing Atlas invoice export" becomes "Fixing invoice export"; under a parent "Building Orion sync", "Reviewing Orion sync Phase 3" becomes "Reviewing Phase 3". When leaving a name out would leave only generic words, name the subject more specifically instead: under "Orion", "Redesigning Orion" becomes "Redesigning settings page".',
@@ -266,7 +266,7 @@ const PROMPT_TAGS = [
   "declined",
   "coordination",
 ] as const;
-export type PromptTag = (typeof PROMPT_TAGS)[number];
+type PromptTag = (typeof PROMPT_TAGS)[number];
 
 const FORGED_TAG = new RegExp(
   `<(/?)(${PROMPT_TAGS.join("|")})(?=[\\s/>]|$)`,
@@ -404,7 +404,7 @@ const quickOutputSchema = z.object({
   goal: titlePartsSchema.optional().default(null),
 });
 
-export type QuickAnalysisOutput = {
+type QuickAnalysisOutput = {
   goal: string | null;
   topicError?: string;
 } & TopicAnswer;
@@ -492,7 +492,7 @@ const REPORT_CHARS = 2500;
  * The conversation block: redacted, then bounded, oldest first. It ends with
  * the last assistant message when the agent has replied.
  */
-export function conversationBlock(
+function conversationBlock(
   input: Pick<FullAnalysisInput, "requests" | "lastAssistantText">,
 ): string {
   const cut = (text: string, max: number) => excerpt(redact(text), max);
@@ -632,7 +632,7 @@ const fullOutputSchema = z.object({
     .optional(),
 });
 
-export type FullAnalysisOutput = {
+type FullAnalysisOutput = {
   /** A new desired outcome, or null to keep the settled goal. */
   threadGoal: string | null;
   /** Present only when the agent didn't report the turn. */

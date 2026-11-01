@@ -51,7 +51,7 @@ export function boundedJson(value: unknown, depth = 0): unknown {
   );
 }
 
-export const clipText = (text: string, max: number) =>
+const clipText = (text: string, max: number) =>
   text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 
 type Row = {

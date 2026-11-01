@@ -25,10 +25,10 @@ export type TraceKind = (typeof TRACE_KINDS)[number];
  * `ok`: the response parsed. `invalid`: it didn't, so Workstreams used
  * nothing from it. `failed`: the call itself failed.
  */
-export const TRACE_STATUSES = ["ok", "invalid", "failed"] as const;
+const TRACE_STATUSES = ["ok", "invalid", "failed"] as const;
 export type TraceStatus = (typeof TRACE_STATUSES)[number];
 
-export const LINK_KINDS = ["thread", "entry"] as const;
+const LINK_KINDS = ["thread", "entry"] as const;
 export type TraceLink = {
   kind: (typeof LINK_KINDS)[number];
   ref: string;

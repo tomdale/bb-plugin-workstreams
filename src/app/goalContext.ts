@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { workstreamHue } from "../domain/workstreamHue.ts";
 import { useSharedServerState } from "./serverState.ts";
 
-export type GoalContext = {
+type GoalContext = {
   /**
    * The thread's name, exactly as the sidebar and every other list show it.
    * Workstreams writes the thread's goal as its title; a title the user or an

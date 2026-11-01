@@ -36,7 +36,7 @@ export const PR_POLL_MS = 5 * 60_000;
 /** A snooze to end, named by its thread and when it was set. */
 export type SetSnooze = { readonly id: string; readonly at: number };
 
-export type SnoozeWakerDeps = {
+type SnoozeWakerDeps = {
   readonly db: Database;
   readonly snoozes: ThreadSnoozes;
   readonly prefs: () => SnoozePrefs;

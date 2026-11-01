@@ -14,7 +14,7 @@ export const SPINNER_SHAPES = [
   "braille",
   "dots",
 ] as const;
-export type SpinnerShape = (typeof SPINNER_SHAPES)[number];
+type SpinnerShape = (typeof SPINNER_SHAPES)[number];
 
 /** Named colors, drawn from the theme so they read in light and dark. */
 export const SPINNER_COLORS = [
@@ -26,7 +26,7 @@ export const SPINNER_COLORS = [
   "amber",
   "purple",
 ] as const;
-export type SpinnerColorName = (typeof SPINNER_COLORS)[number];
+type SpinnerColorName = (typeof SPINNER_COLORS)[number];
 /** A named color or a custom `#rrggbb`. */
 export type SpinnerColor = SpinnerColorName | `#${string}`;
 /** `auto` is the primary color, faded; `none` draws no track. */

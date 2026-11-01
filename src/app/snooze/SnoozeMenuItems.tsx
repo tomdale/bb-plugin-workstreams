@@ -112,7 +112,7 @@ const labelClass = "px-2 py-1.5 text-xs text-muted-foreground";
 const separatorClass = "my-1 h-px bg-border";
 
 /** Items inside a Radix dropdown menu. */
-export const dropdownMenuKit: MenuKit = {
+const dropdownMenuKit: MenuKit = {
   Item: ({ onSelect, children }) => (
     <DropdownMenu.Item
       onSelect={onSelect}

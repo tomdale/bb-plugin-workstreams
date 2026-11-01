@@ -34,7 +34,7 @@ const LIMITS = {
 export const DEFAULT_WAITING_TIMEOUT = 600;
 
 export type ReplyRecapProblem = "state" | "headline" | "invalid";
-export type ReplyRecapResult =
+type ReplyRecapResult =
   | { ok: true; input: RecapInput }
   | { ok: false; problem: ReplyRecapProblem; error: string };
 

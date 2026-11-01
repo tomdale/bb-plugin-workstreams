@@ -23,7 +23,7 @@ export const COMPACT_HOME_VIEWPORT =
   '[data-testid="root-compose-compact-scroll-viewport"]';
 
 export type Placement = "compact" | "narrow" | "wide";
-export type HomeMode = "takeover" | "inline" | "hidden";
+type HomeMode = "takeover" | "inline" | "hidden";
 
 /** Where `probe`, an element inside the section, was mounted. */
 export function detectPlacement(

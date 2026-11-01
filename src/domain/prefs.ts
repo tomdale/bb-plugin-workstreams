@@ -39,7 +39,7 @@ export const modelChoiceSchema = z.discriminatedUnion("kind", [
 export type ModelChoice = z.infer<typeof modelChoiceSchema>;
 
 /** The Pi model-id prefix whose picks run as direct gateway completions. */
-export const PI_GATEWAY_PREFIX = "vercel-ai-gateway/";
+const PI_GATEWAY_PREFIX = "vercel-ai-gateway/";
 
 /**
  * The AI Gateway model a choice runs directly, or null when it needs a BB

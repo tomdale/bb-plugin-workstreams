@@ -11,7 +11,7 @@ type SnoozeTarget = { id: string; latestAttentionAt?: number };
  * `useServerState().setSnoozes`: snooze threads together until `when`, or
  * wake them.
  */
-export type SetSnoozes = (
+type SetSnoozes = (
   threads: readonly SnoozeTarget[],
   when: SnoozeWhen | "wake",
 ) => Promise<void>;

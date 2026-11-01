@@ -97,7 +97,7 @@ export const UNSORTED_ID = "unsorted";
 export const UNFILED_NAME = "Unfiled";
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
-export type ProjectionOptions<T extends WorkstreamThread> = {
+type ProjectionOptions<T extends WorkstreamThread> = {
   readonly now: number;
   readonly dormantAfterMs?: number;
   /** Empty rows survive briefly after their last visible thread leaves. */
@@ -120,17 +120,14 @@ const pinOrder = (a: WorkstreamThread, b: WorkstreamThread) =>
   (a.pinSortKey ?? "").localeCompare(b.pinSortKey ?? "");
 
 /** Pinned roots first in manual order, then most recent attention first. */
-export function compareRoots(a: WorkstreamThread, b: WorkstreamThread): number {
+function compareRoots(a: WorkstreamThread, b: WorkstreamThread): number {
   if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
   if (a.isPinned) return pinOrder(a, b) || a.id.localeCompare(b.id);
   return b.latestAttentionAt - a.latestAttentionAt || a.id.localeCompare(b.id);
 }
 
 /** Children keep creation order so a delegation reads top to bottom. */
-export function compareChildren(
-  a: WorkstreamThread,
-  b: WorkstreamThread,
-): number {
+function compareChildren(a: WorkstreamThread, b: WorkstreamThread): number {
   return a.createdAt - b.createdAt || a.id.localeCompare(b.id);
 }
 

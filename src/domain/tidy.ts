@@ -22,12 +22,12 @@ import { placementIds } from "./placement.ts";
 import { takesThreads, topicAncestors } from "./topics.ts";
 import { SPLIT_ABOVE, startsWith } from "./layout.ts";
 
-export const TIDY_EDITS_MAX = 8;
+const TIDY_EDITS_MAX = 8;
 /** A split makes at most this many subgroups. */
-export const SUBGROUPS_MAX = 5;
+const SUBGROUPS_MAX = 5;
 const TIDY_THREADS_PER_TOPIC = 12;
 
-export type TidyTopic = {
+type TidyTopic = {
   readonly id: string;
   readonly name: string;
   readonly description: string | null;
@@ -45,8 +45,8 @@ export type SuggestThread = {
 };
 
 /** A topic created earlier in the same pass, referenced by name. */
-export type NewRef = `new:${string}`;
-export type TopicRef = string;
+type NewRef = `new:${string}`;
+type TopicRef = string;
 
 export type TidyEdit =
   | { op: "merge"; from: TopicRef; into: TopicRef }
@@ -782,7 +782,7 @@ export function describeEdit(
 }
 
 /** A split as it would apply to the tree now. */
-export type SplitNow = {
+type SplitNow = {
   /**
    * The split without threads that left the group or closed since, and
    * without the new subgroups that left it empty.

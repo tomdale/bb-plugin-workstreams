@@ -104,8 +104,8 @@ export function modelLabel(choice: ModelChoice): string {
       : choice.model)
   );
 }
-export type InputOf<K extends TraceKind> = Parameters<Calls[K]["prompt"]>[0];
-export type OutputOf<K extends TraceKind> = ReturnType<Calls[K]["parse"]>;
+type InputOf<K extends TraceKind> = Parameters<Calls[K]["prompt"]>[0];
+type OutputOf<K extends TraceKind> = ReturnType<Calls[K]["parse"]>;
 
 /**
  * One line of what a call decided, for lists: the Activity log, the Debug

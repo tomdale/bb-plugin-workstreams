@@ -27,7 +27,7 @@ import type {
   OrganizerStateUnresolved,
 } from "./contract.ts";
 
-export type OrganizerDeps = {
+type OrganizerDeps = {
   sdk: () => BbPluginApi["sdk"];
   db: Database;
   service: WorkstreamService;

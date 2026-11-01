@@ -164,7 +164,7 @@ export function Stepper({
   );
 }
 
-export type PickerOption = {
+type PickerOption = {
   value: string;
   label: string;
   description?: string;

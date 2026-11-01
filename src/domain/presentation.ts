@@ -5,7 +5,7 @@
  * no glyph rather than a wrong one.
  */
 
-export type StatusRole = "working" | "waiting" | "error" | "unread" | "draft";
+type StatusRole = "working" | "waiting" | "error" | "unread" | "draft";
 
 export function statusRole(indicator: string): StatusRole | null {
   switch (indicator) {
@@ -72,7 +72,7 @@ export function relativeAgeLabel(at: number, now: number): string {
  * a mark on them would be noise. A thread whose agent reported its turn
  * complete or waiting draws an explicit reported mark instead.
  */
-export const WORK_STATE: Record<
+const WORK_STATE: Record<
   "needs_decision" | "review" | "blocked" | "in_progress" | "done",
   { glyph: string | null; label: string }
 > = {
@@ -85,7 +85,7 @@ export const WORK_STATE: Record<
 };
 
 /** A turn the thread's agent reported complete in its recap. */
-export const REPORTED_DONE = { glyph: "\u2713", label: "Complete" } as const;
+const REPORTED_DONE = { glyph: "\u2713", label: "Complete" } as const;
 
 /** The mark for a work state, given whether the thread's agent reported it. */
 export function workStateMark(

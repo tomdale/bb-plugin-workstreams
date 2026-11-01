@@ -15,7 +15,7 @@ export type ProjectLearningDecision = {
   roots: ProjectRoot[];
 };
 
-export const PROJECT_LEARNING_ROOTS = 3;
+const PROJECT_LEARNING_ROOTS = 3;
 
 /** Independent roots must agree; a parent's children must also agree. */
 export function projectLearningPlan(

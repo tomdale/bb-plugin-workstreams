@@ -16,7 +16,7 @@ import type { WorkstreamTarget } from "./preset.ts";
  * (`inherited`, by `sectionId`, or by topic for a shared-topic header).
  * Previews never replace a picked or inherited topic.
  */
-export type IdentityChoice = {
+type IdentityChoice = {
   entityId: string | null;
   proposal: DraftSubjectProposal | null;
   label: string;
@@ -24,7 +24,7 @@ export type IdentityChoice = {
   sectionId?: string | null;
 } | null;
 
-export type NewWorkEvent = {
+type NewWorkEvent = {
   id: number;
   at: number;
   kind: "classify" | "select-identity";

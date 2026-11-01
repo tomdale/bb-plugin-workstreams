@@ -134,7 +134,7 @@ export function buildQuestionAnswers(
   return answers;
 }
 
-export type QuestionShortcutChoice =
+type QuestionShortcutChoice =
   { kind: "option"; value: string } | { kind: "other" } | null;
 
 export function resolveQuestionShortcutChoice(

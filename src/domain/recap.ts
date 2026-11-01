@@ -75,7 +75,7 @@ const recapItemSchema = (max?: number) =>
 
 export type RecapItem = string | { text: string; detail?: string };
 
-export type StoredRecapItem = string | { text: string; detail?: string };
+type StoredRecapItem = string | { text: string; detail?: string };
 
 export function itemParts(item: RecapItem): { text: string; detail?: string } {
   if (typeof item === "string") return { text: item };
@@ -91,7 +91,7 @@ const storedRecapItemSchema: z.ZodType<StoredRecapItem> = z.union([
 ]);
 /** One review action, optionally with the result the user should see. */
 const reviewStepSchema = recapItemSchema(160);
-export type ReviewStep = RecapItem;
+type ReviewStep = RecapItem;
 
 /** A suggested action can separate its short button title from its message. */
 const nextActionSchema = z.union([
@@ -439,14 +439,14 @@ export function toRecap(
  * gone. The agent reads it back as the call's result.
  */
 /** A recap item with optional secondary text on its own Markdown row. */
-export function recapItemText(item: RecapItem): string {
+function recapItemText(item: RecapItem): string {
   if (typeof item === "string") return item;
   const { text, detail } = itemParts(item);
   return detail ? `${text}\n  - ${detail}` : text;
 }
 
 /** A review step as readable Markdown. */
-export const reviewStepText = recapItemText;
+const reviewStepText = recapItemText;
 
 function tidyRecapItem(item: RecapItem): StoredRecapItem {
   if (typeof item === "string") return tidy(item);
@@ -604,7 +604,7 @@ export function fileTarget(
 }
 
 /** A piece of a recap line: Markdown, or a token the card renders itself. */
-export type RecapSegment =
+type RecapSegment =
   | { kind: "markdown"; text: string }
   | { kind: "thread"; threadId: string }
   | { kind: "sha"; sha: string };

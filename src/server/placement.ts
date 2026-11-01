@@ -63,7 +63,7 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 /** Roots that point at other repositories before a checkout coordinates. */
-export const COORDINATION_AT = 2;
+const COORDINATION_AT = 2;
 
 const ROUTED = /^\[bb message from thread:[^\]]*\]\s*/i;
 const GITHUB_REPO = /github\.com\/([\w.-]+)\/([\w.-]+)/gi;

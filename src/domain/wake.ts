@@ -46,7 +46,7 @@ export const WAKE_EVENT_GROUPS = [
 ] as const;
 
 /** Which wake events are on. Every event is on unless the user turns it off. */
-export type WakeEvents = Readonly<Record<WakeEvent, boolean>>;
+type WakeEvents = Readonly<Record<WakeEvent, boolean>>;
 
 export const DEFAULT_WAKE_EVENTS: WakeEvents = Object.fromEntries(
   WAKE_EVENT_IDS.map((id) => [id, true]),
@@ -196,7 +196,7 @@ export function pullRequestEvent(
  * server could tell. A condition counts only when it began at or after the
  * snooze, so one the user snoozed through never wakes the thread.
  */
-export type WakeFacts = {
+type WakeFacts = {
   readonly snooze: ThreadSnooze;
   readonly root: WakeThread;
   /** The root's delegates, at any depth. */

@@ -60,7 +60,7 @@ const topicAssignmentSchema = z.object({
   inheritedFrom: z.string().nullable(),
 });
 
-export const organizerStateGroupMemberSchema = z.object({
+const organizerStateGroupMemberSchema = z.object({
   id: z.string(),
   title: z.string(),
   completed: z.boolean(),
@@ -70,7 +70,7 @@ export const organizerStateGroupMemberSchema = z.object({
   reason: z.string(),
 });
 
-export const organizerStateGroupSchema = z.object({
+const organizerStateGroupSchema = z.object({
   key: z.string(),
   sectionId: z.string().nullable(),
   name: z.string(),
@@ -81,7 +81,7 @@ export const organizerStateGroupSchema = z.object({
   roots: z.array(organizerStateGroupMemberSchema),
 });
 
-export const organizerStateNoTopicSchema = z.object({
+const organizerStateNoTopicSchema = z.object({
   id: z.string(),
   title: z.string(),
   completed: z.boolean(),
@@ -89,7 +89,7 @@ export const organizerStateNoTopicSchema = z.object({
   reason: z.string(),
 });
 
-export const organizerStateCountsSchema = z.object({
+const organizerStateCountsSchema = z.object({
   activeRoots: z.number(),
   completedRoots: z.number(),
   totalRoots: z.number(),
@@ -97,7 +97,7 @@ export const organizerStateCountsSchema = z.object({
   activeWorkstreams: z.number(),
 });
 
-export const organizerStateSchema = z.object({
+const organizerStateSchema = z.object({
   status: z.enum(["idle", "classifying", "deriving", "syncing", "failed"]),
   progress: z
     .object({
@@ -127,7 +127,7 @@ const draftAncestorSchema = z.object({
   description: z.string().default(""),
 });
 
-export const draftSubjectProposalSchema = z.object({
+const draftSubjectProposalSchema = z.object({
   name: z.string().min(1),
   description: z.string().default(""),
   parentId: z.string().nullable().optional(),
@@ -168,7 +168,7 @@ export type ReclassificationPlan = z.infer<typeof reclassificationPlanSchema>;
  * analysis's preview, with the goal it would title the thread with;
  * `inherited` is the topic of the workstream whose ＋ opened the composer.
  */
-export const taskIdentitySubmissionSchema = z.object({
+const taskIdentitySubmissionSchema = z.object({
   entityId: z.string().min(1).nullable().optional(),
   proposal: draftSubjectProposalSchema.nullable().optional(),
   provenance: z.enum(["manual", "automatic", "inherited"]).optional(),
@@ -302,7 +302,7 @@ const orderSchema = z.object({
 });
 
 /** What a new thread from a composer draft would start with. */
-export const previewSchema = z.object({
+const previewSchema = z.object({
   id: z.string(),
   confidence: z.enum(["high", "medium", "low"]),
   reason: z.string(),

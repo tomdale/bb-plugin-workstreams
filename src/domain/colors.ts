@@ -117,7 +117,7 @@ export const DEFAULT_COLORS = {
  * What a token left at its default draws with: Workstreams' own shades, or
  * the BB theme color each token matches ({@link THEME_MATCH}).
  */
-export const COLOR_SCHEMES = ["workstreams", "theme"] as const;
+const COLOR_SCHEMES = ["workstreams", "theme"] as const;
 export type ColorScheme = (typeof COLOR_SCHEMES)[number];
 export const colorSchemeSchema = z.enum(COLOR_SCHEMES);
 export const DEFAULT_SCHEME: ColorScheme = "workstreams";
@@ -137,7 +137,7 @@ export type ColorPrefs = Record<ColorToken, ColorChoice> & {
 };
 
 /** What a token draws with now, after the set's default applies. */
-export type ResolvedColor =
+type ResolvedColor =
   | { kind: "workstreams" }
   | { kind: "theme"; color: ThemeColor; byDefault: boolean }
   | { kind: "custom"; color: string };

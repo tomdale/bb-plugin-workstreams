@@ -104,7 +104,7 @@ function Description({ text }: { text: string | null | undefined }) {
 }
 
 /** Matches search queries against entity name, full ancestry, aliases, and description. */
-export function matchesEntity(
+function matchesEntity(
   entity: Topic,
   entities: readonly Topic[],
   query: string,
@@ -157,7 +157,7 @@ export function identityValue(state: NewWorkState): string {
   return state.identity ? state.identity.label : "Automatic";
 }
 
-export interface OptionsProps {
+interface OptionsProps {
   newWork: NewWork;
   /** The Catalog, empty until `useCatalogEntities` has loaded it. */
   entities: readonly Topic[];

@@ -109,7 +109,7 @@ export function agedKind(
     : kind;
 }
 
-export type UpNextSelection<T extends WorkstreamThread> = {
+type UpNextSelection<T extends WorkstreamThread> = {
   /** Up Next's rows, most urgent first. */
   readonly rows: readonly Row<T>[];
   /**

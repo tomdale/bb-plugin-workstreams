@@ -25,7 +25,7 @@ export type Topic = {
  */
 export type AssignmentProvenance = "manual" | "inherited" | "full" | "quick";
 
-export type AssignmentStatus = "assigned" | "unresolved";
+type AssignmentStatus = "assigned" | "unresolved";
 
 export type TopicAssignment = {
   threadId: string;
@@ -47,7 +47,7 @@ export type TopicState = {
   layout?: readonly LayoutNode[];
 };
 
-export type DraftAncestor = {
+type DraftAncestor = {
   name: string;
   description: string;
 };
@@ -88,7 +88,7 @@ export function topicAncestors(
 }
 
 /** A proposal resolved against the topic tree: an existing topic, or a discovery. */
-export type ResolvedProposal =
+type ResolvedProposal =
   | { subjectId: string; proposed: null }
   | { subjectId: null; proposed: DraftSubjectProposal };
 

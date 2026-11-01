@@ -22,12 +22,12 @@ import {
  * another opens nets out without the list bobbing.
  */
 export const ENTER_MS = 260;
-export const LEAVE_MS = 260;
+const LEAVE_MS = 260;
 const FLIP_MS = 320;
 const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
 
 /** Whether sidebar motion runs here and now. */
-export function canAnimate(): boolean {
+function canAnimate(): boolean {
   if (typeof window === "undefined") return false;
   if (typeof Element === "undefined" || !("animate" in Element.prototype))
     return false;
@@ -37,7 +37,7 @@ export function canAnimate(): boolean {
   );
 }
 
-export type PresencePhase = "enter" | "idle" | "leave";
+type PresencePhase = "enter" | "idle" | "leave";
 export type PresenceEntry<T> = {
   readonly key: string;
   readonly item: T;

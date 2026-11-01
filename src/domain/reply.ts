@@ -16,7 +16,7 @@ import {
 
 export const REPLY_BLOCK = "reply";
 export const REPLY_VERSIONS = [1] as const;
-export const DETAILS_LABEL = "Details";
+const DETAILS_LABEL = "Details";
 export const CARD_LABELS = {
   review: "Review",
   next: "Next",
@@ -26,7 +26,7 @@ export const CARD_LABELS = {
 const replyItemSchema = z
   .object({ checked: z.boolean().nullable(), markdown: z.string() })
   .strict();
-export type ReplyItem = z.infer<typeof replyItemSchema>;
+type ReplyItem = z.infer<typeof replyItemSchema>;
 const replyCardSchema = z
   .object({
     state: z.string(),
@@ -50,7 +50,7 @@ export const replySchema = z
   .strict();
 export type Reply = z.infer<typeof replySchema>;
 export type ReplyStatus = "streaming" | "closed" | "unclosed";
-export type ReplyParseResult =
+type ReplyParseResult =
   { ok: true; data: Reply } | { ok: false; error: string };
 
 type Span = { start: number; end: number };

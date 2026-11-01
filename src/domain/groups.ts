@@ -312,7 +312,7 @@ export function groupRoots<T extends WorkstreamThread>(
   ];
 }
 
-export type GroupArrangement<T extends WorkstreamThread> = {
+type GroupArrangement<T extends WorkstreamThread> = {
   /** Focused workstreams, which pin below Up Next. */
   readonly pinned: readonly WorkstreamNode<T>[];
   /** Every other active workstream: populated ones, then empty ones. */

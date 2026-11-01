@@ -12,10 +12,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /** How long a message waits behind its receipt before it is sent. */
-export const SEND_HOLD_MS = 5_000;
+const SEND_HOLD_MS = 5_000;
 
-export type ReceiptKind =
-  "sent" | "archived" | "snoozed" | "accepted" | "declined";
+type ReceiptKind = "sent" | "archived" | "snoozed" | "accepted" | "declined";
 
 export type Receipt = {
   /** The queue item: a thread's id, or a suggestion's key (`suggestionKey`). */

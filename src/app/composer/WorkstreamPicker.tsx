@@ -26,7 +26,7 @@ import {
 } from "./picker-options.tsx";
 import "./route-picker.css";
 
-export function IdentityControl({ newWork }: { newWork: NewWork }) {
+function IdentityControl({ newWork }: { newWork: NewWork }) {
   const state = useSyncExternalStore(newWork.subscribe, newWork.snapshot);
   const display = identityDisplay(state);
   const [open, setOpen] = useState(false);

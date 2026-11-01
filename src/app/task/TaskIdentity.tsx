@@ -34,7 +34,7 @@ const displayTopicPath = (id: string, entities: readonly Topic[]) =>
 export const isAutomaticTopic = (assignment: TopicAssignment | null) =>
   assignment?.provenance !== "manual";
 
-export type TopicButtonProps = {
+type TopicButtonProps = {
   /** The effective topic path, or null when the thread has none. */
   label: string | null;
   isAutomatic: boolean;
@@ -47,7 +47,7 @@ export type TopicButtonProps = {
   disabled?: boolean;
 };
 
-export function TopicButton({
+function TopicButton({
   label,
   isAutomatic,
   provenance = null,
@@ -91,7 +91,7 @@ export function TopicButton({
   );
 }
 
-export type TopicPickerProps = {
+type TopicPickerProps = {
   assignment: TopicAssignment | null;
   entities: readonly Topic[];
   onSelectTopic: (entityId: string) => Promise<void> | void;
@@ -99,7 +99,7 @@ export type TopicPickerProps = {
   onClose?: () => void;
 };
 
-export function TopicPicker({
+function TopicPicker({
   assignment,
   entities,
   onSelectTopic,
@@ -258,7 +258,7 @@ export function TopicPicker({
   );
 }
 
-export type TaskIdentityProps = {
+type TaskIdentityProps = {
   threadId: string;
   isCompactViewport?: boolean;
 };

@@ -22,7 +22,7 @@ export type WorkView =
   | { kind: "current"; analysis: StoredAnalysis; reported: boolean };
 
 /** The thread fields status depends on. */
-export type StatusThread = {
+type StatusThread = {
   readonly status: string;
   readonly latestAttentionAt: number;
 };

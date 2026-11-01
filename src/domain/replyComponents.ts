@@ -22,7 +22,7 @@ function relativeEscapesWorkspace(path: string): boolean {
   return false;
 }
 
-export const evidenceSchema = z
+const evidenceSchema = z
   .object({
     label: text,
     detail: text.optional(),
@@ -189,7 +189,7 @@ const details = z
   .object({ type: z.literal("details"), title: text, body: text })
   .strict();
 
-export const replyLeafSchema = z.discriminatedUnion("type", [
+const replyLeafSchema = z.discriminatedUnion("type", [
   context,
   prose,
   finding,

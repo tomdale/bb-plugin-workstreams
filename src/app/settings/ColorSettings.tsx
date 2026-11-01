@@ -409,7 +409,7 @@ function currentHex(element: HTMLElement | null, token: ColorToken): string {
  * Any CSS color as `#rrggbb`, by painting one pixel; null where the browser
  * can't paint (tests) or the color is invalid.
  */
-export function cssColorToHex(color: string): string | null {
+function cssColorToHex(color: string): string | null {
   if (CUSTOM_COLOR.test(color)) return color;
   // An invalid color would leave the canvas's default black in place.
   if (typeof CSS === "undefined" || !CSS.supports?.("color", color))
