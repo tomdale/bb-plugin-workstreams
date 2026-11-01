@@ -38,8 +38,6 @@ const entry = {
   threads: [{ id: "missing-thread", name: "Parser thread" }],
   workstreams: [],
   undo: null,
-  undoes: null,
-  undoneBy: null,
   detail: null,
   traceIds: [],
 };

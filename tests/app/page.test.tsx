@@ -28,8 +28,6 @@ const entry = {
     kind: "move",
     moves: [{ threadId: "loose", from: null, to: "sec_b" }],
   },
-  undoes: null,
-  undoneBy: null,
   detail: null,
 };
 

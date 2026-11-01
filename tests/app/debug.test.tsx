@@ -107,8 +107,6 @@ it("lists model calls in the Activity log in Debug mode", async () => {
     threads: [{ id: "t1", name: "Alpha parser" }],
     workstreams: [{ id: "sec_b", name: "Beta" }],
     undo: null,
-    undoes: null,
-    undoneBy: null,
     detail: null,
     traceIds: [],
   };

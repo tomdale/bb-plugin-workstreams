@@ -24,7 +24,6 @@ type Entry = {
   source: string;
   status: string;
   rationale: string;
-  undoneBy: string | null;
 };
 const rpc = <T = unknown>(w: World, method: string, input: unknown) =>
   w.harness.behavior.callRpc(method, input) as Promise<T>;
