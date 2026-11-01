@@ -234,6 +234,27 @@ describe("restoreTopics", () => {
     expect(topics.groups().get("sec_c")).toBe(child.id);
   });
 
+  it("keeps later learned projects while undoing a tree edit, but guards manual project changes", () => {
+    const { db, topics } = store();
+    const topic = topics.create("Alpha");
+    const snapshot = snapshotTopics(db, 1);
+    topics.rename(topic.id, "Beta");
+    const fingerprint = topicsFingerprint(db);
+    topics.edit(topic.id, { projectId: "project", projectSource: "learned" });
+    expect(topicsFingerprint(db)).toBe(fingerprint);
+    expect(restoreTopics(db, snapshot, fingerprint)).toBe(true);
+    expect(topics.getById(topic.id)).toMatchObject({
+      name: "Alpha",
+      projectId: "project",
+      projectSource: "learned",
+    });
+    const nextSnapshot = snapshotTopics(db, 2);
+    topics.rename(topic.id, "Beta");
+    const nextFingerprint = topicsFingerprint(db);
+    topics.updateMetadata(topic.id, { projectId: "project" });
+    expect(restoreTopics(db, nextSnapshot, nextFingerprint)).toBe(false);
+  });
+
   it("restores nothing once the catalog changed again", () => {
     const { db, topics } = store();
     const alpha = topics.create("Alpha");

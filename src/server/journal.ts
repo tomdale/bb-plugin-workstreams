@@ -28,6 +28,7 @@ export const actionSchema = z.enum([
   /** A retained workstream proposal entry from an earlier plugin version. */
   "proposal",
   "edit-workstream",
+  "project-association",
   /** A thread started from the New thread composer. */
   "route",
   /** A thread's title kept current by analysis. */
@@ -48,7 +49,19 @@ export const statusSchema = z.enum([
   "dismissed",
 ]);
 
+const projectAssociationSchema = z.object({
+  projectId: z.string().nullable(),
+  source: z.enum(["manual", "learned", "disabled"]).nullable(),
+});
+
 const stepSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("project-association"),
+    entityId: z.string(),
+    from: projectAssociationSchema,
+    to: projectAssociationSchema.extend({ revision: z.number() }),
+    disableLearning: z.boolean().optional(),
+  }),
   z.object({
     kind: z.literal("restore-section"),
     sectionId: z.string(),

@@ -206,6 +206,8 @@ it("fills the field with the classified identity and submits it through host sub
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]).toEqual({
     experimental_data: {
+      draftKey: expect.any(String),
+      projectChoice: { projectId: "project-alpha", source: "independent" },
       identity: {
         entityId: "ent_alpha",
         proposal: null,
@@ -242,7 +244,10 @@ it("leaves a preview with no topic out of the host submit metadata", async () =>
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]).toEqual({
-    experimental_data: null,
+    experimental_data: {
+      draftKey: expect.any(String),
+      projectChoice: { projectId: "project-alpha", source: "independent" },
+    },
   });
 });
 
@@ -256,6 +261,8 @@ it("submits a picked No topic when selecting it", async () => {
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]).toEqual({
     experimental_data: {
+      draftKey: expect.any(String),
+      projectChoice: { projectId: "project-alpha", source: "independent" },
       identity: {
         entityId: null,
         proposal: null,
@@ -281,6 +288,8 @@ it("submits proposal identity when proposing a new feature", async () => {
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]).toEqual({
     experimental_data: {
+      draftKey: expect.any(String),
+      projectChoice: { projectId: "project-alpha", source: "independent" },
       identity: {
         entityId: null,
         proposal: { name: "Billing", description: "Invoices" },
@@ -314,6 +323,7 @@ it("reports the draft's identity so a plain Enter can be filed", async () => {
     expect(draftIdentity).toHaveBeenLastCalledWith({
       draftKey: expect.any(String),
       text: "Fix the parser in Alpha",
+      projectChoice: { projectId: "project-alpha", source: "independent" },
       identity: {
         entityId: "ent_alpha",
         proposal: null,
@@ -343,6 +353,8 @@ it("starts with the topic of the workstream whose ＋ opened it", async () => {
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]).toEqual({
     experimental_data: {
+      draftKey: expect.any(String),
+      projectChoice: { projectId: "project-alpha", source: "independent" },
       identity: {
         entityId: null,
         proposal: null,
@@ -372,7 +384,9 @@ const projectTopics = [
 ];
 
 it("uses the associated project after Quick analysis selects a topic", async () => {
-  const { slot, route } = mount(identityDecision, { entities: projectTopics });
+  const { slot, route, draftIdentity } = mount(identityDecision, {
+    entities: projectTopics,
+  });
   await typePrompt(slot, "Fix the parser in Alpha");
   await waitFor(() =>
     expect(slot.inspection.composer.selection?.projectId).toBe("project-beta"),
@@ -382,6 +396,13 @@ it("uses the associated project after Quick analysis selects a topic", async () 
     { projectId: "project-beta" },
   ]);
   expect(route).toHaveBeenCalledTimes(1);
+  await waitFor(() =>
+    expect(draftIdentity).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        projectChoice: { projectId: "project-beta", source: "workstreams" },
+      }),
+    ),
+  );
 });
 
 it("uses a manually selected topic's project and leaves it unchanged for an unassociated topic", async () => {

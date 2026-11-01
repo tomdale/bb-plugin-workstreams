@@ -16,6 +16,8 @@ import { Organizer } from "./organizer.ts";
 import { buildForest } from "../domain/tree.ts";
 import { Placement } from "./placement.ts";
 import { Suggestions } from "./suggestions.ts";
+import { ProjectAssociations } from "./projectAssociations.ts";
+import type { ProjectChoice } from "../domain/projectChoice.ts";
 import { Reclassification } from "./reclassification.ts";
 import { sectionMembers } from "./cleanup.ts";
 import { WorkstreamMap } from "./map.ts";
@@ -28,7 +30,7 @@ import {
   type TopicAssignment,
 } from "../domain/topics.ts";
 import { assignmentEvidence, threadEvidence } from "./evidence.ts";
-import { rpcContract } from "./contract.ts";
+import { rpcContract, projectChoiceSchema } from "./contract.ts";
 import { hostContract } from "./inference/contract.ts";
 import { openDatabase } from "./db.ts";
 import { Journal } from "./journal.ts";
@@ -268,6 +270,25 @@ export default async function plugin(bb: BbPluginApi) {
   };
   const map = new WorkstreamMap(db);
   const topics = new TopicStore(db);
+  const projectAssociations = new ProjectAssociations({
+    db,
+    sdk: () => bb.sdk,
+    topics,
+    journal,
+    exclusive: (task) => service.exclusive(task),
+    onChange: () => {
+      notify();
+      triggerOrganizer(50);
+    },
+  });
+  bb.onDispose(() => projectAssociations.dispose());
+  const learnProjects = () => {
+    void projectAssociations
+      .reconcile()
+      .catch((error: unknown) =>
+        bb.log.warn(`Learning project associations failed: ${String(error)}`),
+      );
+  };
   const projectName = async (projectId: string): Promise<string | null> =>
     (await bb.sdk.projects.list()).find((p) => p.id === projectId)?.name ??
     null;
@@ -453,7 +474,10 @@ export default async function plugin(bb: BbPluginApi) {
     members: (sectionId) => sectionMembers(bb.sdk, sectionId),
     journal,
     onChange: notify,
-    onPass: () => suggestions.check(),
+    onPass: () => {
+      suggestions.check();
+      learnProjects();
+    },
   });
   organizer = organizerInstance;
   bb.onDispose(() => organizerInstance.dispose());
@@ -609,6 +633,8 @@ export default async function plugin(bb: BbPluginApi) {
     const data = ours
       ? (ctx.experimental_submission!.data as {
           identity?: ComposedIdentity;
+          projectChoice?: unknown;
+          draftKey?: unknown;
         } | null)
       : null;
     // Started by a person in BB's New thread view.
@@ -618,11 +644,24 @@ export default async function plugin(bb: BbPluginApi) {
       ctx.senderThreadId === null &&
       !ctx.parentThreadId;
     let identity: ComposedIdentity | undefined;
+    let projectChoice: ProjectChoice | null | undefined;
     if (ours) {
       drafts.consume(ctx.input.text);
       identity = data?.identity;
+      const parsed = projectChoiceSchema.safeParse(data?.projectChoice);
+      if (parsed.success)
+        projectChoice =
+          typeof data?.draftKey === "string" && data.draftKey.length <= 500
+            ? projectAssociations.draftChoice(data.draftKey, parsed.data)
+            : parsed.data;
     } else if (composed) {
-      identity = drafts.claim(ctx.thread.id, ctx.input.text)?.identity;
+      const draft = drafts.claim(
+        ctx.thread.id,
+        ctx.input.text,
+        ctx.thread.projectId,
+      );
+      identity = draft?.identity;
+      projectChoice = draft?.projectChoice;
     }
     // Passes re-run on drains, restarts and retries; journal a start once.
     const journal = composed && !journaledStarts.has(ctx.thread.id);
@@ -632,6 +671,19 @@ export default async function plugin(bb: BbPluginApi) {
         journaledStarts.delete(journaledStarts.values().next().value!);
     }
     const from = ctx.parentThreadId ? null : startedFrom(ctx);
+    const independentRoot =
+      !ctx.parentThreadId &&
+      !from &&
+      ctx.initiator === "user" &&
+      ctx.senderThreadId === null;
+    projectAssociations.recordChoice(
+      ctx.thread,
+      projectChoice ??
+        (independentRoot && ctx.origin === "cli"
+          ? { projectId: ctx.thread.projectId, source: "independent" }
+          : null),
+      independentRoot,
+    );
     // Only a composer's own Quick analysis replaces the call made here.
     const preset = identity?.provenance === "automatic" && identity.goal;
     if (!preset) quick.onDispatch(ctx);
@@ -671,6 +723,7 @@ export default async function plugin(bb: BbPluginApi) {
           quick.sweep(service.threads());
           void sweepSnoozes();
           map.refresh(service.threads());
+          learnProjects();
           triggerOrganizer(50);
         })
         .catch((error: unknown) =>
@@ -754,6 +807,7 @@ export default async function plugin(bb: BbPluginApi) {
     recaps.forget(thread.id);
     service.forget(thread.id);
     topics.forget(thread.id);
+    projectAssociations.forget(thread.id);
   });
   bb.events.on("thread.failed", ({ thread }) => {
     waker?.onFailed(thread.id);
@@ -855,11 +909,14 @@ export default async function plugin(bb: BbPluginApi) {
     previewCancel: async ({ draftKey }) => ({
       canceled: cancelPreview(draftKey),
     }),
-    draftIdentity: async ({ draftKey, text, identity }) => {
-      const started = drafts.report(draftKey, text, identity);
+    draftIdentity: async ({ draftKey, text, identity, projectChoice }) => {
+      const choice = projectAssociations.draftChoice(draftKey, projectChoice);
+      const started = drafts.report(draftKey, text, identity, choice);
       if (!started) return { filed: false };
       try {
         const thread = await bb.sdk.threads.get({ threadId: started.threadId });
+        projectAssociations.recordChoice(thread, choice);
+        learnProjects();
         if (!thread.parentThreadId) fileComposedIdentity(thread, identity);
         triggerOrganizer(10);
       } catch (error: unknown) {
@@ -985,18 +1042,34 @@ export default async function plugin(bb: BbPluginApi) {
         notify();
         return { entity };
       }),
-    catalogUpdateMetadata: ({ entityId, description, aliases, projectId }) =>
+    projectSuggestions: async () => ({
+      suggestions: projectAssociations.state(),
+    }),
+    projectSuggestionDecide: ({ id, decision }) =>
+      userFacing(async () => ({
+        entry: await projectAssociations.decide(id, decision),
+      })),
+    catalogUpdateMetadata: ({
+      entityId,
+      description,
+      aliases,
+      projectId,
+      projectAutomatic,
+    }) =>
       userFacing(async () => {
-        if (projectId !== undefined && projectId !== null) {
-          const projects = await bb.sdk.projects.list({});
-          if (!projects.some((project) => project.id === projectId))
-            throw new Error("Choose an existing BB project.");
-        }
-        const entity = topics.updateMetadata(entityId, {
-          description,
-          aliases,
-          projectId,
-        });
+        const projects = projectId ? await bb.sdk.projects.list({}) : undefined;
+        if (projectId && !projects!.some((project) => project.id === projectId))
+          throw new Error("Choose an existing BB project.");
+        const entity = projectAssociations.updateMetadata(
+          entityId,
+          {
+            description,
+            aliases,
+            projectId,
+            projectAutomatic,
+          },
+          projects,
+        );
         organizerInstance.trigger();
         notify();
         return { entity };

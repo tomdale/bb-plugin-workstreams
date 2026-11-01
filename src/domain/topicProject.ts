@@ -10,7 +10,7 @@ export function topicProject(
   while (id && !seen.has(id)) {
     seen.add(id);
     const topic = byId.get(id);
-    if (!topic) return null;
+    if (!topic || topic.projectSource === "disabled") return null;
     if (topic.projectId) return topic.projectId;
     id = topic.parentId;
   }

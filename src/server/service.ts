@@ -6,7 +6,7 @@
  * to the reconciler's last-seen snapshot, so the reconciler never mistakes a
  * Workstreams change for one made elsewhere.
  */
-import { restoreTopics } from "./topics.ts";
+import { restoreTopics, TopicStore } from "./topics.ts";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { Database } from "./db.ts";
 import { getMeta, setMeta } from "./db.ts";
@@ -358,6 +358,23 @@ export class WorkstreamService {
       this.db
         .prepare("DELETE FROM ws_seen_section WHERE section_id = ?")
         .run(step.sectionId);
+      return { done: 1, skipped: 0 };
+    }
+    if (step.kind === "project-association") {
+      const topics = new TopicStore(this.db);
+      const current = topics.getById(step.entityId);
+      if (
+        !current ||
+        current.projectRevision !== step.to.revision ||
+        (current.projectId ?? null) !== step.to.projectId ||
+        (current.projectSource ?? null) !== step.to.source
+      )
+        return { done: 0, skipped: 1 };
+      topics.edit(step.entityId, {
+        projectId: step.from.projectId,
+        projectSource: step.disableLearning ? "disabled" : step.from.source,
+      });
+      this.onTopicsRestored();
       return { done: 1, skipped: 0 };
     }
     if (step.kind === "restore-topics") {

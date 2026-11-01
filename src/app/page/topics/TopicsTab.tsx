@@ -41,6 +41,7 @@ import { TaskIdentity } from "../../task/TaskIdentity.tsx";
 import { Reclassification } from "../Reclassification.tsx";
 import type { useWorkstreams } from "../../useWorkstreams.ts";
 import { TopicTree } from "./TopicTree.tsx";
+import { ProjectSuggestions } from "./ProjectSuggestions.tsx";
 
 type Workstreams = ReturnType<typeof useWorkstreams>;
 type Suggestion = SuggestionsStateWire["suggestions"][number];
@@ -390,6 +391,7 @@ export function TopicsTab({ ws, query }: { ws: Workstreams; query: string }) {
           ) : null}
         </div>
       ) : null}
+      <ProjectSuggestions ws={ws} />
       <TopicTree ws={ws} query={query} />
       <p className="mt-7 text-[11px] text-muted-foreground/70 max-md:pointer-coarse:hidden">
         <Kbd>j</Kbd> <Kbd>k</Kbd> move · <Kbd>a</Kbd> accept · <Kbd>d</Kbd>{" "}

@@ -2,7 +2,11 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useComposer, useRpc, useSdk } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../../server/contract.ts";
 import type { Preview } from "../../server/preview.ts";
-import { NewWork as NewWorkModel, type NewWorkState } from "./new-work.ts";
+import {
+  NewWork as NewWorkModel,
+  submittedProject,
+  type NewWorkState,
+} from "./new-work.ts";
 import { useDebugMode } from "../debug/debug.ts";
 import { NewWorkDebug } from "./NewWorkDebug.tsx";
 import { createPortal } from "react-dom";
@@ -94,6 +98,7 @@ export function NewThreadRouting() {
       if (!live || !projects.some((project) => project.id === projectId))
         return;
       if (composer.selection?.projectId === projectId) return;
+      model.supplyProject(projectId);
       const release = preserveProjectChoice(projectId, model.snapshot());
       try {
         await composer.setSelection({ projectId });
@@ -117,19 +122,31 @@ export function NewThreadRouting() {
     const identity = submittedIdentity(state);
     void Promise.resolve()
       .then(() =>
-        rpc.call("draftIdentity", { draftKey, text: state.text, identity }),
+        rpc.call("draftIdentity", {
+          draftKey,
+          text: state.text,
+          identity,
+          projectChoice: submittedProject(state),
+        }),
       )
       .catch(() => {
         // The submit data or automatic classification still files the thread.
       });
-  }, [draftKey, model, rpc, state.identity, state.text]);
+  }, [
+    draftKey,
+    model,
+    rpc,
+    state.identity,
+    state.text,
+    state.selection,
+    state.suppliedProjectId,
+  ]);
   useEffect(() => {
     // The host composer submits through BB's own thread creation; the
     // destination the pickers show — picked or automatic — travels as submit
     // metadata the server's dispatch hook files.
     const current = model ? model.snapshot() : null;
     if (!model || !current) return;
-    if (!current.identity && !current.decision) return;
     const primary = root?.closest<HTMLElement>(
       '[data-app-composer-role="primary"]',
     );
@@ -143,12 +160,13 @@ export function NewThreadRouting() {
       void (async () => {
         try {
           const identity = submittedIdentity(model.snapshot());
-          const experimental_data: Record<string, unknown> = {};
-          if (identity) experimental_data.identity = identity;
+          const projectChoice = submittedProject(model.snapshot());
           await composerRef.current.submit({
-            experimental_data: Object.keys(experimental_data).length
-              ? (experimental_data as Record<string, unknown> as any)
-              : null,
+            experimental_data: {
+              draftKey: composerRef.current.key,
+              ...(projectChoice ? { projectChoice } : {}),
+              ...(identity ? { identity } : {}),
+            },
           });
         } catch (error) {
           model.reportError(error);

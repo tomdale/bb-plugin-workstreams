@@ -710,6 +710,8 @@ describe("TopicStore", () => {
     corpus.edit(topic.id, { projectId: "project" });
     expect(corpus.prune()).toEqual([]);
     corpus.edit(topic.id, { projectId: null });
+    expect(corpus.prune()).toEqual([]);
+    corpus.updateMetadata(topic.id, { projectAutomatic: true });
     expect(corpus.prune().map((entity) => entity.id)).toEqual([topic.id]);
   });
 

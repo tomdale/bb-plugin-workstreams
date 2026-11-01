@@ -39,6 +39,7 @@ const ACTION_LABEL: Record<Entry["action"], string> = {
   batch: "Reorganize",
   proposal: "Proposal",
   "edit-workstream": "Edit",
+  "project-association": "Project",
   route: "New thread",
   retitle: "Updated title",
   "remove-topic": "Removed topic",
@@ -54,6 +55,8 @@ const ACTION_HELP: Record<Entry["action"], string> = {
   batch: "Several organization changes were applied together.",
   proposal: "Workstreams suggested an organization change for your decision.",
   "edit-workstream": "A workstream’s description or settings were changed.",
+  "project-association":
+    "A topic’s associated project was learned, changed, or reviewed.",
   route: "A new request was placed in a thread and workstream.",
   retitle:
     "A thread was given its goal as its title, from its opening request or after a turn.",

@@ -1,0 +1,167 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useBbNavigate, useRealtime } from "@get-bb/plugin-sdk/app";
+import { Button } from "@/components/ui/button";
+import type { ProjectSuggestion } from "../../../server/projectAssociations.ts";
+import type { useWorkstreams } from "../../useWorkstreams.ts";
+
+export function ProjectSuggestions({
+  ws,
+}: {
+  ws: ReturnType<typeof useWorkstreams>;
+}) {
+  const navigate = useBbNavigate();
+  const [suggestions, setSuggestions] = useState<ProjectSuggestion[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [entryId, setEntryId] = useState<string | null>(null);
+  const [kept, setKept] = useState(false);
+  const root = useRef<HTMLElement | null>(null);
+  const needsFocus = useRef(false);
+  const generation = useRef(0);
+  const read = useCallback(async () => {
+    const mine = ++generation.current;
+    try {
+      const result = await ws.rpc.call("projectSuggestions", null);
+      if (mine === generation.current) setSuggestions(result.suggestions);
+    } catch (cause) {
+      if (mine === generation.current)
+        setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, [ws.rpc]);
+  useEffect(() => {
+    void read();
+    return () => {
+      generation.current++;
+    };
+  }, [read]);
+  useEffect(() => {
+    if (busy || !needsFocus.current) return;
+    needsFocus.current = false;
+    (
+      root.current?.querySelector<HTMLButtonElement>("button") ?? root.current
+    )?.focus();
+  }, [busy]);
+  useRealtime("changed", () => void read());
+  const decide = async (id: string, decision: "accept" | "decline") => {
+    needsFocus.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const { entry } = await ws.rpc.call("projectSuggestionDecide", {
+        id,
+        decision,
+      });
+      setEntryId(decision === "accept" ? entry.id : null);
+      setKept(decision === "decline");
+      await read();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const undo = async () => {
+    if (!entryId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await ws.rpc.call("undo", { entryId });
+      setEntryId(null);
+      await read();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!suggestions.length && !entryId && !error && !kept) return null;
+  return (
+    <section
+      ref={root}
+      tabIndex={-1}
+      aria-label="Project associations"
+      className="mt-8 space-y-3 outline-none"
+    >
+      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Project associations
+      </h2>
+      {error ? (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      ) : null}
+      {suggestions.map((suggestion) => (
+        <div
+          key={suggestion.id}
+          className="space-y-2 rounded-md border border-border p-3"
+        >
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="min-w-0 flex-1 font-medium">
+              {suggestion.topic}
+            </span>
+            <span className="text-muted-foreground">
+              {suggestion.fromProject} →{" "}
+              {suggestion.toProject ?? "No associated project"}
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => void decide(suggestion.id, "accept")}
+            >
+              Accept
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => void decide(suggestion.id, "decline")}
+            >
+              Decline
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">{suggestion.reason}</p>
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground">
+              Supporting threads
+            </summary>
+            <ul className="mt-1 space-y-1">
+              {suggestion.threads.map((thread) => (
+                <li key={thread.id} className="flex gap-2">
+                  <button
+                    type="button"
+                    className="min-w-0 truncate text-left hover:underline"
+                    onClick={() => navigate.toThread(thread.id)}
+                  >
+                    {thread.name}
+                  </button>
+                  <span className="text-muted-foreground">
+                    {thread.project}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </div>
+      ))}
+      {kept ? (
+        <p role="status" className="text-xs text-muted-foreground">
+          Project association kept.
+        </p>
+      ) : null}
+      {entryId ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          Project association updated.
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => void undo()}
+          >
+            Undo
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  );
+}

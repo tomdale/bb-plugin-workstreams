@@ -213,6 +213,14 @@ function safeAncestors(id: string, entities: readonly Topic[]): string[] {
 }
 
 /** Name, parent, description, and aliases, saved together. */
+const AUTOMATIC_PROJECT = "__automatic__";
+const projectValue = (topic: Topic) =>
+  topic.projectSource === "disabled"
+    ? ""
+    : topic.projectSource === "learned" || !topic.projectId
+      ? AUTOMATIC_PROJECT
+      : topic.projectId;
+
 function EditTopicDialog({
   open,
   onOpenChange,
@@ -233,7 +241,7 @@ function EditTopicDialog({
   const [name, setName] = useState(topic.name);
   const [parentId, setParentId] = useState(topic.parentId ?? "");
   const [description, setDescription] = useState(topic.description);
-  const [projectId, setProjectId] = useState(topic.projectId ?? "");
+  const [projectId, setProjectId] = useState(projectValue(topic));
   const [aliases, setAliases] = useState(topic.aliases.join(", "));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -243,7 +251,7 @@ function EditTopicDialog({
     setName(topic.name);
     setParentId(topic.parentId ?? "");
     setDescription(topic.description);
-    setProjectId(topic.projectId ?? "");
+    setProjectId(projectValue(topic));
     setAliases(topic.aliases.join(", "));
     setError(null);
   }
@@ -276,14 +284,16 @@ function EditTopicDialog({
       if (
         description.trim() !== topic.description ||
         list.join("\n") !== topic.aliases.join("\n") ||
-        (projectId || null) !== (topic.projectId ?? null)
+        projectId !== projectValue(topic)
       )
         await ws.rpc.call("catalogUpdateMetadata", {
           entityId: topic.id,
           description: description.trim(),
           aliases: list,
-          ...((projectId || null) !== (topic.projectId ?? null)
-            ? { projectId: projectId || null }
+          ...(projectId !== projectValue(topic)
+            ? projectId === AUTOMATIC_PROJECT
+              ? { projectId: null, projectAutomatic: true }
+              : { projectId: projectId || null }
             : {}),
         });
       onOpenChange(false);
@@ -341,12 +351,20 @@ function EditTopicDialog({
               label="Project"
               value={projectId}
               options={[
+                {
+                  value: AUTOMATIC_PROJECT,
+                  label:
+                    topic.projectSource === "learned" && topic.projectId
+                      ? `Automatic · ${ws.projects.find((project) => project.id === topic.projectId)?.name ?? "Unavailable project"}`
+                      : "Automatic",
+                },
                 { value: "", label: "No associated project" },
                 ...ws.projects.map((project) => ({
                   value: project.id,
                   label: project.name,
                 })),
                 ...(projectId &&
+                projectId !== AUTOMATIC_PROJECT &&
                 !ws.projects.some((project) => project.id === projectId)
                   ? [{ value: projectId, label: "Unavailable project" }]
                   : []),

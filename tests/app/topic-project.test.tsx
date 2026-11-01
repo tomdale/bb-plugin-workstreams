@@ -9,11 +9,37 @@ Element.prototype.scrollIntoView ??= () => {};
 afterEach(cleanup);
 
 it.each([
-  { initial: null, option: "Example project", expected: "project" },
-  { initial: "project", option: "No associated project", expected: null },
+  {
+    initial: null,
+    source: null,
+    option: "Example project",
+    expected: "project",
+    automatic: false,
+  },
+  {
+    initial: "project",
+    source: "manual",
+    option: "No associated project",
+    expected: null,
+    automatic: false,
+  },
+  {
+    initial: null,
+    source: "disabled",
+    option: "Automatic",
+    expected: null,
+    automatic: true,
+  },
+  {
+    initial: "project",
+    source: "learned",
+    option: "Example project",
+    expected: "project",
+    automatic: false,
+  },
 ])(
   "saves a topic's project as $expected from its editor",
-  async ({ initial, option, expected }) => {
+  async ({ initial, source, option, expected, automatic }) => {
     const call = vi.fn(async () => ({}));
     const topic = {
       id: "topic",
@@ -22,6 +48,7 @@ it.each([
       description: "",
       aliases: [],
       projectId: initial,
+      projectSource: source,
     };
     renderSlot(
       { component: TopicTree },
@@ -44,6 +71,7 @@ it.each([
         description: "",
         aliases: [],
         projectId: expected,
+        ...(automatic ? { projectAutomatic: true } : {}),
       }),
     );
   },

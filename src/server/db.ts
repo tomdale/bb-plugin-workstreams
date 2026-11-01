@@ -379,6 +379,29 @@ const MIGRATIONS = [
   "ALTER TABLE ws_title DROP COLUMN provisional",
   "ALTER TABLE ws_title DROP COLUMN retitled_at",
   "ALTER TABLE ws_corpus_entity ADD COLUMN project_id TEXT",
+  "ALTER TABLE ws_corpus_entity ADD COLUMN project_source TEXT",
+  "ALTER TABLE ws_corpus_entity ADD COLUMN project_revision INTEGER NOT NULL DEFAULT 0",
+  "UPDATE ws_corpus_entity SET project_source = 'manual' WHERE project_id IS NOT NULL",
+  `CREATE TABLE ws_project_draft (
+    draft_key TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE ws_project_thread (
+    thread_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    source TEXT NOT NULL
+  )`,
+  `CREATE TABLE ws_project_suggestion (
+    id TEXT PRIMARY KEY,
+    entity_id TEXT NOT NULL REFERENCES ws_corpus_entity(id) ON DELETE CASCADE,
+    association_revision INTEGER NOT NULL,
+    project_id TEXT,
+    evidence TEXT NOT NULL,
+    status TEXT NOT NULL,
+    UNIQUE(entity_id, association_revision, project_id)
+  )`,
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

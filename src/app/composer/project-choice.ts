@@ -3,10 +3,12 @@
  * remounts the routing model. Carry the selected topic into that replacement
  * only while the project change is in flight; keep its original provenance
  * and preview so automatic choices still title and file the submitted thread.
+ * The project marker travels too, so the replacement does not report a
+ * supplied project as an independent choice.
  */
 import type { NewWorkState } from "./new-work.ts";
 
-type Choice = Pick<NewWorkState, "identity" | "decision">;
+type Choice = Pick<NewWorkState, "identity" | "decision" | "suppliedProjectId">;
 let pending: { projectId: string; choice: Choice } | null = null;
 
 export function preserveProjectChoice(projectId: string, choice: Choice) {

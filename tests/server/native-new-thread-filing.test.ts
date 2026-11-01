@@ -52,6 +52,24 @@ describe("ComposedDrafts", () => {
     expect(drafts.report("d3", "Two", null)).toBeNull();
   });
 
+  it("keeps equal-text project reports separate in either arrival order", () => {
+    const drafts = new ComposedDrafts();
+    const choice = { projectId: "one", source: "workstreams" as const };
+    drafts.report("d1", "Same request", null, choice);
+    expect(drafts.claim("t2", "Same request", "two")).toBeUndefined();
+    expect(drafts.claim("t1", "Same request", "one")).toEqual({
+      identity: null,
+      projectChoice: choice,
+    });
+    expect(drafts.report("d2", "Same request", null, choice)).toBeNull();
+    expect(
+      drafts.report("d3", "Same request", null, {
+        projectId: "two",
+        source: "independent",
+      }),
+    ).toEqual({ threadId: "t2" });
+  });
+
   it("normalizes whitespace", () => {
     expect(draftText("  a \n\n b  ")).toBe("a b");
   });

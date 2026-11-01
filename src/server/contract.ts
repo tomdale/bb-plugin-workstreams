@@ -201,6 +201,23 @@ export const taskIdentitySubmissionSchema = z.object({
   goal: z.string().max(200).nullable().optional(),
 });
 
+export const projectChoiceSchema = z.object({
+  projectId: z.string().min(1),
+  source: z.enum(["independent", "workstreams"]),
+});
+
+const projectSuggestionSchema = z.object({
+  id: z.string(),
+  entityId: z.string(),
+  topic: z.string(),
+  fromProject: z.string(),
+  toProject: z.string().nullable(),
+  reason: z.string(),
+  threads: z.array(
+    z.object({ id: z.string(), name: z.string(), project: z.string() }),
+  ),
+});
+
 const entitySchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -209,6 +226,11 @@ const entitySchema = z.object({
   aliases: z.array(z.string()),
   partitioned: z.boolean().optional(),
   projectId: z.string().min(1).nullable().optional(),
+  projectSource: z
+    .enum(["manual", "learned", "disabled"])
+    .nullable()
+    .optional(),
+  projectRevision: z.number().int().nonnegative().optional(),
 });
 
 const layoutNodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
@@ -395,6 +417,7 @@ export const rpcContract = defineRpcContract({
       draftKey: z.string().min(1).max(500),
       text: z.string().max(20_000),
       identity: taskIdentitySubmissionSchema.nullable(),
+      projectChoice: projectChoiceSchema.nullable().optional(),
     }),
     output: z.object({ filed: z.boolean() }),
   },
@@ -535,8 +558,20 @@ export const rpcContract = defineRpcContract({
       description: z.string().max(1000).optional(),
       aliases: z.array(z.string().max(80)).optional(),
       projectId: z.string().min(1).nullable().optional(),
+      projectAutomatic: z.boolean().optional(),
     }),
     output: z.object({ entity: entitySchema }),
+  },
+  projectSuggestions: {
+    input: z.null(),
+    output: z.object({ suggestions: z.array(projectSuggestionSchema) }),
+  },
+  projectSuggestionDecide: {
+    input: z.object({
+      id: z.string().min(1),
+      decision: z.enum(["accept", "decline"]),
+    }),
+    output: z.object({ entry: entrySchema }),
   },
   catalogMerge: {
     input: z.object({

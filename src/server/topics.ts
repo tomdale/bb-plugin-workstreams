@@ -78,15 +78,28 @@ export function snapshotTopics(db: Database, at: number): string {
 }
 
 /**
- * The topic tree and every topic assignment, hashed. Workstream bindings and
- * the catalog revision are left out: the organizer changes those on its own
- * after every change, and undoing a change must still work after it does.
+ * The topic tree, manual project choices, and every topic assignment, hashed.
+ * Workstream bindings, the catalog revision, and learned project choices are
+ * left out so automatic organization cannot immediately invalidate Undo.
  */
 export function topicsFingerprint(db: Database): string {
   return createHash("sha256")
     .update(
       JSON.stringify([
-        db.prepare("SELECT * FROM ws_corpus_entity ORDER BY id").all(),
+        (
+          db
+            .prepare("SELECT * FROM ws_corpus_entity ORDER BY id")
+            .all() as Row[]
+        ).map((row) =>
+          row.project_source === "learned" || row.project_source === null
+            ? {
+                ...row,
+                project_id: null,
+                project_source: null,
+                project_revision: 0,
+              }
+            : row,
+        ),
         db.prepare("SELECT * FROM ws_corpus_subject ORDER BY thread_id").all(),
       ]),
     )
@@ -147,6 +160,28 @@ export function restoreTopics(
         })),
     );
     for (const entity of entities) {
+      const live = db
+        .prepare(
+          "SELECT project_id, project_source, project_revision FROM ws_corpus_entity WHERE id = ?",
+        )
+        .get(entity.id) as Row;
+      // Automatic project learning does not prevent undoing a topic edit.
+      // Keep learned choices on surviving topics; manual changes are guarded
+      // by the fingerprint, and recreated topics get a fresh association epoch.
+      if (
+        live.project_source === "learned" &&
+        (entity.project_source === null || entity.project_source === "learned")
+      ) {
+        entity.project_id = live.project_id;
+        entity.project_source = live.project_source;
+      }
+      if ("project_revision" in entity)
+        entity.project_revision =
+          now.has(entity.id as string) &&
+          live.project_id === entity.project_id &&
+          live.project_source === entity.project_source
+            ? live.project_revision
+            : current + 1;
       const columns = Object.keys(entity).filter((column) => column !== "id");
       db.prepare(
         `UPDATE ws_corpus_entity SET ${columns.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`,
@@ -198,7 +233,7 @@ export class TopicStore {
   list(): Topic[] {
     const rows = this.db
       .prepare(
-        "SELECT id, name, description, parent_id, aliases, partitioned, project_id FROM ws_corpus_entity ORDER BY id",
+        "SELECT id, name, description, parent_id, aliases, partitioned, project_id, project_source, project_revision FROM ws_corpus_entity ORDER BY id",
       )
       .all() as {
       id: string;
@@ -208,6 +243,8 @@ export class TopicStore {
       aliases: string;
       partitioned: number;
       project_id: string | null;
+      project_source: Topic["projectSource"];
+      project_revision: number;
     }[];
     return rows.map((row) => ({
       id: row.id,
@@ -217,6 +254,8 @@ export class TopicStore {
       aliases: JSON.parse(row.aliases) as string[],
       partitioned: row.partitioned === 1,
       projectId: row.project_id,
+      projectSource: row.project_source,
+      projectRevision: row.project_revision,
     }));
   }
 
@@ -321,6 +360,8 @@ export class TopicStore {
       aliases: cleanAliasList,
       partitioned: false,
       projectId: null,
+      projectSource: null,
+      projectRevision: 0,
     };
     this.db
       .prepare(
@@ -381,6 +422,8 @@ export class TopicStore {
         aliases: cleanAliasList,
         partitioned: false,
         projectId: null,
+        projectSource: null,
+        projectRevision: 0,
       };
 
       this.db
@@ -933,7 +976,8 @@ export class TopicStore {
 
   /**
    * Removes discovered topics that no thread has, no workstream uses, and
-   * that have no subtopics, deepest first. Topics you created are kept.
+   * that have no subtopics, deepest first. Topics you created or configured
+   * with a project choice or learning opt-out are kept.
    */
   prune(): Topic[] {
     return this.db.transaction(() => {
@@ -944,6 +988,7 @@ export class TopicStore {
             `SELECT e.id FROM ws_corpus_entity e
              WHERE e.origin = 'discovered'
                AND e.project_id IS NULL
+               AND e.project_source IS NULL
                AND NOT EXISTS (SELECT 1 FROM ws_corpus_subject s WHERE s.entity_id = e.id)
                AND NOT EXISTS (SELECT 1 FROM ws_corpus_group g WHERE g.entity_id = e.id)
                AND NOT EXISTS (SELECT 1 FROM ws_corpus_entity c WHERE c.parent_id = e.id)
@@ -968,6 +1013,7 @@ export class TopicStore {
       description?: string;
       aliases?: readonly string[];
       projectId?: string | null;
+      projectSource?: Topic["projectSource"];
     },
   ): Topic {
     return this.db.transaction(() => {
@@ -1030,7 +1076,20 @@ export class TopicStore {
         updates.projectId === undefined
           ? (entity.projectId ?? null)
           : updates.projectId;
-      const projectChanged = projectId !== (entity.projectId ?? null);
+      const projectSource =
+        updates.projectSource !== undefined
+          ? updates.projectSource
+          : updates.projectId === undefined
+            ? (entity.projectSource ?? null)
+            : projectId
+              ? "manual"
+              : "disabled";
+      const projectChanged =
+        projectId !== (entity.projectId ?? null) ||
+        projectSource !== (entity.projectSource ?? null);
+      const projectRevision = projectChanged
+        ? this.revision() + 1
+        : (entity.projectRevision ?? 0);
       if (
         !nameChanged &&
         !descriptionChanged &&
@@ -1042,13 +1101,15 @@ export class TopicStore {
 
       this.db
         .prepare(
-          "UPDATE ws_corpus_entity SET name = ?, description = ?, aliases = ?, project_id = ? WHERE id = ?",
+          "UPDATE ws_corpus_entity SET name = ?, description = ?, aliases = ?, project_id = ?, project_source = ?, project_revision = ? WHERE id = ?",
         )
         .run(
           cleanName,
           nextDescription,
           JSON.stringify(nextAliases),
           projectId,
+          projectSource,
+          projectRevision,
           entity.id,
         );
 
@@ -1059,6 +1120,8 @@ export class TopicStore {
         description: nextDescription,
         aliases: nextAliases,
         projectId,
+        projectSource,
+        projectRevision,
       };
     })();
   }
@@ -1118,9 +1181,19 @@ export class TopicStore {
       description?: string;
       aliases?: readonly string[];
       projectId?: string | null;
+      projectAutomatic?: boolean;
     },
   ): Topic {
-    return this.edit(entityId, updates);
+    if (updates.projectAutomatic && updates.projectId)
+      throw new Error(
+        "Choose automatic learning or an explicit project, not both.",
+      );
+    return this.edit(entityId, {
+      ...updates,
+      ...(updates.projectAutomatic
+        ? { projectId: null, projectSource: null }
+        : {}),
+    });
   }
 
   merge(

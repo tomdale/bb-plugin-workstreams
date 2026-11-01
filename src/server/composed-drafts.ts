@@ -11,6 +11,7 @@
  * dispatch with no matching draft waits briefly for a late report.
  */
 import type { DraftSubjectProposal } from "../domain/topics.ts";
+import type { ProjectChoice } from "../domain/projectChoice.ts";
 
 /**
  * The topic a composer showed: one you picked (`manual`), the topic of the
@@ -25,8 +26,18 @@ export type ComposedIdentity = {
   goal?: string | null;
 } | null;
 
-type Draft = { text: string; identity: ComposedIdentity; at: number };
-type Waiting = { threadId: string; text: string; at: number };
+type Draft = {
+  text: string;
+  identity: ComposedIdentity;
+  at: number;
+  projectChoice?: ProjectChoice;
+};
+type Waiting = {
+  threadId: string;
+  text: string;
+  at: number;
+  projectId?: string;
+};
 
 /** How long a reported draft stays claimable after its last change. */
 const DRAFT_TTL_MS = 60 * 60_000;
@@ -55,6 +66,7 @@ export class ComposedDrafts {
     key: string,
     text: string,
     identity: ComposedIdentity,
+    projectChoice?: ProjectChoice | null,
   ): { threadId: string } | null {
     this.prune();
     const normalized = draftText(text);
@@ -62,14 +74,25 @@ export class ComposedDrafts {
       this.drafts.delete(key);
       return null;
     }
-    const index = this.waiting.findIndex((w) => w.text === normalized);
+    const index = this.waiting.findIndex(
+      (w) =>
+        w.text === normalized &&
+        (!projectChoice ||
+          !w.projectId ||
+          projectChoice.projectId === w.projectId),
+    );
     if (index >= 0) {
       const [match] = this.waiting.splice(index, 1);
       this.drafts.delete(key);
       return { threadId: match!.threadId };
     }
     this.drafts.delete(key);
-    this.drafts.set(key, { text: normalized, identity, at: this.now() });
+    this.drafts.set(key, {
+      text: normalized,
+      identity,
+      at: this.now(),
+      ...(projectChoice ? { projectChoice } : {}),
+    });
     while (this.drafts.size > MAX_DRAFTS)
       this.drafts.delete(this.drafts.keys().next().value!);
     return null;
@@ -83,7 +106,8 @@ export class ComposedDrafts {
   claim(
     threadId: string,
     text: string,
-  ): { identity: ComposedIdentity } | undefined {
+    projectId?: string,
+  ): { identity: ComposedIdentity; projectChoice?: ProjectChoice } | undefined {
     this.prune();
     const normalized = draftText(text);
     if (!normalized) return undefined;
@@ -91,15 +115,28 @@ export class ComposedDrafts {
     for (const entry of this.drafts)
       if (
         entry[1].text === normalized &&
+        (!projectId ||
+          !entry[1].projectChoice ||
+          projectId === entry[1].projectChoice.projectId) &&
         (!found || entry[1].at >= found[1].at)
       )
         found = entry;
     if (found) {
       this.drafts.delete(found[0]);
-      return { identity: found[1].identity };
+      return {
+        identity: found[1].identity,
+        ...(found[1].projectChoice
+          ? { projectChoice: found[1].projectChoice }
+          : {}),
+      };
     }
     this.waiting = this.waiting.filter((w) => w.threadId !== threadId);
-    this.waiting.push({ threadId, text: normalized, at: this.now() });
+    this.waiting.push({
+      threadId,
+      text: normalized,
+      at: this.now(),
+      ...(projectId ? { projectId } : {}),
+    });
     if (this.waiting.length > MAX_WAITING) this.waiting.shift();
     return undefined;
   }

@@ -4,6 +4,7 @@
  * so the composer never asks for one.
  */
 import type { ComposerSelection } from "@get-bb/plugin-sdk/app";
+import type { ProjectChoice } from "../../domain/projectChoice.ts";
 import type { Preview } from "../../server/preview.ts";
 import type { DraftSubjectProposal } from "../../domain/topics.ts";
 import { routeDelay } from "./timing.ts";
@@ -40,6 +41,7 @@ export type NewWorkState = {
   text: string;
   identity: IdentityChoice;
   selection: ComposerSelection | null;
+  suppliedProjectId?: string | null;
   /** Quick analysis's latest preview of the draft. */
   decision: Preview | null;
   classifying: boolean;
@@ -47,6 +49,17 @@ export type NewWorkState = {
   errors: number;
   events: readonly NewWorkEvent[];
 };
+
+export function submittedProject(state: NewWorkState): ProjectChoice | null {
+  const projectId = state.selection?.projectId;
+  return projectId
+    ? {
+        projectId,
+        source:
+          projectId === state.suppliedProjectId ? "workstreams" : "independent",
+      }
+    : null;
+}
 
 export type NewWorkDeps = {
   route(prompt: string, pickedProjectId: string | null): Promise<Preview>;
@@ -93,7 +106,7 @@ export class NewWork {
 
   constructor(
     private deps: NewWorkDeps,
-    choice?: Pick<NewWorkState, "identity" | "decision">,
+    choice?: Pick<NewWorkState, "identity" | "decision" | "suppliedProjectId">,
   ) {
     this.state = {
       text: "",
@@ -180,7 +193,18 @@ export class NewWork {
 
   observeSelection(selection: ComposerSelection | null) {
     if (selection === this.state.selection) return;
-    this.set({ selection });
+    this.set({
+      selection,
+      ...(this.state.suppliedProjectId &&
+      this.state.selection?.projectId === this.state.suppliedProjectId &&
+      selection?.projectId !== this.state.suppliedProjectId
+        ? { suppliedProjectId: null }
+        : {}),
+    });
+  }
+
+  supplyProject(projectId: string) {
+    this.set({ suppliedProjectId: projectId });
   }
 
   selectIdentity(
