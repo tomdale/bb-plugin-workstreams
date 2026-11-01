@@ -312,15 +312,3 @@ export function projectWorkstreams<T extends WorkstreamThread>(
     needsYouVia,
   };
 }
-
-/** Page order: most needs-you first, then most recent attention. */
-export function rankGroups<T extends WorkstreamThread>(
-  groups: readonly Group<T>[],
-): Group<T>[] {
-  return [...groups].sort(
-    (a, b) =>
-      b.needsYou - a.needsYou ||
-      b.lastActiveAt - a.lastActiveAt ||
-      a.name.localeCompare(b.name),
-  );
-}

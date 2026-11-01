@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  nearestActive,
-  resolveProposal,
-  type Topic,
-} from "../../src/domain/topics.ts";
+import { resolveProposal, type Topic } from "../../src/domain/topics.ts";
 
 const entity = (id: string, parentId: string | null = null): Topic => ({
   id,
@@ -70,35 +66,5 @@ describe("resolveProposal", () => {
   it("returns a proposal with no existing ancestry unchanged", () => {
     const proposal = draft("Workforest", null, ["Toolbelt"]);
     expect(resolveProposal(proposal, catalog).proposed).toBe(proposal);
-  });
-});
-
-describe("nearestActive", () => {
-  it("selects the closest active ancestor and breaks duplicate placements by section id", () => {
-    const entities = [
-      entity("root"),
-      entity("child", "root"),
-      entity("leaf", "child"),
-    ];
-    expect(
-      nearestActive(
-        "leaf",
-        entities,
-        new Map([
-          ["z-section", "root"],
-          ["b-section", "child"],
-          ["a-section", "child"],
-        ]),
-      ),
-    ).toBe("a-section");
-    expect(
-      nearestActive("leaf", entities, new Map([["root-section", "root"]])),
-    ).toBe("root-section");
-  });
-
-  it("returns null for an unknown subject or a chain without active groups", () => {
-    const entities = [entity("root"), entity("child", "root")];
-    expect(nearestActive("missing", entities, new Map())).toBeNull();
-    expect(nearestActive("child", entities, new Map())).toBeNull();
   });
 });

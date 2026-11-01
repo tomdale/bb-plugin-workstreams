@@ -14,13 +14,6 @@ type ServiceTier = NonNullable<
 const TIMEOUT_MS = 120_000;
 const PERMISSION_MODE = "accept-edits" as const;
 
-/** Human-readable identity retained on traces and in the inspector. */
-export function workerModelLabel(choice: ModelChoice): string {
-  return choice.kind === "gateway"
-    ? choice.model
-    : `${choice.providerId}/${choice.model}`;
-}
-
 export async function resolveExecution(
   sdk: Sdk,
   choice: Choice,

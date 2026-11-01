@@ -1,7 +1,5 @@
 import { topicAncestors } from "./topics.ts";
 
-export const ancestors = topicAncestors;
-
 /**
  * The workstream topic a topic's roots file under: its nearest self-or-ancestor
  * that lists threads (see `layoutGroups`).

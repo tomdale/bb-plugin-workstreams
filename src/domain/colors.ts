@@ -155,10 +155,6 @@ export function resolveColor(
     : { kind: "workstreams" };
 }
 
-export const sameChoice = (a: ColorChoice, b: ColorChoice): boolean =>
-  a.kind === b.kind &&
-  (a.kind === "default" || a.color === (b as { color?: string }).color);
-
 /**
  * Every step of a token chosen as one color (see tokens.css for what each
  * step draws). Text uses BB's text-safe twin of a theme color where there is

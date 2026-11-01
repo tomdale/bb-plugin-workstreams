@@ -4,7 +4,6 @@ import {
   DAY_MS,
   UNSORTED_ID,
   projectWorkstreams,
-  rankGroups,
   type Group,
 } from "../../src/domain/project.ts";
 import { thread, type TestThread } from "./fixtures.ts";
@@ -156,22 +155,6 @@ describe("projectWorkstreams", () => {
       { now, needsYou: (t) => t.id === "x" },
     );
     expect(p.needsYou.map((r) => r.thread.id)).toEqual(["x"]);
-  });
-
-  it("ranks page groups by needs-you, then recency", () => {
-    const p = projectWorkstreams(
-      [
-        thread("a1", { sectionId: "sec_a", latestAttentionAt: now }),
-        thread("b1", {
-          sectionId: "sec_b",
-          latestAttentionAt: now - 100,
-          hasPendingInteraction: true,
-        }),
-      ],
-      sections,
-      { now },
-    );
-    expect(rankGroups(p.groups).map((g) => g.id)).toEqual(["sec_b", "sec_a"]);
   });
 });
 

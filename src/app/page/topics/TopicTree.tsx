@@ -326,6 +326,7 @@ function EditTopicDialog({
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
+              maxLength={200}
               className="mt-1 h-8 text-xs"
             />
           </label>

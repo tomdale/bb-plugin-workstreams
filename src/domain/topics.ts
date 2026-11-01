@@ -25,9 +25,6 @@ export type Topic = {
  */
 export type AssignmentProvenance = "manual" | "inherited" | "full" | "quick";
 
-/** Whether Workstreams chose the topic, so it may change it again. */
-export const isAutomatic = (provenance: AssignmentProvenance | null) =>
-  provenance !== null && provenance !== "manual";
 export type AssignmentStatus = "assigned" | "unresolved";
 
 export type TopicAssignment = {
@@ -39,11 +36,6 @@ export type TopicAssignment = {
   ancestorIds: string[];
   evidence: string | null;
   inheritedFrom: string | null;
-};
-
-export type TopicGroupBinding = {
-  sectionId: string;
-  entityId: string;
 };
 
 export type TopicState = {
@@ -65,11 +57,6 @@ export type DraftSubjectProposal = {
   description: string;
   parentId?: string | null;
   ancestors?: DraftAncestor[] | null;
-};
-
-export type ActiveGroup = {
-  readonly sectionId: string;
-  readonly entityId: string;
 };
 
 /**
@@ -168,31 +155,4 @@ export function resolveProposal(
       ancestors: (proposal.ancestors ?? []).slice(resolved),
     },
   };
-}
-
-/** Returns the nearest ancestor of a subject entity that has an active group. */
-export function nearestActive(
-  subjectId: string,
-  entities: readonly Topic[],
-  groups: ReadonlyMap<string, string>,
-): string | null {
-  const byId = new Map(entities.map((entity) => [entity.id, entity]));
-  const activeSections = new Map<string, string[]>();
-  for (const [sectionId, entityId] of groups) {
-    const sections = activeSections.get(entityId) ?? [];
-    sections.push(sectionId);
-    activeSections.set(entityId, sections);
-  }
-  for (const sections of activeSections.values())
-    sections.sort((a, b) => a.localeCompare(b));
-
-  const visited = new Set<string>();
-  let current: Topic | undefined = byId.get(subjectId);
-  while (current && !visited.has(current.id)) {
-    visited.add(current.id);
-    const sectionId = activeSections.get(current.id)?.[0];
-    if (sectionId) return sectionId;
-    current = current.parentId ? byId.get(current.parentId) : undefined;
-  }
-  return null;
 }
