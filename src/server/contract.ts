@@ -524,6 +524,13 @@ export const rpcContract = defineRpcContract({
           source: z.string(),
         }),
       ),
+      resets: z.array(
+        z.object({
+          threadId: z.string(),
+          from: z.string(),
+          source: z.string(),
+        }),
+      ),
       blockers: z.array(
         z.object({
           threadId: z.string().nullable(),
@@ -535,7 +542,11 @@ export const rpcContract = defineRpcContract({
   },
   topicMigrationApply: {
     input: z.object({ planId: z.string().min(1) }),
-    output: z.object({ backupId: z.string(), changed: z.number() }),
+    output: z.object({
+      backupId: z.string(),
+      changed: z.number(),
+      reset: z.number(),
+    }),
   },
   topicMigrationBackup: {
     input: z.object({ backupId: z.string().min(1) }),

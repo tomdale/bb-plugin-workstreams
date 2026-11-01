@@ -165,17 +165,20 @@ configured topics are retained.
 changing topics or assignments. Deeper topics map to their existing second-level
 ancestor. Assignments in first-level topics with children are blockers until
 explicit meaningful destinations are supplied. `--mapping` accepts `choices` and
-`newTopics`; choices may refer to a new topic's key. Preview lists destination
-definitions, assignment provenance, removed paths, project associations, and
-blockers.
+`newTopics`; choices may refer to a new topic's key. Explicit `resetThreadIds`
+remove selected nonmanual classification records with recovery data. They cannot
+reset manual filing or overlap refile choices, and never delete threads or
+transcripts. A reset thread can be Unfiled when reopened until placement or a
+user files it again. Preview lists destination definitions, assignment
+provenance, removed paths, project associations, and blockers.
 
 Apply requires the reviewed plan ID and identical topic definitions and stored
-assignments. The transaction preserves provenance and classification basis,
-retains destination IDs, records recovery data, and adds removed full paths as
-destination aliases. Explicit project associations on removed topics block
-apply; learned narrower associations are not copied onto broader destinations.
-Native section reconciliation follows the committed topic changes. Unaffected
-category generations are retained.
+assignments. The transaction preserves provenance and classification basis for
+refiled threads, retains destination IDs, records recovery data, and adds
+removed full paths as destination aliases. Explicit project associations on
+removed topics block apply; learned narrower associations are not copied onto
+broader destinations. Native section reconciliation follows the committed topic
+changes. Unaffected category generations are retained.
 
 Recovery snapshots retain original definitions, assignments, bindings, and
 layout and can be exported with `topics migration backup`. They are deliberate

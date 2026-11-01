@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Topic } from "./topics.ts";
 
 export const topicMigrationInput = z.object({
+  resetThreadIds: z.array(z.string().min(1)).max(1000).default([]),
   choices: z
     .array(
       z.object({ threadId: z.string().min(1), topicId: z.string().min(1) }),
@@ -45,5 +46,6 @@ export type TopicMigrationPlan = {
     topicId: string;
     source: string;
   }>;
+  resets: Array<{ threadId: string; from: string; source: string }>;
   blockers: Array<{ threadId: string | null; topicId: string; reason: string }>;
 };

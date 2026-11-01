@@ -45,6 +45,50 @@ function setup() {
 }
 
 describe("reviewed topic migration", () => {
+  it("resets only explicit nonmanual classifications and keeps recoverable original filing", () => {
+    const { migration, topics } = setup();
+    const plan = migration.preview({ resetThreadIds: ["broad"] });
+    expect(plan.blockers).toEqual([]);
+    expect(plan.resets).toEqual([
+      expect.objectContaining({ threadId: "broad", source: "inherited" }),
+    ]);
+    const result = migration.apply(plan.id);
+    expect(result.reset).toBe(1);
+    expect(topics.assignment("broad")).toMatchObject({
+      entityId: null,
+      provenance: null,
+      evidence: null,
+    });
+    expect(topics.assignment("deep")).toMatchObject({
+      provenance: "manual",
+      evidence: "original evidence",
+    });
+    const backup = migration.backup(result.backupId) as {
+      subjects: Array<{ thread_id: string }>;
+    };
+    expect(
+      backup.subjects.some((subject) => subject.thread_id === "broad"),
+    ).toBe(true);
+  });
+
+  it("refuses manual, duplicate, overlapping, and stale reset choices", () => {
+    const { migration, mapping, topics } = setup();
+    expect(() => migration.preview({ resetThreadIds: ["deep"] })).toThrow(
+      "manual",
+    );
+    expect(() =>
+      migration.preview({ resetThreadIds: ["broad", "broad"] }),
+    ).toThrow("once");
+    expect(() =>
+      migration.preview({ ...mapping, resetThreadIds: ["broad"] }),
+    ).toThrow("also refile");
+    const plan = migration.preview({ resetThreadIds: ["broad"] });
+    topics.assign("broad", topics.create("Chosen").id, {
+      provenance: "manual",
+    });
+    expect(() => migration.apply(plan.id)).toThrow("changed");
+    expect(topics.assignment("broad").provenance).toBe("manual");
+  });
   it("previews deeper paths but blocks parent assignments instead of inventing catch-all topics", () => {
     const { migration, topics, feature, product } = setup();
     const before = topics.state();

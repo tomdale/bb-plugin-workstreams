@@ -809,7 +809,8 @@ export function registerCli(
           options: {
             mapping: {
               type: "string",
-              description: "JSON choices and newTopics for reviewed filing",
+              description:
+                "JSON choices, newTopics, and explicit resetThreadIds for reviewed filing",
             },
             json: {
               type: "boolean",
@@ -828,7 +829,7 @@ export function registerCli(
                 ? JSON.stringify(plan, null, 2)
                 : [
                     `Plan: ${plan.id}`,
-                    `${plan.removed.length} deeper topics; ${plan.changes.length} assignments; ${plan.blockers.length} blockers`,
+                    `${plan.removed.length} deeper topics; ${plan.changes.length} refiled; ${plan.resets.length} reset; ${plan.blockers.length} blockers`,
                     ...plan.blockers
                       .slice(0, SHOW_LIMIT)
                       .map(
@@ -863,7 +864,7 @@ export function registerCli(
               exitCode: 0,
               stdout: options.json
                 ? JSON.stringify(result, null, 2)
-                : `Updated ${result.changed} assignments; recovery snapshot ${result.backupId}`,
+                : `Updated ${result.changed} assignments; reset ${result.reset} classifications; recovery snapshot ${result.backupId}`,
             };
           },
         }),

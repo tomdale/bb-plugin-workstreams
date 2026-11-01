@@ -887,7 +887,7 @@ bb workstreams topics preview [<root-thread-id>] [--json]
 bb workstreams topics apply <plan-id> [--json]
 
 # Review a two-level identity migration; blocked assignments require explicit destinations
-bb workstreams topics migration preview [--mapping '<JSON choices and newTopics>'] [--json]
+bb workstreams topics migration preview [--mapping '<JSON choices, newTopics, resetThreadIds>'] [--json]
 bb workstreams topics migration apply <plan-id> [--json]
 bb workstreams topics migration backup <backup-id>
 ```
@@ -897,16 +897,20 @@ second-level ancestor. It leaves first-level assignments blocked when that topic
 has children: supply a meaningful destination for each, rather than creating a
 catch-all. `--mapping` accepts an object with `choices` (`threadId`, `topicId`)
 and `newTopics` (`key`, `name`, `description`, `parentId`, optional `aliases`).
-A choice can refer to a new topic's `key`.
+A choice can refer to a new topic's `key`. Explicit `resetThreadIds` remove
+nonmanual classification records instead of inventing destinations for obsolete
+work. Reset and refile choices cannot overlap, and manual filing cannot be
+reset. Resetting classification does not delete threads or transcripts; a
+reopened thread may stay Unfiled until placed or filed again.
 
 Preview changes no topics or assignments. Apply requires the reviewed plan ID,
 refuses changed topic definitions or assignments, and preserves filing
-provenance and classification basis. It retains original definitions,
-assignments, bindings, and layout in a recovery snapshot. Removed topic paths
-become aliases of their destination. Explicit project associations require
-separate review; narrower learned associations are not copied onto a broader
-topic. Recovery snapshots are exportable data, not an Undo that reinstates an
-invalid topic tree.
+provenance and classification basis for refiled threads. It retains original
+definitions, assignments, bindings, and layout in a recovery snapshot. Removed
+topic paths become aliases of their destination. Explicit project associations
+require separate review; narrower learned associations are not copied onto a
+broader topic. Recovery snapshots are exportable data, not an Undo that
+reinstates an invalid topic tree.
 
 ### Per-thread topic assignment
 

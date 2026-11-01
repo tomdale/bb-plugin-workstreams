@@ -124,9 +124,32 @@ export class TopicMigration {
         newIds.get(choice.topicId) ?? choice.topicId,
       );
     }
+    const resetIds = new Set(input.resetThreadIds);
+    if (
+      resetIds.size !== input.resetThreadIds.length ||
+      input.resetThreadIds.some((id) => !known.has(id) || choices.has(id))
+    )
+      throw new UserError(
+        "Reset choices must name known assignments once and cannot also refile them.",
+      );
+    const resets: TopicMigrationPlan["resets"] = [];
     const changes: TopicMigrationPlan["changes"] = [];
     const blockers: TopicMigrationPlan["blockers"] = [];
     for (const subject of subjects) {
+      if (resetIds.has(subject.thread_id)) {
+        if (subject.source === "manual")
+          throw new UserError(
+            "A migration reset cannot discard a manual filing choice.",
+          );
+        if (!subject.entity_id)
+          throw new UserError("The assignment is already Unfiled.");
+        resets.push({
+          threadId: subject.thread_id,
+          from: topicPath(subject.entity_id, topics),
+          source: subject.source,
+        });
+        continue;
+      }
       if (!subject.entity_id) {
         if (choices.has(subject.thread_id))
           throw new UserError(
@@ -176,13 +199,14 @@ export class TopicMigration {
       topics: proposed,
       removed,
       changes,
+      resets,
       blockers,
     };
     setMeta(this.deps.db, KEY, JSON.stringify(plan));
     return plan;
   }
 
-  apply(planId: string): { backupId: string; changed: number } {
+  apply(planId: string): { backupId: string; changed: number; reset: number } {
     return this.deps.db.transaction(() => {
       const raw = getMeta(this.deps.db, KEY);
       const plan = raw ? (JSON.parse(raw) as TopicMigrationPlan) : null;
@@ -199,6 +223,7 @@ export class TopicMigration {
       if (
         !plan.removed.length &&
         !plan.changes.length &&
+        !plan.resets.length &&
         this.deps.topics.list().length === plan.topics.length
       )
         throw new UserError("The migration would change nothing.");
@@ -251,6 +276,12 @@ export class TopicMigration {
             "UPDATE ws_corpus_subject SET entity_id = ? WHERE thread_id = ?",
           )
           .run(change.topicId, change.threadId);
+      for (const reset of plan.resets)
+        this.deps.db
+          .prepare(
+            "DELETE FROM ws_corpus_subject WHERE thread_id = ? AND source <> 'manual'",
+          )
+          .run(reset.threadId);
       for (const topic of [...plan.removed].sort(
         (a, b) => b.path.split(":").length - a.path.split(":").length,
       )) {
@@ -270,10 +301,14 @@ export class TopicMigration {
         threads: [],
         workstreams: [],
         undo: null,
-        detail: `${plan.changes.length} assignments; recovery snapshot ${backupId}`,
+        detail: `${plan.changes.length} refiled; ${plan.resets.length} classifications reset; recovery snapshot ${backupId}`,
       });
       this.deps.db.prepare("DELETE FROM ws_meta WHERE key = ?").run(KEY);
-      return { backupId, changed: plan.changes.length };
+      return {
+        backupId,
+        changed: plan.changes.length,
+        reset: plan.resets.length,
+      };
     })();
   }
 
