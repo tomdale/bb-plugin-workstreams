@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { EMPTY_WORKSTREAM_GRACE_MS as grace } from "../../src/domain/empty-workstreams.ts";
-import { openDatabase } from "../../src/server/db.ts";
+import { getMeta, setMeta, openDatabase } from "../../src/server/db.ts";
 import { WorkstreamService } from "../../src/server/service.ts";
 import { Journal } from "../../src/server/journal.ts";
 import { TopicStore } from "../../src/server/topics.ts";
@@ -18,6 +18,40 @@ const state = async (w: World) =>
   (await w.harness.behavior.callRpc("state", null)) as {
     lastPopulatedAt: Record<string, number>;
   };
+
+it("does not retain an obsolete automatic section after its topic binding is removed", async () => {
+  world = await fakeWorld();
+  const db = openDatabase(world.bb),
+    topics = new TopicStore(db);
+  const topic = topics.create("Product");
+  const section = world.addSection("Removed scope"),
+    manual = world.addSection("User section");
+  db.prepare(
+    "INSERT INTO ws_workstream(section_id, created_by) VALUES (?, 'workstreams')",
+  ).run(section.id);
+  db.prepare(
+    "INSERT INTO ws_workstream(section_id, created_by) VALUES (?, 'user')",
+  ).run(manual.id);
+  topics.bindGroup(section.id, topic.id);
+  const archived = world.addThread("archive", {
+    sectionId: section.id,
+    archivedAt: Date.now(),
+  });
+  setMeta(
+    db,
+    "last-populated-workstreams",
+    JSON.stringify({ [section.id]: Date.now(), [manual.id]: Date.now() }),
+  );
+  expect((await state(world)).lastPopulatedAt[section.id]).toBeDefined();
+  topics.unbindGroup(section.id);
+  expect((await state(world)).lastPopulatedAt[section.id]).toBeUndefined();
+  expect((await state(world)).lastPopulatedAt[manual.id]).toBeDefined();
+  await world.harness.behavior.callRpc("refresh", null);
+  expect(
+    JSON.parse(getMeta(db, "last-populated-workstreams")!)[section.id],
+  ).toBeUndefined();
+  expect(world.threads.get(archived.id)?.sectionId).toBe(section.id);
+});
 
 it("records visible population and expires archived empties without renewing them on reads", async () => {
   let now = 100 * grace;

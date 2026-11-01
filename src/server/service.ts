@@ -499,9 +499,27 @@ export class WorkstreamService {
       );
       if (!value || typeof value !== "object" || Array.isArray(value))
         return {};
+      const orphaned = new Set(
+        (
+          this.db
+            .prepare(
+              `
+        SELECT w.section_id FROM ws_workstream w
+        WHERE w.created_by = 'workstreams' AND NOT EXISTS (
+          SELECT 1 FROM ws_corpus_group g JOIN ws_corpus_entity e ON e.id = g.entity_id
+          WHERE g.section_id = w.section_id
+        )`,
+            )
+            .all() as { section_id: string }[]
+        ).map((row) => row.section_id),
+      );
       return Object.fromEntries(
         Object.entries(value).filter(
-          ([, at]) => typeof at === "number" && Number.isFinite(at) && at >= 0,
+          ([id, at]) =>
+            !orphaned.has(id) &&
+            typeof at === "number" &&
+            Number.isFinite(at) &&
+            at >= 0,
         ),
       );
     } catch {
@@ -542,7 +560,11 @@ export class WorkstreamService {
       )
         next[group.id] = previous[group.id]!;
     }
-    if (JSON.stringify(next) === JSON.stringify(previous)) return false;
+    if (
+      JSON.stringify(next) ===
+      (getMeta(this.db, "last-populated-workstreams") ?? "{}")
+    )
+      return false;
     setMeta(this.db, "last-populated-workstreams", JSON.stringify(next));
     return true;
   }

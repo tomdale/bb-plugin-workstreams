@@ -378,8 +378,10 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      at most `3` recently emptied workstreams are retained, and only while they
      had a visible, non-archived, unsnoozed thread within the last `10` minutes.
      The most recently populated win, whether focused or not. Hiding an empty
-     group never deletes threads or topics. The grace period survives reloads
-     and is shared across windows; polling an empty workstream never extends it.
+     group never deletes threads or topics. An automatically created section
+     whose topic binding was removed has no New work target and is not retained.
+     The grace period survives reloads and is shared across windows; polling an
+     empty workstream never extends it.
    - Click the **Focus** button (viewfinder icon) on any workstream header to
      pin it to the top tier. When at least one workstream is focused, the other
      workstreams, **Unfiled**, and **Dormant** collapse behind **Show/Hide other
