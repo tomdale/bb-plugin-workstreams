@@ -31,6 +31,22 @@ changing a prompt or model. Measure latency against the 15-second first-send
 budget. A small perfect synthetic run is not a production accuracy estimate. See
 [classification.md](classification.md) for scoring limitations.
 
+## Group drops
+
+`node eval/group-drops.ts` evaluates the production Placement prompt, schema,
+and parser when a user moves a thread into a multi-topic group. Synthetic cases
+cover titles, sidebar layout, and question cards while the old topic, project,
+and checkout point elsewhere. Every answer must choose an existing leaf within
+the destination; the report also checks the expected topic.
+
+- `EVAL_MODEL`: defaults to the production Placement model
+- `EVAL_REPETITIONS`: 1–20; default `3`
+- `EVAL_OUTPUT`: default `/tmp/group-drops-eval.json`
+
+Reports retain responses, costs, and latency on failures as well as successes.
+The runner never changes plugin facts. This small synthetic set checks the
+scoped contract, not accuracy on all real threads.
+
 ## Titles
 
 `node eval/titles.ts` runs Quick analysis's prompt, schema, and parser on

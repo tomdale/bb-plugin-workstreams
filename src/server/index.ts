@@ -22,7 +22,12 @@ import { WorkstreamMap } from "./map.ts";
 import { ComposerPreview, type Preview } from "./preview.ts";
 import { TopicStore, topicBasis } from "./topics.ts";
 import { ComposedDrafts, type ComposedIdentity } from "./composed-drafts.ts";
-import type { TopicAssignment } from "../domain/topics.ts";
+import {
+  topicAncestors,
+  takesThreads,
+  type TopicAssignment,
+} from "../domain/topics.ts";
+import { assignmentEvidence, threadEvidence } from "./evidence.ts";
 import { rpcContract } from "./contract.ts";
 import { hostContract } from "./inference/contract.ts";
 import { openDatabase } from "./db.ts";
@@ -996,6 +1001,57 @@ export default async function plugin(bb: BbPluginApi) {
         organizerInstance.trigger();
         notify();
         return result;
+      }),
+    taskMove: ({ threadId, entityId }) =>
+      userFacing(async () => {
+        await service.reconcile();
+        if (topics.findRootThread(threadId) !== threadId)
+          throw new Error("Move the root thread; its delegates follow it.");
+        const definition = topics.definitionKey();
+        const preview = await analyzer.previewTopic(threadId, {
+          within: entityId,
+        });
+        const live = await bb.sdk.threads.get({ threadId });
+        const project = await projectName(live.projectId);
+        if (
+          definition !== topics.definitionKey() ||
+          threadEvidence(live) !== preview.evidence ||
+          assignmentEvidence(topics.assignment(threadId)) !==
+            preview.assignmentKey ||
+          project !== preview.projectHint
+        )
+          throw new Error(
+            "The thread or topics changed while choosing its topic. Drop it again.",
+          );
+        const chosen = preview.answer.subjectId;
+        const entities = topics.list();
+        if (
+          !chosen ||
+          !takesThreads(chosen, entities) ||
+          !topicAncestors(chosen, entities).includes(entityId)
+        )
+          throw new Error(
+            "No topic was chosen within the destination. The thread has not moved.",
+          );
+        const assignment = topics.assign(threadId, chosen, {
+          provenance: "manual",
+        });
+        journal.add({
+          action: "batch",
+          source: "user",
+          rationale: "Moved thread to chosen workstream",
+          threads: [{ id: threadId, name: preview.title }],
+          workstreams: [],
+          undo: null,
+          detail: `${preview.from ?? "Unfiled"} → ${assignment.label}`,
+        });
+        inference.annotate(preview.traceId, {
+          topic: "applied within the user's destination group",
+          application: "applied",
+        });
+        organizerInstance.trigger();
+        notify();
+        return { assignment };
       }),
     taskAssign: ({ threadId, entityId }) =>
       userFacing(async () => {

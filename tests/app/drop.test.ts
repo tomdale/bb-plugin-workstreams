@@ -154,7 +154,7 @@ describe("planDrop", () => {
     });
   });
 
-  it("rejects cross-group moves without a known leaf topic", () => {
+  it("requires a known topic and chooses within parent destinations", () => {
     const withChild = {
       ...topics,
       entities: [
@@ -162,7 +162,7 @@ describe("planDrop", () => {
         { id: "child", name: "Child", parentId: "a" },
       ],
     };
-    for (const catalog of [undefined, { ...topics, entities: [] }, withChild]) {
+    for (const catalog of [undefined, { ...topics, entities: [] }]) {
       expect(acceptsThreadDrop("sec_b", "sec_a", catalog)).toBe(false);
       expect(
         planDrop(threadDrop(), projection, sections, EMPTY_ORDER, catalog),
@@ -170,7 +170,24 @@ describe("planDrop", () => {
     }
     expect(acceptsThreadDrop("sec_a", "sec_a")).toBe(true);
     expect(acceptsThreadDrop("sec_a", "unsorted")).toBe(true);
-    expect(acceptsThreadDrop("sec_a", "topic:a", withChild)).toBe(false);
+    expect(acceptsThreadDrop("sec_a", "topic:a", withChild)).toBe(true);
+    expect(
+      planDrop(threadDrop(), projection, sections, EMPTY_ORDER, withChild),
+    ).toMatchObject({
+      assign: { threadId: "b1", entityId: "a", within: true },
+    });
+    expect(
+      planDrop(
+        threadDrop({ toGroupId: "topic:a", overThreadId: null }),
+        projection,
+        sections,
+        EMPTY_ORDER,
+        withChild,
+      ),
+    ).toEqual({
+      assign: { threadId: "b1", entityId: "a", within: true },
+      reorder: null,
+    });
   });
 
   it.each([

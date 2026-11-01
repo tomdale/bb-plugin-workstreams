@@ -157,6 +157,48 @@ describe("parsePlacement", () => {
   });
 });
 
+describe("placement within a user-chosen group", () => {
+  const scoped = {
+    ...input,
+    within: "auto",
+    current: { label: "Vercel: Code Review", inherited: false },
+  };
+  it("limits structured output to existing leaves inside the destination", () => {
+    const schema = placementSchema(scoped) as {
+      properties: { topic: { enum: string[] }; propose: { type: string } };
+    };
+    expect(schema.properties.topic.enum).toEqual(["planning", "triggers"]);
+    expect(schema.properties.propose).toEqual({ type: "null" });
+    expect(placementPrompt(scoped)).toContain(
+      "The user moved this thread into Vercel: Automations",
+    );
+    expect(
+      parsePlacement('{"topic":"planning","propose":null}', scoped).subjectId,
+    ).toBe("planning");
+  });
+  it.each([
+    { topic: "code-review", propose: null },
+    { topic: "automations", propose: null },
+    { topic: null, propose: null },
+    {
+      topic: null,
+      propose: { name: "CLI", description: "", parent: "automations" },
+    },
+    {
+      topic: "planning",
+      propose: { name: "CLI", description: "", parent: "automations" },
+    },
+  ])("rejects an answer outside the chosen existing leaves: %j", (answer) => {
+    expect(() => parsePlacement(JSON.stringify(answer), scoped)).toThrow();
+  });
+  it("rejects an unknown destination", () => {
+    expect(() => placementSchema({ ...scoped, within: "missing" })).toThrow();
+    expect(() =>
+      parsePlacement('{"topic":"planning"}', { ...scoped, within: "missing" }),
+    ).toThrow();
+  });
+});
+
 describe("placement evidence", () => {
   it("keeps the first, second, and latest substantive requests, unwrapped", () => {
     expect(

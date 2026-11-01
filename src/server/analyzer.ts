@@ -310,7 +310,7 @@ export class Analyzer {
   }
 
   /** A placement preview shares production evidence and parsing but writes no facts. */
-  async previewTopic(threadId: string) {
+  async previewTopic(threadId: string, options: { within?: string } = {}) {
     const sdk = this.deps.sdk();
     const thread = await sdk.threads.get({ threadId });
     const topics = this.deps.topics;
@@ -324,14 +324,14 @@ export class Analyzer {
       throw new Error("That thread is unavailable for classification.");
     const evidence = threadEvidence(thread);
     const assignment = topics.assignment(threadId);
-    if (assignment.provenance === "manual")
+    if (assignment.provenance === "manual" && !options.within)
       throw new Error("Manual topics are preserved.");
     const assignmentKey = assignmentEvidence(assignment);
     const context = await this.context(thread);
     const question = await placement.question(
       thread,
       context.requests.map((r) => r.text),
-      { force: true },
+      { force: true, ...options },
     );
     if (!question) throw new Error("The thread has no request to place.");
     const title = displayTitle(thread);

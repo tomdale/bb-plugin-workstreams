@@ -354,8 +354,14 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      workstream's topic; its delegates follow it. Drop on a row to place it
      before or after that root, or on a header to place it first, including a
      collapsed or recently emptied workstream. Drop in **Unfiled** to clear its
-     topic. A group with subgroups cannot take threads itself: drop on a
-     subgroup's header or one of its rows instead.
+     topic. When the destination represents several topics, Workstreams uses the
+     Placement model to choose an existing topic within that group. It shows
+     **Choosing a topic in the destination workstream…** while choosing, then
+     saves the choice as a manual topic. The same action works on a parent
+     group's header, including groups whose topics list inline; when that header
+     has no thread list of its own, the chosen subgroup's order applies. If the
+     call fails, returns an invalid topic, or the thread or topic tree changes
+     while it runs, the thread keeps its topic and the sidebar shows an error.
    - Drag root threads within a workstream to set manual thread order (newly
      created roots appear at the top of their workstream; newly created
      workstreams appear at the bottom).

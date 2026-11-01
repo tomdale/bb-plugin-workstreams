@@ -73,6 +73,7 @@ async function mount(
     recaps?: Record<string, unknown>;
     lastPopulatedAt?: Record<string, number>;
     assignmentError?: string;
+    moveWait?: Promise<void>;
     order?: {
       workstreams: string[];
       threads: Record<string, string[]>;
@@ -205,6 +206,35 @@ async function mount(
           : {}),
       }),
       moveThread: () => ({ entry: null }),
+      taskMove: async (raw: unknown) => {
+        await options.moveWait;
+        if (options.assignmentError) throw new Error(options.assignmentError);
+        const { threadId, entityId } = raw as {
+          threadId: string;
+          entityId: string;
+        };
+        const sectionId = Object.entries(options.catalog?.groups ?? {}).find(
+          ([, topic]) => topic === entityId,
+        )?.[0];
+        const leaf = options.catalog?.entities.find(
+          (e) => e.parentId === entityId,
+        );
+        if (!sectionId || !leaf) throw new Error("No destination topic");
+        const index = threads.findIndex((t) => t.id === threadId);
+        threads[index] = { ...threads[index]!, sectionId };
+        return {
+          assignment: {
+            threadId,
+            entityId: leaf.id,
+            status: "assigned",
+            provenance: "manual",
+            label: leaf.name,
+            ancestorIds: [leaf.id, entityId],
+            evidence: null,
+            inheritedFrom: null,
+          },
+        };
+      },
       taskAssign: (raw: unknown) => {
         if (options.assignmentError) throw new Error(options.assignmentError);
         const { threadId, entityId } = raw as {
@@ -1822,8 +1852,12 @@ describe("thread list", () => {
   );
 
   it.each([false, true])(
-    "moves a root and its children to the destination topic (failure: %s)",
+    "chooses a topic inside a parent group and moves its delegates (failure: %s)",
     async (fails) => {
+      let release!: () => void;
+      const moveWait = new Promise<void>((resolve) => {
+        release = resolve;
+      });
       const restore = layoutByRows();
       try {
         const slot = await mount(
@@ -1862,9 +1896,17 @@ describe("thread list", () => {
                   parentId: null,
                   aliases: [],
                 },
+                {
+                  id: "labels",
+                  name: "Labels",
+                  description: "",
+                  parentId: "b",
+                  aliases: [],
+                },
               ],
               groups: { sec_a: "a", sec_b: "b" },
             },
+            moveWait,
             assignmentError: fails ? "Topic assignment failed" : undefined,
           },
         );
@@ -1885,10 +1927,14 @@ describe("thread list", () => {
         fireEvent.mouseUp(document, { clientX: 10, clientY: 70 });
         await waitFor(() =>
           expect(
-            slot.inspection.rpcCalls.find((c) => c.method === "taskAssign")
+            slot.inspection.rpcCalls.find((c) => c.method === "taskMove")
               ?.input,
           ).toEqual({ threadId: "alpha", entityId: "b" }),
         );
+        expect(
+          slot.getByText("Choosing a topic in the destination workstream…"),
+        ).toBeTruthy();
+        release();
         if (fails) {
           await slot.findByText("Topic assignment failed");
           expect(groupRows(slot, "Alpha")).toEqual(["Alpha task", "Delegate"]);
@@ -1897,6 +1943,11 @@ describe("thread list", () => {
             slot.inspection.rpcCalls.some((c) => c.method === "reorder"),
           ).toBe(false);
         } else {
+          await waitFor(() =>
+            expect(
+              slot.inspection.rpcCalls.some((c) => c.method === "reorder"),
+            ).toBe(true),
+          );
           // Publish the coordinator's updated section through the SDK snapshot.
           slot.selectThread("alpha");
           await waitFor(() =>

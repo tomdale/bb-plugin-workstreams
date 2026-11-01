@@ -239,6 +239,7 @@ export function WorkstreamsThreadList({
   const { bandOptions, updateBandOptions } = useBandOptions();
   const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [choosingTopic, setChoosingTopic] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [showLower, setShowLower] = useState(false);
   // Other workstreams the user expanded since revealing them. Not
@@ -409,12 +410,21 @@ export function WorkstreamsThreadList({
     );
     try {
       if (plan.assign) {
-        await ws.rpc.call("taskAssign", plan.assign);
+        const { within, ...target } = plan.assign;
+        if (within && target.entityId) {
+          setChoosingTopic(true);
+          await ws.rpc.call("taskMove", {
+            ...target,
+            entityId: target.entityId,
+          });
+        } else await ws.rpc.call("taskAssign", target);
         await ws.refresh();
       }
       if (plan.reorder) await ws.reorder(plan.reorder);
     } catch (cause) {
       report(cause);
+    } finally {
+      setChoosingTopic(false);
     }
   };
   const { contextProps } = useSidebarDnd({
@@ -723,6 +733,7 @@ export function WorkstreamsThreadList({
               key={root.id}
               id={treeKey(root.id)}
               data={{ type: "thread", threadId: root.id, groupId: group.id }}
+              disabled={choosingTopic}
             >
               {({ ref, style, handle }) => (
                 <li ref={ref} style={style} className="list-none">
@@ -786,16 +797,12 @@ export function WorkstreamsThreadList({
         );
         return (
           <li key={sub.id} className="list-none">
-            {sub.hasSection ? (
-              <DropTarget
-                id={groupKey(sub.id)}
-                data={{ type: "target", groupId: sub.id }}
-              >
-                {render}
-              </DropTarget>
-            ) : (
-              render()
-            )}
+            <DropTarget
+              id={groupKey(sub.id)}
+              data={{ type: "target", groupId: sub.id }}
+            >
+              {render}
+            </DropTarget>
           </li>
         );
       }),
@@ -1063,6 +1070,14 @@ export function WorkstreamsThreadList({
             className="mx-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive"
           >
             {error}
+          </p>
+        ) : null}
+        {choosingTopic ? (
+          <p
+            role="status"
+            className="mx-2 px-2 py-1 text-xs text-muted-foreground"
+          >
+            Choosing a topic in the destination workstream…
           </p>
         ) : null}
         {bandPresence.map((band) => (

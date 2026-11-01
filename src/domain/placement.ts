@@ -15,7 +15,7 @@
 import { z } from "zod";
 import { excerpt, HEADER, redact, stripFence, tagged } from "./analysis.ts";
 import type { TopicAnswer } from "./classify.ts";
-import { resolveProposal, takesThreads } from "./topics.ts";
+import { resolveProposal, takesThreads, topicAncestors } from "./topics.ts";
 
 /** Requests are excerpted to this much each. */
 const REQUEST_CHARS = 1200;
@@ -36,6 +36,8 @@ export type PlacementTopic = {
 export type PlacementInput = {
   /** The thread's generated title, when it has one. */
   readonly title: string | null;
+  /** A user-chosen destination: choose an existing leaf inside this topic only. */
+  readonly within?: string;
   /** Substantive requests, oldest first: the first, second, and latest. */
   readonly requests: readonly string[];
   readonly project: string | null;
@@ -134,6 +136,24 @@ export const PLACEMENT_RULES = `Choose the topic this thread's work belongs to: 
 
 A topic about a different product is never a fit, however close: when the requests name the product, platform, or tool the work belongs to, a topic beneath a different owner doesn't fit however closely its description matches, and a new topic under the named owner is the answer. A tool used only as the method for otherwise unspecified work doesn't make the work about that tool, and a bare URL or reference supports at most a product the requests name; with no supported owner, give no topic. Name new topics in Title Case, keeping product names' own spelling. Hints are evidence, not rules.`;
 
+type PlacementChoices = Pick<PlacementInput, "entities" | "within">;
+
+/** The user's group choice constrains both generation and parsing, not just the prompt. */
+function choosable(input: PlacementChoices): Set<string> {
+  if (input.within && !input.entities.some((e) => e.id === input.within))
+    throw new Error("The destination topic is unavailable.");
+  return new Set(
+    input.entities
+      .filter(
+        (e) =>
+          takesThreads(e.id, input.entities) &&
+          (!input.within ||
+            topicAncestors(e.id, input.entities).includes(input.within)),
+      )
+      .map((e) => e.id),
+  );
+}
+
 export function placementPrompt(input: PlacementInput): string {
   const ids = placementIds(input.entities);
   const requests = input.requests.map((text, index) =>
@@ -165,48 +185,63 @@ export function placementPrompt(input: PlacementInput): string {
 
 You file one agent thread under a topic, for someone who switches between dozens of threads.
 
-${PLACEMENT_RULES}
+${
+  input.within
+    ? `The user moved this thread into ${line(
+        topicAncestors(input.within, input.entities)
+          .reverse()
+          .map((id) => input.entities.find((e) => e.id === id)!.name)
+          .join(": "),
+        300,
+      )}. Choose the existing topic within that group whose scope best covers the thread's work. This destination is the user's decision: the old topic, project, checkout, and hints cannot move it outside that group. Choose a topic without subtopics. Do not propose a new topic or leave the thread unfiled.`
+    : PLACEMENT_RULES
+}
 
 ${sections.join("\n\n")}
 
-Return {"topic": string|null, "propose": object|null, "scopeShift": boolean}:
-- topic: the ID in square brackets of the chosen topic, or null.
-- propose: null, or {"name": string, "description": string, "parent": string|null} for one new topic when none fits; parent is the ID of the topic it belongs inside, or null.
+Return ${input.within ? '{"topic": string, "propose": null, "scopeShift": boolean}' : '{"topic": string|null, "propose": object|null, "scopeShift": boolean}'}:
+- topic: the ID in square brackets of the chosen topic${input.within ? " within the destination group." : ", or null."}
+- propose: ${input.within ? "null; group moves choose only existing topics." : 'null, or {"name": string, "description": string, "parent": string|null} for one new topic when none fits; parent is the ID of the topic it belongs inside, or null.'}
 - scopeShift: true only when the latest request moved the thread to work with a different primary owner than its current topic; otherwise false.
-Give a topic or a proposal, never both; both null when the work's owner is unknown.`;
+${input.within ? "Give an existing topic inside the user's destination group and set propose to null." : "Give a topic or a proposal, never both; both null when the work's owner is unknown."}`;
 }
 
 /** JSON Schema constrains IDs at generation as well as at parsing. */
 export function placementSchema(
-  input: Pick<PlacementInput, "entities">,
+  input: PlacementChoices,
 ): Record<string, unknown> {
   const ids = placementIds(input.entities);
-  const choosable = [...ids]
-    .filter(([id]) => takesThreads(id, input.entities))
+  const allowed = choosable(input);
+  const choices = [...ids]
+    .filter(([id]) => allowed.has(id))
     .map(([, short]) => short);
   return {
     type: "object",
     additionalProperties: false,
     properties: {
-      topic: { type: ["string", "null"], enum: [null, ...choosable] },
-      propose: {
-        anyOf: [
-          { type: "null" },
-          {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              name: { type: "string" },
-              description: { type: "string" },
-              parent: {
-                type: ["string", "null"],
-                enum: [null, ...ids.values()],
+      topic: input.within
+        ? { type: "string", enum: choices }
+        : { type: ["string", "null"], enum: [null, ...choices] },
+      propose: input.within
+        ? { type: "null" }
+        : {
+            anyOf: [
+              { type: "null" },
+              {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  name: { type: "string" },
+                  description: { type: "string" },
+                  parent: {
+                    type: ["string", "null"],
+                    enum: [null, ...ids.values()],
+                  },
+                },
+                required: ["name", "description", "parent"],
               },
-            },
-            required: ["name", "description", "parent"],
+            ],
           },
-        ],
-      },
       scopeShift: { type: "boolean" },
     },
     required: ["topic", "propose", "scopeShift"],
@@ -236,16 +271,21 @@ const outputSchema = z.object({
  */
 export function parsePlacement(
   text: string,
-  input: Pick<PlacementInput, "entities">,
+  input: PlacementChoices,
 ): PlacementOutput {
   const parsed = outputSchema.parse(JSON.parse(stripFence(text)));
+  const allowed = choosable(input);
+  if (input.within && (!parsed.topic || parsed.propose))
+    throw new Error(
+      "The model did not choose an existing topic within the destination.",
+    );
   const byShort = new Map(
     [...placementIds(input.entities)].map(([id, short]) => [short, id]),
   );
   const scopeShift = parsed.scopeShift ?? false;
   if (parsed.topic) {
     const id = byShort.get(parsed.topic);
-    if (!id || !takesThreads(id, input.entities))
+    if (!id || !allowed.has(id))
       throw new Error("The model chose a topic that can't hold threads.");
     return { subjectId: id, proposed: null, scopeShift };
   }

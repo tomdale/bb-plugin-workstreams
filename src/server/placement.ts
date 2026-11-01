@@ -140,16 +140,20 @@ export class Placement {
   async question(
     thread: PlacementThread,
     rawRequests: readonly string[],
-    options: { force?: boolean } = {},
+    options: { force?: boolean; within?: string } = {},
   ): Promise<PlacementQuestion | null> {
     const topics = this.deps.topics;
     const assignment = topics.assignment(thread.id);
-    if (assignment.provenance === "manual") return null;
+    if (assignment.provenance === "manual" && !options.within) return null;
     const requests = placementRequests(rawRequests);
     // With neither a substantive request nor a title there is nothing to
     // place by; settling "no topic" keeps the root from being asked again
     // until a request arrives.
     const blank = requests.length === 0 && !thread.title;
+    if (blank && options.within)
+      throw new Error(
+        "The thread has no request or title to choose a topic from.",
+      );
     if (blank && assignment.provenance !== null) return null;
     const project = await this.deps.project(thread.projectId);
     const basis = this.deps.basisOf(rawRequests, project);
@@ -170,6 +174,7 @@ export class Placement {
         : {}),
       input: {
         title: thread.title,
+        ...(options.within ? { within: options.within } : {}),
         requests,
         project,
         checkout,

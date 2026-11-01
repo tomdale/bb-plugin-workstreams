@@ -546,6 +546,14 @@ export const rpcContract = defineRpcContract({
       reparentedChildren: z.number(),
     }),
   },
+  /** Chooses an existing leaf within the user's destination group and sets it manually. */
+  taskMove: {
+    input: z.object({
+      threadId: z.string().min(1),
+      entityId: z.string().min(1),
+    }),
+    output: z.object({ assignment: topicAssignmentSchema }),
+  },
   /** Sets a thread's topic yourself; null means it has no topic. */
   taskAssign: {
     input: z.object({

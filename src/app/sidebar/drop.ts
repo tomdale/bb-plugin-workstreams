@@ -14,26 +14,35 @@ import {
   type Section,
   type WorkstreamThread,
 } from "../../domain/project.ts";
-import { nestGroups, type WorkstreamTopics } from "../../domain/groups.ts";
+import {
+  nestGroups,
+  sharedTopicId,
+  type WorkstreamTopics,
+} from "../../domain/groups.ts";
 import { takesThreads } from "../../domain/topics.ts";
 import type { ReorderChange } from "../useWorkstreams.ts";
 import type { Drop } from "./dnd.tsx";
 
 /** A cross-group drop sets the root's topic before saving its destination order. */
 export type DropPlan = {
-  assign?: { threadId: string; entityId: string | null };
+  assign?: { threadId: string; entityId: string | null; within?: true };
   reorder: ReorderChange | null;
 };
 
-/** A parent topic cannot take threads alongside its subtopics. */
+/** Parent groups accept moves by choosing a leaf within them on the server. */
 function destination(groupId: string, topics?: WorkstreamTopics) {
   if (groupId === UNSORTED_ID) return { entityId: null };
-  const entityId = topics?.bindings[groupId];
-  return entityId &&
-    topics.entities.some((entity) => entity.id === entityId) &&
-    takesThreads(entityId, topics.entities)
-    ? { entityId }
-    : null;
+  const entityId =
+    topics?.bindings[groupId] ??
+    topics?.entities.find((entity) => sharedTopicId(entity.id) === groupId)?.id;
+  if (!entityId || !topics?.entities.some((entity) => entity.id === entityId))
+    return null;
+  return {
+    entityId,
+    ...(!takesThreads(entityId, topics.entities)
+      ? { within: true as const }
+      : {}),
+  };
 }
 
 export const acceptsThreadDrop = (
@@ -92,7 +101,15 @@ export function planDrop<T extends WorkstreamThread>(
   )
     return { reorder: null };
   const group = groups.find((g) => g.id === drop.toGroupId);
-  if (!group) return { reorder: null };
+  if (!group) {
+    const target = destination(drop.toGroupId, topics);
+    // A topic-only header has no section order; its chosen leaf determines placement.
+    return target &&
+      drop.overThreadId === null &&
+      drop.fromGroupId !== drop.toGroupId
+      ? { assign: { threadId: drop.threadId, ...target }, reorder: null }
+      : { reorder: null };
+  }
   const roots = group.rows
     .filter((row) => row.depth === 0)
     .map((row) => row.thread.id);
@@ -106,7 +123,7 @@ export function planDrop<T extends WorkstreamThread>(
     const before =
       at < 0 ? (roots[0] ?? null) : (roots[at + (drop.below ? 1 : 0)] ?? null);
     return {
-      assign: { threadId: drop.threadId, entityId: target.entityId },
+      assign: { threadId: drop.threadId, ...target },
       reorder: {
         kind: "threads",
         groupId: drop.toGroupId,
