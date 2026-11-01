@@ -201,10 +201,6 @@ Full analysis settles:
   (`needs_decision`, `review`, `blocked`, `in_progress`, or `done`), and a short
   `needsYou` prompt when waiting on your decision. Failed turns are marked
   `error` without running analysis.
-- **Observed product and feature names:** Accumulates product and feature names
-  mentioned in analyzed conversation excerpts and agent recaps per thread,
-  independent of topic assignments. Observations persist across model-trace
-  pruning and are deleted when the thread is deleted.
 
 ### 3. Placement
 
@@ -477,9 +473,6 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
   - **Topic:** Shows the root's current topic path (or _No topic_ /
     _Classifying…_) and provenance on hover. Click to search and assign a topic
     (`manual`) or choose **Automatic** to reclassify with Full analysis.
-  - **Observed names** (Debug mode only): Opens a popover of products and
-    features observed across Full analysis runs for the thread, with run counts
-    and first/last-seen timestamps on hover.
   - **Snooze:** Split button on desktop (one-click default snooze + chevron menu
     for all presets and **Custom…**) or menu button on phones; shows **Snoozed
     \<time\>** with a **Wake now** option while snoozed.
@@ -781,7 +774,7 @@ Open **Settings → Workstreams** to configure:
 | **Organization**      | **Organizing suggestions**                         | `On`                                        | Suggests splits of busy topics and tidy edits to the topic tree on their own. **Ask now** works either way.                                                                    |
 | **Organization**      | **Suggestions model**                              | `anthropic/claude-sonnet-5.5` (`medium`)    | Model that writes split and tidy suggestions.                                                                                                                                  |
 | **Advanced**          | **Analysis machine**                               | Automatic                                   | Enrolled BB machine used for gateway model calls when multiple machines are connected.                                                                                         |
-| **Advanced**          | **Debug mode**                                     | `Off`                                       | Records redacted model traces (`7` days / `1,000` records) and reveals **Observed names**, **Inspect** buttons, composer diagnostics, and Activity model-call rows.            |
+| **Advanced**          | **Debug mode**                                     | `Off`                                       | Records redacted model traces (`7` days / `1,000` records) and reveals **Inspect** buttons, composer diagnostics, and Activity model-call rows.                                |
 
 ### Gateway vs. provider worker models
 
@@ -904,10 +897,9 @@ recording and unlocks diagnostic tools across the UI:
   recorded call for a thread, copy the full trace JSON, or click **Run again**
   to replay the stored prompt against the current model and compare canonical
   results (`Same result` vs. `Differs in <fields>`) without mutating thread
-  state.
-- **Observed names:** Open **Observed names** in the thread header to inspect
-  all product and feature names accumulated from Full analysis runs on that
-  thread, with run counts and first/last-seen timestamps.
+  state. Replays use the recorded output schema when available; older traces
+  without one replay without a schema. The current parser interprets the reply,
+  so a comparison can also differ when the output contract has changed.
 - **Activity model calls:** Filter the **Activity** tab by **Model calls**
   (`quick-analysis`, `full-analysis`, `placement`, `split`, or `tidy`) and
   **Failures only**, view total reported cost for the filtered calls, or click

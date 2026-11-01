@@ -19,11 +19,6 @@
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { createHash } from "node:crypto";
-import {
-  aggregateNames,
-  type NameObservations,
-  type ObservedNames,
-} from "../domain/name-observations.ts";
 import type {
   AgentReport,
   FullAnalysisInput,
@@ -194,20 +189,6 @@ export class Analyzer {
     return row ? readResult(row.result) : undefined;
   }
 
-  observedNames(threadId: string): ObservedNames {
-    const rows = this.deps.db
-      .prepare(
-        "SELECT at, names FROM ws_name_observation WHERE thread_id = ? ORDER BY at, id",
-      )
-      .all(threadId) as { at: number; names: string }[];
-    return aggregateNames(
-      rows.map((row) => ({
-        at: row.at,
-        names: JSON.parse(row.names) as NameObservations,
-      })),
-    );
-  }
-
   /** Schedules analysis after a turn completes. */
   onIdle(
     thread: { id: string; latestAttentionAt: number },
@@ -237,9 +218,6 @@ export class Analyzer {
     this.failures.delete(threadId);
     this.deps.db
       .prepare("DELETE FROM ws_analysis WHERE thread_id = ?")
-      .run(threadId);
-    this.deps.db
-      .prepare("DELETE FROM ws_name_observation WHERE thread_id = ?")
       .run(threadId);
   }
 
@@ -466,7 +444,6 @@ export class Analyzer {
       let result: StoredAnalysis;
       let topicAnswer: PlacementOutput | null = null;
       let topicTraceId: string | null = null;
-      let names: NameObservations | null = null;
       if (topicOnly && previous) {
         // Only the topic was missing; the turn's goal and status stand.
         result = { ...previous };
@@ -539,7 +516,6 @@ export class Analyzer {
           model: modelLabel(model),
           traceId,
         };
-        names = output.names;
       }
       const placement = await placed;
       // A failed placement is retried with backoff; a result carried over
@@ -589,12 +565,6 @@ export class Analyzer {
       }
       // Application is synchronous after the live check: no newer correction
       // can interleave with these writes on the event loop.
-      if (names)
-        this.deps.db
-          .prepare(
-            "INSERT INTO ws_name_observation(thread_id, revision, at, names) VALUES (?, ?, ?, ?)",
-          )
-          .run(threadId, revision, result.at, JSON.stringify(names));
       // Never let a slower run for an older turn replace a newer result.
       const stored = this.deps.db
         .prepare(

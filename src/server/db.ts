@@ -402,6 +402,7 @@ const MIGRATIONS = [
     status TEXT NOT NULL,
     UNIQUE(entity_id, association_revision, project_id)
   )`,
+  "DROP TABLE IF EXISTS ws_name_observation",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

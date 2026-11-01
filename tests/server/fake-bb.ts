@@ -26,6 +26,7 @@ type FakeAnswer = string | { text: string; reasoning: string };
 export type FakeCompletion = (call: {
   prompt: string;
   model: string;
+  outputSchema?: Record<string, unknown>;
   /** The host call's abort signal. */
   signal?: AbortSignal;
 }) => FakeAnswer | Promise<FakeAnswer>;
@@ -117,7 +118,11 @@ export async function fakeWorld(
     string,
     { requests: string[]; output: string | null }
   >();
-  const completions: { prompt: string; model: string }[] = [];
+  const completions: {
+    prompt: string;
+    model: string;
+    outputSchema?: Record<string, unknown>;
+  }[] = [];
   const spawned: Record<string, unknown>[] = [];
   const sent: Record<string, unknown>[] = [];
   const projects = ["proj_1", "proj_home", "proj_other", "proj_personal"].map(
@@ -166,7 +171,11 @@ export async function fakeWorld(
     pluginId: "workstreams",
     settings: { understandingAutomatic: false, ...options.settings },
     experimental_callHostRpc: async (call) => {
-      const input = call.input as { prompt: string; model: string };
+      const input = call.input as {
+        prompt: string;
+        model: string;
+        outputSchema?: Record<string, unknown>;
+      };
       completions.push(input);
       const given = await (options.complete?.({
         ...input,

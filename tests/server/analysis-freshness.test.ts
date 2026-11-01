@@ -22,7 +22,6 @@ const answer = (id: string, goal = "Build Alpha") =>
     goal,
     subjectId: id,
     proposed: null,
-    names: { products: ["Alpha"], features: [] },
   });
 
 describe("inference application freshness", () => {
@@ -81,11 +80,6 @@ describe("inference application freshness", () => {
     expect(
       db.prepare("SELECT * FROM ws_analysis WHERE thread_id = 't'").get(),
     ).toBeUndefined();
-    expect(
-      db
-        .prepare("SELECT * FROM ws_name_observation WHERE thread_id = 't'")
-        .all(),
-    ).toEqual([]);
   });
   it("protects a correction made at the same thread revision", async () => {
     const pending = gate();

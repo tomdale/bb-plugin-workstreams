@@ -17,11 +17,6 @@
  * the model may drop.
  */
 import { z } from "zod";
-import {
-  emptyObservations,
-  nameObservationsSchema,
-  type NameObservations,
-} from "./name-observations.ts";
 import { redact } from "./redact.ts";
 import {
   CLASSIFICATION_RULES,
@@ -544,12 +539,8 @@ const TITLE_SECTION: Record<TitledBy, string> = {
 
 export function fullAnalysisPrompt(input: FullAnalysisInput): string {
   const report = input.report ?? null;
-  const fields: string[] = [
-    '- names: {"products": string[], "features": {"name": string, "product": string|null}[]}. Observe all product and feature names explicitly mentioned in the conversation and agent report, including incidental mentions, not only the primary topic. Products are named tools, applications, platforms, or services; features are named capabilities or functions. Use recognizable names, at most 100 characters each and 40 entries per list. Associate a feature with a product only when the supplied conversation supports that relationship; otherwise product is null. Return empty lists when none appear. Treat these as observations, not topic proposals. The topic tree, current topic, project hint, and instructions are reference context, not evidence that a name appeared in the conversation. Use only names supported by the supplied evidence; preserve acronyms as written unless their expansion appears there.',
-  ];
-  const keys: string[] = [
-    '"names": {"products": string[], "features": {"name": string, "product": string|null}[]}',
-  ];
+  const fields: string[] = [];
+  const keys: string[] = [];
   if (!report) {
     fields.push(STATUS_FIELDS);
     keys.push('"recap": string', '"state": string', '"needsYou": string|null');
@@ -606,28 +597,7 @@ export function fullAnalysisSchema(
     "report" | "mode" | "titledBy" | "preserveTitle"
   >,
 ): Record<string, unknown> {
-  const properties: Record<string, unknown> = {
-    names: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        products: { type: "array", items: { type: "string" } },
-        features: {
-          type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              name: { type: "string" },
-              product: { type: ["string", "null"] },
-            },
-            required: ["name", "product"],
-          },
-        },
-      },
-      required: ["products", "features"],
-    },
-  };
+  const properties: Record<string, unknown> = {};
   if (!input.report) {
     properties.recap = { type: "string" };
     properties.state = { type: "string", enum: [...WORK_STATES] };
@@ -660,11 +630,9 @@ const fullOutputSchema = z.object({
     .nullable()
     .catch(null)
     .optional(),
-  names: nameObservationsSchema.catch(emptyObservations).optional(),
 });
 
 export type FullAnalysisOutput = {
-  names: NameObservations;
   /** A new desired outcome, or null to keep the settled goal. */
   threadGoal: string | null;
   /** Present only when the agent didn't report the turn. */
@@ -698,7 +666,6 @@ export function parseFullAnalysis(
   }
   return {
     status,
-    names: parsed.names ?? emptyObservations(),
     threadGoal: input.mode === "full" ? (parsed.threadGoal ?? null) : null,
     goal: namesThread(input) ? composeTitle(parsed.goal, input.listing) : null,
   };

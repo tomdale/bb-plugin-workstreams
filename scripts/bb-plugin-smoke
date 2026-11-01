@@ -8,7 +8,16 @@
 set -euo pipefail
 
 plugin_dir=$(cd "${1:?usage: bb-plugin-smoke <plugin-dir>}" && pwd)
-server_js=${BB_SMOKE_SERVER_JS:-/Applications/bb.app/Contents/Resources/app.asar.unpacked/node_modules/bb-app/server/dist/index.js}
+server_js=${BB_SMOKE_SERVER_JS:-}
+if [[ -z $server_js ]]; then
+  cli=${BB_CLI:-$(command -v bb)}
+  candidate="$(dirname "$cli")/../../server/dist/index.js"
+  if [[ -f $candidate ]]; then
+    server_js=$candidate
+  else
+    server_js=/Applications/bb.app/Contents/Resources/app.asar.unpacked/node_modules/bb-app/server/dist/index.js
+  fi
+fi
 [[ -f $server_js ]] || { echo "bb server entry not found: $server_js" >&2; exit 1; }
 [[ -d $plugin_dir/dist ]] || { echo "build $plugin_dir first (no dist/)" >&2; exit 1; }
 

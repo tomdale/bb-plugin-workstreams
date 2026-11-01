@@ -162,7 +162,6 @@ describe("Full analysis", () => {
     const required = (input: FullAnalysisInput) =>
       fullAnalysisSchema(input).required;
     expect(required(base)).toEqual([
-      "names",
       "recap",
       "state",
       "needsYou",
@@ -170,7 +169,6 @@ describe("Full analysis", () => {
       "goal",
     ]);
     expect(required({ ...base, mode: "status" })).toEqual([
-      "names",
       "recap",
       "state",
       "needsYou",
@@ -180,7 +178,7 @@ describe("Full analysis", () => {
         ...base,
         report: { state: "complete", headline: "Done", latest: [] },
       }),
-    ).toEqual(["names", "threadGoal", "goal"]);
+    ).toEqual(["threadGoal", "goal"]);
   });
 
   it("doesn't ask for status the agent already reported", () => {
@@ -196,7 +194,6 @@ describe("Full analysis", () => {
     );
     expect(parsed).toEqual({
       status: null,
-      names: { products: [], features: [] },
       threadGoal: null,
       goal: "Fixing stale build cache",
     });
@@ -209,66 +206,18 @@ describe("Full analysis", () => {
     expect(
       parseFullAnalysis('{"recap":"Waiting on CI","state":"blocked"}', input),
     ).toEqual({
-      names: { products: [], features: [] },
       status: { recap: "Waiting on CI", state: "blocked", needsYou: null },
       threadGoal: null,
       goal: null,
     });
   });
 
-  it("observes names in full and status calls", () => {
-    const names = {
-      products: ["Lumen"],
-      features: [
-        { name: "Cache", product: "Lumen" },
-        { name: "Export", product: null },
-      ],
-    };
+  it("asks only for analysis fields in both modes", () => {
     for (const mode of ["full", "status"] as const) {
       const input = { ...base, mode };
-      expect(fullAnalysisPrompt(input)).toContain('"names"');
-      expect(fullAnalysisPrompt(input)).toContain(
-        "including incidental mentions",
-      );
-      expect(
-        parseFullAnalysis(
-          JSON.stringify({ recap: "Done", state: "done", names }),
-          input,
-        ).names,
-      ).toEqual(names);
-      expect(
-        parseFullAnalysis(
-          JSON.stringify({ recap: "Done", names: { products: [123] } }),
-          input,
-        ).names,
-      ).toEqual({ products: [], features: [] });
+      expect(fullAnalysisPrompt(input)).not.toContain('"names"');
+      expect(fullAnalysisSchema(input)).not.toHaveProperty("properties.names");
     }
-  });
-
-  it("reads a feature written as a bare name, and keeps the products when a feature is malformed", () => {
-    const names = (value: unknown) =>
-      parseFullAnalysis(
-        JSON.stringify({ recap: "Done", state: "done", names: value }),
-        { ...base, mode: "status" },
-      ).names;
-    // Models often write a feature as just its name.
-    expect(
-      names({
-        products: ["Lumen"],
-        features: ["Cache", { name: "Export", product: "Lumen" }],
-      }),
-    ).toEqual({
-      products: ["Lumen"],
-      features: [
-        { name: "Cache", product: null },
-        { name: "Export", product: "Lumen" },
-      ],
-    });
-    // A feature that is neither costs the features, never the products.
-    expect(names({ products: ["Lumen"], features: ["Cache", 5] })).toEqual({
-      products: ["Lumen"],
-      features: [],
-    });
   });
 
   it("clips the recap, keeps an ask only for a decision, and drops a long goal", () => {

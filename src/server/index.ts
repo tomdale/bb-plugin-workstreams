@@ -1011,7 +1011,6 @@ export default async function plugin(bb: BbPluginApi) {
     reclassificationPreview: async ({ threadIds }) =>
       reclassification.preview(threadIds),
     reclassificationApply: async ({ planId }) => reclassification.apply(planId),
-    observedNames: async ({ threadId }) => analyzer.observedNames(threadId),
     catalog: async () => ({
       ...topics.state(),
       layout: organizerInstance.layout(),

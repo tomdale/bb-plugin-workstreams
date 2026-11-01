@@ -67,6 +67,8 @@ export const traceSchema = traceSummarySchema.extend({
   thinking: z.string(),
   system: z.string(),
   prompt: z.string(),
+  /** The schema used for generation, if it was recorded. */
+  outputSchema: z.record(z.string(), z.unknown()).optional(),
   /** The structured input the prompt was built from, redacted and bounded. */
   input: z.unknown(),
   response: z.string().nullable(),

@@ -341,7 +341,7 @@ export class Inference {
         modelChoiceSchema.parse({ kind: "gateway", model: original.model }),
       label: original.label,
       links: [],
-      outputSchema: spec.schema?.(original.input),
+      outputSchema: original.outputSchema,
       maxTokens: spec.maxTokens,
       replayOf: original.id,
       record: true,
@@ -458,6 +458,9 @@ export class Inference {
                 thinking: request.model.reasoningLevel ?? THINKING,
                 system: SYSTEM_PROMPT,
                 prompt: request.prompt,
+                ...(request.outputSchema
+                  ? { outputSchema: request.outputSchema }
+                  : {}),
                 input: boundedJson(request.input),
                 response: fields.completion?.text ?? null,
                 reasoning: fields.completion?.reasoning ?? null,

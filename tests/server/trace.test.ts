@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { fakeWorld, type FakeCompletion } from "./fake-bb.ts";
+import { openDatabase } from "../../src/server/db.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 let world: World | null = null;
@@ -20,6 +21,7 @@ type Summary = {
 };
 type Trace = Summary & {
   prompt: string;
+  outputSchema?: Record<string, unknown>;
   system: string;
   response: string | null;
   reasoning: string | null;
@@ -195,7 +197,11 @@ describe("debug mode on", () => {
       status: "ok",
       reasoning: "**Weighing the state**\n\nThe tests pass.",
     });
-    expect(replay.prompt).toBe((await trace(w, original!.id))!.prompt);
+    const recorded = (await trace(w, original!.id))!;
+    expect(replay.prompt).toBe(recorded.prompt);
+    expect(recorded.outputSchema).toBeDefined();
+    expect(replay.outputSchema).toEqual(recorded.outputSchema);
+    expect(w.completions.at(-1)?.outputSchema).toEqual(recorded.outputSchema);
     expect((await trace(w, original!.id))!.replays.map((r) => r.id)).toEqual([
       replay.id,
     ]);
@@ -203,6 +209,45 @@ describe("debug mode on", () => {
     const listed = (await traces(w)).map((t) => t.id);
     expect(listed).toContain(original!.id);
     expect(listed).not.toContain(replay.id);
+    expect(await rpc(w, "state", null)).toEqual(before);
+  });
+
+  it("replays an older analysis prompt without imposing a newer schema", async () => {
+    const w = await setup(true, ({ prompt }) =>
+      JSON.stringify(
+        prompt.includes('"names"')
+          ? { ...ANALYSIS, names: { products: ["Lumen"], features: [] } }
+          : ANALYSIS,
+      ),
+    );
+    await analyze(w, "t1");
+    const original = (await traces(w)).find(
+      (item) => item.kind === "full-analysis",
+    )!;
+    const db = openDatabase(w.bb);
+    const row = db
+      .prepare("SELECT data FROM ws_trace WHERE id = ?")
+      .get(original.id) as { data: string };
+    const stored = JSON.parse(row.data) as Record<string, unknown>;
+    delete stored.outputSchema;
+    stored.prompt = `${stored.prompt}\nReturn \"names\" too.`;
+    stored.parsed = {
+      ...(stored.parsed as object),
+      names: { products: ["Lumen"], features: [] },
+    };
+    db.prepare("UPDATE ws_trace SET data = ? WHERE id = ?").run(
+      JSON.stringify(stored),
+      original.id,
+    );
+    const before = await rpc(w, "state", null);
+    const { trace: replay } = await rpc<{ trace: Trace }>(w, "traceReplay", {
+      id: original.id,
+    });
+    expect(replay.status).toBe("ok");
+    expect(replay.prompt).toBe(stored.prompt);
+    expect(w.completions.at(-1)?.outputSchema).toBeUndefined();
+    expect(replay.parsed).not.toHaveProperty("names");
+    expect(replay.parsed).toMatchObject({ status: { recap: ANALYSIS.recap } });
     expect(await rpc(w, "state", null)).toEqual(before);
   });
 
