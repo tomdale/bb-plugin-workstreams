@@ -11,8 +11,6 @@ import { activeHome } from "../domain/regroup.ts";
 import {
   EMPTY_LAYOUT_STATE,
   layoutGroups,
-  MERGE_AT,
-  SPLIT_ABOVE,
   type LayoutNode,
   type LayoutState,
 } from "../domain/layout.ts";
@@ -370,7 +368,6 @@ export class Organizer {
           assertCurrent();
           for (const entityId of selectedEntityIds) {
             assertCurrent();
-            const entity = entities.find((e) => e.id === entityId)!;
             const expectedName = topicPath(entityId, entities);
 
             // Check if an existing section is already bound to this entityId
@@ -566,7 +563,6 @@ export class Organizer {
         assignments,
         selectedEntityIds,
         entityToSection,
-        appliedSectionIds,
         evidenceById,
         entities,
       });
@@ -605,7 +601,6 @@ export class Organizer {
           assignments: passContext.assignments,
           selectedEntityIds: passContext.selectedEntityIds,
           entityToSection: passContext.entityToSection,
-          appliedSectionIds: passContext.appliedSectionIds,
           evidenceById: passContext.evidenceById,
           entities: passContext.entities,
         });
@@ -639,7 +634,6 @@ export class Organizer {
     assignments: Record<string, TopicAssignment>;
     selectedEntityIds: string[];
     entityToSection: Map<string, string>;
-    appliedSectionIds: Map<string, string | null>;
     evidenceById: Map<string, string>;
     entities: Topic[];
   }): OrganizerState {
@@ -651,7 +645,6 @@ export class Organizer {
       assignments,
       selectedEntityIds,
       entityToSection,
-      appliedSectionIds,
       evidenceById,
       entities,
     } = options;
@@ -751,12 +744,9 @@ export class Organizer {
       }
     }
 
-    const finalGroups = Array.from(groupsMap.values())
-      .filter((g) => g.totalCount > 0)
-      .map((group) => ({
-        ...group,
-        policyReason: `${group.totalCount} visible roots filed here (${group.activeCount} active, ${group.completedCount} completed). A group shows its subtopics as subgroups above ${SPLIT_ABOVE} visible roots, and one list again at ${MERGE_AT} or fewer.`,
-      }));
+    const finalGroups = Array.from(groupsMap.values()).filter(
+      (group) => group.totalCount > 0,
+    );
 
     return {
       status,

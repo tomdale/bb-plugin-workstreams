@@ -11,7 +11,6 @@ import {
   DEFAULT_SNOOZE_PREFS,
   applySnoozePrefsPatch,
   parseSnoozePrefs,
-  type SnoozePrefs,
   type SnoozePrefsPatch,
   type SnoozeWhen,
 } from "../domain/snooze.ts";
@@ -178,13 +177,6 @@ class ServerStore {
       if (!sameGroup || version > responseVersion)
         next = applyChange(next, change);
     }
-    return next;
-  }
-
-  private overlayPrefs(prefs: SnoozePrefs): SnoozePrefs {
-    let next = prefs;
-    for (const patch of this.pendingPrefs.values())
-      next = applySnoozePrefsPatch(next, patch);
     return next;
   }
 

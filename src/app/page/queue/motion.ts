@@ -316,7 +316,6 @@ export function useQueueMotion(item: string | null, pile: readonly string[]) {
   );
 
   // The pile: the engine takes the moves that make it what the page shows.
-  const pileKey = pile.join("\u0000");
   useLayoutEffect(() => {
     if (!observer.current && typeof ResizeObserver !== "undefined")
       observer.current = new ResizeObserver(() => {
@@ -343,7 +342,7 @@ export function useQueueMotion(item: string | null, pile: readonly string[]) {
     const frame = engine.current!.frame();
     write(frame);
     if (frame.busy) wake();
-    // `pile` is covered by its key; `released` re-binds after cards go.
+    // `released` re-binds after cards go.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   });
 

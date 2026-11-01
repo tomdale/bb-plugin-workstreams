@@ -82,7 +82,6 @@ function Heading({ children }: { children: ReactNode }) {
 
 export function NewWorkDebug({ newWork }: { newWork: NewWork }) {
   const state = useSyncExternalStore(newWork.subscribe, newWork.snapshot);
-  const rpc = useRpc<RpcContract>();
   const { decision } = state;
   const traceId = decision?.traceId ?? null;
   const loaded = useTrace(traceId);

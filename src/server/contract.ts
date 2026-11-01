@@ -75,7 +75,6 @@ export const organizerStateGroupSchema = z.object({
   sectionId: z.string().nullable(),
   name: z.string(),
   description: z.string(),
-  policyReason: z.string().optional(),
   activeCount: z.number(),
   completedCount: z.number(),
   totalCount: z.number(),

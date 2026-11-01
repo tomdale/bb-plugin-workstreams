@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import {
   experimental_useSidebarThreadActions,
-  type PluginSidebarSection,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
@@ -42,9 +41,6 @@ export type RowMenuHandlers = {
  */
 export function RowMenu({
   thread,
-  isRoot,
-  workstreamId,
-  sections,
   handlers,
   snooze,
   snoozePrefs,
@@ -52,9 +48,6 @@ export function RowMenu({
   children,
 }: {
   thread: PluginSidebarThread;
-  isRoot: boolean;
-  workstreamId: string | null;
-  sections: readonly PluginSidebarSection[];
   handlers: RowMenuHandlers;
   /** The thread's snooze, while it holds. */
   snooze?: ThreadSnooze;

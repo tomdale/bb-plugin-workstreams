@@ -43,7 +43,6 @@ import type { Topic, TopicAssignment } from "../domain/topics.ts";
 import { topicPath } from "../domain/topic-path.ts";
 import { activeHome } from "../domain/regroup.ts";
 import type { Prefs } from "../domain/prefs.ts";
-import type { Inference } from "./model.ts";
 
 const terminalLine = (text: string) =>
   text
@@ -211,7 +210,6 @@ export function registerCli(
     traces,
     arrangement,
     topics,
-    inference,
     currentPrefs,
     notify,
     reclassifyTask,
@@ -231,7 +229,6 @@ export function registerCli(
     reclassification?: Reclassification;
     traces: TraceStore;
     topics: TopicStore;
-    inference?: Inference;
     currentPrefs?: () => Prefs;
     notify?: () => void;
     reclassifyTask?: (input: {

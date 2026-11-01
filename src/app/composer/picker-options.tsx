@@ -1,9 +1,8 @@
 /**
- * The searchable option lists behind New work's two pickers, shared by every
- * surface that offers them: the desktop popovers (`WorkstreamPicker`) and the
- * phone route sheet (`RoutePicker`). The rules — which entries appear, how a
- * query matches, what picking one does to the `NewWork` model — live here once;
- * the surfaces differ only in `variant`, which sets sizing.
+ * The searchable option lists behind New work's two pickers, drawn in the
+ * composer's popovers (`WorkstreamPicker`). The rules — which entries appear,
+ * how a query matches, what picking one does to the `NewWork` model — live
+ * here once.
  *
  * Product/Feature identity and Workstream placement stay independent:
  * - Identity says what the task concerns in the Catalog.
@@ -34,18 +33,13 @@ import {
 } from "@/components/ui/command";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
-import { WorkstreamIcon } from "../WorkstreamIcon.tsx";
-import { WorkstreamName } from "../WorkstreamName.tsx";
-import { NO_WORKSTREAM_ICON, TAG_ICON } from "../workstream-icon.ts";
+import { TAG_ICON } from "../workstream-icon.ts";
 import { compareGroupNames } from "../../domain/group-name-order.ts";
-import { useServerState } from "../useWorkstreams.ts";
 import { type NewWork, type NewWorkState } from "./new-work.ts";
 
 const NONE = "__none__";
 const CREATE = "__create__";
 const AUTOMATIC = "__automatic__";
-/** A `Command` value no item has, so a list opens with nothing highlighted. */
-const IDLE = "__idle__";
 
 /**
  * BB's option-trigger classes, so a chip lines up with the pickers beside it
@@ -55,29 +49,13 @@ const IDLE = "__idle__";
 export const CHIP_CLASS =
   "h-8 w-fit max-w-full min-w-0 shrink items-center justify-start gap-1 px-1 text-xs leading-tight border-none bg-transparent shadow-none text-muted-foreground hover:text-muted-foreground";
 
-/**
- * Where a list is shown. A `popover` is the floating panel beside a desktop
- * chip; a `sheet` is the phone drawer, whose list fills the sheet and whose
- * rows and search field are sized for a finger (rows 44px and the search at
- * `--text-base`, 16px, which stops iOS zooming the page on focus).
- */
-export type OptionsVariant = "popover" | "sheet";
-
-const VARIANT_CLASSES = {
-  popover: {
-    item: "items-start py-[0.3125rem] text-xs max-md:py-2",
-    name: "text-xs font-medium",
-    input: "h-8 text-xs",
-    list: "max-h-72",
-    note: "",
-  },
-  sheet: {
-    item: "items-start py-2 text-sm pointer-coarse:min-h-11",
-    name: "text-sm font-medium",
-    input: "h-11 text-base",
-    list: "min-h-0 max-h-none flex-1 overscroll-contain",
-    note: "whitespace-normal",
-  },
+/** Sizing for the composer's popover lists. */
+const LIST_CLASSES = {
+  item: "items-start py-[0.3125rem] text-xs max-md:py-2",
+  name: "text-xs font-medium",
+  input: "h-8 text-xs",
+  list: "max-h-72",
+  note: "",
 } as const;
 
 /**
@@ -187,7 +165,6 @@ export interface OptionsProps {
   onQueryChange: (query: string) => void;
   /** Runs after a choice has been applied, so the surface can close. */
   onDone: () => void;
-  variant?: OptionsVariant;
 }
 
 /** The Topic list: Automatic, the topic tree, a new topic, and No topic. */
@@ -197,10 +174,9 @@ export function IdentityOptions({
   query,
   onQueryChange,
   onDone,
-  variant = "popover",
 }: OptionsProps) {
   const state = useSyncExternalStore(newWork.subscribe, newWork.snapshot);
-  const styles = VARIANT_CLASSES[variant];
+  const styles = LIST_CLASSES;
   const needle = query.trim().toLowerCase();
   const visibleEntities = useMemo(() => {
     return entities
@@ -224,13 +200,11 @@ export function IdentityOptions({
       label="Search topics"
       shouldFilter={false}
       defaultValue={
-        variant === "sheet"
-          ? IDLE
-          : state.identity?.entityId
-            ? `identity:${state.identity.entityId}`
-            : isManual
-              ? NONE
-              : AUTOMATIC
+        state.identity?.entityId
+          ? `identity:${state.identity.entityId}`
+          : isManual
+            ? NONE
+            : AUTOMATIC
       }
       className="min-h-0"
     >

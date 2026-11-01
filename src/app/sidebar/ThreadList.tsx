@@ -67,7 +67,7 @@ import {
   type BandSortOption,
 } from "./useBandOptions.ts";
 import { NameDialog, type NameRequest } from "./NameDialog.tsx";
-import { INDENT_PX, Row, hasStatusMark } from "./Row.tsx";
+import { Row, hasStatusMark } from "./Row.tsx";
 import { HeaderMenu, RowMenu, type RowMenuHandlers } from "./RowMenu.tsx";
 import { TraceInspector } from "../debug/Inspector.tsx";
 import {
@@ -577,16 +577,6 @@ export function WorkstreamsThreadList({
     const snooze = ws.snoozeOf(row.thread);
     return snooze ? shortWake(snooze.until, now) : undefined;
   };
-  /**
-   * Whether the row leads its tree, so it can move between workstreams.
-   * Snoozed rows restart their depth at the snoozed thread, so there it's
-   * whether the thread's parent is in the list at all.
-   */
-  const isRoot = (row: ThreadRow, placement: Placement) =>
-    placement === "snoozed"
-      ? !row.thread.parentThreadId ||
-        !projection.rowOf.has(row.thread.parentThreadId)
-      : row.depth === 0;
   const renderRow = (
     row: ThreadRow,
     placement: Placement,
@@ -600,9 +590,6 @@ export function WorkstreamsThreadList({
     <RowMenu
       key={key}
       thread={row.thread}
-      isRoot={isRoot(row, placement)}
-      workstreamId={row.workstreamId}
-      sections={sections}
       handlers={handlers}
       snooze={ws.snoozeOf(row.thread)}
       snoozePrefs={snoozePrefs}

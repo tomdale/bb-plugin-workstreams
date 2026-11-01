@@ -1349,7 +1349,6 @@ export default async function plugin(bb: BbPluginApi) {
     reclassification,
     traces,
     topics,
-    inference,
     currentPrefs,
     notify,
     reclassifyTask,
