@@ -378,6 +378,7 @@ const MIGRATIONS = [
   // Nothing reads when a title was written or whether it was an opening one.
   "ALTER TABLE ws_title DROP COLUMN provisional",
   "ALTER TABLE ws_title DROP COLUMN retitled_at",
+  "ALTER TABLE ws_corpus_entity ADD COLUMN project_id TEXT",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

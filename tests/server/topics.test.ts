@@ -701,6 +701,18 @@ describe("TopicStore", () => {
     expect(corpus.inherit("orphan", "nobody")).toBe(false);
   });
 
+  it("keeps a discovered topic with an associated project until the association is cleared", () => {
+    const { corpus } = store();
+    const topic = corpus.rememberProposal({
+      name: "Configured",
+      description: "",
+    });
+    corpus.edit(topic.id, { projectId: "project" });
+    expect(corpus.prune()).toEqual([]);
+    corpus.edit(topic.id, { projectId: null });
+    expect(corpus.prune().map((entity) => entity.id)).toEqual([topic.id]);
+  });
+
   it("prunes discovered topics nothing uses, deepest first, and keeps yours", () => {
     const { corpus } = store();
     const mine = corpus.create("Mine", "");

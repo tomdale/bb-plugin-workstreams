@@ -233,6 +233,7 @@ function EditTopicDialog({
   const [name, setName] = useState(topic.name);
   const [parentId, setParentId] = useState(topic.parentId ?? "");
   const [description, setDescription] = useState(topic.description);
+  const [projectId, setProjectId] = useState(topic.projectId ?? "");
   const [aliases, setAliases] = useState(topic.aliases.join(", "));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -242,6 +243,7 @@ function EditTopicDialog({
     setName(topic.name);
     setParentId(topic.parentId ?? "");
     setDescription(topic.description);
+    setProjectId(topic.projectId ?? "");
     setAliases(topic.aliases.join(", "));
     setError(null);
   }
@@ -273,12 +275,16 @@ function EditTopicDialog({
         });
       if (
         description.trim() !== topic.description ||
-        list.join("\n") !== topic.aliases.join("\n")
+        list.join("\n") !== topic.aliases.join("\n") ||
+        (projectId || null) !== (topic.projectId ?? null)
       )
         await ws.rpc.call("catalogUpdateMetadata", {
           entityId: topic.id,
           description: description.trim(),
           aliases: list,
+          ...((projectId || null) !== (topic.projectId ?? null)
+            ? { projectId: projectId || null }
+            : {}),
         });
       onOpenChange(false);
     } catch (cause) {
@@ -326,6 +332,26 @@ function EditTopicDialog({
                 })),
               ]}
               onChange={setParentId}
+              className="mt-1 h-8 text-xs"
+            />
+          </div>
+          <div className="text-xs font-medium">
+            Project
+            <SelectField
+              label="Project"
+              value={projectId}
+              options={[
+                { value: "", label: "No associated project" },
+                ...ws.projects.map((project) => ({
+                  value: project.id,
+                  label: project.name,
+                })),
+                ...(projectId &&
+                !ws.projects.some((project) => project.id === projectId)
+                  ? [{ value: projectId, label: "Unavailable project" }]
+                  : []),
+              ]}
+              onChange={setProjectId}
               className="mt-1 h-8 text-xs"
             />
           </div>

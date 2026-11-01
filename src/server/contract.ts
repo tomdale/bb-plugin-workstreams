@@ -208,6 +208,7 @@ const entitySchema = z.object({
   parentId: z.string().nullable(),
   aliases: z.array(z.string()),
   partitioned: z.boolean().optional(),
+  projectId: z.string().min(1).nullable().optional(),
 });
 
 const layoutNodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
@@ -533,6 +534,7 @@ export const rpcContract = defineRpcContract({
       entityId: z.string().min(1),
       description: z.string().max(1000).optional(),
       aliases: z.array(z.string().max(80)).optional(),
+      projectId: z.string().min(1).nullable().optional(),
     }),
     output: z.object({ entity: entitySchema }),
   },

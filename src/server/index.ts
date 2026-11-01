@@ -985,11 +985,17 @@ export default async function plugin(bb: BbPluginApi) {
         notify();
         return { entity };
       }),
-    catalogUpdateMetadata: ({ entityId, description, aliases }) =>
+    catalogUpdateMetadata: ({ entityId, description, aliases, projectId }) =>
       userFacing(async () => {
+        if (projectId !== undefined && projectId !== null) {
+          const projects = await bb.sdk.projects.list({});
+          if (!projects.some((project) => project.id === projectId))
+            throw new Error("Choose an existing BB project.");
+        }
         const entity = topics.updateMetadata(entityId, {
           description,
           aliases,
+          projectId,
         });
         organizerInstance.trigger();
         notify();

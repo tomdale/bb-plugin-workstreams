@@ -115,6 +115,14 @@ phones):
   tree, create **New topic "\<query\>"** inline, or choose **No topic**
   (`manual` provenance, keeping the thread **Unfiled**).
 
+To associate a workstream with a BB project, open **Workstreams → Topics**,
+click its topic, and choose **Project**. Selecting that topic manually, through
+Quick analysis, or with the workstream's **＋** button updates the new-thread
+composer to use the associated project. Subtopics use their nearest ancestor's
+project unless they have their own association. With no associated project, the
+composer keeps its current project; unavailable projects are ignored. Changing
+the project does not replace the draft or refile existing threads.
+
 Quick analysis defaults to schema-constrained `openai/gpt-6-luna-fast` with
 reasoning disabled (`15 s` timeout, up to `4` in-flight calls). A draft
 preview's title and topic validate independently: an invalid topic receives one

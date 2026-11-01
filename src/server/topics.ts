@@ -198,7 +198,7 @@ export class TopicStore {
   list(): Topic[] {
     const rows = this.db
       .prepare(
-        "SELECT id, name, description, parent_id, aliases, partitioned FROM ws_corpus_entity ORDER BY id",
+        "SELECT id, name, description, parent_id, aliases, partitioned, project_id FROM ws_corpus_entity ORDER BY id",
       )
       .all() as {
       id: string;
@@ -207,6 +207,7 @@ export class TopicStore {
       parent_id: string | null;
       aliases: string;
       partitioned: number;
+      project_id: string | null;
     }[];
     return rows.map((row) => ({
       id: row.id,
@@ -215,6 +216,7 @@ export class TopicStore {
       parentId: row.parent_id,
       aliases: JSON.parse(row.aliases) as string[],
       partitioned: row.partitioned === 1,
+      projectId: row.project_id,
     }));
   }
 
@@ -318,6 +320,7 @@ export class TopicStore {
       parentId,
       aliases: cleanAliasList,
       partitioned: false,
+      projectId: null,
     };
     this.db
       .prepare(
@@ -377,6 +380,7 @@ export class TopicStore {
         parentId,
         aliases: cleanAliasList,
         partitioned: false,
+        projectId: null,
       };
 
       this.db
@@ -939,6 +943,7 @@ export class TopicStore {
           .prepare(
             `SELECT e.id FROM ws_corpus_entity e
              WHERE e.origin = 'discovered'
+               AND e.project_id IS NULL
                AND NOT EXISTS (SELECT 1 FROM ws_corpus_subject s WHERE s.entity_id = e.id)
                AND NOT EXISTS (SELECT 1 FROM ws_corpus_group g WHERE g.entity_id = e.id)
                AND NOT EXISTS (SELECT 1 FROM ws_corpus_entity c WHERE c.parent_id = e.id)
@@ -962,6 +967,7 @@ export class TopicStore {
       name?: string;
       description?: string;
       aliases?: readonly string[];
+      projectId?: string | null;
     },
   ): Topic {
     return this.db.transaction(() => {
@@ -1020,18 +1026,29 @@ export class TopicStore {
         nextAliases.length !== entity.aliases.length ||
         nextAliases.some((a, i) => a !== entity.aliases[i]);
 
-      if (!nameChanged && !descriptionChanged && !aliasesChanged) {
+      const projectId =
+        updates.projectId === undefined
+          ? (entity.projectId ?? null)
+          : updates.projectId;
+      const projectChanged = projectId !== (entity.projectId ?? null);
+      if (
+        !nameChanged &&
+        !descriptionChanged &&
+        !aliasesChanged &&
+        !projectChanged
+      ) {
         return entity;
       }
 
       this.db
         .prepare(
-          "UPDATE ws_corpus_entity SET name = ?, description = ?, aliases = ? WHERE id = ?",
+          "UPDATE ws_corpus_entity SET name = ?, description = ?, aliases = ?, project_id = ? WHERE id = ?",
         )
         .run(
           cleanName,
           nextDescription,
           JSON.stringify(nextAliases),
+          projectId,
           entity.id,
         );
 
@@ -1041,6 +1058,7 @@ export class TopicStore {
         name: cleanName,
         description: nextDescription,
         aliases: nextAliases,
+        projectId,
       };
     })();
   }
@@ -1096,7 +1114,11 @@ export class TopicStore {
 
   updateMetadata(
     entityId: string,
-    updates: { description?: string; aliases?: readonly string[] },
+    updates: {
+      description?: string;
+      aliases?: readonly string[];
+      projectId?: string | null;
+    },
   ): Topic {
     return this.edit(entityId, updates);
   }

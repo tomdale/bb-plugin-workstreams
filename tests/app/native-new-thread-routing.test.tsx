@@ -100,6 +100,7 @@ function mount(
       description: string;
       parentId: string | null;
       aliases: string[];
+      projectId?: string | null;
     }[];
   } = {},
 ) {
@@ -107,6 +108,10 @@ function mount(
   const route = vi.fn(async () => decision);
   const routeCancel = vi.fn(async () => ({ canceled: true }));
   const draftIdentity = vi.fn(async () => ({ filed: false }));
+  const projectList = vi.fn(async () => [
+    { id: "project-alpha", name: "Alpha", kind: "directory" },
+    { id: "project-beta", name: "Beta", kind: "directory" },
+  ]);
 
   const slot = renderSlot(
     {
@@ -116,9 +121,7 @@ function mount(
     {
       sdk: {
         projects: {
-          list: vi.fn(async () => [
-            { id: "project-alpha", name: "Alpha", kind: "directory" },
-          ]),
+          list: projectList,
         },
         threads: {
           get: vi.fn(async () => ({
@@ -181,7 +184,7 @@ function mount(
     },
   );
 
-  return { slot, route, draftIdentity };
+  return { slot, route, draftIdentity, projectList };
 }
 
 async function typePrompt(
@@ -348,4 +351,98 @@ it("starts with the topic of the workstream whose ＋ opened it", async () => {
       },
     },
   });
+});
+
+const projectTopics = [
+  {
+    id: "ent_alpha",
+    name: "Alpha",
+    description: "",
+    parentId: null,
+    aliases: [],
+    projectId: "project-beta",
+  },
+  {
+    id: "ent_beta",
+    name: "Beta",
+    description: "",
+    parentId: null,
+    aliases: [],
+  },
+];
+
+it("uses the associated project after Quick analysis selects a topic", async () => {
+  const { slot, route } = mount(identityDecision, { entities: projectTopics });
+  await typePrompt(slot, "Fix the parser in Alpha");
+  await waitFor(() =>
+    expect(slot.inspection.composer.selection?.projectId).toBe("project-beta"),
+  );
+  expect(slot.inspection.composer.text).toBe("Fix the parser in Alpha");
+  expect(slot.inspection.composer.selections).toEqual([
+    { projectId: "project-beta" },
+  ]);
+  expect(route).toHaveBeenCalledTimes(1);
+});
+
+it("uses a manually selected topic's project and leaves it unchanged for an unassociated topic", async () => {
+  const { slot } = mount(identityDecision, { entities: projectTopics });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Topic: Automatic" }),
+  );
+  fireEvent.click(await screen.findByText("Alpha"));
+  await waitFor(() =>
+    expect(slot.inspection.composer.selection?.projectId).toBe("project-beta"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Topic: Alpha" }));
+  fireEvent.click(await screen.findByText("Beta"));
+  await screen.findByRole("button", { name: "Topic: Beta" });
+  expect(slot.inspection.composer.selection?.projectId).toBe("project-beta");
+  expect(slot.inspection.composer.selections).toHaveLength(1);
+});
+
+it("uses the project of a workstream whose plus button opened the composer", async () => {
+  setComposerPreset({ topicId: "ent_alpha" }, "Alpha");
+  const { slot } = mount(identityDecision, { entities: projectTopics });
+  await waitFor(() =>
+    expect(slot.inspection.composer.selection?.projectId).toBe("project-beta"),
+  );
+});
+
+it("does not apply a stale project's lookup after selecting another topic", async () => {
+  const { slot, projectList } = mount(identityDecision, {
+    entities: projectTopics,
+  });
+  let resolve!: (projects: Awaited<ReturnType<typeof projectList>>) => void;
+  projectList.mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Topic: Automatic" }),
+  );
+  fireEvent.click(await screen.findByText("Alpha"));
+  await waitFor(() => expect(projectList).toHaveBeenCalledOnce());
+  fireEvent.click(screen.getByRole("button", { name: "Topic: Alpha" }));
+  fireEvent.click(await screen.findByText("Beta"));
+  await act(async () =>
+    resolve([{ id: "project-beta", name: "Beta", kind: "directory" }]),
+  );
+  expect(slot.inspection.composer.selection?.projectId).toBe("project-alpha");
+  expect(slot.inspection.composer.selections).toEqual([]);
+});
+
+it("ignores an associated project that is no longer available", async () => {
+  const { slot } = mount(identityDecision, {
+    entities: [{ ...projectTopics[0]!, projectId: "deleted" }],
+  });
+  await typePrompt(slot, "Fix the parser in Alpha");
+  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await waitFor(() =>
+    expect(
+      slot.inspection.sdkCalls.some((call) => call.method === "projects.list"),
+    ).toBe(true),
+  );
+  expect(slot.inspection.composer.selections).toEqual([]);
 });

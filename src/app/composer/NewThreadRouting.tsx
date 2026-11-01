@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useComposer, useRpc } from "@get-bb/plugin-sdk/app";
+import { useComposer, useRpc, useSdk } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../../server/contract.ts";
 import type { Preview } from "../../server/preview.ts";
 import { NewWork as NewWorkModel, type NewWorkState } from "./new-work.ts";
@@ -10,10 +10,12 @@ import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport
 import { useHostPickerRow } from "./host-picker-row.ts";
 import { WorkstreamPicker } from "./WorkstreamPicker.tsx";
 import { takeComposerPreset } from "./preset.ts";
+import { topicProject } from "../../domain/topicProject.ts";
 
 export function NewThreadRouting() {
   const rpc = useRpc<RpcContract>();
   const composer = useComposer();
+  const sdk = useSdk();
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [checkedRoot, setCheckedRoot] = useState(false);
   const [model, setModel] = useState<NewWorkModel | null>(null);
@@ -71,6 +73,32 @@ export function NewThreadRouting() {
     model?.subscribe ?? emptySubscribe,
     model?.snapshot ?? emptySnapshot,
   );
+  const topicId =
+    state.identity?.entityId ?? state.identity?.proposal?.parentId;
+  const sectionId = state.identity?.sectionId;
+  useEffect(() => {
+    if (!model || (!topicId && !sectionId)) return;
+    let live = true;
+    void (async () => {
+      const catalog = await rpc.call("catalog", null);
+      const projectId = topicProject(
+        sectionId ? catalog.groups[sectionId] : topicId,
+        catalog.entities,
+      );
+      if (!projectId || !live) return;
+      const projects = await sdk.projects.list({});
+      if (!live || !projects.some((project) => project.id === projectId))
+        return;
+      if (composer.selection?.projectId !== projectId)
+        await composer.setSelection({ projectId });
+    })().catch((error) => {
+      if (live) model.reportError(error);
+    });
+    return () => {
+      live = false;
+    };
+  }, [composer, model, rpc, sdk, topicId, sectionId, state.identity]);
+
   // BB's Enter submits without a form event this banner could intercept, so
   // the server also learns the draft's identity as it changes and files the
   // thread whose first message has this text (`ComposedDrafts`).

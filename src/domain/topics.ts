@@ -6,6 +6,7 @@ export type Topic = {
   description: string;
   parentId: string | null;
   aliases: string[];
+  projectId?: string | null;
   /**
    * Its subtopics are subgroups a volume split created, so it always keeps
    * its header (see `layoutGroups`).

@@ -254,6 +254,37 @@ describe("Catalog and Task Identity RPC Contract", () => {
     expect(catAfter.revision).toBe(catBefore.revision);
   });
 
+  it("persists, validates, preserves, and clears a topic's optional project", async () => {
+    world = await fakeWorld({
+      complete: () => JSON.stringify({ recap: "r", state: "done" }),
+    });
+    const { entity } = (await world.harness.behavior.callRpc("catalogCreate", {
+      name: "Project work",
+    })) as { entity: { id: string } };
+    const update = (patch: Record<string, unknown>) =>
+      world!.harness.behavior.callRpc("catalogUpdateMetadata", {
+        entityId: entity.id,
+        ...patch,
+      });
+    await update({ projectId: "proj_other" });
+    const read = async () =>
+      (
+        (await world!.harness.behavior.callRpc("catalog", null)) as TopicState
+      ).entities.find((topic) => topic.id === entity.id)!;
+    expect((await read()).projectId).toBe("proj_other");
+    await update({ description: "Updated" });
+    expect((await read()).projectId).toBe("proj_other");
+    await expect(
+      update({ projectId: "missing", description: "Must not persist" }),
+    ).rejects.toThrow(/existing BB project/);
+    expect(await read()).toMatchObject({
+      projectId: "proj_other",
+      description: "Updated",
+    });
+    await update({ projectId: null });
+    expect((await read()).projectId).toBeNull();
+  });
+
   it("taskAssign on a child sets its root's topic", async () => {
     world = await fakeWorld({
       complete: () => JSON.stringify({ recap: "r", state: "done" }),
