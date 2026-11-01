@@ -76,6 +76,15 @@ const cases = [
     next: true,
   },
   {
+    id: "routing",
+    state: "complete",
+    types: ["context"],
+    request:
+      "The user asked for a review of pull request 42 in another repository. You opened @thread:thr_eval_dest, which is running that review now, and this thread owns nothing that depends on its result. Report the routing and name the destination thread.",
+    expected: ["context"],
+    next: true,
+  },
+  {
     id: "waiting",
     state: "waiting",
     types: [],

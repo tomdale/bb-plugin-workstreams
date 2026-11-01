@@ -170,7 +170,7 @@ const delivery = z
         .object({
           name: text,
           status: z.enum(["done", "pending", "blocked", "unknown"]),
-          detail: text,
+          detail: text.optional(),
           evidence: list(evidenceSchema).optional(),
         })
         .strict(),
@@ -380,7 +380,7 @@ export function componentText(part: ReplyPart): string {
         part.scope,
         ...part.stages.map(
           (stage) =>
-            `- ${stage.name}: ${stage.status} — ${stage.detail}${stage.evidence ? `\n${evidenceText(stage.evidence)}` : ""}`,
+            `- ${stage.name}: ${stage.status}${stage.detail ? ` — ${stage.detail}` : ""}${stage.evidence ? `\n${evidenceText(stage.evidence)}` : ""}`,
         ),
       ].join("\n\n");
     case "recommendation":

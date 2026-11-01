@@ -438,6 +438,15 @@ describe("component boundary", () => {
       }).success,
     ).toBe(false);
   });
+  it("accepts a delivery stage that needs no detail", () => {
+    const parsed = replyComponentSchema.safeParse({
+      ...COMPONENT_EXAMPLES.delivery,
+      stages: [{ name: "Pushed", status: "done" }],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success)
+      expect(componentText(parsed.data)).toContain("- Pushed: done");
+  });
   it("rejects invalid statuses and invented negative counts", () => {
     expect(
       replyComponentSchema.safeParse({

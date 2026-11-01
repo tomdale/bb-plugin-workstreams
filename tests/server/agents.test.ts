@@ -47,14 +47,23 @@ describe("next-action instruction contract", () => {
       expect(text).toMatch(/a result only the user can check/);
       expect(text).toMatch(/a decision they still own/);
       expect(text).toMatch(/an optional improvement or unauthorized change/);
-      expect(text).toMatch(
-        /not blocking approval|without requesting blocking approval/,
-      );
-      expect(text).toMatch(/automatic execution|executing it/);
+      expect(text).toMatch(/not blocking approval|never requests approval/);
+      expect(text).toMatch(/automatic execution|or executes/);
       expect(text).toContain("Do authorized continuations yourself");
-      expect(text).toMatch(/required (input|decisions)[^.]*question cards/);
+      expect(text).toMatch(
+        /unauthorized action (is a Next item|belongs here), not (in )?a question card/,
+      );
     },
   );
+  it.each([
+    ["recap tool", RECAP_INSTRUCTIONS],
+    ["reply block", replyInstructions(true)],
+  ])("treats a route as complete in the %s", (_, text) => {
+    expect(text).toContain(
+      "a route that leaves the destination owning the follow-up is complete",
+    );
+    expect(text).toContain("how the destination reports back");
+  });
   it("states the same Next requirement in the recap field schema", () => {
     const description = recapToolSchema.shape.next.description ?? "";
     expect(description).toContain("required except for a short factual answer");
