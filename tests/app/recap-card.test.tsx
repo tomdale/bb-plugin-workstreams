@@ -1128,6 +1128,55 @@ it.each(["full"])(
   },
 );
 
+it.each([
+  {
+    line: "[Report](</work/Project Files/review (final).md>)",
+    href: "./Project%20Files%2Freview%20(final).md",
+    target: {
+      kind: "workspace",
+      environmentId: "env_1",
+      path: "Project Files/review (final).md",
+    },
+  },
+  {
+    line: "[Report](/tmp/Review%20Files/review%20%28final%29.md)",
+    href: "./%2Ftmp%2FReview%20Files%2Freview%20(final).md",
+    target: {
+      kind: "host",
+      hostId: "host_1",
+      path: "/tmp/Review Files/review (final).md",
+    },
+  },
+])(
+  "opens the literal stored review path from $line",
+  async ({ line, href, target }) => {
+    markdownRendering.enabled = true;
+    const reply = parse(
+      blockInput(
+        `:::reply{state="review"}\n# Review the report\n\n### Review\n- Inspect the report\n\n### Links\n- ${line}\n:::\n`,
+      ),
+    );
+    if (!reply.ok || !reply.data.card) throw new Error("No reply card");
+    const input = recapInputFromCard(reply.data.card);
+    if (!input.ok) throw new Error(input.error);
+    const recap = recapSchema.parse(
+      JSON.parse(
+        JSON.stringify(
+          toRecap(input.input, { id: "r1", turnId: "turn", at: 1 }),
+        ),
+      ),
+    );
+    const slot = await mount({ recap });
+    const link = await slot.findByRole("link", { name: "Report" });
+    expect(link.getAttribute("href")).toBe(href);
+    fireEvent.click(link);
+    expect(slot.inspection.navigateCalls).toContainEqual({
+      method: "experimental_openFilePreview",
+      options: { target, location: null },
+    });
+  },
+);
+
 it("lists several review steps", async () => {
   const slot = await mount({
     recap: {

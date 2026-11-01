@@ -8,13 +8,19 @@
  * Only a block with no `state`, an unknown state, or no headline yields no
  * recap; the server then asks the agent for one.
  */
+import remarkParse from "remark-parse";
+import { unified } from "unified";
 import {
   blockRecapInputSchema,
+  linkSchema,
   RECAP_STATES,
   type RecapInput,
   type RecapState,
 } from "./recap.ts";
 import type { ReplyCard } from "./reply.ts";
+import { normalizeRecapFileLinks } from "./recapFileLinks.ts";
+
+const linkMarkdown = unified().use(remarkParse);
 
 /** Item counts match the tool; block text is preserved without length limits. */
 const LIMITS = {
@@ -46,16 +52,37 @@ function nextAction(line: string) {
 
 /** `[title](location)` or a bare location; null unless the target is usable. */
 function link(line: string): { title: string; location: string } | null {
-  const linked = /^\[([^\]]+)\]\(<?([^)>\s]+)>?\)\s*$/.exec(line.trim());
-  const location = (linked?.[2] ?? line).trim().replace(/^`|`$/g, "");
-  const usable =
-    location.startsWith("https://") ||
-    (location.startsWith("/") && !location.startsWith("//"));
-  if (!usable || /\s/.test(location)) return null;
-  return {
-    title: linked?.[1] ?? location,
-    location,
-  };
+  const value = line.trim();
+  let location = value.replace(/^`|`$/g, "");
+  let title = location;
+  const source = normalizeRecapFileLinks(value);
+  const tree = linkMarkdown.parse(source);
+  const paragraph = tree.children[0];
+  const target =
+    paragraph?.type === "paragraph" && paragraph.children.length === 1
+      ? paragraph.children[0]
+      : null;
+  if (tree.children.length === 1 && target?.type === "link") {
+    const start = target.children[0]?.position?.start.offset;
+    const end = target.children.at(-1)?.position?.end.offset;
+    title =
+      start !== undefined && end !== undefined ? source.slice(start, end) : "";
+    location = target.url;
+    // Markdown destinations are URIs; stored local targets are literal paths.
+    if (location.startsWith("/")) {
+      try {
+        location = decodeURIComponent(location);
+      } catch {
+        return null;
+      }
+    }
+  }
+  if (/[\r\n\u0000]/.test(location)) return null;
+  const checked = linkSchema.shape.location.safeParse(location);
+  if (!title || !checked.success) return null;
+  if (checked.data.startsWith("https://") && /\s/.test(checked.data))
+    return null;
+  return { title, location: checked.data };
 }
 
 /** `@thread:<id> task`; null without a thread mention. */

@@ -229,7 +229,9 @@ model changes, and turns without a new request never re-place a thread.
   gives no hint.
 - **Provenance:** placement writes `full` topics under the priority above, and
   every update re-validates live thread evidence, assignment state, and
-  topic-tree freshness before writing.
+  topic-tree freshness before writing. An answer that supplies both an existing
+  topic and a proposal is invalid; the current assignment and catalog stay
+  intact.
 
 ### 4. Deterministic organization
 
@@ -288,7 +290,9 @@ accept them, on **Organization** (a sidebar notice links there) or with
   changed. It doesn't run on its own while earlier tidy edits wait for review.
   Once you've decided every waiting suggestion and accepted at least one, a
   follow-up pass runs even within the day, because accepted changes can make new
-  edits possible. **Ask now** runs splits and a pass right away.
+  edits possible. **Ask now** runs splits and a pass right away. A tidy pass
+  sees at most `12` threads per topic and `12` Unfiled threads; it can propose
+  thread moves only for the threads shown in that call.
 - **Names:** A top-level topic whose name begins with the whole name of a topic
   with subtopics ("Vercel Agent Code Review" beside "Vercel Agent") gets a
   suggestion to move under it, renamed without the shared words ("Code Review");
@@ -515,11 +519,13 @@ of each turn using `WorkstreamsRecap`, rendered as a card above the composer:
 - **Dismiss and restore:** Click **Dismiss recap** (`×`) to hide the card (and
   cancel any pending waiting-recap countdown); click the **Show recap** pill to
   restore it.
-- **Reminders and loop guard:** If an enrolled agent ends a turn without calling
-  `WorkstreamsRecap` or `AskUserQuestion`, Workstreams sends up to `3` automatic
-  reminders (configurable `0–10`). If an active thread hits `5` identical
-  consecutive tool-call failures, Workstreams stops the turn and pauses
-  automatic continuation to prevent an infinite retry loop.
+- **Reminders and loop guard:** If an enrolled agent ends a turn without a valid
+  recap or a question card, Workstreams sends up to `3` automatic reminders
+  (configurable `0–10`). Reminders let the agent use its available recap tool or
+  a reply block rather than assuming the latest setting changed its session. If
+  an active thread hits `5` identical consecutive tool-call failures,
+  Workstreams stops the turn and pauses automatic continuation to prevent an
+  infinite retry loop.
 
 ### Upstream bb and the tomdale/bb fork
 
@@ -566,10 +572,13 @@ which adds a message-block slot, you also get **Structured replies**:
   keep BB's original message.
 
 Workstreams detects the slot when its app loads and reports it to the server.
-Without the slot, Settings has no Structured replies row and agents use the
-recap tool; a setting turned on under the fork stays stored but has no effect.
-Outside Subagents deliveries, reply blocks written earlier show as plain
-Markdown.
+Without the slot, Settings has no Structured replies row and new provider
+sessions use the recap tool; a setting turned on under the fork stays stored.
+Existing sessions retain their loaded tools and instructions across setting
+changes, client capability changes, and plugin reloads. While **End turns with a
+recap** is enabled, Workstreams accepts either valid reporting form; disabling
+that setting removes the reporting requirement and automatic reminders. Outside
+Subagents deliveries, reply blocks without a renderer show as plain Markdown.
 
 ### Structured question card (`AskUserQuestion`)
 

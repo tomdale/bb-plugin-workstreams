@@ -1,4 +1,4 @@
-/**
+/*
  * Agent recaps: the recap tool, its per-thread store, and the
  * bounded corrections that ask an agent for a recap when a turn ends without
  * one.
@@ -9,10 +9,11 @@
  *
  * BB applies a tool set only when it constructs a provider session, and
  * `configure` can't tell a session start from a turn submit. So reminders go
- * only to threads whose session demonstrably has the tool: threads created
- * since agents started getting it, and threads whose agent has called it. A
- * fork continues its source's session, so it counts from the first thread in
- * its fork chain.
+ * only to threads eligible for recap reporting: threads created since agents
+ * started getting it, and threads whose agent has submitted a recap. Recovery
+ * names both reporting forms because settings don't identify the live session's
+ * capabilities. A fork continues its source's session, so eligibility dates from
+ * the first thread in its fork chain.
  *
  * BB reports turn completion as an observation, not a veto: the turn's final
  * reply is already visible when a correction asks for the recap. Corrections
@@ -58,15 +59,14 @@ type Row = {
   capped: number;
   correction_token: string | null;
   input_key: string | null;
-  /** The thread's agent has called the tool, so its session has it. */
+  /** The thread's agent has submitted a recap through a supported reporting form. */
   proven: number;
   waiting_nudged: number;
   waiting_cancelled: number;
 };
 /** Why a turn's reply block yielded no recap; the correction names it. */
 type BlockProblem = "block" | "no-state" | ReplyRecapProblem;
-const BLOCK_PROBLEMS: Record<BlockProblem, string> = {
-  block: "your reply had no readable `:::reply` block",
+const BLOCK_PROBLEMS: Record<Exclude<BlockProblem, "block">, string> = {
   "no-state": "its `:::reply` opener had no `state`",
   state: "its `state` was not complete, review or waiting",
   headline: "it had no `# ` headline line",
@@ -117,11 +117,6 @@ export class AgentRecaps {
    * the recap card (the recap is on) or is a reply alone.
    */
   private readonly replyModes = new Map<string, boolean>();
-  /**
-   * Per thread, from the latest `configure`: whether the session got reply
-   * blocks for its recap instead of the recap tool.
-   */
-  private readonly blockSessions = new Map<string, boolean>();
   /**
    * Whether the latest client report said this bb draws reply blocks. Only
    * the tomdale/bb fork does; on upstream bb no client reports it, so
@@ -226,7 +221,6 @@ export class AgentRecaps {
     else this.replyModes.delete(threadId);
     // With Structured replies on, the recap comes from the reply block.
     const blocks = on && replies;
-    this.blockSessions.set(threadId, blocks);
     return {
       tools: on && !blocks ? [RECAP_TOOL] : [],
       structuredReplies: replies,
@@ -240,8 +234,8 @@ export class AgentRecaps {
 
   /**
    * The reply block instruction for the resolution `configure` just decided,
-   * or null. With the recap on it is the whole recap contract, since the
-   * session has no recap tool. bb calls `contributeInstructions` after
+   * or null. With the recap on, the contributed instructions contain the
+   * whole recap contract. bb calls `contributeInstructions` after
    * `configure` in each resolution and gives it a 4,096-character budget of
    * its own. Null while no client has reported that it draws reply
    * blocks (see `reportClient`).
@@ -363,8 +357,8 @@ export class AgentRecaps {
 
   /**
    * Coalesces idle events per thread; a repeat during a check runs again.
-   * `lastAssistantText` is the turn's final message, read for a reply block
-   * when Structured replies is on.
+   * `lastAssistantText` is the turn's final message, checked for a reply-block
+   * recap on enrolled turns.
    */
   onIdle(
     threadId: string,
@@ -721,32 +715,27 @@ export class AgentRecaps {
     });
   }
 
-  /** What a correction asks for: a recap call, or a reply block's missing part. */
+  /** Recovery offers both reporting forms because configuration can precede a session refresh. */
   private correctionText(threadId: string, turnId: string): string {
-    // The session's own mode decides; after a restart, the current one.
-    const blocks =
-      this.blockSessions.get(threadId) ??
-      (this.deps.prefs().replies && this.messageBlocks);
-    if (!blocks)
-      return `Your turn ended without a recap. Finish any remaining authorized work, then call ${RECAP_TOOL}, or ask the user through a question card if you need their input.`;
     const found = this.blockProblems.get(threadId);
-    const problem =
-      BLOCK_PROBLEMS[found?.turnId === turnId ? found.problem : "block"];
-    return `Your turn ended without a recap: ${problem}. Finish any remaining authorized work, then end with a \`:::reply{state="…"}\` block that starts with a \`# \` headline. If you need the user's input instead, ask through a question card; it is then the reply.`;
+    const detail =
+      found?.turnId === turnId && found.problem !== "block"
+        ? ` For a reply block, ${BLOCK_PROBLEMS[found.problem]}.`
+        : "";
+    return `Your turn ended without a recap.${detail} Finish any remaining authorized work, then use the reporting form available in this session: call ${RECAP_TOOL} if that tool is available, or end with a \`:::reply{state="…"}\` block starting with a \`# \` headline. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
   }
 
   /**
-   * With Structured replies on, records the recap a turn's reply block
-   * carries, through the same path as a tool call. It reads blocks whether
-   * or not a client has reported drawing them, so a session that got the
-   * block instruction keeps its recaps across a restart. The final message comes
+   * Records an enrolled turn's reply-block recap through the tool's storage
+   * path, independent of format preferences and client capabilities: the
+   * provider session may retain block instructions after either changes.
+   * The final message comes
    * first; without a block there, the turn's other top-level messages are
    * read, newest first. A turn already ended by a recap or a question card
    * is left alone, so repeated idle events change nothing.
    */
   private async recordReply(threadId: string) {
-    const { required, replies } = this.deps.prefs();
-    if (!required || !replies) return;
+    if (!this.deps.prefs().required) return;
     const row = this.row(threadId);
     if (!row.enrolled) return;
     const signal = this.controller.signal;

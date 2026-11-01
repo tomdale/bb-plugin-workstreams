@@ -54,6 +54,43 @@ describe("bounded classification repair", () => {
     });
     expect(w.completions).toHaveLength(2);
   });
+  it("preserves the stored assignment and catalog when automatic Placement returns a topic and proposal", async () => {
+    world = await fakeWorld({
+      complete: () =>
+        JSON.stringify({
+          goal: null,
+          recap: "Review ready",
+          state: "review",
+          topic: "docs",
+          propose: {
+            name: "Archive",
+            description: "Archived work",
+            parent: null,
+          },
+          scopeShift: true,
+        }),
+    });
+    const w = world;
+    const topics = new TopicStore(openDatabase(w.bb));
+    const current = topics.create("Parser", "Parser work");
+    topics.create("Docs", "Documentation work");
+    w.addThread("t", { status: "idle" });
+    w.converse("t", ["Write the parser documentation"]);
+    topics.assign("t", current.id, { provenance: "full" });
+    await w.harness.behavior.callRpc("taskReclassify", { threadId: "t" });
+    expect(topics.assignment("t").entityId).toBe(current.id);
+    expect(
+      topics
+        .list()
+        .map((topic) => topic.name)
+        .sort(),
+    ).toEqual(["Docs", "Parser"]);
+    const state = (await w.harness.behavior.callRpc("state", null)) as {
+      analysis: Record<string, { topicError?: string }>;
+    };
+    expect(state.analysis.t?.topicError).toContain("never both");
+  });
+
   it("retains valid Full status and title without clearing the topic on invalid output", async () => {
     world = await fakeWorld({
       complete: () =>

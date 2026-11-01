@@ -25,6 +25,7 @@ import { SPLIT_ABOVE, startsWith } from "./layout.ts";
 export const TIDY_EDITS_MAX = 8;
 /** A split makes at most this many subgroups. */
 export const SUBGROUPS_MAX = 5;
+const TIDY_THREADS_PER_TOPIC = 12;
 
 export type TidyTopic = {
   readonly id: string;
@@ -336,27 +337,37 @@ Edits:
 - move {thread, topic}: refile one thread
 Refer to topics and threads by their IDs in square brackets. A topic created earlier in the same list can be referenced as "new:<name>".`;
 
+/** The displayed evidence bounds which threads an answer may move. */
+function tidyThreadGroups(input: Pick<TidyInput, "topics" | "threads">) {
+  const topics = new Set(placementIds(input.topics).keys());
+  const groups = new Map<
+    string | null,
+    { shown: SuggestThread[]; total: number }
+  >();
+  for (const thread of input.threads) {
+    if (thread.topicId !== null && !topics.has(thread.topicId)) continue;
+    const group = groups.get(thread.topicId) ?? { shown: [], total: 0 };
+    group.total++;
+    if (group.shown.length < TIDY_THREADS_PER_TOPIC) group.shown.push(thread);
+    groups.set(thread.topicId, group);
+  }
+  return groups;
+}
+
 export function tidyPrompt(input: TidyInput): string {
   const ids = placementIds(input.topics);
   const rIds = threadIds(input.threads);
-  const byTopic = new Map<string | null, SuggestThread[]>();
-  for (const thread of input.threads)
-    byTopic.set(thread.topicId, [
-      ...(byTopic.get(thread.topicId) ?? []),
-      thread,
-    ]);
+  const byTopic = tidyThreadGroups(input);
   const listed = [...ids]
     .filter(([id]) => byTopic.has(id))
     .map(([id, short]) => {
-      const threads = byTopic.get(id)!;
-      const shown = threads.slice(0, 12);
-      return `[${short}] ${line(input.topics.find((t) => t.id === id)!.name, 80)}:\n${shown.map((t) => threadLine(rIds.get(t.id)!, t)).join("\n")}${threads.length > shown.length ? `\n(+${threads.length - shown.length} more)` : ""}`;
+      const { shown, total } = byTopic.get(id)!;
+      return `[${short}] ${line(input.topics.find((t) => t.id === id)!.name, 80)}:\n${shown.map((t) => threadLine(rIds.get(t.id)!, t)).join("\n")}${total > shown.length ? `\n(+${total - shown.length} more)` : ""}`;
     });
-  const unfiled = byTopic.get(null) ?? [];
+  const unfiled = byTopic.get(null)?.shown ?? [];
   if (unfiled.length)
     listed.push(
       `Unfiled:\n${unfiled
-        .slice(0, 12)
         .map((t) => threadLine(rIds.get(t.id)!, t))
         .join("\n")}`,
     );
@@ -460,8 +471,15 @@ export function parseTidy(text: string, input: TidyInput): ProposedEdit[] {
   const topicOf = new Map(
     [...placementIds(input.topics)].map(([id, short]) => [short, id]),
   );
+  const shown = new Set(
+    [...tidyThreadGroups(input).values()].flatMap((group) =>
+      group.shown.map((thread) => thread.id),
+    ),
+  );
   const threadOf = new Map(
-    [...threadIds(input.threads)].map(([id, short]) => [short, id]),
+    [...threadIds(input.threads)]
+      .filter(([id]) => shown.has(id))
+      .map(([id, short]) => [short, id]),
   );
   const created = new Set<string>();
   /** A topic: a short ID, or a topic created earlier in this answer. */

@@ -996,6 +996,22 @@ describe("recaps from reply blocks", () => {
     expect(s.corrections()).toHaveLength(0);
   });
 
+  it("stores literal review paths containing spaces and parentheses", async () => {
+    const s = await world({ replies: true });
+    s.w.turn("t1");
+    await idleWith(
+      s,
+      ':::reply{state="review"}\n# Review the report\n\n### Review\n- Inspect the report\n\n### Links\n- [Report](</work/My Project/report (final).md>)\n:::\n',
+    );
+    expect((await s.card()).recap).toMatchObject({
+      state: "review",
+      links: [
+        { title: "Report", location: "/work/My Project/report (final).md" },
+      ],
+    });
+    expect(s.corrections()).toHaveLength(0);
+  });
+
   it("reads a block's full Markdown fields back from storage", async () => {
     const s = await world({ replies: true });
     s.w.turn("t1");
@@ -1092,7 +1108,7 @@ describe("recaps from reply blocks", () => {
   });
 
   it.each([
-    ["no block", "Done.", "your reply had no readable `:::reply` block"],
+    ["no block", "Done.", null],
     [
       "a block with no headline",
       ':::reply{state="complete"}\n### Checked\nRan it.\n:::\n',
@@ -1122,9 +1138,11 @@ describe("recaps from reply blocks", () => {
       expect((await s.card()).recap).toBeNull();
       const [correction] = s.corrections();
       const message = (correction!.input as { text: string }[])[0]!.text;
-      expect(message).toContain(`Your turn ended without a recap: ${problem}.`);
+      expect(message).toContain("Your turn ended without a recap.");
+      if (problem) expect(message).toContain(`For a reply block, ${problem}.`);
       expect(message).toContain("Correction 1 of 3.");
-      expect(message).not.toContain(RECAP_TOOL);
+      expect(message).toContain(`call ${RECAP_TOOL} if that tool is available`);
+      expect(message).toContain('or end with a `:::reply{state="…"}` block');
     },
   );
 
@@ -1147,16 +1165,91 @@ describe("recaps from reply blocks", () => {
     expect(s.corrections()).toHaveLength(0);
   });
 
-  it("reads no blocks while the setting is off", async () => {
+  it("accepts valid block reports independently of the requested format", async () => {
     const s = await world();
     s.w.turn("t1");
     await idleWith(s, COMPLETE);
-    expect((await s.card()).recap).toBeNull();
-    const [correction] = s.corrections();
-    expect((correction!.input as { text: string }[])[0]!.text).toContain(
-      `then call ${RECAP_TOOL}`,
-    );
+    expect((await s.card()).recap?.state).toBe("complete");
+    expect(s.corrections()).toHaveLength(0);
   });
+
+  it("honors disabled recap reporting even when a session still writes blocks", async () => {
+    const s = await world({ required: false, replies: true });
+    s.w.turn("t1");
+    await idleWith(s, COMPLETE);
+    expect((await s.card()).recap).toBeNull();
+    expect(s.corrections()).toHaveLength(0);
+  });
+
+  it.each(["preference", "client", "reload"] as const)(
+    "accepts a frozen block session after the %s requests tool mode",
+    async (change) => {
+      const s = await world({ replies: true });
+      const frozen = await s.configure();
+      expect(frozen.tools.map((tool) => tool.name)).not.toContain(RECAP_TOOL);
+      if (change === "preference")
+        await s.w.harness.behavior.callRpc("setRecapPrefs", {
+          patch: { replies: false },
+        });
+      else if (change === "client")
+        await s.w.harness.behavior.callRpc("reportClient", {
+          messageBlocks: false,
+        });
+      else {
+        const replacement = await s.w.harness.lifecycle.reload(plugin);
+        s.w.harness = replacement.harness;
+      }
+      expect((await s.configure()).tools.map((tool) => tool.name)).toContain(
+        RECAP_TOOL,
+      );
+      const turnId = s.w.turn("t1");
+      await idleWith(s, COMPLETE);
+      expect((await s.card()).recap).toMatchObject({
+        state: "complete",
+        turnId,
+      });
+      expect(s.corrections()).toHaveLength(0);
+    },
+  );
+
+  it("accepts a frozen tool session after configuration requests blocks", async () => {
+    const s = await world();
+    const frozen = await s.configure();
+    expect(frozen.tools.map((tool) => tool.name)).toContain(RECAP_TOOL);
+    await s.w.harness.behavior.callRpc("setRecapPrefs", {
+      patch: { replies: true },
+    });
+    await s.w.harness.behavior.callRpc("reportClient", { messageBlocks: true });
+    expect((await s.configure()).tools.map((tool) => tool.name)).not.toContain(
+      RECAP_TOOL,
+    );
+    s.w.turn("t1");
+    await s.report();
+    await idleWith(s, "Done.");
+    expect((await s.card()).recap?.state).toBe("complete");
+    expect(s.corrections()).toHaveLength(0);
+  });
+
+  it.each([false, true])(
+    "offers available reporting forms after changing requested block mode to %s",
+    async (replies) => {
+      const s = await world({ replies: !replies });
+      await s.w.harness.behavior.callRpc("setRecapPrefs", {
+        patch: { replies },
+      });
+      await s.w.harness.behavior.callRpc("reportClient", {
+        messageBlocks: replies,
+      });
+      await s.configure();
+      s.w.turn("t1");
+      await idleWith(s, "Done.");
+      const [correction] = s.corrections();
+      const message = (correction!.input as { text: string }[])[0]!.text;
+      expect(message).toContain(`call ${RECAP_TOOL} if that tool is available`);
+      expect(message).toContain('or end with a `:::reply{state="…"}` block');
+      expect(message).toContain("available question-card tool");
+    },
+  );
 });
 
 describe("next actions", () => {

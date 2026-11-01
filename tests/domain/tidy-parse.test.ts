@@ -46,6 +46,46 @@ const parse = (...edits: Record<string, unknown>[]) =>
   parseTidy(JSON.stringify({ edits: edits.map(edit) }), input);
 
 describe("parseTidy", () => {
+  it("accepts moves only for displayed topic and Unfiled threads, preserving their prompt IDs", () => {
+    const threads = [
+      ...Array.from({ length: 13 }, (_, n) => ({
+        id: `filed-${n + 1}`,
+        title: `Filed ${n + 1}`,
+        topicId: "auto",
+        checkout: null,
+      })),
+      ...Array.from({ length: 13 }, (_, n) => ({
+        id: `unfiled-${n + 1}`,
+        title: `Unfiled ${n + 1}`,
+        topicId: null,
+        checkout: null,
+      })),
+      {
+        id: "unknown-topic",
+        title: "Not displayed",
+        topicId: "missing",
+        checkout: null,
+      },
+    ];
+    const many = { ...input, threads };
+    const prompt = tidyPrompt(many);
+    expect(prompt).toContain("[r12] Filed 12");
+    expect(prompt).toContain("[r14] Unfiled 1");
+    expect(prompt).toContain("[r25] Unfiled 12");
+    expect(prompt).not.toMatch(/\[r(?:13|26|27)\]/);
+    const answer = {
+      edits: ["r12", "r13", "r25", "r26", "r27"].map((thread) =>
+        edit({ op: "move", thread, topic: "beacon-code-review" }),
+      ),
+    };
+    expect(
+      parseTidy(JSON.stringify(answer), many).map((entry) => entry.edit),
+    ).toEqual([
+      { op: "move", thread: "filed-12", topic: "review" },
+      { op: "move", thread: "unfiled-12", topic: "review" },
+    ]);
+  });
+
   it("reads a move that renames the topic", () => {
     expect(parse({ name: "Code Review" })).toEqual([
       {

@@ -281,6 +281,8 @@ export function parsePlacement(
   input: PlacementChoices,
 ): PlacementOutput {
   const parsed = outputSchema.parse(JSON.parse(stripFence(text)));
+  if (parsed.topic != null && parsed.propose != null)
+    throw new Error("Choose a topic or a proposal, never both.");
   const allowed = choosable(input);
   if (input.within && (!parsed.topic || parsed.propose))
     throw new Error(

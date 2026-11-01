@@ -148,6 +148,20 @@ describe("parsePlacement", () => {
     ).toThrow();
   });
 
+  it.each(["planning", "missing", ""])(
+    "rejects a topic and proposal together, including invalid topic %s",
+    (topic) => {
+      for (const parent of [null, "automations", "missing"]) {
+        expect(() =>
+          parse({
+            topic,
+            propose: { name: "CLI", description: "Commands", parent },
+          }),
+        ).toThrow("Choose a topic or a proposal, never both");
+      }
+    },
+  );
+
   it("reads both fields null as no topic", () => {
     expect(parse({ topic: null, propose: null })).toEqual({
       subjectId: null,
