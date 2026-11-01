@@ -727,7 +727,6 @@ export default async function plugin(bb: BbPluginApi) {
           analyzer.catchUp(service.threads());
           quick.sweep(service.threads());
           void sweepSnoozes();
-          map.refresh(service.threads());
           learnProjects();
           triggerOrganizer(50);
         })
@@ -1297,10 +1296,7 @@ export default async function plugin(bb: BbPluginApi) {
       }),
     suggestionsReopen: ({ id, entryId }) =>
       userFacing(async () => {
-        if (entryId) {
-          await service.undo(entryId);
-          map.refresh(service.threads());
-        }
+        if (entryId) await service.undo(entryId);
         suggestions.reopen(id);
         return { state: suggestions.state() };
       }),
@@ -1331,13 +1327,11 @@ export default async function plugin(bb: BbPluginApi) {
     undo: ({ entryId }) =>
       userFacing(async () => {
         const entry = await service.undo(entryId);
-        map.refresh(service.threads());
         return { entry };
       }),
     refresh: async () => {
       const changed = await service.reconcile();
       await sweepSnoozes();
-      map.refresh(service.threads());
       return { changed };
     },
     traces: async (input) => ({ traces: traces.list(input) }),

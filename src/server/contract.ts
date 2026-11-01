@@ -49,14 +49,6 @@ const recordSchema = z.object({
   aliases: z.array(z.string()),
   /** The topic the workstream belongs to; its name and description come from it. */
   topicId: z.string().nullable(),
-  projects: z.array(
-    z.object({
-      projectId: z.string(),
-      role: z.enum(["primary", "secondary"]),
-      environment: z.enum(["checkout", "worktree"]),
-    }),
-  ),
-  evidence: z.object({ threadCount: z.number(), lastActiveAt: z.number() }),
   createdBy: z.enum(["user", "workstreams"]),
   updatedAt: z.number(),
 });

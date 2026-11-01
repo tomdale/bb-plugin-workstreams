@@ -7,14 +7,6 @@
  * deterministically from live threads.
  */
 import type { Database } from "./db.ts";
-import type { InventoryThread } from "./inventory.ts";
-import { buildForest } from "../domain/tree.ts";
-
-export type MapProject = {
-  projectId: string;
-  role: "primary" | "secondary";
-  environment: "checkout" | "worktree";
-};
 
 export type MapRecord = {
   sectionId: string;
@@ -24,8 +16,6 @@ export type MapRecord = {
   aliases: string[];
   /** The topic the workstream belongs to, when Workstreams keeps it for one. */
   topicId: string | null;
-  projects: MapProject[];
-  evidence: { threadCount: number; lastActiveAt: number };
   createdBy: "user" | "workstreams";
   updatedAt: number;
 };
@@ -36,11 +26,9 @@ type Row = {
   description: string | null;
   description_source: MapRecord["descriptionSource"];
   aliases: string;
-  projects: string;
   topic_id: string | null;
   topic_description: string | null;
   topic_aliases: string | null;
-  evidence: string;
   created_by: MapRecord["createdBy"];
   updated_at: number;
 };
@@ -82,12 +70,6 @@ export class WorkstreamMap {
         ? parse(row.topic_aliases ?? "[]", [])
         : parse(row.aliases, []),
       topicId: row.topic_id,
-      projects: parse(row.projects, []),
-      evidence: {
-        threadCount: 0,
-        lastActiveAt: 0,
-        ...parse<Partial<MapRecord["evidence"]>>(row.evidence, {}),
-      },
       createdBy: row.created_by,
       updatedAt: row.updated_at,
     }));
@@ -96,72 +78,4 @@ export class WorkstreamMap {
   get(sectionId: string): MapRecord | undefined {
     return this.list().find((record) => record.sectionId === sectionId);
   }
-
-  /**
-   * Deterministic evidence from live roots: thread counts, last activity,
-   * and the projects the work runs in.
-   */
-  refresh(threads: readonly InventoryThread[]): void {
-    const forest = buildForest(threads);
-    const bySection = new Map<string, InventoryThread[]>();
-    for (const root of forest.roots) {
-      const sectionId = root.thread.sectionId;
-      if (!sectionId) continue;
-      bySection.set(sectionId, [
-        ...(bySection.get(sectionId) ?? []),
-        root.thread,
-      ]);
-    }
-    const update = this.db.prepare(
-      `UPDATE ws_workstream SET projects = @projects, evidence = @evidence
-       WHERE section_id = @id`,
-    );
-    const tx = this.db.transaction(() => {
-      for (const record of this.list()) {
-        const roots = bySection.get(record.sectionId) ?? [];
-        const members = roots.flatMap((root) => [
-          root,
-          ...threads.filter(
-            (t) => forest.rootOf.get(t.id)?.id === root.id && t.id !== root.id,
-          ),
-        ]);
-        // Delegates count too: a coordinating root often runs in one project
-        // while the code work its children do runs in another.
-        const projects = rank(members.map((thread) => thread.projectId)).map(
-          (projectId, i): MapProject => {
-            const previous = record.projects.find(
-              (p) => p.projectId === projectId,
-            );
-            return {
-              projectId,
-              role: i === 0 ? "primary" : "secondary",
-              environment: previous?.environment ?? "checkout",
-            };
-          },
-        );
-        update.run({
-          id: record.sectionId,
-          projects: JSON.stringify(projects),
-          evidence: JSON.stringify({
-            threadCount: members.length,
-            lastActiveAt: Math.max(
-              0,
-              ...members.map((t) => t.latestAttentionAt),
-            ),
-          }),
-        });
-      }
-    });
-    tx();
-  }
-}
-
-/** Distinct non-empty values, most frequent first. */
-function rank(values: readonly (string | null)[]): string[] {
-  const counts = new Map<string, number>();
-  for (const value of values)
-    if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([value]) => value);
 }
