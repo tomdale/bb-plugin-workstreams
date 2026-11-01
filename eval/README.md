@@ -107,21 +107,29 @@ name their own edit's topics, and checks renames on moves.
 
 `node eval/replies.ts` makes paid, tool-free Gateway calls against synthetic
 investigation, change, shipped-change, recommendation, handoff, routing,
-uncertainty, waiting, body-only, and short-answer tasks. It uses the production
-instructions, component examples, parser, and recap validation. Checks cover one
-closed whole-message reply, usable recaps and required result lists, malformed
-components, reported test counts, explicit uncertainty cues, required Next items
-after completed work including a handoff and a shipped change, a route to a
-running thread reported as complete, waiting-agent details, body-only
-formatting, and unnecessary content in short answers. Test counts may appear in
-prose or optional structured totals. Prose scoring recognizes explicit numeric
-or zero-through-ten word counts beside passed/failed/skipped, including a count
-written as an adjective ("one skipped integration test"); inspect other wording
-in recorded responses before treating a count failure as a factual error.
+uncertainty, waiting, body-only, and short-answer tasks. Each run makes the two
+authorings a turn makes: the reply block as plain assistant text, then the
+`WorkstreamsRecap` arguments against the production tool schema and the schema
+the server accepts at execution.
+
+The reply call scores one closed whole-message block, no recap fields inside it,
+malformed components, reported test counts, and explicit uncertainty cues.
 Preferred component selections are recorded as advisory notes, not failures: a
 valid composition can explain a fact in prose or use another suitable component.
-The uncertainty check is a phrase/status heuristic; inspect the recorded replies
-to judge whether their claims are true.
+Test counts may appear in prose or optional structured totals, and prose scoring
+recognizes explicit numeric or zero-through-ten word counts beside
+passed/failed/skipped, including a count written as an adjective ("one skipped
+integration test"). Inspect other wording in recorded responses before treating
+a count failure as a factual error. The uncertainty check is a phrase/status
+heuristic; inspect the recorded replies to judge whether their claims are true.
+
+The recap call scores the accepted arguments: the expected state, required Next
+items after completed work including a handoff and a shipped change, a route to
+a running thread reported as complete, waiting-agent details and polling
+interval, no results or actions on a waiting recap, and no unnecessary content
+for a short answer. A call the server's schema rejects is answered once with the
+rejection message, as the tool answers it inside the turn that made it; the
+report keeps every rejection, so a rising repair rate is visible.
 
 - `EVAL_MODEL`: default `openai/gpt-6-luna`
 - `EVAL_REASONING_LEVEL`: default `medium`
@@ -129,16 +137,18 @@ to judge whether their claims are true.
 - `EVAL_CASE`: run one case by ID
 - `EVAL_OUTPUT`: report path; default `/tmp/reply-eval.json`
 
-Reports preserve the reply, readable text, usage, cost, and latency even when
-validation fails. A run the gateway cuts off at its token limit is recorded as
-skipped and left out of the pass rate. The runner exits nonzero on a failed or
-empty run. Examples are supplied as if the read-only guide tool had returned
-them; the model's reply is wrapped in a JSON field for the shared Gateway
-runner. Reply guidance uses the system role, with tool guidance before the main
-reply contract as BB delivers it, and the synthetic request uses the user role,
-so a request for a brief answer does not replace the reply-format contract. This
-checks format and supplied facts, not tool selection, real harness turn
-ordering, visual rendering, or reader comprehension. Those need separate checks.
+Reports preserve both authorings, the readable text, usage, cost, and latency
+even when validation fails. A run the gateway cuts off at its token limit is
+recorded as skipped and left out of the pass rate. The runner exits nonzero on a
+failed or empty run. Examples are supplied as if the read-only guide tool had
+returned them, and each authoring is wrapped in a one-field JSON envelope for
+the shared Gateway runner; the recap arguments travel in a `recap` field instead
+of a real tool call, which the tool-free runner cannot make. Reply guidance uses
+the system role, with the component guide and the reply contract as BB delivers
+them, and the synthetic request uses the user role, so a request for a brief
+answer does not replace the reply-format contract. This checks format and
+supplied facts, not tool selection, real harness turn ordering, visual
+rendering, or reader comprehension. Those need separate checks.
 
 ## Status fixtures
 

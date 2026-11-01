@@ -1,8 +1,8 @@
 /**
  * Whether a message's turn is the one the docked recap card shows. The card
- * reads the thread's stored recap, which a reply block's card fields wrote,
- * so the Markdown includes recap fields only for historical or dismissed
- * cards. Every block shares one server-state read. While it loads, recap
+ * reads the thread's stored recap, so a block's Markdown includes recap
+ * fields only when its message predates the recap tool and is not the docked
+ * turn. Every block shares one server-state read. While it loads, recap
  * fields are withheld so they do not appear then vanish.
  */
 import { useSharedServerState } from "../serverState.ts";

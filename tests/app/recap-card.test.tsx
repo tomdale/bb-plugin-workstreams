@@ -9,9 +9,6 @@ import {
   toRecap,
   type RecapFiles,
 } from "../../src/domain/recap.ts";
-import { parse } from "../../src/domain/reply.ts";
-import { recapInputFromCard } from "../../src/domain/replyRecap.ts";
-import { blockInput } from "../domain/replyFixtures.ts";
 
 const interactionOverride = vi.hoisted(() => ({
   value: null as boolean | null,
@@ -233,32 +230,25 @@ async function mount(
   );
 }
 
-it("renders a block's full card values with code formatting and clickable links", async () => {
+it("renders a stored card's full values with code formatting and clickable links", async () => {
   markdownRendering.enabled = true;
   const explanation =
     "The full explanation must survive the card conversion without dropping its final conclusion "
       .repeat(3)
       .trim();
   const markdown = `${explanation} with \`non-null\` and [the schema](https://example.com/schema)`;
-  const parsed = parse(
-    blockInput(
-      `:::reply{state="complete"}\n# ${markdown}\n- [x] ${markdown}\n\n### Next\n- Inspect: ${explanation}\n:::\n`,
-    ),
-  );
-  if (!parsed.ok || !parsed.data.card) throw new Error("no card");
-  const result = recapInputFromCard(parsed.data.card);
-  if (!result.ok) throw new Error(result.error);
-  const recap = recapSchema.parse(
-    JSON.parse(
-      JSON.stringify(
-        toRecap(result.input, {
-          id: "r1",
-          turnId: "turn",
-          at: 1,
-        }),
-      ),
-    ),
-  );
+  // Longer than the tool accepts: rows stored before the tool set the card.
+  const recap = recapSchema.parse({
+    id: "r1",
+    turnId: "turn",
+    at: 1,
+    state: "complete",
+    goal: markdown,
+    latest: [markdown],
+    review: [],
+    links: [],
+    next: [{ title: "Inspect", message: explanation }],
+  });
   const send = vi.fn(() => ({ ok: true }));
   const slot = await mount({ recap, send });
   const heading = await slot.findByRole("heading", { level: 2 });
@@ -1130,7 +1120,7 @@ it.each(["full"])(
 
 it.each([
   {
-    line: "[Report](</work/Project Files/review (final).md>)",
+    location: "/work/Project Files/review (final).md",
     href: "./Project%20Files%2Freview%20(final).md",
     target: {
       kind: "workspace",
@@ -1139,7 +1129,7 @@ it.each([
     },
   },
   {
-    line: "[Report](/tmp/Review%20Files/review%20%28final%29.md)",
+    location: "/tmp/Review Files/review (final).md",
     href: "./%2Ftmp%2FReview%20Files%2Freview%20(final).md",
     target: {
       kind: "host",
@@ -1148,24 +1138,20 @@ it.each([
     },
   },
 ])(
-  "opens the literal stored review path from $line",
-  async ({ line, href, target }) => {
+  "opens the literal stored review path from $location",
+  async ({ location, href, target }) => {
     markdownRendering.enabled = true;
-    const reply = parse(
-      blockInput(
-        `:::reply{state="review"}\n# Review the report\n\n### Review\n- Inspect the report\n\n### Links\n- ${line}\n:::\n`,
-      ),
-    );
-    if (!reply.ok || !reply.data.card) throw new Error("No reply card");
-    const input = recapInputFromCard(reply.data.card);
-    if (!input.ok) throw new Error(input.error);
-    const recap = recapSchema.parse(
-      JSON.parse(
-        JSON.stringify(
-          toRecap(input.input, { id: "r1", turnId: "turn", at: 1 }),
-        ),
-      ),
-    );
+    const recap = recapSchema.parse({
+      id: "r1",
+      turnId: "turn",
+      at: 1,
+      state: "review",
+      goal: "Review the report",
+      latest: [],
+      review: ["Inspect the report"],
+      links: [{ title: "Report", location }],
+      next: [],
+    });
     const slot = await mount({ recap });
     const link = await slot.findByRole("link", { name: "Report" });
     expect(link.getAttribute("href")).toBe(href);

@@ -94,7 +94,7 @@ it("keeps structured replies off until switched on", async () => {
       slot.inspection.rpcCalls.find((c) => c.method === "setRecapPrefs")?.input,
     ).toEqual({ patch: { replies: true } }),
   );
-  expect(await slot.findByText(/labeled sections/)).toBeTruthy();
+  expect(await slot.findByText(/one block with typed components/)).toBeTruthy();
 });
 
 it.each([false, true])(

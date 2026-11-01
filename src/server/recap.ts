@@ -10,10 +10,9 @@
  * BB applies a tool set only when it constructs a provider session, and
  * `configure` can't tell a session start from a turn submit. So reminders go
  * only to threads eligible for recap reporting: threads created since agents
- * started getting it, and threads whose agent has submitted a recap. Recovery
- * names both reporting forms because settings don't identify the live session's
- * capabilities. A fork continues its source's session, so eligibility dates from
- * the first thread in its fork chain.
+ * started getting it, and threads whose agent has called the recap tool. A fork
+ * continues its source's session, so eligibility dates from the first thread in
+ * its fork chain.
  *
  * BB reports turn completion as an observation, not a veto: the turn's final
  * reply is already visible when a correction asks for the recap. Corrections
@@ -35,13 +34,7 @@ import {
   type Recap,
 } from "../domain/recap.ts";
 import type { RecapPrefs } from "../domain/recapPrefs.ts";
-import { parse as parseReply } from "../domain/reply.ts";
 import { replyInstructions } from "../domain/replyInstructions.ts";
-import {
-  recapInputFromCard,
-  type ReplyRecapProblem,
-} from "../domain/replyRecap.ts";
-import { lastReplyBlock } from "../domain/replyText.ts";
 import type { Database } from "./db.ts";
 import { UserError } from "./service.ts";
 import { ASK_USER_QUESTION_RENDERER_ID } from "./questions/contracts.ts";
@@ -59,18 +52,10 @@ type Row = {
   capped: number;
   correction_token: string | null;
   input_key: string | null;
-  /** The thread's agent has submitted a recap through a supported reporting form. */
+  /** The thread's agent has called the recap tool. */
   proven: number;
   waiting_nudged: number;
   waiting_cancelled: number;
-};
-/** Why a turn's reply block yielded no recap; the correction names it. */
-type BlockProblem = "block" | "no-state" | ReplyRecapProblem;
-const BLOCK_PROBLEMS: Record<Exclude<BlockProblem, "block">, string> = {
-  "no-state": "its `:::reply` opener had no `state`",
-  state: "its `state` was not complete, review or waiting",
-  headline: "it had no `# ` headline line",
-  invalid: "its card could not be read",
 };
 
 type DispatchContext = Parameters<
@@ -113,8 +98,8 @@ export class AgentRecaps {
   >();
   private readonly waitingChecks = new Set<Promise<void>>();
   /**
-   * Per thread, from the latest `configure`: whether the reply block carries
-   * the recap card (the recap is on) or is a reply alone.
+   * Per thread, from the latest `configure`: whether the reply block ends with
+   * a recap tool call (the recap is on) or is the final message alone.
    */
   private readonly replyModes = new Map<string, boolean>();
   /**
@@ -125,13 +110,6 @@ export class AgentRecaps {
    * report.
    */
   private messageBlocks = false;
-  /** Each thread's latest idle text, for the coalesced idle work. */
-  private readonly idleText = new Map<string, string | null>();
-  /** Why the thread's latest turn's block gave no recap, for its correction. */
-  private readonly blockProblems = new Map<
-    string,
-    { turnId: string; problem: BlockProblem }
-  >();
 
   constructor(
     private readonly deps: {
@@ -215,16 +193,11 @@ export class AgentRecaps {
     this.deps.db
       .prepare("UPDATE ws_agent_recap SET enrolled = ? WHERE thread_id = ?")
       .run(Number(on), threadId);
-    // Body-only and recap-bearing replies share the Structured replies gate.
+    // Body-only replies and the recap tool share the Structured replies gate.
     const replies = enabled && prefs.replies && this.messageBlocks;
     if (replies) this.replyModes.set(threadId, on);
     else this.replyModes.delete(threadId);
-    // With Structured replies on, the recap comes from the reply block.
-    const blocks = on && replies;
-    return {
-      tools: on && !blocks ? [RECAP_TOOL] : [],
-      structuredReplies: replies,
-    };
+    return { tools: on ? [RECAP_TOOL] : [], structuredReplies: replies };
   }
 
   /** A client's report of what its bb draws; the latest report wins. */
@@ -234,15 +207,13 @@ export class AgentRecaps {
 
   /**
    * The reply block instruction for the resolution `configure` just decided,
-   * or null. With the recap on, the contributed instructions contain the
-   * whole recap contract. bb calls `contributeInstructions` after
-   * `configure` in each resolution and gives it a 4,096-character budget of
-   * its own. Null while no client has reported that it draws reply
-   * blocks (see `reportClient`).
+   * or null. bb calls `contributeInstructions` after `configure` in each
+   * resolution and gives it a 4,096-character budget of its own. Null while no
+   * client has reported that it draws reply blocks (see `reportClient`).
    */
   replyInstructions(threadId: string): string | null {
-    const withRecap = this.replyModes.get(threadId);
-    return withRecap === undefined ? null : replyInstructions(withRecap);
+    const recapTool = this.replyModes.get(threadId);
+    return recapTool === undefined ? null : replyInstructions(recapTool);
   }
 
   /**
@@ -355,16 +326,8 @@ export class AgentRecaps {
     this.deps.onChange();
   }
 
-  /**
-   * Coalesces idle events per thread; a repeat during a check runs again.
-   * `lastAssistantText` is the turn's final message, checked for a reply-block
-   * recap on enrolled turns.
-   */
-  onIdle(
-    threadId: string,
-    lastAssistantText: string | null = null,
-  ): Promise<void> {
-    this.idleText.set(threadId, lastAssistantText);
+  /** Coalesces idle events per thread; a repeat during a check runs again. */
+  onIdle(threadId: string): Promise<void> {
     const recap = this.get(threadId)?.recap;
     if (recap) this.scheduleWaiting(threadId, recap);
     this.failureGuard.forget(threadId);
@@ -376,7 +339,6 @@ export class AgentRecaps {
     const work = (async () => {
       do {
         this.repeat.delete(threadId);
-        await this.recordReply(threadId);
         await this.enforce(threadId);
       } while (this.repeat.has(threadId) && !this.controller.signal.aborted);
     })()
@@ -715,98 +677,9 @@ export class AgentRecaps {
     });
   }
 
-  /** Recovery offers both reporting forms because configuration can precede a session refresh. */
-  private correctionText(threadId: string, turnId: string): string {
-    const found = this.blockProblems.get(threadId);
-    const detail =
-      found?.turnId === turnId && found.problem !== "block"
-        ? ` For a reply block, ${BLOCK_PROBLEMS[found.problem]}.`
-        : "";
-    return `Your turn ended without a recap.${detail} Finish any remaining authorized work, then use the reporting form available in this session: call ${RECAP_TOOL} if that tool is available, or end with a \`:::reply{state="…"}\` block starting with a \`# \` headline. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
-  }
-
-  /**
-   * Records an enrolled turn's reply-block recap through the tool's storage
-   * path, independent of format preferences and client capabilities: the
-   * provider session may retain block instructions after either changes.
-   * The final message comes
-   * first; without a block there, the turn's other top-level messages are
-   * read, newest first. A turn already ended by a recap or a question card
-   * is left alone, so repeated idle events change nothing.
-   */
-  private async recordReply(threadId: string) {
-    if (!this.deps.prefs().required) return;
-    const row = this.row(threadId);
-    if (!row.enrolled) return;
-    const signal = this.controller.signal;
-    const turnId = await this.latestTurn(threadId, signal).catch(() => null);
-    if (!turnId || row.accepted_turn === turnId) return;
-    const found = await this.replyRecap(
-      threadId,
-      turnId,
-      this.idleText.get(threadId) ?? null,
-      signal,
-    );
-    if (!found.ok) {
-      this.blockProblems.set(threadId, { turnId, problem: found.problem });
-      return;
-    }
-    this.blockProblems.delete(threadId);
-    const recap = toRecap(found.input, {
-      id: randomUUID(),
-      turnId,
-      at: Date.now(),
-    });
-    if (!this.accept(threadId, row.epoch, turnId, recap)) return;
-    // The session demonstrably follows the block contract.
-    this.deps.db
-      .prepare("UPDATE ws_agent_recap SET proven = 1 WHERE thread_id = ?")
-      .run(threadId);
-    this.scheduleWaiting(threadId, recap);
-    this.deps.onChange();
-  }
-
-  private async replyRecap(
-    threadId: string,
-    turnId: string,
-    lastText: string | null,
-    signal: AbortSignal,
-  ) {
-    let block = lastText ? lastReplyBlock(lastText) : null;
-    if (!block) {
-      const events = await this.deps.bb.sdk.threads.events
-        .list({
-          threadId,
-          types: ["item/completed"],
-          order: "desc",
-          limit: "50",
-          signal,
-        })
-        .catch(() => []);
-      for (const event of events as unknown as {
-        scope: { kind: string; turnId?: string };
-        data: {
-          item?: { type?: string; text?: string; parentToolCallId?: string };
-        };
-      }[]) {
-        const item = event.data.item;
-        if (
-          event.scope.kind !== "turn" ||
-          event.scope.turnId !== turnId ||
-          item?.type !== "agentMessage" ||
-          item.parentToolCallId ||
-          !item.text
-        )
-          continue;
-        block = lastReplyBlock(item.text);
-        if (block) break;
-      }
-    }
-    if (!block) return { ok: false, problem: "block" } as const;
-    const read = parseReply(block, { status: block.status });
-    if (!read.ok) return { ok: false, problem: "block" } as const;
-    if (!read.data.card) return { ok: false, problem: "no-state" } as const;
-    return recapInputFromCard(read.data.card);
+  /** Recovery names the tool: the card comes only from the call that sets it. */
+  private correctionText(): string {
+    return `Your turn ended without a recap. Finish any remaining authorized work, then call ${RECAP_TOOL} to report it. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
   }
 
   private async enforce(threadId: string) {
@@ -904,7 +777,7 @@ export class AgentRecaps {
         {
           type: "text",
           visibility: "agent-only",
-          text: `[Workstreams recap ${token} ${row.epoch} ${completed.seq}]\n${this.correctionText(threadId, completed.scope.turnId)} Correction ${row.intercepts + 1} of ${corrections}.`,
+          text: `[Workstreams recap ${token} ${row.epoch} ${completed.seq}]\n${this.correctionText()} Correction ${row.intercepts + 1} of ${corrections}.`,
           mentions: [],
         },
       ],

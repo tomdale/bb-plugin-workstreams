@@ -3,64 +3,42 @@
  * examples ride on their own optional tool, so each delivered instruction
  * remains within BB's per-text budget.
  */
+import { RECAP_TOOL } from "./recap.ts";
 import { REPLY_BLOCK } from "./reply.ts";
 export const REPLY_EXAMPLES_TOOL = "WorkstreamsReplyExamples";
 const MARKERS = `Put \`:::${REPLY_BLOCK}\` and its attributes on their own line, with no space after the colons or before \`{\`. Use a top-level block, closed with \`:::\` alone on a line. Fenced code works inside; a line that must be only \`:::\` goes inside \`::::reply\` and \`::::\`.`;
 
-export function replyInstructions(withRecap: boolean): string {
-  return withRecap ? withCard() : alone();
+/**
+ * The reply contract for a session that draws reply blocks. `recapTool` says
+ * the session also has the recap tool, which alone sets the card: the block
+ * then carries the body and nothing the tool fills.
+ */
+export function replyInstructions(recapTool: boolean): string {
+  return recapTool ? withRecapTool() : alone();
 }
 
 function alone(): string {
   return `When required input is missing, put the explanation in a reply block before calling the available question-card tool; the card ends the turn. Otherwise put the entire final answer, explanation, completion details, and relevant commit or PR links in one reply block. ${MARKERS}`;
 }
 
-/** A question card owns the reply when input is required; other turns carry recap fields. */
-function withCard(): string {
-  return `When user input is required, end with a question card; explain before calling it. Otherwise finish authorized work, then end with one reply block as the entire final message, with no later text or tools. ${MARKERS}
-Set state="complete", state="review", or state="waiting" on the opener; optional kind is answer, investigation, change, recommendation, proposal, status, or handoff, independently of state.
-State covers what this thread owns: complete when all authorized work is finished; review when a finished result awaits inspection, testing, merging, or shipping; waiting while an async result this thread needs is still running. Work elsewhere counts while this thread owns follow-up; a route that leaves the destination owning the follow-up is complete, and its Next names how the destination reports back. Waiting requires timeout="<seconds>" (1–86400), a realistic polling interval; the card prompts a status check at expiry.
-Recap fields set the card and sidebar; use terse inline Markdown without closing periods.
-Card fields: start with # and a present-tense fact (at most 80 characters), -ing for waiting. Complete/review replies with bodies put 1–3 - [x] results immediately after the headline; a waiting card keeps only its headline, Waiting on, and timeout, so results and explanation go in the body. Advice results state the recommendation, not an implemented change. Results: concrete outcomes, most important first, about 12 words each, with relevant commit and PR links. Explain outcomes in the body without repeating them.
-Reserved ### sections: Review (review state only, required): 1–3 steps to inspect the result and what to expect. Links (review only) lists [title](location) review targets: HTTPS or absolute paths. Waiting on (waiting only) lists one @thread:<id> task per awaited agent. Next (required for complete and review; only a short factual answer with nothing left open omits it): 1–3 Title: message actions; labels at most 28 characters. Messages are self-contained requests; whitespace and closing periods are normalized. Next names each thing this reply leaves open: a pull request unopened, unmerged, or awaiting review; a result only the user can check on their own machine or display; a decision they still own; a step the body names but nobody did; an optional improvement or unauthorized change you recommended; for a handoff, how the destination reports back. An unauthorized action is a Next item, not a question card, unless the reply cannot stand without the answer; Next never requests approval or executes. Do authorized continuations yourself.
-Example:
-:::reply{state="review" kind="change"}
-# The coupon applies a percentage
-- [x] Callers pass whole percentages; conversion stays beside the calculation
-
-\`\`\`workstreams
-{"type":"context","topic":"Coupon calculation","background":"Review the percentage fix with caller units unchanged."}
-\`\`\`
-
-\`\`\`workstreams
-{"type":"change","title":"Coupon behavior","before":"10 subtracted ten cents","after":"10 subtracts ten percent","limitation":"Existing saved orders are unchanged"}
-\`\`\`
-
-### Review
-- Inspect the percentage calculation and its regression test
-
-### Next
-- Check callers: Check the other coupon callers for the same unit mismatch
-:::
-Completed change:
-:::reply{state="complete" kind="change"}
+/**
+ * With the recap tool in the session, the card is the tool call that ends the
+ * turn: the block carries the body, so no state, headline, results, or Next.
+ */
+function withRecapTool(): string {
+  return `When required input is missing, put the explanation in a reply block before calling the available question-card tool; the card ends the turn. Otherwise the whole reply is one reply block — the answer, however short, then the explanation, completion details, and relevant commit or PR links — and you end the turn with the ${RECAP_TOOL} tool call. The recap card comes from that call, so the block sets no state and carries no headline, results, or Next. ${MARKERS}
+Example, with optional kind (answer, investigation, change, recommendation, proposal, status, or handoff) set inside the braces, and one component in each fence:
+:::reply{kind="change"}
 # Arrow keys follow the card order
-- [x] Holding a key flips cards one at a time
+Holding a key flips one card at a time.
 
-### Next
-- Try it on your display: Confirm holding ↓ flips one card at a time
-:::
-The only reply that omits Next, because nothing is left open:
-:::reply{state="complete"}
-# Python 3.9 or newer
-:::
-Advice-only example:
-:::reply{state="complete" kind="recommendation"}
-# Renaming the label preserves behavior
-- [x] The recommendation matches the stored value without changing execution
+\`\`\`workstreams
+{"type":"context","topic":"Queue card keys","background":"Report the key handling change."}
+\`\`\`
 
-### Next
-- Rename the label: Rename the setting label and add a regression test
+\`\`\`workstreams
+{"type":"change","title":"Arrow keys","before":"Holding a key did nothing","after":"Holding a key flips one card at a time"}
+\`\`\`
 :::`;
 }
 

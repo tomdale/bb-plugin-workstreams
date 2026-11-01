@@ -521,11 +521,10 @@ of each turn using `WorkstreamsRecap`, rendered as a card above the composer:
   restore it.
 - **Reminders and loop guard:** If an enrolled agent ends a turn without a valid
   recap or a question card, Workstreams sends up to `3` automatic reminders
-  (configurable `0–10`). Reminders let the agent use its available recap tool or
-  a reply block rather than assuming the latest setting changed its session. If
-  an active thread hits `5` identical consecutive tool-call failures,
-  Workstreams stops the turn and pauses automatic continuation to prevent an
-  infinite retry loop.
+  (configurable `0–10`). Reminders name the recap tool rather than assuming the
+  latest setting changed the session. If an active thread hits `5` identical
+  consecutive tool-call failures, Workstreams stops the turn and pauses
+  automatic continuation to prevent an infinite retry loop.
 
 ### Upstream bb and the tomdale/bb fork
 
@@ -534,9 +533,9 @@ the docked recap card, the question card, the sidebar, Up Next, and the
 Workstreams page. With the [tomdale/bb](https://github.com/tomdale/bb) fork,
 which adds a message-block slot, you also get **Structured replies**:
 
-- Agents end each turn with a `:::reply` block instead of calling the recap
-  tool; its headline and results become the recap card. Card text preserves
-  inline Markdown and is not clipped to the recap tool's character limits.
+- Agents write the reply's prose and typed components in one `:::reply` block,
+  then end the turn by calling `WorkstreamsRecap`. The block carries no recap
+  fields: the card comes from the tool call, so the two never disagree.
 - Standalone message directives such as
   `::inline-vis{source="thread-storage" file="report.html"}` render through BB's
   installed directive plugins in body order, including after card sections or
@@ -576,9 +575,10 @@ Without the slot, Settings has no Structured replies row and new provider
 sessions use the recap tool; a setting turned on under the fork stays stored.
 Existing sessions retain their loaded tools and instructions across setting
 changes, client capability changes, and plugin reloads. While **End turns with a
-recap** is enabled, Workstreams accepts either valid reporting form; disabling
-that setting removes the reporting requirement and automatic reminders. Outside
-Subagents deliveries, reply blocks without a renderer show as plain Markdown.
+recap** is enabled, the recap tool supplies every card and reminders ask for
+that call; disabling that setting removes the reporting requirement and
+automatic reminders. Outside Subagents deliveries, reply blocks without a
+renderer show as plain Markdown.
 
 ### Structured question card (`AskUserQuestion`)
 

@@ -1,4 +1,8 @@
-/* Paid, tool-free format gate using synthetic facts; never mutates plugin state. */
+/*
+ * Paid, tool-free format gate using synthetic facts; never mutates plugin
+ * state. The gateway cannot call tools, so each answer returns the recap
+ * arguments a tool call would carry, scored by the schema the server accepts.
+ */
 import { writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -15,9 +19,15 @@ import {
   COMPONENT_EXAMPLES,
   componentFence,
 } from "../src/domain/replyExamples.ts";
+import {
+  RECAP_INSTRUCTIONS,
+  recapInputSchema,
+  recapToolSchema,
+  RECAP_TOOL,
+  type RecapInput,
+} from "../src/domain/recap.ts";
 import { onlyReplyBlock } from "../src/domain/replyText.ts";
 import { parse, toText } from "../src/domain/reply.ts";
-import { recapInputFromCard } from "../src/domain/replyRecap.ts";
 import type { ReplyPart } from "../src/domain/replyComponents.ts";
 import { testCountProblems, unresolvedCauseQualified } from "./reply-facts.ts";
 
@@ -119,7 +129,32 @@ const output = process.env.EVAL_OUTPUT ?? "/tmp/reply-eval.json";
 const repetitions = Number(process.env.EVAL_REPETITIONS ?? 1);
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 5)
   throw Error("EVAL_REPETITIONS must be 1–5");
-const envelope = z.object({ reply: z.string() });
+/**
+ * The recap a tool call carries, in one JSON answer instead of a call. The
+ * reply is authored as plain text in its own call: nesting it in this string
+ * made models confuse the two evals' JSON with their own fences, which says
+ * nothing about the contract being measured.
+ */
+const recapJson = z.toJSONSchema(recapToolSchema) as Record<string, unknown>;
+const strictObject = (schema: Record<string, unknown>) => {
+  const { $schema: _schema, ...rest } = schema;
+  return rest;
+};
+const replyEnvelope = {
+  type: "object",
+  additionalProperties: false,
+  properties: { reply: { type: "string" } },
+  required: ["reply"],
+} as Record<string, unknown>;
+const recapEnvelope = {
+  type: "object",
+  additionalProperties: false,
+  properties: { recap: strictObject(recapJson) },
+  required: ["recap"],
+} as Record<string, unknown>;
+/** Reading is lenient so a rejected recap is scored instead of thrown. */
+const readRecap = (text: string) =>
+  z.object({ recap: z.unknown() }).parse(JSON.parse(text)).recap;
 const results = [];
 /** A response the gateway cut off mid-answer says nothing about the instructions. */
 const cutOff = (stopReason: string | null) =>
@@ -131,6 +166,7 @@ function flatten(parts: ReplyPart[]): ReplyPart[] {
 }
 for (const task of cases) {
   if (process.env.EVAL_CASE && process.env.EVAL_CASE !== task.id) continue;
+  const withRecap = !("bodyOnly" in task && task.bodyOnly);
   for (let run = 1; run <= repetitions; run++) {
     const start = performance.now();
     let completion: Completion | undefined;
@@ -138,16 +174,19 @@ for (const task of cases) {
       const examples = task.types
         .map((type) => componentFence(COMPONENT_EXAMPLES[type]))
         .join("\n\n");
-      const withRecap = !("bodyOnly" in task && task.bodyOnly);
+      const reasoningLevel = process.env.EVAL_REASONING_LEVEL ?? "medium";
       completion = await gatewayComplete({
         apiKey,
         model,
-        reasoningLevel: process.env.EVAL_REASONING_LEVEL ?? "medium",
+        reasoningLevel,
         maxTokens: 8192,
         signal: AbortSignal.timeout(90_000),
-        outputSchema: envelope.toJSONSchema(),
-        // BB delivers tool instructions before the contributed reply contract.
-        systemPrompt: `You are answering a person in BB. Return JSON with one field, reply, whose string contains the full human-facing reply following the instructions below. The examples tool has already returned the examples supplied with the task; proceed to the final reply.\n\n${REPLY_COMPONENT_INSTRUCTIONS}\n\n${replyInstructions(withRecap)}`,
+        outputSchema: replyEnvelope,
+        systemPrompt: [
+          "You are answering a person in BB. Return JSON with one field, reply, whose string holds the full human-facing reply following the instructions below. The examples tool has already returned the examples supplied with the task; proceed to the final reply.",
+          REPLY_COMPONENT_INSTRUCTIONS,
+          replyInstructions(withRecap),
+        ].join("\n\n"),
         prompt: `The examples tool returned these illustrative component examples:\n${examples}\n\nTask:\n${task.request}`,
       });
       if (cutOff(completion.stopReason)) {
@@ -163,7 +202,16 @@ for (const task of cases) {
         });
         continue;
       }
-      const answer = envelope.parse(JSON.parse(completion.text)).reply;
+      const answer = z
+        .object({ reply: z.string() })
+        .parse(JSON.parse(completion.text)).reply;
+      let recapResponse: Completion | undefined;
+      const usage = { ...completion.usage };
+      const addUsage = (next: Completion) => {
+        usage.input += next.usage.input;
+        usage.output += next.usage.output;
+        usage.cost += next.usage.cost;
+      };
       const block = onlyReplyBlock(answer);
       const read =
         block?.status === "closed"
@@ -171,36 +219,78 @@ for (const task of cases) {
           : null;
       const problems: string[] = [];
       const selectionNotes: string[] = [];
+      // The card comes from the call that ends this turn. A rejected call is
+      // answered once, as the tool answers it in the turn that made it.
+      let accepted: ReturnType<typeof recapInputSchema.safeParse> | null = null;
+      const rejections: string[] = [];
+      if (withRecap && read?.ok) {
+        let prompt = `Task:\n${task.request}\n\nThe reply you already wrote to the person:\n${answer}`;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          const response = await gatewayComplete({
+            apiKey,
+            model,
+            reasoningLevel,
+            maxTokens: 4096,
+            signal: AbortSignal.timeout(90_000),
+            outputSchema: recapEnvelope,
+            systemPrompt: [
+              `You are ending a turn in BB by calling the ${RECAP_TOOL} tool. Return JSON whose recap field holds exactly the arguments for that call.`,
+              RECAP_INSTRUCTIONS,
+            ].join("\n\n"),
+            prompt,
+          });
+          addUsage(response);
+          if (cutOff(response.stopReason)) {
+            problems.push("Recap call was cut off at the token limit; rerun");
+            break;
+          }
+          recapResponse = response;
+          let rejection: string;
+          try {
+            accepted = recapInputSchema.safeParse(readRecap(response.text));
+            if (accepted.success) break;
+            rejection = accepted.error.issues[0]?.message ?? "invalid recap";
+          } catch (error) {
+            rejection = error instanceof Error ? error.message : String(error);
+          }
+          rejections.push(rejection);
+          prompt = `${prompt}\n\nThe ${RECAP_TOOL} call you sent was rejected: ${rejection}\nSend the corrected arguments only.`;
+        }
+      }
       if (!read?.ok) problems.push("No single closed reply block");
       else {
         const data = read.data,
           parts = flatten(data.body),
           types = parts.map((part) => part.type);
-        const recap = data.card ? recapInputFromCard(data.card) : null;
+        const recap: RecapInput | null = accepted?.success
+          ? accepted.data
+          : null;
         if (!withRecap) {
           if (data.card) problems.push("Body-only reply includes recap fields");
-        } else if (!recap?.ok) problems.push("No usable recap");
+        } else if (data.card)
+          problems.push(
+            "The reply block carries recap fields; the tool call sets the card",
+          );
+        else if (!accepted?.success)
+          problems.push(
+            `Recap rejected: ${accepted?.error.issues[0]?.message ?? "missing recap"}`,
+          );
         else if (
           !(Array.isArray(task.state) ? task.state : [task.state]).includes(
-            recap.input.state,
+            recap!.state,
           )
         )
           problems.push(
-            `Expected ${[task.state].flat().join(" or ")} recap, received ${recap.input.state}`,
+            `Expected ${[task.state].flat().join(" or ")} recap, received ${recap!.state}`,
           );
-        if ("next" in task && task.next && !data.card?.next.length)
+        if ("next" in task && task.next && !recap?.next.length)
           problems.push(
             "Advice identifies an optional improvement without an actionable Next item",
           );
-        if (
-          "waiting" in task &&
-          task.waiting &&
-          recap?.ok &&
-          recap.input.state === "waiting"
-        ) {
+        if ("waiting" in task && task.waiting && recap?.state === "waiting") {
           if (
-            recap.input.timeout !== 60 ||
-            !recap.input.waitingAgents?.some(
+            recap.timeout !== 60 ||
+            !recap.waitingAgents?.some(
               (agent) => agent.threadId === "thr_eval_worker",
             )
           )
@@ -208,10 +298,10 @@ for (const task of cases) {
               "Waiting recap omits the supplied worker or polling interval",
             );
           if (
-            data.card?.results.length ||
-            data.card?.next.length ||
-            data.card?.review.length ||
-            data.card?.links.length
+            recap.latest.length ||
+            recap.next.length ||
+            recap.links.length ||
+            (Array.isArray(recap.review) ? recap.review.length : recap.review)
           )
             problems.push(
               "Waiting recap includes completed results or optional actions",
@@ -228,30 +318,26 @@ for (const task of cases) {
             selectionNotes.push(
               `Preferred ${expected} component was not selected`,
             );
+        const short = "short" in task && task.short;
         if (
-          "short" in task &&
-          task.short &&
-          (data.body.length ||
-            data.card?.results.length ||
-            data.card?.review.length ||
-            data.card?.next.length ||
-            data.card?.links.length ||
-            data.card?.waitingOn.length)
+          short &&
+          (!recap ||
+            parts.some((part) => part.type !== "text") ||
+            recap.latest.length ||
+            recap.next.length ||
+            recap.links.length ||
+            (Array.isArray(recap.review)
+              ? recap.review.length
+              : recap.review) ||
+            recap.waitingAgents?.length)
         )
-          problems.push("Short answer has unnecessary body or results");
+          problems.push("Short answer has unnecessary parts or results");
         if (
           "uncertain" in task &&
           task.uncertain &&
           !unresolvedCauseQualified(parts, toText(data))
         )
           problems.push("No explicit qualification of the unresolved cause");
-        if (
-          data.card &&
-          data.card.state !== "waiting" &&
-          data.body.length &&
-          !data.card.results.length
-        )
-          problems.push("Substantive reply has no recap results");
         if ("totals" in task)
           problems.push(...testCountProblems(parts, toText(data), task.totals));
       }
@@ -262,9 +348,12 @@ for (const task of cases) {
         problems,
         selectionNotes,
         reply: answer,
+        recap: recapResponse ? readRecap(recapResponse.text) : null,
+        recapCompletion: recapResponse?.text ?? null,
+        recapRejections: rejections,
         stopReason: completion.stopReason,
         text: read?.ok ? toText(read.data) : null,
-        usage: completion.usage,
+        usage,
         durationMs: Math.round(performance.now() - start),
       });
     } catch (error) {
@@ -292,13 +381,15 @@ await writeFile(
         .update(replyInstructions(false))
         .update("\0")
         .update(REPLY_COMPONENT_INSTRUCTIONS)
+        .update("\0")
+        .update(RECAP_INSTRUCTIONS)
         .digest("hex"),
       cases: cases.filter(
         (task) => !process.env.EVAL_CASE || process.env.EVAL_CASE === task.id,
       ),
       reasoning: process.env.EVAL_REASONING_LEVEL ?? "medium",
       method:
-        "Tool-free synthetic format gate with examples supplied, not a harness or usability trial",
+        "Tool-free synthetic format gate with examples supplied, not a harness or usability trial; each answer returns the recap arguments a tool call would carry",
       results,
     },
     null,

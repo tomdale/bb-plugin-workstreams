@@ -880,13 +880,13 @@ describe("structured replies", () => {
     expect(await replyText(await world())).toBeNull();
   });
 
-  it("gives the merged instruction and no recap tool when recaps are on", async () => {
+  it("gives the body instruction and keeps the recap tool when recaps are on", async () => {
     const s = await world({ replies: true });
     const text = await replyText(s);
     expect(text).toBe(replyInstructions(true));
     const resolved = await s.configure();
     expect(resolved.instructions).not.toContain(":::reply");
-    expect(resolved.tools.map((tool) => tool.name)).not.toContain(RECAP_TOOL);
+    expect(resolved.tools.map((tool) => tool.name)).toContain(RECAP_TOOL);
   });
 
   it("keeps the recap tool while no client draws reply blocks, as on upstream bb", async () => {
@@ -901,7 +901,7 @@ describe("structured replies", () => {
 
   it("follows the latest client report, so a bb without the slot turns block mode off", async () => {
     const s = await world({ replies: true });
-    expect((await s.configure()).tools.map((tool) => tool.name)).not.toContain(
+    expect((await s.configure()).tools.map((tool) => tool.name)).toContain(
       RECAP_TOOL,
     );
     await s.w.harness.behavior.callRpc("reportClient", {
@@ -971,9 +971,7 @@ describe("shared state", () => {
   });
 });
 
-describe("recaps from reply blocks", () => {
-  const COMPLETE =
-    ':::reply{state="complete"}\n# Added the count_items helper\n- [x] `count_items()` counts nested carts\n\n### Checked\nRan `python3 -m unittest` locally.\n:::\n';
+describe("turn endings with reply blocks", () => {
   const idleWith = (
     s: Awaited<ReturnType<typeof world>>,
     text: string | null,
@@ -983,168 +981,34 @@ describe("recaps from reply blocks", () => {
       lastAssistantText: text,
     });
 
-  it("stores the block's recap through the tool's path", async () => {
+  it("stores no recap from a reply block, and asks for the tool call instead", async () => {
+    const s = await world({ replies: true });
+    s.w.turn("t1");
+    await idleWith(
+      s,
+      ':::reply{state="complete"}\n# Added the count_items helper\n- [x] `count_items()` counts nested carts\n:::\n',
+    );
+    expect((await s.card()).recap).toBeNull();
+    const [correction] = s.corrections();
+    const message = (correction!.input as { text: string }[])[0]!.text;
+    expect(message).toContain("Your turn ended without a recap.");
+    expect(message).toContain(`call ${RECAP_TOOL} to report it`);
+    // The card has one source, so recovery never offers the block form.
+    expect(message).not.toContain(":::reply");
+  });
+
+  it("stores the recap of a turn whose block is followed by the tool call", async () => {
     const s = await world({ replies: true });
     const turnId = s.w.turn("t1");
-    await idleWith(s, COMPLETE);
-    expect((await s.card()).recap).toMatchObject({
-      state: "complete",
-      goal: "Added the count_items helper",
-      latest: ["`count_items()` counts nested carts"],
-      turnId,
-    });
-    expect(s.corrections()).toHaveLength(0);
-  });
-
-  it("stores literal review paths containing spaces and parentheses", async () => {
-    const s = await world({ replies: true });
-    s.w.turn("t1");
-    await idleWith(
-      s,
-      ':::reply{state="review"}\n# Review the report\n\n### Review\n- Inspect the report\n\n### Links\n- [Report](</work/My Project/report (final).md>)\n:::\n',
+    s.w.say(
+      "t1",
+      ':::reply{kind="change"}\n# Arrow keys follow the card order\n:::\n',
     );
-    expect((await s.card()).recap).toMatchObject({
-      state: "review",
-      links: [
-        { title: "Report", location: "/work/My Project/report (final).md" },
-      ],
-    });
-    expect(s.corrections()).toHaveLength(0);
-  });
-
-  it("reads a block's full Markdown fields back from storage", async () => {
-    const s = await world({ replies: true });
-    s.w.turn("t1");
-    const markdown = `**${"A complete explanation ".repeat(12).trim()}** with \`code\` and [source](https://example.com/source)`;
-    const title =
-      "A complete review target title that exceeds the tool's eighty-character limit by a considerable margin";
-    const message =
-      "Inspect the implementation and confirm the complete explanation still contains every detail and the original code formatting and source link";
-    await idleWith(
-      s,
-      `:::reply{state="review"}\n# ${markdown}\n- [x] ${markdown}\n\n### Review\n- ${markdown}\n\n### Links\n- [${title}](https://example.com/review)\n\n### Next\n- Inspect the result: ${message}\n:::\n`,
-    );
-    expect((await s.card()).recap).toMatchObject({
-      state: "review",
-      goal: markdown,
-      latest: [markdown],
-      review: [markdown],
-      links: [{ title, location: "https://example.com/review" }],
-      next: [{ title: "Inspect the result", message }],
-    });
-    expect(s.corrections()).toHaveLength(0);
-  });
-
-  it("does not store unchecked items as completed recap results", async () => {
-    const s = await world({ replies: true });
-    s.w.turn("t1");
-    await idleWith(
-      s,
-      ':::reply{state="review"}\n# The change is local\n- [x] Committed the change\n- [ ] Push the branch\n\n### Review\n- Inspect the diff\n:::\n',
-    );
-    expect((await s.card()).recap).toMatchObject({
-      state: "review",
-      latest: ["Committed the change"],
-    });
-    expect(s.corrections()).toHaveLength(0);
-  });
-
-  it("records the recap from a composed reply without treating body data as recap fields", async () => {
-    const s = await world({ replies: true });
-    s.w.turn("t1");
-    await idleWith(s, COMPOSED_SAMPLES.change);
-    expect((await s.card()).recap).toMatchObject({
-      state: "review",
-      goal: "The coupon applies a percentage",
-      latest: ["The calculation converts whole percentages to fractions"],
-      review: ["Inspect the percentage calculation and its regression test"],
-    });
-    expect(s.corrections()).toHaveLength(0);
-  });
-
-  it("stores a turn's recap once, however many idle events arrive", async () => {
-    const s = await world({ replies: true });
-    s.w.turn("t1");
-    await idleWith(s, COMPLETE);
-    const first = (await s.card()).recap!;
-    await idleWith(s, COMPLETE.replace("count_items helper", "other title"));
-    expect((await s.card()).recap).toEqual(first);
-  });
-
-  it("reads a waiting block's timeout and schedules its status check", async () => {
-    const s = await world({ replies: true });
-    s.w.turn("t1");
-    await idleWith(
-      s,
-      ':::reply{state="waiting" timeout="120"}\n# Waiting for the workers\n\n### Waiting on\n- @thread:thr_worker1 Migrate orders\n:::\n',
-    );
-    expect((await s.card()).recap).toMatchObject({
-      state: "waiting",
-      timeout: 120,
-      waitingAgents: [{ threadId: "thr_worker1", task: "Migrate orders" }],
-    });
-  });
-
-  it("finds the block in an earlier message of the turn when a stray line follows it", async () => {
-    const s = await world({ replies: true });
-    s.w.turn("t1");
-    s.w.say("t1", COMPLETE);
-    s.w.say("t1", "Subagent text", true);
-    s.w.say("t1", "Done.");
+    await s.report();
     await idleWith(s, "Done.");
-    expect((await s.card()).recap).toMatchObject({
-      goal: "Added the count_items helper",
-    });
+    expect((await s.card()).recap).toMatchObject({ state: "complete", turnId });
+    expect(s.corrections()).toHaveLength(0);
   });
-
-  it("ignores a block from an earlier turn", async () => {
-    const s = await world({ replies: true });
-    s.w.turn("t1");
-    s.w.say("t1", COMPLETE);
-    s.w.turn("t1");
-    s.w.say("t1", "Done.");
-    await idleWith(s, "Done.");
-    expect((await s.card()).recap).toBeNull();
-  });
-
-  it.each([
-    ["no block", "Done.", null],
-    [
-      "a block with no headline",
-      ':::reply{state="complete"}\n### Checked\nRan it.\n:::\n',
-      "it had no `# ` headline line",
-    ],
-    [
-      "an unknown state",
-      ':::reply{state="finished"}\n# Done\n:::\n',
-      "its `state` was not complete, review or waiting",
-    ],
-    [
-      "a block with no state",
-      ":::reply\nAll set.\n:::\n",
-      "its `:::reply` opener had no `state`",
-    ],
-    [
-      "a block with no state that holds only a headline",
-      ":::reply\n# No third-party dependencies\n:::\n",
-      "its `:::reply` opener had no `state`",
-    ],
-  ])(
-    "sends a correction naming the missing part for %s",
-    async (_, text, problem) => {
-      const s = await world({ replies: true });
-      s.w.turn("t1");
-      await idleWith(s, text);
-      expect((await s.card()).recap).toBeNull();
-      const [correction] = s.corrections();
-      const message = (correction!.input as { text: string }[])[0]!.text;
-      expect(message).toContain("Your turn ended without a recap.");
-      if (problem) expect(message).toContain(`For a reply block, ${problem}.`);
-      expect(message).toContain("Correction 1 of 3.");
-      expect(message).toContain(`call ${RECAP_TOOL} if that tool is available`);
-      expect(message).toContain('or end with a `:::reply{state="…"}` block');
-    },
-  );
 
   it("stores nothing and sends no correction while a question card waits", async () => {
     const s = await world({ replies: true });
@@ -1164,92 +1028,6 @@ describe("recaps from reply blocks", () => {
     expect((await s.card()).recap).toBeNull();
     expect(s.corrections()).toHaveLength(0);
   });
-
-  it("accepts valid block reports independently of the requested format", async () => {
-    const s = await world();
-    s.w.turn("t1");
-    await idleWith(s, COMPLETE);
-    expect((await s.card()).recap?.state).toBe("complete");
-    expect(s.corrections()).toHaveLength(0);
-  });
-
-  it("honors disabled recap reporting even when a session still writes blocks", async () => {
-    const s = await world({ required: false, replies: true });
-    s.w.turn("t1");
-    await idleWith(s, COMPLETE);
-    expect((await s.card()).recap).toBeNull();
-    expect(s.corrections()).toHaveLength(0);
-  });
-
-  it.each(["preference", "client", "reload"] as const)(
-    "accepts a frozen block session after the %s requests tool mode",
-    async (change) => {
-      const s = await world({ replies: true });
-      const frozen = await s.configure();
-      expect(frozen.tools.map((tool) => tool.name)).not.toContain(RECAP_TOOL);
-      if (change === "preference")
-        await s.w.harness.behavior.callRpc("setRecapPrefs", {
-          patch: { replies: false },
-        });
-      else if (change === "client")
-        await s.w.harness.behavior.callRpc("reportClient", {
-          messageBlocks: false,
-        });
-      else {
-        const replacement = await s.w.harness.lifecycle.reload(plugin);
-        s.w.harness = replacement.harness;
-      }
-      expect((await s.configure()).tools.map((tool) => tool.name)).toContain(
-        RECAP_TOOL,
-      );
-      const turnId = s.w.turn("t1");
-      await idleWith(s, COMPLETE);
-      expect((await s.card()).recap).toMatchObject({
-        state: "complete",
-        turnId,
-      });
-      expect(s.corrections()).toHaveLength(0);
-    },
-  );
-
-  it("accepts a frozen tool session after configuration requests blocks", async () => {
-    const s = await world();
-    const frozen = await s.configure();
-    expect(frozen.tools.map((tool) => tool.name)).toContain(RECAP_TOOL);
-    await s.w.harness.behavior.callRpc("setRecapPrefs", {
-      patch: { replies: true },
-    });
-    await s.w.harness.behavior.callRpc("reportClient", { messageBlocks: true });
-    expect((await s.configure()).tools.map((tool) => tool.name)).not.toContain(
-      RECAP_TOOL,
-    );
-    s.w.turn("t1");
-    await s.report();
-    await idleWith(s, "Done.");
-    expect((await s.card()).recap?.state).toBe("complete");
-    expect(s.corrections()).toHaveLength(0);
-  });
-
-  it.each([false, true])(
-    "offers available reporting forms after changing requested block mode to %s",
-    async (replies) => {
-      const s = await world({ replies: !replies });
-      await s.w.harness.behavior.callRpc("setRecapPrefs", {
-        patch: { replies },
-      });
-      await s.w.harness.behavior.callRpc("reportClient", {
-        messageBlocks: replies,
-      });
-      await s.configure();
-      s.w.turn("t1");
-      await idleWith(s, "Done.");
-      const [correction] = s.corrections();
-      const message = (correction!.input as { text: string }[])[0]!.text;
-      expect(message).toContain(`call ${RECAP_TOOL} if that tool is available`);
-      expect(message).toContain('or end with a `:::reply{state="…"}` block');
-      expect(message).toContain("available question-card tool");
-    },
-  );
 });
 
 describe("next actions", () => {

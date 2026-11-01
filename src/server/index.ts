@@ -816,7 +816,7 @@ export default async function plugin(bb: BbPluginApi) {
     if (thread.visibility === "hidden") return;
     analyzer.onIdle(thread, lastAssistantText);
     triggerOrganizer(200);
-    return recaps.onIdle(thread.id, lastAssistantText);
+    return recaps.onIdle(thread.id);
   });
   bb.events.on("thread.active", ({ thread }) => {
     waker?.onActive(thread.id);

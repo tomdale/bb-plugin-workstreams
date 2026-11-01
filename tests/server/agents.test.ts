@@ -31,10 +31,7 @@ afterEach(async () => {
 });
 
 describe("next-action instruction contract", () => {
-  it.each([
-    ["recap tool", RECAP_INSTRUCTIONS],
-    ["reply block", replyInstructions(true)],
-  ])(
+  it.each([["recap tool", RECAP_INSTRUCTIONS]])(
     "requires optional follow-ups after completed work in the %s",
     (_, text) => {
       expect(text).toMatch(/required for complete and review/);
@@ -55,32 +52,27 @@ describe("next-action instruction contract", () => {
       );
     },
   );
-  it.each([
-    ["recap tool", RECAP_INSTRUCTIONS],
-    ["reply block", replyInstructions(true)],
-  ])("treats a route as complete in the %s", (_, text) => {
-    expect(text).toContain(
-      "a route that leaves the destination owning the follow-up is complete",
-    );
-    expect(text).toContain("how the destination reports back");
-  });
+  it.each([["recap tool", RECAP_INSTRUCTIONS]])(
+    "treats a route as complete in the %s",
+    (_, text) => {
+      expect(text).toContain(
+        "a route that leaves the destination owning the follow-up is complete",
+      );
+      expect(text).toContain("how the destination reports back");
+    },
+  );
   it("states the same Next requirement in the recap field schema", () => {
     const description = recapToolSchema.shape.next.description ?? "";
     expect(description).toContain("required except for a short factual answer");
     expect(description).toContain("how the destination reports back");
   });
-  it("shows a completed change that carries no Next only in the short-answer exception", () => {
-    const text = replyInstructions(true);
-    expect(text).toMatch(
-      /kind="change"\}[\s\S]*?### Next\n- Try it on your display/,
-    );
-    expect(text).toMatch(
-      /The only reply that omits Next, because nothing is left open:[\s\S]*?# Python 3\.9 or newer/,
-    );
+  it("carries its Next example in the tool instructions alone", () => {
+    expect(RECAP_INSTRUCTIONS).toMatch(/"next":\[/);
+    expect(replyInstructions(true)).not.toMatch(/### Next/);
   });
-  it("names what a waiting card keeps, so its results stay in the prose", () => {
-    expect(replyInstructions(true)).toContain(
-      "a waiting card keeps only its headline, Waiting on, and timeout",
+  it("keeps results and Next out of a waiting recap", () => {
+    expect(RECAP_INSTRUCTIONS).toContain(
+      "Omit latest, review, links, and next.",
     );
   });
 });
@@ -342,20 +334,18 @@ describe("configure", () => {
         (text.match(/Write the answer and causal reasoning/g) ?? []).length,
       ).toBe(composed ? 1 : 0);
       if (composed && !options.noRecap)
-        expect(text).toMatch(
-          /Review \(review state only, required\): 1–3 steps/,
+        expect(text).toContain(
+          "and you end the turn with the WorkstreamsRecap tool call",
         );
 
       const recap = !options.sideChat && !options.noRecap;
       if (recap) expect(text).toContain("required for complete and review");
       else expect(text).not.toContain("required for complete and review");
-      // With Structured replies on, the reply instruction carries the recap
-      // contract and the session has no recap tool.
-      if (recap && !options.replies) expect(text).toContain(RECAP_INSTRUCTIONS);
+      // The recap tool carries the card on every client, so its instructions
+      // reach each session that reports recaps.
+      if (recap) expect(text).toContain(RECAP_INSTRUCTIONS);
       else expect(text).not.toContain(RECAP_INSTRUCTIONS);
-      expect(selected.includes("WorkstreamsRecap")).toBe(
-        recap && !options.replies,
-      );
+      expect(selected.includes("WorkstreamsRecap")).toBe(recap);
       if (options.replies && !options.sideChat)
         expect(text).toContain(replyInstructions(recap));
       else expect(text).not.toContain(":::reply");

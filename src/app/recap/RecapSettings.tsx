@@ -122,13 +122,13 @@ export function RecapSettings() {
         />
       </div>
       {/* Only a bb that draws reply blocks (the tomdale/bb fork) offers
-          Structured replies; elsewhere agents use the recap tool. */}
+          Structured replies; the recap card comes from the tool either way. */}
       {replyBlocksDrawn() ? (
         <SettingRow
           label="Structured replies"
           description={
             prefs.replies
-              ? "Agents end each turn with a reply block in labeled sections; its headline and results become the recap card. Applies to each thread's next session."
+              ? "Agents write each reply as one block with typed components, then end the turn with the recap tool; the card comes from that call. Applies to each thread's next session."
               : "Off: agents report each turn through the recap tool."
           }
           control={

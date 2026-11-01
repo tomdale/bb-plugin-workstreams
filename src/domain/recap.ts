@@ -109,7 +109,7 @@ const nextActionSchema = z.union([
         "Short sentence-case button label, at most 28 characters",
       ),
       message: line(120).describe(
-        "The follow-up request sent when clicked; whitespace and closing periods are normalized",
+        "The follow-up request sent when clicked, at most 120 characters; whitespace and closing periods are normalized",
       ),
       description: line(120)
         .optional()
@@ -123,7 +123,7 @@ export type NextAction = z.infer<typeof nextActionSchema>;
 
 export const linkSchema = z
   .object({
-    title: line(80),
+    title: line(80).describe("Review target title, at most 80 characters"),
     location: z
       .string()
       .trim()
@@ -162,7 +162,9 @@ export type WaitingAgent = z.infer<typeof waitingAgentSchema>;
 const recapFields = z
   .object({
     state: z.enum(RECAP_STATES),
-    goal: line(80),
+    goal: line(80).describe(
+      "Present-tense fact about this turn, -ing for waiting; at most 80 characters",
+    ),
     waitingAgents: z
       .array(waitingAgentSchema)
       .max(8)
@@ -175,7 +177,7 @@ const recapFields = z
       .max(3)
       .default([])
       .describe(
-        "Completed results: required for review, optional for complete (a short answer needs none). Items can be strings or { text, detail } objects with optional secondary text.",
+        "Completed results: required for review, optional for complete (a short answer needs none). Items can be strings or { text, detail } objects with optional secondary text. At most 120 characters each.",
       ),
     timeout: z
       .number()
@@ -193,7 +195,7 @@ const recapFields = z
       .nullable()
       .optional()
       .describe(
-        "Required for review. Send each distinct action as its own array item; separate items render as a numbered list. Items can be strings or { text, detail } objects with optional secondary text.",
+        "Required for review. Send each distinct action as its own array item; separate items render as a numbered list. Items can be strings or { text, detail } objects with optional secondary text. At most 160 characters each.",
       ),
     links: z
       .array(linkSchema)
@@ -213,8 +215,9 @@ const recapFields = z
   .strict();
 
 /**
- * Block fields and stored recaps preserve the agent's full inline Markdown.
- * Tool-only text limits must not reject a block's card when it is read back.
+ * Stored recaps preserve the agent's full inline Markdown: rows written by a
+ * session that reported through a reply block exceed the tool's text limits,
+ * and reading one back must not reject it.
  */
 const fullNextActionSchema = z.union([
   line(),
@@ -226,17 +229,6 @@ const fullNextActionSchema = z.union([
 ]);
 const fullLinkSchema = linkSchema.extend({ title: line() });
 const fullWaitingAgentSchema = waitingAgentSchema.extend({ task: line() });
-const blockRecapFields = recapFields.extend({
-  goal: line(),
-  latest: z.array(recapItemSchema()).max(3).default([]),
-  review: z
-    .union([z.array(recapItemSchema()).max(3), z.string().trim()])
-    .nullable()
-    .optional(),
-  links: z.array(fullLinkSchema).max(8).default([]),
-  next: z.array(fullNextActionSchema).max(3).default([]),
-  waitingAgents: z.array(fullWaitingAgentSchema).max(8).optional(),
-});
 
 /**
  * The fields advertised to agents. Keep the root a concrete object: provider
@@ -246,82 +238,65 @@ const blockRecapFields = recapFields.extend({
 export const recapToolSchema = recapFields;
 
 /**
- * The state-specific contract checked before accepting a recap.
- * `reviewResults` is the fewest results a review recap needs: one from the
- * tool, none from a reply block, whose review steps can stand alone.
+ * The state-specific contract checked before accepting a recap. A review
+ * recap needs at least one result alongside its steps.
  */
-const inputSchema = (
-  reviewResults: 0 | 1,
-  fields = recapFields,
-  reviewLimit: number | null = 160,
-) =>
-  z
-    .discriminatedUnion("state", [
-      fields.extend({
-        state: z.literal("complete"),
-        timeout: z.null().optional(),
-        waitingAgents: z.array(z.never()).max(0).default([]),
-        review: z
-          .union([z.array(z.never()).max(0), z.literal("")])
-          .nullable()
-          .optional(),
-        // A short answer's goal states the answer and needs no results.
-        latest: fields.shape.latest,
-        links: z
-          .array(linkSchema)
-          .max(0, "Links are review targets and belong only in a review recap.")
-          .default([]),
-      }),
-      fields.extend({
-        state: z.literal("review"),
-        timeout: z.null().optional(),
-        waitingAgents: z.array(z.never()).max(0).default([]),
-        latest:
-          reviewResults === 1
-            ? fields.shape.latest.removeDefault().min(1)
-            : fields.shape.latest,
-        review: z.union([
-          z
-            .array(recapItemSchema(reviewLimit ?? undefined))
-            .min(1)
-            .max(3),
-          z.string().trim().min(1),
-        ]),
-      }),
-      fields.extend({
-        state: z.literal("waiting"),
-        timeout: z.number().int().min(1).max(86400),
-        latest: z.array(z.never()).max(0).default([]),
-        next: z.array(z.never()).max(0).default([]),
-        review: z
-          .union([z.array(z.never()).max(0), z.literal("")])
-          .nullable()
-          .optional(),
-        links: z
-          .array(linkSchema)
-          .max(0, "Links are review targets and belong only in a review recap.")
-          .default([]),
-      }),
-    ])
-    .refine(
-      (recap) => {
-        const steps = reviewSteps(
-          recap.state === "review" ? recap.review : undefined,
-        );
-        return (
-          steps.length <= 3 &&
-          (reviewLimit === null ||
-            steps.every((step) => recapItemWithin(step, reviewLimit)))
-        );
-      },
-      {
-        message: "Review takes one to three steps of 160 characters or fewer.",
-        path: ["review"],
-      },
-    );
-export const recapInputSchema = inputSchema(1);
-/** A block preserves full text and needs no results alongside review steps. */
-export const blockRecapInputSchema = inputSchema(0, blockRecapFields, null);
+export const recapInputSchema = z
+  .discriminatedUnion("state", [
+    recapFields.extend({
+      state: z.literal("complete"),
+      timeout: z.null().optional(),
+      waitingAgents: z.array(z.never()).max(0).default([]),
+      review: z
+        .union([z.array(z.never()).max(0), z.literal("")])
+        .nullable()
+        .optional(),
+      // A short answer's goal states the answer and needs no results.
+      latest: recapFields.shape.latest,
+      links: z
+        .array(linkSchema)
+        .max(0, "Links are review targets and belong only in a review recap.")
+        .default([]),
+    }),
+    recapFields.extend({
+      state: z.literal("review"),
+      timeout: z.null().optional(),
+      waitingAgents: z.array(z.never()).max(0).default([]),
+      latest: recapFields.shape.latest.removeDefault().min(1),
+      review: z.union([
+        z.array(recapItemSchema(160)).min(1).max(3),
+        z.string().trim().min(1),
+      ]),
+    }),
+    recapFields.extend({
+      state: z.literal("waiting"),
+      timeout: z.number().int().min(1).max(86400),
+      latest: z.array(z.never()).max(0).default([]),
+      next: z.array(z.never()).max(0).default([]),
+      review: z
+        .union([z.array(z.never()).max(0), z.literal("")])
+        .nullable()
+        .optional(),
+      links: z
+        .array(linkSchema)
+        .max(0, "Links are review targets and belong only in a review recap.")
+        .default([]),
+    }),
+  ])
+  .refine(
+    (recap) => {
+      const steps = reviewSteps(
+        recap.state === "review" ? recap.review : undefined,
+      );
+      return (
+        steps.length <= 3 && steps.every((step) => recapItemWithin(step, 160))
+      );
+    },
+    {
+      message: "Review takes one to three steps of 160 characters or fewer.",
+      path: ["review"],
+    },
+  );
 export type RecapInput = z.infer<typeof recapInputSchema>;
 
 /** A stored recap, tied to the turn that reported it. */
@@ -511,11 +486,11 @@ export const RECAP_TOOL_DESCRIPTION =
 export const RECAP_INSTRUCTIONS = `Finish authorized work, then end the turn with ${RECAP_TOOL}; put every explanation, result, and caveat before the call, with no text or tool call after it or its result. When required input or approval is missing, use the available question-card tool and wait instead. Keep collaborating while requested work remains; an intermediate step is not completion.
 State describes the responsibilities this thread owns under the user's request. Work continuing elsewhere affects this recap only while this thread owns follow-up; a route that leaves the destination owning the follow-up is complete, and its next names how the destination reports back. Use complete when all work this thread owns is finished; review for a finished result awaiting inspection, testing, merging, or shipping; waiting only for an async task whose result this thread needs to resume owned work.
 Write terse sentence-case inline Markdown without closing periods. Limits count visible text, not link targets. @thread:<id> mentions render as chips; lowercase commit hashes render shortened with copy support when bare or alone in backticks, not links.
-goal: purpose in past tense for complete/review, -ing for waiting; a short factual answer states the answer itself and omits latest, review, links, and next.
-latest: 1–3 concrete results, most important first, about 12 words each; omit for a short answer. review: required for review state, 1–3 distinct steps to inspect or try the result and what to expect; UI steps include how to reach and exercise it. Items may be strings or { text, detail } with optional secondary detail; keep separate items, not semicolon-joined steps.
+goal: purpose in past tense for complete/review, -ing for waiting, at most 80 characters; a short factual answer states the answer itself and omits latest, review, links, and next.
+latest: 1–3 concrete results, most important first, about 12 words each; omit for a short answer. Advice states the recommendation itself, not an implemented change, and offers the action it proposes as Next. review: required for review state, 1–3 distinct steps to inspect or try the result and what to expect; UI steps include how to reach and exercise it. Items may be strings or { text, detail } with optional secondary detail; keep separate items, not semicolon-joined steps.
 waiting: goal names the awaited task, timeout gives a realistic polling interval in seconds. The card prompts a status check at expiry if the turn is still current. Add { threadId, task } per awaited agent in waitingAgents; with several, goal names their shared outcome. Omit latest, review, links, and next.
 links: review targets only, as absolute paths or HTTPS URLs; source files qualify only for requested source review.
-next: required for complete and review; only a short factual answer with nothing left open omits it. Next names each thing the recap leaves open: a pull request unopened, unmerged, or awaiting review; a result only the user can check on their own machine or display; a decision they still own; a step named but not done; an optional improvement or unauthorized change you recommended; for a handoff, how the destination reports back. These are optional future requests, not blocking approval or automatic execution; an unauthorized action belongs here, not in a question card, unless the recap cannot stand without the answer. Do authorized continuations yourself. Prefer { title, message, description? }: a short 2–4-word button label, the self-contained plain-text request it sends, and optional hover context. A string is both label and request. Whitespace and closing periods are normalized. The user decides whether to archive the thread.
+next: required for complete and review; only a short factual answer with nothing left open omits it. Next names each thing the recap leaves open: a pull request unopened, unmerged, or awaiting review; a result only the user can check on their own machine or display; a decision they still own; a step named but not done; an optional improvement or unauthorized change you recommended; for a handoff, how the destination reports back. These are optional future requests, not blocking approval or automatic execution; an unauthorized action belongs here, not in a question card, unless the recap cannot stand without the answer. Do authorized continuations yourself. Prefer { title, message, description? }: a 2–4-word button label of at most 28 characters, the self-contained plain-text request it sends, at most 120 characters, and optional hover context of at most 120. A string is both label and request. Whitespace and closing periods are normalized. The user decides whether to archive the thread.
 Advice-only example: {"state":"complete","goal":"Recommended renaming the label","latest":["Renaming matches the stored value without changing execution"],"next":[{"title":"Rename the label","message":"Rename the setting label and add a regression test"}]}.`;
 
 /** How the agent's report of a turn reads as a status. */

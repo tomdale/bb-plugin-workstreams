@@ -14,7 +14,6 @@ import {
   replyInstructions,
   REPLY_COMPONENT_INSTRUCTIONS,
 } from "../../src/domain/replyInstructions.ts";
-import { recapInputFromCard } from "../../src/domain/replyRecap.ts";
 import { blockInput } from "./replyFixtures.ts";
 import { onlyReplyBlock, lastReplyBlock } from "../../src/domain/replyText.ts";
 import { COMPOSED_SAMPLES, REPLY_SAMPLES } from "./replySamples.ts";
@@ -33,7 +32,7 @@ describe("composed replies", () => {
     (kind, message) => {
       const data = read(message);
       expect(data.kind).toBe(kind);
-      expect(recapInputFromCard(data.card!).ok).toBe(true);
+      expect(data.card?.state).toBeDefined();
       expect(
         data.body.some(
           (part) => part.type === "text" && part.body.includes("\n\n"),
@@ -242,7 +241,6 @@ describe("composed replies", () => {
       source: expect.stringContaining('"unfinished"'),
       error: expect.stringContaining("Component not displayed"),
     });
-    expect(recapInputFromCard(data.card!).ok).toBe(true);
     expect(toText(data)).toContain("Before.");
     expect(toText(data)).toContain("After.");
   });
@@ -308,7 +306,7 @@ describe("composed replies", () => {
     ).toMatchObject({ ok: false });
   });
 
-  it("keeps a stateless headline separate and accepts a headline-only recap", () => {
+  it("keeps a stateless headline separate from a card", () => {
     expect(read(block("# Python 3.9 or newer"))).toEqual({
       headline: "Python 3.9 or newer",
       body: [],
@@ -317,9 +315,9 @@ describe("composed replies", () => {
       ':::reply{state="complete"}\n# Python 3.9 or newer\n:::\n',
     );
     expect(data.body).toEqual([]);
-    expect(recapInputFromCard(data.card!)).toMatchObject({
-      ok: true,
-      input: { goal: "Python 3.9 or newer", latest: [] },
+    expect(data.card).toMatchObject({
+      state: "complete",
+      headline: "Python 3.9 or newer",
     });
   });
 
@@ -465,26 +463,41 @@ describe("component boundary", () => {
 
 describe("delivered instructions", () => {
   it.each([true, false])(
-    "stays inside the delivery budget with recap %s",
+    "stays inside the delivery budget with recap tool %s",
     (recap) =>
       expect(replyInstructions(recap).length).toBeLessThanOrEqual(4096),
   );
   it("gives the component guide its own bounded instruction", () =>
     expect(REPLY_COMPONENT_INSTRUCTIONS.length).toBeLessThanOrEqual(4096));
-  it("teaches an example that parses and stores through the production path", () => {
-    const example = /^:::reply\{state="review"[\s\S]*?\n:::$/m.exec(
+  it("leaves the card to the recap tool call that ends the turn", () => {
+    const text = replyInstructions(true);
+    expect(text).toContain(
+      "and you end the turn with the WorkstreamsRecap tool call",
+    );
+    expect(text).toContain(
+      "the block sets no state and carries no headline, results, or Next",
+    );
+    // The whole reply is one block, with no second block or stray text after it.
+    expect(text).toContain(
+      "Put `:::reply` and its attributes on their own line",
+    );
+  });
+  it("teaches an example that parses through the production path", () => {
+    const example = /^:::reply\{[^\n]*\n[\s\S]*?\n:::$/m.exec(
       replyInstructions(true),
     )![0];
-    const data = read(example);
-    expect(data.body.some((part) => part.type === "change")).toBe(true);
-    expect(recapInputFromCard(data.card!)).toMatchObject({
-      ok: true,
-      input: {
-        state: "review",
-        latest: [
-          "Callers pass whole percentages; conversion stays beside the calculation",
-        ],
-      },
-    });
+    const { status, ...input } = blockInput(example);
+    const data = parse(input, { status });
+    expect(data.ok).toBe(true);
+    if (!data.ok) return;
+    expect(data.data.kind).toBe("change");
+    // The card belongs to the tool call, so the block carries none of it.
+    expect(data.data.card).toBeUndefined();
+    expect(data.data.body.some((part) => part.type === "change")).toBe(true);
+  });
+  it("keeps the reply block as the final message when the session has no recap tool", () => {
+    const text = replyInstructions(false);
+    expect(text).toContain("put the entire final answer");
+    expect(text).not.toContain("WorkstreamsRecap");
   });
 });
