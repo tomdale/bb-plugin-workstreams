@@ -15,6 +15,7 @@ import { RecapArchive } from "./archive.ts";
 import { Organizer } from "./organizer.ts";
 import { buildForest } from "../domain/tree.ts";
 import { Placement } from "./placement.ts";
+import { isSubstantiveRequest } from "./requests.ts";
 import { Suggestions } from "./suggestions.ts";
 import { ProjectAssociations } from "./projectAssociations.ts";
 import type { ProjectChoice } from "../domain/projectChoice.ts";
@@ -412,6 +413,7 @@ export default async function plugin(bb: BbPluginApi) {
   });
   bb.onDispose(() => quick.dispose());
   bb.onDispose(() => analyzer.dispose());
+  bb.onDispose(() => placement.dispose());
   recaps = new AgentRecaps({
     bb,
     db,
@@ -626,6 +628,9 @@ export default async function plugin(bb: BbPluginApi) {
       ctx.attempt === "start-turn" &&
       Date.now() - ctx.thread.createdAt < 10 * 60_000;
     if (!fresh) {
+      // A newer request needs placement from the turn's complete context.
+      if (isSubstantiveRequest(ctx.input.text))
+        placement.cancelFirstRequest(ctx.thread.id);
       quick.onDispatch(ctx);
       return { action: "proceed" };
     }

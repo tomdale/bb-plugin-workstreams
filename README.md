@@ -204,10 +204,12 @@ Full analysis settles:
 
 ### 3. Placement
 
-A root's topic is settled by **placement**: one schema-constrained call (default
+A root's topic is settled by **placement**: a schema-constrained call (default
 `openai/gpt-6-sol`, reasoning `none`) when the thread starts, and again beside
-Full analysis when a turn ends after a new substantive request. Topic edits,
-model changes, and turns without a new request never re-place a thread.
+Full analysis when a turn ends after a new substantive request. If the first
+call fails, Workstreams retries it twice with short delays; after those
+attempts, the turn's end can still place the thread. Topic edits, model changes,
+and turns without a new request never re-place a thread.
 
 - **Evidence:** the thread's generated title; its first, second, and latest
   substantive requests (a routed request is read without its

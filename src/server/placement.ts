@@ -42,8 +42,25 @@ export type PlacementQuestion = {
   settled?: PlacementOutput;
 };
 
-/** First-send placement gives up after this; the turn's end places it. */
+/** Each first-send attempt is bounded; the turn's end places it otherwise. */
 const FIRST_REQUEST_TIMEOUT_MS = 15_000;
+const FIRST_REQUEST_RETRY_DELAYS_MS = [1_000, 2_000];
+
+function delay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason);
+    const abort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
 /** Roots that point at other repositories before a checkout coordinates. */
 export const COORDINATION_AT = 2;
 
@@ -80,6 +97,8 @@ export class Placement {
   /** Hints recorded before a thread's first request is placed. */
   private readonly startHints = new Map<string, string>();
   private readonly checkouts = new Map<string, string | null>();
+  private readonly firstRequests = new Map<string, AbortController>();
+  private disposed = false;
 
   constructor(
     private readonly deps: {
@@ -125,7 +144,19 @@ export class Placement {
       this.startHints.delete(this.startHints.keys().next().value!);
   }
 
+  dispose(): void {
+    this.disposed = true;
+    for (const controller of this.firstRequests.values()) controller.abort();
+    this.firstRequests.clear();
+  }
+
+  cancelFirstRequest(threadId: string): void {
+    this.firstRequests.get(threadId)?.abort();
+    this.firstRequests.delete(threadId);
+  }
+
   forget(threadId: string): void {
+    this.cancelFirstRequest(threadId);
     this.startHints.delete(threadId);
     this.deps.db
       .prepare("DELETE FROM ws_thread_checkout WHERE thread_id = ?")
@@ -195,7 +226,7 @@ export class Placement {
   async ask(
     threadId: string,
     question: PlacementQuestion,
-    options: { label: string; timeoutMs?: number },
+    options: { label: string; timeoutMs?: number; signal?: AbortSignal },
   ): Promise<{ answer: PlacementOutput; traceId: string | null }> {
     if (question.settled) return { answer: question.settled, traceId: null };
     const { value, traceId } = await this.deps.inference.run(
@@ -207,6 +238,7 @@ export class Placement {
         label: options.label,
         links: [{ kind: "thread", ref: threadId }],
         timeoutMs: options.timeoutMs,
+        signal: options.signal,
       },
     );
     return { answer: value, traceId };
@@ -217,23 +249,43 @@ export class Placement {
    * where it started. Never rejects; the turn's end places it otherwise.
    */
   async onFirstRequest(thread: PlacementThread, text: string): Promise<void> {
+    if (this.disposed || thread.parentThreadId) return;
+    this.firstRequests.get(thread.id)?.abort();
+    const controller = new AbortController();
+    this.firstRequests.set(thread.id, controller);
+    const unsettled = () =>
+      !controller.signal.aborted &&
+      this.deps.topics.assignment(thread.id).provenance !== "manual" &&
+      !this.deps.topics.basis(thread.id);
     try {
-      if (thread.parentThreadId) return;
-      const question = await this.question(thread, [text]);
-      if (!question) return;
-      const { answer, traceId } = await this.ask(thread.id, question, {
-        label: thread.title ?? text.slice(0, 60),
-        timeoutMs: FIRST_REQUEST_TIMEOUT_MS,
-      });
-      // The thread may have been settled or corrected while the call ran.
-      const now = this.deps.topics.assignment(thread.id);
-      if (now.provenance === "manual" || this.deps.topics.basis(thread.id))
-        return;
-      this.deps.apply(thread.id, answer, question.basis, traceId);
-      // Placed; a failed call leaves the hint for the turn's end.
-      this.startHints.delete(thread.id);
+      for (let attempt = 0; unsettled(); attempt++) {
+        try {
+          const question = await this.question(thread, [text]);
+          if (!question || !unsettled()) return;
+          const { answer, traceId } = await this.ask(thread.id, question, {
+            label: thread.title ?? text.slice(0, 60),
+            timeoutMs: FIRST_REQUEST_TIMEOUT_MS,
+            signal: controller.signal,
+          });
+          // The thread may have been settled or corrected while the call ran.
+          if (!unsettled()) return;
+          this.deps.apply(thread.id, answer, question.basis, traceId);
+          this.startHints.delete(thread.id);
+          return;
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          this.deps.log(`Placing ${thread.id} failed: ${String(error)}`);
+          const wait = FIRST_REQUEST_RETRY_DELAYS_MS[attempt];
+          if (wait === undefined) return;
+          await delay(wait, controller.signal);
+        }
+      }
     } catch (error) {
-      this.deps.log(`Placing ${thread.id} failed: ${String(error)}`);
+      if (!controller.signal.aborted)
+        this.deps.log(`Placing ${thread.id} failed: ${String(error)}`);
+    } finally {
+      if (this.firstRequests.get(thread.id) === controller)
+        this.firstRequests.delete(thread.id);
     }
   }
 
