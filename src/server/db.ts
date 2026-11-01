@@ -430,6 +430,17 @@ const MIGRATIONS = [
   // is the list `task` replaced; both are stored without a reader.
   "UPDATE ws_agent_recap SET recap = json_remove(recap, '$.task') WHERE json_type(recap, '$.task') IS NOT NULL",
   "UPDATE ws_agent_recap SET recap = json_remove(recap, '$.tasks') WHERE json_type(recap, '$.tasks') IS NOT NULL",
+  // Workstream records carried the projects and thread evidence a page showed
+  // and the subjects its earlier design filed; nothing reads or writes them.
+  "ALTER TABLE ws_workstream DROP COLUMN subjects",
+  "ALTER TABLE ws_workstream DROP COLUMN projects",
+  "ALTER TABLE ws_workstream DROP COLUMN evidence",
+  // Keys no code reads: the organizer's run state, and the flag that guarded
+  // goal-title adoption before titles were generated from analysis.
+  "DELETE FROM ws_meta WHERE key IN ('organizer', 'goal_titles_adopted')",
+  // Traces once linked to proposals, sections, and organize runs. Those kinds
+  // no longer parse, so a row left behind would fail the trace that owns it.
+  "DELETE FROM ws_trace_link WHERE kind NOT IN ('thread', 'entry')",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

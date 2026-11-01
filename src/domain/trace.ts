@@ -28,13 +28,7 @@ export type TraceKind = (typeof TRACE_KINDS)[number];
 export const TRACE_STATUSES = ["ok", "invalid", "failed"] as const;
 export type TraceStatus = (typeof TRACE_STATUSES)[number];
 
-export const LINK_KINDS = [
-  "thread",
-  "entry",
-  "proposal",
-  "section",
-  "organize",
-] as const;
+export const LINK_KINDS = ["thread", "entry"] as const;
 export type TraceLink = {
   kind: (typeof LINK_KINDS)[number];
   ref: string;

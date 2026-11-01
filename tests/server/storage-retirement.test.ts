@@ -214,3 +214,45 @@ it("rewrites stored review steps and drops the retired recap title", async () =>
     await host.harness.lifecycle.dispose();
   }
 });
+it("drops the workstream columns and meta keys nothing reads", async () => {
+  const host = createFakePluginHost({ pluginId: "workstream-record" });
+  try {
+    const migrate = host.bb.storage.migrate.bind(host.bb.storage);
+    const spy = vi
+      .spyOn(host.bb.storage, "migrate")
+      .mockImplementation((db, migrations) => {
+        const boundary = migrations.indexOf(
+          "ALTER TABLE ws_workstream DROP COLUMN subjects",
+        );
+        expect(boundary).toBeGreaterThan(0);
+        return migrate(db, migrations.slice(0, boundary));
+      });
+    const db = openDatabase(host.bb);
+    db.prepare(
+      `INSERT INTO ws_workstream(section_id, description, created_by, created_at, updated_at, subjects, projects, evidence)
+       VALUES ('sec_1', 'Notes', 'user', 1, 2, '["t"]', '[{"projectId":"p"}]', '{"threadCount":1}')`,
+    ).run();
+    db.prepare(
+      "INSERT INTO ws_meta(key, value) VALUES ('organizer', '{}'), ('goal_titles_adopted', '1'), ('prefs', '{}')",
+    ).run();
+    spy.mockRestore();
+    openDatabase(host.bb);
+    expect(db.prepare("SELECT * FROM ws_workstream").all()).toEqual([
+      {
+        section_id: "sec_1",
+        description: "Notes",
+        description_source: "generated",
+        created_by: "user",
+        created_at: 1,
+        updated_at: 2,
+        aliases: "[]",
+        metadata_revision: 0,
+      },
+    ]);
+    expect(db.prepare("SELECT key FROM ws_meta ORDER BY key").all()).toEqual([
+      { key: "prefs" },
+    ]);
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});
