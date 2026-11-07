@@ -10,7 +10,8 @@
     "check": "node sim/suite.mjs --check",
     "sweep": "node sim/sweep.mjs",
     "sheets": "node capture/sheets.mjs",
-    "record": "node capture/record.mjs"
+    "record": "node capture/record.mjs",
+    "smoke": "node capture/smoke.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

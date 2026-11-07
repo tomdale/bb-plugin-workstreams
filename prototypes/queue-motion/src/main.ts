@@ -78,8 +78,26 @@ let heights: number[] = [];
 const measure = () => {
   heights = els.map((e) => e.content.offsetHeight);
 };
+/**
+ * Measures the cards again and hands any change to the running simulation. The cards are measured when the
+ * page loads, which is before layout when the page opens hidden (a background tab, a closed pane) and before
+ * a late font changes their wrapping; a simulation built from those heights draws nothing, or the wrong stack.
+ */
+function remeasure() {
+  const next = els.map((e) => e.content.offsetHeight);
+  if (next.length === heights.length && next.every((h, i) => h === heights[i]))
+    return;
+  heights = next;
+  if (!sim) return;
+  sim.setHeights(heights);
+  // The product engine takes new heights into its poses on its next step, so step one frame and redraw.
+  advance(1000 / 60);
+  wake();
+}
+const sizes = new ResizeObserver(remeasure);
 function buildDom() {
   stage.querySelectorAll(".card").forEach((n) => n.remove());
+  sizes.disconnect();
   els = ALL.map((it) => {
     const el = document.createElement("div");
     el.className = `card c-${it.s}`;
@@ -95,8 +113,10 @@ function buildDom() {
     };
   });
   measure();
+  for (const e of els) sizes.observe(e.content);
 }
 buildDom();
+document.fonts?.ready.then(remeasure);
 
 // ---- the two simulations behind one interface --------------------------------------
 type View = {
@@ -115,6 +135,7 @@ interface Sim {
   views(): View[];
   busy(): boolean;
   jump(n: number): void;
+  setHeights(heights: number[]): void;
   keyDown?(dir: 1 | -1): void;
   keyUp?(): void;
   lam?(): number;
@@ -185,6 +206,7 @@ function drumSim(cur: number): Sim {
       d.jump(n);
       last = n;
     },
+    setHeights: (h) => d.setHeights(h),
     keyDown: (dir) => {
       d.keyDown(dir);
       check();
@@ -224,6 +246,7 @@ function productSim(cur: number): Sim {
       at = n;
       e.sync(win(), undefined, true);
     },
+    setHeights: (h) => e.setHeights(new Map(keys.map((k, i) => [k, h[i]!]))),
   };
 }
 
@@ -237,8 +260,11 @@ const reduced = () =>
 const speed = () => Number(opt.speed) || 1;
 
 function paint() {
+  // The product engine holds only the pile and the cards still leaving it; every other card stays hidden.
+  const held = new Set<number>();
   for (const v of sim.views()) {
     const i = Number(v.key.slice(1));
+    held.add(i);
     const e = els[i]!;
     const st = e.el.style;
     st.visibility = !v.painted ? "hidden" : "";
@@ -255,6 +281,9 @@ function paint() {
     e.shade.style.opacity = v.shade.toFixed(3);
     e.shadow.style.opacity = (1 - v.shade).toFixed(3);
   }
+  els.forEach((e, i) => {
+    if (!held.has(i)) e.el.style.visibility = "hidden";
+  });
   const lam = document.querySelector("#lam");
   if (lam)
     lam.textContent =
@@ -509,10 +538,6 @@ const fitBars = () => {
   $(".page").style.inset = $("#bars").offsetHeight + "px 0 0";
 };
 new ResizeObserver(fitBars).observe($("#bars"));
-addEventListener("resize", () => {
-  measure();
-  paint();
-});
 
 // ---- hooks for the capture scripts: a stepped clock and per-frame samples --------------------
 (window as any).__sim = {

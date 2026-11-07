@@ -122,6 +122,10 @@ export class Drum {
     this.pending = 0;
     this.lastTake = -1e9;
   }
+  /** Replaces the card heights, keeping every card where it is; the next step moves them toward the new poses. */
+  setHeights(heights) {
+    this.h = heights.slice();
+  }
   get cur() {
     return this.front;
   }

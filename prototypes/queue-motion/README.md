@@ -56,6 +56,7 @@ npm run suite -- natural,fold      # the same scenarios as markdown tables, for 
 npm run sweep -- params            # effect of each setting, one at a time
 npm run sweep -- slack             # starting the next press before the previous card flips
 npm run sweep -- presets           # the presets side by side
+npm run smoke                      # drives the built page in Chrome (run `npm run build` first)
 ```
 
 The sims run the drum on a stepped clock with no browser (`sim/lib.mjs`) over
@@ -64,7 +65,9 @@ out at 330 px, and an alternating 330 / 73 px set. The frame checker
 (`sim/check.mjs`) flags edge jumps, draw-order swaps while cards overlap, shade
 jumps, and changes to a drawn bottom edge that nothing covers. It has two rules
 for that last case; DESIGN.md explains the difference. `npm run check` asserts
-the corrected rule.
+the corrected rule. `npm run smoke` covers what the sims cannot: three cards
+drawn when the page loads and when a hidden page is shown, only the pile visible
+in either model, and the preset buttons, sliders and held keys driving the page.
 
 ## Capture frames and recordings
 
@@ -93,7 +96,8 @@ in real time, so its frame rate is that of headless Chrome's screencast (about
   picks both up. Delete an idea's setting and preset when it is dropped, so the
   lab holds only the options still in play.
 - Add a check to `sim/suite.mjs` when a new setting carries a promise, such as
-  "never moves a card at an end".
+  "never moves a card at an end", and one to `capture/smoke.mjs` when the page
+  itself must do something.
 - Add a scenario to `capture/sheets.mjs` when a bug needs a frame-by-frame look.
 
 ## Files
@@ -105,4 +109,4 @@ in real time, so its frame rate is that of headless Chrome's screencast (about
 | `build.mjs`                                        | Bundles the page into `dist/queue-motion.html`.                        |
 | `sim/lib.mjs`, `sim/check.mjs`                     | The stepped-clock harness and the frame checker.                       |
 | `sim/suite.mjs`, `sim/sweep.mjs`                   | The standard scenarios with `--check`, and the one-at-a-time sweeps.   |
-| `capture/`                                         | Contact sheets and recordings.                                         |
+| `capture/`                                         | Contact sheets, recordings, and the page smoke check.                  |
