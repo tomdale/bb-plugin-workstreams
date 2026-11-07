@@ -91,7 +91,9 @@ import { snoozeThreads, wakeThreads } from "../snooze/actions.ts";
 import { CustomSnoozeDialog } from "../snooze/CustomSnoozeDialog.tsx";
 import { SnoozeMenuItems, plainMenuKit } from "../snooze/SnoozeMenuItems.tsx";
 import { SnoozeIcon } from "../snooze/icons.tsx";
-import { WorkstreamName } from "../WorkstreamName.tsx";
+import { WorkstreamName, splitWorkstreamName } from "../WorkstreamName.tsx";
+import { WorkstreamTile } from "./WorkstreamTile.tsx";
+import { CategoryMark } from "./CategoryMark.tsx";
 import {
   presenceProps,
   useFlip,
@@ -106,6 +108,7 @@ import {
   rowActionClass,
 } from "./HoverActions.tsx";
 import { categoryRows } from "../../domain/categoryRows.ts";
+import { workstreamHue } from "../../domain/workstreamHue.ts";
 import { Hint } from "../Hint.tsx";
 import { usePrefs } from "../prefs.ts";
 
@@ -760,13 +763,24 @@ export function WorkstreamsThreadList({
    * their own and take thread drops, but reorder and focus only with their
    * top-level group.
    */
-  const renderCategorizedTrees = (group: ThreadNode, label?: string) =>
+  const renderCategorizedTrees = (
+    group: ThreadNode,
+    label?: string,
+    /** The section whose hue these categories' markers carry. */
+    hueId = group.id,
+  ) =>
     categoryRows(group.rows, group.categories).map((category) => (
       <Fragment key={category.id ?? "unplaced"}>
         {category.name ? (
-          <li className="list-none px-2 pt-2 pb-0.5 text-xs font-medium text-muted-foreground">
-            <h4 className="m-0 truncate">
-              {label ? `${label} · ${category.name}` : category.name}
+          <li
+            className="list-none px-2 pt-2 pb-0.5 text-xs font-medium text-muted-foreground"
+            style={{ "--ws-hue": workstreamHue(hueId) } as CSSProperties}
+          >
+            <h4 className="ws-category-label m-0 flex min-w-0 items-center gap-2">
+              <CategoryMark hue={workstreamHue(hueId)} index={category.index} />
+              <span className="truncate">
+                {label ? `${label} · ${category.name}` : category.name}
+              </span>
             </h4>
           </li>
         ) : null}
@@ -1655,6 +1669,13 @@ function WorkstreamGroup({
 }: GroupProps) {
   const { prefs } = usePrefs();
   const incoming = useIncomingThread(group.id);
+  const label = "label" in group ? group.label : group.name;
+  // A workstream is backed by a section; a header that only heads subgroups
+  // is not one, so it draws no tile.
+  const mark =
+    "hasSection" in group && group.hasSection ? (
+      <WorkstreamTile name={splitWorkstreamName(label)?.area ?? label} />
+    ) : null;
   const shows = (when: "always" | "collapsed" | "never" = "collapsed") =>
     when === "always" || (when === "collapsed" && collapsed);
   const focusAction = onToggleFocus ? (
@@ -1686,11 +1707,14 @@ function WorkstreamGroup({
         nested && "pt-1",
         incoming && "bg-sidebar-accent/60",
       )}
-      style={{
-        ...style,
-        paddingLeft: nested ? 0 : 4,
-        paddingRight: nested ? 0 : 4,
-      }}
+      style={
+        {
+          ...style,
+          paddingLeft: nested ? 0 : 4,
+          paddingRight: nested ? 0 : 4,
+          "--ws-hue": workstreamHue(group.id),
+        } as CSSProperties
+      }
     >
       <HeaderMenu
         focus={
@@ -1728,12 +1752,15 @@ function WorkstreamGroup({
               ) : null}
             </span>
             <WorkstreamName
-              name={"label" in group ? group.label : group.name}
+              name={label}
               muted={muted || nested}
+              mark={mark}
               className={
-                nested
-                  ? "text-[11px] font-semibold uppercase tracking-wide"
-                  : "text-[13px] font-semibold"
+                mark
+                  ? "text-[18px] font-semibold"
+                  : nested
+                    ? "text-[11px] font-semibold uppercase tracking-wide"
+                    : "text-[13px] font-semibold"
               }
             />
           </button>

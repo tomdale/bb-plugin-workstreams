@@ -15,6 +15,7 @@ import {
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
+import { workstreamHue } from "../../src/domain/workstreamHue.ts";
 import type { SnoozePreset } from "../../src/domain/snooze.ts";
 
 /** Snooze settings listing these presets, the first of them the default. */
@@ -2119,6 +2120,58 @@ describe("nested workstreams", () => {
     slot.lifecycle.unmount();
   });
 
+  it.each([false, true])(
+    "uses the leaf section's hue and generation position when inline is %s",
+    async (inline) => {
+      const threads = inline
+        ? nestedThreads().filter((thread) => thread.id !== "flags")
+        : nestedThreads();
+      const slot = await mount(threads, {
+        ...options,
+        catalog: {
+          ...catalog,
+          categories: {
+            alerts: {
+              id: "generation",
+              categories: [
+                { id: "empty", name: "Empty", threadIds: ["absent"] },
+                {
+                  id: "triage",
+                  name: "Triage",
+                  threadIds: ["rebase", "verify", "triage"],
+                },
+              ],
+            },
+          },
+        },
+      });
+      const heading = await slot.findByRole("heading", {
+        name: inline ? "Alert Investigations · Triage" : "Triage",
+      });
+      const mark = heading.querySelector(".ws-mark") as HTMLElement;
+      expect(mark.className).toContain("ws-mark--rounded-square");
+      expect(Number(mark.style.getPropertyValue("--ws-hue"))).toBe(
+        (workstreamHue("sec_alerts") + 12) % 360,
+      );
+      expect(
+        Number(
+          (heading.parentElement as HTMLElement).style.getPropertyValue(
+            "--ws-hue",
+          ),
+        ),
+      ).toBe(workstreamHue("sec_alerts"));
+      if (!inline) {
+        const subgroup = slot.getByRole("region", {
+          name: "Beacon: Automations: Alert Investigations",
+        });
+        expect(subgroup.querySelector(".ws-workstream-tile")?.textContent).toBe(
+          "AI",
+        );
+      }
+      slot.lifecycle.unmount();
+    },
+  );
+
   it("flattens subgroup headers when the parent also holds threads", async () => {
     const slot = await mount(
       [
@@ -2436,6 +2489,79 @@ describe("small groups", () => {
     ).toBeTruthy();
     expect(within(group).getByRole("link", { name: "Task 6" })).toBeTruthy();
     expect(within(group).getAllByRole("link")).toHaveLength(8);
+    slot.lifecycle.unmount();
+  });
+
+  it("gives the workstream a two-character tile and each category its own silhouette", async () => {
+    const threads = Array.from({ length: 6 }, (_, i) =>
+      sidebarThread(`t${i}`, { title: `Task ${i}`, sectionId: "sec_ws" }),
+    );
+    const slot = await mount(threads, {
+      sections: [section("sec_ws", "bb: Workstreams Plugin")],
+      settings: { showRecent: false, showForYou: false },
+      catalog: {
+        entities: [
+          {
+            id: "ws",
+            name: "bb",
+            description: "Product",
+            parentId: null,
+            aliases: [],
+          },
+        ],
+        groups: { sec_ws: "ws" },
+        categories: {
+          ws: {
+            id: "generation",
+            categories: [
+              {
+                id: "replies",
+                name: "Reply Block",
+                threadIds: ["t0", "t1", "t2"],
+              },
+              { id: "sidebar", name: "Sidebar", threadIds: ["t3", "t4", "t5"] },
+            ],
+          },
+        },
+      },
+    });
+    await slot.findByRole("heading", { name: "Reply Block" });
+    const group = slot.getByRole("region", { name: "bb: Workstreams Plugin" });
+    // The tile sits between the first-tier prefix and the workstream's own name.
+    const header = group.querySelector("button > .truncate")!;
+    expect(header.textContent).toBe("bb: WP Workstreams Plugin");
+    expect(
+      within(group).getByRole("button", { name: "bb: Workstreams Plugin" }),
+    ).toBeTruthy();
+    expect(header.className).toContain("text-[18px]");
+    expect(header.querySelector(".ws-workstream-tile")?.textContent).toBe("WP");
+    // Each heading carries its own silhouette, stepped one along per category.
+    const marks = [...group.querySelectorAll(".ws-mark")];
+    expect(
+      marks.map((mark) => mark.className.match(/ws-mark--([a-z-]+)/)![1]),
+    ).toEqual(["circle", "rounded-square"]);
+    expect(
+      marks.map((mark) =>
+        Number((mark as HTMLElement).style.getPropertyValue("--ws-hue")),
+      ),
+    ).toEqual([workstreamHue("sec_ws"), workstreamHue("sec_ws") + 12]);
+    expect(group.querySelector(".ws-category-label")?.textContent).toBe(
+      "Reply Block",
+    );
+    slot.lifecycle.unmount();
+  });
+
+  it("leads a one-level workstream's header with its tile", async () => {
+    const slot = await mount(
+      [sidebarThread("v1", { sectionId: "sec_vertex", title: "Vertex task" })],
+      {
+        sections: [section("sec_vertex", "Vertex")],
+        settings: { showRecent: false, showForYou: false },
+      },
+    );
+    const group = await slot.findByRole("region", { name: "Vertex" });
+    const header = group.querySelector("button > .truncate")!;
+    expect(header.textContent).toBe("VE Vertex");
     slot.lifecycle.unmount();
   });
 
