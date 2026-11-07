@@ -12,7 +12,7 @@
  * as the difference between two contexts. The page's tooltips quote these numbers: `build.mjs` calls
  * `computeFacts` below, so every figure in them can be reproduced with the command above that prints it.
  */
-import { Drum, PRESETS } from "../src/drum.mjs";
+import { Drum, PRESETS } from "../../../src/app/page/queue/drum.ts";
 import { HEIGHTS, heightsOf, holdRun, singles } from "./lib.mjs";
 import { LIMITS } from "./check.mjs";
 import { run, summary } from "./suite.mjs";

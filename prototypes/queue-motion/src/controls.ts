@@ -3,8 +3,8 @@
  * hold one entry for each id in `CONTROLS` and no other (`verify.ts` and `npm run smoke` check it), and
  * `drumCfg` turns the page's state into a drum configuration.
  */
-// @ts-ignore: plain JS model, shared with the headless sims
-import { Drum, PRESETS } from "./drum.mjs";
+// The model is the product's own (`drum.ts`); the headless sims import it too.
+import { Drum, PRESETS } from "../../../src/app/page/queue/drum.ts";
 
 export const TAU = 2 * Math.PI;
 /** How long the new front card fades in under reduced motion, ms. */

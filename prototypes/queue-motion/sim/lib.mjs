@@ -1,4 +1,4 @@
-import { Drum } from "../src/drum.mjs";
+import { Drum } from "../../../src/app/page/queue/drum.ts";
 import { problems, maxJump, summarize } from "./check.mjs";
 
 export const HEIGHTS = {

@@ -307,9 +307,10 @@ it("moves the card to the back and releases it once it is out of sight", async (
       slot.container.querySelector<HTMLElement>(`[data-queue-card="${id}"]`);
     press("ArrowRight");
     await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
-    // The old front card is still in the page, inert, while it moves behind.
+    // The old front card is still in the page, inert, while it moves behind,
+    // and the new one takes clicks and focus once it has come to the front.
     expect(card("b1")?.hasAttribute("inert")).toBe(true);
-    expect(card("a1")?.hasAttribute("inert")).toBe(false);
+    await waitFor(() => expect(card("a1")?.hasAttribute("inert")).toBe(false));
     await waitFor(() => expect(card("b1")).toBeNull(), { timeout: 4000 });
     slot.lifecycle.unmount();
   } finally {

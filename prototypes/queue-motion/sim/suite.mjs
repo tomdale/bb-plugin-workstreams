@@ -9,7 +9,7 @@
  * the product test's rule); the original rule's count is reported alongside.
  */
 import fs from "node:fs";
-import { PRESETS, Drum } from "../src/drum.mjs";
+import { PRESETS, Drum } from "../../../src/app/page/queue/drum.ts";
 import {
   heightsOf,
   singles,

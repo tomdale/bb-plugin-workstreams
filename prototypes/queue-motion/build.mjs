@@ -19,7 +19,7 @@ const loader = { ".js": "js", ".mjs": "js" };
  */
 function sweepFacts() {
   const files = [
-    "src/drum.mjs",
+    "../../src/app/page/queue/drum.ts",
     ...fs
       .readdirSync(path.join(here, "sim"))
       .sort()

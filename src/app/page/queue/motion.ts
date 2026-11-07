@@ -222,12 +222,17 @@ const toggle = (el: HTMLElement, name: string, on: boolean, value = "") => {
  * Runs each change of item as one motion in a column pinned at a fixed top.
  *
  * `item` is the item shown; `pile` is the shown item and the next ones, in
- * order. Call `capture` just before changing the item, from the event that
- * changes it, so the old heading and replies can fade where they were; `accept`
- * first when the change is a skip from a key or button, so held keys queue no
- * more than two.
+ * order, and `previous` whether the queue has an item before it. Call `capture`
+ * just before changing the item, from the event that changes it, so the old
+ * heading and replies can fade where they were; `accept` first when the change
+ * is a skip from a key or button, so held keys queue no more than one; `hold`
+ * when a skip key goes down and `release` when it is let go.
  */
-export function useQueueMotion(item: string | null, pile: readonly string[]) {
+export function useQueueMotion(
+  item: string | null,
+  pile: readonly string[],
+  previous: boolean,
+) {
   const page = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const unit = useRef<HTMLDivElement>(null);
@@ -439,6 +444,22 @@ export function useQueueMotion(item: string | null, pile: readonly string[]) {
     [],
   );
 
+  /** A key toward `direction` goes down: the stack speeds up while it stays down. */
+  const hold = useCallback(
+    (direction: Direction) => {
+      if (!motionAvailable() || reducedMotion()) return;
+      engine.current!.hold(direction);
+      wake();
+    },
+    [wake],
+  );
+
+  /** The held key is let go. */
+  const release = useCallback(() => {
+    engine.current!.release();
+    wake();
+  }, [wake]);
+
   // The pile: the engine takes the moves that make it what the page shows.
   useLayoutEffect(() => {
     if (!observer.current && typeof ResizeObserver !== "undefined")
@@ -452,7 +473,7 @@ export function useQueueMotion(item: string | null, pile: readonly string[]) {
     const instant = !motionAvailable() || reduced;
     const direction = hint.current;
     hint.current = undefined;
-    engine.current!.sync(pile, direction, instant);
+    engine.current!.sync(pile, direction, instant, previous);
     const front = pile[0];
     if (
       reduced &&
@@ -615,6 +636,8 @@ export function useQueueMotion(item: string | null, pile: readonly string[]) {
     stage,
     capture,
     accept,
+    hold,
+    release,
     held,
   };
 }

@@ -37,11 +37,11 @@ const rate = (r: RowView) => (r.raw.heldUp + r.raw.heldDn) / 2;
 const ENTRIES: Record<string, (f: Facts) => Draft> = {
   // ---- models ------------------------------------------------------------------------------------
   "model.product": () => ({
-    what: "The queue's card stack as it ships: `stackEngine.ts`, imported without changes.",
+    what: "The queue's card stack as it ships: `stackEngine.ts`, imported without changes. It runs the drum with the settings in `QUEUE_CFG`.",
     effect: [
       [
         "Click",
-        "Shows today's motion. ↓ drops the front card clear of the pile and tucks it behind. A single ↑ runs on springs; a held ↑ replays recorded ↓ trips backwards. The preset and settings rows disappear.",
+        "Shows the motion the queue ships. ↓ drops the front card clear of the pile and tucks it behind; ↑ runs the same ring backwards. Every card takes the same time, and a held key speeds up after a short hold. The preset and settings rows disappear.",
       ],
     ],
     needs:
@@ -336,7 +336,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
       ],
       needs: t`The spring decides how hard a card tries to move and the budget only binds where the spring asks for more, so ↓ taps do not change. With \`held speed-up\` or \`fold while held\` on, the budget ramps to \`edge budget, held\`.`,
-      tune: t`Start at ${base.value}. For a faster held key without folding, raise it a few px at a time: ${mid.value} gives ${mid.pace} cards/s and ${high.value} gives ${high.pace}, both clean. At ${over.value} the checker reports ${over.verdict} (an edge moved over ${f.limit.jump} px in a frame), and ${end.value} reports ${end.problems}. ${f.def("cap1")} is the shipped engine's peak edge speed, so above it the drum moves cards faster than the product. If that feels rushed, lower it and use \`tempo\`.`,
+      tune: t`Start at ${base.value}. For a faster held key without folding, raise it a few px at a time: ${mid.value} gives ${mid.pace} cards/s and ${high.value} gives ${high.pace}, both clean. At ${over.value} the checker reports ${over.verdict} (an edge moved over ${f.limit.jump} px in a frame), and ${end.value} reports ${end.problems}. ${f.def("cap1")} is the held budget the queue ships with, so above it the drum moves cards faster than the product. If that feels rushed, lower it and use \`tempo\`.`,
     };
   },
 
@@ -776,7 +776,7 @@ function buildAbout(): About {
     paragraphs: [
       "Every card has one coordinate on a closed ring path: a pile slot (the front, two cards peeking above it, one hidden behind), the drop in front of the pile down to the `turn` (clear below the card it uncovers), and the tuck behind the pile. Each coordinate follows its own critically damped spring toward a target that depends only on which card is in front. A leaving card's target is two steps away, so it passes the turn still moving and slows into the tuck, and a returning card runs the ring backwards, which is what ↑ shows.",
       "The only change of draw order is at the turn, and a card crosses it only when it is clear of the cards it swaps with, so no card passes through another. A press is taken once every card in transit has passed its flip, so the pace is whatever the trips allow.",
-      t`The frame checker counts four problems. A jump: an edge moves more than ${f.limit.jump} px in a frame. An edge flash: a card's lower edge changes by more than ${f.limit.band} px with nothing covering the change. A fade flicker: a card's fade changes by more than ${f.limit.shade} in a frame. A swap: two cards change draw order while they overlap. A sweep is clean when it finds none, over three sets of card heights. An edge budget of ${f.def("cap")} px/frame, ${f.def("cap1")} while held, caps every edge. Source: \`src/drum.mjs\`; goals and limits: \`DESIGN.md\`.`,
+      t`The frame checker counts four problems. A jump: an edge moves more than ${f.limit.jump} px in a frame. An edge flash: a card's lower edge changes by more than ${f.limit.band} px with nothing covering the change. A fade flicker: a card's fade changes by more than ${f.limit.shade} in a frame. A swap: two cards change draw order while they overlap. A sweep is clean when it finds none, over three sets of card heights. An edge budget of ${f.def("cap")} px/frame, ${f.def("cap1")} while held, caps every edge. Source: \`src/app/page/queue/drum.ts\`; goals and limits: \`DESIGN.md\`.`,
     ],
     map: [
       [

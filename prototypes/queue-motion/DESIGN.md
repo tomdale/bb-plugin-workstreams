@@ -1,9 +1,9 @@
 # Queue stack motion: goals, model, limits
 
 This file says what the stack's motion has to do, how the elastic drum
-(`src/drum.mjs`) does it, what sets the pace of a held key, and what is still
-open. The code is the authority on behaviour; the numbers below come from the
-commands named beside them, on a stepped 60 Hz clock.
+(`src/app/page/queue/drum.ts`) does it, what sets the pace of a held key, and
+what is still open. The code is the authority on behaviour; the numbers below
+come from the commands named beside them, on a stepped 60 Hz clock.
 
 ## Goals
 
@@ -11,20 +11,20 @@ The cards are opaque and range from about 73 px (one line) to 330 px (a long
 recap). Motion is judged by how it feels, so each goal below is paired with the
 number the suite prints for it.
 
-| #   | Goal                                                                                                                                  | Checked by (`npm run suite`)                                             | Natural preset, 60 Hz                                     |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------- |
-| G1  | No card visibly passes through another: draw order changes only while two cards are apart, or a third card covers where they overlap. | `problems`, swap kind                                                    | 0 in every scenario                                       |
-| G2  | Every landing slows into rest.                                                                                                        | landing speed, px/frame over the last 5 frames                           | 1.8                                                       |
-| G3  | Position and velocity stay continuous when a press reverses a move in flight.                                                         | reversal ↑↓↑ max jump and problems                                       | 24.1 px, 0 problems                                       |
-| G4  | ↑ and ↓ run at the same pace and with the same quality.                                                                               | held ↑ and ↓ cards/s                                                     | 5.5 and 5.5                                               |
-| G5  | The first visible change comes within a frame of a press.                                                                             | first visible change                                                     | 16.7 ms                                                   |
-| G6  | A held key can speed up, with every card still reaching the front.                                                                    | held cards/s per preset                                                  | up to 10.1 and 10.8 (`fold`)                              |
-| G7  | A single tap is a full, readable move.                                                                                                | tap ↑ lands, tap ↓ settles                                               | 483 ms and 217 ms                                         |
-| G8  | Tall and short cards in any order show no ghost, no half-covered text, and no two cards' text in the same pixels.                     | `problems` over three height sets, one of them alternating 330 and 73 px | 0                                                         |
-| G9  | Releasing the key rests on a whole card, with at most one more card after the release.                                                | release: rests on a card / extra cards                                   | all / 1                                                   |
-| G10 | One mechanism, small enough to test with invariants.                                                                                  | line count                                                               | `drum.mjs` 449 lines with comments; `stackEngine.ts` 1661 |
-| G11 | The heading and counter stay outside the motion.                                                                                      | by construction                                                          | the page swaps their text                                 |
-| G12 | Reduced motion is calm.                                                                                                               | by construction                                                          | no card moves; the new front fades in over 160 ms         |
+| #   | Goal                                                                                                                                  | Checked by (`npm run suite`)                                             | Natural preset, 60 Hz                                   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------- |
+| G1  | No card visibly passes through another: draw order changes only while two cards are apart, or a third card covers where they overlap. | `problems`, swap kind                                                    | 0 in every scenario                                     |
+| G2  | Every landing slows into rest.                                                                                                        | landing speed, px/frame over the last 5 frames                           | 1.8                                                     |
+| G3  | Position and velocity stay continuous when a press reverses a move in flight.                                                         | reversal ↑↓↑ max jump and problems                                       | 24.1 px, 0 problems                                     |
+| G4  | ↑ and ↓ run at the same pace and with the same quality.                                                                               | held ↑ and ↓ cards/s                                                     | 5.5 and 5.5                                             |
+| G5  | The first visible change comes within a frame of a press.                                                                             | first visible change                                                     | 16.7 ms                                                 |
+| G6  | A held key can speed up, with every card still reaching the front.                                                                    | held cards/s per preset                                                  | up to 10.1 and 10.8 (`fold`)                            |
+| G7  | A single tap is a full, readable move.                                                                                                | tap ↑ lands, tap ↓ settles                                               | 483 ms and 217 ms                                       |
+| G8  | Tall and short cards in any order show no ghost, no half-covered text, and no two cards' text in the same pixels.                     | `problems` over three height sets, one of them alternating 330 and 73 px | 0                                                       |
+| G9  | Releasing the key rests on a whole card, with at most one more card after the release.                                                | release: rests on a card / extra cards                                   | all / 1                                                 |
+| G10 | One mechanism, small enough to test with invariants.                                                                                  | line count                                                               | `drum.ts` 566 lines with comments; `stackEngine.ts` 401 |
+| G11 | The heading and counter stay outside the motion.                                                                                      | by construction                                                          | the page swaps their text                               |
+| G12 | Reduced motion is calm.                                                                                                               | by construction                                                          | no card moves; the new front fades in over 160 ms       |
 
 A hold that reaches an end of the queue moves nothing (0 px in
 `hold at an end moves`), and a fold that was running unfolds as the last card

@@ -3,8 +3,8 @@
  * keys, cards, and stepped clock. `window.__sim` is the hook the capture scripts drive.
  */
 import { StackEngine } from "../../../src/app/page/queue/stackEngine.ts";
-// @ts-ignore: plain JS model, shared with the headless sims
-import { Drum, LEAD } from "./drum.mjs";
+// The model is the product's own (`drum.ts`); the headless sims import it too.
+import { Drum, LEAD } from "../../../src/app/page/queue/drum.ts";
 import {
   CONTROLS,
   FADE_MS,
@@ -197,8 +197,8 @@ function productSim(cur: number): Sim {
   e.setHeights(new Map(keys.map((k, i) => [k, heights[i]!])));
   let at = cur;
   const win = () => keys.slice(at, at + 4);
-  e.sync(win(), undefined, true);
-  return {
+  e.sync(win(), undefined, true, at > 0);
+  const sim: Sim = {
     get cur() {
       return at;
     },
@@ -207,19 +207,25 @@ function productSim(cur: number): Sim {
       const d = dir > 0 ? "forward" : "back";
       if (!e.accept(d)) return false;
       at += dir;
-      e.sync(win(), d);
+      e.sync(win(), d, false, at > 0);
       onMove(at, dir);
       return true;
     },
+    keyDown(dir) {
+      e.hold(dir > 0 ? "forward" : "back");
+      sim.press(dir);
+    },
+    keyUp: () => e.release(),
     step: (ms) => e.step(ms / 1000),
     views: () => e.frame().cards,
     busy: () => e.frame().busy,
     jump(n) {
       at = n;
-      e.sync(win(), undefined, true);
+      e.sync(win(), undefined, true, at > 0);
     },
     setHeights: (h) => e.setHeights(new Map(keys.map((k, i) => [k, h[i]!]))),
   };
+  return sim;
 }
 
 let sim: Sim;
@@ -554,16 +560,12 @@ addEventListener("keydown", (e) => {
     if (!e.repeat) press(d);
     return;
   }
-  if (opt.v === "drum") {
-    if (!e.repeat || held !== d) {
-      held = d;
-      sim.keyDown!(d);
-    } else sim.press(d);
-    paint();
-    wake();
-    return;
-  }
-  press(d);
+  if (!e.repeat || held !== d) {
+    held = d;
+    sim.keyDown!(d);
+  } else sim.press(d);
+  paint();
+  wake();
 });
 addEventListener("keyup", (e) => {
   if (keyDir(e.key)) {

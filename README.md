@@ -638,24 +638,26 @@ The next items wait as a stack of cards behind the current one, the next two
 peeking out above it. Acting on an item, or skipping it, tucks its card under:
 it drops clear of the stack, slips behind it, and rises to the back while the
 others move up a place; going back reverses the path. A card too tall to fit
-behind the next one fades away on its way. Presses are taken one card at a time
-(holding `↓` flicks cards off one after another). Holding `↑` plays that in
-reverse at about the same pace: each card comes out from behind the stack and up
-to the front along the path it would take leaving, a beat after the last,
-landing on top of it, so every item's card makes the trip. A card rising over a
-taller one is a little slower. Under reduced motion the new item only fades in.
-To look ahead or back without acting, use the footer's arrows, which also show
-where you are ("2 of 9"), or press `↓`, `→` or `J` for the next item and `↑`,
-`←` or `K` for the previous one. The card stack's top edge sits about a quarter
-of the way down the page, and the heading sits in a fixed place just above the
-stack. The replies and actions follow the card and the page grows downward, so
-opening Reply, holding `Shift`, or a receipt appearing above never moves
-anything. The stack keeps that place from item to item and follows the window as
-you resize it; it only glides down when the next item's heading wraps to more
-lines. The heading and the receipt line crossfade to the next ones, drifting a
-few pixels the way the cards go (up when you move on, down when you go back),
-the workstream line just ahead of the title; under reduced motion they only
-fade.
+behind the next one fades away on its way. Presses are taken one card at a time,
+at least 150 ms apart, so every card takes the same time however tall it is; a
+press that arrives while one waits is dropped, and a press the other way is
+always taken. Holding `↓` flicks cards off one after another at that pace, and
+holding `↑` does the same in reverse: each card comes out from behind the stack
+and up to the front, so every item's card makes the trip. After a key has been
+held for a quarter of a second the cards' springs stiffen and their speed limit
+rises, so a long hold moves a little faster, and letting go rests on a whole
+card. Under reduced motion the new item only fades in. To look ahead or back
+without acting, use the footer's arrows, which also show where you are ("2 of
+9"), or press `↓`, `→` or `J` for the next item and `↑`, `←` or `K` for the
+previous one. The card stack's top edge sits about a quarter of the way down the
+page, and the heading sits in a fixed place just above the stack. The replies
+and actions follow the card and the page grows downward, so opening Reply,
+holding `Shift`, or a receipt appearing above never moves anything. The stack
+keeps that place from item to item and follows the window as you resize it; it
+only glides down when the next item's heading wraps to more lines. The heading
+and the receipt line crossfade to the next ones, drifting a few pixels the way
+the cards go (up when you move on, down when you go back), the workstream line
+just ahead of the title; under reduced motion they only fade.
 
 Each thread shows its workstream (click it to open **Topics**) and title above
 its latest recap card. Under the card:

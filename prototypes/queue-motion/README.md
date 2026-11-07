@@ -1,16 +1,20 @@
 # Queue motion lab
 
 The queue draws its cards as a pseudo-3D stack. This directory is where changes
-to that motion are worked out before they reach
-`src/app/page/queue/stackEngine.ts`. It holds one page that runs the shipped
-engine and a candidate model, the elastic drum, side by side; headless sims that
-score the drum with a frame checker; and scripts that capture contact sheets and
-recordings of both models.
+to that motion are worked out before they reach the product. It holds one page
+that runs the shipped engine and the elastic drum with the lab's own settings
+side by side; headless sims that score the drum with a frame checker; and
+scripts that capture contact sheets and recordings of both models.
 
-The product still runs `stackEngine.ts`. The drum (`src/drum.mjs`) is the
-candidate to replace it. [DESIGN.md](DESIGN.md) lists the goals the motion must
-meet, explains how the drum works, and records what limits the pace of a held
-key and what is still open.
+The product runs the drum (`src/app/page/queue/drum.ts`) through
+`src/app/page/queue/stackEngine.ts`, which keeps a short row of cards on the
+drum as the queue's pile changes. The drum's settings as shipped are `QUEUE_CFG`
+in `drum.ts`: the `even + held speed` preset with a constant 150 ms interval, a
+3 Hz tap spring and 17 px/frame tap budget, and a 5 Hz held spring and 30
+px/frame held budget after a 250 ms hold. The lab imports both files, so a
+rebuild shows the product as it is on this branch. [DESIGN.md](DESIGN.md) lists
+the goals the motion must meet, explains how the drum works, and records what
+limits the pace of a held key and what is still open.
 
 ## Run the page
 
@@ -25,16 +29,16 @@ Press ↓ and ↑ (or `j` and `k`). A held key repeats at the OS rate; the first
 press also starts the hold the drum's fold and speed-up settings react to. The
 controls:
 
-| Control            | What it does                                                                                                                                         |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Model              | `Product now` imports `src/app/page/queue/stackEngine.ts` as it is and hides the preset and settings rows. `Elastic drum` runs `src/drum.mjs`.       |
-| Preset             | A named set of drum settings (`PRESETS` in `src/drum.mjs`); the buttons come from that list. A click clears every slider change.                     |
-| Settings bar       | The drum's settings as sliders, toggles and one choice, in three groups: Taps, Pace and Held keys. Moving one overrides the preset.                  |
-| Speed, Clock       | ¼×, ½×, 1×; pause and step one 1/60 s frame. The clock is the page's own, so a paused page is a frame you can read.                                  |
-| Reduced motion     | No card moves; the new front fades in over 160 ms. The system's reduced-motion setting turns it on too.                                              |
-| Held readout       | `held 0.00` to `held 1.00` beside the buttons while held speed-up or fold is on: how far the held state has risen.                                   |
-| How the drum works | A panel at the bottom left: the ring path the cards follow, the four problems the frame checker counts, and which settings group acts on which part. |
-| Tooltips           | Every control has one. Hover shows it after a short pause, keyboard focus at once, and Escape dismisses it.                                          |
+| Control            | What it does                                                                                                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Model              | `Product now` imports `src/app/page/queue/stackEngine.ts` as it is and hides the preset and settings rows. `Elastic drum` runs `drum.ts` with the lab's settings. |
+| Preset             | A named set of drum settings (`PRESETS` in `drum.ts`); the buttons come from that list. A click clears every slider change.                                       |
+| Settings bar       | The drum's settings as sliders, toggles and one choice, in three groups: Taps, Pace and Held keys. Moving one overrides the preset.                               |
+| Speed, Clock       | ¼×, ½×, 1×; pause and step one 1/60 s frame. The clock is the page's own, so a paused page is a frame you can read.                                               |
+| Reduced motion     | No card moves; the new front fades in over 160 ms. The system's reduced-motion setting turns it on too.                                                           |
+| Held readout       | `held 0.00` to `held 1.00` beside the buttons while held speed-up or fold is on: how far the held state has risen.                                                |
+| How the drum works | A panel at the bottom left: the ring path the cards follow, the four problems the frame checker counts, and which settings group acts on which part.              |
+| Tooltips           | Every control has one. Hover shows it after a short pause, keyboard focus at once, and Escape dismisses it.                                                       |
 
 A tooltip says what its control is, what you see when you change it, what it
 works with, and how to tune it. It lists the sweep commands behind its numbers.
@@ -104,8 +108,7 @@ The tooltips quote the sweeps, so `npm run build` runs them (`computeFacts` in
 `sim/sweep.mjs`) and then the tooltip check (`src/verify.ts`). The build fails
 when a control has no tooltip, when a tooltip has no control, or when a tooltip
 claims something the sweeps no longer show. `dist/facts.json` caches the sweep
-numbers, and a build reuses them until `src/drum.mjs` or a file in `sim/`
-changes.
+numbers, and a build reuses them until `drum.ts` or a file in `sim/` changes.
 
 `npm run smoke` covers what the sims cannot: three cards drawn when the page
 loads and when a hidden page is shown, only the pile visible in either model,
@@ -133,16 +136,16 @@ in real time, so its frame rate is that of headless Chrome's screencast (about
 ## Keep it current
 
 - `Product now` imports the live engine, so rebuilding the page shows the
-  product as it is on this branch.
-- A change to the drum's rules goes in `src/drum.mjs`, and `npm run check` must
-  still pass. Where it moves a number that DESIGN.md quotes, rerun the command
-  named beside that number and update the text.
-- A new setting is a `DEFAULT_CFG` entry in `src/drum.mjs`, a `SETTINGS` entry
-  in `src/controls.ts` (its key, group, range, and when it shows), a tooltip
-  entry in `src/help.ts` under `setting.<key>`, and a sweep in `PARAMS` in
+  product as it is on this branch. Changing `QUEUE_CFG` changes the product.
+- A change to the drum's rules goes in `src/app/page/queue/drum.ts`, and
+  `npm run check` must still pass. Where it moves a number that DESIGN.md
+  quotes, rerun the command named beside that number and update the text.
+- A new setting is a `DEFAULT_CFG` entry in `drum.ts`, a `SETTINGS` entry in
+  `src/controls.ts` (its key, group, range, and when it shows), a tooltip entry
+  in `src/help.ts` under `setting.<key>`, and a sweep in `PARAMS` in
   `sim/sweep.mjs`. Delete all four when the setting is dropped, so the lab holds
   only the options still in play.
-- A new preset is a `PRESETS` entry in `src/drum.mjs` and a tooltip entry under
+- A new preset is a `PRESETS` entry in `drum.ts` and a tooltip entry under
   `preset.<name>`; the page picks the button up and the presets sweep measures
   it.
 - Tooltip numbers come from the sweeps (`Facts` in `src/facts.ts`), from a
@@ -159,7 +162,7 @@ in real time, so its frame rate is that of headless Chrome's screencast (about
 
 | Path                                               | Holds                                                                                                       |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `src/drum.mjs`                                     | The drum model and its settings. The page and the sims both import it.                                      |
+| `../../src/app/page/queue/drum.ts`                 | The drum model and its settings. The product, the page and the sims all import it.                          |
 | `src/main.ts`, `page.html`, `page.css`, `items.js` | The page, its styles, and the sample cards.                                                                 |
 | `src/controls.ts`                                  | Every control as data: the modes, presets, settings (key, group, range, when it shows), and the URL state.  |
 | `src/help.ts`, `src/facts.ts`                      | The text of every tooltip and of the "How the drum works" panel, and the view of the sweeps it quotes from. |

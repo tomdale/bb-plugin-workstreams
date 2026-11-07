@@ -288,7 +288,7 @@ export function Queue({
   const pile = current
     ? remaining.slice(position, position + STACK_WINDOW)
     : [];
-  const motion = useQueueMotion(current, pile);
+  const motion = useQueueMotion(current, pile, position > 0);
 
   /** Shows another item: the next after acting or skipping, or one back. */
   const go = (id: string | null, toward: Direction) => {
@@ -414,6 +414,8 @@ export function Queue({
   });
   keys.current = { answer, archive, open, thread, suggestion, undo, skip };
   useEffect(() => {
+    // The skip key held down; letting it go, or leaving the window, ends the hold.
+    let heldKey: string | null = null;
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target instanceof Element ? event.target : null;
@@ -435,11 +437,20 @@ export function Queue({
       const digit = /^Digit([1-9])$/.exec(event.code)?.[1];
       const key = event.key.toLowerCase();
       if (key === "u") k.undo();
-      else if (key === "arrowdown" || key === "arrowright" || key === "j")
+      else if (key === "arrowdown" || key === "arrowright" || key === "j") {
+        // The first press of a key starts the hold; the OS repeats continue it.
+        if (!event.repeat) {
+          heldKey = key;
+          motion.hold("forward");
+        }
         k.skip(1);
-      else if (key === "arrowup" || key === "arrowleft" || key === "k")
+      } else if (key === "arrowup" || key === "arrowleft" || key === "k") {
+        if (!event.repeat) {
+          heldKey = key;
+          motion.hold("back");
+        }
         k.skip(-1);
-      else if (!acting) return;
+      } else if (!acting) return;
       else if (digit) k.answer(Number(digit) - 1, event.shiftKey);
       else if (!k.thread || k.suggestion) return;
       else if (key === "r") setReplying({ id: k.thread.id, text: "" });
@@ -449,8 +460,24 @@ export function Queue({
       else return;
       event.preventDefault();
     };
+    const onUp = (event: KeyboardEvent) => {
+      if (heldKey === null || event.key.toLowerCase() !== heldKey) return;
+      heldKey = null;
+      motion.release();
+    };
+    const onBlur = () => {
+      heldKey = null;
+      motion.release();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onUp);
+      window.removeEventListener("blur", onBlur);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const hashColors = useMemo(

@@ -36,10 +36,10 @@ const P = 1000,
   ZDROP = 170,
   HIDE_Y = 4,
   GAP = 16;
-const sc = (z) => P / (P - z);
+const sc = (z: number) => P / (P - z);
 const S0 = sc(-ZDROP);
-const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const smooth = (u) => {
+const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+const smooth = (u: number) => {
   const x = clamp(u, 0, 1);
   return x * x * (3 - 2 * x);
 };
@@ -50,7 +50,67 @@ const LAMBDA_OMEGA = TAU * 1.6;
 const DIP_TAP = 20;
 const DIP_HELD = 6;
 
-export const DEFAULT_CFG = {
+/** The interval planner's settings; see `DEFAULT_CFG`. */
+export type Tempo = {
+  kind: "none" | "constant" | "lookahead";
+  ms: number;
+  window: number;
+  a: number;
+  b: number;
+  scale: number;
+};
+
+/** Every setting of a drum. */
+export type DrumConfig = {
+  omega0: number;
+  omega1: number;
+  vcap: number;
+  vcap1: number;
+  fold: boolean;
+  ramp: boolean;
+  H0: number;
+  holdDelay: number;
+  washTauIn: number;
+  washTauOut: number;
+  hidePx: number;
+  tuckRate: number;
+  gateSlack: number;
+  tempo: Tempo;
+};
+
+/** A setting overlay: any field, with `tempo` given field by field. */
+export type DrumPatch = Partial<Omit<DrumConfig, "tempo">> & {
+  tempo?: Partial<Tempo>;
+};
+
+/** What the page draws for one card; see `Drum.views`. */
+export type DrumView = {
+  key: string;
+  i: number;
+  c: number;
+  painted: boolean;
+  layer: number;
+  scale: number;
+  y: number;
+  h: number;
+  top: number;
+  bottom: number;
+  natBottom: number;
+  shade: number;
+  group: number;
+  interactive: boolean;
+};
+
+type Pose = {
+  y: number;
+  z: number;
+  shade: number;
+  group: number;
+  painted: boolean;
+  g: number;
+};
+
+export const DEFAULT_CFG: DrumConfig = {
   omega0: TAU * 3.0, // spring rate at λ = 0 (taps), rad/s
   omega1: TAU * 4.5, // at λ = 1 (held, when `ramp` or `fold` is on)
   vcap: 1440, // edge-speed budget at λ = 0, px/s (24 px/frame at 60 Hz); 0 = off
@@ -71,7 +131,7 @@ export const DEFAULT_CFG = {
 };
 
 /** Named settings the page and the sweeps share. Each overlays DEFAULT_CFG. */
-export const PRESETS = {
+export const PRESETS: Record<string, DrumPatch> = {
   /** The defaults: the pace follows the card heights. */
   natural: {},
   /** A planned interval between presses, so the pace changes gently. */
@@ -85,32 +145,91 @@ export const PRESETS = {
   fold: { fold: true },
 };
 
+/**
+ * The settings the queue ships with: the `even + held speed` preset with a constant 150 ms between presses, so
+ * every card takes the same time however tall it is, and a held key that stiffens the springs (3 to 5 Hz) and
+ * raises the edge budget (17 to 30 px/frame) after a 250 ms hold. Taps and holds never fold the cards.
+ */
+export const QUEUE_CFG: DrumPatch = {
+  ramp: true,
+  omega0: TAU * 3,
+  omega1: TAU * 5,
+  vcap: 17 * 60,
+  vcap1: 30 * 60,
+  holdDelay: 250,
+  tempo: { kind: "constant", ms: 150 },
+};
+
 export class Drum {
   /** DEFAULT_CFG overlaid with `cfg`, merging `tempo` field by field. */
-  static config(cfg = {}) {
+  static config(cfg: DrumPatch = {}): DrumConfig {
     return {
       ...DEFAULT_CFG,
       ...cfg,
       tempo: { ...DEFAULT_CFG.tempo, ...(cfg.tempo ?? {}) },
     };
   }
-  constructor(heights, cfg = {}) {
+  h: number[];
+  N: number;
+  cfg: DrumConfig;
+  front = 0;
+  c: number[];
+  v: number[];
+  /** The drawn wash of each too-tall card (lagged). */
+  g: number[];
+  /** The held state, 0 to 1. */
+  lam = 0;
+  lamV = 0;
+  hold: { dir: 1 | -1; t: number } | null = null;
+  /** The one press that may wait for the gate, signed by direction. */
+  pending = 0;
+  time = 0;
+  /** Time the last press was taken. */
+  lastTake = -1e9;
+  /**
+   * Whether the queue goes on past the first or last card. A hold stops where the queue ends, and a drum
+   * that holds only a window of a long queue says it does not end at its own edge.
+   */
+  more = { before: false, after: false };
+  constructor(heights: number[], cfg: DrumPatch = {}) {
     this.h = heights.slice();
     this.N = heights.length;
     this.cfg = Drum.config(cfg);
-    this.front = 0;
     this.c = heights.map((_, i) => i); // settled at front = 0
     this.v = heights.map(() => 0);
-    this.g = heights.map(() => 0); // drawn wash of too-tall cards (lagged)
-    this.lam = 0;
-    this.lamV = 0;
-    this.hold = null; // { dir, t }
-    this.pending = 0; // the one press that may wait for the gate, signed by direction
-    this.time = 0;
-    this.lastTake = -1e9; // time the last press was taken
+    this.g = heights.map(() => 0);
   }
-  jump(n) {
+  jump(n: number) {
     this.front = n;
+    this.settle();
+    this.hold = null;
+    this.pending = 0;
+    this.lastTake = -1e9;
+  }
+  /**
+   * Puts a card `h` tall at index `at`, already at ring coordinate `c` and at rest. `front` keeps naming
+   * the same card, so a card put in before it moves it up one index.
+   */
+  insert(at: number, h: number, c: number) {
+    this.h.splice(at, 0, h);
+    this.c.splice(at, 0, c);
+    this.v.splice(at, 0, 0);
+    this.g.splice(at, 0, 0);
+    this.N++;
+    if (at <= this.front) this.front++;
+    this.g[at] = this.washTarget(at);
+  }
+  /** Takes out the card at index `at`, which must not be the front card; `front` keeps naming the same card. */
+  remove(at: number) {
+    this.h.splice(at, 1);
+    this.c.splice(at, 1);
+    this.v.splice(at, 1);
+    this.g.splice(at, 1);
+    this.N--;
+    if (at < this.front) this.front--;
+  }
+  /** Puts every card exactly at its target, still: what a drum at rest is, with the spring's last fractions gone. */
+  settle() {
     for (let i = 0; i < this.N; i++) {
       this.c[i] = this.target(i);
       this.v[i] = 0;
@@ -118,20 +237,17 @@ export class Drum {
     }
     this.lam = 0;
     this.lamV = 0;
-    this.hold = null;
-    this.pending = 0;
-    this.lastTake = -1e9;
   }
   /** Replaces the card heights, keeping every card where it is; the next step moves them toward the new poses. */
-  setHeights(heights) {
+  setHeights(heights: number[]) {
     this.h = heights.slice();
   }
-  hd(i) {
+  hd(i: number) {
     return this.cfg.fold
-      ? this.cfg.H0 + (this.h[i] - this.cfg.H0) * (1 - this.lam)
-      : this.h[i];
+      ? this.cfg.H0 + (this.h[i]! - this.cfg.H0) * (1 - this.lam)
+      : this.h[i]!;
   }
-  target(i) {
+  target(i: number) {
     return i >= this.front ? i - this.front : i - this.front - 1;
   }
   omega() {
@@ -143,7 +259,7 @@ export class Drum {
 
   // ---- input --------------------------------------------------------------
   /** Estimated time, ms, for a card to clear the card of height `h` (the planner's model of a trip). */
-  clearTime(h) {
+  clearTime(h: number) {
     const t = this.cfg.tempo;
     return t.scale * (t.a + t.b * h);
   }
@@ -154,7 +270,7 @@ export class Drum {
    * a smooth upper envelope that is never below this step's own estimate and eases toward a tall card before
    * it arrives and away after it has passed.
    */
-  tempoGap(dir) {
+  tempoGap(dir: number) {
     const t = this.cfg.tempo;
     if (t.kind === "constant") return t.ms;
     if (t.kind !== "lookahead") return 0;
@@ -168,7 +284,7 @@ export class Drum {
       let m = 0;
       for (let k = -w; k <= w; k++) {
         const i = j + k * dir;
-        if (i >= 0 && i < this.N) m = Math.max(m, this.clearTime(this.h[i]));
+        if (i >= 0 && i < this.N) m = Math.max(m, this.clearTime(this.h[i]!));
       }
       sum += m;
       n++;
@@ -176,12 +292,12 @@ export class Drum {
     return sum / n;
   }
   /** Whether a press may be taken now: the planned interval has passed, and every card in transit has passed its flip (less `gateSlack`). */
-  accepts(dir) {
+  accepts(dir: number) {
     const gap = this.tempoGap(dir);
     if (gap > 0 && this.time - this.lastTake < gap) return false;
     for (let i = 0; i < this.N; i++) {
       const t = this.target(i),
-        c = this.c[i];
+        c = this.c[i]!;
       const slack = this.cfg.gateSlack;
       if (t < 0 && c > -1 + slack + 1e-6) return false; // a leaver still in front
       if (t >= 0 && c < -1 - slack - 1e-6) return false; // an arriver still behind
@@ -189,7 +305,7 @@ export class Drum {
     return true;
   }
   /** One press. Returns true if taken or left waiting; a press while another one waits is dropped. */
-  press(dir) {
+  press(dir: 1 | -1) {
     const nf = this.front + dir;
     if (nf < 0 || nf >= this.N) return false;
     if (this.pending !== 0) return false;
@@ -202,14 +318,15 @@ export class Drum {
     return true;
   }
   /** A hold starts only if there is a card to move to; against either end it would fold the pile for no change of state. */
-  keyDown(dir) {
+  keyDown(dir: 1 | -1) {
     this.press(dir);
     this.hold = this.canAdvance(dir) ? { dir, t: 0 } : null;
   }
-  /** Whether another card lies ahead in `dir`, or a waiting press is still to be taken. */
-  canAdvance(dir) {
+  /** Whether another card lies ahead in `dir` (here or, per `more`, beyond the cards held), or a waiting press is still to be taken. */
+  canAdvance(dir: number) {
     const nf = this.front + dir;
-    return (nf >= 0 && nf < this.N) || this.pending !== 0;
+    const beyond = nf < 0 ? this.more.before : nf >= this.N && this.more.after;
+    return (nf >= 0 && nf < this.N) || beyond || this.pending !== 0;
   }
   keyUp() {
     this.hold = null;
@@ -219,7 +336,7 @@ export class Drum {
   }
 
   // ---- stepping -----------------------------------------------------------
-  step(ms) {
+  step(ms: number) {
     let r = ms / 1000;
     while (r > 1e-9) {
       const d = Math.min(1 / 240, r);
@@ -227,7 +344,7 @@ export class Drum {
       r -= d;
     }
   }
-  tick(dt) {
+  tick(dt: number) {
     this.time += dt * 1000;
     if (this.hold) this.hold.t += dt * 1000;
     // the waiting press, once the gate opens
@@ -258,31 +375,31 @@ export class Drum {
     const w = this.omega();
     for (let i = 0; i < this.N; i++) {
       let t = this.target(i);
-      const c = this.c[i];
+      const c = this.c[i]!;
       // The one draw-order change, at c = −1, waits until the card is clear of what it would swap with.
       if (t < -1 && c > -1 && !this.clearToFlip(i, folded)) t = -1;
       if (t > -1 && c < -1 && !this.clearToFlip(i, folded)) t = -1;
       const wi = t <= -2 && c < -1 ? w * this.cfg.tuckRate : w;
-      this.v[i] += (wi * wi * (t - c) - 2 * wi * this.v[i]) * dt;
-      this.c[i] = c + this.v[i] * dt;
+      this.v[i]! += (wi * wi * (t - c) - 2 * wi * this.v[i]!) * dt;
+      this.c[i] = c + this.v[i]! * dt;
     }
     for (let i = 0; i < this.N; i++) {
       const gt = this.washTarget(i);
-      const tau = gt < this.g[i] ? this.cfg.washTauIn : this.cfg.washTauOut;
-      this.g[i] += (gt - this.g[i]) * (1 - Math.exp((-dt * 1000) / tau));
+      const tau = gt < this.g[i]! ? this.cfg.washTauIn : this.cfg.washTauOut;
+      this.g[i]! += (gt - this.g[i]!) * (1 - Math.exp((-dt * 1000) / tau));
     }
     // edge-speed clamp, per card, on what it drew
     if (this.cfg.vcap > 0) {
       const after = this.views();
       for (let i = 0; i < this.N; i++) {
-        const a = before[i],
-          b = after[i];
+        const a = before[i]!,
+          b = after[i]!;
         if (!a.painted && !b.painted) continue;
         const moved = Math.max(
           Math.abs(b.top - a.top),
           Math.abs(b.natBottom - a.natBottom),
         );
-        const f = folded[i];
+        const f = folded[i]!;
         const own = Math.max(
           Math.abs(b.top - f.top),
           Math.abs(b.natBottom - f.natBottom),
@@ -293,16 +410,16 @@ export class Drum {
         const allow = Math.max(lim / 2, lim - (moved - own));
         if (own > allow) {
           const s = allow / own;
-          const c0 = this.c[i] - this.v[i] * dt;
-          this.c[i] = c0 + (this.c[i] - c0) * s;
-          this.v[i] *= s;
+          const c0 = this.c[i]! - this.v[i]! * dt;
+          this.c[i] = c0 + (this.c[i]! - c0) * s;
+          this.v[i]! *= s;
         }
       }
     }
   }
   /** The wash a too-tall card's path asks for: nothing until 60 % of the way in, then slowly, then faster (quadratic), gone at the tuck. */
-  washTarget(i) {
-    const c = this.c[i];
+  washTarget(i: number) {
+    const c = this.c[i]!;
     if (c > -1) return 0;
     const h = this.hd(i),
       hn = i + 1 < this.N ? this.hd(i + 1) : h;
@@ -312,14 +429,14 @@ export class Drum {
     return Math.pow(clamp((r - 0.6) / 0.4, 0, 1), 2); // over the last 40 % of the way in: slowly, then faster
   }
   /** Whether card i, at its turn pose, overlaps nothing it would swap draw order with. */
-  clearToFlip(i, views) {
+  clearToFlip(i: number, views: DrumView[]) {
     const top = this.turnTop(i) - GAP / 2;
     for (let j = 0; j < this.N; j++) {
       if (j === i) continue;
-      const vj = views[j];
+      const vj = views[j]!;
       if (!vj.painted) continue;
       // cards it swaps with: everything not behind the pile (pile and front-segment cards)
-      if (this.c[j] < -1) continue;
+      if (this.c[j]! < -1) continue;
       if (vj.bottom > top) return false;
     }
     return true;
@@ -328,8 +445,8 @@ export class Drum {
     if (this.hold || this.pending) return true;
     for (let i = 0; i < this.N; i++)
       if (
-        Math.abs(this.c[i] - this.target(i)) > 1e-3 ||
-        Math.abs(this.v[i]) > 1e-2
+        Math.abs(this.c[i]! - this.target(i)) > 1e-3 ||
+        Math.abs(this.v[i]!) > 1e-2
       )
         return true;
     return this.lam > 1e-2;
@@ -337,18 +454,18 @@ export class Drum {
 
   // ---- pose map ----------------------------------------------------------
   /** Screen y of the top edge of the card's turn pose: clear below the card it covers/uncovers (its ring neighbour i+1). */
-  turnTop(i) {
+  turnTop(i: number) {
     const hn = i + 1 < this.N ? this.hd(i + 1) : this.hd(i);
     return LEAD + hn + GAP + this.dip();
   }
-  slot(q) {
+  slot(q: number) {
     q = clamp(q, 0, VIS);
     const y = q <= 2 ? -DY * q : -2 * DY + (q - 2) * (HIDE_Y + 2 * DY);
     return { y, z: -DZ * q, depth: 0.24 * Math.min(q, 2) };
   }
   /** Raw pose of card i at its c (no clipping): { y, z, layerKey, painted, shade, group } */
-  pose(i) {
-    const c = this.c[i],
+  pose(i: number): Pose {
+    const c = this.c[i]!,
       h = this.hd(i);
     if (c >= 0) {
       const p = this.slot(c);
@@ -373,7 +490,7 @@ export class Drum {
       const Tpass = LEAD + Math.max(0, hn - h);
       const z = -ZDROP * smooth((T - Tpass) / Math.max(1, turnTop - Tpass));
       const leave = 0.35 * smooth(u);
-      const g = this.g[i];
+      const g = this.g[i]!;
       return {
         y: (T - LEAD) / sc(z),
         z,
@@ -393,7 +510,7 @@ export class Drum {
       tall = true;
     }
     const y = yTurn + (yTuck - yTurn) * smooth(r);
-    const g = this.g[i];
+    const g = this.g[i]!;
     const depth = 0.48 * smooth(r);
     const shade = 1 - (1 - depth) * (1 - 0.35) * (1 - g);
     const parked = c <= -2 + 1e-3; // at or past the tuck: hidden (covered, or washed out)
@@ -404,19 +521,19 @@ export class Drum {
    * pile are clipped in draw order to the drawn bottom of the card in front of them (the pile looks the
    * size of its front card); cards behind the pile are drawn whole.
    */
-  views() {
+  views(): DrumView[] {
     const N = this.N;
     const raw = new Array(N);
     for (let i = 0; i < N; i++) raw[i] = this.pose(i);
     // ring order: front-segment asc, pile asc, parked desc
     const order = [];
-    for (let i = 0; i < N; i++) if (raw[i].group === 0) order.push(i);
-    for (let i = 0; i < N; i++) if (raw[i].group === 1) order.push(i);
-    for (let i = N - 1; i >= 0; i--) if (raw[i].group === 2) order.push(i);
+    for (let i = 0; i < N; i++) if (raw[i]!.group === 0) order.push(i);
+    for (let i = 0; i < N; i++) if (raw[i]!.group === 1) order.push(i);
+    for (let i = N - 1; i >= 0; i--) if (raw[i]!.group === 2) order.push(i);
     const out = new Array(N);
     let cover = Infinity;
     order.forEach((i, rank) => {
-      const p = raw[i],
+      const p = raw[i]!,
         s = sc(p.z),
         h = this.hd(i);
       const top = LEAD + s * p.y,
@@ -430,8 +547,8 @@ export class Drum {
       out[i] = {
         key: "k" + i,
         i,
-        c: this.c[i],
-        painted: p.painted && vis >= 2,
+        c: this.c[i]!,
+        painted: p.painted && (h === 0 || vis >= 2),
         layer: N - rank,
         scale: s,
         y: p.y,
@@ -441,7 +558,7 @@ export class Drum {
         natBottom: nat,
         shade: p.shade,
         group: p.group,
-        interactive: i === this.front && Math.abs(this.c[i]) < 1e-3,
+        interactive: i === this.front && Math.abs(this.c[i]!) < 1e-3,
       };
     });
     return out;
