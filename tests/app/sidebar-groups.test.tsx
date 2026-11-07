@@ -643,4 +643,113 @@ describe("small groups", () => {
     expect(slot.getByRole("button", { name: "Focus on Yak" })).toBeTruthy();
     slot.lifecycle.unmount();
   });
+
+  it("applies the playground spacing, row heights, and inline boundary gaps", async () => {
+    const slot = await mount(
+      [
+        sidebarThread("a1", {
+          sectionId: "sec_studio_app",
+          title: "Studio App root",
+        }),
+        sidebarThread("a2", {
+          sectionId: "sec_studio_app",
+          parentThreadId: "a1",
+          title: "Studio App child",
+        }),
+        sidebarThread("w1", {
+          sectionId: "sec_studio_ws",
+          title: "Studio Workstreams root",
+        }),
+        sidebarThread("c1", {
+          sectionId: "sec_tools_cli",
+          title: "Tools CLI root",
+        }),
+        sidebarThread("p1", {
+          sectionId: "sec_prompting",
+          title: "Prompting root",
+        }),
+        sidebarThread("q1", {
+          sectionId: "sec_quality",
+          title: "Quality root",
+        }),
+      ],
+      {
+        sections: [
+          section("sec_studio_app", "Studio: App"),
+          section("sec_studio_ws", "Studio: Workstreams"),
+          section("sec_tools_cli", "Tools: CLI"),
+          section("sec_prompting", "Prompting"),
+          section("sec_quality", "Quality"),
+        ],
+        settings: { showRecent: false, showForYou: false },
+      },
+    );
+    await waitFor(() =>
+      expect(groupRows(slot, "Studio: App")).toEqual([
+        "Studio App root",
+        "Studio App child",
+      ]),
+    );
+
+    // Section heading: Workstreams
+    const heading = slot.getByRole("heading", { name: "Workstreams" });
+    expect(heading.parentElement?.className).toContain("h-[13px]");
+    expect(heading.parentElement?.className).toContain("mt-[2px]");
+    expect(heading.parentElement?.className).toContain("mb-[9px]");
+
+    // Workstream header: 22px tall, hanging chevron at -left-3.5
+    const studioApp = slot.getByRole("region", { name: "Studio: App" });
+    const studioAppHeader = within(studioApp).getByRole("button", {
+      name: "Studio: App",
+    });
+    expect(studioAppHeader.parentElement?.className).toContain("h-[22px]");
+    const chev = studioAppHeader.querySelector('[data-icon="ChevronDown"]')
+      ?.parentElement as HTMLElement;
+    expect(chev.className).toContain("-left-3.5");
+    expect(chev.className).toContain("opacity-0");
+
+    // Thread row heights: root thread is 21px, child thread is 28px (h-7)
+    const rootRow = within(studioApp)
+      .getByRole("link", { name: "Studio App root" })
+      .closest(".ws-row") as HTMLElement;
+    expect(rootRow.className).toContain("h-[21px]");
+    const childRow = within(studioApp)
+      .getByRole("link", { name: "Studio App child" })
+      .closest(".ws-row") as HTMLElement;
+    expect(childRow.className).toContain("h-7");
+
+    // Workstream gaps (alphabetical order: Prompting, Quality, Studio: App, Studio: Workstreams, Tools: CLI):
+    const prompting = slot.getByRole("region", { name: "Prompting" });
+    const quality = slot.getByRole("region", { name: "Quality" });
+    const studioWs = slot.getByRole("region", { name: "Studio: Workstreams" });
+    const toolsCli = slot.getByRole("region", { name: "Tools: CLI" });
+
+    // Prompting is first (marginTop 0)
+    expect(parseFloat((prompting as HTMLElement).style.marginTop || "0")).toBe(
+      0,
+    );
+
+    // Quality follows Prompting (neither has inline parent -> other boundary -> 9px gap)
+    expect(parseFloat((quality as HTMLElement).style.marginTop)).toBe(9);
+
+    // Studio: App follows Quality (diff owner -> inline boundary -> 22px gap)
+    expect(parseFloat((studioApp as HTMLElement).style.marginTop)).toBe(22);
+
+    // Studio: Workstreams follows Studio: App (same parent "Studio" -> 9px gap)
+    expect(parseFloat((studioWs as HTMLElement).style.marginTop)).toBe(9);
+
+    // Tools: CLI follows Studio: Workstreams (different parent -> inline boundary -> 22px gap)
+    expect(parseFloat((toolsCli as HTMLElement).style.marginTop)).toBe(22);
+
+    // Collapse Studio: Workstreams and verify Tools: CLI gap drops to 4px (collapsed inline boundary)
+    const studioWsHeader = within(studioWs).getByRole("button", {
+      name: "Studio: Workstreams",
+    });
+    fireEvent.click(studioWsHeader);
+    await waitFor(() =>
+      expect(parseFloat((toolsCli as HTMLElement).style.marginTop)).toBe(4),
+    );
+
+    slot.lifecycle.unmount();
+  });
 });

@@ -96,6 +96,8 @@ export function Row({
   snoozeAction,
   showArchive = true,
   disclosure,
+  categorized = false,
+  inGroup = false,
   onNavigate,
 }: {
   thread: PluginSidebarThread;
@@ -138,6 +140,8 @@ export function Row({
   showArchive?: boolean;
   /** Present when the row has child threads: the expand/collapse toggle. */
   disclosure?: { expanded: boolean; toggle: () => void };
+  categorized?: boolean;
+  inGroup?: boolean;
   onNavigate: () => void;
 }) {
   const { prefs } = usePrefs();
@@ -158,6 +162,8 @@ export function Row({
   const shortcut = useSidebarThreadShortcut(thread.id);
   const nativeStatus = hasNativeStatus(thread);
   const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
+  const baseIndent = inGroup ? (categorized ? 8 : 5) : 6;
+  const paddingLeft = baseIndent + Math.min(depth, MAX_INDENT) * INDENT_PX;
 
   return (
     <div
@@ -167,10 +173,12 @@ export function Row({
         // details, and hover buttons on it (`ws-row-aside`).
         subtitle
           ? "items-start py-1.5 [&>.ws-row-aside]:h-5 [&>.ws-status-slot]:mt-[3px]"
-          : "h-7 items-center",
+          : depth > 0
+            ? "h-7 items-center"
+            : "h-[21px] items-center",
         active ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/60",
       )}
-      style={{ paddingLeft: 6 + Math.min(depth, MAX_INDENT) * INDENT_PX }}
+      style={{ paddingLeft }}
     >
       {/* Must stay an anchor: BB's thread shortcuts find rows by these
             data attributes, and modifier-click opens a split. */}
@@ -271,7 +279,12 @@ export function Row({
         {/* The band's or subgroup's context and the age follow the title
             itself, so the row's trailing end is left to its marks and hover
             buttons. */}
-        <span className="flex min-w-0 items-baseline gap-1.5 leading-5">
+        <span
+          className={cn(
+            "flex min-w-0 items-baseline gap-1.5",
+            subtitle || depth > 0 ? "leading-5" : "leading-[1.2]",
+          )}
+        >
           <span className="min-w-0 truncate">
             <ThreadTitle threadId={thread.id} />
           </span>
@@ -317,6 +330,7 @@ export function Row({
       <RowActions className="ws-row-aside">
         {showArchive ? (
           <HoverAction
+            compact={depth === 0}
             label="Archive"
             onClick={() => actions.archive(thread.id)}
           >
@@ -326,6 +340,7 @@ export function Row({
         {snoozeAction ? (
           snoozeAction.menu ? (
             <HoverMenuButton
+              compact={depth === 0}
               label={snoozeAction.title}
               onClick={snoozeAction.run}
               menu={snoozeAction.menu}
@@ -333,7 +348,11 @@ export function Row({
               {snoozeIcon(snoozeAction.kind)}
             </HoverMenuButton>
           ) : (
-            <HoverAction label={snoozeAction.title} onClick={snoozeAction.run}>
+            <HoverAction
+              compact={depth === 0}
+              label={snoozeAction.title}
+              onClick={snoozeAction.run}
+            >
               {snoozeIcon(snoozeAction.kind)}
             </HoverAction>
           )

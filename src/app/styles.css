@@ -552,21 +552,45 @@
 .ws-workstream-name {
   color: var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)));
 }
+.ws-prefix-name {
+  color: color-mix(
+    in oklab,
+    var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250))) 60%,
+    black
+  );
+}
 .ws-category-label {
   color: color-mix(
     in oklab,
-    var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250))) 70%,
+    var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250))) 45%,
     var(--muted-foreground)
+  );
+  color: color-mix(
+    in oklab,
+    var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250))) 45%,
+    oklch(from var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250))) l 0 h)
   );
 }
 .dark .ws-workstream-name {
   color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
 }
+.dark .ws-prefix-name {
+  color: color-mix(
+    in oklab,
+    var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250))) 60%,
+    black
+  );
+}
 .dark .ws-category-label {
   color: color-mix(
     in oklab,
-    var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250))) 70%,
+    var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250))) 45%,
     var(--muted-foreground)
+  );
+  color: color-mix(
+    in oklab,
+    var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250))) 45%,
+    oklch(from var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250))) l 0 h)
   );
 }
 /* The queue's card stack (queue/motion.ts poses every card each frame). The

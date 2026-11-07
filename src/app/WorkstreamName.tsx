@@ -32,7 +32,7 @@ export function WorkstreamName({
     return (
       <span
         className={cn(
-          "truncate",
+          "truncate font-semibold leading-[1.2]",
           accent
             ? "ws-workstream-name"
             : muted
@@ -45,8 +45,10 @@ export function WorkstreamName({
       </span>
     );
   return (
-    <span className={cn("truncate", className)}>
-      <span className="font-normal text-muted-foreground/60">
+    <span className={cn("truncate font-[450] leading-[1.2]", className)}>
+      <span
+        className={cn("text-muted-foreground/60", accent && "ws-prefix-name")}
+      >
         {parts.owner}
       </span>
       <span className="sr-only">:</span>{" "}

@@ -20,6 +20,7 @@ describe.skipIf(browserUnavailable)(
           <div style="--ws-hue: 47; --ws-color-light: oklch(42% .1 47); --ws-color-dark: oklch(75% .1 47); --muted-foreground: rgb(130, 130, 130); color: rgb(130, 130, 130)">
             <span class="ws-mark ws-mark-unread"></span>
             <span class="ws-mark ws-spin ws-spin-dots"></span>
+            <span class="ws-prefix-name">Prefix</span>
             <span class="ws-workstream-name">Workstream</span>
             <h4 class="ws-category-label">Category</h4>
             <span class="thread-title">Thread title</span>
@@ -36,6 +37,8 @@ describe.skipIf(browserUnavailable)(
             category: getComputedStyle(
               document.querySelector(".ws-category-label")!,
             ).color,
+            prefix: getComputedStyle(document.querySelector(".ws-prefix-name")!)
+              .color,
             name: getComputedStyle(
               document.querySelector(".ws-workstream-name")!,
             ).color,
@@ -48,6 +51,7 @@ describe.skipIf(browserUnavailable)(
           ]);
           expect(colors.category).not.toBe(colors.name);
           expect(colors.category).not.toBe("rgb(130, 130, 130)");
+          expect(colors.prefix).not.toBe(colors.name);
           expect(colors.title).toBe("rgb(130, 130, 130)");
           expect(colors.name).toBe(
             dark ? "oklch(0.75 0.1 47)" : "oklch(0.42 0.1 47)",

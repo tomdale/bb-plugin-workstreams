@@ -91,7 +91,7 @@ import { snoozeThreads, wakeThreads } from "../snooze/actions.ts";
 import { CustomSnoozeDialog } from "../snooze/CustomSnoozeDialog.tsx";
 import { SnoozeMenuItems, plainMenuKit } from "../snooze/SnoozeMenuItems.tsx";
 import { SnoozeIcon } from "../snooze/icons.tsx";
-import { WorkstreamName } from "../WorkstreamName.tsx";
+import { WorkstreamName, splitWorkstreamName } from "../WorkstreamName.tsx";
 import {
   presenceProps,
   useFlip,
@@ -116,6 +116,36 @@ import { usePrefs } from "../prefs.ts";
 
 type ThreadGroup = Group<PluginSidebarThread>;
 type ThreadNode = WorkstreamNode<PluginSidebarThread>;
+
+/**
+ * Spacing between consecutive workstream groups: 22px across an inline
+ * parent boundary (4px if the previous workstream is collapsed), and 9px
+ * between siblings of the same parent or between standalone workstreams
+ * (0px if the previous workstream is collapsed).
+ */
+function workstreamGap(
+  prev: ThreadNode | ThreadGroup | null,
+  curr: ThreadNode | ThreadGroup,
+  prevCollapsed: boolean,
+): number {
+  if (!prev) return 0;
+  const prevLabel = "label" in prev ? prev.label : prev.name;
+  const currLabel = "label" in curr ? curr.label : curr.name;
+  const prevOwner = splitWorkstreamName(prevLabel)?.owner ?? null;
+  const currOwner = splitWorkstreamName(currLabel)?.owner ?? null;
+  const prevKey = prevOwner ?? prev.id;
+  const currKey = currOwner ?? curr.id;
+  const isSame = prevKey === currKey;
+  const isInlineBoundary =
+    !isSame && (Boolean(prevOwner) || Boolean(currOwner));
+
+  if (prevCollapsed) {
+    const extra = isSame ? 0 : isInlineBoundary ? 4 : 0;
+    return 0 + extra;
+  }
+  const extra = isSame ? 0 : isInlineBoundary ? 13 : 0;
+  return 9 + extra;
+}
 
 /** The groups drawn inline under `group`, in order, theirs included. */
 function inlineGroups(group: ThreadNode): ThreadNode[] {
@@ -592,6 +622,7 @@ export function WorkstreamsThreadList({
     key = row.thread.id,
     /** Its group's name, for a row listed outside that group's header. */
     label?: string,
+    categorized = false,
   ) => (
     <RowMenu
       key={key}
@@ -627,6 +658,8 @@ export function WorkstreamsThreadList({
                 }
               : undefined
           }
+          categorized={categorized}
+          inGroup={placement === "group"}
           onNavigate={onNavigate}
         />
       </li>
@@ -748,6 +781,7 @@ export function WorkstreamsThreadList({
                         undefined,
                         undefined,
                         label,
+                        categorized,
                       ),
                     )}
                   </ul>
@@ -776,12 +810,18 @@ export function WorkstreamsThreadList({
   const colorOf = (group: ThreadNode) =>
     colorForWorkstream(group.id, ws.server.catalog, group.topicId);
   const renderCategorizedTrees = (group: ThreadNode, label?: string) =>
-    categoryRows(group.rows, group.categories).map((category) => (
+    categoryRows(group.rows, group.categories).map((category, index) => (
       <Fragment key={category.id ?? "unplaced"}>
         {category.name ? (
-          <li className="list-none px-2 pt-2 pb-0.5 text-xs font-medium">
+          <li
+            className={cn(
+              "list-none",
+              index === 0 ? "mt-1" : "mt-[13px]",
+              "mb-[3px] h-3.5 pl-5",
+            )}
+          >
             <h4
-              className="ws-category-label m-0 truncate"
+              className="ws-category-label m-0 truncate text-[12px] font-medium leading-[1.2]"
               style={workstreamColorStyle(colorOf(group)) as CSSProperties}
             >
               {label ? `${label} · ${category.name}` : category.name}
@@ -834,20 +874,21 @@ export function WorkstreamsThreadList({
   const renderSortableGroup = (
     group: ThreadNode,
     props: Omit<GroupProps, "group" | "children">,
+    style?: CSSProperties,
   ) => (
     <Sortable
       key={group.id}
       id={groupKey(group.id)}
       data={{ type: "group", groupId: group.id, pinned: group.prioritized }}
     >
-      {({ ref, style, handle }) => (
+      {({ ref, style: sortableStyle, handle }) => (
         <WorkstreamGroup
           {...props}
           group={group}
           color={colorOf(group)}
           snooze={groupSnoozeOf(group)}
           sectionRef={ref}
-          style={style}
+          style={{ ...sortableStyle, ...style }}
           handle={handle}
         >
           {renderGroupBody(group)}
@@ -974,8 +1015,11 @@ export function WorkstreamsThreadList({
    * each workstream below is one.
    */
   const workstreamsHeading = hasWorkstreams ? (
-    <div key="workstreams-heading" className="flex items-center gap-1 px-1">
-      <h2 className="flex min-w-0 flex-1 items-center px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <div
+      key="workstreams-heading"
+      className="flex h-[13px] items-center gap-1 pl-2.5 mt-[2px] mb-[9px]"
+    >
+      <h2 className="flex min-w-0 flex-1 items-center text-[11px] font-semibold uppercase tracking-[0.4px] leading-[1.2] text-muted-foreground">
         Workstreams
       </h2>
       <SidebarViewOptionsMenu
@@ -994,41 +1038,82 @@ export function WorkstreamsThreadList({
       className="ws-presence [--ws-presence-gap:0.5rem]"
       {...presenceProps(entry.phase)}
     >
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col">
         <SortableContext
           items={populatedGroups.map((group) => groupKey(group.id))}
           strategy={verticalListSortingStrategy}
         >
-          {populatedGroups.map((group) =>
-            renderSortableGroup(group, activeGroupProps(group)),
-          )}
+          {populatedGroups.map((group, index) => {
+            const prev = index > 0 ? populatedGroups[index - 1]! : null;
+            const prevCollapsed = prev
+              ? lowerCollapsed(prev.id, false, prev.topicId)
+              : false;
+            const marginTop = workstreamGap(prev, group, prevCollapsed);
+            return renderSortableGroup(
+              group,
+              activeGroupProps(group),
+              marginTop ? { marginTop } : undefined,
+            );
+          })}
         </SortableContext>
         {projection.unsorted.total > 0 ? (
           <DropTarget
             id={groupKey(projection.unsorted.id)}
             data={{ type: "target", groupId: projection.unsorted.id }}
           >
-            {(ref) => (
-              <WorkstreamGroup
-                group={projection.unsorted}
-                sectionRef={ref}
-                collapsed={lowerCollapsed(projection.unsorted.id)}
-                toggle={() => lowerToggle(projection.unsorted.id)}
-                snooze={groupSnoozeOf(projection.unsorted)}
-                muted
-              >
-                {renderTrees(projection.unsorted)}
-              </WorkstreamGroup>
-            )}
+            {(ref) => {
+              const prev = populatedGroups[populatedGroups.length - 1] ?? null;
+              const prevCollapsed = prev
+                ? lowerCollapsed(prev.id, false, prev.topicId)
+                : false;
+              const marginTop = workstreamGap(
+                prev,
+                projection.unsorted,
+                prevCollapsed,
+              );
+              return (
+                <WorkstreamGroup
+                  group={projection.unsorted}
+                  sectionRef={ref}
+                  collapsed={lowerCollapsed(projection.unsorted.id)}
+                  toggle={() => lowerToggle(projection.unsorted.id)}
+                  snooze={groupSnoozeOf(projection.unsorted)}
+                  style={marginTop ? { marginTop } : undefined}
+                  muted
+                >
+                  {renderTrees(projection.unsorted)}
+                </WorkstreamGroup>
+              );
+            }}
           </DropTarget>
         ) : null}
         <SortableContext
           items={emptyGroups.map((group) => groupKey(group.id))}
           strategy={verticalListSortingStrategy}
         >
-          {emptyGroups.map((group) =>
-            renderSortableGroup(group, activeGroupProps(group)),
-          )}
+          {emptyGroups.map((group, index) => {
+            const prev =
+              index > 0
+                ? emptyGroups[index - 1]!
+                : projection.unsorted.total > 0
+                  ? projection.unsorted
+                  : (populatedGroups[populatedGroups.length - 1] ?? null);
+            const prevCollapsed = prev
+              ? lowerCollapsed(
+                  prev.id,
+                  false,
+                  "topicId" in prev
+                    ? (prev.topicId as string | null)
+                    : undefined,
+                )
+              : false;
+            const marginTop = workstreamGap(prev, group, prevCollapsed);
+            return renderSortableGroup(
+              group,
+              activeGroupProps(group),
+              marginTop ? { marginTop } : undefined,
+            );
+          })}
         </SortableContext>
         {dormantGroups.length > 0 ? (
           <Band
@@ -1042,17 +1127,33 @@ export function WorkstreamsThreadList({
               items={dormantGroups.map((group) => groupKey(group.id))}
               strategy={verticalListSortingStrategy}
             >
-              {dormantGroups.map((group) => (
-                <li key={group.id} className="list-none">
-                  {renderSortableGroup(group, {
-                    collapsed: groupCollapsed(group.id, true, group.topicId),
-                    toggle: () => toggleGroup(group.id, true, group.topicId),
-                    onToggleFocus: () => toggleFocus(group),
-                    onNewThread: newThreadIn(group),
-                    muted: true,
-                  })}
-                </li>
-              ))}
+              {dormantGroups.map((group, index) => {
+                const prev = index > 0 ? dormantGroups[index - 1]! : null;
+                const prevCollapsed = prev
+                  ? groupCollapsed(group.id, true, group.topicId)
+                  : false;
+                const marginTop = workstreamGap(prev, group, prevCollapsed);
+                return (
+                  <li key={group.id} className="list-none">
+                    {renderSortableGroup(
+                      group,
+                      {
+                        collapsed: groupCollapsed(
+                          group.id,
+                          true,
+                          group.topicId,
+                        ),
+                        toggle: () =>
+                          toggleGroup(group.id, true, group.topicId),
+                        onToggleFocus: () => toggleFocus(group),
+                        onNewThread: newThreadIn(group),
+                        muted: true,
+                      },
+                      marginTop ? { marginTop } : undefined,
+                    )}
+                  </li>
+                );
+              })}
             </SortableContext>
           </Band>
         ) : null}
@@ -1088,7 +1189,7 @@ export function WorkstreamsThreadList({
 
   return (
     <DndContext {...contextProps}>
-      <div ref={listRef} className="ws-list flex flex-col gap-2 pb-4 pt-1">
+      <div ref={listRef} className="ws-list flex flex-col px-2 py-3">
         {error ? (
           <p
             role="alert"
@@ -1169,9 +1270,18 @@ export function WorkstreamsThreadList({
                 items={pinnedGroups.map((group) => groupKey(group.id))}
                 strategy={verticalListSortingStrategy}
               >
-                {pinnedGroups.map((group) =>
-                  renderSortableGroup(group, activeGroupProps(group)),
-                )}
+                {pinnedGroups.map((group, index) => {
+                  const prev = index > 0 ? pinnedGroups[index - 1]! : null;
+                  const prevCollapsed = prev
+                    ? groupCollapsed(prev.id, false, prev.topicId)
+                    : false;
+                  const marginTop = workstreamGap(prev, group, prevCollapsed);
+                  return renderSortableGroup(
+                    group,
+                    activeGroupProps(group),
+                    marginTop ? { marginTop } : undefined,
+                  );
+                })}
               </SortableContext>,
               ...(hasLower
                 ? [
@@ -1198,7 +1308,7 @@ export function WorkstreamsThreadList({
                       onClick={toggleLower}
                       // A quiet link-style toggle, not a section header:
                       // the workstreams it reveals keep their own headers.
-                      className="group/lower mx-2.5 flex items-center gap-1.5 self-stretch rounded-sm text-left text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+                      className="group/lower mx-1.5 mt-4 mb-2.5 flex h-[15.2px] items-center gap-1.5 self-stretch rounded-sm text-left text-[12px] font-normal leading-[1.2] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
                     >
                       <span className="underline-offset-2 group-hover/lower:underline">
                         {showLower
@@ -1717,8 +1827,6 @@ function WorkstreamGroup({
       style={
         {
           ...style,
-          paddingLeft: nested ? 0 : 4,
-          paddingRight: nested ? 0 : 4,
           ...workstreamColorStyle(color ?? colorForWorkstream(group.id)),
         } as CSSProperties
       }
@@ -1735,39 +1843,39 @@ function WorkstreamGroup({
         <div
           ref={handle?.ref}
           {...handle?.listeners}
-          // The wider right padding lines its buttons' icons up with the
-          // thread rows' below.
-          // Same box as a thread row: 28px tall, the chevron in a status
-          // slot's 14px, the name where thread titles start.
-          className="group/row flex h-7 items-center gap-1.5 rounded-md pl-1.5 pr-2.5 hover:bg-sidebar-accent/60"
+          className="group/row relative flex h-[22px] items-center gap-1.5 rounded-md pr-2 hover:bg-sidebar-accent/60"
+          style={{ paddingLeft: nested ? 20 : 10 }}
         >
           <button
             type="button"
             aria-expanded={group.total > 0 ? !collapsed : undefined}
             onClick={group.total > 0 ? toggle : undefined}
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-1.5 text-left",
+              "group/heading relative flex min-w-0 flex-1 items-center text-left",
               group.total > 0 && "cursor-pointer",
             )}
           >
-            <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground">
-              {group.total > 0 ? (
+            {group.total > 0 ? (
+              <span
+                aria-hidden="true"
+                className="absolute -left-3.5 top-1/2 flex h-3.5 w-2 -translate-y-1/2 items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100"
+              >
                 <Icon
                   name={collapsed ? "ChevronRight" : "ChevronDown"}
                   className="size-3"
                 />
-              ) : null}
-            </span>
+              </span>
+            ) : null}
             <WorkstreamName
               name={label}
               muted={muted || nested}
               accent={isWorkstream}
               className={
                 isWorkstream
-                  ? "text-[13px] font-semibold"
+                  ? "text-[13px]"
                   : nested
                     ? "text-[11px] font-semibold uppercase tracking-wide"
-                    : "text-[13px] font-semibold"
+                    : "text-[13px]"
               }
             />
           </button>
@@ -1816,11 +1924,7 @@ function WorkstreamGroup({
           </span>
         </div>
       </HeaderMenu>
-      {collapsed ? null : (
-        <ul className="ml-3 border-l border-sidebar-border/60 pl-[7px]">
-          {children}
-        </ul>
-      )}
+      {collapsed ? null : <ul className="list-none">{children}</ul>}
     </section>
   );
 }
