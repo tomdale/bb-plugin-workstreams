@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
-import { cleanup, waitFor } from "@testing-library/react";
-import { useBbContext } from "@get-bb/plugin-sdk/app";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import { useBbContext } from "@get-bb/plugin-sdk/app";
+import {
+  installTestPluginRuntime,
+  renderSlot,
+} from "@get-bb/plugin-sdk/testing/app";
+import { cleanup, waitFor } from "@testing-library/react";
+import { afterEach, expect, it } from "vitest";
 import { useGoalContext } from "../../src/app/goalContext.ts";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 
@@ -31,8 +34,7 @@ async function mount(
   server: Record<string, unknown> = {},
   otherThreads: PluginSidebarThread[] = [],
 ) {
-  // Loading the app registers its slots, as BB does before rendering any.
-  await loadPluginApp(() => import("../../src/app/index.tsx"));
+  installTestPluginRuntime();
   return renderSlot({ id: "heading", component: Heading } as never, {}, {
     settings: {},
     context: { threadId: thread.id, projectId: "proj_1" },
@@ -157,7 +159,7 @@ it("omits an unknown or repeated outcome rather than falling back to recaps", as
 });
 
 it("renders nothing for a thread BB doesn't list", async () => {
-  await loadPluginApp(() => import("../../src/app/index.tsx"));
+  installTestPluginRuntime();
   const slot = renderSlot({ id: "heading", component: Heading } as never, {}, {
     settings: {},
     context: { threadId: "gone", projectId: "proj_1" },

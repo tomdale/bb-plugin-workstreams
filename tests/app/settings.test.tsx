@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import {
   cleanup,
   fireEvent,
@@ -7,8 +7,18 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { parsePrefs, mergePrefs } from "../../src/domain/prefs.ts";
+import { afterEach, expect, it } from "vitest";
+import { ColorSettings } from "../../src/app/settings/ColorSettings.tsx";
+import {
+  AdvancedSettings,
+  NewWorkSettings,
+  OrganizeSettings,
+  SidebarSettings,
+  ThreadsSettings,
+  WorkingIndicatorSettings,
+} from "../../src/app/settings/FeatureSettings.tsx";
+import { ColorTokenStyle } from "../../src/app/theme/ColorTokenStyle.tsx";
+import { mergePrefs, parsePrefs } from "../../src/domain/prefs.ts";
 
 afterEach(cleanup);
 
@@ -22,8 +32,18 @@ async function mount(
   } = {},
 ) {
   let prefs = parsePrefs({});
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  const section = app.settingsSections.find((entry) => entry.id === sectionId)!;
+  const components = {
+    sidebar: SidebarSettings,
+    "working-indicator": WorkingIndicatorSettings,
+    colors: ColorSettings,
+    threads: ThreadsSettings,
+    "new-work": NewWorkSettings,
+    organize: OrganizeSettings,
+    advanced: AdvancedSettings,
+  };
+  const section = {
+    component: components[sectionId as keyof typeof components],
+  };
   const slot = await renderSlot(
     section,
     {},
@@ -49,21 +69,6 @@ async function mount(
   );
   return slot;
 }
-
-it("registers settings in feature order", async () => {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  expect(app.settingsSections.map(({ id, title }) => [id, title])).toEqual([
-    ["sidebar", "Sidebar"],
-    ["working-indicator", "Working indicator"],
-    ["colors", "Colors"],
-    ["threads", "Threads"],
-    ["recap", "Recap"],
-    ["snooze", "Snooze"],
-    ["new-work", "New threads"],
-    ["organize", "Organization"],
-    ["advanced", "Advanced"],
-  ]);
-});
 
 it("renders compact working styles and accessible colored swatches", async () => {
   const slot = await mount("working-indicator");
@@ -517,8 +522,7 @@ it("switches the default set and names each defaulted token's theme color", asyn
 });
 
 it("writes the chosen colors over the token defaults, and nothing at the defaults", async () => {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  const overlay = app.appOverlays.find((entry) => entry.id === "color-tokens")!;
+  const overlay = { component: ColorTokenStyle };
   const styles = () =>
     document.head.querySelectorAll("style[data-ws-color-tokens]");
   let prefs = parsePrefs({});

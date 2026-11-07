@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { afterEach, beforeEach, expect, it } from "vitest";
+import { WorkstreamsPage } from "../../src/app/page/Page.tsx";
 import { emptyState } from "./fixtures.ts";
 import { chooseOption } from "./select.ts";
 
@@ -25,10 +26,9 @@ const summary = (id: string, overrides: Record<string, unknown> = {}) => ({
 });
 
 it("opens Activity for debug links and shows debug controls only in Debug mode", async () => {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   const page = (debug: boolean) =>
     renderSlot(
-      app.navPanels[0]!,
+      { component: WorkstreamsPage },
       { subPath: "debug" },
       {
         settings: {},
@@ -77,7 +77,6 @@ it("opens Activity for debug links and shows debug controls only in Debug mode",
 });
 
 it("lists model calls in the Activity log in Debug mode", async () => {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   const now = Date.now();
   const entry = {
     id: "e1",
@@ -94,7 +93,7 @@ it("lists model calls in the Activity log in Debug mode", async () => {
   };
   const page = (debug: boolean) =>
     renderSlot(
-      app.navPanels[0]!,
+      { component: WorkstreamsPage },
       { subPath: "debug" },
       {
         settings: {},

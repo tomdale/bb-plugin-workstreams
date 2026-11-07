@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { TaskIdentityHeader } from "../../src/app/header/TaskIdentityHeader.tsx";
+import type { Topic, TopicState } from "../../src/domain/topics.ts";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
-import type { TopicState, Topic } from "../../src/domain/topics.ts";
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -101,10 +102,7 @@ async function mountTaskIdentityHeader(
     rpcCalls?: { method: string; args: unknown }[];
   } = {},
 ) {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  const headerAction = app.threadHeaderActions.find(
-    (action) => action.id === "task-identity",
-  )!;
+  const headerAction = { component: TaskIdentityHeader };
 
   const currentCatalog = options.catalog ?? catalogState;
   const threads = options.threads ?? [

@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
-import { cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { afterEach, expect, it } from "vitest";
+import { ArchiveHeaderAction } from "../../src/app/header/ArchiveHeaderAction.tsx";
 import { sidebarThread } from "./fixtures.ts";
 
 afterEach(cleanup);
@@ -17,9 +18,8 @@ async function mount({
   compact?: boolean;
   threads?: PluginSidebarThread[];
 } = {}) {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   return renderSlot(
-    app.threadHeaderActions.find((action) => action.id === "archive")!,
+    { component: ArchiveHeaderAction },
     { threadId: "t1", projectId: "proj_1", isCompactViewport: compact },
     {
       rpc: {
@@ -38,13 +38,6 @@ async function mount({
 // Preferences arrive after the first render, so a test that expects no button
 // waits for them to load first; checking sooner would pass vacuously.
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
-
-it("registers an Archive action in the thread header", async () => {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  expect(
-    app.threadHeaderActions.find((action) => action.id === "archive")?.title,
-  ).toBe("Archive");
-});
 
 it("shows an icon-only Archive button by default", async () => {
   const slot = await mount();

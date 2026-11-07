@@ -1,3 +1,4 @@
+import { mountWithBands } from "./sidebar-fixture.tsx";
 // @vitest-environment jsdom
 import {
   cleanup,
@@ -21,7 +22,7 @@ afterEach(() => {
 it.each(["show", "hover", "hide"])(
   "applies the %s timestamp preference without hiding band context",
   async (timestamps) => {
-    const slot = await mount(undefined, { settings: { timestamps } });
+    const slot = await mountWithBands(undefined, { settings: { timestamps } });
     const alpha = slot.getByRole("region", { name: "Alpha" });
     const upNext = slot.getByRole("region", { name: "Up Next" });
     await waitFor(() => {
@@ -185,7 +186,7 @@ it("shows archived threads grouped by workstream and loads another page", async 
 });
 
 it("sorts workstreams alphabetically by default and lets the view menu change sorting", async () => {
-  const slot = await mount(
+  const slot = await mountWithBands(
     [
       sidebarThread("root", {
         sectionId: "sec_a",
@@ -359,7 +360,7 @@ it("renders rows as shortcut-target anchors that open threads", async () => {
 });
 
 it("sorts and groups Recent from its section menu and persists the preference", async () => {
-  const slot = await mount(
+  const slot = await mountWithBands(
     [
       sidebarThread("a", {
         sectionId: "sec_a",
@@ -405,7 +406,7 @@ it("sorts and groups Recent from its section menu and persists the preference", 
 });
 
 it("shows pin icons only in workstream rows, not in overlays", async () => {
-  const slot = await mount(
+  const slot = await mountWithBands(
     [
       sidebarThread("pinned", {
         sectionId: "sec_a",
@@ -433,7 +434,7 @@ it("shows pin icons only in workstream rows, not in overlays", async () => {
 });
 
 it("hides the pin icon in Up Next but keeps it in the workstream", async () => {
-  const slot = await mount(
+  const slot = await mountWithBands(
     [
       sidebarThread("pinned-ask", {
         sectionId: "sec_a",
@@ -460,7 +461,7 @@ it("hides the pin icon in Up Next but keeps it in the workstream", async () => {
 });
 
 it("shows Up Next and Recent as overlays without removing group rows", async () => {
-  const slot = await mount([
+  const slot = await mountWithBands([
     sidebarThread("ask", {
       sectionId: "sec_a",
       title: "Asking task",
@@ -511,7 +512,7 @@ it("collapses a parent's children in its group", async () => {
 });
 
 it("keeps child disclosures beneath the sticky Up Next card", async () => {
-  const slot = await mount([
+  const slot = await mountWithBands([
     sidebarThread("parent", {
       sectionId: "sec_a",
       title: "Waiting parent",
@@ -540,7 +541,9 @@ it("keeps child disclosures beneath the sticky Up Next card", async () => {
 });
 
 it("shows only top-level threads in Recent", async () => {
-  const slot = await mount(undefined, { settings: { showForYou: false } });
+  const slot = await mountWithBands(undefined, {
+    settings: { showForYou: false },
+  });
   await slot.findByRole("region", { name: "Recent" });
   expect(groupRows(slot, "Recent").sort()).toEqual([
     "Beta task",
@@ -744,7 +747,7 @@ it("shows workstreams and threads in the stored manual order", async () => {
 });
 
 it("keeps thread titles at their default color in workstreams and Up Next", async () => {
-  const slot = await mount();
+  const slot = await mountWithBands();
   for (const [region, name] of [
     ["Alpha", "Root task"],
     ["Up Next", "Root task"],

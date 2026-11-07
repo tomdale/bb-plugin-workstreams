@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, within } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { emptyState } from "./fixtures.ts";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { CallRow } from "../../src/app/page/CallRow.tsx";
+import type { TraceSummary } from "../../src/domain/trace.ts";
 beforeEach(() =>
   vi.stubGlobal(
     "ResizeObserver",
@@ -18,50 +19,35 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function page(summary: string | null, overrides = {}) {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
+async function page(
+  summary: string | null,
+  overrides: Partial<TraceSummary> = {},
+) {
+  const trace: TraceSummary = {
+    id: "t",
+    at: 1000,
+    kind: "full-analysis",
+    status: "ok",
+    label: "Fix parser",
+    model: "test/model",
+    durationMs: 1200,
+    replayOf: null,
+    usage: null,
+    error: null,
+    summary,
+    threads: [],
+    ...overrides,
+  };
   return renderSlot(
-    app.navPanels[0]!,
-    { subPath: "debug" },
     {
-      settings: {},
-      rpc: {
-        prefs: () => ({
-          prefs: {
-            sidebar: { showForYou: true, showRecent: true, recentLimit: 5 },
-            threads: { autoTitle: true, showParentLink: false },
-            newWork: { homeProjectId: "", suggestions: true },
-            analysis: {
-              quickModel: { kind: "gateway", model: "m" },
-              fullModel: { kind: "gateway", model: "m" },
-            },
-            organize: {},
-            advanced: { hostId: "", debug: true },
-          },
-        }),
-        state: () => emptyState(),
-        journal: () => ({ entries: [] }),
-        traces: () => ({
-          traces: [
-            {
-              id: "t",
-              at: 1000,
-              kind: "full-analysis",
-              status: "ok",
-              label: "Fix parser",
-              model: "test/model",
-              durationMs: 1200,
-              replayOf: null,
-              usage: null,
-              error: null,
-              summary,
-              threads: [],
-              ...overrides,
-            },
-          ],
-        }),
-      } as never,
+      component: ({ trace }: { trace: TraceSummary }) => (
+        <ul>
+          <CallRow trace={trace} />
+        </ul>
+      ),
     },
+    { trace },
+    { rpc: { prefs: () => ({ prefs: { advanced: { debug: true } } }) } },
   );
 }
 

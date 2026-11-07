@@ -1025,6 +1025,15 @@ with a fresh browser context per test. Server fixtures use real, disposable
 SQLite databases with synchronous disk flushing disabled; they cover
 transactions, migrations, and reopening storage, not recovery after power loss.
 
+Component tests mount the real component through the SDK harness without loading
+unrelated UI surfaces. `tests/app/registration.test.tsx` checks the plugin's
+production slot bindings, feature order, and new-thread integration. Sidebar
+fixtures omit Up Next and Recent unless the case requests `mountWithBands`.
+Related gestures and display variants can share a mounted scenario; keep
+failure, cancellation, and ownership boundaries explicit. Ranking policy
+matrices belong in domain tests, with representative UI cases checking rendering
+and interactions.
+
 Run `npm run test:benchmark -- --runs 5 --output-dir /tmp/workstreams-benchmark`
 to measure full-suite wall-clock time, including npm and Vitest startup. The
 command saves each test report and log plus `benchmark.json` with

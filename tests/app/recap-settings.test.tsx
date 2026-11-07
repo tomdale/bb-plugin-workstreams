@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import type { PluginAppBuilder } from "@get-bb/plugin-sdk/app";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { registerReplyBlock } from "../../src/app/reply/register.ts";
 
 beforeEach(() => {
@@ -25,12 +25,12 @@ async function mount({
   fork = true,
   prefs = PREFS,
 }: { fork?: boolean; prefs?: Record<string, unknown> } = {}) {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  if (fork)
-    registerReplyBlock({
-      slots: { experimental_messageBlock: () => {} },
-    } as unknown as PluginAppBuilder);
-  const section = app.settingsSections.find((s) => s.id === "recap")!;
+  const { RecapSettings } =
+    await import("../../src/app/recap/RecapSettings.tsx");
+  registerReplyBlock({
+    slots: fork ? { experimental_messageBlock: () => {} } : {},
+  } as unknown as PluginAppBuilder);
+  const section = { component: RecapSettings };
   return renderSlot(
     section,
     {},

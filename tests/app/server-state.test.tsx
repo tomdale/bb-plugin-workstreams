@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { StrictMode } from "react";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { act, cleanup, waitFor, within } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { StrictMode } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ServerStateRealtime } from "../../src/app/serverState.ts";
 import {
   useServerState,
   type ServerState,
 } from "../../src/app/useWorkstreams.ts";
-import { ServerStateRealtime } from "../../src/app/serverState.ts";
 import { DEFAULT_SNOOZE_PREFS } from "../../src/domain/snooze.ts";
 
 /** The default presets without the first, so "1h" is gone. */
@@ -512,13 +512,6 @@ describe("shared server state", () => {
       for (const value of consumers.values())
         expect(value.server.snoozePrefs).toEqual(committed.snoozePrefs);
     });
-  });
-
-  it("registers one app-wide realtime bridge", async () => {
-    const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-    expect(
-      app.appOverlays.filter((entry) => entry.id === "server-state"),
-    ).toEqual([{ id: "server-state", component: ServerStateRealtime }]);
   });
 
   it("shares initial loading, a snapshot and one changed subscription across consumers", async () => {

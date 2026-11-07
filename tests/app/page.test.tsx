@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it, vi } from "vitest";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { emptyState, section, sidebarThread } from "./fixtures.ts";
+import { afterEach, expect, it, vi } from "vitest";
+import { WorkstreamsPage } from "../../src/app/page/Page.tsx";
 import {
   CARD_TOP_FRACTION,
   HEADING_BLOCK_MIN_HEIGHT,
   PAGE_TOP,
 } from "../../src/app/page/queue/layout.ts";
 import { LEAD } from "../../src/app/page/queue/stackEngine.ts";
+import { emptyState, section, sidebarThread } from "./fixtures.ts";
 
 afterEach(() => {
   cleanup();
@@ -46,10 +47,9 @@ const analysis = (recap: string, state = "done") => ({
 async function mount(
   catalog?: import("../../src/domain/topics.ts").TopicState,
 ) {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   const now = Date.now();
   return renderSlot(
-    app.navPanels[0]!,
+    { component: WorkstreamsPage },
     { subPath: "" },
     {
       sidebarThreads: {

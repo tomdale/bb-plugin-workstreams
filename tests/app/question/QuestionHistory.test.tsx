@@ -1,16 +1,10 @@
 // @vitest-environment jsdom
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-const app = await loadPluginApp(() => import("../../../src/app/index.tsx"));
+import { QuestionHistoryInline } from "../../../src/app/question/QuestionHistory.tsx";
 afterEach(cleanup);
-it("renders the saved Q&A at the form row without a header or panel", async () => {
-  expect(app.threadHeaderActions.some((p) => p.id === "question-history")).toBe(
-    false,
-  );
-  expect(app.threadPanelActions.some((p) => p.id === "question-history")).toBe(
-    false,
-  );
+it("renders the saved Q&A at the form row", async () => {
   const payload = {
     questions: [
       {
@@ -32,9 +26,7 @@ it("renders the saved Q&A at the form row without a header or panel", async () =
     ],
   };
   const slot = renderSlot(
-    app.timelineRenderers.find(
-      (p) => p.kind === "workstreams/ask-user-question",
-    )!,
+    { component: QuestionHistoryInline },
     {
       row: {
         id: "thread:form:interaction",
@@ -97,9 +89,7 @@ it("reconstructs every input and output as read-only content from the persisted 
     }),
   );
   const slot = renderSlot(
-    app.timelineRenderers.find(
-      (p) => p.kind === "workstreams/ask-user-question",
-    )!,
+    { component: QuestionHistoryInline },
     {
       row: {
         id: "thread:form:restored",
@@ -181,9 +171,7 @@ it.each(["pending", "unknown"] as const)(
       answers: { "Keep my input?": "Keep this answer" },
     };
     const slot = renderSlot(
-      app.timelineRenderers.find(
-        (p) => p.kind === "workstreams/ask-user-question",
-      )!,
+      { component: QuestionHistoryInline },
       {
         row: {
           id: "thread:form:input",

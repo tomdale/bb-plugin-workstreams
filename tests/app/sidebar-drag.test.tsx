@@ -1,3 +1,4 @@
+import { mountWithBands } from "./sidebar-fixture.tsx";
 // @vitest-environment jsdom
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -15,7 +16,7 @@ afterEach(() => {
 it("reorders roots by dragging a row", async () => {
   const restore = layoutByRows();
   try {
-    const slot = await mount(
+    const slot = await mountWithBands(
       [
         sidebarThread("l1", { title: "Loose one", latestAttentionAt: 3 }),
         sidebarThread("l2", { title: "Loose two", latestAttentionAt: 2 }),

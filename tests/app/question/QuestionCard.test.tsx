@@ -1,14 +1,17 @@
 // @vitest-environment jsdom
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import {
+  QuestionAnchor,
+  QuestionInteraction,
+} from "../../../src/app/question/QuestionCard.tsx";
 import type {
   InteractionPayload,
   InteractionResponse,
 } from "../../../src/server/questions/contracts.ts";
 
-const app = await loadPluginApp(() => import("../../../src/app/index.tsx"));
 const mockUpload = vi.fn(async (args: any) => {
   const clientFile = args.clientFile as File;
   return {
@@ -81,7 +84,7 @@ function render(
           threadId: "thr_test",
         };
   return renderSlot(
-    app.pendingInteractions[0]!,
+    { component: QuestionInteraction },
     {
       interaction: {
         id: "pint_test",
@@ -121,9 +124,7 @@ describe("question interaction adapter", () => {
     } as InteractionPayload);
     fireEvent.click(getButtonByText(slot, "SQLite"));
     slot.lifecycle.unmount();
-    const banner = app.composerCustomizations
-      .find((c) => c.id === "recap")!
-      .banners!.find((b) => b.id === "question")!;
+    const banner = { component: QuestionAnchor };
     const recover = vi.fn(async () => ({ ok: true }));
     const composer = renderSlot(
       banner,
@@ -172,9 +173,7 @@ describe("question interaction adapter", () => {
     });
     slot.lifecycle.unmount();
 
-    const banner = app.composerCustomizations
-      .find((c) => c.id === "recap")!
-      .banners!.find((b) => b.id === "question")!;
+    const banner = { component: QuestionAnchor };
     const recover = vi.fn(async () => ({ ok: true }));
     const composer = renderSlot(
       banner,
@@ -482,18 +481,21 @@ describe("question interaction adapter", () => {
 
   it("offers a cancel escape rather than blocking the composer", () => {
     const cancel = vi.fn(async () => undefined);
-    const slot = renderSlot(app.pendingInteractions[0]!, {
-      interaction: {
-        id: "pint_test",
-        threadId: "thr_test",
-        title: "Database",
-        payload: { questions: "not an array" } as never,
-        createdAt: 0,
-        expiresAt: null,
+    const slot = renderSlot(
+      { component: QuestionInteraction },
+      {
+        interaction: {
+          id: "pint_test",
+          threadId: "thr_test",
+          title: "Database",
+          payload: { questions: "not an array" } as never,
+          createdAt: 0,
+          expiresAt: null,
+        },
+        submit: async () => undefined,
+        cancel,
       },
-      submit: async () => undefined,
-      cancel,
-    });
+    );
 
     expect(
       slot.getByText("This question could not be displayed."),
@@ -503,9 +505,7 @@ describe("question interaction adapter", () => {
   });
 
   it("draws the card in the composer banner and leaves the shell a marker", async () => {
-    const banner = app.composerCustomizations
-      .find((c) => c.id === "recap")!
-      .banners!.find((b) => b.id === "question")!;
+    const banner = { component: QuestionAnchor };
     const composer = renderSlot(
       banner,
       {},

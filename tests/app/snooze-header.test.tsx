@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import {
   cleanup,
   fireEvent,
@@ -7,9 +7,10 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { emptyState, sidebarThread } from "./fixtures.ts";
+import { afterEach, expect, it } from "vitest";
+import { SnoozeHeaderAction } from "../../src/app/snooze/SnoozeHeaderAction.tsx";
 import { DEFAULT_SNOOZE_PREFS } from "../../src/domain/snooze.ts";
+import { emptyState, sidebarThread } from "./fixtures.ts";
 import { chooseOption } from "./select.ts";
 
 afterEach(cleanup);
@@ -24,9 +25,8 @@ async function mount({
   >;
   threads?: ReturnType<typeof sidebarThread>[];
 } = {}) {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   const currentSnoozes = { ...snoozes };
-  const registration = app.threadHeaderActions.find((a) => a.id === "snooze")!;
+  const registration = { component: SnoozeHeaderAction };
   return renderSlot(
     registration,
     { threadId: "t1", projectId: "proj_1", isCompactViewport: false },

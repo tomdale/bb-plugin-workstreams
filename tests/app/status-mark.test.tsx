@@ -8,8 +8,9 @@ vi.hoisted(() => {
     Object.assign(globalThis, { AnimationEvent: class extends Event {} });
 });
 
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { WorkingIndicatorSettings } from "../../src/app/settings/FeatureSettings.tsx";
 import { synchronizeSpinnerAnimations } from "../../src/app/sidebar/StatusMark.tsx";
 
 type FakeAnimation = { startTime: number | null };
@@ -101,10 +102,7 @@ describe("synchronizeSpinnerAnimations", () => {
 
 describe("WorkingMark", () => {
   it("resynchronizes when a moved mark's animation restarts", async () => {
-    const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-    const section = app.settingsSections.find(
-      (s) => s.id === "working-indicator",
-    )!;
+    const section = { component: WorkingIndicatorSettings };
     const slot = await renderSlot(
       section,
       {},

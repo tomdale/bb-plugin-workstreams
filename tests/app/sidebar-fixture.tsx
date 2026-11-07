@@ -2,8 +2,9 @@ import {
   experimental_useSidebarThreads,
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { within } from "@testing-library/react";
+import { WorkstreamsThreadList } from "../../src/app/sidebar/ThreadList.tsx";
 import type { CategoryGeneration } from "../../src/domain/categories.ts";
 import type { LayoutNode } from "../../src/domain/layout.ts";
 import type { SnoozePreset } from "../../src/domain/snooze.ts";
@@ -41,6 +42,7 @@ const sections = [
   section("sec_z", "Zeta"),
 ];
 
+/** Mounts workstream rows without duplicating them in Up Next and Recent. */
 export async function mount(
   threads = [
     sidebarThread("root", { sectionId: "sec_a", title: "Root task" }),
@@ -100,7 +102,6 @@ export async function mount(
     };
   } = {},
 ) {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   // Stateful like the server, so a refetch after a change never undoes it.
   const snoozes = { ...options.snoozes };
   const order = {
@@ -114,7 +115,7 @@ export async function mount(
     Object.fromEntries(
       (options.sections ?? sections).map((section) => [section.id, Date.now()]),
     );
-  const list = app.threadLists[0]!;
+  const list = { component: WorkstreamsThreadList };
   const props = {
     activeThreadId:
       options.activeThreadId === undefined ? "beta" : options.activeThreadId,
@@ -145,8 +146,8 @@ export async function mount(
       prefs: () => ({
         prefs: {
           sidebar: {
-            showForYou: options.settings?.showForYou !== false,
-            showRecent: options.settings?.showRecent !== false,
+            showForYou: options.settings?.showForYou === true,
+            showRecent: options.settings?.showRecent === true,
             showSnoozed: options.settings?.showSnoozed !== false,
             showArchived: options.settings?.showArchived !== false,
             recentLimit: 5,
@@ -287,8 +288,8 @@ export async function mount(
         return {
           prefs: {
             sidebar: {
-              showForYou: options.settings?.showForYou !== false,
-              showRecent: options.settings?.showRecent !== false,
+              showForYou: options.settings?.showForYou === true,
+              showRecent: options.settings?.showRecent === true,
               showSnoozed: true,
               showArchived: true,
               recentLimit: 5,
@@ -363,3 +364,10 @@ export const groupRows = (
   within(slot.getByRole("region", { name }))
     .getAllByRole("link")
     .map((a) => a.getAttribute("aria-label"));
+
+/** Requests both overlay bands for tests that exercise their membership or controls. */
+export const mountWithBands: typeof mount = (threads, options = {}) =>
+  mount(threads, {
+    ...options,
+    settings: { showForYou: true, showRecent: true, ...options.settings },
+  });

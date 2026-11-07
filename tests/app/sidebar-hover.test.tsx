@@ -1,3 +1,4 @@
+import { mountWithBands } from "./sidebar-fixture.tsx";
 // @vitest-environment jsdom
 import {
   act,
@@ -9,6 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sidebarThread } from "./fixtures.ts";
+import { hintText } from "./hints.ts";
 import {
   mount,
   snoozeSettings,
@@ -38,81 +40,63 @@ describe("row hover buttons", () => {
   const snoozeButton = (row: HTMLElement) =>
     within(row).getByRole("button", { name: /^Snooze until/ });
 
-  it("opens the presets when the pointer rests on the snooze button", async () => {
+  it("cancels a passing hover, then opens presets without moving focus and closes after leaving", async () => {
     const slot = await mount(undefined, {
       settings: { showRecent: false },
       snoozePrefs: snoozeSettings(thirtyMinutes, weekend),
     });
-    const button = snoozeButton(await rowOf(slot));
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    fireEvent.pointerEnter(button, { pointerType: "mouse" });
-    await act(async () => vi.advanceTimersByTimeAsync(349));
-    expect(screen.queryByRole("menu")).toBeNull();
-    await act(async () => vi.advanceTimersByTimeAsync(1));
-    const menu = screen.getByRole("menu");
-    expect(button.getAttribute("data-state")).toBe("open");
-    expect(
-      within(menu)
-        .getAllByRole("menuitem")
-        .map((item) => item.textContent),
-    ).toEqual([
-      expect.stringMatching(/^30 minutes/),
-      expect.stringMatching(/^This weekend/),
-      "Custom…",
-    ]);
-    fireEvent.click(
-      within(menu).getByRole("menuitem", { name: /^30 minutes/ }),
-    );
-    await act(async () => vi.advanceTimersByTimeAsync(300));
-    expect(screen.queryByRole("menu")).toBeNull();
-    const call = slot.inspection.rpcCalls.find((c) => c.method === "snooze")!;
-    expect(call.input).toMatchObject({ threadIds: ["root"] });
-    slot.lifecycle.unmount();
-  });
-
-  it("does nothing when the pointer only passes over the button", async () => {
-    const slot = await mount(undefined, { settings: { showRecent: false } });
-    const button = snoozeButton(await rowOf(slot));
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    fireEvent.pointerEnter(button, { pointerType: "mouse" });
-    fireEvent.pointerLeave(button, { pointerType: "mouse" });
-    await act(async () => vi.advanceTimersByTimeAsync(500));
-    expect(screen.queryByRole("menu")).toBeNull();
-    slot.lifecycle.unmount();
-  });
-
-  it("stays open on the way into the menu and closes after leaving it", async () => {
-    const slot = await mount(undefined, { settings: { showRecent: false } });
-    const button = snoozeButton(await rowOf(slot));
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    fireEvent.pointerEnter(button, { pointerType: "mouse" });
-    await act(async () => vi.advanceTimersByTimeAsync(500));
-    const menu = screen.getByRole("menu");
-    fireEvent.pointerLeave(button, { pointerType: "mouse" });
-    fireEvent.pointerEnter(menu, { pointerType: "mouse" });
-    await act(async () => vi.advanceTimersByTimeAsync(300));
-    expect(screen.queryByRole("menu")).not.toBeNull();
-    fireEvent.pointerLeave(menu, { pointerType: "mouse" });
-    await act(async () => vi.advanceTimersByTimeAsync(199));
-    expect(screen.queryByRole("menu")).not.toBeNull();
-    await act(async () => vi.advanceTimersByTimeAsync(1));
-    expect(screen.queryByRole("menu")).toBeNull();
-    slot.lifecycle.unmount();
-  });
-
-  it("leaves focus where it was when the menu opens on hover", async () => {
-    const slot = await mount(undefined, { settings: { showRecent: false } });
     const composer = document.createElement("textarea");
     document.body.append(composer);
     composer.focus();
-    const button = snoozeButton(await rowOf(slot));
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    fireEvent.pointerEnter(button, { pointerType: "mouse" });
-    await act(async () => vi.advanceTimersByTimeAsync(500));
-    screen.getByRole("menu");
-    expect(document.activeElement).toBe(composer);
-    composer.remove();
-    slot.lifecycle.unmount();
+    try {
+      const button = snoozeButton(await rowOf(slot));
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      fireEvent.pointerEnter(button, { pointerType: "mouse" });
+      fireEvent.pointerLeave(button, { pointerType: "mouse" });
+      await act(async () => vi.advanceTimersByTimeAsync(500));
+      expect(screen.queryByRole("menu")).toBeNull();
+      fireEvent.pointerEnter(button, { pointerType: "mouse" });
+      await act(async () => vi.advanceTimersByTimeAsync(349));
+      expect(screen.queryByRole("menu")).toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      const menu = screen.getByRole("menu");
+      expect(document.activeElement).toBe(composer);
+      expect(button.getAttribute("data-state")).toBe("open");
+      expect(
+        within(menu)
+          .getAllByRole("menuitem")
+          .map((item) => item.textContent),
+      ).toEqual([
+        expect.stringMatching(/^30 minutes/),
+        expect.stringMatching(/^This weekend/),
+        "Custom…",
+      ]);
+      fireEvent.pointerLeave(button, { pointerType: "mouse" });
+      fireEvent.pointerEnter(menu, { pointerType: "mouse" });
+      await act(async () => vi.advanceTimersByTimeAsync(300));
+      expect(screen.queryByRole("menu")).not.toBeNull();
+      fireEvent.pointerLeave(menu, { pointerType: "mouse" });
+      await act(async () => vi.advanceTimersByTimeAsync(199));
+      expect(screen.queryByRole("menu")).not.toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(screen.queryByRole("menu")).toBeNull();
+      fireEvent.pointerEnter(button, { pointerType: "mouse" });
+      await act(async () => vi.advanceTimersByTimeAsync(350));
+      fireEvent.click(
+        within(screen.getByRole("menu")).getByRole("menuitem", {
+          name: /^30 minutes/,
+        }),
+      );
+      await act(async () => vi.advanceTimersByTimeAsync(300));
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(
+        slot.inspection.rpcCalls.find((call) => call.method === "snooze")
+          ?.input,
+      ).toMatchObject({ threadIds: ["root"] });
+    } finally {
+      composer.remove();
+      slot.lifecycle.unmount();
+    }
   });
 
   it("snoozes on click, and opens the menu from the keyboard with ArrowDown", async () => {
@@ -314,35 +298,22 @@ describe("row hover buttons", () => {
     slot.lifecycle.unmount();
   });
 
-  it.each([
-    ["Recent options", { showForYou: false }],
-    ["Sort workstreams", { showRecent: false }],
-  ] as const)("names the %s menu in a tooltip", async (name, settings) => {
-    const slot = await mount(undefined, { settings });
-    const target = await slot.findByRole("button", { name });
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    fireEvent.pointerMove(target, {
-      pointerType: "mouse",
+  it("names the view menus and archive action in hints", async () => {
+    const slot = await mountWithBands(undefined, {
+      settings: { showForYou: false },
     });
-    await act(async () => vi.advanceTimersByTimeAsync(500));
-    const tooltip = screen.getByRole("tooltip");
-    expect(tooltip.textContent).toBe(name);
-    slot.lifecycle.unmount();
-  });
-
-  it("names the archive button in a tooltip", async () => {
-    const slot = await mount(undefined, { settings: { showRecent: false } });
-    const row = await rowOf(slot);
+    const recent = await slot.findByRole("button", { name: "Recent options" });
+    const sort = slot.getByRole("button", { name: "Sort workstreams" });
+    const archive = within(await rowOf(slot)).getByRole("button", {
+      name: "Archive",
+    });
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    fireEvent.pointerMove(
-      within(row).getByRole("button", { name: "Archive" }),
-      {
-        pointerType: "mouse",
-      },
-    );
-    await act(async () => vi.advanceTimersByTimeAsync(500));
-    const tooltip = screen.getByRole("tooltip");
-    expect(tooltip.textContent).toBe("Archive");
+    for (const [target, name] of [
+      [recent, "Recent options"],
+      [sort, "Sort workstreams"],
+      [archive, "Archive"],
+    ] as const)
+      expect(await hintText(target)).toBe(name);
     slot.lifecycle.unmount();
   });
 });

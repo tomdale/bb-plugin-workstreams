@@ -1,3 +1,4 @@
+import { mountWithBands } from "./sidebar-fixture.tsx";
 // @vitest-environment jsdom
 import {
   cleanup,
@@ -39,7 +40,7 @@ describe("snoozing", () => {
   ];
 
   it("moves snoozed threads into a collapsed Snoozed fold", async () => {
-    const slot = await mount(
+    const slot = await mountWithBands(
       [
         ...threads(),
         sidebarThread("nap-child", {
@@ -97,7 +98,7 @@ describe("snoozing", () => {
   });
 
   it("hides snoozed threads without resurfacing them in other groups", async () => {
-    const slot = await mount(threads(), {
+    const slot = await mountWithBands(threads(), {
       settings: { showSnoozed: false },
       snoozes: { nap: { until: later(), attentionAt: 0, at: 0 } },
     });

@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import type { PluginBrowserBbSdk } from "@get-bb/plugin-sdk/app";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { deliveredCardRecord } from "../../../src/app/question/DeliveredQuestion.tsx";
-const app = await loadPluginApp(() => import("../../../src/app/index.tsx"));
+import {
+  deliveredCardRecord,
+  DeliveredQuestionCards,
+} from "../../../src/app/question/DeliveredQuestion.tsx";
 afterEach(cleanup);
 const result = {
   questions: [
@@ -30,10 +32,7 @@ it("replaces the delivered message's raw JSON with inline Q&A and restores host 
       </div>
     </div>,
   );
-  const overlay = renderSlot(
-    app.appOverlays.find((p) => p.id === "delivered-questions")!,
-    {},
-  );
+  const overlay = renderSlot({ component: DeliveredQuestionCards }, {});
   await waitFor(() =>
     expect(
       message.container.querySelector("[data-ws-question-history]"),
@@ -78,10 +77,7 @@ it("replaces BB's clipped generated-message preview with an expansion hint", asy
       </div>
     </div>,
   );
-  const overlay = renderSlot(
-    app.appOverlays.find((p) => p.id === "delivered-questions")!,
-    {},
-  );
+  const overlay = renderSlot({ component: DeliveredQuestionCards }, {});
   await waitFor(() =>
     expect(
       message.container.querySelector(".ws-delivered-question-preview"),
@@ -103,10 +99,7 @@ it("replaces direct text-node results as well as nested markup", async () => {
       <div>{raw}</div>
     </div>,
   );
-  const overlay = renderSlot(
-    app.appOverlays.find((p) => p.id === "delivered-questions")!,
-    {},
-  );
+  const overlay = renderSlot({ component: DeliveredQuestionCards }, {});
 
   await waitFor(() =>
     expect(
@@ -169,10 +162,7 @@ it.each([prefix, recoveredPrefix])(
       </div>,
     );
     for (let reload = 0; reload < 2; reload++) {
-      const overlay = renderSlot(
-        app.appOverlays.find((p) => p.id === "delivered-questions")!,
-        {},
-      );
+      const overlay = renderSlot({ component: DeliveredQuestionCards }, {});
       await waitFor(() =>
         expect(
           message.container.querySelectorAll("[data-ws-question-history]"),
@@ -217,10 +207,7 @@ it("keeps one answer when the original form and a delivery are both mounted, and
       </div>
     </div>,
   );
-  const overlay = renderSlot(
-    app.appOverlays.find((p) => p.id === "delivered-questions")!,
-    {},
-  );
+  const overlay = renderSlot({ component: DeliveredQuestionCards }, {});
   await waitFor(() =>
     expect(
       message.container.querySelector(".ws-delivered-question-duplicate"),
@@ -289,7 +276,7 @@ it("loads the exact retained event instead of reconstructing Markdown-altered or
     </div>,
   );
   const overlay = renderSlot(
-    app.appOverlays.find((p) => p.id === "delivered-questions")!,
+    { component: DeliveredQuestionCards },
     {},
     { sdk: { threads: { events: { list: read } } } },
   );
@@ -326,10 +313,7 @@ it("replaces only the delivery row inside a turn and leaves unrelated content vi
       </div>
     </div>,
   );
-  const overlay = renderSlot(
-    app.appOverlays.find((p) => p.id === "delivered-questions")!,
-    {},
-  );
+  const overlay = renderSlot({ component: DeliveredQuestionCards }, {});
   await waitFor(() =>
     expect(
       message.container.querySelector("[data-ws-question-history]"),

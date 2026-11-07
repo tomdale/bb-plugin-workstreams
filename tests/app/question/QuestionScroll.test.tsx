@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
+import { installTestPluginRuntime } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
-import { loadPluginApp } from "@get-bb/plugin-sdk/testing/app";
-import { questionResultRecord } from "../../../src/server/questions/history.ts";
 import { QuestionHistoryCard } from "../../../src/app/question/QuestionHistory.tsx";
+import { questionResultRecord } from "../../../src/server/questions/history.ts";
 
-await loadPluginApp(() => import("../../../src/app/index.tsx"));
+installTestPluginRuntime();
 afterEach(cleanup);
 
 function mountScroller(initialMax: number, initialTop: number) {

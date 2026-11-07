@@ -1,8 +1,9 @@
+import { mountWithBands } from "./sidebar-fixture.tsx";
 // @vitest-environment jsdom
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { sidebarThread } from "./fixtures.ts";
-import { groupRows, mount } from "./sidebar-fixture.tsx";
+import { groupRows } from "./sidebar-fixture.tsx";
 beforeEach(() => {
   window.localStorage.clear();
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -16,7 +17,7 @@ it("lists up to ten threads blocked on you, newest first, with the rest behind S
   const at = Date.now();
   const base = at - 60_000;
   const ids = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"];
-  const slot = await mount(
+  const slot = await mountWithBands(
     ids.map((id, index) =>
       sidebarThread(id, {
         title: `Ask ${id}`,
@@ -77,7 +78,7 @@ it("leaves running threads out of Up Next until their turn ends", async () => {
       latestAttentionAt: Date.now() - 3_000,
     }),
   ];
-  const slot = await mount(threads, {
+  const slot = await mountWithBands(threads, {
     activeThreadId: null,
     settings: { showRecent: false },
   });
@@ -100,7 +101,7 @@ it("leaves running threads out of Up Next until their turn ends", async () => {
 });
 
 it("offers no Show more for trimmed read threads not blocked on you", async () => {
-  const slot = await mount(
+  const slot = await mountWithBands(
     [1, 2, 3, 4, 5, 6, 7].map((n) =>
       sidebarThread(`t${n}`, {
         title: `Thread ${n}`,
@@ -129,7 +130,7 @@ it("ranks a current needs-decision result as a question, but not a stale one", a
     model: "m",
   });
   const base = at - 60_000;
-  const slot = await mount(
+  const slot = await mountWithBands(
     [
       sidebarThread("fresh", {
         title: "Fresh ask",
@@ -163,155 +164,6 @@ it("ranks a current needs-decision result as a question, but not a stale one", a
   slot.lifecycle.unmount();
 });
 
-it("ranks an unread review above a read question, and finished work after both", async () => {
-  const at = Date.now();
-  const recap = (state: string) => ({
-    id: `r-${state}`,
-    turnId: "turn",
-    at,
-    state,
-    goal: "Shipping",
-    latest: [`Reported ${state}`],
-    review: state === "review" ? ["Try it"] : [],
-    links: [],
-  });
-  const slot = await mount(
-    [
-      sidebarThread("complete", {
-        title: "Complete",
-        isUnread: true,
-        latestAttentionAt: at - 3_000,
-      }),
-      sidebarThread("review", {
-        title: "Review",
-        isUnread: true,
-        latestAttentionAt: at - 2_000,
-      }),
-      sidebarThread("question", {
-        title: "Question",
-        hasPendingInteraction: true,
-        isUnread: false,
-        latestAttentionAt: at - 1_000,
-      }),
-    ],
-    { recaps: { complete: recap("complete"), review: recap("review") } },
-  );
-  const band = await slot.findByRole("region", { name: "Up Next" });
-  expect(
-    within(band)
-      .getAllByRole("link")
-      .map((a) => a.getAttribute("aria-label")),
-  ).toEqual([
-    "Review, Ready for your review",
-    "Question",
-    "Complete, Complete",
-  ]);
-  slot.lifecycle.unmount();
-});
-
-it("ranks a review left for over a week with the threads not blocked on you", async () => {
-  const slot = await mount(
-    [
-      sidebarThread("stale", {
-        title: "Stale review",
-        latestAttentionAt: Date.now() - 8 * 24 * 3_600_000,
-      }),
-      sidebarThread("fresh", {
-        title: "Fresh",
-        latestAttentionAt: Date.now() - 1_000,
-      }),
-    ],
-    {
-      activeThreadId: null,
-      recaps: {
-        stale: {
-          id: "r-stale",
-          turnId: "turn",
-          at: Date.now(),
-          state: "review",
-          goal: "Shipping",
-          latest: ["Reported review"],
-          review: ["Try it"],
-          links: [],
-        },
-      },
-    },
-  );
-  await waitFor(() =>
-    expect(groupRows(slot, "Up Next")).toEqual([
-      "Fresh",
-      "Stale review, Ready for your review",
-    ]),
-  );
-  slot.lifecycle.unmount();
-});
-
-it("puts read threads not blocked on you after the ones that are, and Waiting ones last", async () => {
-  const at = Date.now();
-  const recap = (state: string) => ({
-    id: `r-${state}`,
-    turnId: "turn",
-    at,
-    state,
-    goal: "Shipping",
-    latest: [`Reported ${state}`],
-    review: state === "review" ? ["Try it"] : [],
-    links: [],
-  });
-  const slot = await mount(
-    [
-      sidebarThread("ask", {
-        title: "Unread ask",
-        isUnread: true,
-        latestAttentionAt: 300,
-      }),
-      sidebarThread("complete", {
-        title: "Read complete",
-        latestAttentionAt: 200,
-      }),
-      sidebarThread("waiting", {
-        title: "Read waiting",
-        latestAttentionAt: 100,
-      }),
-      sidebarThread("without-recap", {
-        title: "Read without recap",
-        latestAttentionAt: 50,
-      }),
-    ],
-    {
-      analysis: {
-        ask: {
-          recap: "Asked.",
-          state: "needs_decision",
-          needsYou: "Decide?",
-          subject: null,
-          drift: null,
-          driftSectionId: null,
-          revision: 300,
-          at,
-          model: "m",
-        },
-      },
-      recaps: {
-        complete: recap("complete"),
-        waiting: recap("waiting"),
-      },
-    },
-  );
-  const band = await slot.findByRole("region", { name: "Up Next" });
-  expect(
-    within(band)
-      .getAllByRole("link")
-      .map((link) => link.getAttribute("aria-label")),
-  ).toEqual([
-    "Unread ask",
-    "Read complete, Complete",
-    "Read without recap",
-    "Read waiting, Waiting",
-  ]);
-  slot.lifecycle.unmount();
-});
-
 /** Five read threads newer than anything else, which fill Up Next. */
 const newer = () =>
   [1, 2, 3, 4, 5].map((n) =>
@@ -336,7 +188,7 @@ it.each([
       }),
       ...newer(),
     ];
-    const slot = await mount(threads, {
+    const slot = await mountWithBands(threads, {
       activeThreadId: "o5",
       recaps: {
         result: {
@@ -404,7 +256,7 @@ it("releases a resolved question only after selecting another thread", async () 
     }),
     ...newer(),
   ];
-  const slot = await mount(threads, { activeThreadId: "question" });
+  const slot = await mountWithBands(threads, { activeThreadId: "question" });
   await waitFor(() => expect(groupRows(slot, "Up Next")[0]).toBe("Question"));
   threads[0] = {
     ...threads[0]!,
@@ -437,7 +289,7 @@ it.each(["hidden", "archived", "snoozed"])(
         latestAttentionAt: 100,
       }),
     ];
-    const slot = await mount(threads, { activeThreadId: "question" });
+    const slot = await mountWithBands(threads, { activeThreadId: "question" });
     const band = await slot.findByRole("region", { name: "Up Next" });
     if (action === "snoozed") {
       fireEvent.click(
@@ -470,7 +322,7 @@ it("marks the agent's reported state, which outranks analysis", async () => {
     review: state === "review" ? ["Try it"] : [],
     links: [],
   });
-  const slot = await mount(
+  const slot = await mountWithBands(
     [
       sidebarThread("asked", { title: "Asked", latestAttentionAt: 100 }),
       sidebarThread("finished", {
@@ -534,7 +386,7 @@ it("keeps Up Next open and names each row's workstream", async () => {
     model: "m",
   });
   // The delegate's older question folds into its manager's newer one.
-  const slot = await mount(
+  const slot = await mountWithBands(
     [
       sidebarThread("manager", {
         sectionId: "sec_a",

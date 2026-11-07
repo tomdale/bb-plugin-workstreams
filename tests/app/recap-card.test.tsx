@@ -1,14 +1,16 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { emptyState, sidebarThread } from "./fixtures.ts";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { RecapCard } from "../../src/app/composer/RecapCard.tsx";
 import {
   recapInputSchema,
   recapSchema,
   toRecap,
   type RecapFiles,
 } from "../../src/domain/recap.ts";
+import { emptyState, sidebarThread } from "./fixtures.ts";
+import { hintText } from "./hints.ts";
 
 const interactionOverride = vi.hoisted(() => ({
   value: null as boolean | null,
@@ -161,9 +163,7 @@ async function mount(
     agents?: (input: { threadIds: string[] }) => { agents: unknown[] };
   } = {},
 ) {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  const banner = app.composerCustomizations.find((c) => c.id === "recap")!
-    .banners![0]!;
+  const banner = { component: RecapCard };
   let recap =
     options.recap === null
       ? null
@@ -1332,32 +1332,28 @@ it("colors hash digits and letters from settings", async () => {
 });
 
 it("shows full sentence-case action labels and sends each message", async () => {
-  const slot = await mount({
-    recap: { next: ["Run the full test suite", "Open a pull request"] },
-  });
+  const messages = ["Run the full test suite", "Open a pull request"];
+  const slot = await mount({ recap: { next: messages } });
   const region = await slot.findByRole("region", { name: "Latest recap" });
   const list = slot.getByRole("list", { name: "Next actions" });
   expect(region.contains(list)).toBe(true);
-  expect(
-    slot.getByRole("button", { name: "Run the full test suite" }).textContent,
-  ).toBe("Run the full test suite");
-  expect(list.textContent).toContain("Run the full test suite");
-  expect(list.textContent).toContain("Open a pull request");
   expect(slot.queryByRole("button", { name: "Archive" })).toBeNull();
-  fireEvent.click(slot.getByRole("button", { name: "Open a pull request" }));
-  await waitFor(() =>
-    expect(slot.inspection.rpcCalls).toContainEqual({
-      method: "recap_send",
-      input: {
-        threadId: "t1",
-        recapId,
-        action: "Open a pull request",
-      },
-    }),
-  );
+  for (const message of messages) {
+    const button = slot.getByRole("button", { name: message });
+    expect(button.textContent).toBe(message);
+    expect(list.textContent).toContain(message);
+    await waitFor(() => expect(button).toHaveProperty("disabled", false));
+    fireEvent.click(button);
+    await waitFor(() =>
+      expect(slot.inspection.rpcCalls).toContainEqual({
+        method: "recap_send",
+        input: { threadId: "t1", recapId, action: message },
+      }),
+    );
+  }
   expect(
-    slot.inspection.rpcCalls.find((c) => c.method === "recap_send")?.input,
-  ).toMatchObject({ action: "Open a pull request" });
+    slot.inspection.rpcCalls.filter((call) => call.method === "recap_send"),
+  ).toHaveLength(2);
 });
 
 it("Shift-clicks a suggested action into the composer without sending", async () => {
@@ -1384,24 +1380,7 @@ it("Shift-clicks a suggested action into the composer without sending", async ()
   ).toBe(false);
 });
 
-it("sends a suggested action on an ordinary click", async () => {
-  const slot = await mount({ recap: { next: ["Run the full test suite"] } });
-  fireEvent.click(
-    await slot.findByRole("button", { name: "Run the full test suite" }),
-  );
-  await waitFor(() =>
-    expect(slot.inspection.rpcCalls).toContainEqual({
-      method: "recap_send",
-      input: {
-        threadId: "t1",
-        recapId,
-        action: "Run the full test suite",
-      },
-    }),
-  );
-});
-
-it("shows a short sentence-case action label with neutral styling", async () => {
+it("styles action labels neutrally and explains described, plain, and titled actions in hints", async () => {
   stubResizeObserver();
   const slot = await mount({
     recap: {
@@ -1411,6 +1390,8 @@ it("shows a short sentence-case action label with neutral styling", async () => 
           message: "Run the full test suite and summarize failures",
           description: "Check for regressions before shipping",
         },
+        "Summarize changes",
+        { title: "Inspect changes", message: "Inspect the final changes" },
       ],
     },
   });
@@ -1423,18 +1404,22 @@ it("shows a short sentence-case action label with neutral styling", async () => 
   expect(button.className).toContain("bg-transparent");
   expect(button.getAttribute("aria-description")).toBeNull();
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  fireEvent.pointerMove(button, {
-    pointerType: "mouse",
-    pointerX: 1,
-    pointerY: 1,
-  });
+  fireEvent.pointerMove(button, { pointerType: "mouse" });
   await act(async () => vi.advanceTimersByTimeAsync(500));
-  vi.useRealTimers();
   const hint = slot.getByRole("tooltip");
   expect(hint.textContent).toContain("Check for regressions before shipping");
   expect(hint.textContent).toContain("Click to send");
   expect(hint.textContent).toContain("click to edit");
   expect(hint.querySelector('kbd[aria-label="Shift"]')).toBeTruthy();
+  fireEvent.pointerLeave(button, { pointerType: "mouse" });
+  await act(async () => vi.advanceTimersByTimeAsync(200));
+  expect(
+    await hintText(slot.getByRole("button", { name: "Summarize changes" })),
+  ).toBe("Click to send\u00b7\u21e7click to edit");
+  expect(
+    await hintText(slot.getByRole("button", { name: "Inspect changes" })),
+  ).toContain("Inspect the final changes");
+  vi.useRealTimers();
   fireEvent.click(button);
   await waitFor(() =>
     expect(slot.inspection.rpcCalls).toContainEqual({
@@ -1446,40 +1431,6 @@ it("shows a short sentence-case action label with neutral styling", async () => 
       },
     }),
   );
-});
-
-it("teaches click and Shift-click on an action without a description", async () => {
-  stubResizeObserver();
-  const slot = await mount({ recap: { next: ["Summarize changes"] } });
-  const button = await slot.findByRole("button", { name: "Summarize changes" });
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  fireEvent.pointerMove(button, {
-    pointerType: "mouse",
-    pointerX: 1,
-    pointerY: 1,
-  });
-  await act(async () => vi.advanceTimersByTimeAsync(500));
-  const hint = slot.getByRole("tooltip");
-  expect(hint.textContent).toBe("Click to send\u00b7\u21e7click to edit");
-});
-
-it("explains a titled action without a description by the message it sends", async () => {
-  stubResizeObserver();
-  const slot = await mount({
-    recap: {
-      next: [{ title: "Run tests", message: "Run the full test suite" }],
-    },
-  });
-  const button = await slot.findByRole("button", { name: "Run tests" });
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  fireEvent.pointerMove(button, {
-    pointerType: "mouse",
-    pointerX: 1,
-    pointerY: 1,
-  });
-  await act(async () => vi.advanceTimersByTimeAsync(500));
-  const hint = slot.getByRole("tooltip");
-  expect(hint.textContent).toContain("Run the full test suite");
 });
 
 it("edits an overflow action into the composer while Shift is held", async () => {

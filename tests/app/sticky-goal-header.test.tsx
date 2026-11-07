@@ -1,18 +1,19 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it, vi } from "vitest";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, waitFor } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { emptyState, sidebarThread } from "./fixtures.ts";
+import { afterEach, expect, it, vi } from "vitest";
 import {
   SUBTITLE_LINE,
   SUBTITLE_SIZE,
-  headingHeight,
   headingBackdropOpacity,
+  headingHeight,
   headingOpacity,
   headingScroll,
   titleExitDistance,
 } from "../../src/app/goalHeading.ts";
+import { StickyGoalHeader } from "../../src/app/StickyGoalHeader.tsx";
 import { parsePrefs } from "../../src/domain/prefs.ts";
+import { emptyState, sidebarThread } from "./fixtures.ts";
 
 afterEach(() => {
   cleanup();
@@ -68,10 +69,7 @@ async function mountHeading(
   goal: string | null = null,
 ) {
   stubResizeObserver();
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  const heading = app.appOverlays.find(
-    (overlay) => overlay.id === "sticky-thread-goal",
-  )!;
+  const heading = { component: StickyGoalHeader };
   return renderSlot(
     heading,
     {},

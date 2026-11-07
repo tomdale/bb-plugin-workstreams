@@ -1,11 +1,12 @@
 // Mounts the phone Home section the way BB does: a `homepageSection` slot
 // inside BB's compact home scroll viewport, with a mocked thread list and
 // plugin state.
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type {
   PluginSidebarSection,
   PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { HomeSection } from "../../src/app/home/HomeSection.tsx";
 import type { TopicState } from "../../src/domain/topics.ts";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 
@@ -72,10 +73,7 @@ function prefsResponse(prefs: SidebarPrefs = {}) {
 }
 
 export async function mountHome(options: HomeOptions = {}) {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  const registration = app.homepageSections[0];
-  if (!registration) throw new Error("No homepage section registered");
-  const Section = registration.component;
+  const Section = HomeSection;
   const compact = options.placement !== "bare";
   const threads = options.threads ?? [];
   function Mounted() {
@@ -83,7 +81,7 @@ export async function mountHome(options: HomeOptions = {}) {
       <div data-testid="root-compose-compact-scroll-viewport">
         <div data-testid="plugin-homepage-sections">
           <section>
-            <h2>{registration!.title}</h2>
+            <h2>Workstreams</h2>
             <div data-bb-plugin-root="">
               <Section projectId={null} />
             </div>

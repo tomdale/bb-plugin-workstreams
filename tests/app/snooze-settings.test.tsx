@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import {
   cleanup,
   fireEvent,
@@ -7,15 +7,16 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { emptyState } from "./fixtures.ts";
+import { afterEach, expect, it } from "vitest";
+import { SnoozeSettings } from "../../src/app/snooze/SnoozeSettings.tsx";
 import {
   DEFAULT_SNOOZE_PREFS,
   applySnoozePrefsPatch,
-  type SnoozePreset,
   type SnoozePrefs,
   type SnoozePrefsPatch,
+  type SnoozePreset,
 } from "../../src/domain/snooze.ts";
+import { emptyState } from "./fixtures.ts";
 import { chooseOption } from "./select.ts";
 
 afterEach(cleanup);
@@ -25,8 +26,7 @@ async function mount(
   { failRead = false } = {},
 ) {
   let prefs = initial;
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  const section = app.settingsSections.find((s) => s.id === "snooze")!;
+  const section = { component: SnoozeSettings };
   return renderSlot(
     section,
     {},

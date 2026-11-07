@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it, vi } from "vitest";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import {
   act,
   cleanup,
@@ -7,7 +7,8 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { afterEach, expect, it, vi } from "vitest";
+import { ActivityView } from "./activity-mount.tsx";
 import { emptyState } from "./fixtures.ts";
 import { chooseOption } from "./select.ts";
 
@@ -42,10 +43,9 @@ const entry = {
   traceIds: [],
 };
 async function page(rpc: Record<string, unknown>) {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   return renderSlot(
-    app.navPanels[0]!,
-    { subPath: "debug" },
+    { component: ActivityView },
+    {},
     {
       settings: {},
       rpc: {
@@ -180,9 +180,16 @@ it("filters internal calls, exposes metadata and event internals, and opens the 
 
 it("loads older calls with a stable cursor and refreshes loaded history without duplicates", async () => {
   const first = Array.from({ length: 100 }, (_, i) => trace(`call-${i}`));
+  let refreshed = false;
   const traces = vi.fn(
     ({ before }: { before?: { at: number; id: string } }) => ({
-      traces: before ? [trace("older")] : first,
+      traces: before
+        ? [trace("older")]
+        : first.map((call, index) =>
+            refreshed && index === 0
+              ? { ...call, label: "Refreshed call" }
+              : call,
+          ),
     }),
   );
   const slot = await page({ traces });
@@ -197,8 +204,9 @@ it("loads older calls with a stable cursor and refreshes loaded history without 
   expect(
     slot.queryByText("Load older model calls", { selector: "button" }),
   ).toBeNull();
+  refreshed = true;
   await slot.behavior.emitRealtime("changed", {});
-  await waitFor(() => expect(traces).toHaveBeenCalledTimes(5));
+  await slot.findByText("Refreshed call");
   expect(slot.container.querySelectorAll("li")).toHaveLength(102);
   expect(slot.getByText("101 model calls shown · $1.0100")).toBeTruthy();
 }, 15000);

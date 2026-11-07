@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { emptyState } from "./fixtures.ts";
-import { COMPONENT_NAMES } from "../../src/domain/replyExamples.ts";
-import type { ReplyPart } from "../../src/domain/replyComponents.ts";
-import { parse } from "../../src/domain/reply.ts";
-import { onlyReplyBlock } from "../../src/domain/replyText.ts";
+import { afterEach, expect, it } from "vitest";
 import { SPECIMENS } from "../../src/app/page/gallery.ts";
+import { WorkstreamsPage } from "../../src/app/page/Page.tsx";
+import { parse } from "../../src/domain/reply.ts";
+import type { ReplyPart } from "../../src/domain/replyComponents.ts";
+import { COMPONENT_NAMES } from "../../src/domain/replyExamples.ts";
+import { onlyReplyBlock } from "../../src/domain/replyText.ts";
+import { emptyState } from "./fixtures.ts";
 
 afterEach(cleanup);
 
@@ -42,9 +43,8 @@ it("parses every specimen, apart from the part it means to reject", () => {
 });
 
 async function mount(subPath = "gallery") {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   return renderSlot(
-    app.navPanels[0]!,
+    { component: WorkstreamsPage },
     { subPath },
     {
       sidebarThreads: {
@@ -54,10 +54,10 @@ async function mount(subPath = "gallery") {
         projects: [],
       },
       rpc: {
-      state: () => emptyState(),
-      recapPrefs: () => ({ prefs: {} }),
-      recapFiles: () => ({ files: {} }),
-    },
+        state: () => emptyState(),
+        recapPrefs: () => ({ prefs: {} }),
+        recapFiles: () => ({ files: {} }),
+      },
     },
   );
 }

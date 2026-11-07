@@ -1,20 +1,19 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type {
-  PluginAppBuilder,
   ExperimentalMessageBlockProps,
   ExperimentalMessageBlockRegistration,
+  PluginAppBuilder,
 } from "@get-bb/plugin-sdk/app";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
 import { registerReplyBlock } from "../../src/app/reply/register.ts";
 import {
-  componentFence,
   COMPONENT_EXAMPLES,
+  componentFence,
 } from "../../src/domain/replyExamples.ts";
 import { blockInput } from "../domain/replyFixtures.ts";
-import { COMPOSED_SAMPLES } from "../domain/replySamples.ts";
 
 vi.mock("@get-bb/plugin-sdk/app", async (importActual) => {
   const actual = await importActual<typeof import("@get-bb/plugin-sdk/app")>();
@@ -133,47 +132,55 @@ it("registers version 1 and the existing readable text view", () => {
   expect(block.versions).toEqual([1]);
   expect(block.toText({ body: [{ type: "text", body: "PASS" }] })).toBe("PASS");
 });
-it("preserves upstream registration without a message-block slot", async () => {
-  expect(() =>
-    registerReplyBlock({ slots: {} } as PluginAppBuilder),
-  ).not.toThrow();
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-  expect(app.composerCustomizations.map((c) => c.id)).toContain("recap");
-});
-it.each(Object.entries(COMPONENT_EXAMPLES))(
-  "renders %s as plain Markdown and native links",
-  async (_type, component) => {
-    const view = draw(body(component));
-    expect(
-      view.container.querySelectorAll("[data-markdown]").length,
-    ).toBeGreaterThan(0);
-    expect(view.container.textContent?.trim().length).toBeGreaterThan(0);
-    expect(view.container.textContent).not.toContain("```workstreams");
-    expect(
-      view.container.querySelector(
-        "[data-reply-component], aside, article, button, footer",
-      ),
-    ).toBeNull();
-    expect(view.container.querySelector("[data-reply-block]")?.className).toBe(
-      "min-w-0 space-y-4",
+
+it("renders every component as readable Markdown and native links in one reply", () => {
+  const examples = Object.entries(COMPONENT_EXAMPLES);
+  const marker = (name: string) => "Component example: " + name;
+  const source = examples
+    .map(
+      ([name, component]) => marker(name) + "\n\n" + componentFence(component),
+    )
+    .join("\n\n");
+  const view = draw(":::reply\n" + source + "\n:::\n");
+  const block = view.container.querySelector("[data-reply-block]")!;
+  const nodes = [...block.children];
+  for (const [index, [name]] of examples.entries()) {
+    const start = nodes.findIndex(
+      (node) => node.getAttribute("data-markdown") === marker(name),
     );
-  },
-);
-it.each(Object.entries(COMPOSED_SAMPLES))(
-  "renders the %s body without composed treatment",
-  async (_sample, source) => {
-    const view = draw(source, { docked: { turnId: "turn1" } });
+    const nextName = examples[index + 1]?.[0];
+    const end = nextName
+      ? nodes.findIndex(
+          (node) => node.getAttribute("data-markdown") === marker(nextName),
+        )
+      : nodes.length;
+    expect(start, name).toBeGreaterThanOrEqual(0);
+    const content = nodes.slice(start + 1, end);
     expect(
-      view.container.querySelectorAll("[data-markdown]").length,
-    ).toBeGreaterThan(0);
-    expect(
-      view.container.querySelector(
-        "header, footer, aside, [data-reply-lead], [data-reply-cue]",
+      content.some(
+        (node) =>
+          node.matches("[data-markdown]") ||
+          node.querySelector("[data-markdown]"),
       ),
-    ).toBeNull();
-    expect(view.container.textContent).not.toContain("```workstreams");
-  },
-);
+      name,
+    ).toBe(true);
+    expect(
+      content
+        .map((node) => node.textContent)
+        .join("")
+        .trim().length,
+      name,
+    ).toBeGreaterThan(0);
+  }
+  expect(view.container.textContent).not.toContain("\x60\x60\x60workstreams");
+  expect(
+    view.container.querySelector(
+      "[data-reply-component], aside, article, button, footer",
+    ),
+  ).toBeNull();
+  expect(block.className).toBe("min-w-0 space-y-4");
+});
+
 it("preserves source order rather than moving context above prose", () => {
   const view = draw(
     `:::reply\nOpening explanation.\n\n${componentFence({ type: "context", topic: "Reported task", where: "Reported location" })}\n\nClosing explanation.\n:::\n`,

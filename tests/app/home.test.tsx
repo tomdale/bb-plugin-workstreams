@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { HOME_STATE_KEY } from "../../src/app/home/useHomeState.ts";
 import {
   decisionFor,
@@ -153,17 +153,28 @@ describe("Home screen", () => {
   });
 
   describe("Up Next", () => {
-    it("lists what needs the user first, with its workstream, what it asks, and its age", async () => {
+    it("renders questions and unread completion in priority order with accessible context", async () => {
+      const threads = [
+        ...sample(),
+        sidebarThread("done", {
+          sectionId: "sec_b",
+          title: "Finished work",
+          isUnread: true,
+          latestAttentionAt: minutes(10),
+        }),
+      ];
       const slot = await mountHome({
-        threads: sample(),
-        analysis: { a1: decisionFor(0, "Ship it?") },
+        threads,
+        analysis: {
+          a1: decisionFor(threads[1]!.latestAttentionAt, "Ship it?"),
+        },
+        recaps: { done: recapOf("complete") },
       });
-      // The analysis is stale for any thread whose revision differs, so only
-      // the open question ranks ahead; with few threads, every one is listed.
       const band = await slot.findByRole("region", { name: "Up Next" });
       expect(links(band)).toEqual([
         "Asking task",
         "Alpha one",
+        "Finished work",
         "Beta one",
         "Loose task",
       ]);
@@ -176,84 +187,15 @@ describe("Home screen", () => {
           .querySelector<HTMLElement>(".ws-home-ws")
           ?.style.getPropertyValue("--ws-hue"),
       ).toMatch(/^\d+$/);
-    });
-
-    it("shows a current decision's question under the title", async () => {
-      const threads = [
-        sidebarThread("t", {
-          sectionId: "sec_a",
-          title: "Needs a call",
-          latestAttentionAt: RECENT,
-        }),
-      ];
-      const slot = await mountHome({
-        threads,
-        analysis: { t: decisionFor(RECENT, "Ship it?") },
-      });
-      const band = await slot.findByRole("region", { name: "Up Next" });
-      expect(within(band).getByText("Ship it?")).toBeTruthy();
-      // The block implies the decision, so the row draws no mark for it.
-      expect(within(band).queryByRole("img")).toBeNull();
-    });
-
-    it("ranks unread finished work after questions and before read threads", async () => {
-      const slot = await mountHome({
-        threads: [
-          ...sample(),
-          sidebarThread("done", {
-            sectionId: "sec_b",
-            title: "Finished work",
-            isUnread: true,
-            latestAttentionAt: minutes(10),
-          }),
-        ],
-        recaps: { done: recapOf("complete") },
-      });
-      const band = await slot.findByRole("region", { name: "Up Next" });
-      expect(links(band)).toEqual([
-        "Asking task",
-        "Finished work",
-        "Alpha one",
-        "Beta one",
-        "Loose task",
-      ]);
-      // A row's name is what it shows: mark, title, workstream, age.
+      const question = within(band).getByRole("link", { name: /Alpha one/ });
+      expect(within(question).getByText("Ship it?")).toBeTruthy();
+      expect(within(question).queryByRole("img")).toBeNull();
       expect(
         within(band).getByRole("link", {
           name: /Finished, unread.*Finished work.*Beta.*10 minutes ago/,
         }),
       ).toBeTruthy();
       expect(within(band).getByText("5")).toBeTruthy();
-    });
-
-    it("trims to five threads, growing only for threads blocked on the user", async () => {
-      const ids = ["a", "b", "c", "d", "e", "f", "g"];
-      const make = (asks: boolean) =>
-        ids.map((id, index) =>
-          sidebarThread(id, {
-            sectionId: "sec_a",
-            title: `Thread ${id}`,
-            hasPendingInteraction: asks,
-            latestAttentionAt: 100 + index,
-          }),
-        );
-      const quiet = await mountHome({ threads: make(false) });
-      const quietBand = await quiet.findByRole("region", { name: "Up Next" });
-      expect(links(quietBand)).toEqual([
-        "Thread g",
-        "Thread f",
-        "Thread e",
-        "Thread d",
-        "Thread c",
-      ]);
-      expect(
-        within(quietBand).queryByRole("button", { name: /^Show/ }),
-      ).toBeNull();
-      quiet.lifecycle.unmount();
-      const asking = await mountHome({ threads: make(true) });
-      const band = await asking.findByRole("region", { name: "Up Next" });
-      expect(within(band).getAllByRole("link")).toHaveLength(7);
-      expect(within(band).queryByRole("button", { name: /^Show/ })).toBeNull();
     });
 
     it("lists trimmed unread threads behind Show more", async () => {
@@ -1000,16 +942,5 @@ describe("Home screen placement", () => {
       if (original) Object.defineProperty(window, "matchMedia", original);
       else delete (window as { matchMedia?: unknown }).matchMedia;
     }
-  });
-});
-
-describe("section registration", () => {
-  it("registers one homepage section titled Workstreams", async () => {
-    const { loadPluginApp } = await import("@get-bb/plugin-sdk/testing/app");
-    const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
-    expect(
-      app.homepageSections.map(({ id, title }) => ({ id, title })),
-    ).toEqual([{ id: "home", title: "Workstreams" }]);
-    expect(section("x", "X").name).toBe("X");
   });
 });

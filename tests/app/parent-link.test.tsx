@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
-import { cleanup, fireEvent } from "@testing-library/react";
-import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { cleanup, fireEvent } from "@testing-library/react";
+import { afterEach, expect, it } from "vitest";
+import { ParentThreadLink } from "../../src/app/header/ParentLink.tsx";
 import { sidebarThread } from "./fixtures.ts";
 
 afterEach(cleanup);
@@ -21,9 +22,8 @@ async function mount({
   compact?: boolean;
   threads?: PluginSidebarThread[];
 } = {}) {
-  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   return renderSlot(
-    app.threadHeaderActions.find((action) => action.id === "parent-thread")!,
+    { component: ParentThreadLink },
     { threadId: "child", projectId: "proj_1", isCompactViewport: compact },
     {
       settings: {},

@@ -1,14 +1,9 @@
+import { mountWithBands } from "./sidebar-fixture.tsx";
 // @vitest-environment jsdom
-import {
-  act,
-  cleanup,
-  fireEvent,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sidebarThread } from "./fixtures.ts";
+import { hintText } from "./hints.ts";
 import { groupRows, mount } from "./sidebar-fixture.tsx";
 beforeEach(() => {
   window.localStorage.clear();
@@ -58,55 +53,44 @@ describe("focused workstreams", () => {
     slot.lifecycle.unmount();
   });
 
-  it.each([
-    ["Focus on Alpha", "Focus"],
-    ["New work in Alpha", "New work in Alpha"],
-  ])("names the header's %s button in a tooltip", async (name, label) => {
+  it("names the header's focus and new-work actions in hints", async () => {
     const slot = await mount(
       [sidebarThread("a1", { sectionId: "sec_a", title: "Alpha task" })],
       { activeThreadId: null, settings: { showForYou: false } },
     );
-    const target = await slot.findByRole("button", { name });
+    const focus = await slot.findByRole("button", { name: "Focus on Alpha" });
+    const newWork = slot.getByRole("button", { name: "New work in Alpha" });
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    fireEvent.pointerMove(target, {
-      pointerType: "mouse",
-    });
-    await act(async () => vi.advanceTimersByTimeAsync(500));
-    const tooltip = screen.getByRole("tooltip");
-    expect(tooltip.textContent).toBe(label);
+    expect(await hintText(focus)).toBe("Focus");
+    expect(await hintText(newWork)).toBe("New work in Alpha");
     slot.lifecycle.unmount();
   });
 
-  it.each([
-    ["button", "Stop focusing on Zeta", "Stop focusing"],
-    ["img", "Showing focused workstreams", "Showing focused workstreams"],
-  ] as const)(
-    "names the focused %s %s in a tooltip",
-    async (role, name, label) => {
-      const slot = await mount(
-        [
-          sidebarThread("z1", {
-            sectionId: "sec_z",
-            title: "Ask z1",
-            hasPendingInteraction: true,
-          }),
-        ],
-        {
-          activeThreadId: null,
-          order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
-        },
-      );
-      const target = await slot.findByRole(role, { name });
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-      fireEvent.pointerMove(target, {
-        pointerType: "mouse",
-      });
-      await act(async () => vi.advanceTimersByTimeAsync(500));
-      const tooltip = screen.getByRole("tooltip");
-      expect(tooltip.textContent).toBe(label);
-      slot.lifecycle.unmount();
-    },
-  );
+  it("names both the focused-workstream action and indicator in hints", async () => {
+    const slot = await mountWithBands(
+      [
+        sidebarThread("z1", {
+          sectionId: "sec_z",
+          title: "Ask z1",
+          hasPendingInteraction: true,
+        }),
+      ],
+      {
+        activeThreadId: null,
+        order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
+      },
+    );
+    const action = await slot.findByRole("button", {
+      name: "Stop focusing on Zeta",
+    });
+    const indicator = slot.getByRole("img", {
+      name: "Showing focused workstreams",
+    });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    expect(await hintText(action)).toBe("Stop focusing");
+    expect(await hintText(indicator)).toBe("Showing focused workstreams");
+    slot.lifecycle.unmount();
+  });
 
   it("shows only focused workstreams' threads in Up Next while one is blocked on you", async () => {
     const recaps = {
@@ -121,7 +105,7 @@ describe("focused workstreams", () => {
         links: [],
       },
     };
-    const slot = await mount(
+    const slot = await mountWithBands(
       [
         asking("a1", "sec_a", 300),
         asking("b1", "sec_b", 200),
@@ -181,7 +165,7 @@ describe("focused workstreams", () => {
     // With nothing in a focused workstream blocked on you, Up Next shows
     // every workstream.
     slot.lifecycle.unmount();
-    const unfocused = await mount(
+    const unfocused = await mountWithBands(
       [
         asking("a1", "sec_a", 300),
         asking("b1", "sec_b", 200),
@@ -322,7 +306,7 @@ describe("focused workstreams", () => {
         latestAttentionAt: 50,
       }),
     ];
-    const slot = await mount(threads, {
+    const slot = await mountWithBands(threads, {
       activeThreadId: "a1",
       order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
     });
@@ -358,7 +342,7 @@ describe("focused workstreams", () => {
     });
     try {
       const threads = [asking("a1", "sec_a", 100)];
-      const slot = await mount(threads, {
+      const slot = await mountWithBands(threads, {
         activeThreadId: null,
         order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
       });
