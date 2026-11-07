@@ -1,5 +1,6 @@
 import type { CategoryGeneration } from "./categories.ts";
 import type { LayoutNode } from "./layout.ts";
+import type { TopicColor } from "./workstreamColor.ts";
 
 export type Topic = {
   id: string;
@@ -42,6 +43,8 @@ export type TopicState = {
   /** The groups the organizer last applied (see `layoutGroups`). */
   layout?: readonly LayoutNode[];
   categories?: { [topicId: string]: CategoryGeneration };
+  /** Persistent colors for topics that have had a workstream. */
+  colors?: Record<string, TopicColor>;
 };
 
 type DraftAncestor = {

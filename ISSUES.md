@@ -51,11 +51,11 @@ checkout, at most 12 per topic.
 ### User-selected colors
 
 **Evidence:** `src/domain/spinner.ts`, `src/app/settings/SpinnerSettings.tsx`,
-and `src/domain/workstreamHue.ts`.
+and `src/domain/workstreamColor.ts`.
 
 Custom colors accept any valid hex value, including low-contrast choices.
-Workstream hues are stable hashes, not a perceptually spaced palette; two
-workstreams can have similar hues. Labels and status text remain necessary;
+Workstream colors are allocated from a finite palette; a large family or many
+workstreams can produce similar colors. Labels and status text remain necessary;
 color is not an identity or status guarantee.
 
 ### Best-effort redaction

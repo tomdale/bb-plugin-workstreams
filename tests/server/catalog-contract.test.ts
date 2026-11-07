@@ -34,6 +34,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
     )) as TopicState;
     expect(cat.revision).toBeGreaterThanOrEqual(1);
     expect(cat.entities.some((e) => e.id === entity.id)).toBe(true);
+    expect(cat.colors?.[entity.id]).toBeUndefined();
 
     // Creating a topic no thread has creates no workstream.
     expect(w.sections).toHaveLength(0);
@@ -66,6 +67,16 @@ describe("Catalog and Task Identity RPC Contract", () => {
     await w.harness.behavior.callRpc("organization", { action: "rebuild" });
     const engineering = w.sections.find((s) => s.name === "Engineering")!;
     expect(w.threads.get("t-task")?.sectionId).toBe(engineering.id);
+    const catalog = (await w.harness.behavior.callRpc(
+      "catalog",
+      null,
+    )) as TopicState;
+    const state = (await w.harness.behavior.callRpc("state", null)) as {
+      catalog: TopicState;
+    };
+    expect(catalog.colors?.[eng.id]).toBeDefined();
+    expect(state.catalog.colors?.[eng.id]).toEqual(catalog.colors?.[eng.id]);
+    expect(state.catalog.groups[engineering.id]).toBe(eng.id);
 
     // No topic, set yourself, leaves it Unfiled.
     const cleared = (await w.harness.behavior.callRpc("taskAssign", {

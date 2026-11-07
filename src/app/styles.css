@@ -520,7 +520,7 @@
 [data-ws-hide-title] .bb-thread-title {
   display: none;
 }
-/* Each workstream's identity color comes from its hue (workstreamHue). */
+/* Workstream identity colors come from the topic allocation. */
 .ws-sticky-goal__workstream {
   position: absolute;
   top: 0;
@@ -532,40 +532,40 @@
   max-width: 100%;
   align-items: center;
   gap: 0.2em;
-  color: oklch(46% 0.16 var(--ws-hue, 250));
+  color: var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)));
   font-weight: 550;
   letter-spacing: 0.01em;
   line-height: 1.2;
   white-space: nowrap;
 }
 .dark .ws-sticky-goal__workstream {
-  color: oklch(79% 0.13 var(--ws-hue, 250));
+  color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
 }
 /* The queue's workstream line, in the same identity color. */
 .ws-queue-path {
-  color: oklch(46% 0.16 var(--ws-hue, 250));
+  color: var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)));
 }
 .dark .ws-queue-path {
-  color: oklch(79% 0.13 var(--ws-hue, 250));
+  color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
 }
 /* A category inherits its workstream hue, tempered by the theme's muted ink. */
 .ws-workstream-name {
-  color: oklch(46% 0.16 var(--ws-hue, 250));
+  color: var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)));
 }
 .ws-category-label {
   color: color-mix(
     in oklab,
-    oklch(46% 0.16 var(--ws-hue, 250)) 70%,
+    var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250))) 70%,
     var(--muted-foreground)
   );
 }
 .dark .ws-workstream-name {
-  color: oklch(79% 0.13 var(--ws-hue, 250));
+  color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
 }
 .dark .ws-category-label {
   color: color-mix(
     in oklab,
-    oklch(79% 0.13 var(--ws-hue, 250)) 70%,
+    var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250))) 70%,
     var(--muted-foreground)
   );
 }

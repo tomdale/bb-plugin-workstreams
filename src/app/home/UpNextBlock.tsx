@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import type { Row } from "../../domain/project.ts";
+import type { TopicColor } from "../../domain/workstreamColor.ts";
 import type { WorkView } from "../useWorkstreams.ts";
 import { hasStatusMark } from "../sidebar/Row.tsx";
 import { FocusIcon } from "../sidebar/FocusIcon.tsx";
@@ -26,9 +27,10 @@ export function UpNextBlock({
   /** Focus left other workstreams' threads out. */
   focused: boolean;
   work: (thread: PluginSidebarThread) => WorkView;
-  workstreamOf: (
-    row: Row<PluginSidebarThread>,
-  ) => { name: string; hue: number } | null;
+  workstreamOf: (row: Row<PluginSidebarThread>) => {
+    name: string;
+    color: TopicColor;
+  } | null;
   now: number;
   showAge: boolean;
 }) {

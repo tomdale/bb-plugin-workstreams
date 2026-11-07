@@ -203,10 +203,10 @@ section:has(> [data-bb-plugin-root] > [data-ws-home="hidden"]) {
   align-items: center;
   gap: 4px;
   font-weight: 500;
-  color: oklch(46% 0.16 var(--ws-hue, 250));
+  color: var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)));
 }
 .dark .ws-home-ws {
-  color: oklch(79% 0.13 var(--ws-hue, 250));
+  color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
 }
 .ws-home-ws-icon {
   width: 14px;
@@ -391,7 +391,7 @@ section:has(> [data-bb-plugin-root] > [data-ws-home="hidden"]) {
   height: 8px;
   flex: none;
   border-radius: 50%;
-  background: oklch(64% 0.15 var(--ws-hue, 250));
+  background: var(--ws-color-dot, oklch(64% 0.15 var(--ws-hue, 250)));
 }
 /* Collections that are not workstreams (Unfiled, Dormant, Snoozed) keep the
    dot's place with a hollow ring, so every name starts at the same edge. */

@@ -5,7 +5,10 @@ import { UNSORTED_ID, type Group, type Row } from "../../domain/project.ts";
 import { categoryRows } from "../../domain/categoryRows.ts";
 import type { WorkstreamNode } from "../../domain/groups.ts";
 import { shortWake, type ThreadSnooze } from "../../domain/snooze.ts";
-import { workstreamHue } from "../../domain/workstreamHue.ts";
+import {
+  workstreamColorStyle,
+  type TopicColor,
+} from "../../domain/workstreamColor.ts";
 import { WorkstreamName } from "../WorkstreamName.tsx";
 import type { WorkView } from "../useWorkstreams.ts";
 import { hasStatusMark } from "../sidebar/Row.tsx";
@@ -29,6 +32,7 @@ export type HomeEnv = {
   showAge: boolean;
   threadCount: CountWhen;
   waitingCount: CountWhen;
+  colorOf: (sectionId: string, topicId?: string | null) => TopicColor;
   isOpen: (id: string, byDefault: boolean) => boolean;
   toggle: (id: string, byDefault: boolean) => void;
   setAll: (ids: readonly string[], open: boolean) => void;
@@ -311,7 +315,12 @@ function GroupSection({
               className="ws-home-dot"
               aria-hidden="true"
               style={
-                { "--ws-hue": workstreamHue(group.id) } as React.CSSProperties
+                workstreamColorStyle(
+                  env.colorOf(
+                    group.id,
+                    "topicId" in group ? group.topicId : undefined,
+                  ),
+                ) as React.CSSProperties
               }
             />
           )}

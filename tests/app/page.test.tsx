@@ -43,7 +43,9 @@ const analysis = (recap: string, state = "done") => ({
   model: "m",
 });
 
-async function mount() {
+async function mount(
+  catalog?: import("../../src/domain/topics.ts").TopicState,
+) {
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   const now = Date.now();
   return renderSlot(
@@ -79,6 +81,7 @@ async function mount() {
       rpc: {
         state: () => ({
           ...emptyState(),
+          ...(catalog ? { catalog } : {}),
           analysis: { b1: analysis("Asked which API to use") },
           recaps: {
             a1: {
@@ -130,6 +133,29 @@ it("shows one item at a time, Up Next first, with how many are left", async () =
   );
   // The running thread waits for its turn to end; it isn't in the queue.
   expect(slot.queryByText("Beta running")).toBeNull();
+  slot.lifecycle.unmount();
+});
+
+it("uses the topic color for the queue workstream path", async () => {
+  const slot = await mount({
+    entities: [
+      {
+        id: "beta",
+        name: "Beta",
+        description: "",
+        parentId: null,
+        aliases: [],
+      },
+    ],
+    groups: { sec_b: "beta" },
+    colors: { beta: { hue: 175, level: 1 } },
+    assignments: {},
+    revision: 1,
+  });
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  const path = slot.container.querySelector(".ws-queue-path") as HTMLElement;
+  expect(path.style.getPropertyValue("--ws-hue")).toBe("175");
+  expect(path.style.getPropertyValue("--ws-color-light")).toContain("50.00%");
   slot.lifecycle.unmount();
 });
 

@@ -17,6 +17,10 @@ import { Icon } from "@/components/ui/icon";
 import { usePortalScopeProps } from "@/lib/portal-scope";
 import { ACCENT, RecapSummary, RecapText } from "../../composer/RecapCard.tsx";
 import type { RecapFiles } from "../../../domain/recap.ts";
+import {
+  workstreamColorStyle,
+  type TopicColor,
+} from "../../../domain/workstreamColor.ts";
 import type { SnoozePrefs, SnoozeWhen } from "../../../domain/snooze.ts";
 import { SnoozeIcon } from "../../snooze/icons.tsx";
 import {
@@ -59,8 +63,8 @@ export function KeyChip({
 export type QueueHeading = {
   /** The workstream path, joined for display ("Vercel Agent: Automations"). */
   path: string | null;
-  /** The workstream's identity hue (`workstreamHue`). */
-  hue: number | null;
+  /** The workstream's topic color, if filed. */
+  color: TopicColor | null;
   title: string;
 };
 
@@ -79,9 +83,9 @@ export function Heading({
           type="button"
           onClick={onPath}
           style={
-            heading.hue === null
+            heading.color === null
               ? undefined
-              : ({ "--ws-hue": heading.hue } as React.CSSProperties)
+              : (workstreamColorStyle(heading.color) as React.CSSProperties)
           }
           data-queue-line="path"
           className="ws-queue-path -ml-0.5 flex max-w-full cursor-pointer items-center gap-1 text-[13px] font-[550] tracking-[0.01em]"

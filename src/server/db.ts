@@ -483,6 +483,12 @@ const MIGRATIONS = [
   "DELETE FROM ws_meta WHERE key = 'suggestions_splits'",
   `UPDATE ws_suggestion SET status = 'stale', detail = 'Review a scope-based topic division under the two-level identity rules.'
    WHERE kind = 'split' AND status = 'pending'`,
+  `CREATE TABLE ws_topic_color (
+    topic_id TEXT PRIMARY KEY REFERENCES ws_corpus_entity(id) ON DELETE CASCADE,
+    family_id TEXT NOT NULL,
+    hue INTEGER NOT NULL,
+    level INTEGER NOT NULL
+  )`,
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

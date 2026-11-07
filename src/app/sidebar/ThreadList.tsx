@@ -106,7 +106,11 @@ import {
   rowActionClass,
 } from "./HoverActions.tsx";
 import { categoryRows } from "../../domain/categoryRows.ts";
-import { workstreamHue } from "../../domain/workstreamHue.ts";
+import {
+  colorForWorkstream,
+  workstreamColorStyle,
+  type TopicColor,
+} from "../../domain/workstreamColor.ts";
 import { Hint } from "../Hint.tsx";
 import { usePrefs } from "../prefs.ts";
 
@@ -769,6 +773,8 @@ export function WorkstreamsThreadList({
    * their own and take thread drops, but reorder and focus only with their
    * top-level group.
    */
+  const colorOf = (group: ThreadNode) =>
+    colorForWorkstream(group.id, ws.server.catalog, group.topicId);
   const renderCategorizedTrees = (group: ThreadNode, label?: string) =>
     categoryRows(group.rows, group.categories).map((category) => (
       <Fragment key={category.id ?? "unplaced"}>
@@ -776,7 +782,7 @@ export function WorkstreamsThreadList({
           <li className="list-none px-2 pt-2 pb-0.5 text-xs font-medium">
             <h4
               className="ws-category-label m-0 truncate"
-              style={{ "--ws-hue": workstreamHue(group.id) } as CSSProperties}
+              style={workstreamColorStyle(colorOf(group)) as CSSProperties}
             >
               {label ? `${label} · ${category.name}` : category.name}
             </h4>
@@ -802,6 +808,7 @@ export function WorkstreamsThreadList({
         const render = (ref?: (element: HTMLElement | null) => void) => (
           <WorkstreamGroup
             group={sub}
+            color={colorOf(sub)}
             nested
             sectionRef={ref}
             collapsed={groupCollapsed(sub.id, false, sub.topicId)}
@@ -837,6 +844,7 @@ export function WorkstreamsThreadList({
         <WorkstreamGroup
           {...props}
           group={group}
+          color={colorOf(group)}
           snooze={groupSnoozeOf(group)}
           sectionRef={ref}
           style={style}
@@ -1650,6 +1658,7 @@ type GroupProps = {
   muted?: boolean;
   /** Drag-and-drop wiring: the section moves, the header drags it. */
   sectionRef?: (element: HTMLElement | null) => void;
+  color?: TopicColor;
   style?: CSSProperties;
   handle?: DragHandle;
   children: ReactNode;
@@ -1665,6 +1674,7 @@ function WorkstreamGroup({
   snooze,
   muted,
   sectionRef,
+  color,
   style,
   handle,
   children,
@@ -1709,7 +1719,7 @@ function WorkstreamGroup({
           ...style,
           paddingLeft: nested ? 0 : 4,
           paddingRight: nested ? 0 : 4,
-          "--ws-hue": workstreamHue(group.id),
+          ...workstreamColorStyle(color ?? colorForWorkstream(group.id)),
         } as CSSProperties
       }
     >

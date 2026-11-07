@@ -227,6 +227,15 @@ const catalogStateSchema = z.object({
   revision: z.number(),
   layout: z.array(layoutNodeSchema).optional(),
   categories: z.record(z.string(), categoryGenerationSchema).optional(),
+  colors: z
+    .record(
+      z.string(),
+      z.object({
+        hue: z.number().int().min(0).max(359),
+        level: z.union([z.literal(-1), z.literal(0), z.literal(1)]),
+      }),
+    )
+    .optional(),
 });
 
 const topicPlaceSchema = z.array(

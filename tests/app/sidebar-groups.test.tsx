@@ -147,6 +147,7 @@ describe("nested workstreams", () => {
         ...options,
         catalog: {
           ...catalog,
+          colors: { alerts: { hue: 35, level: 1 } },
           categories: {
             alerts: {
               id: "generation",
@@ -166,8 +167,9 @@ describe("nested workstreams", () => {
         name: inline ? "Alert Investigations · Triage" : "Triage",
       });
       expect(heading.children).toHaveLength(0);
-      expect(Number(heading.style.getPropertyValue("--ws-hue"))).toBe(
-        workstreamHue("sec_alerts"),
+      expect(Number(heading.style.getPropertyValue("--ws-hue"))).toBe(35);
+      expect(heading.style.getPropertyValue("--ws-color-light")).toContain(
+        "50.00%",
       );
       const row = slot
         .getByRole("link", { name: "Rebase alerts PR" })
@@ -182,6 +184,9 @@ describe("nested workstreams", () => {
         expect(subgroup.querySelector(".ws-workstream-name")?.textContent).toBe(
           "Alert Investigations",
         );
+        expect(
+          (subgroup as HTMLElement).style.getPropertyValue("--ws-hue"),
+        ).toBe("35");
       }
       slot.lifecycle.unmount();
     },

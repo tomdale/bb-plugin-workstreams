@@ -1,9 +1,4 @@
-/**
- * The hue (0–359°) that identifies a workstream wherever it is drawn. It is a
- * pure function of the workstream's id, so a workstream keeps its color across
- * sessions and machines without storing anything, and renaming it does not
- * change it.
- */
+/** Fallback hue for a native section that has no topic color yet. */
 export function workstreamHue(id: string): number {
   // FNV-1a, then a final avalanche so near-identical ids (ws-1, ws-2) land far
   // apart on the color wheel.

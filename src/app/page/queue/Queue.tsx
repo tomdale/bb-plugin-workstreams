@@ -42,7 +42,7 @@ import type { Row } from "../../../domain/project.ts";
 import { isRunning } from "../../../domain/upNext.ts";
 import { relativeAge } from "../../../domain/presentation.ts";
 import { describeWake, type SnoozeWhen } from "../../../domain/snooze.ts";
-import { workstreamHue } from "../../../domain/workstreamHue.ts";
+import { colorForWorkstream } from "../../../domain/workstreamColor.ts";
 import type { RecapFiles } from "../../../domain/recap.ts";
 import { prioritizedSet } from "../../home/model.ts";
 import { usePrefs } from "../../prefs.ts";
@@ -467,14 +467,16 @@ export function Queue({
         const path = plan.place.get(thread.id)?.path ?? [];
         return {
           path: path.length ? path.join(": ") : null,
-          hue: row?.workstreamId ? workstreamHue(row.workstreamId) : null,
+          color: row?.workstreamId
+            ? colorForWorkstream(row.workstreamId, ws.server.catalog)
+            : null,
           title: thread.displayTitle,
         };
       })()
     : suggestion
       ? {
           path: suggestionPath(suggestion),
-          hue: null,
+          color: null,
           title: suggestion.headline,
         }
       : null;

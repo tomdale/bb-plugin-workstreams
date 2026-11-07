@@ -256,7 +256,12 @@ volume. A first-level container is shown as a dimmed prefix before its child's
 name; an already repeated prefix is omitted. Topic assignments determine native
 section membership, and outside section moves are logged and reverted. Unused,
 childless discovered topics are pruned. Collapse preferences follow topic IDs
-across windows and section recreation.
+across windows and section recreation. Topic-bound workstream colors are
+allocated to persistent topic identities, so they survive section recreation and
+renaming. Related topics receive related colors, chosen to separate them from
+existing colors where the palette permits. Reparenting a topic can change its
+color. Unbound native sections use a section-based fallback until bound. Labels
+remain necessary when colors look similar.
 
 **Categories** arrange rows inside a workstream without changing its topic,
 native section, or identity hue. Both the sidebar and phone Home show them. Any
@@ -472,7 +477,7 @@ On compact viewports (when **Sidebar → Up next and workstreams on phones** is
 enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
 
 - The **Up Next** card at the top.
-- **Workstreams** sections with deterministic hue dots, waiting/total badges, an
+- **Workstreams** sections with topic color dots, waiting/total badges, an
   **Expand all / Collapse all** toggle, and per-parent delegate fold controls.
   Focused workstreams (or a single active workstream) start expanded.
 - A collapsible **Snoozed** section at the bottom.

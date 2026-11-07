@@ -16,7 +16,7 @@ import {
 } from "react";
 import type { PluginHomepageSectionProps } from "@get-bb/plugin-sdk/app";
 import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
-import { workstreamHue } from "../../domain/workstreamHue.ts";
+import { colorForWorkstream } from "../../domain/workstreamColor.ts";
 import { usePrefs } from "../prefs.ts";
 import { useWorkstreams } from "../useWorkstreams.ts";
 import { WorkstreamGroups, type HomeEnv } from "./Groups.tsx";
@@ -129,6 +129,8 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
     showAge: (prefs?.sidebar.timestamps ?? "show") === "show",
     threadCount: prefs?.sidebar.threadCount ?? "collapsed",
     waitingCount: prefs?.sidebar.waitingCount ?? "collapsed",
+    colorOf: (sectionId, topicId) =>
+      colorForWorkstream(sectionId, ws.server.catalog, topicId),
     ...state,
   };
   return (
@@ -157,7 +159,13 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
                   ? nameOf.get(row.workstreamId)
                   : undefined;
                 return row.workstreamId && name
-                  ? { name, hue: workstreamHue(row.workstreamId) }
+                  ? {
+                      name,
+                      color: colorForWorkstream(
+                        row.workstreamId,
+                        ws.server.catalog,
+                      ),
+                    }
                   : null;
               }}
               now={ws.now}

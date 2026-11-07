@@ -17,7 +17,7 @@ describe.skipIf(browserUnavailable)(
       "colors workstream names and subdued category labels while leaving status and thread titles neutral",
       async ({ page }) => {
         await page.setContent(`<style>${styles}</style>
-          <div style="--ws-hue: 47; --muted-foreground: rgb(130, 130, 130); color: rgb(130, 130, 130)">
+          <div style="--ws-hue: 47; --ws-color-light: oklch(42% .1 47); --ws-color-dark: oklch(75% .1 47); --muted-foreground: rgb(130, 130, 130); color: rgb(130, 130, 130)">
             <span class="ws-mark ws-mark-unread"></span>
             <span class="ws-mark ws-spin ws-spin-dots"></span>
             <span class="ws-workstream-name">Workstream</span>
@@ -50,7 +50,7 @@ describe.skipIf(browserUnavailable)(
           expect(colors.category).not.toBe("rgb(130, 130, 130)");
           expect(colors.title).toBe("rgb(130, 130, 130)");
           expect(colors.name).toBe(
-            dark ? "oklch(0.79 0.13 47)" : "oklch(0.46 0.16 47)",
+            dark ? "oklch(0.75 0.1 47)" : "oklch(0.42 0.1 47)",
           );
         }
       },

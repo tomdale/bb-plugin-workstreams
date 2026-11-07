@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMediaQuery } from "@/components/ui/hooks/use-media-query";
 import { useGoalContext } from "./goalContext.ts";
+import { workstreamColorStyle } from "../domain/workstreamColor.ts";
 import { usePrefs } from "./prefs.ts";
 import {
   PAD_TOP,
@@ -554,7 +555,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
             fontSize: eyebrow.size,
             maxWidth: compact ? width / eyebrow.compactScale : width,
             transform: `scale(${compact ? eyebrow.compactScale : 1})`,
-            "--ws-hue": context.workstream.hue,
+            ...workstreamColorStyle(context.workstream.color),
           } as React.CSSProperties
         }
       >

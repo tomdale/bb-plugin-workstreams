@@ -28,6 +28,7 @@ import { Reclassification } from "./reclassification.ts";
 import { sectionMembers } from "./cleanup.ts";
 import { ComposerPreview, type Preview } from "./preview.ts";
 import { TopicStore, topicBasis } from "./topics.ts";
+import { TopicColors } from "./topicColors.ts";
 import { ComposedDrafts, type ComposedIdentity } from "./composed-drafts.ts";
 import {
   topicAncestors,
@@ -268,6 +269,14 @@ export default async function plugin(bb: BbPluginApi) {
     }
   };
   const topics = new TopicStore(db);
+  const topicColors = new TopicColors(db);
+  const catalogWithColors = () => {
+    const catalog = topics.state();
+    return {
+      ...catalog,
+      colors: topicColors.snapshot(catalog.entities, catalog.groups),
+    };
+  };
   const topicMigration = new TopicMigration({ db, topics, journal });
   const projectAssociations = new ProjectAssociations({
     db,
@@ -1127,7 +1136,7 @@ export default async function plugin(bb: BbPluginApi) {
       }),
     topicMigrationBackup: ({ backupId }) => topicMigration.backup(backupId),
     catalog: async () => ({
-      ...topics.state(),
+      ...catalogWithColors(),
       categories: categories.generations(),
       layout: organizerInstance.layout(),
     }),
@@ -1269,7 +1278,7 @@ export default async function plugin(bb: BbPluginApi) {
       snoozes: snoozes.all(),
       snoozePrefs: loadSnoozePrefs(db),
       catalog: {
-        ...topics.state(),
+        ...catalogWithColors(),
         layout: organizerInstance.layout(),
         categories: categories.generations(),
       },

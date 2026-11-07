@@ -10,6 +10,10 @@ import {
   workStateMark,
 } from "../../domain/presentation.ts";
 import { WorkstreamIcon } from "../WorkstreamIcon.tsx";
+import {
+  workstreamColorStyle,
+  type TopicColor,
+} from "../../domain/workstreamColor.ts";
 import type { WorkView } from "../useWorkstreams.ts";
 import { hasNativeStatus, shownWorkState } from "../sidebar/Row.tsx";
 import { StatusMark } from "../sidebar/StatusMark.tsx";
@@ -47,7 +51,7 @@ export function HomeRow({
   /** The Timestamp setting: ages show only when it says Always. */
   showAge: boolean;
   /** The workstream Up Next names under the title; null for Unfiled. */
-  workstream?: { name: string; hue: number } | null;
+  workstream?: { name: string; color: TopicColor } | null;
   /** What the thread asks of the user, from its current analysis. */
   ask?: string | null;
   /**
@@ -109,7 +113,11 @@ export function HomeRow({
               {workstream ? (
                 <span
                   className="ws-home-ws"
-                  style={{ "--ws-hue": workstream.hue } as React.CSSProperties}
+                  style={
+                    workstreamColorStyle(
+                      workstream.color,
+                    ) as React.CSSProperties
+                  }
                 >
                   <WorkstreamIcon className="ws-home-ws-icon" />
                   <span className="ws-home-ws-name">{workstream.name}</span>

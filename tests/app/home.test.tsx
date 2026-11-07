@@ -75,6 +75,7 @@ describe("Home screen", () => {
           },
         ],
         groups: { sec_vertex: "vertex" },
+        colors: { vertex: { hue: 110, level: -1 } },
         assignments: {},
         revision: 1,
         categories: {
@@ -96,6 +97,45 @@ describe("Home screen", () => {
     expect(slot.getByRole("heading", { name: "Access Control" })).toBeTruthy();
     expect(slot.queryByRole("region", { name: "Billing" })).toBeNull();
     expect(links(region(slot, "Vertex"))).toHaveLength(6);
+    const dot = region(slot, "Vertex").querySelector(
+      ".ws-home-dot",
+    ) as HTMLElement;
+    expect(dot.style.getPropertyValue("--ws-hue")).toBe("110");
+    expect(dot.style.getPropertyValue("--ws-color-dot")).toContain("60.00%");
+    slot.lifecycle.unmount();
+  });
+  it("uses the same topic color in Home's Up Next label and workstream dot", async () => {
+    const slot = await mountHome({
+      threads: sample(),
+      catalog: {
+        entities: [
+          {
+            id: "alpha",
+            name: "Alpha",
+            description: "",
+            parentId: null,
+            aliases: [],
+          },
+        ],
+        groups: { sec_a: "alpha" },
+        colors: { alpha: { hue: 120, level: 1 } },
+        assignments: {},
+        revision: 1,
+      },
+    });
+    const upNext = await slot.findByRole("region", { name: "Up Next" });
+    const row = within(upNext).getByRole("link", { name: /Asking task/ });
+    await waitFor(() =>
+      expect(row.querySelector(".ws-home-ws")).not.toBeNull(),
+    );
+    const label = row.querySelector(".ws-home-ws") as HTMLElement;
+    const group = await slot.findByRole("region", { name: "Alpha" });
+    const dot = group.querySelector(".ws-home-dot") as HTMLElement;
+    expect(label.style.getPropertyValue("--ws-color-light")).toContain(
+      "50.00%",
+    );
+    expect(label.style.getPropertyValue("--ws-hue")).toBe("120");
+    expect(dot.style.getPropertyValue("--ws-hue")).toBe("120");
     slot.lifecycle.unmount();
   });
   it("takes BB's place inside its compact home", async () => {

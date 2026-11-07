@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, waitFor } from "@testing-library/react";
 import { useBbContext } from "@get-bb/plugin-sdk/app";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
@@ -19,6 +19,9 @@ function Heading() {
       <h2>{context.title}</h2>
       <p aria-label="goal">{context.goal ?? "none"}</p>
       <p aria-label="workstream">{context.workstream?.name ?? "unfiled"}</p>
+      <p aria-label="workstream color">
+        {context.workstream?.color.hue ?? "none"}
+      </p>
     </div>
   );
 }
@@ -26,6 +29,7 @@ function Heading() {
 async function mount(
   thread: PluginSidebarThread,
   server: Record<string, unknown> = {},
+  otherThreads: PluginSidebarThread[] = [],
 ) {
   // Loading the app registers its slots, as BB does before rendering any.
   await loadPluginApp(() => import("../../src/app/index.tsx"));
@@ -35,8 +39,8 @@ async function mount(
     rpc: { state: () => ({ ...emptyState(), ...server }) },
     sidebarThreads: {
       status: "ready",
-      threads: [thread],
-      sections: [section("sec_1", "Lumen")],
+      threads: [thread, ...otherThreads],
+      sections: [section("sec_1", "Lumen"), section("sec_2", "Other")],
       projects: [],
       experimental_archived: null,
     },
@@ -65,6 +69,42 @@ it("names the thread exactly as BB lists it, whatever the analysis inferred", as
   expect(await slot.findByRole("heading", { level: 2 })).toHaveProperty(
     "textContent",
     "Fix stale build cache",
+  );
+  expect(slot.getByLabelText("workstream").textContent).toBe("Lumen");
+  slot.lifecycle.unmount();
+});
+
+it("uses the root topic's color for a delegate in a different native section", async () => {
+  const child = sidebarThread("child", {
+    title: "Delegate",
+    parentThreadId: "root",
+    sectionId: "sec_2",
+  });
+  const root = sidebarThread("root", { title: "Root", sectionId: "sec_1" });
+  const slot = await mount(
+    child,
+    {
+      catalog: {
+        entities: [
+          {
+            id: "topic",
+            name: "Lumen",
+            description: "",
+            parentId: null,
+            aliases: [],
+          },
+        ],
+        groups: { sec_1: "topic" },
+        colors: { topic: { hue: 211, level: 1 } },
+        assignments: {},
+        revision: 1,
+      },
+    },
+    [root],
+  );
+  await slot.findByRole("heading", { level: 2 });
+  await waitFor(() =>
+    expect(slot.getByLabelText("workstream color").textContent).toBe("211"),
   );
   expect(slot.getByLabelText("workstream").textContent).toBe("Lumen");
   slot.lifecycle.unmount();

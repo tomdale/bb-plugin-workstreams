@@ -1,6 +1,9 @@
 import { experimental_useSidebarThreads } from "@get-bb/plugin-sdk/app";
 import { useMemo } from "react";
-import { workstreamHue } from "../domain/workstreamHue.ts";
+import {
+  colorForWorkstream,
+  type TopicColor,
+} from "../domain/workstreamColor.ts";
 import { useSharedServerState } from "./serverState.ts";
 
 type GoalContext = {
@@ -13,7 +16,7 @@ type GoalContext = {
   /** The analyzed desired outcome, retained while later turns run. */
   goal: string | null;
   /** The thread's workstream with its identity hue, or null when unfiled. */
-  workstream: { name: string; hue: number } | null;
+  workstream: { name: string; color: TopicColor } | null;
 };
 
 /** What a thread is for: its title, desired outcome, and workstream. */
@@ -26,15 +29,28 @@ export function useGoalContext(threadId: string | null): GoalContext | null {
     if (!thread) return null;
     const title = thread.displayTitle;
     const goal = server.analysis[threadId]?.threadGoal;
-    const section = thread.sectionId
-      ? sections.find((item) => item.id === thread.sectionId)
+    // Delegates follow their root's workstream, even when BB keeps a different
+    // native section on the delegate itself.
+    let root = thread;
+    const seen = new Set([root.id]);
+    while (root.parentThreadId && !seen.has(root.parentThreadId)) {
+      const parent = threads.find((item) => item.id === root.parentThreadId);
+      if (!parent) break;
+      root = parent;
+      seen.add(root.id);
+    }
+    const section = root.sectionId
+      ? sections.find((item) => item.id === root.sectionId)
       : null;
     return {
       title,
       goal: goal && goal !== title ? goal : null,
       workstream: section
-        ? { name: section.name, hue: workstreamHue(section.id) }
+        ? {
+            name: section.name,
+            color: colorForWorkstream(section.id, server.catalog),
+          }
         : null,
     };
-  }, [threadId, threads, sections, server.analysis]);
+  }, [threadId, threads, sections, server.analysis, server.catalog]);
 }

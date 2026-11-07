@@ -84,6 +84,10 @@ export async function mount(
         aliases: string[];
       }[];
       groups: Record<string, string>;
+      colors?: Record<
+        string,
+        import("../../src/domain/workstreamColor.ts").TopicColor
+      >;
       layout?: LayoutNode[];
       categories?: Record<string, CategoryGeneration>;
     };
