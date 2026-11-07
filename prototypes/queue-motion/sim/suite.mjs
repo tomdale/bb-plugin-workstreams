@@ -196,7 +196,7 @@ const fmt = (v) =>
 /**
  * What `--check` asserts for every preset: no draw-order, jump, shade, or clip-band problem (corrected rule),
  * first response within a frame, no edge moving more than 40 px in a frame, a hold that never moves a card at
- * an end and unfolds when it reaches one, and a release that rests on a card with at most one queued press.
+ * an end and unfolds when it reaches one, and a release that rests on a card with at most one waiting press.
  * The ramped presets raise the edge budget to 30 px/frame while held, which is close to where problems start;
  * `sweep.mjs params` shows the margin.
  */

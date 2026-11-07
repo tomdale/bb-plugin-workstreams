@@ -22,9 +22,11 @@
  *   trips allow: a trip must clear the height of the card it uncovers, at no more than `vcap` px/s on any edge.
  * - `tempo` spaces presses by a planned interval, so the pace does not follow each card's height from step to
  *   step. `gateSlack` lets a press start while the card before it is still short of its flip.
- * - `ramp` stiffens the springs and raises the edge budget while a key is held. `fold` also shrinks every
- *   card's drawn height toward `H0` while a key is held (a level of detail), which removes the height term.
+ * - `ramp` stiffens the springs and raises the edge budget while a key is held. `fold` does the same and also
+ *   shrinks every card's drawn height toward `H0` (a level of detail), which removes the height term.
  * - A hold only starts, and only folds, while another card lies ahead in its direction.
+ * - One press may wait for the gate; any further press before it is taken is dropped, so a release rests on a
+ *   whole card with at most one more card after it.
  */
 export const LEAD = 34;
 const P = 1000,
@@ -41,32 +43,27 @@ const smooth = (u) => {
   const x = clamp(u, 0, 1);
   return x * x * (3 - 2 * x);
 };
-const easeOut = (u) => {
-  const x = clamp(u, 0, 1);
-  return 1 - (1 - x) * (1 - x);
-};
 const TAU = 2 * Math.PI;
+/** Spring rate of λ, the held state: how fast the speed-up and the fold ramp in once the hold delay has passed. */
+const LAMBDA_OMEGA = TAU * 1.6;
+/** Extra travel below the clear line, px: the visible dip of a returning card. It shrinks to `DIP_HELD` as λ → 1. */
+const DIP_TAP = 20;
+const DIP_HELD = 6;
 
 export const DEFAULT_CFG = {
   omega0: TAU * 3.0, // spring rate at λ = 0 (taps), rad/s
   omega1: TAU * 4.5, // at λ = 1 (held, when `ramp` or `fold` is on)
   vcap: 1440, // edge-speed budget at λ = 0, px/s (24 px/frame at 60 Hz); 0 = off
   vcap1: 1800, // at λ = 1 (30 px/frame)
-  dip0: 20, // extra travel below the clear line at λ = 0 (the visible dip of a returning card)
-  dip1: 6, // and at λ = 1
   fold: false, // while held, fold every card toward H0 (level of detail)
   ramp: false, // while held, ramp the spring rate and edge budget toward their λ = 1 values without folding
   H0: 73, // folded (header) height, px
-  foldOmega: TAU * 1.6, // spring rate of λ
   holdDelay: 250, // ms a key is held before λ heads to 1
   washTauIn: 40, // ms: the drawn wash of a too-tall card follows its path value, falling
   washTauOut: 120, // and rising
   hidePx: 3, // the tuck ends with the card's bottom this far inside the pile's lower edge
   tuckRate: 1.4, // the tuck (behind the pile, heading home) runs on a stiffer spring
-  frontEase: "sine", // front segment profile: sine | easeOut | smooth | linear
-  accept: "flip", // "flip": a press waits for the flip gate; "none": every press is taken
-  gateSlack: 0, // ring units: a press may start while a leaver is this far short of its flip (≤ 0.2 stays clean)
-  queue: 1, // presses that may wait for the gate (0: dropped)
+  gateSlack: 0, // ring units: a press may start while a leaver is this far short of its flip (0.1 stays clean)
   // Interval planner. kind "none": the flip gate alone. "constant": at least `ms` between presses.
   // "lookahead": the smoothed slowest estimated clear time among the `window` cards on each side of the one
   // being covered, where a card of height h takes `scale × (a + b·h)` ms.
@@ -75,13 +72,16 @@ export const DEFAULT_CFG = {
 
 /** Named settings the page and the sweeps share. Each overlays DEFAULT_CFG. */
 export const PRESETS = {
+  /** The defaults: the pace follows the card heights. */
   natural: {},
+  /** A planned interval between presses, so the pace changes gently. */
   even: { tempo: { kind: "lookahead", window: 2, scale: 1 } },
+  /** The same planner at a shorter interval, which the held speed-up makes possible. */
   "even + held speed": {
     ramp: true,
     tempo: { kind: "lookahead", window: 2, scale: 0.85 },
   },
-  "constant + held speed": { ramp: true, tempo: { kind: "constant", ms: 225 } },
+  /** Every card folds toward its header line while a key is held. */
   fold: { fold: true },
 };
 
@@ -105,7 +105,7 @@ export class Drum {
     this.lam = 0;
     this.lamV = 0;
     this.hold = null; // { dir, t }
-    this.pending = 0; // queued presses (signed)
+    this.pending = 0; // the one press that may wait for the gate, signed by direction
     this.time = 0;
     this.lastTake = -1e9; // time the last press was taken
   }
@@ -126,9 +126,6 @@ export class Drum {
   setHeights(heights) {
     this.h = heights.slice();
   }
-  get cur() {
-    return this.front;
-  }
   hd(i) {
     return this.cfg.fold
       ? this.cfg.H0 + (this.h[i] - this.cfg.H0) * (1 - this.lam)
@@ -141,7 +138,7 @@ export class Drum {
     return this.cfg.omega0 + (this.cfg.omega1 - this.cfg.omega0) * this.lam;
   }
   dip() {
-    return this.cfg.dip0 + (this.cfg.dip1 - this.cfg.dip0) * this.lam;
+    return DIP_TAP + (DIP_HELD - DIP_TAP) * this.lam;
   }
 
   // ---- input --------------------------------------------------------------
@@ -180,7 +177,6 @@ export class Drum {
   }
   /** Whether a press may be taken now: the planned interval has passed, and every card in transit has passed its flip (less `gateSlack`). */
   accepts(dir) {
-    if (this.cfg.accept === "none") return true;
     const gap = this.tempoGap(dir);
     if (gap > 0 && this.time - this.lastTake < gap) return false;
     for (let i = 0; i < this.N; i++) {
@@ -192,30 +188,25 @@ export class Drum {
     }
     return true;
   }
-  /** One press. Returns true if taken (or queued). */
+  /** One press. Returns true if taken or left waiting; a press while another one waits is dropped. */
   press(dir) {
     const nf = this.front + dir;
     if (nf < 0 || nf >= this.N) return false;
-    if (this.accepts(dir) && this.pending === 0) {
+    if (this.pending !== 0) return false;
+    if (this.accepts(dir)) {
       this.front = nf;
       this.lastTake = this.time;
       return true;
     }
-    if (
-      Math.abs(this.pending + dir) <= this.cfg.queue &&
-      Math.sign(this.pending || dir) === dir
-    ) {
-      this.pending += dir;
-      return true;
-    }
-    return false;
+    this.pending = dir;
+    return true;
   }
   /** A hold starts only if there is a card to move to; against either end it would fold the pile for no change of state. */
   keyDown(dir) {
     this.press(dir);
     this.hold = this.canAdvance(dir) ? { dir, t: 0 } : null;
   }
-  /** Whether another card lies ahead in `dir`, or a queued press is still to be taken. */
+  /** Whether another card lies ahead in `dir`, or a waiting press is still to be taken. */
   canAdvance(dir) {
     const nf = this.front + dir;
     return (nf >= 0 && nf < this.N) || this.pending !== 0;
@@ -239,15 +230,14 @@ export class Drum {
   tick(dt) {
     this.time += dt * 1000;
     if (this.hold) this.hold.t += dt * 1000;
-    // queued presses
+    // the waiting press, once the gate opens
     if (this.pending !== 0 && this.accepts(Math.sign(this.pending))) {
-      const d = Math.sign(this.pending);
-      const nf = this.front + d;
+      const nf = this.front + this.pending;
       if (nf >= 0 && nf < this.N) {
         this.front = nf;
         this.lastTake = this.time;
       }
-      this.pending -= d;
+      this.pending = 0;
     }
     // what was drawn before anything moves (the budget counts total edge motion, fold included)
     const before = this.views();
@@ -260,7 +250,7 @@ export class Drum {
       this.canAdvance(this.hold.dir)
         ? 1
         : 0;
-    const wl = this.cfg.foldOmega;
+    const wl = LAMBDA_OMEGA;
     this.lamV += (wl * wl * (lamT - this.lam) - 2 * wl * this.lamV) * dt;
     this.lam = clamp(this.lam + this.lamV * dt, 0, 1);
     const folded = this.views();
@@ -378,15 +368,7 @@ export class Drum {
       // scale while its bottom is over the card it uncovers/covers (so it really hides that card's clip
       // band), and recedes only past that point, as the product does.
       const u = -c;
-      const e =
-        this.cfg.frontEase === "smooth"
-          ? smooth(u)
-          : this.cfg.frontEase === "linear"
-            ? u
-            : this.cfg.frontEase === "sine"
-              ? Math.sin((Math.PI / 2) * u)
-              : easeOut(u);
-      const T = LEAD + (turnTop - LEAD) * e;
+      const T = LEAD + (turnTop - LEAD) * Math.sin((Math.PI / 2) * u);
       const hn = i + 1 < this.N ? this.hd(i + 1) : h;
       const Tpass = LEAD + Math.max(0, hn - h);
       const z = -ZDROP * smooth((T - Tpass) / Math.max(1, turnTop - Tpass));

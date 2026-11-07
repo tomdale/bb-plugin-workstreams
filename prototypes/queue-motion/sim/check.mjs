@@ -20,10 +20,12 @@ function covered(lo, hi, minScale, all, exclude) {
       exclude.every((e) => o.layer > e.layer),
   );
 }
+/** What counts as a problem: an edge that moves farther than `jump` px in a frame, a drawn bottom edge that changes by more than `band` px, a shade that changes by more than `shade`. */
+export const LIMITS = { jump: 40, band: 16, shade: 0.2 };
 export function problems(frames, mode = "orig", opts = {}) {
-  const jump = opts.jump ?? 40,
-    band = opts.band ?? 16,
-    shadeMax = opts.shade ?? 0.2;
+  const jump = opts.jump ?? LIMITS.jump,
+    band = opts.band ?? LIMITS.band,
+    shadeMax = opts.shade ?? LIMITS.shade;
   const out = [];
   for (let n = 1; n < frames.length; n++) {
     const A = frames[n - 1],

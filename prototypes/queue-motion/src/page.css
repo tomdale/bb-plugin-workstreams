@@ -364,7 +364,7 @@ h1 {
 .model summary {
   cursor: pointer;
 }
-.model div {
+.model .panel {
   background: #fafafa;
   border: 1px solid #eee;
   border-radius: 8px;
@@ -372,6 +372,17 @@ h1 {
   color: #555;
   margin-bottom: 6px;
   line-height: 1.45;
+}
+.model .panel p {
+  margin: 0 0 6px;
+}
+.model .panel ul {
+  margin: 0 0 6px;
+  padding-left: 18px;
+}
+.model .panel .src {
+  margin: 0;
+  color: #888;
 }
 .foot {
   bottom: 10px;
@@ -396,4 +407,117 @@ h1 {
 }
 .model {
   z-index: 100;
+}
+
+/* A control that does not apply to the current configuration is hidden, not greyed out. */
+[hidden] {
+  display: none !important;
+}
+.sbar .grp {
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.sbar .grp + .grp {
+  border-left: 1px solid #d9def4;
+  padding-left: 14px;
+}
+.sbar input[type="checkbox"] {
+  width: auto;
+}
+.lam {
+  cursor: help;
+}
+
+/* Tooltips (src/tooltip.ts). They take no pointer events, so one never covers a control you reach for. */
+.tip {
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: max-content;
+  max-width: min(460px, calc(100vw - 16px));
+  overflow-y: auto;
+  padding: 10px 13px 11px;
+  background: #fff;
+  color: #222;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  box-shadow:
+    0 10px 30px rgb(20 20 40 / 0.18),
+    0 1px 3px rgb(0 0 0 / 0.08);
+  font:
+    12.5px/1.45 -apple-system,
+    Inter,
+    system-ui,
+    sans-serif;
+  pointer-events: none;
+}
+/* On a short window the caption and the controls share the viewport: the controls stay on top and clickable. */
+#bars {
+  z-index: 101;
+}
+.note {
+  pointer-events: none;
+  background: #fff;
+  padding-top: 6px;
+}
+
+/* A tooltip taller than its room scrolls under the wheel; a classic scrollbar shows that it does. */
+.tip::-webkit-scrollbar {
+  width: 8px;
+}
+.tip::-webkit-scrollbar-thumb {
+  background: #c4c4cc;
+  border-radius: 4px;
+}
+.tip-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+.tip-head b {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.tip-meta {
+  color: #777;
+  font-size: 11.5px;
+}
+.tip-what {
+  margin: 5px 0 8px;
+  font-weight: 500;
+}
+.tip-steps {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 5px 10px;
+  margin: 0;
+}
+.tip-steps dt {
+  color: #666;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding-top: 1px;
+}
+.tip-steps dd {
+  margin: 0;
+}
+.tip-src {
+  margin: 9px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid #eee;
+  color: #777;
+  font-size: 11px;
+}
+.tip code,
+.model .panel code {
+  background: #f1f1f4;
+  border-radius: 3px;
+  padding: 0 3px;
+  font:
+    11.5px/1.3 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }

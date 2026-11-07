@@ -156,17 +156,6 @@ export function singles(hset, cfg, hz) {
   return rows;
 }
 
-const med = (a) => {
-  const s = [...a].sort((x, y) => x - y);
-  return s[Math.floor(s.length / 2)];
-};
-const fmt = (x) =>
-  typeof x === "number"
-    ? Math.abs(x) >= 10
-      ? x.toFixed(0)
-      : x.toFixed(1)
-    : String(x);
-
 export function holdRun(
   hset,
   cfg,
@@ -207,34 +196,6 @@ export function holdRun(
     kinds: summarize(pc),
     frames,
   };
-}
-
-/** Commanded-rate sweep with the gate off: presses every 1/R s for 12 cards; λ forced. */
-export function rateSweep(hset, cfg, hz, rates, lam) {
-  const h = heightsOf(hset);
-  return rates.map((R) => {
-    const d = new Drum(h, { ...cfg, accept: "none" });
-    d.jump(12);
-    if (lam !== undefined) {
-      d.lam = lam;
-      d.cfg.fold = false;
-      d.h = h.map((x) => d.cfg.H0 + (x - d.cfg.H0) * (1 - lam));
-    }
-    const presses = Array.from({ length: 11 }, (_, k) => ({
-      t: (k * 1000) / R,
-      dir: -1,
-    }));
-    const { frames } = record(d, { dur: 11000 / R + 1200, hz, presses });
-    const pc = problems(frames, "corrected"),
-      po = problems(frames, "orig");
-    return {
-      R,
-      maxJump: maxJump(frames),
-      probCorr: pc.length,
-      probOrig: po.length,
-      kinds: summarize(pc),
-    };
-  });
 }
 
 export function reversal(hset, cfg, hz, seq) {

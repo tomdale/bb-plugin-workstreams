@@ -6,7 +6,7 @@
 </style>
 <div id="bars">
   <div class="bar" id="bar"></div>
-  <div class="bar sbar" id="sbar" style="display: none"></div>
+  <div class="bar sbar" id="sbar" hidden></div>
 </div>
 <div class="page" id="page">
   <div class="col" id="col">
@@ -20,22 +20,8 @@
 <div class="note" id="note"></div>
 <div class="foot"><span id="pos"></span></div>
 <details class="model">
-  <summary>How the drum works</summary>
-  <div>
-    Every card has one coordinate on a closed ring path: a pile slot (0 front,
-    1–2 peeking, 3 hidden), the drop in front of the pile down to the
-    <i>turn</i> (clear below the card it uncovers), and the tuck behind the pile
-    from the turn up to flush behind its lower edge. Each coordinate has its own
-    critically damped spring toward a target that is a pure function of (card,
-    front): a leaver's target is two steps away, so it passes the turn still
-    moving and decelerates into the tuck, and a returning card runs the same
-    ring backwards. The only draw-order change is at the turn, and a card
-    crosses it only when it is clear of what it swaps with. A press is taken
-    once every card in transit has passed its flip, so the pace is whatever the
-    trips allow; <i>tempo</i> evens it out and <i>fold</i> shortens trips while
-    a key is held. An edge budget (24 px/frame, 30 when held) caps all motion.
-    Source: <code>src/drum.mjs</code>.
-  </div>
+  <summary data-help="about">How the drum works</summary>
+  <div class="panel" id="about"></div>
 </details>
 <script>
   /*JS*/
