@@ -1,8 +1,6 @@
+import { createTestPluginHost } from "./test-host.ts";
 import { afterEach, expect, it } from "vitest";
-import {
-  createFakePluginHost,
-  makeThreadResponse,
-} from "@get-bb/plugin-sdk/testing";
+import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { openDatabase } from "../../src/server/db.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 import { Journal } from "../../src/server/journal.ts";
@@ -20,7 +18,7 @@ function world() {
     { id: "p1", name: "One", sources: [] },
     { id: "p2", name: "Two", sources: [] },
   ];
-  const { bb, harness } = createFakePluginHost({
+  const { bb, harness } = createTestPluginHost({
     sdk: {
       threads: {
         list: async (args) =>

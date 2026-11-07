@@ -69,6 +69,7 @@
     "build": "bb plugin build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:benchmark": "node scripts/benchmark-tests.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

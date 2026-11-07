@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { emptyState, sidebarThread } from "./fixtures.ts";
 import {
@@ -111,6 +111,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 // Radix sizes a hint's arrow with a ResizeObserver, which jsdom lacks.
@@ -125,8 +126,14 @@ function stubResizeObserver() {
   );
 }
 
+// Continuing a thread declines that recap for the browser session. Each test
+// needs a distinct identity without resetting the app's entire module graph.
+let recapId: string;
+beforeEach(({ task }) => {
+  recapId = task.id;
+});
+
 const RECAP = {
-  id: "r1",
   turnId: "turn",
   at: 1,
   state: "complete",
@@ -158,7 +165,9 @@ async function mount(
   const banner = app.composerCustomizations.find((c) => c.id === "recap")!
     .banners![0]!;
   let recap =
-    options.recap === null ? null : { ...RECAP, ...(options.recap ?? {}) };
+    options.recap === null
+      ? null
+      : { ...RECAP, id: recapId, ...(options.recap ?? {}) };
   let dismissed = false;
   let waitingCancelled = false;
   return renderSlot(
@@ -239,7 +248,7 @@ it("renders a stored card's full values with code formatting and clickable links
   const markdown = `${explanation} with \`non-null\` and [the schema](https://example.com/schema)`;
   // Longer than the tool accepts: rows stored before the tool set the card.
   const recap = recapSchema.parse({
-    id: "r1",
+    id: recapId,
     turnId: "turn",
     at: 1,
     state: "complete",
@@ -512,7 +521,7 @@ it.each(["full", "minimal"])(
     );
     expect(slot.inspection.rpcCalls).toContainEqual({
       method: "recap_dismiss",
-      input: { threadId: "t1", recapId: "r1" },
+      input: { threadId: "t1", recapId },
     });
     fireEvent.click(await slot.findByRole("button", { name: "Show recap" }));
     const region = await slot.findByRole("region", { name: "Latest recap" });
@@ -683,7 +692,7 @@ it("shows the goal, results, and an icon-only Archive in the compact complete ca
   await waitFor(() =>
     expect(slot.inspection.rpcCalls).toContainEqual({
       method: "archive",
-      input: { threadId: "t1", recapId: "r1" },
+      input: { threadId: "t1", recapId },
     }),
   );
 });
@@ -981,7 +990,7 @@ it.each([
         goal: "Wrote the plan",
         latest: [text],
       }),
-      { id: "r1", turnId: "turn", at: 1 },
+      { id: recapId, turnId: "turn", at: 1 },
     );
     const slot = await mount({ recap });
     const link = await slot.findByRole("link", { name: label });
@@ -1112,7 +1121,7 @@ it.each(["full"])(
     await waitFor(() =>
       expect(slot.inspection.rpcCalls).toContainEqual({
         method: "archive",
-        input: { threadId: "t1", recapId: "r1" },
+        input: { threadId: "t1", recapId },
       }),
     );
   },
@@ -1142,7 +1151,7 @@ it.each([
   async ({ location, href, target }) => {
     markdownRendering.enabled = true;
     const recap = recapSchema.parse({
-      id: "r1",
+      id: recapId,
       turnId: "turn",
       at: 1,
       state: "review",
@@ -1341,7 +1350,7 @@ it("shows full sentence-case action labels and sends each message", async () => 
       method: "recap_send",
       input: {
         threadId: "t1",
-        recapId: "r1",
+        recapId,
         action: "Open a pull request",
       },
     }),
@@ -1385,7 +1394,7 @@ it("sends a suggested action on an ordinary click", async () => {
       method: "recap_send",
       input: {
         threadId: "t1",
-        recapId: "r1",
+        recapId,
         action: "Run the full test suite",
       },
     }),
@@ -1413,12 +1422,15 @@ it("shows a short sentence-case action label with neutral styling", async () => 
   expect(button.className).toContain("border-border");
   expect(button.className).toContain("bg-transparent");
   expect(button.getAttribute("aria-description")).toBeNull();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   fireEvent.pointerMove(button, {
     pointerType: "mouse",
     pointerX: 1,
     pointerY: 1,
   });
-  const hint = await slot.findByRole("tooltip", {}, { timeout: 1500 });
+  await act(async () => vi.advanceTimersByTimeAsync(500));
+  vi.useRealTimers();
+  const hint = slot.getByRole("tooltip");
   expect(hint.textContent).toContain("Check for regressions before shipping");
   expect(hint.textContent).toContain("Click to send");
   expect(hint.textContent).toContain("click to edit");
@@ -1429,7 +1441,7 @@ it("shows a short sentence-case action label with neutral styling", async () => 
       method: "recap_send",
       input: {
         threadId: "t1",
-        recapId: "r1",
+        recapId,
         action: "Run the full test suite and summarize failures",
       },
     }),
@@ -1440,12 +1452,14 @@ it("teaches click and Shift-click on an action without a description", async () 
   stubResizeObserver();
   const slot = await mount({ recap: { next: ["Summarize changes"] } });
   const button = await slot.findByRole("button", { name: "Summarize changes" });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   fireEvent.pointerMove(button, {
     pointerType: "mouse",
     pointerX: 1,
     pointerY: 1,
   });
-  const hint = await slot.findByRole("tooltip", {}, { timeout: 1500 });
+  await act(async () => vi.advanceTimersByTimeAsync(500));
+  const hint = slot.getByRole("tooltip");
   expect(hint.textContent).toBe("Click to send\u00b7\u21e7click to edit");
 });
 
@@ -1457,12 +1471,14 @@ it("explains a titled action without a description by the message it sends", asy
     },
   });
   const button = await slot.findByRole("button", { name: "Run tests" });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   fireEvent.pointerMove(button, {
     pointerType: "mouse",
     pointerX: 1,
     pointerY: 1,
   });
-  const hint = await slot.findByRole("tooltip", {}, { timeout: 1500 });
+  await act(async () => vi.advanceTimersByTimeAsync(500));
+  const hint = slot.getByRole("tooltip");
   expect(hint.textContent).toContain("Run the full test suite");
 });
 
@@ -1548,7 +1564,7 @@ it("collapses wrapping action buttons into a menu", async () => {
       method: "recap_send",
       input: {
         threadId: "t1",
-        recapId: "r1",
+        recapId,
         action: "Run the full test suite",
       },
     }),

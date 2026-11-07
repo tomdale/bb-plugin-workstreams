@@ -1,12 +1,12 @@
+import { createTestPluginHost } from "./test-host.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { openDatabase } from "../../src/server/db.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 import { topicAncestors } from "../../src/domain/topics.ts";
 
-const hosts: ReturnType<typeof createFakePluginHost>[] = [];
+const hosts: ReturnType<typeof createTestPluginHost>[] = [];
 const store = () => {
-  const host = createFakePluginHost({ pluginId: `corpus-${hosts.length}` });
+  const host = createTestPluginHost({ pluginId: `corpus-${hosts.length}` });
   hosts.push(host);
   const db = openDatabase(host.bb);
   return { host, db, corpus: new TopicStore(db) };
@@ -115,7 +115,7 @@ describe("TopicStore", () => {
 
   it("renames the topic sources of earlier storage", () => {
     // Not `store()`, which would already apply every migration.
-    const host = createFakePluginHost({ pluginId: `legacy-${hosts.length}` });
+    const host = createTestPluginHost({ pluginId: `legacy-${hosts.length}` });
     hosts.push(host);
     const migrate = host.bb.storage.migrate.bind(host.bb.storage);
     const spy = vi

@@ -1,11 +1,11 @@
+import { createTestPluginHost } from "./test-host.ts";
 import { expect, it } from "vitest";
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { openDatabase } from "../../src/server/db.ts";
 import { TraceStore } from "../../src/server/trace.ts";
 import type { NewTrace } from "../../src/domain/trace.ts";
 
 it("removes source-linked trace prompts and recursive replays without deleting unrelated traces", async () => {
-  const host = createFakePluginHost({ pluginId: "trace-removal" });
+  const host = createTestPluginHost({ pluginId: "trace-removal" });
   try {
     const db = openDatabase(host.bb);
     const traces = new TraceStore(db);

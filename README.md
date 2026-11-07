@@ -1001,9 +1001,32 @@ canonical checkout.
 ```sh
 npm ci
 npm run typecheck
-npx vitest run
+npm test
 npm run build
 ```
+
+`npm test` runs domain, server, DOM interaction, and browser layout tests. The
+browser tests require Chromium (install it with
+`npx playwright-core install chromium`) or a Chrome executable in `CHROME_PATH`;
+ordinary runs skip them if neither is available. The optional real-snapshot test
+requires `WORKSTREAMS_SNAPSHOT`. Paid model evaluations and the plugin
+activation smoke check run separately.
+
+Tests use up to eight VM workers with isolated test contexts and reusable
+compiled dependency code. DOM tests use jsdom; layout checks use real Chrome
+with a fresh browser context per test. Server fixtures use real, disposable
+SQLite databases with synchronous disk flushing disabled; they cover
+transactions, migrations, and reopening storage, not recovery after power loss.
+
+Run `npm run test:benchmark -- --runs 5 --output-dir /tmp/workstreams-benchmark`
+to measure full-suite wall-clock time, including npm and Vitest startup. The
+command saves each test report and log plus `benchmark.json` with
+machine/runtime information and min/median/p95/max timings. It exits nonzero if
+a test fails, a browser layout test is skipped, or any run takes ten seconds or
+longer. Dependencies and Chrome must already be installed; each run starts a
+fresh process, keeps existing transform caches, and executes every test again.
+To check order independence, run
+`npm test -- --sequence.shuffle --sequence.seed=104729`.
 
 The app draws with its color tokens (`src/app/theme/tokens.css`) and BB's theme
 variables; `tests/app/color-lint.test.ts` fails on Tailwind palette classes and

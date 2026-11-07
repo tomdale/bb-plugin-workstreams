@@ -1,5 +1,5 @@
+import { createTestPluginHost } from "./test-host.ts";
 import { afterEach, expect, it } from "vitest";
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import type { WorkState } from "../../src/domain/analysis.ts";
 import {
   DEFAULT_SNOOZE_PREFS,
@@ -15,9 +15,9 @@ import {
   type SetSnooze,
 } from "../../src/server/snoozeWake.ts";
 
-const hosts: ReturnType<typeof createFakePluginHost>[] = [];
-afterEach(() => {
-  hosts.splice(0);
+const hosts: ReturnType<typeof createTestPluginHost>[] = [];
+afterEach(async () => {
+  for (const host of hosts.splice(0)) await host.harness.lifecycle.dispose();
 });
 
 const thread = (
@@ -48,7 +48,7 @@ const thread = (
 
 /** A waker over a world the test steps through: inventory reads, clock, analysis. */
 function setup(db?: Database) {
-  const host = createFakePluginHost({ pluginId: `waker-${hosts.length}` });
+  const host = createTestPluginHost({ pluginId: `waker-${hosts.length}` });
   hosts.push(host);
   const world = {
     db: db ?? openDatabase(host.bb),

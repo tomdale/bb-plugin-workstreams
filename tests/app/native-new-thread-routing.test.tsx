@@ -11,6 +11,7 @@ import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { useComposer } from "@get-bb/plugin-sdk/app";
 import { NewThreadRouting } from "../../src/app/composer/NewThreadRouting.tsx";
 import { setComposerPreset } from "../../src/app/composer/preset.ts";
+import { routeDelay } from "../../src/app/composer/timing.ts";
 import type { Preview } from "../../src/server/preview.ts";
 import { emptyState } from "./fixtures.ts";
 
@@ -191,7 +192,13 @@ async function typePrompt(
   slot: ReturnType<typeof mount>["slot"],
   text: string,
 ) {
-  await act(() => slot.behavior.setComposerText(text));
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    await act(() => slot.behavior.setComposerText(text));
+    await act(async () => vi.advanceTimersByTimeAsync(routeDelay(text)));
+  } finally {
+    vi.useRealTimers();
+  }
 }
 
 it("fills the field with the classified identity and submits it through host submit metadata", async () => {

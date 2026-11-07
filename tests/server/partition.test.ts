@@ -1,5 +1,5 @@
+import { createTestPluginHost } from "./test-host.ts";
 import { afterEach, describe, expect, it } from "vitest";
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { openDatabase } from "../../src/server/db.ts";
 import {
   restoreTopics,
@@ -8,9 +8,9 @@ import {
   TopicStore,
 } from "../../src/server/topics.ts";
 
-const hosts: ReturnType<typeof createFakePluginHost>[] = [];
+const hosts: ReturnType<typeof createTestPluginHost>[] = [];
 const store = () => {
-  const host = createFakePluginHost({ pluginId: `partition-${hosts.length}` });
+  const host = createTestPluginHost({ pluginId: `partition-${hosts.length}` });
   hosts.push(host);
   const db = openDatabase(host.bb);
   /** A visible root, as the reconciler records it. */

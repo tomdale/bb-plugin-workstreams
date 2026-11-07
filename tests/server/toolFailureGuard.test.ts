@@ -1,8 +1,6 @@
+import { createTestPluginHost } from "./test-host.ts";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  createFakePluginHost,
-  makeThreadResponse,
-} from "@get-bb/plugin-sdk/testing";
+import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { ToolFailureGuard } from "../../src/server/toolFailureGuard.ts";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -20,7 +18,7 @@ function world(disableOnLoop = true) {
   let thread = makeThreadResponse({ id: "t1", status: "active" });
   let enabled = true;
   let loops = 0;
-  const { bb, harness } = createFakePluginHost({
+  const { bb, harness } = createTestPluginHost({
     sdk: {
       threads: {
         get: async () => thread,

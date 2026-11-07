@@ -1,8 +1,8 @@
+import { createTestPluginHost } from "./test-host.ts";
 import { expect, it, vi } from "vitest";
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { openDatabase } from "../../src/server/db.ts";
 it("upgrades populated storage while preserving workstreams and activity", async () => {
-  const host = createFakePluginHost({ pluginId: "storage-upgrade" });
+  const host = createTestPluginHost({ pluginId: "storage-upgrade" });
   try {
     const migrate = host.bb.storage.migrate.bind(host.bb.storage);
     const spy = vi
@@ -41,7 +41,7 @@ it("upgrades populated storage while preserving workstreams and activity", async
   }
 });
 it("installs with current storage and no retired state or banner tables", async () => {
-  const host = createFakePluginHost({ pluginId: "storage-retirement" });
+  const host = createTestPluginHost({ pluginId: "storage-retirement" });
   try {
     const db = openDatabase(host.bb);
     const names = (
@@ -65,7 +65,7 @@ it("installs with current storage and no retired state or banner tables", async 
   }
 });
 it("removes populated name observations while preserving analysis and topics", async () => {
-  const host = createFakePluginHost({ pluginId: "name-retirement" });
+  const host = createTestPluginHost({ pluginId: "name-retirement" });
   try {
     const migrate = host.bb.storage.migrate.bind(host.bb.storage);
     const spy = vi
@@ -113,7 +113,7 @@ it("removes populated name observations while preserving analysis and topics", a
   }
 });
 it("keeps title ownership when the columns nothing reads are dropped", async () => {
-  const host = createFakePluginHost({ pluginId: "storage-titles" });
+  const host = createTestPluginHost({ pluginId: "storage-titles" });
   try {
     const migrate = host.bb.storage.migrate.bind(host.bb.storage);
     const spy = vi
@@ -143,7 +143,7 @@ it("keeps title ownership when the columns nothing reads are dropped", async () 
   }
 });
 it("rewrites stored review steps and drops the retired recap title", async () => {
-  const host = createFakePluginHost({ pluginId: "recap-item-shape" });
+  const host = createTestPluginHost({ pluginId: "recap-item-shape" });
   try {
     const migrate = host.bb.storage.migrate.bind(host.bb.storage);
     const spy = vi
@@ -215,7 +215,7 @@ it("rewrites stored review steps and drops the retired recap title", async () =>
   }
 });
 it("drops the workstream columns and meta keys nothing reads", async () => {
-  const host = createFakePluginHost({ pluginId: "workstream-record" });
+  const host = createTestPluginHost({ pluginId: "workstream-record" });
   try {
     const migrate = host.bb.storage.migrate.bind(host.bb.storage);
     const spy = vi
@@ -248,7 +248,7 @@ it("drops the workstream columns and meta keys nothing reads", async () => {
   }
 });
 it("drops undoes, undone_by, and trace_id and rewrites stored analysis keys", async () => {
-  const host = createFakePluginHost({ pluginId: "dead-columns" });
+  const host = createTestPluginHost({ pluginId: "dead-columns" });
   try {
     const migrate = host.bb.storage.migrate.bind(host.bb.storage);
     const spy = vi
@@ -335,7 +335,7 @@ function storedAnalysis(db: ReturnType<typeof openDatabase>): string {
   ).result;
 }
 it("retires the metadata undo steps and the proposal log entries", async () => {
-  const host = createFakePluginHost({ pluginId: "undo-retirement" });
+  const host = createTestPluginHost({ pluginId: "undo-retirement" });
   try {
     const migrate = host.bb.storage.migrate.bind(host.bb.storage);
     const spy = vi

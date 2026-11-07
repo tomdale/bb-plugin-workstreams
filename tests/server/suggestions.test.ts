@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakeWorld } from "./fake-bb.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
@@ -9,6 +9,7 @@ let world: World | null = null;
 afterEach(async () => {
   await world?.harness.lifecycle.dispose();
   world = null;
+  vi.useRealTimers();
 });
 
 const SPLIT = "Consider whether this first-level topic";
@@ -552,16 +553,16 @@ describe("a follow-up tidy pass", () => {
     await rpc("refresh");
     const [rename] = (await run()).suggestions;
     expect(tidyCalls).toBe(1);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     await decide([rename!.id], "accept");
-    // The accepted edit's organizer pass checks for suggestions shortly.
-    for (let i = 0; i < 60 && tidyCalls < 2; i++)
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    // The accepted edit schedules a follow-up; rebuilding without another
+    // accepted edit must not schedule a third pass.
+    await vi.advanceTimersByTimeAsync(2_500);
     expect(tidyCalls).toBe(2);
-    // Nothing new was accepted since, so no further pass follows.
     await rpc("organization", { action: "rebuild" });
-    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    await vi.advanceTimersByTimeAsync(2_500);
     expect(tidyCalls).toBe(2);
-  }, 15_000);
+  });
 });
 
 describe("suggestions CLI", () => {

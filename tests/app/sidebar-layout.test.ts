@@ -1,12 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
-import { chromium } from "playwright-core";
-import { describe, expect, it } from "vitest";
-
-const executablePath = [
-  process.env.CHROME_PATH,
-  chromium.executablePath(),
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-].find((path): path is string => !!path && existsSync(path));
+import { readFileSync } from "node:fs";
+import { describe, expect } from "vitest";
+import { browserTest, browserUnavailable } from "./browser-fixture.ts";
 
 const styles = readFileSync(
   new URL("../../src/app/styles.css", import.meta.url),
@@ -15,14 +9,13 @@ const styles = readFileSync(
 
 const longText = "A long sidebar label that should truncate ".repeat(8);
 
-describe.skipIf(!executablePath)(
+describe.skipIf(browserUnavailable)(
   "sidebar browser layout",
   { timeout: 30_000 },
   () => {
-    it("colors workstream names and subdued category labels while leaving status and thread titles neutral", async () => {
-      const browser = await chromium.launch({ executablePath, headless: true });
-      try {
-        const page = await browser.newPage();
+    browserTest(
+      "colors workstream names and subdued category labels while leaving status and thread titles neutral",
+      async ({ page }) => {
         await page.setContent(`<style>${styles}</style>
           <div style="--ws-hue: 47; --muted-foreground: rgb(130, 130, 130); color: rgb(130, 130, 130)">
             <span class="ws-mark ws-mark-unread"></span>
@@ -60,15 +53,12 @@ describe.skipIf(!executablePath)(
             dark ? "oklch(0.79 0.13 47)" : "oklch(0.46 0.16 47)",
           );
         }
-      } finally {
-        await browser.close();
-      }
-    });
+      },
+    );
 
-    it("reveals hover timestamps on pointer hover and keyboard focus without reserving space", async () => {
-      const browser = await chromium.launch({ executablePath, headless: true });
-      try {
-        const page = await browser.newPage();
+    browserTest(
+      "reveals hover timestamps on pointer hover and keyboard focus without reserving space",
+      async ({ page }) => {
         await page.setContent(`<style>${styles}</style>
         <div class="ws-row"><a href="#">Task</a><span data-timestamp="hover">10m</span></div>`);
         const age = page.locator("[data-timestamp]");
@@ -83,15 +73,13 @@ describe.skipIf(!executablePath)(
         await page.locator("a").evaluate((el) => (el as HTMLElement).blur());
         await age.evaluate((el) => el.setAttribute("data-timestamp", "show"));
         expect(await age.isVisible()).toBe(true);
-      } finally {
-        await browser.close();
-      }
-    });
+      },
+    );
 
-    it("keeps nested animated rows within the sidebar and ellipsizes both lines", async () => {
-      const browser = await chromium.launch({ executablePath, headless: true });
-      try {
-        const page = await browser.newPage({ reducedMotion: "reduce" });
+    browserTest(
+      "keeps nested animated rows within the sidebar and ellipsizes both lines",
+      async ({ page }) => {
+        await page.emulateMedia({ reducedMotion: "reduce" });
         await page.setContent(`
         <style>
           ${styles}
@@ -152,9 +140,7 @@ describe.skipIf(!executablePath)(
             ]);
           }
         }
-      } finally {
-        await browser.close();
-      }
-    });
+      },
+    );
   },
 );

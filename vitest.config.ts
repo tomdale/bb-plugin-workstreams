@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
+import { availableParallelism } from "node:os";
 
 export default defineConfig({
   resolve: {
@@ -9,5 +10,10 @@ export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     setupFiles: ["tests/setup.ts"],
+    // VM contexts isolate test globals and modules while workers reuse the
+    // compiled dependency code. More workers contend with jsdom and Chrome.
+    pool: "vmThreads",
+    maxWorkers: Math.min(8, availableParallelism()),
+    vmMemoryLimit: "512MB",
   },
 });

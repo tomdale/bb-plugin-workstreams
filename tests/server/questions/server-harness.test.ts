@@ -1,7 +1,7 @@
+import { createTestPluginHost } from "../test-host.ts";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
-  createFakePluginHost,
   type FakePluginHost,
   makePluginAgentConfigurationContext,
 } from "@get-bb/plugin-sdk/testing";
@@ -28,7 +28,7 @@ function plugin(bb: Parameters<typeof registerQuestionTool>[0]) {
 }
 
 function createHost(): FakePluginHost {
-  const host = createFakePluginHost({
+  const host = createTestPluginHost({
     pluginId: "workstreams",
     sdk: {
       threads: { get: async () => ({ projectId: "project-test" }) },
@@ -318,7 +318,7 @@ describe("asking a question", () => {
   });
 
   it("leaves approvals unresolved when the interaction expires", async () => {
-    const host = createFakePluginHost({ pluginId: "workstreams" });
+    const host = createTestPluginHost({ pluginId: "workstreams" });
     host.bb.ui.requestInput = async () => ({
       outcome: "cancelled",
       reason: "timeout",
@@ -345,7 +345,7 @@ describe("asking a question", () => {
   });
 
   it("explains the collision when a second question races the first", async () => {
-    const host = createFakePluginHost({ pluginId: "workstreams" });
+    const host = createTestPluginHost({ pluginId: "workstreams" });
     host.bb.ui.requestInput = () =>
       Promise.reject(
         new Error("Thread thr-test is already awaiting user interaction"),

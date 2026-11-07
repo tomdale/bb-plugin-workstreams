@@ -1,9 +1,9 @@
-/**
+/*
  * An in-memory BB world behind the SDK harness: threads and sections that the
  * plugin reads and mutates, plus helpers for tests to change them "elsewhere".
  */
+import { createTestPluginHost } from "./test-host.ts";
 import {
-  createFakePluginHost,
   makeHostResponse,
   makeThreadResponse,
 } from "@get-bb/plugin-sdk/testing";
@@ -194,7 +194,7 @@ export async function fakeWorld(
     Object.assign(new Error(`Thread ${id} not found`), { status: 404 });
 
   const text = (value: string) => [{ type: "text", text: value }];
-  const host = createFakePluginHost({
+  const host = createTestPluginHost({
     pluginId: "workstreams",
     experimental_callHostRpc: async (call) => {
       if (call.method === "evaluate") {

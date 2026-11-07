@@ -1,6 +1,6 @@
+import { createTestPluginHost } from "../test-host.ts";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { describe, expect, it, vi } from "vitest";
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { openDatabase } from "../../../src/server/db.ts";
 import { QuestionStore } from "../../../src/server/questions/store.ts";
 import { registerQuestionTool } from "../../../src/server/questions/tool.ts";
@@ -18,7 +18,7 @@ function setup() {
     }),
   );
   const events = { current: [] as unknown[] };
-  const host = createFakePluginHost({
+  const host = createTestPluginHost({
     pluginId: "workstreams",
     sdk: {
       threads: {

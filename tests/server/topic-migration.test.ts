@@ -1,16 +1,16 @@
+import { createTestPluginHost } from "./test-host.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { TopicMigration } from "../../src/server/topicMigration.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 import { Journal } from "../../src/server/journal.ts";
 import { getMeta, openDatabase, setMeta } from "../../src/server/db.ts";
 
-const hosts: ReturnType<typeof createFakePluginHost>[] = [];
+const hosts: ReturnType<typeof createTestPluginHost>[] = [];
 afterEach(async () => {
   for (const host of hosts.splice(0)) await host.harness.lifecycle.dispose();
 });
 function setup() {
-  const host = createFakePluginHost({ pluginId: "migration" });
+  const host = createTestPluginHost({ pluginId: "migration" });
   hosts.push(host);
   const db = openDatabase(host.bb);
   const topics = new TopicStore(db);

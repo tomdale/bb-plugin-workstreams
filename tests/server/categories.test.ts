@@ -1,5 +1,5 @@
+import { createTestPluginHost } from "./test-host.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import { Categories } from "../../src/server/categories.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import type {
@@ -8,7 +8,7 @@ import type {
   CategoryInput,
 } from "../../src/domain/categories.ts";
 
-const hosts: ReturnType<typeof createFakePluginHost>[] = [];
+const hosts: ReturnType<typeof createTestPluginHost>[] = [];
 const engines: Categories[] = [];
 afterEach(async () => {
   for (const engine of engines.splice(0)) engine.dispose();
@@ -41,7 +41,7 @@ const decision = (input: CategoryInput): CategoryDecision => ({
   ],
 });
 function setup() {
-  const host = createFakePluginHost({ pluginId: "categories-test" });
+  const host = createTestPluginHost({ pluginId: "categories-test" });
   hosts.push(host);
   const db = openDatabase(host.bb);
   const state = { collections: [collection()] };
