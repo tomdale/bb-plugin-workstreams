@@ -1,5 +1,23 @@
-import { Drum } from "../../../src/app/page/queue/drum.ts";
+import {
+  Drum,
+  LEAD,
+  PRESETS as DRUM_PRESETS,
+} from "../../../src/app/page/queue/drum.ts";
+import { Cascade, PRESETS as CASCADE_PRESETS } from "../src/cascade.ts";
 import { problems, maxJump, summarize } from "./check.mjs";
+
+/**
+ * A model the scenarios below can drive: its constructor `Model(heights, config)` and the named settings
+ * `PRESETS` it ships with. Every scenario takes one in its options, `{ model, onFrames }`, and defaults to the
+ * drum. `onFrames(frames, info)` is called with the frames of each scenario run, so a caller can measure what
+ * the scenario's own result leaves out; `info.kind` says which scenario it was.
+ */
+export const DRUM = { name: "drum", Model: Drum, PRESETS: DRUM_PRESETS };
+export const CASCADE = {
+  name: "cascade",
+  Model: Cascade,
+  PRESETS: CASCADE_PRESETS,
+};
 
 export const HEIGHTS = {
   w1: [284, 73, 218, 96, 162, 140],
@@ -10,7 +28,7 @@ const N = 24;
 export const heightsOf = (name) =>
   Array.from({ length: N }, (_, i) => HEIGHTS[name][i % HEIGHTS[name].length]);
 
-/** Drives a Drum on a stepped clock. presses: [{t, dir}] or key holds via `hold`. */
+/** Drives a model on a stepped clock. presses: [{t, dir}] or key holds via `hold`. */
 export function record(
   drum,
   { dur, hz = 60, presses = [], holds = [], until = null },
@@ -108,15 +126,16 @@ function landingSpeed(frames, i, land) {
   return m;
 }
 
-export function singles(hset, cfg, hz) {
+export function singles(hset, cfg, hz, { model = DRUM, onFrames } = {}) {
   const h = heightsOf(hset);
   const frameMs = 1000 / hz;
   const rows = { up: [], down: [] };
   for (const dir of [-1, 1]) {
     for (let s = 1; s <= 11; s++) {
-      const d = new Drum(h, cfg);
+      const d = new model.Model(h, cfg);
       d.jump(s);
       const { frames } = record(d, { dur: 1500, hz, presses: [{ t: 0, dir }] });
+      onFrames?.(frames, { kind: "tap", hset, dir, start: s });
       const i = s + dir;
       const land = landFrame(frames, i);
       const po = problems(frames, "orig"),
@@ -160,10 +179,10 @@ export function holdRun(
   hset,
   cfg,
   hz,
-  { dir, from, to, delay = 250, repeat = 33 },
+  { dir, from, to, delay = 250, repeat = 33, model = DRUM, onFrames },
 ) {
   const h = heightsOf(hset);
-  const d = new Drum(h, cfg);
+  const d = new model.Model(h, cfg);
   d.jump(from);
   const { frames, fronts, holds } = record(d, {
     dur: 8000,
@@ -171,6 +190,7 @@ export function holdRun(
     holds: [{ t0: 0, dir, delay, repeat, untilFront: to }],
     until: (dr, t) => !dr.isHeld() && !dr.isBusy() && t > 300,
   });
+  onFrames?.(frames, { kind: "hold", hset, dir, from, to });
   const changes = [];
   for (let n = 1; n < fronts.length; n++)
     if (fronts[n].front !== fronts[n - 1].front) changes.push(fronts[n].t);
@@ -198,11 +218,12 @@ export function holdRun(
   };
 }
 
-export function reversal(hset, cfg, hz, seq) {
+export function reversal(hset, cfg, hz, seq, { model = DRUM, onFrames } = {}) {
   const h = heightsOf(hset);
-  const d = new Drum(h, cfg);
+  const d = new model.Model(h, cfg);
   d.jump(6);
   const { frames } = record(d, { dur: 2500, hz, presses: seq });
+  onFrames?.(frames, { kind: "reversal", hset, seq });
   // velocity continuity: per painted card, |Δ(edge velocity)| between consecutive frames, max over the frames right after each press vs overall
   let maxDv = 0,
     maxDvAtPress = 0;
@@ -232,11 +253,11 @@ export function reversal(hset, cfg, hz, seq) {
   };
 }
 
-export function releaseTest(hset, cfg, hz) {
+export function releaseTest(hset, cfg, hz, { model = DRUM, onFrames } = {}) {
   const h = heightsOf(hset);
   const out = [];
   for (const holdMs of [300, 450, 600, 800, 1000, 1300]) {
-    const d = new Drum(h, cfg);
+    const d = new model.Model(h, cfg);
     d.jump(14);
     const { frames, fronts, holds } = record(d, {
       dur: 6000,
@@ -244,6 +265,7 @@ export function releaseTest(hset, cfg, hz) {
       holds: [{ t0: 0, dir: -1, delay: 250, repeat: 33, t1: holdMs }],
       until: (dr, t) => !dr.isHeld() && !dr.isBusy() && t > holdMs + 200,
     });
+    onFrames?.(frames, { kind: "release", hset, holdMs });
     const relFrame = Math.round((holdMs * hz) / 1000);
     const frontAtRelease = fronts[relFrame].front;
     const final = fronts.at(-1).front;
@@ -260,4 +282,117 @@ export function releaseTest(hset, cfg, hz) {
     });
   }
   return out;
+}
+
+// ---- measurements the scenarios' own results leave out ---------------------------------------------------
+
+/** Screen px of `card` that no nearer painted card covers. */
+function unoccluded(frame, card) {
+  const spans = frame
+    .filter((o) => o.painted && o.layer > card.layer)
+    .map((o) => [Math.max(o.top, card.top), Math.min(o.bottom, card.bottom)])
+    .filter(([lo, hi]) => hi > lo)
+    .sort((a, b) => a[0] - b[0]);
+  let covered = 0,
+    end = -Infinity;
+  for (const [lo, hi] of spans) {
+    covered += Math.max(0, hi - Math.max(lo, end));
+    end = Math.max(end, hi);
+  }
+  return Math.max(0, card.bottom - card.top - covered);
+}
+
+/**
+ * What a hold shows of each card that passes the front: for every card strictly between `from` and `to`, the
+ * most px of it that no nearer card covers in any frame (`best`), and in how many frames it shows at least
+ * min(height, 100) px (`frames`). `heights` are the cards' own heights.
+ */
+export function legibility(frames, heights, from, to) {
+  const lo = Math.min(from, to),
+    hi = Math.max(from, to);
+  const best = new Map(),
+    shown = new Map();
+  for (const frame of frames)
+    for (const c of frame) {
+      if (!c.painted || c.i <= lo || c.i >= hi) continue;
+      const v = unoccluded(frame, c);
+      best.set(c.i, Math.max(best.get(c.i) ?? 0, v));
+      if (v >= Math.min(heights[c.i], 100))
+        shown.set(c.i, (shown.get(c.i) ?? 0) + 1);
+    }
+  const cards = [];
+  for (let i = lo + 1; i < hi; i++)
+    cards.push({
+      i,
+      h: heights[i],
+      best: best.get(i) ?? 0,
+      frames: shown.get(i) ?? 0,
+    });
+  return cards;
+}
+
+/** The most cards painted in front of the pile at once: the cascade's channel, or the drum's drop. */
+export function channelPeak(frames) {
+  let m = 0;
+  for (const f of frames)
+    m = Math.max(m, f.filter((c) => c.painted && c.group === 0).length);
+  return m;
+}
+
+/** The lowest drawn edge of any painted card, px below the top of the front pose. */
+export function lowestEdge(frames) {
+  let m = -Infinity;
+  for (const f of frames)
+    for (const c of f) if (c.painted) m = Math.max(m, c.bottom - LEAD);
+  return m;
+}
+
+/**
+ * Ms from `releaseMs` until the last frame in which a painted edge moved more than half a px, or a card
+ * appeared or vanished: how long the cards keep moving after the key is up.
+ */
+export function drainMs(frames, hz, releaseMs) {
+  const frameMs = 1000 / hz;
+  let last = Math.ceil(releaseMs / frameMs);
+  for (let n = 1; n < frames.length; n++) {
+    const prev = new Map(frames[n - 1].map((c) => [c.key, c]));
+    const moving = frames[n].some((c) => {
+      const p = prev.get(c.key);
+      return (
+        c.painted !== p.painted ||
+        (c.painted &&
+          (Math.abs(c.top - p.top) > 0.5 ||
+            Math.abs(c.bottom - p.bottom) > 0.5))
+      );
+    });
+    if (moving) last = Math.max(last, n);
+  }
+  return Math.max(0, last * frameMs - releaseMs);
+}
+
+/**
+ * Held pace, cards/s, of a 14-card hold started at each of `phases` (ms after the first frame) with the key
+ * repeating every 33 ms from 33 ms on. The repeat presses meet the frame grid at a different offset for each
+ * phase, so the average is the gate's pace and not one alignment's. Where `holdRun` waits 250 ms for the first
+ * repeat, this starts repeating at once, which is the pace the gate sets rather than the keyboard's delay.
+ */
+export function repeatPace(hset, cfg, hz, dir, phases, { model = DRUM } = {}) {
+  const h = heightsOf(hset);
+  const from = dir > 0 ? 1 : 14,
+    to = dir > 0 ? 14 : 1;
+  return phases.map((phase) => {
+    const d = new model.Model(h, cfg);
+    d.jump(from);
+    const { fronts } = record(d, {
+      dur: 6000,
+      hz,
+      holds: [{ t0: phase, dir, delay: 33, repeat: 33, untilFront: to }],
+      until: (dr, t) => t > phase + 100 && !dr.isHeld(),
+    });
+    const changes = [];
+    for (let n = 1; n < fronts.length; n++)
+      if (fronts[n].front !== fronts[n - 1].front) changes.push(fronts[n].t);
+    const intervals = changes.slice(1).map((t, k) => t - changes[k]);
+    return 1000 / (intervals.reduce((a, b) => a + b, 0) / intervals.length);
+  });
 }

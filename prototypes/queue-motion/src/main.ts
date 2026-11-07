@@ -1,11 +1,14 @@
 /**
- * The lab page: the shipped queue engine ("product") and the elastic drum side by side, driven by the same
+ * The lab page: the shipped queue engine ("product"), the elastic drum and the cascade, driven by the same
  * keys, cards, and stepped clock. `window.__sim` is the hook the capture scripts drive.
  */
 import { StackEngine } from "../../../src/app/page/queue/stackEngine.ts";
-// The model is the product's own (`drum.ts`); the headless sims import it too.
+// The drum is the product's own (`drum.ts`); the headless sims import both models too.
 import { Drum, LEAD } from "../../../src/app/page/queue/drum.ts";
+import { Cascade } from "./cascade.ts";
 import {
+  CASCADE_PRESET_NAMES,
+  CASCADE_SETTINGS,
   CONTROLS,
   FADE_MS,
   GROUPS,
@@ -14,14 +17,19 @@ import {
   SETTINGS,
   SETTING_KEYS,
   SPEEDS,
+  cascadeCfg,
   drumCfg,
+  maxOf,
+  modelCfg,
   parseOpt,
+  presetsOf,
+  type CascadeCfg,
   type Cfg,
   type Mode,
   type Opt,
   type Setting,
 } from "./controls.ts";
-import { ABOUT, HELP, captionFor } from "./help.ts";
+import { ABOUT, ABOUT_CASCADE, HELP, captionFor } from "./help.ts";
 import { inline, installTooltips } from "./tooltip.ts";
 // @ts-ignore: plain JS data
 import { ITEMS } from "./items.js";
@@ -48,10 +56,18 @@ const faceHTML = (it: any) => {
   return `<p class="st">${it.l}<span>${it.a} · #${it.n}</span></p><p class="goal">${it.g}</p>${rows ? `<div class="rows">${rows}</div>` : ""}`;
 };
 
-/** The page's state, as the URL hash holds it, with a value that names nothing replaced by its default. */
+/**
+ * The page's state, as the URL hash holds it, with a value that names nothing replaced by its default. A preset
+ * belongs to one model: the drum's and the cascade's names differ, so a name the model lacks gives its first
+ * preset. The product has no presets and keeps any name either model has.
+ */
 const sanitize = (o: Opt): Opt => {
   if (!MODES.some((m) => m.id === o.v)) o.v = "drum";
-  if (!PRESET_NAMES.includes(o.preset!)) o.preset = "natural";
+  const offered =
+    o.v === "product"
+      ? presetsOf("drum").concat(presetsOf("cascade"))
+      : presetsOf(o.v!);
+  if (!offered.includes(o.preset!)) o.preset = offered[0] ?? "natural";
   if (!SPEEDS.some((s) => s.id === o.speed)) o.speed = "1";
   return o;
 };
@@ -61,14 +77,19 @@ const opt: Opt = sanitize({
   speed: "1",
   ...parseOpt(location.hash),
 });
-/** The drum configuration the state asks for; recomputed whenever `opt` changes. */
+/** The drum and cascade configurations the state asks for; recomputed whenever `opt` changes. */
 let cfg: Cfg = drumCfg(opt);
-const refreshCfg = () => (cfg = drumCfg(opt));
+let ccfg: CascadeCfg = cascadeCfg(opt);
+const refreshCfg = () => {
+  cfg = drumCfg(opt);
+  ccfg = cascadeCfg(opt);
+};
 const writeHash = () => (location.hash = new URLSearchParams(opt).toString());
 
 // ---- DOM -------------------------------------------------------------------------
 const stage = $("#stage");
 stage.style.height = LEAD + "px";
+const clip = $("#clip");
 type El = {
   el: HTMLElement;
   shadow: HTMLElement;
@@ -142,7 +163,8 @@ interface Sim {
   keyDown?(dir: 1 | -1): void;
   keyUp?(): void;
   lam?(): number;
-  setCfg?(c: Record<string, unknown>): void;
+  /** Hands the page's current configuration to the model. */
+  setCfg?(): void;
 }
 let onMove: (cur: number, dir: 1 | -1) => void = () => {};
 
@@ -185,8 +207,64 @@ function drumSim(cur: number): Sim {
     },
     keyUp: () => d.keyUp(),
     lam: () => d.lam,
-    setCfg: (c) => {
-      Object.assign(d.cfg, c);
+    setCfg: () => {
+      Object.assign(d.cfg, cfg);
+    },
+  };
+}
+
+/**
+ * The cascade. The model reports a channel card that reaches the clip line cut there, and a card drawn to that
+ * height would show rounded corners and a border on the line. The page draws such a card at its own height
+ * unless a card in front shortens it, and the clipping container cuts it at the line.
+ */
+function cascadeSim(cur: number): Sim {
+  refreshCfg();
+  const m = new Cascade(heights, modelCfg(ccfg));
+  m.jump(cur);
+  let last = cur;
+  const check = () => {
+    if (m.front !== last) {
+      const dir = m.front > last ? 1 : -1;
+      last = m.front;
+      onMove(m.front, dir);
+    }
+  };
+  return {
+    get cur() {
+      return m.front;
+    },
+    press: (dir) => {
+      const r = m.press(dir);
+      check();
+      return r;
+    },
+    step: (ms) => {
+      m.step(ms);
+      check();
+    },
+    views: () =>
+      m.views().map((v) => ({
+        ...v,
+        vis:
+          v.group === 0 && v.bottom >= v.natBottom - 1e-6
+            ? v.h
+            : (v.bottom - v.top) / v.scale,
+      })),
+    busy: () => m.isBusy(),
+    jump: (n) => {
+      m.jump(n);
+      last = n;
+    },
+    setHeights: (h) => m.setHeights(h),
+    keyDown: (dir) => {
+      m.keyDown(dir);
+      check();
+    },
+    keyUp: () => m.keyUp(),
+    lam: () => m.lam,
+    setCfg: () => {
+      Object.assign(m.cfg, modelCfg(ccfg));
     },
   };
 }
@@ -237,8 +315,10 @@ const reduced = () =>
   opt.reduced === "1" || matchMedia("(prefers-reduced-motion: reduce)").matches;
 const speed = () => Number(opt.speed) || 1;
 
-/** The held readout is on while the drum has a held state to report. */
-const showsHeld = () => opt.v === "drum" && (cfg.fold || cfg.ramp) && !!sim.lam;
+/** The held readout is on while the model has a held state to report: the drum's speed-up or fold, the cascade's ramp. */
+const showsHeld = () =>
+  !!sim.lam &&
+  (opt.v === "drum" ? cfg.fold || cfg.ramp : opt.v === "cascade" && ccfg.ramp);
 
 function paint() {
   // The product engine holds only the pile and the cards still leaving it; every other card stays hidden.
@@ -328,8 +408,14 @@ onMove = (c) => showHead(c, true);
 
 function build(mode: Mode, cur = sim ? sim.cur : 0) {
   opt.v = mode;
+  sanitize(opt);
   refreshCfg();
-  sim = mode === "product" ? productSim(cur) : drumSim(cur);
+  sim =
+    mode === "product"
+      ? productSim(cur)
+      : mode === "cascade"
+        ? cascadeSim(cur)
+        : drumSim(cur);
   showHead(cur, false);
   paint();
   wake();
@@ -344,8 +430,8 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 const labelOf = (id: string) => CONTROLS.find((c) => c.id === id)!.label;
 const group = (label: string, body: string, attrs = "") =>
   `<div class="grp" ${attrs}>${label ? `<span>${esc(label)}</span>` : ""}${body}</div>`;
-const button = (help: string, act: string, text: string) =>
-  `<button data-help="${help}" data-act="${act}">${esc(text)}</button>`;
+const button = (help: string, act: string, text: string, mode = "") =>
+  `<button data-help="${help}" data-act="${act}"${mode ? ` data-mode="${mode}"` : ""}>${esc(text)}</button>`;
 
 function renderBar() {
   $("#bar").innerHTML =
@@ -355,7 +441,12 @@ function renderBar() {
     ) +
     group(
       "Preset",
-      PRESET_NAMES.map((p) => button(`preset.${p}`, `p:${p}`, p)).join(""),
+      PRESET_NAMES.map((p) => button(`preset.${p}`, `p:${p}`, p, "drum")).join(
+        "",
+      ) +
+        CASCADE_PRESET_NAMES.map((p) =>
+          button(`preset.${p}`, `p:${p}`, p, "cascade"),
+        ).join(""),
       'id="presets"',
     ) +
     group(
@@ -389,27 +480,36 @@ function syncBar() {
     b.classList.toggle("on", on);
     if (k !== "step") b.setAttribute("aria-pressed", String(on));
   }
-  $("#presets").hidden = opt.v !== "drum";
+  // Each model shows its own preset buttons; the product has none.
+  $("#presets").hidden = opt.v === "product";
+  for (const b of $$("#presets button")) b.hidden = b.dataset.mode !== opt.v;
   $('#bar [data-act="pause"]').textContent = paused
     ? "Paused"
     : labelOf("clock.pause");
   $("#lam").hidden = !showsHeld();
 }
 
-const settingHtml = (s: Setting) => {
+const settingHtml = (s: Setting<any, unknown>) => {
   const host = `data-help="setting.${s.key}" data-key="${s.key}"`;
+  // A limit that depends on another setting is set when the settings are synced.
   if (s.kind === "range")
-    return `<label ${host}>${esc(s.label)} <input type="range" data-k="${s.key}" min="${s.min}" max="${s.max}" step="${s.step}"><output></output></label>`;
+    return `<label ${host}>${esc(s.label)} <input type="range" data-k="${s.key}" min="${s.min}"${typeof s.max === "number" ? ` max="${s.max}"` : ""} step="${s.step}"><output></output></label>`;
   if (s.kind === "toggle")
     return `<label ${host}><input type="checkbox" data-k="${s.key}"> ${esc(s.label)}</label>`;
   return `<label ${host}>${esc(s.label)} <select data-k="${s.key}">${s.options.map((o) => `<option>${o}</option>`).join("")}</select></label>`;
 };
 
+/** The settings bar holds both models' settings; a model's are hidden while another model runs. */
 function renderSettings() {
+  const all: readonly Setting<any, unknown>[] = [
+    ...SETTINGS,
+    ...CASCADE_SETTINGS,
+  ];
   $("#sbar").innerHTML = GROUPS.map((g) =>
     group(
       g.label,
-      SETTINGS.filter((s) => s.group === g.id)
+      all
+        .filter((s) => s.group === g.id)
         .map(settingHtml)
         .join(""),
       `data-group="${g.id}"`,
@@ -417,36 +517,60 @@ function renderSettings() {
   ).join("");
 }
 
-/** Shows the settings that change something under the current configuration, with their current values. */
-function syncSettings() {
+/** Shows one model's settings that change something under its configuration `c`, with their current values. */
+function syncList<C>(
+  list: readonly Setting<C, unknown>[],
+  c: C,
+  active: boolean,
+) {
   const sbar = $("#sbar");
-  sbar.hidden = opt.v !== "drum";
-  if (sbar.hidden) return;
-  for (const s of SETTINGS) {
+  for (const s of list) {
     const host = sbar.querySelector<HTMLElement>(`[data-key="${s.key}"]`)!;
-    host.hidden = !s.shown(cfg);
+    host.hidden = !active || !s.shown(c);
     const input = host.querySelector<HTMLInputElement | HTMLSelectElement>(
       "[data-k]",
     )!;
-    if (s.kind === "toggle") (input as HTMLInputElement).checked = s.read(cfg);
-    else if (s.kind === "select") input.value = s.read(cfg);
+    if (s.kind === "toggle") (input as HTMLInputElement).checked = s.read(c);
+    else if (s.kind === "select") input.value = s.read(c);
     else {
-      const v = round(s.read(cfg));
+      (input as HTMLInputElement).max = String(maxOf(s, c));
+      const v = round(s.read(c));
       if (Number(input.value) !== v) input.value = String(v);
       host.querySelector("output")!.textContent = String(v);
     }
   }
+}
+
+/** Shows the settings of the running model that change something under its configuration. */
+function syncSettings() {
+  const sbar = $("#sbar");
+  sbar.hidden = opt.v === "product";
+  if (sbar.hidden) return;
+  syncList(SETTINGS, cfg, opt.v === "drum");
+  syncList(CASCADE_SETTINGS, ccfg, opt.v === "cascade");
   for (const g of $$("#sbar .grp"))
     g.hidden = $$(`#sbar [data-group="${g.dataset.group}"] label`).every(
       (l) => l.hidden,
     );
 }
 
+/** The cascade cuts its stage at the clip line, `park` px below the front pose, and fades the last `fade` px. */
+function syncStage() {
+  const on = opt.v === "cascade";
+  clip.classList.toggle("on", on);
+  clip.style.height = on ? `${LEAD + ccfg.park}px` : "";
+  const mask =
+    on && ccfg.fade > 0
+      ? `linear-gradient(to bottom, #000 calc(100% - ${ccfg.fade}px), transparent)`
+      : "";
+  clip.style.maskImage = clip.style.webkitMaskImage = mask;
+}
+
 /** The caption under the stack: the active model and preset, in the words of their tooltips. */
 function syncNote() {
   const name = MODES.find((m) => m.id === opt.v)!.label;
   const lead = document.createElement("b");
-  lead.textContent = `${name}${opt.v === "drum" ? ` · ${opt.preset}` : ""}.`;
+  lead.textContent = `${name}${opt.v !== "product" ? ` · ${opt.preset}` : ""}.`;
   const text = document.createElement("span");
   inline(text, captionFor(opt.v!, opt.preset!));
   const hint = document.createElement("span");
@@ -456,15 +580,14 @@ function syncNote() {
   $("#note").replaceChildren(lead, " ", text, hint);
 }
 
-function renderAbout() {
-  const panel = $("#about");
-  for (const text of ABOUT.paragraphs) {
+function renderAbout(panel: HTMLElement, about: typeof ABOUT) {
+  for (const text of about.paragraphs) {
     const p = document.createElement("p");
     inline(p, text);
     panel.append(p);
   }
   const list = document.createElement("ul");
-  for (const [name, text] of ABOUT.map) {
+  for (const [name, text] of about.map) {
     const li = document.createElement("li");
     const b = document.createElement("b");
     b.textContent = `${name}. `;
@@ -473,22 +596,36 @@ function renderAbout() {
     list.append(li);
   }
   panel.append(list);
-  if (ABOUT.numbers.length) {
+  if (about.numbers.length) {
     const src = document.createElement("p");
     src.className = "src";
-    inline(src, `Numbers from ${ABOUT.numbers.join("; ")}.`);
+    inline(src, `Numbers from ${about.numbers.join("; ")}.`);
     panel.append(src);
   }
 }
 
+/** The panel at the bottom left explains the model that runs: the cascade's, or the drum's (also for the product). */
+function syncAbout() {
+  const cascade = opt.v === "cascade";
+  const id = cascade ? "about.cascade" : "about";
+  const summary = $("details.model summary");
+  summary.dataset.help = id;
+  summary.textContent = labelOf(id);
+  $("#about").hidden = cascade;
+  $("#about-cascade").hidden = !cascade;
+}
+
 renderBar();
 renderSettings();
-renderAbout();
+renderAbout($("#about"), ABOUT);
+renderAbout($("#about-cascade"), ABOUT_CASCADE);
 const tips = installTooltips();
 
 function syncAll() {
   syncBar();
   syncSettings();
+  syncStage();
+  syncAbout();
   syncNote();
   writeHash();
   tips.sync();
@@ -505,7 +642,7 @@ $("#sbar").addEventListener("input", (e) => {
         : "0"
       : t.value;
   refreshCfg();
-  sim.setCfg?.(cfg);
+  sim.setCfg?.();
   syncAll();
 });
 $("#bar").addEventListener("click", (e) => {
@@ -516,7 +653,7 @@ $("#bar").addEventListener("click", (e) => {
   if (k === "p") {
     for (const key of SETTING_KEYS) delete opt[key];
     opt.preset = v!;
-    build("drum");
+    build(b.dataset.mode as Mode);
   }
   if (k === "s") {
     opt.speed = v!;
@@ -589,9 +726,11 @@ addEventListener("hashchange", () => {
   refreshCfg();
   if (rebuild) build(opt.v as Mode);
   else {
-    sim.setCfg?.(cfg);
+    sim.setCfg?.();
     syncBar();
     syncSettings();
+    syncStage();
+    syncAbout();
     syncNote();
     tips.sync();
   }

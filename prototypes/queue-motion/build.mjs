@@ -20,6 +20,7 @@ const loader = { ".js": "js", ".mjs": "js" };
 function sweepFacts() {
   const files = [
     "../../src/app/page/queue/drum.ts",
+    "src/cascade.ts",
     ...fs
       .readdirSync(path.join(here, "sim"))
       .sort()

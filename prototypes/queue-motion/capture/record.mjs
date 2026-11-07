@@ -3,7 +3,9 @@
  * key repeat (first keydown, then one every 33 ms after 250 ms). Frame pacing is that of headless Chrome's
  * screencast, which is below a real display's.
  *
- *   node capture/record.mjs product,drum,drum:fold
+ *   node capture/record.mjs product,drum,drum:fold,cascade
+ *
+ * The specs are those of `sheets.mjs`: `product`, `drum`, `drum:<preset>`, `cascade` and `cascade:<preset>`.
  */
 import fs from "node:fs";
 import { execSync } from "node:child_process";

@@ -83,6 +83,27 @@ export function problems(frames, mode = "orig", opts = {}) {
   }
   return out;
 }
+/**
+ * Every pair of cards that are painted in two consecutive frames and whose draw order differs between them,
+ * whether or not they overlap. `problems` flags only a swap that can be seen (the cards overlap and no third
+ * card covers the overlap); a model that never changes draw order has none of these at all.
+ */
+export function orderChanges(frames) {
+  const out = [];
+  for (let n = 1; n < frames.length; n++) {
+    const a = byKey(frames[n - 1]);
+    const both = frames[n].filter((c) => c.painted && a.get(c.key)?.painted);
+    for (let i = 0; i < both.length; i++)
+      for (let j = i + 1; j < both.length; j++) {
+        const x = both[i],
+          y = both[j];
+        const before = Math.sign(a.get(x.key).layer - a.get(y.key).layer);
+        if (before !== Math.sign(x.layer - y.layer))
+          out.push({ n, keys: x.key + "/" + y.key });
+      }
+  }
+  return out;
+}
 /** Largest per-frame motion of any painted card's top or natural bottom, px. */
 export function maxJump(frames) {
   let m = 0;

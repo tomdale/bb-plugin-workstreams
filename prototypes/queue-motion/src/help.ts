@@ -9,7 +9,15 @@
  * `f.expect` rejects a claim the sweeps no longer support, so a change to the model fails the build instead of
  * leaving a stale tooltip. Each entry's footer names the commands that print its numbers.
  */
-import { FADE_MS, SPEEDS } from "./controls.ts";
+import { DEFAULT_CFG } from "./cascade.ts";
+import {
+  FADE_MS,
+  PILE_CLEARANCE,
+  SPEEDS,
+  TALLEST_CARD,
+  TAU,
+  fadeCap,
+} from "./controls.ts";
 import { Facts, t, type RawFacts, type RowView } from "./facts.ts";
 
 declare const __FACTS__: RawFacts;
@@ -33,6 +41,11 @@ const up = (r: RowView) => r.raw.upLand as number;
 const dn = (r: RowView) => r.raw.dnLand as number;
 const speed = (r: RowView) => r.raw.landSpeed as number;
 const rate = (r: RowView) => (r.raw.heldUp + r.raw.heldDn) / 2;
+/** The cascade's held spring and held edge budget: model values with no slider, so a tooltip reads them here. */
+const HELD = {
+  hz: String(Math.round((DEFAULT_CFG.omega1 / TAU) * 10) / 10),
+  budget: String(DEFAULT_CFG.vcap1 / 60),
+};
 
 const ENTRIES: Record<string, (f: Facts) => Draft> = {
   // ---- models ------------------------------------------------------------------------------------
@@ -45,8 +58,8 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       ],
     ],
     needs:
-      "Speed, clock and reduced motion work in both models. Presets and settings belong to the drum.",
-    tune: "Nothing to tune. Hold ↑ and ↓ here, then switch to `Elastic drum` with `natural` and hold the same keys to compare. Pause and Step turn either model into a frame you can read.",
+      "Speed, clock and reduced motion work in every model. Presets and settings belong to the drum and the cascade.",
+    tune: "Nothing to tune. Hold ↑ and ↓ here, then switch to `Elastic drum` with `natural`, or to `Cascade`, and hold the same keys to compare. Pause and Step turn any model into a frame you can read.",
   }),
   "model.drum": () => ({
     what: "The candidate model: each card follows one ring path on its own spring, and ↑ runs the same ring backwards.",
@@ -60,6 +73,29 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "A preset sets a bundle of settings; the rows under the preset buttons adjust it. Speed, clock and reduced motion apply as in `Product now`.",
     tune: "Start with `natural`: hold ↑ and ↓, then try the other presets one at a time before you move a setting. `How the drum works` explains the path.",
   }),
+
+  "model.cascade": (f) => {
+    const c = f.preset("default");
+    const nat = f.preset("natural");
+    f.expect(
+      c.clean &&
+        c.raw.heldUp > 1.5 * nat.raw.heldUp &&
+        c.raw.spread < 0.05 &&
+        nat.raw.spread > 0.05,
+      "the cascade's default is clean, much faster than natural, and holds one pace on every height set",
+    );
+    return {
+      what: "The third model: a card that leaves slides down an exit channel in front of the pile and parks below the clip line, so a held key sends a train of cards down the screen and the pace does not follow card heights.",
+      effect: [
+        [
+          "Click",
+          "↓ slides the front card down in front of the pile and out through the clip line. ↑ brings a card back up from the clip line and slows it into the front. No card tucks behind the pile or changes draw order. The cascade's presets and settings appear, and the stage is cut at the clip line.",
+        ],
+      ],
+      needs: t`Speed, clock and reduced motion work as in the other models. The page cuts the stage at the clip line, \`park\` px (${f.def("park")} by default) below the front pose, so the stack takes that much page below the front card. The drum's presets and settings hide.`,
+      tune: t`Hold ↓ and ↑ here, then switch to \`Elastic drum\` with \`natural\` and hold the same keys. The cascade holds ${c.onePace} cards/s on every card height (${c.spread} apart across the three sample sets) with a worst step-to-step change of ${c.step}×. \`natural\` holds ${nat.pace} cards/s, ${nat.spread} apart, with ${nat.step}× from one step to the next.`,
+    };
+  },
 
   // ---- presets -----------------------------------------------------------------------------------
   "preset.natural": (f) => {
@@ -178,9 +214,78 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     };
   },
 
+  "preset.default": (f) => {
+    const p = f.preset("default");
+    const nat = f.preset("natural");
+    const off = f.preset("no held ramp");
+    const s = f.sweep("sp1", "default");
+    const tight = s.at(100),
+      wide = s.at(216);
+    f.expect(
+      p.clean &&
+        p.raw.heldUp > off.raw.heldUp &&
+        rate(tight) > p.raw.heldUp &&
+        p.raw.heldUp > rate(wide),
+      "default is clean, faster than the preset without the ramp, and a tighter spacing is faster",
+    );
+    return {
+      what: t`Every cascade setting at its default: after the hold delay a held key tightens the train, from cards ${f.def("sp0")} px apart to ${f.def("sp1")} px apart.`,
+      effect: [
+        [
+          "Feels",
+          t`A held key starts as a loose train and tightens as the held state rises. The pace is the same on every card height: ${p.spread} apart across the three sample sets, against ${nat.spread} on \`natural\`.`,
+        ],
+        [
+          "Measured",
+          t`Held pace ${p.onePace} cards/s up and down, intervals ${p.range} ms, worst step-to-step change ${p.step}×, ${p.clean ? "no checker problems" : p.problems}. A tap ↑ lands in ${p.tapUp} ms and a tap ↓ settles in ${p.tapDn} ms.`,
+        ],
+        [
+          "Good for",
+          "Holding a key through a mixed queue at a fast, even pace without folding.",
+        ],
+      ],
+      needs: t`Sets nothing: clicking it clears every slider change and restores each default. The ramp is on, so \`spacing at rest\` and \`hold delay\` show.`,
+      tune: t`Start here. \`spacing held\` sets the held pace: ${tight.value} px gives ${tight.onePace} cards/s and ${wide.value} px gives ${wide.onePace}. \`no held ramp\` runs the same train at a constant ${off.onePace}.`,
+    };
+  },
+  "preset.no held ramp": (f) => {
+    const p = f.preset("no held ramp");
+    const d = f.preset("default");
+    const s = f.sweep("sp1", "no held ramp");
+    const tight = s.at(125),
+      base = s.at(150),
+      wide = s.at(216);
+    f.expect(
+      p.clean &&
+        p.raw.heldUp < d.raw.heldUp &&
+        rate(tight) > rate(base) &&
+        rate(base) > rate(wide),
+      "no held ramp is clean, slower than default, and a tighter spacing is faster",
+    );
+    return {
+      what: "The same train with nothing speeding up while a key is held: it runs at the held spacing on the tap spring and the tap budget from the first repeat.",
+      effect: [
+        [
+          "Feels",
+          t`The first card and the last leave at the same spacing, so the pace is the same all the way: ${p.onePace} cards/s against ${d.onePace} for \`default\`, which tightens while the key stays down.`,
+        ],
+        [
+          "Measured",
+          t`Intervals ${p.range} ms (${d.range} in \`default\`), worst step-to-step change ${p.step}×, largest edge move ${p.jump} px/frame (${d.jump}), ${p.clean ? "no checker problems" : p.problems}.`,
+        ],
+        [
+          "Good for",
+          "Judging whether the speed-up earns its place: hold a key under both presets and compare.",
+        ],
+      ],
+      needs: t`Turns the ramp off, so a held key changes nothing and \`spacing at rest\` and \`hold delay\` hide. \`spacing held\` and the tap settings still apply. Clicking it clears slider changes.`,
+      tune: t`Move the pace with \`spacing held\`: ${tight.value} px gives ${tight.onePace} cards/s, ${base.value} gives ${base.onePace} and ${wide.value} gives ${wide.onePace}.`,
+    };
+  },
+
   // ---- speed, clock, reduced motion ---------------------------------------------------------------
   speed: () => ({
-    what: t`How fast the page's clock runs, for both models: ${SPEEDS.map((s) => s.label).join(", ")}.`,
+    what: t`How fast the page's clock runs, for every model: ${SPEEDS.map((s) => s.label).join(", ")}.`,
     effect: [
       [
         "Slower",
@@ -200,7 +305,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       ],
     ],
     needs:
-      "Works in both models. The drum's hold timer and tempo run on the page's clock, so a held key does not advance them while it is paused.",
+      "Works in every model. The held state and the drum's tempo run on the page's clock, so a held key does not advance them while it is paused.",
     tune: "Press ↓, click Pause during the trip, then click Step to walk the rest of it one frame at a time.",
   }),
   "clock.step": (f) => {
@@ -215,7 +320,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`Each click moves every card ${frame} ms along its trip and leaves the clock paused. Click \`Paused\` to resume.`,
         ],
       ],
-      needs: "Works in both models and with every preset.",
+      needs: "Works in every model and with every preset.",
       tune: t`Press ↓ once, then click Step to count the frames from the press to the landing: on \`natural\` a tap ↓ settles in ${p.tapDn} ms, about ${frames} frames.`,
     };
   },
@@ -229,11 +334,11 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       ["Off", "Cards move as the active model draws them."],
     ],
     needs:
-      "The page also turns it on when the system setting `prefers-reduced-motion` is set. It applies to both models and overrides every preset and setting, which have no effect while it is on.",
+      "The page also turns it on when the system setting `prefers-reduced-motion` is set. It applies to every model and overrides every preset and setting, which have no effect while it is on.",
     tune: "Use it to check the fallback: press ↓ and ↑ and look for a calm cut with nothing sliding. Turn it off to compare with the motion.",
   }),
   held: (f) => ({
-    what: "A readout of the held state, from zero (tap behaviour) to one (the full speed-up or fold), shown while either is on.",
+    what: "A readout of the held state, from zero (tap behaviour) to one (the full speed-up, fold or ramp), shown while one of them is on.",
     effect: [
       [
         "Reads",
@@ -241,11 +346,11 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       ],
       [
         "Drives",
-        "The spring and the edge budget slide from their tap values to their held values as it rises; fold shrinks the cards with it.",
+        "The spring and the edge budget slide from their tap values to their held values as it rises. The drum's fold shrinks the cards with it, and the cascade's ramp tightens the spacing between cards.",
       ],
     ],
     needs:
-      "`hold delay` sets when it starts to rise; the rate is fixed. It is hidden unless `held speed-up` or `fold while held` is on.",
+      "`hold delay` sets when it starts to rise; the rate is fixed. It is hidden unless `held speed-up` or `fold while held` is on in the drum, or the cascade's ramp is on (`no held ramp` turns it off).",
     tune: "Watch it during a hold. If it is still near zero once your key repeat settles into a rhythm, lower the hold delay.",
   }),
   about: () => ({
@@ -254,6 +359,13 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     needs:
       "The groups in the settings bar map to parts of the model: Taps to how one card travels, Pace to when the next press may start, Held keys to what changes once a key has been held.",
     tune: "Read it once before you move a setting, and again when two settings seem to fight. Its last paragraph defines the four problems the frame checker counts and what `clean` means here. Every tooltip reads in four steps: what the control is, what raising or lowering it does, what it works with, and how to tune it.",
+  }),
+  "about.cascade": () => ({
+    what: "A short account of the exit channel the cascade is built on, and which settings act on which part of it.",
+    effect: [["Click", "Opens the panel below it. Nothing on the page moves."]],
+    needs:
+      "The groups in the settings bar map to parts of the model: Taps to how one card travels, Pace to how far apart cards leave and when the pace builds, Stage to where cards park and how they leave the page.",
+    tune: "Read it once before you move a setting, and again when two settings seem to fight. Its last paragraph defines the four problems the frame checker counts and what `clean` means here.",
   }),
 
   // ---- taps ---------------------------------------------------------------------------------------
@@ -745,6 +857,305 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       tune: t`Start at ${f.def("h0")}, one line of status and goal. Pick the height by what you want to read while scanning, and note the sweep is clean at ${h60.value}, ${h73.value}, ${h110.value} and ${h130.value} and fails at ${h50.value} and ${h160.value}. To change the pace without changing the look, use \`hold delay\`.`,
     };
   },
+
+  // ---- the cascade's settings ----------------------------------------------------------------------
+  "setting.cw0": (f) => {
+    const s = f.sweep("cw0");
+    const slow = s.at(2),
+      base = s.at(3),
+      snappy = s.at(4.5),
+      hard = s.at(6);
+    f.expect(
+      up(slow) > up(base) && up(base) > up(snappy) && up(snappy) > up(hard),
+      "a stiffer tap spring lands ↑ sooner",
+    );
+    f.expect(
+      dn(slow) > dn(base) && dn(base) > dn(snappy) && dn(snappy) > dn(hard),
+      "a stiffer tap spring settles ↓ sooner",
+    );
+    f.expect(
+      speed(slow) < speed(base) &&
+        speed(base) < speed(snappy) &&
+        speed(snappy) < speed(hard),
+      "a stiffer tap spring lands harder",
+    );
+    f.expect(
+      [slow, base, snappy, hard].every((r) => r.clean && r.pace === base.pace),
+      "every tap spring value is clean and holds the same pace",
+    );
+    return {
+      what: "How stiff each card's spring is, in Hz: how fast a card speeds up and slows along its trip. It sets a tap, and a held key until the ramp starts.",
+      effect: [
+        [
+          "Raise",
+          t`Cards reach their places sooner and stop harder. A tap ↑ lands in ${base.upLand} ms at ${base.value} Hz and ${snappy.upLand} ms at ${snappy.value}; a tap ↓ settles in ${base.dnLand} ms and ${snappy.dnLand} ms. The speed left in the last five frames rises from ${base.landSpeed} to ${snappy.landSpeed} px/frame, and to ${hard.landSpeed} at ${hard.value} Hz.`,
+        ],
+        [
+          "Lower",
+          t`Cards drift in. At ${slow.value} Hz a tap ↑ takes ${slow.upLand} ms and a tap ↓ ${slow.dnLand} ms, and the landing speed falls to ${slow.landSpeed} px/frame.`,
+        ],
+      ],
+      needs: t`The held pace stays at ${base.onePace} cards/s for every value swept, because the spacing and the edge budget set it. With the ramp on, a held key's spring rises from this value to ${HELD.hz} Hz after \`hold delay\`. \`edge budget, tap\` limits how far an edge moves in a frame.`,
+      tune: t`Start at ${base.value}. Press ↑ after each change: it is the slowest trip, so a lag or a hard landing shows there first. All four values swept, ${slow.value} to ${hard.value} Hz, pass the frame checker, so the limit is how the landing feels: the cards stop at ${snappy.landSpeed} px/frame at ${snappy.value} Hz and ${hard.landSpeed} at ${hard.value} Hz.`,
+    };
+  },
+  "setting.ccap": (f) => {
+    const s = f.sweep("ccap");
+    const lo = s.at(16),
+      base = s.at(24),
+      mid = s.at(30),
+      high = s.at(36),
+      over = s.at(40);
+    f.expect(
+      rate(lo) < rate(base) &&
+        rate(base) < rate(mid) &&
+        rate(mid) < rate(high) &&
+        rate(high) < rate(over),
+      "a higher tap budget speeds up a hold",
+    );
+    f.expect(
+      up(lo) > up(base) && up(base) > up(mid) && up(mid) > up(over),
+      "a higher tap budget lands ↑ sooner",
+    );
+    f.expect(
+      [lo, base, mid, high].every((r) => r.clean) && !over.clean,
+      "the tap budget is clean through its last value below the jump limit and fails at the limit",
+    );
+    f.expect(
+      dn(lo) === dn(base) && dn(base) === dn(over),
+      "the tap budget leaves tap ↓ alone",
+    );
+    return {
+      what: "The most any card edge may move in one frame, in px per frame, for a tap and for a held key until the ramp starts. The pace gate uses it too: it waits the spacing divided by this speed between cards.",
+      effect: [
+        [
+          "Raise",
+          t`The fastest part of every trip gets faster. A tap ↑ lands in ${base.upLand} ms at ${base.value} and ${over.upLand} ms at ${over.value}. Held pace rises from ${base.onePace} to ${mid.onePace} cards/s at ${mid.value} and ${over.onePace} at ${over.value}. Tap ↓ stays at ${base.dnLand} ms.`,
+        ],
+        [
+          "Lower",
+          t`Trips flatten into a steady slide: at ${lo.value} a tap ↑ takes ${lo.upLand} ms, and held pace falls to ${lo.onePace} cards/s with intervals of ${lo.range} ms.`,
+        ],
+      ],
+      needs: t`Once the ramp starts, a held key's budget rises to ${HELD.budget} px/frame, which has no slider, so this setting moves the held pace only a little. The spring decides how hard a card tries to move and the budget limits it where the spring asks for more, so tap ↓ does not change.`,
+      tune: t`Start at ${base.value}. ${high.value} is clean (${high.onePace} cards/s). At ${over.value} the checker reports ${over.verdict}: a tap moves an edge as far as the budget, and that is over ${f.limit.jump} px in a frame. For a faster held key, lower \`spacing held\` instead.`,
+    };
+  },
+  "setting.sp0": (f) => {
+    const s = f.sweep("sp0");
+    const tight = s.at(150),
+      base = s.at(216),
+      wide = s.at(300);
+    f.expect(
+      rate(tight) > rate(base) && rate(base) > rate(wide),
+      "a wider spacing at rest is slower",
+    );
+    f.expect(
+      s.sweep.rows.every((r) => r.problems === 0),
+      "every spacing at rest value is clean",
+    );
+    f.expect(
+      rate(tight) - rate(wide) < 1.5,
+      "spacing at rest moves the pace of a hold by less than a card per second",
+    );
+    return {
+      what: "How far apart cards leave the front when a hold begins, in px. The pace gate waits the spacing divided by the edge budget's speed between presses.",
+      effect: [
+        [
+          "Raise",
+          t`The first cards of a hold leave farther apart and later. At ${wide.value} px the hold runs at ${wide.onePace} cards/s with intervals of ${wide.range} ms, against ${base.onePace} and ${base.range} at ${base.value}.`,
+        ],
+        [
+          "Lower",
+          t`The hold starts closer to full pace. At ${tight.value} px, the default of \`spacing held\`, the hold runs at ${tight.onePace} cards/s, and the median card shows ${tight.visible} px of itself at its best against ${base.visible} at ${base.value}.`,
+        ],
+      ],
+      needs: t`Shows only while the ramp is on; \`no held ramp\` hides it. The ramp moves the spacing from this value to \`spacing held\` as the held state rises after \`hold delay\`.`,
+      tune: t`Start at ${base.value}. This setting shapes the start of a hold more than its pace: from ${tight.value} to ${wide.value} px the pace of a hold moves from ${tight.onePace} to ${wide.onePace} cards/s, and every value is clean. Raise it to make the speed-up easier to see; set the pace with \`spacing held\`.`,
+    };
+  },
+  "setting.sp1": (f) => {
+    const s = f.sweep("sp1", "default");
+    const tight = s.at(100),
+      mid = s.at(125),
+      base = s.at(150),
+      loose = s.at(183),
+      wide = s.at(216);
+    const o = f.sweep("sp1", "no held ramp");
+    const oBase = o.at(150),
+      oTight = o.at(100);
+    f.expect(
+      rate(tight) > rate(mid) &&
+        rate(mid) > rate(base) &&
+        rate(base) > rate(loose) &&
+        rate(loose) > rate(wide),
+      "a wider held spacing is slower",
+    );
+    f.expect(
+      s.sweep.rows.every((r) => r.problems === 0),
+      "every held spacing is clean",
+    );
+    f.expect(
+      tight.raw.visible < mid.raw.visible &&
+        mid.raw.visible < base.raw.visible &&
+        wide.raw.channel < tight.raw.channel,
+      "a tighter held spacing shows less of each card and puts more cards in front of the pile",
+    );
+    f.expect(
+      tight.raw.step > base.raw.step && rate(oTight) > rate(oBase),
+      "a tighter held spacing is less steady, with the ramp and without it",
+    );
+    f.expect(
+      tight.raw.heldJump <= Number(f.limit.jump) &&
+        tight.raw.heldJump > Number(f.limit.jump) - 1 &&
+        mid.raw.heldJump < tight.raw.heldJump - 1,
+      "the tightest held spacing moves an edge to within a pixel of the jump limit, and the next one stays further below it",
+    );
+    return {
+      what: t`How far apart cards leave the front once the held state is fully up, in px. The held pace is the edge budget's speed (fixed at ${HELD.budget} px/frame) divided by it, so this is the held pace control.`,
+      effect: [
+        [
+          "Raise",
+          t`A looser train and a slower hold: ${loose.value} px gives ${loose.onePace} cards/s and ${wide.value} gives ${wide.onePace}. Fewer cards are in front of the pile at once (${wide.channel} against ${base.channel}) and the median card shows ${wide.visible} px of itself at its best.`,
+        ],
+        [
+          "Lower",
+          t`A tighter train and a faster hold: ${mid.value} px gives ${mid.onePace} cards/s and ${tight.value} gives ${tight.onePace}. The cards overlap more: the median card shows ${mid.visible} px at ${mid.value} and ${tight.visible} at ${tight.value}, and ${tight.channel} cards are in front of the pile at once. At ${tight.value} the largest edge move, ${tight.jump} px/frame, is within a pixel of the checker's jump limit (${f.limit.jump}).`,
+        ],
+      ],
+      needs: t`Pace is spacing ÷ budget, and the ramp moves both: with it on, the pace builds from \`spacing at rest\` to this value after \`hold delay\`. With \`no held ramp\` this is the spacing from the first repeat: ${oBase.onePace} cards/s at ${oBase.value} px and ${oTight.onePace} at ${oTight.value}. Taps do not change.`,
+      tune: t`Start at ${base.value}. Every value swept is clean on the checker, so the limits are how much of each card you can still read and how even the pace stays: the worst step-to-step change is ${mid.step}× at ${mid.value} px and ${tight.step}× at ${tight.value}. Lower the spacing until the cards you pass stop being recognisable, then back off.`,
+    };
+  },
+  "setting.cdelay": (f) => {
+    const s = f.sweep("cdelay");
+    const now = s.at(0),
+      base = s.at(250),
+      late = s.at(600);
+    f.expect(
+      rate(now) > rate(base) && rate(base) > rate(late),
+      "a longer hold delay is slower",
+    );
+    f.expect(
+      s.sweep.rows.every((r) => r.problems === 0),
+      "every hold delay value is clean",
+    );
+    return {
+      what: "How long a key must be held before the held state starts to rise, in ms.",
+      effect: [
+        [
+          "Raise",
+          t`The first cards of a hold leave at the resting spacing for longer, then the pace steps up. At ${late.value} ms the hold runs at ${late.onePace} cards/s with intervals of ${late.range} ms, against ${base.onePace} and ${base.range} at ${base.value}.`,
+        ],
+        [
+          "Lower",
+          t`The ramp starts with the first press: ${now.value} ms gives ${now.onePace} cards/s with intervals of ${now.range} ms.`,
+        ],
+      ],
+      needs: t`Shows only while the ramp is on. The delay holds back all three ramped values together: the spacing, the spring and the edge budget. The held state reaches ${f.rise.level} about ${f.rise.seconds} s after the delay.`,
+      tune: t`Start at ${base.value}. Lower it for a quicker start and raise it to keep short holds slow. All three values swept, ${now.value} to ${late.value} ms, are clean, so it is a safe way to move the pace between ${now.onePace} and ${late.onePace} cards/s.`,
+    };
+  },
+  "setting.park": (f) => {
+    const s = f.sweep("park");
+    const short = s.at(360),
+      near = s.at(400),
+      base = s.at(480),
+      long = s.at(560);
+    const rule = f.shown;
+    f.expect(
+      up(short) < up(near) && up(near) < up(base) && up(base) < up(long),
+      "a longer park lands ↑ later",
+    );
+    f.expect(
+      short.raw.framesMin < base.raw.framesMin &&
+        near.raw.framesMin < base.raw.framesMin &&
+        short.raw.channel < base.raw.channel,
+      "a shorter park shows each card for fewer frames and holds fewer cards in front of the pile",
+    );
+    f.expect(
+      [short, near, base, long].every((r) => r.clean && r.pace === base.pace),
+      "every park value is clean and holds the same pace",
+    );
+    const needed = Number(rule.frames);
+    f.expect(
+      base.raw.framesMin >= needed &&
+        long.raw.framesMin >= needed &&
+        short.raw.framesMin < needed &&
+        near.raw.framesMin < needed,
+      "park at its default and above shows every card for the frames the rule needs, and the two shorter values do not",
+    );
+    return {
+      what: "How far below the front pose the clip line sits, in px: where a leaving card goes out of sight and parks. The page cuts the stage there.",
+      effect: [
+        [
+          "Raise",
+          t`Cards travel farther before they park, so a tap ↑ takes longer: ${base.upLand} ms at ${base.value} and ${long.upLand} ms at ${long.value}, and the stage takes more of the page.`,
+        ],
+        [
+          "Lower",
+          t`A tap ↑ lands sooner (${short.upLand} ms at ${short.value}), but each card is on screen for fewer frames. The fewest frames any card shows ${rule.px} px of itself, or all of it when shorter, is ${short.frames} at ${short.value} against ${base.frames} at ${base.value}, and the train is shorter: at most ${short.channel} cards are in front of the pile at once against ${base.channel}.`,
+        ],
+      ],
+      needs: t`The held pace stays at ${base.onePace} cards/s for every value swept. \`edge fade px\` can reach at most \`park\` minus ${TALLEST_CARD + PILE_CLEARANCE} px, so lowering park lowers its range. The slider stops at ${short.value} px because the tallest card (${TALLEST_CARD} px) and its shadow must stay above the clip line.`,
+      tune: t`Start at ${base.value}. A card counts as shown when it has ${rule.px} px uncovered for ${rule.frames} frames: ${base.value} and ${long.value} meet that and ${short.value} and ${near.value} do not. Every value is clean on the checker. On a page with content below the stack, park is the room the stack takes below the front card.`,
+    };
+  },
+  "setting.fade": (f) => {
+    const park = f.def("park");
+    const cap = String(fadeCap(Number(park)));
+    return {
+      what: "How many px at the bottom of the stage fade out, so a card dissolves into the page as it leaves. With no fade, a card is cut sharply at the clip line.",
+      effect: [
+        [
+          "Raise",
+          t`The fade starts higher above the clip line, so a card thins out sooner as it falls. It stops short of the pile: it starts at least ${PILE_CLEARANCE} px below the tallest card (${TALLEST_CARD} px), so the slider stops at ${cap} px with \`park\` at ${park}.`,
+        ],
+        [
+          "Lower",
+          "The cut gets sharper. With no fade the part of a card below the clip line is cut off in one line.",
+        ],
+      ],
+      needs: t`A look setting: the sweeps measure positions and timing, and a mask on the stage changes neither. It fades the last px above the clip line, so \`park\` places it and limits it to \`park\` minus ${TALLEST_CARD + PILE_CLEARANCE} px. \`leave shade\` also washes a card on its way down.`,
+      tune: "Hold ↓ and watch the lowest card: with no fade it slides under a hard edge, with a fade it thins out over the last stretch. Raise the fade until the edge stops being a line; the pile stays unfaded at every value.",
+    };
+  },
+  "setting.shade": (f) => {
+    const s = f.sweep("shade");
+    const lo = s.at(0),
+      base = s.at(0.25),
+      hi = s.at(0.5);
+    f.expect(
+      base.clean &&
+        [lo, hi].every(
+          (r) =>
+            r.clean &&
+            r.pace === base.pace &&
+            r.upLand === base.upLand &&
+            r.dnLand === base.dnLand &&
+            r.range === base.range &&
+            r.jump === base.jump &&
+            r.channel === base.channel &&
+            r.visible === base.visible,
+        ),
+      "leave shade changes no measured number",
+    );
+    return {
+      what: "How far a card is washed toward the page colour as it leaves: nothing at the front, this much at the clip line.",
+      effect: [
+        [
+          "Raise",
+          t`Leaving cards recede as they fall. At ${hi.value} a card has gone further toward the page colour at the clip line than at the default ${base.value}.`,
+        ],
+        [
+          "Lower",
+          t`Cards keep their colour for the whole trip. At ${lo.value} there is no wash.`,
+        ],
+      ],
+      needs: t`A look setting: the hold runs at ${base.onePace} cards/s, a tap ↑ lands in ${base.upLand} ms and the checker reports ${base.verdict} at ${lo.value}, ${base.value} and ${hi.value} alike. \`edge fade px\` also hides a card's lower edge, so the two overlap in effect.`,
+      tune: t`Start at ${base.value}. Hold ↓ and compare the lowest cards at ${lo.value}, ${base.value} and ${hi.value}: raise it to push leaving cards back, lower it to keep them readable until they park.`,
+    };
+  },
 };
 
 /** The commands behind a tooltip's numbers are collected as the entry reads them. */
@@ -770,13 +1181,22 @@ export type About = {
   numbers: string[];
 };
 
+/** The panel's closing paragraph: what the frame checker counts, then `extra`, the source file and `DESIGN.md`. */
+function checkerParagraph(f: Facts, source: string, extra: string): string {
+  return t`The frame checker counts four problems. A jump: an edge moves more than ${f.limit.jump} px in a frame. An edge flash: a card's lower edge changes by more than ${f.limit.band} px with nothing covering the change. A fade flicker: a card's fade changes by more than ${f.limit.shade} in a frame. A swap: two cards change draw order while they overlap. A sweep is clean when it finds none, over three sets of card heights. ${extra} Source: ${source}; goals and limits: \`DESIGN.md\`.`;
+}
+
 function buildAbout(): About {
   const f = new Facts(__FACTS__);
   return {
     paragraphs: [
       "Every card has one coordinate on a closed ring path: a pile slot (the front, two cards peeking above it, one hidden behind), the drop in front of the pile down to the `turn` (clear below the card it uncovers), and the tuck behind the pile. Each coordinate follows its own critically damped spring toward a target that depends only on which card is in front. A leaving card's target is two steps away, so it passes the turn still moving and slows into the tuck, and a returning card runs the ring backwards, which is what ↑ shows.",
       "The only change of draw order is at the turn, and a card crosses it only when it is clear of the cards it swaps with, so no card passes through another. A press is taken once every card in transit has passed its flip, so the pace is whatever the trips allow.",
-      t`The frame checker counts four problems. A jump: an edge moves more than ${f.limit.jump} px in a frame. An edge flash: a card's lower edge changes by more than ${f.limit.band} px with nothing covering the change. A fade flicker: a card's fade changes by more than ${f.limit.shade} in a frame. A swap: two cards change draw order while they overlap. A sweep is clean when it finds none, over three sets of card heights. An edge budget of ${f.def("cap")} px/frame, ${f.def("cap1")} while held, caps every edge. Source: \`src/app/page/queue/drum.ts\`; goals and limits: \`DESIGN.md\`.`,
+      checkerParagraph(
+        f,
+        "`src/app/page/queue/drum.ts`",
+        t`An edge budget of ${f.def("cap")} px/frame, ${f.def("cap1")} while held, caps every edge.`,
+      ),
     ],
     map: [
       [
@@ -794,8 +1214,40 @@ function buildAbout(): About {
 }
 export const ABOUT: About = buildAbout();
 
+function buildAboutCascade(): About {
+  const f = new Facts(__FACTS__);
+  return {
+    paragraphs: [
+      t`Every card has one coordinate. At zero or above it is a pile slot, as in the drum: the front, two cards peeking above it, one hidden behind. Below zero it is in the exit channel, in front of the pile at full size, and its top sits lower on the stage as the coordinate falls: at minus one it is \`park\` px (${f.def("park")} by default) below the front pose, parked out of sight below the clip line. Each coordinate follows its own critically damped spring toward a target that depends only on which card is in front.`,
+      "A leaving card's spring aims past the clip line, so it slows out of sight, and a returning card runs the channel the other way, which is what ↑ shows. Nothing tucks behind the pile, turns or changes draw order, so no card passes through another. Each card is drawn no taller than the card in front of it, so the stack never shows more than the cards it covers.",
+      t`A press in the direction of the last waits until the edge budget's speed has covered \`spacing\` px since the last press, the same time for ↑ and ↓ and for every card height. A held key raises the held state after \`hold delay\`; with the ramp on, that tightens the spacing from ${f.def("sp0")} to ${f.def("sp1")} px, stiffens the spring from ${f.def("cw0")} to ${HELD.hz} Hz and raises the edge budget from ${f.def("ccap")} to ${HELD.budget} px/frame. A hold at either end of the queue moves nothing.`,
+      checkerParagraph(
+        f,
+        "`src/cascade.ts`",
+        "A card that crosses the clip line is cut there, so it is not a lower edge moving in view.",
+      ),
+    ],
+    map: [
+      [
+        "Taps",
+        "`spring Hz, tap` and `edge budget, tap` set how fast one card travels.",
+      ],
+      [
+        "Pace",
+        "`spacing at rest`, `spacing held` and `hold delay` set how far apart cards leave and when the pace builds.",
+      ],
+      [
+        "Stage",
+        "`park`, `edge fade px` and `leave shade` set where cards park and how they leave the page.",
+      ],
+    ],
+    numbers: f.sources(),
+  };
+}
+export const ABOUT_CASCADE: About = buildAboutCascade();
+
 /** The caption under the stack: what the active preset (or, for the product, the model) is. */
 export const captionFor = (mode: string, preset: string): string =>
-  mode === "drum"
-    ? HELP[`preset.${preset}`]!.what
-    : HELP["model.product"]!.what;
+  mode === "product"
+    ? HELP["model.product"]!.what
+    : HELP[`preset.${preset}`]!.what;

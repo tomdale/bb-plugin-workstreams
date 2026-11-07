@@ -4,8 +4,10 @@
  *
  *   node capture/sheets.mjs <specs> [<scenarios>]
  *
- * `specs`: comma list of product, drum, drum:<preset>. `scenarios`: comma list of SCEN keys (default: all).
- * Keys are driven like a real hold: a first press, then a repeat every 33 ms after 250 ms, released on arrival.
+ * `specs`: comma list of `product`, `drum`, `drum:<preset>`, `cascade` and `cascade:<preset>`; a model named
+ * alone runs its first preset (the drum's `natural`, the cascade's `default`). `scenarios`: comma list of SCEN
+ * keys (default: all). Keys are driven like a real hold: a first press, then a repeat every 33 ms after 250 ms,
+ * released on arrival.
  */
 import fs from "node:fs";
 import { open, parseSpec, hashFor, OUT, PAGE } from "./lib.mjs";

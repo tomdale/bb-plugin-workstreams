@@ -3,7 +3,7 @@
  * fails the build on any problem it returns; `npm run smoke` makes the same comparison against the live page.
  */
 import { CONTROLS } from "./controls.ts";
-import { ABOUT, HELP } from "./help.ts";
+import { ABOUT, ABOUT_CASCADE, HELP } from "./help.ts";
 
 /** The lines a slider's, toggle's or preset's tooltip must carry under "what you see and feel". */
 const EFFECTS: Record<string, string[]> = {
@@ -46,7 +46,8 @@ export function verify(): string[] {
           `${control.id}: a ${control.kind} needs a "${want}" line`,
         );
   }
-  for (const p of ABOUT.paragraphs)
-    if (bad.test(p)) problems.push(`about: ${p}`);
+  for (const about of [ABOUT, ABOUT_CASCADE])
+    for (const p of about.paragraphs)
+      if (bad.test(p)) problems.push(`about: ${p}`);
   return problems;
 }

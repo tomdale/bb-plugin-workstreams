@@ -4,9 +4,11 @@
  * which formats it, records the command that prints it, and throws for a figure nobody measured, so a tooltip
  * cannot quote a number the sims do not produce. `t` rejects a digit typed into the text.
  */
-import { SETTINGS, defaultOf } from "./controls.ts";
+import { defaultOf } from "./controls.ts";
 
 type Kinds = Record<"jump" | "band" | "shade" | "swap", number>;
+/** The model a sweep or preset row was measured on. */
+export type ModelName = "drum" | "cascade";
 /** One measured value of one setting; see `measure` in `sim/sweep.mjs`. Tap fields are null for held-only settings. */
 export type Row = {
   value: number;
@@ -21,9 +23,18 @@ export type Row = {
   heldJump: number;
   problems: number;
   kinds: Kinds;
+  /** The most cards in front of the pile at once in a hold. */
+  channel: number;
+  /** The fewest frames any card shows at least min(height, 100) px in a hold. */
+  framesMin: number;
+  /** The median, over the cards a hold passes, of the most px of a card no nearer card covers. */
+  visible: number;
+  /** How far the held pace differs between the three height sets: highest over lowest, minus one. */
+  spread: number;
 };
 export type Sweep = {
   id: string;
+  model: ModelName;
   label: string;
   context: string;
   def: number;
@@ -32,6 +43,9 @@ export type Sweep = {
 };
 export type PresetRow = {
   name: string;
+  model: ModelName;
+  /** How far the held pace differs between the three height sets: highest over lowest, minus one. */
+  spread: number;
   heldUp: number;
   heldDn: number;
   ivMin: number;
@@ -55,6 +69,8 @@ export type TapRow = { delay: number; peaks: { ms: number; peak: number }[] };
 export type RawFacts = {
   hz: number;
   limits: { jump: number; band: number; shade: number };
+  /** The rule for a card in a hold to count as shown: this many px of it uncovered for this many frames. */
+  shown: { px: number; frames: number };
   cards: { min: number; max: number };
   estimate: { short: number; tall: number };
   rise: { to: number; ms: number };
@@ -67,6 +83,15 @@ export type RawFacts = {
 const n0 = (x: number) => String(Math.round(x));
 const n1 = (x: number) => x.toFixed(1);
 const n2 = (x: number) => x.toFixed(2);
+const pct = (x: number) => `${(100 * x).toFixed(1)} %`;
+/** The held pace as one figure; a tooltip that quotes one pace for ↑ and ↓ fails the build when they stop matching. */
+const onePace = (up: number, down: number) => {
+  if (up !== down)
+    throw new Error(
+      `held ↑ (${n1(up)}) and ↓ (${n1(down)}) differ, so there is no single pace to quote`,
+    );
+  return n1(up);
+};
 const num = (x: number | null, what: string): number => {
   if (x === null) throw new Error(`${what} was not measured for this setting`);
   return x;
@@ -121,6 +146,10 @@ export class RowView {
   get pace() {
     return `${this.heldUp} / ${this.heldDn}`;
   }
+  /** Held pace, cards/s, for a model that holds ↑ and ↓ at one pace; throws when the two differ. */
+  get onePace() {
+    return onePace(this.raw.heldUp, this.raw.heldDn);
+  }
   /** Shortest and longest interval between cards in a hold, ms. */
   get range() {
     return `${n0(this.raw.ivMin)}–${n0(this.raw.ivMax)}`;
@@ -145,6 +174,22 @@ export class RowView {
   }
   get clean() {
     return this.raw.problems === 0;
+  }
+  /** The most cards in front of the pile at once. */
+  get channel() {
+    return n0(this.raw.channel);
+  }
+  /** The fewest frames a card shows at least min(height, 100) px. */
+  get frames() {
+    return n0(this.raw.framesMin);
+  }
+  /** The median px a card shows at its best. */
+  get visible() {
+    return n0(this.raw.visible);
+  }
+  /** How far the held pace differs between height sets, as a percentage. */
+  get spread() {
+    return pct(this.raw.spread);
   }
 }
 
@@ -184,6 +229,10 @@ export class PresetView {
   get pace() {
     return `${this.heldUp} / ${this.heldDn}`;
   }
+  /** Held pace, cards/s, for a model that holds ↑ and ↓ at one pace; throws when the two differ. */
+  get onePace() {
+    return onePace(this.raw.heldUp, this.raw.heldDn);
+  }
   get range() {
     return `${n0(this.raw.ivMin)}–${n0(this.raw.ivMax)}`;
   }
@@ -201,6 +250,10 @@ export class PresetView {
   }
   get landSpeed() {
     return n1(this.raw.landSpeed);
+  }
+  /** How far the held pace differs between height sets, as a percentage. */
+  get spread() {
+    return pct(this.raw.spread);
   }
   get clean() {
     const p = this.raw.problems;
@@ -237,10 +290,13 @@ export class SlackView {
 
 const COMMANDS = {
   params: "npm run sweep -- params",
+  cascadeParams: "npm run sweep -- params cascade",
   slack: "npm run sweep -- slack",
   presets: "npm run sweep -- presets",
+  cascadePresets: "npm run sweep -- presets cascade",
   held: "npm run sweep -- held",
   limits: "npm run sweep -- limits",
+  cascadeLimits: "npm run sweep -- limits cascade",
 } as const;
 
 export class Facts {
@@ -264,6 +320,11 @@ export class Facts {
       band: String(l.band),
       shade: String(l.shade),
     };
+  }
+  /** A card in a hold counts as shown when it has `px` px (or all of it, if shorter) that no nearer card covers, for `frames` frames. */
+  get shown() {
+    this.cite("cascadeLimits");
+    return { px: n0(this.raw.shown.px), frames: n0(this.raw.shown.frames) };
   }
   /** The refresh rate of every sweep. */
   get hz() {
@@ -292,18 +353,15 @@ export class Facts {
     };
   }
 
-  /** A setting's value with nothing overridden, as the page shows it. */
+  /** A slider's value with nothing overridden, as the page shows it. */
   def(key: string): string {
-    const s = SETTINGS.find((x) => x.key === key);
-    if (!s || s.kind !== "range")
-      throw new Error(`${key} is not a slider, so it has no numeric default`);
-    return String(Math.round(defaultOf(s) * 1000) / 1000);
+    return String(Math.round(defaultOf(key) * 1000) / 1000);
   }
 
   preset(name: string): PresetView {
     const row = this.raw.presets.find((p) => p.name === name);
     if (!row) throw new Error(`preset ${name} was not measured`);
-    this.cite("presets");
+    this.cite(row.model === "cascade" ? "cascadePresets" : "presets");
     return new PresetView(row);
   }
 
@@ -315,7 +373,10 @@ export class Facts {
       throw new Error(
         `no single sweep of ${id}${context ? ` on ${context}` : ""}; measured on: ${all.map((s) => s.context).join(", ") || "nothing"}`,
       );
-    this.cite("params", `${found.label} on ${found.context}`);
+    this.cite(
+      found.model === "cascade" ? "cascadeParams" : "params",
+      `${found.label} on ${found.context}`,
+    );
     return new SweepView(found);
   }
 

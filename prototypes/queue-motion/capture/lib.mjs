@@ -27,7 +27,7 @@ export const CHROME =
   process.env.CHROME_PATH ??
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
-/** "product", "drum", or "drum:<preset>" → { mode, preset, name } (name is safe in a file name). */
+/** "product", "drum", "cascade", or "drum:<preset>" or "cascade:<preset>" → { mode, preset, name } (name is safe in a file name). */
 export function parseSpec(spec) {
   const [mode, preset] = spec.split(":");
   return { mode, preset, name: spec.replace(/[^\w.-]+/g, "-") };

@@ -70,6 +70,20 @@ h1 {
   margin-top: 14px;
   isolation: isolate;
 }
+/* The cascade cuts its stage at the clip line, `park` below the front pose (src/main.ts sets the height and the
+   fade). The container is wider than the column so a card's side shadow is not cut; elsewhere it has no box. */
+.clip {
+  display: contents;
+}
+.clip.on {
+  display: block;
+  overflow: hidden;
+  margin: 6px -40px 0;
+  padding: 0 40px;
+}
+.clip.on .stage {
+  margin-top: 0;
+}
 .card {
   position: absolute;
   left: 0;

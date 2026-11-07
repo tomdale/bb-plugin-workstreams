@@ -98,7 +98,8 @@ const FOLD = {
   hash: "#v=drum&preset=fold&tk=constant",
 };
 const PRODUCT = { name: "product", hash: "#v=product" };
-const STATES = [NATURAL, EVEN_HELD, FOLD, PRODUCT];
+const CASCADE = { name: "cascade", hash: "#v=cascade" };
+const STATES = [NATURAL, EVEN_HELD, FOLD, PRODUCT, CASCADE];
 
 /** The tooltip rows a control's kind promises, besides the closing `Works with` and `Tune`. */
 const KIND_ROWS = {
@@ -193,7 +194,7 @@ const cardsOn = (frame) =>
   }));
 
 async function cardsAreDrawn(browser, scratch) {
-  for (const mode of ["drum", "product"]) {
+  for (const mode of ["drum", "product", "cascade"]) {
     // Loaded visible.
     await withPage(browser, `${mode} visible`, async (page) => {
       await page.goto(`${PAGE}#v=${mode}`);
@@ -713,6 +714,18 @@ const SHOWN = {
   h0: (s) => s.fold,
 };
 
+/** The same for the cascade, whose only condition is the ramp. */
+const CASCADE_SHOWN = {
+  cw0: () => true,
+  ccap: () => true,
+  sp0: (s) => s.ramp,
+  sp1: () => true,
+  cdelay: (s) => s.ramp,
+  park: () => true,
+  fade: () => true,
+  shade: () => true,
+};
+
 /** The setting keys the settings bar draws now. */
 const shownKeys = (page) =>
   page.evaluate(() =>
@@ -829,6 +842,48 @@ async function settingsVisibility(browser) {
       `a preset button clears every setting override (${JSON.stringify(cleared)})`,
     );
 
+    // The cascade has its own settings: the ramp's hide with the ramp, and each model's hide under the other.
+    const CASCADE_KEYS = Object.keys(CASCADE_SHOWN);
+    await load(page, CASCADE.hash);
+    await only(CASCADE_KEYS, true, "cascade: its settings");
+    await only(Object.keys(SHOWN), false, "cascade: the drum's settings");
+    await page.click('button[data-act="p:no held ramp"]');
+    await only(
+      CASCADE_KEYS.filter((k) => !CASCADE_SHOWN[k]({ ramp: false })),
+      false,
+      "no held ramp: the settings the ramp shapes",
+    );
+    await only(
+      CASCADE_KEYS.filter((k) => CASCADE_SHOWN[k]({ ramp: false })),
+      true,
+      "no held ramp: the other cascade settings",
+    );
+    await load(page, NATURAL.hash);
+    await only(CASCADE_KEYS, false, "natural: the cascade's settings");
+
+    // The edge fade stays below the pile: its slider stops at park minus the tallest card and 16 px.
+    await load(page, "#v=cascade&park=400&fade=999");
+    const stage = await page.evaluate(() => {
+      const clip = document.getElementById("clip");
+      const fade = document.querySelector('input[data-k="fade"]');
+      return {
+        lead: parseFloat(document.querySelector(".card").style.top),
+        height: clip.getBoundingClientRect().height,
+        overflow: getComputedStyle(clip).overflow,
+        max: Number(fade.max),
+        value: Number(fade.value),
+        mask: clip.style.maskImage,
+      };
+    });
+    expect(
+      stage.height === stage.lead + 400 &&
+        stage.overflow === "hidden" &&
+        stage.max === 400 - 346 &&
+        stage.value === stage.max &&
+        stage.mask.includes(`${stage.max}px`),
+      `the cascade's stage is cut at LEAD + park and its fade is capped at park − 346 (${JSON.stringify(stage)})`,
+    );
+
     // Product mode has no drum controls.
     await load(page, PRODUCT.hash);
     const bars = () =>
@@ -844,6 +899,11 @@ async function settingsVisibility(browser) {
     expect(
       JSON.stringify(await bars()) === '{"presets":false,"settings":false}',
       "the elastic drum model shows them again",
+    );
+    await page.click('button[data-act="v:cascade"]');
+    expect(
+      JSON.stringify(await bars()) === '{"presets":false,"settings":false}',
+      "the cascade model shows its own",
     );
   });
 }
