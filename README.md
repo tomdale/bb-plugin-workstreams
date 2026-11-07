@@ -261,7 +261,7 @@ across windows and section recreation.
 **Categories** arrange rows inside a workstream without changing its topic,
 native section, or identity hue. Both the sidebar and phone Home show them. Any
 topic without children can have categories, at either topic depth. Sidebar
-category headings use a neutral marker and label:
+category headings use a subdued version of the workstream color:
 
 - At **6 roots**, the category classifier sees the whole collection and creates
   useful categories. It counts visible, non-archived, unsnoozed roots, including
@@ -376,19 +376,18 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
 2. **Workstreams (focused and other tiers):**
    - **Topics and categories:** Each leaf topic has its own workstream header,
      with its first-level container dimmed before its name when present
-     (**Vercel Agent** Automations), and a two-character tile of the topic's own
-     name after that container (**Vercel Agent** `CR` Code Review). A topic with
-     no container leads with its tile (`VE` Vertex). Categories are row headings
-     inside that workstream, not additional workstreams or identity levels.
-     Focus, ordering, and Dormant continue to apply to workstreams.
+     (**Vercel Agent** Automations). The workstream name uses its identity
+     color. Categories are row headings inside that workstream, not additional
+     workstreams or identity levels. Focus, ordering, and Dormant continue to
+     apply to workstreams.
    - **Small workstreams:** Every populated topic keeps its own header,
      regardless of its size. Small workstreams do not gather in **Other**.
    - **Indentation:** Child threads sit one step in from their parent thread.
-     Each category heading has a neutral circular marker. Thread titles use
-     their workstream's color; unfiled threads remain neutral. Category headings
-     have no independent focus, project, or New work identity. Roots can be
-     reordered within a category; dragging between workstreams changes topic,
-     not category membership.
+     Categorized threads sit further in than their category heading, and child
+     threads sit further in than their parent. Category headings use a muted
+     version of the workstream color and have no independent focus, project, or
+     New work identity. Roots can be reordered within a category; dragging
+     between workstreams changes topic, not category membership.
    - **Empty workstreams:** Workstreams can briefly keep **New work** available:
      at most `3` recently emptied workstreams are retained, and only while they
      had a visible, non-archived, unsnoozed thread within the last `10` minutes.

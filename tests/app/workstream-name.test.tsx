@@ -25,6 +25,19 @@ describe("WorkstreamName", () => {
     expect(container.textContent).toBe("Workstreams: Recaps");
   });
 
+  it("accents only the workstream name, leaving the parent subdued", () => {
+    const { getByText } = render(
+      <WorkstreamName name="Vercel Agent: Automations" accent />,
+    );
+    expect(getByText("Vercel Agent").className).toContain(
+      "text-muted-foreground/60",
+    );
+    expect(getByText("Vercel Agent").className).not.toContain(
+      "ws-workstream-name",
+    );
+    expect(getByText("Automations").className).toContain("ws-workstream-name");
+  });
+
   it("treats a leading or trailing colon as a plain name", () => {
     expect(splitWorkstreamName(":test")).toBeNull();
     expect(splitWorkstreamName("test:")).toBeNull();

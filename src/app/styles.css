@@ -548,19 +548,26 @@
 .dark .ws-queue-path {
   color: oklch(79% 0.13 var(--ws-hue, 250));
 }
-/* Workstream identity belongs to the tile and the thread title, not status marks. */
-.ws-workstream-tile {
-  background: oklch(46% 0.16 var(--ws-hue, 250));
-  color: var(--sidebar, var(--background, white));
-}
-.ws-thread-title {
+/* A category inherits its workstream hue, tempered by the theme's muted ink. */
+.ws-workstream-name {
   color: oklch(46% 0.16 var(--ws-hue, 250));
 }
-.dark .ws-workstream-tile {
-  background: oklch(79% 0.13 var(--ws-hue, 250));
+.ws-category-label {
+  color: color-mix(
+    in oklab,
+    oklch(46% 0.16 var(--ws-hue, 250)) 70%,
+    var(--muted-foreground)
+  );
 }
-.dark .ws-thread-title {
+.dark .ws-workstream-name {
   color: oklch(79% 0.13 var(--ws-hue, 250));
+}
+.dark .ws-category-label {
+  color: color-mix(
+    in oklab,
+    oklch(79% 0.13 var(--ws-hue, 250)) 70%,
+    var(--muted-foreground)
+  );
 }
 /* The queue's card stack (queue/motion.ts poses every card each frame). The
    stage holds the pile above the front card, never takes clicks itself, and

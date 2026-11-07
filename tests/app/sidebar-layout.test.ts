@@ -19,16 +19,17 @@ describe.skipIf(!executablePath)(
   "sidebar browser layout",
   { timeout: 30_000 },
   () => {
-    it("keeps status marks transparent while coloring workstream titles in both themes", async () => {
+    it("colors workstream names and subdued category labels while leaving status and thread titles neutral", async () => {
       const browser = await chromium.launch({ executablePath, headless: true });
       try {
         const page = await browser.newPage();
         await page.setContent(`<style>${styles}</style>
-          <div style="--ws-hue: 47; color: rgb(130, 130, 130)">
+          <div style="--ws-hue: 47; --muted-foreground: rgb(130, 130, 130); color: rgb(130, 130, 130)">
             <span class="ws-mark ws-mark-unread"></span>
             <span class="ws-mark ws-spin ws-spin-dots"></span>
+            <span class="ws-workstream-name">Workstream</span>
             <h4 class="ws-category-label">Category</h4>
-            <span class="ws-thread-title">Thread title</span>
+            <span class="thread-title">Thread title</span>
           </div>`);
         for (const dark of [false, true]) {
           await page.evaluate(
@@ -42,15 +43,20 @@ describe.skipIf(!executablePath)(
             category: getComputedStyle(
               document.querySelector(".ws-category-label")!,
             ).color,
-            title: getComputedStyle(document.querySelector(".ws-thread-title")!)
+            name: getComputedStyle(
+              document.querySelector(".ws-workstream-name")!,
+            ).color,
+            title: getComputedStyle(document.querySelector(".thread-title")!)
               .color,
           }));
           expect(colors.status).toEqual([
             "rgba(0, 0, 0, 0)",
             "rgba(0, 0, 0, 0)",
           ]);
-          expect(colors.category).toBe("rgb(130, 130, 130)");
-          expect(colors.title).toBe(
+          expect(colors.category).not.toBe(colors.name);
+          expect(colors.category).not.toBe("rgb(130, 130, 130)");
+          expect(colors.title).toBe("rgb(130, 130, 130)");
+          expect(colors.name).toBe(
             dark ? "oklch(0.79 0.13 47)" : "oklch(0.46 0.16 47)",
           );
         }

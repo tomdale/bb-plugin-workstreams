@@ -91,8 +91,7 @@ import { snoozeThreads, wakeThreads } from "../snooze/actions.ts";
 import { CustomSnoozeDialog } from "../snooze/CustomSnoozeDialog.tsx";
 import { SnoozeMenuItems, plainMenuKit } from "../snooze/SnoozeMenuItems.tsx";
 import { SnoozeIcon } from "../snooze/icons.tsx";
-import { WorkstreamName, splitWorkstreamName } from "../WorkstreamName.tsx";
-import { WorkstreamTile } from "./WorkstreamTile.tsx";
+import { WorkstreamName } from "../WorkstreamName.tsx";
 import {
   presenceProps,
   useFlip,
@@ -601,9 +600,6 @@ export function WorkstreamsThreadList({
       <li ref={handle?.ref} {...handle?.listeners} className="list-none">
         <Row
           thread={row.thread}
-          workstreamHue={
-            row.workstreamId ? workstreamHue(row.workstreamId) : undefined
-          }
           depth={depth}
           active={row.thread.id === activeThreadId}
           now={now}
@@ -712,7 +708,11 @@ export function WorkstreamsThreadList({
    * Every group decides its status slot together, so titles line up from
    * one group to the next.
    */
-  const renderTrees = (group: ThreadGroup, label?: string) => {
+  const renderTrees = (
+    group: ThreadGroup,
+    label?: string,
+    categorized = false,
+  ) => {
     const marks = groupMarks;
     return (
       <SortableContext
@@ -729,7 +729,11 @@ export function WorkstreamsThreadList({
               disabled={choosingTopic}
             >
               {({ ref, style, handle }) => (
-                <li ref={ref} style={style} className="list-none">
+                <li
+                  ref={ref}
+                  style={style}
+                  className={cn("list-none", categorized && "pl-3")}
+                >
                   <ul>
                     {unfolded(tree, "group").map((row, index) =>
                       renderRow(
@@ -769,19 +773,20 @@ export function WorkstreamsThreadList({
     categoryRows(group.rows, group.categories).map((category) => (
       <Fragment key={category.id ?? "unplaced"}>
         {category.name ? (
-          <li className="list-none px-2 pt-2 pb-0.5 text-xs font-medium text-muted-foreground">
-            <h4 className="ws-category-label m-0 flex min-w-0 items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="size-2 flex-none rounded-full bg-current"
-              />
-              <span className="truncate">
-                {label ? `${label} · ${category.name}` : category.name}
-              </span>
+          <li className="list-none px-2 pt-2 pb-0.5 text-xs font-medium">
+            <h4
+              className="ws-category-label m-0 truncate"
+              style={{ "--ws-hue": workstreamHue(group.id) } as CSSProperties}
+            >
+              {label ? `${label} · ${category.name}` : category.name}
             </h4>
           </li>
         ) : null}
-        {renderTrees({ ...group, rows: category.rows }, label)}
+        {renderTrees(
+          { ...group, rows: category.rows },
+          label,
+          Boolean(category.name),
+        )}
       </Fragment>
     ));
   const renderGroupBody = (group: ThreadNode): ReactNode => [
@@ -1667,12 +1672,7 @@ function WorkstreamGroup({
   const { prefs } = usePrefs();
   const incoming = useIncomingThread(group.id);
   const label = "label" in group ? group.label : group.name;
-  // A workstream is backed by a section; a header that only heads subgroups
-  // is not one, so it draws no tile.
-  const mark =
-    "hasSection" in group && group.hasSection ? (
-      <WorkstreamTile name={splitWorkstreamName(label)?.area ?? label} />
-    ) : null;
+  const isWorkstream = "hasSection" in group && group.hasSection;
   const shows = (when: "always" | "collapsed" | "never" = "collapsed") =>
     when === "always" || (when === "collapsed" && collapsed);
   const focusAction = onToggleFocus ? (
@@ -1751,9 +1751,9 @@ function WorkstreamGroup({
             <WorkstreamName
               name={label}
               muted={muted || nested}
-              mark={mark}
+              accent={isWorkstream}
               className={
-                mark
+                isWorkstream
                   ? "text-[13px] font-semibold"
                   : nested
                     ? "text-[11px] font-semibold uppercase tracking-wide"
