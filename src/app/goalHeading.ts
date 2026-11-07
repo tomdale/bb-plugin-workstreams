@@ -13,7 +13,7 @@
 export const TITLE_SIZE = 1.5;
 export const SUBTITLE_SIZE = 0.92;
 export const TITLE_LINE = 4 / 3;
-const SUBTITLE_LINE = 1.4;
+export const SUBTITLE_LINE = 1.4;
 export const PAD_TOP = 0.85;
 const PAD_BOTTOM = 0.65;
 /** Workstream line plus the gap before the title, when there is a workstream. */
@@ -77,13 +77,14 @@ export function headingHeight(
   base: number,
   hasEyebrow: boolean,
   titleLines: number,
+  goalLines: number,
 ): number {
   return Math.round(
     base *
       (PAD_TOP +
         (hasEyebrow ? EYEBROW_BLOCK : 0) +
         TITLE_SIZE * TITLE_LINE * titleLines +
-        SUBTITLE_SIZE * SUBTITLE_LINE +
+        SUBTITLE_SIZE * SUBTITLE_LINE * goalLines +
         PAD_BOTTOM),
   );
 }

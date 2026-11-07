@@ -9,6 +9,7 @@ import {
   PHONE_QUERY,
   PINNED_PAD,
   SUBTITLE_SIZE,
+  SUBTITLE_LINE,
   TITLE_BAR_TITLE_SIZE,
   TITLE_LINE,
   TITLE_SIZE,
@@ -136,7 +137,7 @@ function useMessageScroller(threadId: string | null): Mount | null {
       // expanding never reflow the messages (which would shift scroll
       // position mid-animation).
       const columnPadTop = Number.parseFloat(columnStyle.paddingTop) || 0;
-      const initialHeight = headingHeight(baseFontSize, true, 1);
+      const initialHeight = headingHeight(baseFontSize, true, 1, 1);
       root.style.marginTop = `${-columnPadTop}px`;
       root.style.marginBottom = `${initialHeight}px`;
       const overlay = document.createElement("div");
@@ -425,7 +426,37 @@ export function StickyGoalHeader(): React.ReactElement | null {
     );
   }, [narrow, title, paneWidth, base, hasEyebrow]);
   const titleLines = narrow ? wrappedLines : 1;
-  const height = headingHeight(base, hasEyebrow, titleLines);
+  const goalRef = useRef<HTMLDivElement>(null);
+  const [goalLines, setGoalLines] = useState(1);
+  const goal = context?.goal;
+  const placed = placement !== null;
+  useLayoutEffect(() => {
+    const element = goalRef.current;
+    // Measure the clamped element: its visible height, not all its overflow,
+    // is the space the header's plate and reserved gap must cover.
+    const measure = () => {
+      const line = base * SUBTITLE_SIZE * SUBTITLE_LINE;
+      setGoalLines(
+        goal
+          ? Math.min(
+              3,
+              Math.max(1, Math.round((element?.clientHeight ?? 0) / line)),
+            )
+          : 0,
+      );
+    };
+    measure();
+    if (!element) return;
+    const resize = new ResizeObserver(measure);
+    resize.observe(element);
+    return () => resize.disconnect();
+  }, [goal, paneWidth, base, mount, placed]);
+  const height = headingHeight(
+    base,
+    hasEyebrow,
+    titleLines,
+    goal ? goalLines : 0,
+  );
   const exitDistance = titleExitDistance(base, eyebrow, titleLines);
   const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
   const { moved, remaining, progress } = placement?.short
@@ -457,10 +488,18 @@ export function StickyGoalHeader(): React.ReactElement | null {
     if (!mount) return;
     mount.root.className = "ws-sticky-goal-root";
     mount.root.dataset.collapsed = String(collapsed);
-    // The reserved gap follows the heading height, which changes only when the
-    // thread gains or loses a workstream line.
+    // Wrapped text changes the reserved space, but must not detach a reader
+    // who is following the newest message.
+    const gapChanged = mount.root.style.marginBottom !== `${height}px`;
+    const wasAtBottom =
+      mount.scroller.scrollHeight -
+        mount.scroller.clientHeight -
+        mount.scroller.scrollTop <
+      24;
     mount.root.style.marginBottom = `${height}px`;
     mount.scroller.style.scrollPaddingTop = `${scrollPadding}px`;
+    if (gapChanged && wasAtBottom)
+      mount.scroller.scrollTop = mount.scroller.scrollHeight;
     return () => {
       mount.root.className = "";
       delete mount.root.dataset.collapsed;
@@ -578,6 +617,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
           )}
           {context.goal && (
             <div
+              ref={goalRef}
               className="ws-sticky-goal__subtitle"
               style={{
                 fontSize: base * SUBTITLE_SIZE,

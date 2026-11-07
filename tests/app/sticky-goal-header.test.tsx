@@ -4,6 +4,9 @@ import { cleanup, waitFor } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { emptyState, sidebarThread } from "./fixtures.ts";
 import {
+  SUBTITLE_LINE,
+  SUBTITLE_SIZE,
+  headingHeight,
   headingBackdropOpacity,
   headingOpacity,
   headingScroll,
@@ -60,7 +63,10 @@ function paneFixture({ recap }: { recap: boolean }) {
     </main>`;
 }
 
-async function mountHeading(headingTransition: "fade" | "scroll" = "scroll") {
+async function mountHeading(
+  headingTransition: "fade" | "scroll" = "scroll",
+  goal: string | null = null,
+) {
   stubResizeObserver();
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   const heading = app.appOverlays.find(
@@ -76,7 +82,23 @@ async function mountHeading(headingTransition: "fade" | "scroll" = "scroll") {
         threads: [sidebarThread("t1", { title: "Ship the mobile polish" })],
       },
       rpc: {
-        state: () => emptyState(),
+        state: () => ({
+          ...emptyState(),
+          analysis: goal
+            ? {
+                t1: {
+                  recap: "Working",
+                  state: "in_progress",
+                  needsYou: null,
+                  goal: null,
+                  threadGoal: goal,
+                  revision: 1,
+                  at: 1,
+                  model: "test",
+                },
+              }
+            : {},
+        }),
         prefs: () => ({
           prefs: parsePrefs({ threads: { headingTransition } }),
         }),
@@ -87,6 +109,87 @@ async function mountHeading(headingTransition: "fade" | "scroll" = "scroll") {
 
 const root = () => document.querySelector("[data-workstreams-sticky-goal]");
 const overlay = () => document.querySelector("[data-workstreams-goal-overlay]");
+
+it.each([0, 1, 2, 3, 7])(
+  "reserves space for the goal's visible lines, capped at three (%i)",
+  async (lines) => {
+    paneFixture({ recap: false });
+    const base = 14;
+    const line = base * SUBTITLE_SIZE * SUBTITLE_LINE;
+    const size = vi
+      .spyOn(HTMLElement.prototype, "clientHeight", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("ws-sticky-goal__subtitle")
+          ? Math.round(line * lines)
+          : 0;
+      });
+    const slot = await mountHeading(
+      "fade",
+      lines
+        ? "Make review findings clear without losing useful context."
+        : null,
+    );
+    try {
+      const height = headingHeight(base, false, 1, Math.min(3, lines));
+      await waitFor(() =>
+        expect((root() as HTMLElement)?.style.marginBottom).toBe(`${height}px`),
+      );
+      await waitFor(() =>
+        expect(
+          overlay()?.querySelector<HTMLElement>('[data-ws-heading="expanded"]')
+            ?.style.height,
+        ).toBe(`${height}px`),
+      );
+      expect(
+        overlay()!.querySelector<HTMLElement>(".ws-sticky-goal")!.style.height,
+      ).toBe(`${height}px`);
+    } finally {
+      slot.lifecycle.unmount();
+      size.mockRestore();
+    }
+  },
+);
+
+it("remeasures wrapped goals when the pane width changes", async () => {
+  paneFixture({ recap: false });
+  const line = 14 * SUBTITLE_SIZE * SUBTITLE_LINE;
+  let lines = 3;
+  let width = 600;
+  const size = vi
+    .spyOn(HTMLElement.prototype, "clientHeight", "get")
+    .mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains("ws-sticky-goal__subtitle")
+        ? Math.round(line * lines)
+        : 0;
+    });
+  const column = document.querySelector<HTMLElement>('[data-test="column"]')!;
+  const rect = vi
+    .spyOn(column, "getBoundingClientRect")
+    .mockImplementation(() => new DOMRect(0, 0, width, 1000));
+  const slot = await mountHeading(
+    "fade",
+    "Make review findings clear without losing useful context.",
+  );
+  try {
+    await waitFor(() =>
+      expect((root() as HTMLElement)?.style.marginBottom).toBe(
+        `${headingHeight(14, false, 1, 3)}px`,
+      ),
+    );
+    lines = 1;
+    width = 1000;
+    window.dispatchEvent(new Event("resize"));
+    await waitFor(() =>
+      expect((root() as HTMLElement)?.style.marginBottom).toBe(
+        `${headingHeight(14, false, 1, 1)}px`,
+      ),
+    );
+  } finally {
+    slot.lifecycle.unmount();
+    size.mockRestore();
+    rect.mockRestore();
+  }
+});
 
 it("attaches to the message scroller although a recap card scrolls its own text", async () => {
   paneFixture({ recap: true });

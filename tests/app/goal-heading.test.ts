@@ -1,6 +1,8 @@
 import { expect, it } from "vitest";
 import {
   PHONE_QUERY,
+  SUBTITLE_LINE,
+  SUBTITLE_SIZE,
   compactBlock,
   eyebrowMetrics,
   headingBackdropOpacity,
@@ -45,12 +47,24 @@ it("makes the pinned plate taller by the room the larger phone line needs", () =
 
 it("leaves the room reserved for a heading with no workstream alone", () => {
   expect(compactBlock(BASE, null)).toBeCloseTo(BASE * 0.95 * (4 / 3));
-  expect(headingHeight(BASE, false, 1)).toBeLessThan(
-    headingHeight(BASE, true, 1),
+  expect(headingHeight(BASE, false, 1, 1)).toBeLessThan(
+    headingHeight(BASE, true, 1, 1),
   );
-  expect(headingHeight(BASE, true, 2)).toBeGreaterThan(
-    headingHeight(BASE, true, 1),
+  expect(headingHeight(BASE, true, 2, 1)).toBeGreaterThan(
+    headingHeight(BASE, true, 1, 1),
   );
+});
+
+it("reserves only the goal's visible lines", () => {
+  for (const base of [14, 16, 20]) {
+    const line = base * SUBTITLE_SIZE * SUBTITLE_LINE;
+    const without = headingHeight(base, true, 1, 0);
+    for (const lines of [1, 2, 3]) {
+      expect(
+        Math.abs(headingHeight(base, true, 1, lines) - without - line * lines),
+      ).toBeLessThan(1);
+    }
+  }
 });
 
 it("eases both copies together over a longer scroll and reaches both boundaries", () => {

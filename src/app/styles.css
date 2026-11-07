@@ -625,6 +625,11 @@
   line-height: 1.3333;
 }
 .ws-sticky-goal__subtitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  white-space: normal;
+  overflow-wrap: anywhere;
   color: var(--muted-foreground);
   line-height: 1.4;
 }
