@@ -29,16 +29,21 @@ const RECAP = {
  */
 async function world(
   prefs: Record<string, unknown> & { messageBlocks?: boolean } = {},
-  createdAt = Date.now() + 1_000,
+  createdAt?: number,
+  createWorld = fakeWorld,
 ) {
   const { messageBlocks = prefs.replies === true, ...patch } = prefs;
-  const w = await fakeWorld();
+  const w = await createWorld();
   worlds.push(w);
-  w.addThread("t1", { status: "idle", queuedMessageCount: 0, createdAt });
   if (Object.keys(patch).length)
     await w.harness.behavior.callRpc("setRecapPrefs", { patch });
   if (messageBlocks)
     await w.harness.behavior.callRpc("reportClient", { messageBlocks: true });
+  w.addThread("t1", {
+    status: "idle",
+    queuedMessageCount: 0,
+    createdAt: createdAt ?? Date.now(),
+  });
   const configure = (origin?: { kind: "fork"; pluginId: string }) =>
     w.harness.behavior.resolveAgentConfiguration(
       makePluginAgentConfigurationContext({
@@ -630,6 +635,22 @@ describe("agent recaps", () => {
     await expect(
       s.report({ ...RECAP, state: "review", review: "x".repeat(161) }),
     ).rejects.toThrow();
+  });
+
+  it("enrolls a new thread even when initializing its world takes over a second", async () => {
+    let now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    try {
+      const s = await world({}, undefined, () => {
+        now += 2_000;
+        return fakeWorld();
+      });
+      s.w.turn("t1");
+      await s.idle();
+      expect(s.corrections()).toHaveLength(1);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it("asks for a missing recap, caps the reminders, and resets on fresh input", async () => {
