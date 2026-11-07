@@ -391,6 +391,26 @@ describe("thread list", () => {
     },
   );
 
+  it("colors filed titles in the workstream and Up Next, but leaves unfiled titles neutral", async () => {
+    const slot = await mount();
+    const titleIn = (region: string, name: string) =>
+      within(slot.getByRole("region", { name: region }))
+        .getByRole("link", { name })
+        .closest(".ws-row")!
+        .querySelector(".ws-thread-title") as HTMLElement | null;
+    await waitFor(() => expect(titleIn("Alpha", "Root task")).not.toBeNull());
+    expect(
+      Number(titleIn("Alpha", "Root task")!.style.getPropertyValue("--ws-hue")),
+    ).toBe(workstreamHue("sec_a"));
+    expect(
+      Number(
+        titleIn("Up Next", "Root task")!.style.getPropertyValue("--ws-hue"),
+      ),
+    ).toBe(workstreamHue("sec_a"));
+    expect(titleIn("Unfiled", "Loose task")).toBeNull();
+    slot.lifecycle.unmount();
+  });
+
   it.each([
     ["always", [true, true]],
     ["collapsed", [false, true]],
@@ -2121,7 +2141,7 @@ describe("nested workstreams", () => {
   });
 
   it.each([false, true])(
-    "uses the leaf section's hue and generation position when inline is %s",
+    "uses the leaf workstream's hue for titles when inline is %s",
     async (inline) => {
       const threads = inline
         ? nestedThreads().filter((thread) => thread.id !== "flags")
@@ -2148,18 +2168,16 @@ describe("nested workstreams", () => {
       const heading = await slot.findByRole("heading", {
         name: inline ? "Alert Investigations · Triage" : "Triage",
       });
-      const mark = heading.querySelector(".ws-mark") as HTMLElement;
-      expect(mark.className).toContain("ws-mark--rounded-square");
-      expect(Number(mark.style.getPropertyValue("--ws-hue"))).toBe(
-        (workstreamHue("sec_alerts") + 12) % 360,
+      expect(heading.querySelector("[aria-hidden=true]")?.className).toContain(
+        "rounded-full",
       );
-      expect(
-        Number(
-          (heading.parentElement as HTMLElement).style.getPropertyValue(
-            "--ws-hue",
-          ),
-        ),
-      ).toBe(workstreamHue("sec_alerts"));
+      const row = slot
+        .getByRole("link", { name: "Rebase alerts PR" })
+        .closest(".ws-row")!;
+      const title = row.querySelector(".ws-thread-title") as HTMLElement;
+      expect(Number(title.style.getPropertyValue("--ws-hue"))).toBe(
+        workstreamHue("sec_alerts"),
+      );
       if (!inline) {
         const subgroup = slot.getByRole("region", {
           name: "Beacon: Automations: Alert Investigations",
@@ -2492,7 +2510,7 @@ describe("small groups", () => {
     slot.lifecycle.unmount();
   });
 
-  it("gives the workstream a two-character tile and each category its own silhouette", async () => {
+  it("gives the workstream a two-character tile and neutral category markers", async () => {
     const threads = Array.from({ length: 6 }, (_, i) =>
       sidebarThread(`t${i}`, { title: `Task ${i}`, sectionId: "sec_ws" }),
     );
@@ -2528,23 +2546,32 @@ describe("small groups", () => {
     await slot.findByRole("heading", { name: "Reply Block" });
     const group = slot.getByRole("region", { name: "bb: Workstreams Plugin" });
     // The tile sits between the first-tier prefix and the workstream's own name.
-    const header = group.querySelector("button > .truncate")!;
+    const tile = group.querySelector(".ws-workstream-tile")!;
+    const header = tile.parentElement!;
     expect(header.textContent).toBe("bb: WP Workstreams Plugin");
     expect(
       within(group).getByRole("button", { name: "bb: Workstreams Plugin" }),
     ).toBeTruthy();
-    expect(header.className).toContain("text-[18px]");
-    expect(header.querySelector(".ws-workstream-tile")?.textContent).toBe("WP");
-    // Each heading carries its own silhouette, stepped one along per category.
-    const marks = [...group.querySelectorAll(".ws-mark")];
-    expect(
-      marks.map((mark) => mark.className.match(/ws-mark--([a-z-]+)/)![1]),
-    ).toEqual(["circle", "rounded-square"]);
-    expect(
-      marks.map((mark) =>
-        Number((mark as HTMLElement).style.getPropertyValue("--ws-hue")),
-      ),
-    ).toEqual([workstreamHue("sec_ws"), workstreamHue("sec_ws") + 12]);
+    expect(header.className).toContain("text-[13px]");
+    expect(header.className).toContain("items-center");
+    expect(tile.textContent).toBe("WP");
+    const marks = [
+      ...group.querySelectorAll(".ws-category-label > [aria-hidden=true]"),
+    ];
+    expect(marks).toHaveLength(2);
+    expect(marks.every((mark) => mark.className.includes("rounded-full"))).toBe(
+      true,
+    );
+    expect(marks.every((mark) => !mark.classList.contains("ws-mark"))).toBe(
+      true,
+    );
+    const title = within(group)
+      .getByRole("link", { name: "Task 0" })
+      .closest(".ws-row")!
+      .querySelector(".ws-thread-title") as HTMLElement;
+    expect(Number(title.style.getPropertyValue("--ws-hue"))).toBe(
+      workstreamHue("sec_ws"),
+    );
     expect(group.querySelector(".ws-category-label")?.textContent).toBe(
       "Reply Block",
     );
@@ -2560,7 +2587,7 @@ describe("small groups", () => {
       },
     );
     const group = await slot.findByRole("region", { name: "Vertex" });
-    const header = group.querySelector("button > .truncate")!;
+    const header = group.querySelector(".ws-workstream-tile")!.parentElement!;
     expect(header.textContent).toBe("VE Vertex");
     slot.lifecycle.unmount();
   });

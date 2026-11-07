@@ -548,55 +548,18 @@
 .dark .ws-queue-path {
   color: oklch(79% 0.13 var(--ws-hue, 250));
 }
-/* A workstream's two-character tile, on the workstream's own accent with the
-   letters knocked out to the surface behind them (see WorkstreamTile). It sits
-   after the first-tier prefix, or leads the header when there is none, so it
-   sits on the text baseline rather than a flex line. */
+/* Workstream identity belongs to the tile and the thread title, not status marks. */
 .ws-workstream-tile {
-  vertical-align: -3px;
   background: oklch(46% 0.16 var(--ws-hue, 250));
   color: var(--sidebar, var(--background, white));
+}
+.ws-thread-title {
+  color: oklch(46% 0.16 var(--ws-hue, 250));
 }
 .dark .ws-workstream-tile {
   background: oklch(79% 0.13 var(--ws-hue, 250));
 }
-/* A category's marker: an unlettered silhouette drawn in the workstream's
-   identity color, resolved one step further around the hue per category (see
-   domain/workstreamMark). Nothing here is a color of the category's own. */
-.ws-mark {
-  background: oklch(46% 0.16 var(--ws-hue, 250));
-}
-.dark .ws-mark {
-  background: oklch(79% 0.13 var(--ws-hue, 250));
-}
-.ws-mark--circle {
-  border-radius: 50%;
-}
-.ws-mark--rounded-square {
-  border-radius: 4px;
-}
-.ws-mark--diamond {
-  border-radius: 2px;
-  transform: rotate(45deg);
-}
-.ws-mark--shield {
-  clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
-}
-.ws-mark--hexagon {
-  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
-}
-.ws-mark--tag {
-  clip-path: polygon(0 0, 70% 0, 100% 30%, 100% 100%, 0 100%);
-}
-.ws-mark--pentagon {
-  clip-path: polygon(50% 0, 100% 38%, 82% 100%, 18% 100%, 0 38%);
-}
-/* A category heading carries the workstream's accent unshifted, so the label
-   reads as part of the same workstream as the markers beneath it. */
-.ws-category-label {
-  color: oklch(46% 0.16 var(--ws-hue, 250));
-}
-.dark .ws-category-label {
+.dark .ws-thread-title {
   color: oklch(79% 0.13 var(--ws-hue, 250));
 }
 /* The queue's card stack (queue/motion.ts poses every card each frame). The

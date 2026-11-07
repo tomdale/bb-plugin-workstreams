@@ -93,7 +93,6 @@ import { SnoozeMenuItems, plainMenuKit } from "../snooze/SnoozeMenuItems.tsx";
 import { SnoozeIcon } from "../snooze/icons.tsx";
 import { WorkstreamName, splitWorkstreamName } from "../WorkstreamName.tsx";
 import { WorkstreamTile } from "./WorkstreamTile.tsx";
-import { CategoryMark } from "./CategoryMark.tsx";
 import {
   presenceProps,
   useFlip,
@@ -602,6 +601,9 @@ export function WorkstreamsThreadList({
       <li ref={handle?.ref} {...handle?.listeners} className="list-none">
         <Row
           thread={row.thread}
+          workstreamHue={
+            row.workstreamId ? workstreamHue(row.workstreamId) : undefined
+          }
           depth={depth}
           active={row.thread.id === activeThreadId}
           now={now}
@@ -763,21 +765,16 @@ export function WorkstreamsThreadList({
    * their own and take thread drops, but reorder and focus only with their
    * top-level group.
    */
-  const renderCategorizedTrees = (
-    group: ThreadNode,
-    label?: string,
-    /** The section whose hue these categories' markers carry. */
-    hueId = group.id,
-  ) =>
+  const renderCategorizedTrees = (group: ThreadNode, label?: string) =>
     categoryRows(group.rows, group.categories).map((category) => (
       <Fragment key={category.id ?? "unplaced"}>
         {category.name ? (
-          <li
-            className="list-none px-2 pt-2 pb-0.5 text-xs font-medium text-muted-foreground"
-            style={{ "--ws-hue": workstreamHue(hueId) } as CSSProperties}
-          >
+          <li className="list-none px-2 pt-2 pb-0.5 text-xs font-medium text-muted-foreground">
             <h4 className="ws-category-label m-0 flex min-w-0 items-center gap-2">
-              <CategoryMark hue={workstreamHue(hueId)} index={category.index} />
+              <span
+                aria-hidden="true"
+                className="size-2 flex-none rounded-full bg-current"
+              />
               <span className="truncate">
                 {label ? `${label} · ${category.name}` : category.name}
               </span>
@@ -1757,7 +1754,7 @@ function WorkstreamGroup({
               mark={mark}
               className={
                 mark
-                  ? "text-[18px] font-semibold"
+                  ? "text-[13px] font-semibold"
                   : nested
                     ? "text-[11px] font-semibold uppercase tracking-wide"
                     : "text-[13px] font-semibold"

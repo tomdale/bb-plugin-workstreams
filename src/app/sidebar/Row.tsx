@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   ThreadTitle,
   experimental_useSidebarThreadActions,
@@ -84,6 +84,7 @@ export function hasStatusMark(
 
 export function Row({
   thread,
+  workstreamHue,
   depth,
   active,
   now,
@@ -99,6 +100,7 @@ export function Row({
   onNavigate,
 }: {
   thread: PluginSidebarThread;
+  workstreamHue?: number;
   depth: number;
   active: boolean;
   now: number;
@@ -272,7 +274,17 @@ export function Row({
             itself, so the row's trailing end is left to its marks and hover
             buttons. */}
         <span className="flex min-w-0 items-baseline gap-1.5 leading-5">
-          <span className="min-w-0 truncate">
+          <span
+            className={cn(
+              "min-w-0 truncate",
+              workstreamHue !== undefined && "ws-thread-title",
+            )}
+            style={
+              workstreamHue !== undefined
+                ? ({ "--ws-hue": workstreamHue } as CSSProperties)
+                : undefined
+            }
+          >
             <ThreadTitle threadId={thread.id} />
           </span>
           {context ? (

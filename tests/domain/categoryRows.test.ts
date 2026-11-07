@@ -53,9 +53,7 @@ describe("category rows", () => {
   });
   it("retains the original list without a category generation", () => {
     const rows = [row("a"), row("child", 1)];
-    expect(categoryRows(rows)).toEqual([
-      { id: null, name: null, rows, index: 0 },
-    ]);
+    expect(categoryRows(rows)).toEqual([{ id: null, name: null, rows }]);
   });
   it("keeps each category's place when a sibling has nothing filed in it", () => {
     const empty = {
@@ -66,17 +64,11 @@ describe("category rows", () => {
       ],
     };
     expect(
-      categoryRows([row("a")], empty).map((bucket) => [
-        bucket.name,
-        bucket.index,
-      ]),
-    ).toEqual([["Two", 1]]);
+      categoryRows([row("a")], empty).map((bucket) => bucket.name),
+    ).toEqual(["Two"]);
   });
   it("puts arrivals after every category", () => {
     const buckets = categoryRows([row("a"), row("arrival")], generation);
-    expect(buckets.map((bucket) => [bucket.name, bucket.index])).toEqual([
-      [null, 2],
-      ["First", 1],
-    ]);
+    expect(buckets.map((bucket) => bucket.name)).toEqual([null, "First"]);
   });
 });

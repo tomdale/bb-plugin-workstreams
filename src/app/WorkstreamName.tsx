@@ -33,6 +33,28 @@ export function WorkstreamName({
   mark?: ReactNode;
 }) {
   const parts = splitWorkstreamName(name);
+  if (mark)
+    return (
+      <span className={cn("flex min-w-0 items-center gap-1", className)}>
+        {parts ? (
+          <>
+            <span className="min-w-0 truncate font-normal text-muted-foreground/60">
+              {parts.owner}
+              <span className="sr-only">:</span>
+            </span>{" "}
+          </>
+        ) : null}
+        {mark}{" "}
+        <span
+          className={cn(
+            "min-w-0 truncate",
+            muted ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
+          {parts?.area ?? name}
+        </span>
+      </span>
+    );
   if (!parts)
     return (
       <span
@@ -42,8 +64,6 @@ export function WorkstreamName({
           className,
         )}
       >
-        {mark}
-        {mark ? " " : null}
         {name}
       </span>
     );
@@ -52,7 +72,7 @@ export function WorkstreamName({
       <span className="font-normal text-muted-foreground/60">
         {parts.owner}
       </span>
-      <span className="sr-only">:</span> {mark ? <>{mark} </> : null}
+      <span className="sr-only">:</span>{" "}
       <span className={muted ? "text-muted-foreground" : "text-foreground"}>
         {parts.area}
       </span>

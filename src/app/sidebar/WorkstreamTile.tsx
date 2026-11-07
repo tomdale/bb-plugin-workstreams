@@ -15,7 +15,7 @@ export function WorkstreamTile({ name }: { name: string }) {
       aria-hidden="true"
       className={cn(
         "ws-workstream-tile",
-        "inline-grid h-[18px] w-[30px] flex-none place-items-center rounded-[5px]",
+        "grid h-[18px] w-[30px] flex-none place-items-center rounded-[5px]",
         "text-[10px] font-bold leading-none tracking-[0.04em]",
       )}
     >

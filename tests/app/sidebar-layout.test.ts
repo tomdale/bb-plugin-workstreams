@@ -19,6 +19,46 @@ describe.skipIf(!executablePath)(
   "sidebar browser layout",
   { timeout: 30_000 },
   () => {
+    it("keeps status marks transparent while coloring workstream titles in both themes", async () => {
+      const browser = await chromium.launch({ executablePath, headless: true });
+      try {
+        const page = await browser.newPage();
+        await page.setContent(`<style>${styles}</style>
+          <div style="--ws-hue: 47; color: rgb(130, 130, 130)">
+            <span class="ws-mark ws-mark-unread"></span>
+            <span class="ws-mark ws-spin ws-spin-dots"></span>
+            <h4 class="ws-category-label">Category</h4>
+            <span class="ws-thread-title">Thread title</span>
+          </div>`);
+        for (const dark of [false, true]) {
+          await page.evaluate(
+            (dark) => document.documentElement.classList.toggle("dark", dark),
+            dark,
+          );
+          const colors = await page.evaluate(() => ({
+            status: [...document.querySelectorAll(".ws-mark")].map(
+              (el) => getComputedStyle(el).backgroundColor,
+            ),
+            category: getComputedStyle(
+              document.querySelector(".ws-category-label")!,
+            ).color,
+            title: getComputedStyle(document.querySelector(".ws-thread-title")!)
+              .color,
+          }));
+          expect(colors.status).toEqual([
+            "rgba(0, 0, 0, 0)",
+            "rgba(0, 0, 0, 0)",
+          ]);
+          expect(colors.category).toBe("rgb(130, 130, 130)");
+          expect(colors.title).toBe(
+            dark ? "oklch(0.79 0.13 47)" : "oklch(0.46 0.16 47)",
+          );
+        }
+      } finally {
+        await browser.close();
+      }
+    });
+
     it("reveals hover timestamps on pointer hover and keyboard focus without reserving space", async () => {
       const browser = await chromium.launch({ executablePath, headless: true });
       try {

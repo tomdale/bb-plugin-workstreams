@@ -1,42 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  MARK_HUE_STEP,
-  MARK_SHAPES,
-  markHue,
-  markHueOffset,
-  markShape,
-  workstreamAbbreviation,
-} from "../../src/domain/workstreamMark.ts";
-
-describe("category markers", () => {
-  it("hands out the silhouettes in order and repeats them", () => {
-    expect(MARK_SHAPES.map((_, index) => markShape(index))).toEqual([
-      ...MARK_SHAPES,
-    ]);
-    expect(markShape(MARK_SHAPES.length)).toBe(MARK_SHAPES[0]);
-    expect(markShape(MARK_SHAPES.length + 2)).toBe(MARK_SHAPES[2]);
-  });
-
-  it("steps each category further around the workstream hue", () => {
-    expect([0, 1, 2, 5].map(markHueOffset)).toEqual([0, 12, 24, 60]);
-    expect(markHueOffset(MARK_SHAPES.length)).toBe(0);
-    expect(MARK_HUE_STEP).toBe(12);
-  });
-
-  it("resolves a marker's hue from its workstream's own", () => {
-    expect([0, 1, 6].map((index) => markHue(47, index))).toEqual([47, 59, 119]);
-    expect(markHue(350, 2)).toBe(14);
-    expect(markHue(0, 0)).toBe(0);
-    expect(markHue(Number.NaN, 1)).toBe(markHueOffset(1));
-  });
-
-  it("draws something for an index it would never be given", () => {
-    expect(MARK_SHAPES).toContain(markShape(-1));
-    expect(markHueOffset(-1)).toBe(0);
-    expect(MARK_SHAPES).toContain(markShape(1.5));
-    expect(markHueOffset(Number.NaN)).toBe(0);
-  });
-});
+import { workstreamAbbreviation } from "../../src/domain/workstreamMark.ts";
 
 describe("workstream tile characters", () => {
   it("takes the initials of a multi-word name", () => {
