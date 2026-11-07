@@ -173,7 +173,7 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     group: "pace",
     label: "constant interval ms",
     unit: "ms",
-    min: 150,
+    min: 60,
     max: 400,
     step: 5,
     read: (c) => c.tempo.ms,

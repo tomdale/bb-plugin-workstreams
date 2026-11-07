@@ -561,7 +561,8 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       fast = c.at(200),
       hs225 = h.at(225),
       hs200 = h.at(200),
-      fold150 = fo.at(150);
+      fold150 = fo.at(150),
+      fold80 = fo.at(80);
     f.expect(
       rate(base) > rate(slow) &&
         rate(mid) > rate(base) &&
@@ -569,8 +570,8 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "a shorter constant interval is faster",
     );
     f.expect(
-      hs225.clean && !hs200.clean && fold150.clean,
-      "held speed-up holds 225 ms cleanly and not 200",
+      hs225.clean && !hs200.clean && fold150.clean && fold80.clean,
+      "held speed-up holds 225 ms cleanly and not 200, and fold holds 80 ms",
     );
     return {
       what: "The fixed time between presses when `tempo` is `constant`, in ms. Cards per second is one second divided by it.",
@@ -584,7 +585,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`A faster beat, until the trips cannot keep up. At ${mid.value} ms intervals run ${mid.range} ms and at ${fast.value} ms ${fast.range} ms: a tall card still takes about ${fast.ivMax} ms to clear, so the beat is constant only above that.`,
         ],
       ],
-      needs: t`Only \`tempo\` = constant uses it. Held speed-up shortens trips, so the beat can run faster: with it on, ${hs225.value} ms holds ${hs225.range} ms at ${hs225.pace} cards/s, ${hs225.verdict}, while ${hs200.value} ms gives ${hs200.verdict}. Fold goes further: ${fold150.value} ms gives ${fold150.pace} cards/s.`,
+      needs: t`Only \`tempo\` = constant uses it. Held speed-up shortens trips, so the beat can run faster: with it on, ${hs225.value} ms holds ${hs225.range} ms at ${hs225.pace} cards/s, ${hs225.verdict}, while ${hs200.value} ms gives ${hs200.verdict}. Fold goes further: ${fold150.value} ms gives ${fold150.pace} cards/s and ${fold80.value} ms gives ${fold80.pace}, ${fold80.verdict}, with intervals ${fold80.range} ms.`,
       tune: t`Start at the pace you want. When the interval range's upper end is above this setting, the trips are the limit, not the beat: raise the interval, or turn on \`held speed-up\` or \`fold while held\`. With held speed-up alone, ${hs225.value} ms is the shortest value swept that is clean.`,
     };
   },

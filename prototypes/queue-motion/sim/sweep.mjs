@@ -112,7 +112,7 @@ export const PARAMS = [
   ...heldSweeps("tms", "constant interval, ms", (v) => ({ tempo: { ms: v } }), {
     constant: [[150, 200, 250, 285, 350, 400], 285],
     "constant with held speed-up": [[200, 225, 250, 285], 285],
-    "fold with constant": [[100, 150, 200, 250], 285],
+    "fold with constant": [[80, 100, 150, 200, 250], 285],
   }),
   ...heldSweeps("slack", "gate slack", (v) => ({ gateSlack: v }), {
     even: [[0, 0.1, 0.3], 0],
