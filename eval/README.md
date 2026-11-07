@@ -186,6 +186,27 @@ answer does not replace the reply-format contract. This checks format and
 supplied facts, not tool selection, real harness turn ordering, visual
 rendering, or reader comprehension. Those need separate checks.
 
+## Recap corrections
+
+`node eval/recap-corrections.ts` compares the previous and current reminder
+using synthetic conversations and real Gateway tool selection. It checks an
+already-answered request, an unanswered request, and a request needing a
+question card. The answered case passes only when the agent calls the recap
+without more text; the unanswered case requires the answer in the reply or recap
+and a valid recap call. The question case requires a valid question call without
+repeating the previous message. If the agent stops without calling a tool, the
+runner sends up to three reminders, retaining its replies. This small test
+cannot establish a production failure rate or reproduce BB's complete provider
+session.
+
+- `EVAL_MODEL`: default `openai/gpt-6-luna`
+- `EVAL_REASONING_LEVEL`: default `xhigh`
+- `EVAL_REPETITIONS`: 1–5; default `1`
+- `EVAL_OUTPUT`: default `/tmp/recap-corrections-eval.json`
+
+The report includes both variants' text, tool arguments, and usage. The runner
+exits nonzero when a candidate case fails.
+
 ## Status fixtures
 
 `node eval/run.ts [model ...]` runs analysis evaluations against supported

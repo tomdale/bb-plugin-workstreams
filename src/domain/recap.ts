@@ -12,6 +12,8 @@ import type { AgentReport, StoredAnalysis, WorkState } from "./analysis.ts";
 
 export const RECAP_TOOL = "WorkstreamsRecap";
 
+export const RECAP_CORRECTION = `Your turn ended without a recap. Any answer you already gave is visible to the user; do not repeat it. If the answer is complete, call ${RECAP_TOOL} without writing another reply block. Otherwise, give the missing information before the tool call. Finish any remaining authorized work. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
+
 /**
  * How a turn's result stands: complete, awaiting review, or waiting on an async task.
  * A turn that needs the user's answer ends with a question card instead.

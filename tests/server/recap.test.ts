@@ -992,7 +992,19 @@ describe("turn endings with reply blocks", () => {
     const [correction] = s.corrections();
     const message = (correction!.input as { text: string }[])[0]!.text;
     expect(message).toContain("Your turn ended without a recap.");
-    expect(message).toContain(`call ${RECAP_TOOL} to report it`);
+    expect(message).toContain(
+      `call ${RECAP_TOOL} without writing another reply block`,
+    );
+    expect(message).toContain(
+      "Any answer you already gave is visible to the user",
+    );
+    expect(message).toContain("do not repeat it");
+    expect(message).toContain("without writing another reply block");
+    expect(message).toContain(
+      "give the missing information before the tool call",
+    );
+    expect(message).toContain("Finish any remaining authorized work");
+    expect(message).toContain("ask through the available question-card tool");
     // The card has one source, so recovery never offers the block form.
     expect(message).not.toContain(":::reply");
   });

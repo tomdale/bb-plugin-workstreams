@@ -23,6 +23,7 @@ import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
+  RECAP_CORRECTION,
   RECAP_INSTRUCTIONS,
   RECAP_TOOL,
   RECAP_TOOL_DESCRIPTION,
@@ -677,11 +678,6 @@ export class AgentRecaps {
     });
   }
 
-  /** Recovery names the tool: the card comes only from the call that sets it. */
-  private correctionText(): string {
-    return `Your turn ended without a recap. Finish any remaining authorized work, then call ${RECAP_TOOL} to report it. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
-  }
-
   private async enforce(threadId: string) {
     const { required, corrections } = this.deps.prefs();
     // A durable question remains a valid turn ending after BB loses its waiter.
@@ -777,7 +773,7 @@ export class AgentRecaps {
         {
           type: "text",
           visibility: "agent-only",
-          text: `[Workstreams recap ${token} ${row.epoch} ${completed.seq}]\n${this.correctionText()} Correction ${row.intercepts + 1} of ${corrections}.`,
+          text: `[Workstreams recap ${token} ${row.epoch} ${completed.seq}]\n${RECAP_CORRECTION} Correction ${row.intercepts + 1} of ${corrections}.`,
           mentions: [],
         },
       ],
