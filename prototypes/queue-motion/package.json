@@ -1,0 +1,18 @@
+{
+  "name": "queue-motion-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A lab for the queue card stack's motion: the shipped engine beside the elastic drum model, with headless sims.",
+  "scripts": {
+    "build": "node build.mjs",
+    "suite": "node sim/suite.mjs",
+    "check": "node sim/suite.mjs --check",
+    "sweep": "node sim/sweep.mjs",
+    "sheets": "node capture/sheets.mjs",
+    "record": "node capture/record.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

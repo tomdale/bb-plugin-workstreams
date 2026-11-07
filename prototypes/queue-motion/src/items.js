@@ -1,0 +1,88 @@
+// Sample cards for the lab: a tall review card, short one-liners, and a very tall card, so the stack meets
+// the full range of card heights (about 73 to 330 px at the page's 680 px column).
+export const ITEMS = [
+  {
+    s: "review",
+    l: "Ready for Review",
+    a: "9m ago",
+    p: "Billing: Exports",
+    t: "Reworking the invoice export",
+    g: "Exports keep the last successful file until a new one finishes",
+    done: [
+      "A running export no longer replaces the previous file",
+      "A failed export leaves the previous file and its history in place",
+    ],
+    review: [
+      "Start an export and check that the previous file stays downloadable",
+      "Compare a finished export with one that failed halfway",
+      "These changes are in the mockups only; the application behaviour has not changed",
+    ],
+  },
+  {
+    s: "waiting",
+    l: "Waiting",
+    a: "7m ago",
+    p: "Billing: Exports",
+    t: "Publishing the export schedule",
+    g: "The change still awaits required approval",
+    done: [],
+    review: [],
+  },
+  {
+    s: "complete",
+    l: "Complete",
+    a: "4m ago",
+    p: "Platform: Search",
+    t: "Supporting prefix queries",
+    g: "Prefix queries now match across indexed fields",
+    done: [
+      "Queries ending in a wildcard choose the closest indexed field",
+      "A query that matches several fields lists each match once",
+      "Released as 2.4.1",
+    ],
+    review: [],
+  },
+  {
+    s: "review",
+    l: "Ready for Review",
+    a: "2d ago",
+    p: "Docs: Guides",
+    t: "Rewriting the onboarding guide",
+    g: "The onboarding guide is restructured around the first hour of use",
+    done: [
+      "Split the guide into setup, first project, and sharing sections",
+      "Moved the reference tables to an appendix",
+      "Replaced every screenshot with the current interface",
+      "Checked each code sample against the current release",
+      "Added a short troubleshooting section for the common install errors",
+    ],
+    review: [
+      "Read the new first-project section end to end",
+      "Decide whether the appendix stays in the guide or moves to the reference",
+      "Check the sharing section against the team plan",
+    ],
+  },
+  {
+    s: "needs",
+    l: "Needs your decision",
+    a: "2m ago",
+    p: "Platform: Search",
+    t: "Choosing a ranking rule",
+    g: "Two ranking rules fit the data, and they differ on which result comes first when a query matches a title exactly. Pick one to rank exact matches first.",
+    done: [],
+    review: [],
+  },
+  {
+    s: "complete",
+    l: "Complete",
+    a: "1h ago",
+    p: "Docs: Tooling",
+    t: "Narrowing the trigger conditions",
+    g: "Guided tours start only on an explicit request",
+    done: [
+      "Ordinary questions and explanations default to a short answer",
+      "Updated the tool description and the standing instructions",
+    ],
+    review: [],
+  },
+];

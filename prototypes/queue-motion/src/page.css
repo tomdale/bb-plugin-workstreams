@@ -1,0 +1,399 @@
+:root {
+  --bg: #fff;
+  --fg: #111;
+  --mid: #666;
+  --line: #e5e5e5;
+  --review-b: #6cc4f2;
+  --review-s: #f3faff;
+  --review-t: #0a76b3;
+  --complete-b: #5fd3a2;
+  --complete-s: #f2fcf7;
+  --complete-t: #0c8a58;
+  --needs-b: #f2b84b;
+  --needs-s: #fff8ec;
+  --needs-t: #b36b00;
+  --waiting-b: #b09af0;
+  --waiting-s: #f8f5ff;
+  --waiting-t: #6b4fd0;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    14px/1.5 -apple-system,
+    Inter,
+    system-ui,
+    sans-serif;
+  height: 100vh;
+  overflow: hidden;
+}
+.page {
+  position: absolute;
+  inset: 56px 0 0;
+  overflow: hidden;
+}
+.col {
+  position: relative;
+  width: 680px;
+  margin: 0 auto;
+}
+#glide {
+  position: relative;
+}
+#head {
+  display: grid;
+}
+#head > div {
+  grid-area: 1/1;
+}
+.path {
+  font-size: 13px;
+  font-weight: 550;
+  color: #3b5bd6;
+}
+h1 {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 450;
+  color: #111b;
+  letter-spacing: -0.015em;
+}
+/* The pile. Every card is a real element for the whole session; only its
+   pose (depth, height offset, tilt) changes. */
+.stage {
+  position: relative;
+  z-index: 1;
+  margin-top: 14px;
+  isolation: isolate;
+}
+.card {
+  position: absolute;
+  left: 0;
+  width: 680px;
+  transform-origin: 340px 0;
+  will-change: transform;
+}
+/* The card's surface is drawn by .frame at the card's visible height, so a
+   card tucked behind a shorter one ends where the one in front ends. The
+   content keeps its natural layout and is clipped, never reflowed. */
+.frame {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border: 1.15px solid var(--b);
+  background: var(--s);
+  border-radius: 11.5px;
+}
+/* The shadow is its own layer so it can thin out as a card washes out. */
+.shadow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-radius: 11.5px;
+  box-shadow:
+    0 1px 1px rgb(0 0 0/0.03),
+    0 8px 20px -10px rgb(20 30 60/0.22);
+}
+.content {
+  position: relative;
+  padding: 17px 23px 12px;
+}
+/* Depth shading: the page colour laid over a card in proportion to its depth,
+   and over a card leaving the front as it goes. The card stays opaque, so it
+   fades into the page without anything showing through it. */
+.shade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-radius: 11.5px;
+  background: var(--bg);
+  pointer-events: none;
+  opacity: 0;
+}
+.st {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--t);
+}
+.st span {
+  margin-left: 6px;
+  color: var(--mid);
+  font-weight: 400;
+}
+.goal {
+  margin: 2px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.rows {
+  margin-top: 12px;
+  font-size: 14.5px;
+}
+.row {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  padding: 6px 0;
+}
+.row + .row {
+  border-top: 1px solid color-mix(in oklab, var(--b) 35%, transparent);
+}
+.row h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--t);
+}
+.row ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row li {
+  display: flex;
+  gap: 9px;
+}
+.row li b {
+  color: var(--t);
+  font-weight: 400;
+}
+.c-review {
+  --b: var(--review-b);
+  --s: var(--review-s);
+  --t: var(--review-t);
+}
+.c-complete {
+  --b: var(--complete-b);
+  --s: var(--complete-s);
+  --t: var(--complete-t);
+}
+.c-needs {
+  --b: var(--needs-b);
+  --s: var(--needs-s);
+  --t: var(--needs-t);
+}
+.c-waiting {
+  --b: var(--waiting-b);
+  --s: var(--waiting-s);
+  --t: var(--waiting-t);
+}
+#below {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 0;
+}
+.answers {
+  padding-left: 24px;
+  color: #111d;
+  font-size: 15px;
+}
+.answers div {
+  display: flex;
+  gap: 14px;
+  padding: 6px 0;
+}
+.answers kbd {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font: 500 11px system-ui;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--mid);
+  flex: none;
+  margin-top: 2px;
+}
+.btns {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  padding-left: 24px;
+}
+.btns span {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 13px;
+  color: #111b;
+  background: #fff;
+}
+.bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  font-size: 12.5px;
+  z-index: 99;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+.grp {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.grp > span {
+  color: #888;
+  margin-right: 4px;
+}
+.bar button {
+  font: inherit;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+  color: #333;
+}
+.bar button.on {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+.note {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 56px;
+  text-align: center;
+  color: #888;
+  font-size: 13px;
+  padding: 0 40px;
+  z-index: 99;
+}
+.foot {
+  position: fixed;
+  bottom: 22px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: var(--mid);
+  font-size: 13px;
+  z-index: 99;
+}
+.foot button {
+  font: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: #888;
+  padding: 2px 8px;
+}
+#bars {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99;
+}
+#bars .bar {
+  position: static;
+  border-bottom: 1px solid #f0f0f0;
+}
+.sbar {
+  height: auto;
+  min-height: 34px;
+  background: #f4f6ff;
+  border-bottom: 1px solid #e3e6f5;
+  padding: 3px 12px;
+}
+.sbar label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sbar input {
+  width: 78px;
+}
+.sbar output {
+  min-width: 26px;
+  color: #555;
+}
+.bar {
+  height: auto;
+  min-height: 56px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  gap: 8px 18px;
+}
+.bar button {
+  font: inherit;
+}
+.stage {
+  margin-top: 6px;
+}
+#head {
+  display: block;
+  min-height: 62px;
+}
+.note {
+  bottom: 48px;
+  line-height: 1.45;
+}
+.note .hint {
+  display: block;
+  color: #aaa;
+  font-size: 12px;
+  margin-top: 2px;
+}
+.model {
+  position: fixed;
+  left: 12px;
+  bottom: 10px;
+  font-size: 12px;
+  color: #888;
+  z-index: 99;
+  max-width: 900px;
+}
+.model summary {
+  cursor: pointer;
+}
+.model div {
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #555;
+  margin-bottom: 6px;
+  line-height: 1.45;
+}
+.foot {
+  bottom: 10px;
+  z-index: 100;
+}
+.lam {
+  color: #888;
+  font-size: 12px;
+  margin-left: 8px;
+}
+.cover {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 112px;
+  background: #fff;
+  z-index: 90;
+}
+.note {
+  z-index: 100;
+}
+.model {
+  z-index: 100;
+}
