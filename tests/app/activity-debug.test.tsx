@@ -187,7 +187,7 @@ it("loads older calls with a stable cursor and refreshes loaded history without 
   );
   const slot = await page({ traces });
   fireEvent.click(
-    await slot.findByRole("button", { name: "Load older model calls" }),
+    await slot.findByText("Load older model calls", { selector: "button" }),
   );
   expect(await slot.findByText("older")).toBeTruthy();
   expect(traces).toHaveBeenCalledWith({
@@ -195,11 +195,11 @@ it("loads older calls with a stable cursor and refreshes loaded history without 
     before: { at: 1000, id: "call-99" },
   });
   expect(
-    slot.queryByRole("button", { name: "Load older model calls" }),
+    slot.queryByText("Load older model calls", { selector: "button" }),
   ).toBeNull();
   await slot.behavior.emitRealtime("changed", {});
   await waitFor(() => expect(traces).toHaveBeenCalledTimes(5));
-  expect(slot.getAllByRole("listitem")).toHaveLength(102);
+  expect(slot.container.querySelectorAll("li")).toHaveLength(102);
   expect(slot.getByText("101 model calls shown · $1.0100")).toBeTruthy();
 }, 15000);
 
