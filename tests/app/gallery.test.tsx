@@ -87,6 +87,7 @@ it("renders every specimen with its component", async () => {
     // context, prose, sequence, comparison, group
     "Queue card keyboard handling",
     "A held key is one gesture",
+    "Replay fixture",
     "Reproduce it",
     "Passed",
     "Two ways to read the position",

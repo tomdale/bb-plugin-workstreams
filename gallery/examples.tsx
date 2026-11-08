@@ -158,21 +158,6 @@ const replyParts = [
     body: "The summary keeps **the result** first, followed by review steps and `paths/that/wrap.ts`.\n\nOrdinary prose stays in the message flow.",
   },
   {
-    type: "finding",
-    title: "The narrow layout wraps long paths",
-    explanation:
-      "The fixture uses a long filename to exercise the available width.",
-    certainty: "observed",
-    consequence: "The reader can keep the pane narrow.",
-    evidence: [
-      {
-        label: "Synthetic layout fixture",
-        detail:
-          "This is example evidence, not an independently verified result.",
-      },
-    ],
-  },
-  {
     type: "sequence",
     title: "Review the summary",
     steps: [

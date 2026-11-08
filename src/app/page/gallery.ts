@@ -41,29 +41,6 @@ const investigation = block([
       "The queue listens on the window, and the handler's position comes from the render that registered it.",
   } satisfies ReplyComponent),
   componentFence({
-    type: "finding",
-    title: "Auto-repeat reads a stale position",
-    explanation:
-      "The handler is registered once per render with the focused item's index. A repeat event re-runs that handler with the index it closed over, so it applies the same offset again instead of the next one.",
-    certainty: "observed",
-    consequence:
-      "Fast repeated presses move the card farther than the number of presses.",
-    evidence: [
-      {
-        label: "Key handler",
-        detail: "The effect depends on the index, so it re-registers.",
-        location: "src/app/page/queue/Queue.tsx",
-        line: 308,
-        endLine: 322,
-      },
-      {
-        label: "Replay fixture",
-        location:
-          "https://github.com/tomdale/bb-plugin-workstreams/blob/main/tests/app/motion.test.ts",
-      },
-    ],
-  } satisfies ReplyComponent),
-  componentFence({
     type: "text",
     body: "A held key is one gesture, so it should move the card one place per step and no more than two ahead. The bug is in when the handler learns where the card is, not in how many moves it asks for.",
   } satisfies ReplyComponent),
@@ -200,11 +177,8 @@ const delivered = block([
         after: "One handler reads a ref the commit writes",
       },
       {
-        type: "finding",
-        title: "One listener serves the whole burst",
-        explanation:
-          "The handler no longer depends on the index, so a burst of repeats runs the same function with the latest position.",
-        certainty: "observed",
+        type: "text",
+        body: "The handler no longer depends on the index, so a burst of repeats runs the same function with the latest position.",
       },
     ],
   } satisfies ReplyComponent),
@@ -257,7 +231,7 @@ export const SPECIMENS: readonly Specimen[] = [
   {
     title: "An investigation",
     intro:
-      "One reply carrying the reading half of the vocabulary: prose, a Details section, and six components, including evidence with a file range and a peer group.",
+      "One reply carrying the reading half of the vocabulary: prose, a Details section, and five components, including a peer group.",
     messages: [
       { from: "user", text: "Holding ↓ on the queue skips ahead. Why?" },
       {
@@ -267,8 +241,6 @@ export const SPECIMENS: readonly Specimen[] = [
           "headline",
           "prose",
           "context",
-          "finding",
-          "evidence",
           "text",
           "sequence",
           "comparison",

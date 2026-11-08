@@ -17,29 +17,27 @@ const flow: ReplyLeaf = {
     { title: "Store", detail: "Preserve its Markdown." },
   ],
 };
-const evidence: ReplyLeaf = {
-  type: "finding",
-  title: "Source evidence",
-  certainty: "observed",
-  explanation: "The source establishes the conversion.",
+const supporting: ReplyLeaf = {
+  type: "text",
+  body: "The source establishes the conversion.",
 };
 
-it("keeps a primary explanation and flow together beside evidence", () => {
+it("keeps a primary explanation and flow together beside supporting prose", () => {
   const part = replyComponentSchema.parse({
     type: "group",
     relationship: "supporting",
-    children: [[explanation, flow], evidence],
+    children: [[explanation, flow], supporting],
   });
   const text = componentText(part);
   expect(text).toContain("The primary explanation.");
   expect(text).toContain("The conversion");
   expect(text).toContain("Preserve its Markdown.");
-  expect(text).toContain("Source evidence");
+  expect(text).toContain("The source establishes the conversion.");
   expect(text.indexOf("The primary explanation.")).toBeLessThan(
     text.indexOf("The conversion"),
   );
   expect(text.indexOf("The conversion")).toBeLessThan(
-    text.indexOf("Source evidence"),
+    text.indexOf("The source establishes the conversion."),
   );
 });
 
@@ -48,7 +46,7 @@ it("continues to accept a single component in each group entry", () => {
     replyComponentSchema.safeParse({
       type: "group",
       relationship: "peers",
-      children: [explanation, evidence],
+      children: [explanation, supporting],
     }).success,
   ).toBe(true);
 });
@@ -58,29 +56,29 @@ it("bounds the total component count, not just the number of entries", () => {
     replyComponentSchema.safeParse({
       type: "group",
       relationship: "peers",
-      children: [Array(4).fill(explanation), Array(4).fill(evidence)],
+      children: [Array(4).fill(explanation), Array(4).fill(supporting)],
     }).success,
   ).toBe(true);
   expect(
     replyComponentSchema.safeParse({
       type: "group",
       relationship: "peers",
-      children: [Array(5).fill(explanation), Array(4).fill(evidence)],
+      children: [Array(5).fill(explanation), Array(4).fill(supporting)],
     }).success,
   ).toBe(false);
 });
 
 it.each([
-  { children: [[], evidence] },
-  { children: [[[explanation]], evidence] },
+  { children: [[], supporting] },
+  { children: [[[explanation]], supporting] },
   {
     children: [
       {
         type: "group",
         relationship: "peers",
-        children: [explanation, evidence],
+        children: [explanation, supporting],
       },
-      evidence,
+      supporting,
     ],
   },
 ])("refuses empty, recursive, or nested group entries", ({ children }) => {
