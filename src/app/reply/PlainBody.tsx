@@ -69,6 +69,7 @@ export function PlainBody({
   const report = (name: string, rows: ReactNode, scope?: string) =>
     panelled ? (
       <Panel
+        // slop-ok: 2 Shared reply-list frame already used at this rendering boundary
         part={part.type}
         title={title(name)}
         scope={scope ? md(scope) : undefined}

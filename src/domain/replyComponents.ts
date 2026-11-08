@@ -413,7 +413,7 @@ export function componentText(part: ReplyPart): string {
         ),
       ].join("\n\n");
     case "sequence":
-      return `### ${part.title}\n\n${part.steps.map((step, i) => `${i + 1}. ${step.title}${step.detail ? ` — ${step.detail}` : ""}`).join("\n")}`;
+      return `### ${part.title}\n\n${part.steps.map((step, i) => `${i + 1}. ${step.attention ? "Attention: " : ""}${step.title}${step.detail ? ` — ${step.detail}` : ""}`).join("\n")}`;
     case "change":
       return [
         `### ${part.title}`,

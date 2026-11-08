@@ -137,6 +137,22 @@ describe("native report components", () => {
       ).toBe(false);
   });
 
+  it("keeps sequence attention visible in the text view", () => {
+    expect(
+      componentText({
+        type: "sequence",
+        title: "Review",
+        steps: [
+          {
+            title: "Inspect the change",
+            attention: true,
+            detail: "Use the recorded revision",
+          },
+        ],
+      }),
+    ).toContain("1. Attention: Inspect the change — Use the recorded revision");
+  });
+
   it("preserves thread references and rejects conflicting targets", () => {
     const part = {
       type: "references" as const,
