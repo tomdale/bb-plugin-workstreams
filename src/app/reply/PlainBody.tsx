@@ -6,6 +6,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
 import { normalizeReplyMarkdown } from "./markdown.ts";
+import { SequenceBody } from "./SequenceBody.tsx";
 import {
   CHECK,
   Glyph,
@@ -203,20 +204,7 @@ export function PlainBody({
         </>
       );
     case "sequence":
-      return (
-        <>
-          {title(part.title)}
-          <ol className={`${PLAIN_LIST_CLASS} list-decimal`}>
-            {part.steps.map((step, i) => (
-              <li key={i}>
-                {md(step.title)}
-                {step.attention ? <p>Attention</p> : null}
-                {md(step.detail)}
-              </li>
-            ))}
-          </ol>
-        </>
-      );
+      return <SequenceBody part={part} md={md} title={title} />;
     case "change": {
       const notes: [string, string][] = [];
       if (part.unchanged) notes.push(["Unchanged", part.unchanged]);

@@ -505,10 +505,15 @@ it("normalizes a relative prose link and supplies its workspace context", async 
 
 it("keeps sequence markers and leads check rows with status marks", () => {
   const view = draw(body(COMPONENT_EXAMPLES.sequence));
-  expect(view.container.querySelector("ol")?.className).toContain(
-    "list-decimal",
-  );
-  expect(view.container.querySelector("ol")?.className).toContain("pl-5");
+  const steps = view.container.querySelectorAll("ol > li");
+  expect(steps).toHaveLength(3);
+  // Each step leads with its number in the mark column.
+  expect(
+    [...steps].map(
+      (step) =>
+        step.querySelector("[data-reply-step-number]")?.textContent ?? "",
+    ),
+  ).toEqual(["1", "2", "3"]);
   view.lifecycle.unmount();
   const checks = draw(body(COMPONENT_EXAMPLES.checks));
   expect(

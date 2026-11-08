@@ -167,8 +167,12 @@ for it.
   location. Keep background explanation as ordinary prose.
 - **Text:** Ordinary Markdown prose, unboxed. Preserve the author's paragraphs,
   lists, and inline formatting.
-- **Sequence:** A numbered path with aligned step markers and short supporting
-  detail. Reflow to one column when the message column is narrow.
+- **Sequence:** Recap card steps in order: each step number sits in the mark
+  column as a small muted tabular figure, sized and placed like a stroked mark,
+  with a thin rail joining the numbers so the steps read as one path. The step
+  title comes first, with any detail muted beneath it. An attention step shows
+  the word Attention beside its title in the reply accent, the thread's
+  workstream identity color (muted when unfiled), never a state color.
 - **Comparison:** Keep options visibly paired and aligned. Use columns only when
   each option has enough width; stack them on narrow screens. Mark a
   recommendation with a label and restrained emphasis, not color alone.

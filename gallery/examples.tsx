@@ -170,6 +170,18 @@ const replyParts = [
         detail: "Keep each qualification next to its claim.",
         attention: true,
       },
+      { title: "Collapse the **Activity** panel" },
+      {
+        title:
+          "Confirm that a long step title wraps under itself rather than under its number",
+        detail:
+          "The detail stays muted beneath the title and keeps `paths/that/wrap.ts` and other inline Markdown intact across several lines of text.",
+        attention: true,
+      },
+      {
+        title: "Close the pane",
+        detail: "The last step has no rail beneath it.",
+      },
     ],
   },
   {
