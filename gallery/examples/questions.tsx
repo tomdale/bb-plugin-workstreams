@@ -8,8 +8,13 @@ import type {
 } from "../../src/app/question/question-form-state";
 import { QUESTION_CARD_CLASS } from "../../src/app/question/question-presentation";
 import type { QuestionHistory } from "../../src/server/questions/history";
-import { ExampleChoice } from "../ExampleChoice";
-import { GalleryControls, GalleryNotes, LiveExample } from "../ExampleFrame";
+import {
+  GalleryControls,
+  GalleryNotes,
+  LiveExample,
+  Variant,
+  Variants,
+} from "../ExampleFrame";
 import type { GalleryExample } from "../examples";
 
 const questionOptions = [
@@ -83,15 +88,7 @@ const longQuestion: Question = {
   ],
 };
 
-const presets = [
-  { value: "options", label: "Options and notes" },
-  { value: "freeform", label: "Freeform only" },
-  { value: "mixed", label: "Options and freeform" },
-  { value: "questions", label: "Multiple questions" },
-  { value: "long", label: "Long details and previews" },
-  { value: "history", label: "Question history" },
-] as const;
-type Preset = (typeof presets)[number]["value"];
+type Preset = "options" | "freeform" | "mixed" | "questions" | "long";
 type FormState =
   "ready" | "disabled" | "submitting" | "cancel-disabled" | "error";
 
@@ -176,16 +173,44 @@ function historyRecord(status: QuestionHistory["status"]): QuestionHistory {
   };
 }
 
+type FormVariant = {
+  label: string;
+  preset: Preset;
+  multiple?: boolean;
+  state?: FormState;
+  wide?: boolean;
+};
+
+const formVariants: readonly FormVariant[] = [
+  { label: "Single choice", preset: "options" },
+  { label: "Multiple choices", preset: "options", multiple: true },
+  { label: "Freeform only", preset: "freeform" },
+  { label: "Options and freeform", preset: "mixed" },
+  { label: "Multiple questions", preset: "questions", wide: true },
+  { label: "Long details and previews", preset: "long", wide: true },
+  { label: "All actions disabled", preset: "options", state: "disabled" },
+  { label: "Submitting", preset: "options", state: "submitting" },
+  { label: "Cancel disabled", preset: "options", state: "cancel-disabled" },
+  { label: "Submit error", preset: "options", state: "error" },
+];
+
+const historyVariants: readonly {
+  label: string;
+  status: QuestionHistory["status"];
+}[] = [
+  { label: "History, answered", status: "answered" },
+  { label: "History, dismissed", status: "dismissed" },
+  { label: "History, pending", status: "pending" },
+  { label: "History, answer unavailable", status: "unknown" },
+];
+
 function QuestionExample() {
-  const [preset, setPreset] = useState<Preset>("options");
-  const [mode, setMode] = useState<"single" | "multiple">("single");
-  const [state, setState] = useState<FormState>("ready");
-  const [historyStatus, setHistoryStatus] =
-    useState<QuestionHistory["status"]>("answered");
   const [reset, setReset] = useState(0);
   const [result, setResult] = useState<string | null>(null);
-  const questions = questionsFor(preset, mode === "multiple");
-  const submit = (answers: Record<string, QuestionAnswer>) => {
+  const submit = (
+    questions: readonly Question[],
+    answers: Record<string, QuestionAnswer>,
+  ) => {
     const labels = questions.flatMap((question) => {
       const answer = answers[question.id];
       if (!answer) return [];
@@ -198,117 +223,80 @@ function QuestionExample() {
     });
     setResult(`Answer: ${labels.join(", ")}`);
   };
-  const disabled = state === "disabled" || state === "submitting";
   return (
     <div className="space-y-5">
       <GalleryControls>
-        <div className="flex flex-wrap items-end gap-3">
-          <ExampleChoice
-            label="Question preset"
-            value={preset}
-            options={presets}
-            onChange={(value) => {
-              setPreset(value);
-              setResult(null);
-            }}
-          />
-          {preset === "history" ? (
-            <ExampleChoice
-              label="History status"
-              value={historyStatus}
-              onChange={setHistoryStatus}
-              options={[
-                { value: "answered", label: "Answered" },
-                { value: "dismissed", label: "Dismissed" },
-                { value: "pending", label: "Pending" },
-                { value: "unknown", label: "Answer unavailable" },
-              ]}
-            />
-          ) : (
-            <>
-              {preset !== "freeform" ? (
-                <ExampleChoice
-                  label="Selection"
-                  value={mode}
-                  onChange={(value) => {
-                    setMode(value);
-                    setResult(null);
-                  }}
-                  options={[
-                    { value: "single", label: "Single choice" },
-                    { value: "multiple", label: "Multiple choices" },
-                  ]}
-                />
-              ) : null}
-              <ExampleChoice
-                label="Form state"
-                value={state}
-                onChange={setState}
-                options={[
-                  { value: "ready", label: "Ready" },
-                  { value: "disabled", label: "All actions disabled" },
-                  {
-                    value: "submitting",
-                    label: "Submitting",
-                  },
-                  { value: "cancel-disabled", label: "Cancel disabled" },
-                  { value: "error", label: "Submit error" },
-                ]}
-              />
-            </>
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setReset(reset + 1);
-              setResult("Form reset");
-            }}
-          >
-            Reset form
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setReset(reset + 1);
+            setResult("Form reset");
+          }}
+        >
+          Reset form
+        </Button>
       </GalleryControls>
-      {preset === "history" ? (
-        <LiveExample
-          name="QuestionHistoryCard"
-          sources={["src/app/question/QuestionHistory.tsx"]}
-        >
-          <QuestionHistoryCard
-            key={`${historyStatus}-${reset}`}
-            record={historyRecord(historyStatus)}
-          />
-        </LiveExample>
-      ) : (
-        <LiveExample
-          name="QuestionForm"
-          sources={[
-            "src/app/question/question-form.tsx",
-            "src/app/question/question-presentation.tsx",
-          ]}
-        >
-          <div className={QUESTION_CARD_CLASS}>
-            <QuestionForm
-              key={`${preset}-${mode}-${reset}`}
-              questions={questions}
-              disabled={disabled}
-              cancelDisabled={
-                state === "disabled" || state === "cancel-disabled"
-              }
-              error={
-                state === "error"
-                  ? "Couldn’t submit the answer. Try again."
-                  : null
-              }
-              onSubmit={submit}
-              onCancel={() => {
-                setReset(reset + 1);
-                setResult("Answer cancelled");
-              }}
-            />
-          </div>
-        </LiveExample>
-      )}
+      <LiveExample
+        name="QuestionForm"
+        sources={[
+          "src/app/question/question-form.tsx",
+          "src/app/question/question-presentation.tsx",
+        ]}
+      >
+        <Variants>
+          {formVariants.map((variant) => {
+            const questions = questionsFor(
+              variant.preset,
+              variant.multiple ?? false,
+            );
+            const state = variant.state ?? "ready";
+            return (
+              <Variant
+                key={variant.label}
+                label={variant.label}
+                wide={variant.wide}
+              >
+                <div className={QUESTION_CARD_CLASS}>
+                  <QuestionForm
+                    key={`${variant.label}-${reset}`}
+                    questions={questions}
+                    disabled={state === "disabled" || state === "submitting"}
+                    cancelDisabled={
+                      state === "disabled" || state === "cancel-disabled"
+                    }
+                    error={
+                      state === "error"
+                        ? "Couldn’t submit the answer. Try again."
+                        : null
+                    }
+                    onSubmit={(answers) => submit(questions, answers)}
+                    onCancel={() => {
+                      setReset(reset + 1);
+                      setResult("Answer cancelled");
+                    }}
+                  />
+                </div>
+              </Variant>
+            );
+          })}
+        </Variants>
+      </LiveExample>
+      <LiveExample
+        name="QuestionHistoryCard"
+        sources={["src/app/question/QuestionHistory.tsx"]}
+      >
+        <Variants>
+          {historyVariants.map((variant) => (
+            <Variant key={variant.status} label={variant.label}>
+              <QuestionHistoryCard
+                key={`${variant.status}-${reset}`}
+                record={historyRecord(variant.status)}
+              />
+            </Variant>
+          ))}
+        </Variants>
+      </LiveExample>
       {result && (
         <GalleryNotes>
           <p role="status">{result}</p>

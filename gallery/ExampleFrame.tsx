@@ -112,3 +112,40 @@ export function LiveExample({
     </section>
   );
 }
+
+/** Lays preset variants side by side; each `Variant` is one labeled specimen. */
+export function Variants({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="grid items-start gap-x-4 gap-y-6"
+      style={{
+        gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 22rem), 1fr))",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function Variant({
+  label,
+  wide = false,
+  children,
+}: {
+  label: string;
+  /** Spans the whole row, for specimens that need the room. */
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="flex min-w-0 flex-col gap-2"
+      style={wide ? { gridColumn: "1 / -1" } : undefined}
+    >
+      <h3 className="text-xs font-medium text-muted-foreground">{label}</h3>
+      {children}
+    </div>
+  );
+}

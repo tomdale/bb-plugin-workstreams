@@ -29,7 +29,13 @@ import {
   type TopicColor,
 } from "../../src/domain/workstreamColor";
 import { ExampleChoice } from "../ExampleChoice";
-import { GalleryControls, GalleryNotes, LiveExample } from "../ExampleFrame";
+import {
+  GalleryControls,
+  GalleryNotes,
+  LiveExample,
+  Variant,
+  Variants,
+} from "../ExampleFrame";
 import type { GalleryExample } from "../examples";
 
 const roles = [
@@ -62,14 +68,11 @@ const customOptions = [
   { value: "#ff00ff", label: "Saturated (#ff00ff)" },
 ] as const;
 
-type Context = "both" | "recap" | "question";
 type Surface = "page" | "raised" | "recessed";
 
 export interface ColorsExampleProps {
   initialPrefs?: ColorPrefs;
   initialToken?: ColorToken;
-  initialContext?: Context;
-  initialRecapState?: Recap["state"];
 }
 
 function RoleSample({
@@ -132,6 +135,34 @@ function topicSamples(family: TopicColor) {
   ];
 }
 
+function recapFor(recapState: Recap["state"]): Recap {
+  return {
+    id: `gallery-colors-recap-${recapState}`,
+    turnId: "gallery-local",
+    at: 0,
+    state: recapState,
+    goal:
+      recapState === "waiting"
+        ? "Waiting for the release checks"
+        : "Prepared the release notes",
+    latest:
+      recapState === "waiting"
+        ? []
+        : ["Release notes include the publishing checklist"],
+    review: recapState === "review" ? ["Read the draft release notes"] : [],
+    links: [],
+    next:
+      recapState === "waiting"
+        ? []
+        : [
+            {
+              title: "Inspect the draft",
+              message: "Inspect the release notes",
+            },
+          ],
+  };
+}
+
 function Identity({ family }: { family: TopicColor }) {
   return (
     <div className="space-y-3">
@@ -157,22 +188,15 @@ function Identity({ family }: { family: TopicColor }) {
 export function ColorsExample({
   initialPrefs = defaults,
   initialToken = "needsYou",
-  initialContext = "both",
-  initialRecapState = "waiting",
 }: ColorsExampleProps) {
   const [prefs, setPrefs] = useState<ColorPrefs>(() => ({ ...initialPrefs }));
   const [token, setToken] = useState<ColorToken>(initialToken);
   const [hex, setHex] = useState("#ff00ff");
-  const [context, setContext] = useState<Context>(initialContext);
-  const [recapState, setRecapState] =
-    useState<Recap["state"]>(initialRecapState);
   const [surface, setSurface] = useState<Surface>("page");
-  const [family, setFamily] = useState<"first" | "second">("first");
   const [answer, setAnswer] = useState<string | null>(null);
   const choice = prefs[token];
   const parsedHex = colorChoiceSchema.safeParse({ kind: "custom", color: hex });
   const css = colorTokenCss(prefs);
-  const selectedFamily = families[family === "first" ? 0 : 1]!;
   const sampleStyle: CSSProperties = {
     background:
       surface === "page"
@@ -181,32 +205,6 @@ export function ColorsExample({
   };
   const setChoice = (next: ColorChoice) =>
     setPrefs((current) => ({ ...current, [token]: next }));
-  const recap: Recap = {
-    id: "gallery-colors-recap",
-    turnId: "gallery-local",
-    at: 0,
-    state: recapState,
-    goal:
-      recapState === "waiting"
-        ? "Waiting for the release checks"
-        : "Prepared the release notes",
-    latest:
-      recapState === "waiting"
-        ? []
-        : ["Release notes include the publishing checklist"],
-    review: recapState === "review" ? ["Read the draft release notes"] : [],
-    links: [],
-    next:
-      recapState === "waiting"
-        ? []
-        : [
-            {
-              title: "Inspect the draft",
-              message: "Inspect the release notes",
-            },
-          ],
-  };
-
   return (
     <div className="space-y-6">
       <style data-gallery-color-tokens="">{css}</style>
@@ -339,36 +337,6 @@ export function ColorsExample({
         >
           Reset colors
         </Button>
-        <div className="grid gap-3 @sm:grid-cols-2">
-          <ExampleChoice<"first" | "second">
-            label="Topic family"
-            value={family}
-            onChange={setFamily}
-            options={[
-              { value: "first", label: "First allocated family" },
-              { value: "second", label: "Second allocated family" },
-            ]}
-          />
-          <ExampleChoice<Context>
-            label="Components"
-            value={context}
-            onChange={setContext}
-            options={[
-              { value: "both", label: "Question and recap" },
-              { value: "question", label: "Needs-you question" },
-              { value: "recap", label: "Reported-state recap" },
-            ]}
-          />
-          <ExampleChoice<Recap["state"]>
-            label="Reported state"
-            value={recapState}
-            onChange={setRecapState}
-            options={RECAP_STATES.map((value) => ({
-              value,
-              label: COLOR_TOKEN_LABEL[value],
-            }))}
-          />
-        </div>
       </GalleryControls>
       <LiveExample // slop-ok: 1 Keep the requested Live example frame and token-sample identity
         name="Color-token samples" // slop-ok: 1 User-requested accurate sample identity
@@ -426,67 +394,82 @@ export function ColorsExample({
         ]}
       >
         <div className="p-3" style={sampleStyle}>
-          <Identity family={selectedFamily} />
+          <Variants>
+            {families.map((family, index) => (
+              <Variant
+                key={index}
+                label={
+                  index === 0
+                    ? "First allocated family"
+                    : "Second allocated family"
+                }
+              >
+                <Identity family={family} />
+              </Variant>
+            ))}
+          </Variants>
         </div>
       </LiveExample>
-      {context !== "recap" && (
-        <LiveExample // slop-ok: 1 Keep the requested Live example frame and component identity
-          name="QuestionForm"
-          sources={[
-            "src/app/question/question-form.tsx",
-            "src/app/question/question-presentation.tsx",
-          ]}
-        >
-          <div className="p-3" style={sampleStyle}>
-            <div className={QUESTION_CARD_CLASS}>
-              <QuestionForm
-                questions={[
-                  {
-                    id: "gallery-colors-question",
-                    shortLabel: "Release",
-                    prompt: "Which release notes should we inspect?",
-                    multiSelect: false,
-                    allowFreeText: false,
-                    options: [
-                      {
-                        value: "draft",
-                        label: "Draft notes",
-                        description: "Read the current draft.",
-                      },
-                      {
-                        value: "published",
-                        label: "Published notes",
-                        description: "Compare the published version.",
-                      },
-                    ],
-                  },
-                ]}
-                disabled={false}
-                cancelDisabled={false}
-                onSubmit={() => setAnswer("Answer submitted")}
-                onCancel={() => setAnswer("Answer cancelled")}
-              />
-            </div>
+      <LiveExample // slop-ok: 1 Keep the requested Live example frame and component identity
+        name="QuestionForm"
+        sources={[
+          "src/app/question/question-form.tsx",
+          "src/app/question/question-presentation.tsx",
+        ]}
+      >
+        <div className="p-3" style={sampleStyle}>
+          <div className={QUESTION_CARD_CLASS}>
+            <QuestionForm
+              questions={[
+                {
+                  id: "gallery-colors-question",
+                  shortLabel: "Release",
+                  prompt: "Which release notes should we inspect?",
+                  multiSelect: false,
+                  allowFreeText: false,
+                  options: [
+                    {
+                      value: "draft",
+                      label: "Draft notes",
+                      description: "Read the current draft.",
+                    },
+                    {
+                      value: "published",
+                      label: "Published notes",
+                      description: "Compare the published version.",
+                    },
+                  ],
+                },
+              ]}
+              disabled={false}
+              cancelDisabled={false}
+              onSubmit={() => setAnswer("Answer submitted")}
+              onCancel={() => setAnswer("Answer cancelled")}
+            />
           </div>
-        </LiveExample>
-      )}
-      {context !== "recap" && answer && (
+        </div>
+      </LiveExample>
+      {answer && (
         <GalleryNotes>
           <p role="status" className="text-xs text-muted-foreground">
             {answer}
           </p>
         </GalleryNotes>
       )}
-      {context !== "question" && (
-        <LiveExample // slop-ok: 1 Keep the requested Live example frame and component identity
-          name="RecapCardPreview"
-          sources={["src/app/composer/RecapCard.tsx"]}
-        >
-          <div className="p-3" style={sampleStyle}>
-            <RecapCardPreview recap={recap} layout="full" />
-          </div>
-        </LiveExample>
-      )}
+      <LiveExample // slop-ok: 1 Keep the requested Live example frame and component identity
+        name="RecapCardPreview"
+        sources={["src/app/composer/RecapCard.tsx"]}
+      >
+        <div className="p-3" style={sampleStyle}>
+          <Variants>
+            {RECAP_STATES.map((state) => (
+              <Variant key={state} label={COLOR_TOKEN_LABEL[state]}>
+                <RecapCardPreview recap={recapFor(state)} layout="full" />
+              </Variant>
+            ))}
+          </Variants>
+        </div>
+      </LiveExample>
       <GalleryNotes>
         <details className="text-xs">
           <summary className="cursor-pointer">

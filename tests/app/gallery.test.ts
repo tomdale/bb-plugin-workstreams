@@ -1000,11 +1000,9 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       page.on("pageerror", (error) => errors.push(error.message));
       await page.setViewportSize({ width: 1200, height: 1000 });
       await page.goto(`${url}#question-form`);
-      await page
-        .getByRole("radiogroup", { name: "Question preset" })
-        .getByRole("radio", { name: "Freeform only", exact: true })
-        .click();
-      const answer = page.getByRole("textbox", { name: "Context answer" });
+      const answer = page
+        .getByRole("group", { name: "Freeform only", exact: true })
+        .getByRole("textbox", { name: "Context answer" });
       await answer.fill("Keep payment approval visible");
       const input = await answer.elementHandle();
       const cdp = await page.context().newCDPSession(page);
@@ -1148,9 +1146,9 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         .getByRole("navigation", { name: "Design system" })
         .getByRole("link", { name: "Actions, hints, and overlays" })
         .click();
-      expect(
-        await page.locator("style[data-gallery-color-tokens]").count(),
-      ).toBe(0);
+      await page
+        .locator("style[data-gallery-color-tokens]")
+        .waitFor({ state: "detached" });
       await page.getByRole("button", { name: "Open options" }).click();
       const popover = page.getByRole("dialog");
       await popover
@@ -1180,22 +1178,19 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       });
       await page.goto(`${url}#recap-card`);
       await page
-        .getByRole("radiogroup", { name: "Reported state" })
-        .getByRole("radio", { name: "Complete", exact: true })
-        .click();
-      await page
         .getByText("Added the compact release summary", { exact: true })
         .waitFor();
       await page
-        .getByRole("radiogroup", { name: "Reported state" })
-        .getByRole("radio", { name: "Waiting", exact: true })
-        .click();
-      await page
         .getByText("Waiting for the release checks", { exact: true })
+        .first()
         .waitFor();
       await page.goto(`${url}#question-form`);
-      await page.getByRole("radio", { name: /Compact summary/ }).click();
-      await page.getByRole("button", { name: /Submit/ }).click();
+      const single = page.getByRole("group", {
+        name: "Single choice",
+        exact: true,
+      });
+      await single.getByRole("radio", { name: /Compact summary/ }).click();
+      await single.getByRole("button", { name: /Submit/ }).click();
       await page
         .getByRole("status")
         .filter({ hasText: "Answer: Compact summary" })

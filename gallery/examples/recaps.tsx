@@ -4,14 +4,18 @@ import {
   RecapCardPreview,
   type AgentView,
 } from "../../src/app/composer/RecapCard";
-import { COLOR_TOKEN_LABEL } from "../../src/domain/colors";
-import { RECAP_STATES, type Recap } from "../../src/domain/recap";
+import type { Recap } from "../../src/domain/recap";
 import {
   RECAP_LAYOUT_OPTIONS,
   type RecapLayout,
 } from "../../src/domain/recapPrefs";
 import { ExampleChoice } from "../ExampleChoice";
-import { GalleryControls, LiveExample } from "../ExampleFrame";
+import {
+  GalleryControls,
+  LiveExample,
+  Variant,
+  Variants,
+} from "../ExampleFrame";
 import type { GalleryExample } from "../examples";
 
 const recapBase = {
@@ -66,16 +70,8 @@ const recaps: Record<Recap["state"], Recap> = {
   },
 };
 
-const presets = [
-  { value: "summary", label: "Release summary" },
-  { value: "goal-only", label: "Goal only" },
-  { value: "long", label: "Long results and review" },
-  { value: "artifacts", label: "Artifacts and file locations" },
-  { value: "hashes", label: "Commit hashes" },
-  { value: "next", label: "Multiple next actions" },
-  { value: "agents", label: "Awaited agent states" },
-] as const;
-type Preset = (typeof presets)[number]["value"];
+type Preset =
+  "summary" | "goal-only" | "long" | "artifacts" | "hashes" | "next" | "agents";
 type AgentState = "all" | AgentView["tone"];
 
 const agentStates = [
@@ -228,16 +224,43 @@ function recapFor(
   }
 }
 
+const variants: readonly {
+  label: string;
+  preset: Preset;
+  state: Recap["state"];
+  hashColor?: "theme" | "semantic";
+}[] = [
+  { label: "Release summary, review", preset: "summary", state: "review" },
+  { label: "Release summary, complete", preset: "summary", state: "complete" },
+  { label: "Release summary, waiting", preset: "summary", state: "waiting" },
+  { label: "Goal only", preset: "goal-only", state: "complete" },
+  { label: "Long results and review", preset: "long", state: "review" },
+  {
+    label: "Artifacts and file locations",
+    preset: "artifacts",
+    state: "review",
+  },
+  {
+    label: "Commit hashes, theme defaults",
+    preset: "hashes",
+    state: "review",
+    hashColor: "theme",
+  },
+  {
+    label: "Commit hashes, custom theme colors",
+    preset: "hashes",
+    state: "review",
+    hashColor: "semantic",
+  },
+  { label: "Multiple next actions", preset: "next", state: "review" },
+  { label: "Awaited agent states", preset: "agents", state: "waiting" },
+];
+
 function RecapExample() {
-  const [preset, setPreset] = useState<Preset>("summary");
-  const [state, setState] = useState<Recap["state"]>("review");
   const [layout, setLayout] = useState<RecapLayout>("full");
   const [archive, setArchive] = useState(false);
   const [width, setWidth] = useState<"wide" | "narrow">("wide");
-  const [hashColor, setHashColor] = useState<"theme" | "semantic">("theme");
-  const [agentState, setAgentState] = useState<AgentState>("all");
-  const fixtures = agentFixtures(agentState);
-  const recap = recapFor(preset, state, fixtures.waitingAgents);
+  const fixtures = agentFixtures("all");
   return (
     <div className="space-y-5">
       <GalleryControls // slop-ok: 1 Keep the requested Gallery controls boundary
@@ -249,30 +272,6 @@ function RecapExample() {
               "repeat(auto-fit, minmax(min(100%, 20rem), 1fr))",
           }}
         >
-          <ExampleChoice
-            label="Recap preset"
-            value={preset}
-            options={presets}
-            onChange={(value) => {
-              setPreset(value);
-              setState(
-                value === "agents"
-                  ? "waiting"
-                  : value === "goal-only"
-                    ? "complete"
-                    : "review",
-              );
-            }}
-          />
-          <ExampleChoice
-            label="Reported state"
-            value={state}
-            onChange={setState}
-            options={RECAP_STATES.map((value) => ({
-              value,
-              label: COLOR_TOKEN_LABEL[value],
-            }))}
-          />
           <ExampleChoice
             label="Layout"
             value={layout}
@@ -288,31 +287,6 @@ function RecapExample() {
               { value: "narrow", label: "Narrow (320px)" },
             ]}
           />
-          {preset === "hashes" ? (
-            <ExampleChoice
-              label="Hash colors"
-              value={hashColor}
-              onChange={setHashColor}
-              options={[
-                { value: "theme", label: "Theme defaults" },
-                { value: "semantic", label: "Custom theme colors" },
-              ]}
-            />
-          ) : null}
-          {preset === "agents" ? (
-            <ExampleChoice
-              label="Awaited agent state"
-              value={agentState}
-              onChange={setAgentState}
-              options={[
-                { value: "all", label: "All states" },
-                ...agentStates.map((agent) => ({
-                  value: agent.value,
-                  label: agent.label,
-                })),
-              ]}
-            />
-          ) : null}
           <div className="flex items-end">
             <Button
               type="button"
@@ -329,33 +303,43 @@ function RecapExample() {
         name="RecapCardPreview"
         sources={["src/app/composer/RecapCard.tsx"]}
       >
-        <div
-          className="mx-auto min-w-0 overflow-clip"
-          style={{ maxWidth: width === "narrow" ? 320 : undefined }}
-        >
-          <RecapCardPreview
-            recap={recap}
-            layout={layout}
-            showArchive={archive}
-            hashColors={
-              preset === "hashes" && hashColor === "semantic"
-                ? {
-                    digits: "var(--ws-review-text)",
-                    letters: "var(--ws-needs-you-text)",
+        <Variants>
+          {variants.map((variant) => (
+            <Variant key={variant.label} label={variant.label}>
+              <div
+                className="min-w-0 overflow-clip"
+                style={{ maxWidth: width === "narrow" ? 320 : undefined }}
+              >
+                <RecapCardPreview
+                  recap={recapFor(
+                    variant.preset,
+                    variant.state,
+                    fixtures.waitingAgents,
+                  )}
+                  layout={layout}
+                  showArchive={archive}
+                  hashColors={
+                    variant.hashColor === "semantic"
+                      ? {
+                          digits: "var(--ws-review-text)",
+                          letters: "var(--ws-needs-you-text)",
+                        }
+                      : undefined
                   }
-                : undefined
-            }
-            agents={{
-              ...fixtures.agents,
-              "gallery-agent": {
-                title: "Layout checks",
-                href: null,
-                tone: "running",
-                label: "Running",
-              },
-            }}
-          />
-        </div>
+                  agents={{
+                    ...fixtures.agents,
+                    "gallery-agent": {
+                      title: "Layout checks",
+                      href: null,
+                      tone: "running",
+                      label: "Running",
+                    },
+                  }}
+                />
+              </div>
+            </Variant>
+          ))}
+        </Variants>
       </LiveExample>
     </div>
   );
