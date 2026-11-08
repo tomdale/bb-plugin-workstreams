@@ -125,7 +125,11 @@ await Promise.all(
         })}`;
       results.push({
         id: test.id,
-        passed: !error && missed.length === 0 && forbidden.length === 0,
+        passed:
+          !error &&
+          missed.length === 0 &&
+          forbidden.length === 0 &&
+          misnamed.length === 0,
         error,
         missed,
         forbidden,

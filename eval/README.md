@@ -129,10 +129,10 @@ synthetic set is not a production accuracy or reader-comprehension estimate.
 `node eval/tidy.ts` runs the tidy prompt, schema, and parser on synthetic topic
 trees, dropping edits the tree's rules refuse, as production does. Each case
 lists edits that must appear (a move under the product a top-level topic is part
-of, a rename that removes a repeated parent prefix from an existing child, one
-home for a near-duplicate) and edits that must not (moving a personal tool under
-a work product it's named like). It also counts reasons that don't name their
-own edit's topics, and checks rename targets.
+of, renames that remove redundant context, one home for a near-duplicate) and
+edits that must not (moving a personal tool under a work product it's named
+like). It counts reasons that don't name their own edit's topics; expected
+rename targets are required to pass.
 
 - `EVAL_MODEL`: model ID; default `anthropic/claude-sonnet-5.5`
 - `EVAL_REASONING_LEVEL`: default `medium`

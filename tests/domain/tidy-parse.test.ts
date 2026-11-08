@@ -170,14 +170,14 @@ describe("tidyPrompt", () => {
     );
   });
 
-  it("asks for local child names and a rename rather than reparenting", () => {
+  it("asks for concise names in context while preserving identity and scope", () => {
     const prompt = tidyPrompt(input);
+    expect(prompt).toContain("Prefer concise, meaningful names in context");
     expect(prompt).toContain(
-      "Child topic names should name their area relative to the parent",
+      "Preserve established names of products and tools",
     );
-    expect(prompt).toContain("Use a rename only");
-    expect(prompt).toContain("never reparent it for this cleanup");
-    expect(prompt).toContain("does not collide with a sibling");
+    expect(prompt).toContain("retain distinctions between topics");
+    expect(prompt).toContain("without changing the topic's scope or parent");
   });
 
   it("asks for the edit before its reason", () => {

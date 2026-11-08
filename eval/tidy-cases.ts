@@ -174,6 +174,56 @@ export const cases: TidyCase[] = [
     names: { preview: "Preview Environment" },
   },
   {
+    id: "nested-redundant-suffix",
+    about: "A child repeats its parent's name at the end rather than the start",
+    input: input(
+      [
+        ...BACKDROP,
+        ["lantern", "Lantern", null, "Lantern application"],
+        [
+          "billing",
+          "Billing for Lantern",
+          "lantern",
+          "Billing for the application",
+        ],
+        ["search", "Search", "lantern", "Search feature"],
+      ],
+      [
+        ...BACKDROP_THREADS,
+        "billing: Fix payment retry",
+        "search: Improve search",
+      ],
+    ),
+    expect: [{ op: "rename", topic: "billing" }],
+    forbid: [{ op: "reparent", topic: "billing", parent: null }],
+    names: { billing: "Billing" },
+  },
+  {
+    id: "distinct-established-name",
+    about:
+      "A child whose complete name denotes a distinct product stays intact",
+    input: input(
+      [
+        ...BACKDROP,
+        ["lumen", "Lumen", null, "Lumen family of developer products"],
+        [
+          "lumen-sdk",
+          "Lumen SDK",
+          "lumen",
+          "The independently named Lumen SDK product",
+        ],
+        ["mobile", "Mobile", "lumen", "Mobile application"],
+      ],
+      [
+        ...BACKDROP_THREADS,
+        "lumen-sdk: Document the Lumen SDK",
+        "mobile: Fix navigation",
+      ],
+    ),
+    expect: [],
+    forbid: [{ op: "rename", topic: "lumen-sdk" }],
+  },
+  {
     id: "described-part",
     about:
       "A top-level topic whose description says it's part of another product moves under it",
