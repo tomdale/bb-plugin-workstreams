@@ -10,7 +10,12 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { sidebarThread } from "./fixtures.ts";
-import { groupRows, mount } from "./sidebar-fixture.tsx";
+import {
+  groupRows,
+  mount,
+  snoozeSettings,
+  thirtyMinutes,
+} from "./sidebar-fixture.tsx";
 beforeEach(() => {
   window.localStorage.clear();
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -82,6 +87,35 @@ it("keeps the boundary gap before Snoozed when Archived is hidden", async () => 
   expect(slot.getByRole("region", { name: "Snoozed" }).style.marginTop).toBe(
     `${SIDEBAR_GEOMETRY.gaps.inlineBoundary}px`,
   );
+  slot.lifecycle.unmount();
+});
+
+it("samples snooze choices when a menu opens rather than when its row rendered", async () => {
+  vi.setSystemTime(new Date("2026-01-01T12:00:00Z"));
+  const slot = await mount(
+    [sidebarThread("root", { sectionId: "sec_a", title: "Root task" })],
+    {
+      settings: { showRecent: false, showForYou: false },
+      snoozePrefs: snoozeSettings(thirtyMinutes),
+    },
+  );
+  const row = within(slot.getByRole("region", { name: "Alpha" }))
+    .getByRole("link", { name: "Root task" })
+    .closest(".ws-row")!;
+  const button = within(row as HTMLElement).getByRole("button", {
+    name: /^Snooze until/,
+  });
+  button.focus();
+  fireEvent.keyDown(button, { key: "ArrowDown" });
+  let menu = slot.getByRole("menu");
+  const before = within(menu).getAllByRole("menuitem")[0]!.textContent;
+  fireEvent.keyDown(menu, { key: "Escape" });
+  await waitFor(() => expect(slot.queryByRole("menu")).toBeNull());
+  vi.setSystemTime(Date.now() + 60_000);
+  fireEvent.keyDown(button, { key: "ArrowDown" });
+  menu = slot.getByRole("menu");
+  const after = within(menu).getAllByRole("menuitem")[0]!.textContent;
+  expect(after).not.toBe(before);
   slot.lifecycle.unmount();
 });
 
@@ -472,6 +506,41 @@ it("keeps child disclosures beneath the sticky Up Next card", async () => {
   slot.lifecycle.unmount();
 });
 
+it("retains an expanded group's body without leaving focus or menus hidden in it", async () => {
+  const slot = await mount(
+    [sidebarThread("root", { sectionId: "sec_a", title: "Root task" })],
+    { settings: { showRecent: false, showForYou: false } },
+  );
+  const region = slot.getByRole("region", { name: "Alpha" });
+  const header = within(region).getByRole("button", { name: "Alpha" });
+  const body = region.querySelector<HTMLUListElement>(":scope > ul")!;
+  const link = within(region).getByRole("link", { name: "Root task" });
+  link.focus();
+  fireEvent.click(header);
+  expect(region.querySelector(":scope > ul")).toBe(body);
+  expect(body.hidden).toBe(true);
+  expect(body.hasAttribute("inert")).toBe(true);
+  expect(within(region).queryAllByRole("link")).toHaveLength(0);
+  expect(document.activeElement).toBe(header);
+
+  fireEvent.click(header);
+  expect(region.querySelector(":scope > ul")).toBe(body);
+  expect(body.hidden).toBe(false);
+  const snooze = within(region).getByRole("button", {
+    name: /^Snooze until/,
+  });
+  snooze.focus();
+  fireEvent.keyDown(snooze, { key: "ArrowDown" });
+  expect(slot.getByRole("menu")).toBeTruthy();
+  fireEvent.click(header);
+  expect(slot.queryByRole("menu")).toBeNull();
+  expect(document.activeElement).toBe(header);
+  expect(region.querySelector(":scope > ul")).toBe(body);
+  fireEvent.click(header);
+  expect(within(region).getByRole("link", { name: "Root task" })).toBeTruthy();
+  slot.lifecycle.unmount();
+});
+
 it("persists collapse state per group", async () => {
   const first = await mount(undefined, { settings: { showRecent: false } });
   fireEvent.click(
@@ -489,6 +558,9 @@ it("persists collapse state per group", async () => {
       "link",
     ),
   ).toHaveLength(0);
+  expect(
+    second.getByRole("region", { name: "Alpha" }).querySelector(":scope > ul"),
+  ).toBeNull();
   second.lifecycle.unmount();
 });
 

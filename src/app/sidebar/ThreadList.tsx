@@ -20,14 +20,18 @@
  * the user, and rows open and close rather than pop (see `motion.ts`).
  */
 import {
+  cloneElement,
   Fragment,
   memo,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type CSSProperties,
+  type ReactElement,
   type ReactNode,
 } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -66,7 +70,9 @@ import { selectRecent } from "../../domain/upNext.ts";
 import { initialUpNextState, planSidebarUpNext } from "./upNextState.ts";
 import { useWorkstreams, type ServerState } from "../useWorkstreams.ts";
 import { useStableSidebarThreads } from "../useStableSidebarThreads.ts";
+import { shareJson } from "../structuralSharing.ts";
 import { workView } from "../../domain/status.ts";
+import { relativeAge } from "../../domain/presentation.ts";
 import { groupCollapseKey, useCollapsed } from "./useCollapsed.ts";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
 import { workstreamGap } from "./workstreamGap.ts";
@@ -96,9 +102,9 @@ import { HeaderMenu, RowMenu, type RowMenuHandlers } from "./RowMenu.tsx";
 import { TraceInspector } from "../debug/Inspector.tsx";
 import {
   DropTarget,
+  IncomingThread,
   Sortable,
   useSidebarDnd,
-  useIncomingThread,
   type DragHandle,
   type Drop,
 } from "./dnd.tsx";
@@ -107,6 +113,7 @@ import { setComposerPreset } from "../composer/preset.ts";
 import {
   defaultPreset,
   describeWake,
+  isSnoozed,
   presetWhen,
   shortWake,
   type SnoozeWhen,
@@ -154,6 +161,27 @@ function inlineGroups(group: ThreadNode): ThreadNode[] {
 /** A group's own name, for its rows' label: "Walkthrough Plugin" for "bb: Walkthrough Plugin". */
 const shortLabel = (label: string) => label.split(/:\s*/).at(-1) ?? label;
 type ThreadRow = RowModel<PluginSidebarThread>;
+type RowTimes = { display: number; projection: number };
+type RenderRow = (
+  row: ThreadRow,
+  placement: Placement,
+  times: RowTimes,
+  handle?: DragHandle,
+  showStatusSlot?: boolean,
+  depth?: number,
+  key?: string,
+  /** Its group's name, for a row listed outside that group's header. */
+  label?: string,
+  categorized?: boolean,
+) => ReactNode;
+
+/** Snooze menus sample the clock when their portal actually renders. */
+function CurrentSnoozeMenuItems(
+  props: Omit<ComponentProps<typeof SnoozeMenuItems>, "now">,
+) {
+  return <SnoozeMenuItems {...props} now={Date.now()} />;
+}
+
 /**
  * Threads to snooze together, from a thread row or a workstream row.
  * `subject` names them in the toast ("4 threads in Alpha").
@@ -210,13 +238,14 @@ export function WorkstreamsThreadList({
     null,
   );
   const [customSnooze, setCustomSnooze] = useState<SnoozeRequest | null>(null);
-  const { projection, sections, displayNow: now } = ws;
+  const { projection, sections, displayNow: now, now: projectionNow } = ws;
   const nameOf = useMemo(
     () => new Map(sections.map((section) => [section.id, section.name])),
     [sections],
   );
   const prioritizedIds = ws.server.order.prioritized;
   const groupSort = prefs?.sidebar.groupSort ?? "alphabetical";
+  const timestamps = prefs?.sidebar.timestamps ?? "show";
   /**
    * A header drag writes the stored manual order, which the active groups do
    * not show under another sort. Dormant groups are displayed in manual order
@@ -243,6 +272,22 @@ export function WorkstreamsThreadList({
     lowerCounts,
     true,
     prefs?.sidebar,
+  );
+  const pinnedGroupItems = useMemo(
+    () => pinnedGroups.map((group) => groupKey(group.id)),
+    [pinnedGroups],
+  );
+  const populatedGroupItems = useMemo(
+    () => populatedGroups.map((group) => groupKey(group.id)),
+    [populatedGroups],
+  );
+  const emptyGroupItems = useMemo(
+    () => emptyGroups.map((group) => groupKey(group.id)),
+    [emptyGroups],
+  );
+  const dormantGroupItems = useMemo(
+    () => dormantGroups.map((group) => groupKey(group.id)),
+    [dormantGroups],
   );
   const prioritized = useMemo(
     () => focusedSections(arrangement, new Set(prioritizedIds)),
@@ -299,10 +344,16 @@ export function WorkstreamsThreadList({
       ]),
     [projection],
   );
-  const folded = (placement: Placement, id: string) =>
-    isCollapsed(foldKey(placement, id), foldDefault(placement));
-  const unfolded = (rows: readonly ThreadRow[], placement: Placement) =>
-    unfoldedRows(rows, (id) => descendants.has(id) && folded(placement, id));
+  const folded = useCallback(
+    (placement: Placement, id: string) =>
+      isCollapsed(foldKey(placement, id), foldDefault(placement)),
+    [isCollapsed],
+  );
+  const unfolded = useCallback(
+    (rows: readonly ThreadRow[], placement: Placement) =>
+      unfoldedRows(rows, (id) => descendants.has(id) && folded(placement, id)),
+    [descendants, folded],
+  );
 
   const listRef = useRef<HTMLDivElement>(null);
   const captureLayout = useFlip(listRef, [...prioritized].sort().join(" "));
@@ -404,9 +455,6 @@ export function WorkstreamsThreadList({
   );
   const snoozePrefs = ws.snoozePrefs;
   const preset = defaultPreset(snoozePrefs);
-  const shownWhen = presetWhen(preset, now);
-  const defaultWakeText = describeWake(shownWhen.until, now, shownWhen.events);
-  const defaultSnoozeTitle = `Snooze ${defaultWakeText}`;
   /** When the default preset wakes, from the moment of the click. */
   const defaultWake = () => presetWhen(preset, Date.now());
   const currentDefaultWake = useRef(defaultWake);
@@ -414,45 +462,48 @@ export function WorkstreamsThreadList({
     currentDefaultWake.current = defaultWake;
   });
   const wakeByDefault = useMemo(() => () => currentDefaultWake.current(), []);
+  const applySnoozeLatest = useCallback(
+    (request: SnoozeRequest, when: SnoozeWhen) =>
+      currentRowActions.current.applySnooze(request, when),
+    [],
+  );
   /**
    * A workstream row's snooze button, while the row lists threads: it
    * snoozes every one of them (see `groupRoots`) with the default preset,
    * and its menu offers every preset and Custom….
    */
-  const groupSnoozeOf = (
-    group: ThreadGroup | ThreadNode,
-  ): GroupSnooze | undefined => {
-    const request = groupSnoozeRequest(group);
-    if (!request) return undefined;
-    const snooze = (when: SnoozeWhen) => applySnooze(request, when);
-    const custom = () => setCustomSnooze(request);
-    return {
-      label: request.label,
-      title: `Snooze ${request.subject} ${defaultWakeText}`,
-      run: () => snooze(defaultWake()),
-      menu: (
-        <SnoozeMenuItems
-          kit={plainMenuKit}
-          heading={request.label}
-          now={now}
-          prefs={snoozePrefs}
-          onSnooze={snooze}
-          onCustom={custom}
-        />
-      ),
-      snooze,
-      custom,
-    };
-  };
+  const groupSnoozeOf = useCallback(
+    (group: ThreadGroup | ThreadNode): GroupSnooze | undefined => {
+      const request = groupSnoozeRequest(group);
+      if (!request) return undefined;
+      const snooze = (when: SnoozeWhen) => applySnoozeLatest(request, when);
+      const custom = () => setCustomSnooze(request);
+      const wake = wakeByDefault();
+      return {
+        label: request.label,
+        title: `Snooze ${request.subject} ${describeWake(wake.until, Date.now(), wake.events)}`,
+        run: () => snooze(wakeByDefault()),
+        menu: (
+          <CurrentSnoozeMenuItems
+            kit={plainMenuKit}
+            heading={request.label}
+            prefs={snoozePrefs}
+            onSnooze={snooze}
+            onCustom={custom}
+          />
+        ),
+        snooze,
+        custom,
+      };
+    },
+    [applySnoozeLatest, wakeByDefault, snoozePrefs],
+  );
 
-  /** An unfiled row has no workstream to name, so it shows its age instead. */
-  const workstreamName = (row: ThreadRow) =>
-    row.workstreamId ? nameOf.get(row.workstreamId) : undefined;
   /** Whether any of these rows draws a status mark (see `hasStatusMark`). */
   const anyMark = (rows: readonly ThreadRow[], placement: Placement) =>
     rows.some(
       (row) =>
-        descendants.has(row.thread.id) ||
+        row.hasChildren ||
         hasStatusMark(
           row.thread,
           ws.work(row.thread),
@@ -461,7 +512,7 @@ export function WorkstreamsThreadList({
     );
   const needsMarks = useMemo(
     () => anyMark(shownNeedsRows, "needs-you"),
-    [shownNeedsRows, ws.server.analysis, ws.server.recaps, descendants],
+    [shownNeedsRows, ws.server.analysis, ws.server.recaps],
   );
   const groupMarks = useMemo(
     () =>
@@ -473,7 +524,7 @@ export function WorkstreamsThreadList({
         ].flatMap((group) => group.rows),
         "group",
       ),
-    [projection, ws.server.analysis, ws.server.recaps, descendants],
+    [projection, ws.server.analysis, ws.server.recaps],
   );
   const rowKey = (row: ThreadRow) => row.thread.id;
   const showBand = ws.showForYou && shownNeedsRows.length > 0;
@@ -483,54 +534,122 @@ export function WorkstreamsThreadList({
     showMore || moreCount > 0 ? ["more"] : [],
     String,
   );
-  const contextOf = (row: ThreadRow, placement: Placement) => {
-    if (
-      placement === "group" ||
-      (placement === "archived" && bandOptions.archived.grouped)
-    )
-      return undefined;
-    if (placement !== "snoozed") return workstreamName(row);
-    const snooze = ws.snoozeOf(row.thread);
-    return snooze ? shortWake(snooze.until, now) : undefined;
-  };
-  const renderRow = (
-    row: ThreadRow,
-    placement: Placement,
-    handle?: DragHandle,
-    showStatusSlot = true,
-    depth = isOverlay(placement) ? 0 : row.depth,
-    key = row.thread.id,
-    /** Its group's name, for a row listed outside that group's header. */
-    label?: string,
-    categorized = false,
-  ) => (
-    <SidebarThreadRow
-      key={key}
-      handleRef={handle?.ref}
-      handleListeners={handle?.listeners}
-      thread={row.thread}
-      depth={depth}
-      active={row.thread.id === activeThreadId}
-      now={now}
-      context={label ?? contextOf(row, placement)}
-      placement={placement}
-      analysis={ws.server.analysis[row.thread.id]}
-      recap={ws.server.recaps[row.thread.id]}
-      showStatusSlot={showStatusSlot}
-      snooze={ws.snoozeOf(row.thread)}
-      snoozePrefs={snoozePrefs}
-      defaultSnoozeTitle={defaultSnoozeTitle}
-      defaultWake={wakeByDefault}
-      handlers={handlers}
-      disclosureExpanded={
-        placement !== "recent" && descendants.has(row.thread.id)
-          ? !folded(placement, row.thread.id)
-          : undefined
-      }
-      categorized={categorized}
-      onNavigate={onNavigate}
-      toggleDisclosure={toggle}
-    />
+  const snoozes = ws.server.snoozes;
+  const renderRow = useCallback<RenderRow>(
+    (
+      row,
+      placement,
+      times,
+      handle,
+      showStatusSlot = true,
+      depth = isOverlay(placement) ? 0 : row.depth,
+      key = row.thread.id,
+      label,
+      categorized = false,
+    ) => {
+      const storedSnooze = snoozes[row.thread.id];
+      const snooze =
+        storedSnooze && isSnoozed(storedSnooze, times.projection)
+          ? storedSnooze
+          : undefined;
+      let context = label;
+      if (
+        context === undefined &&
+        placement !== "group" &&
+        !(placement === "archived" && bandOptions.archived.grouped)
+      )
+        context =
+          placement === "snoozed"
+            ? snooze
+              ? shortWake(snooze.until, times.display)
+              : undefined
+            : row.workstreamId
+              ? nameOf.get(row.workstreamId)
+              : undefined;
+      return (
+        <SidebarThreadRow
+          key={key}
+          handleRef={handle?.ref}
+          handleListeners={handle?.listeners}
+          thread={row.thread}
+          depth={depth}
+          active={row.thread.id === activeThreadId}
+          now={
+            timestamps === "hide" && placement !== "snoozed" ? 0 : times.display
+          }
+          timestamps={timestamps}
+          context={context}
+          placement={placement}
+          analysis={ws.server.analysis[row.thread.id]}
+          recap={ws.server.recaps[row.thread.id]}
+          showStatusSlot={showStatusSlot}
+          snooze={snooze}
+          snoozePrefs={snoozePrefs}
+          defaultWake={wakeByDefault}
+          handlers={handlers}
+          disclosureExpanded={
+            placement !== "recent" && row.hasChildren
+              ? !folded(placement, row.thread.id)
+              : undefined
+          }
+          categorized={categorized}
+          onNavigate={onNavigate}
+          toggleDisclosure={toggle}
+        />
+      );
+    },
+    [
+      activeThreadId,
+      bandOptions.archived.grouped,
+      folded,
+      handlers,
+      nameOf,
+      onNavigate,
+      snoozePrefs,
+      snoozes,
+      timestamps,
+      toggle,
+      wakeByDefault,
+      ws.server.analysis,
+      ws.server.recaps,
+    ],
+  );
+  const planningSnoozeOf = useMemo(
+    () => (thread: PluginSidebarThread) => snoozes[thread.id],
+    [snoozes],
+  );
+  const recentPlan = useMemo(
+    () =>
+      planBandRows(
+        recentRows,
+        "recent",
+        bandOptions.recent,
+        planningSnoozeOf,
+        nameOf,
+      ),
+    [recentRows, bandOptions.recent, planningSnoozeOf, nameOf],
+  );
+  const snoozedPlan = useMemo(
+    () =>
+      planBandRows(
+        projection.snoozed,
+        "snoozed",
+        bandOptions.snoozed,
+        planningSnoozeOf,
+        nameOf,
+      ),
+    [projection.snoozed, bandOptions.snoozed, planningSnoozeOf, nameOf],
+  );
+  const archivedPlan = useMemo(
+    () =>
+      planBandRows(
+        archivedRows,
+        "archived",
+        bandOptions.archived,
+        planningSnoozeOf,
+        nameOf,
+      ),
+    [archivedRows, bandOptions.archived, planningSnoozeOf, nameOf],
   );
   /**
    * An overlay row followed, when expanded, by its visible descendants,
@@ -538,16 +657,22 @@ export function WorkstreamsThreadList({
    */
   const renderBandRows = (
     rows: readonly ThreadRow[],
+    planned: ReturnType<typeof planBandRows>,
     placement: "recent" | "snoozed" | "archived",
     section: BandId,
   ) => {
     const options = bandOptions[section];
     const marks = anyMark(rows, placement);
-    const planned = planBandRows(rows, placement, options, ws.snoozeOf, nameOf);
     const renderTrees = (items: readonly ThreadRow[][]) =>
       items.flatMap((tree) =>
         unfolded(tree, placement).map((row) =>
-          renderRow(row, placement, undefined, marks),
+          renderRow(
+            row,
+            placement,
+            { display: now, projection: projectionNow },
+            undefined,
+            marks,
+          ),
         ),
       );
     if (!options.grouped) return renderTrees(planned[0]!.trees);
@@ -572,13 +697,20 @@ export function WorkstreamsThreadList({
     placement: Placement,
     marks: boolean,
   ) => [
-    renderRow(row, placement, undefined, marks),
+    renderRow(
+      row,
+      placement,
+      { display: now, projection: projectionNow },
+      undefined,
+      marks,
+    ),
     ...(folded(placement, row.thread.id)
       ? []
       : unfolded(descendants.get(row.thread.id) ?? [], placement).map((child) =>
           renderRow(
             child,
             placement,
+            { display: now, projection: projectionNow },
             undefined,
             marks,
             child.depth - row.depth,
@@ -587,165 +719,40 @@ export function WorkstreamsThreadList({
           ),
         )),
   ];
-  /**
-   * A group's rows as sortable trees; the root row drags the whole tree.
-   * Every group decides its status slot together, so titles line up from
-   * one group to the next.
-   */
-  const renderTrees = (
-    group: ThreadGroup,
-    label?: string,
-    categorized = false,
-  ) => {
-    const marks = groupMarks;
-    const trees = treesOf(group.rows);
-    return (
-      <SortableContext
-        items={trees.map((tree) => treeKey(tree[0]!.thread.id))}
-        strategy={verticalListSortingStrategy}
-      >
-        {trees.map((tree) => {
-          const root = tree[0]!.thread;
-          return (
-            <Sortable
-              key={root.id}
-              id={treeKey(root.id)}
-              data={{ type: "thread", threadId: root.id, groupId: group.id }}
-              disabled={choosingTopic}
-            >
-              {({ ref, style, handle }) => (
-                <li
-                  ref={ref}
-                  style={style}
-                  className={cn("list-none", categorized && "pl-3")}
-                >
-                  <ul>
-                    {unfolded(tree, "group").map((row, index) =>
-                      renderRow(
-                        row,
-                        "group",
-                        index === 0 ? handle : undefined,
-                        marks,
-                        undefined,
-                        undefined,
-                        label,
-                        categorized,
-                      ),
-                    )}
-                  </ul>
-                </li>
-              )}
-            </Sortable>
-          );
-        })}
-      </SortableContext>
-    );
-  };
   /** The new thread starts with this workstream's topic. */
-  const newThreadIn = (group: ThreadNode) => () => {
-    setComposerPreset(
-      group.hasSection ? { sectionId: group.id } : { topicId: group.topicId! },
-      group.label,
-    );
-    navigate.toCompose({ focusPrompt: true });
-  };
-  /**
-   * A group's own threads, then those of its subgroups drawn inline, each
-   * labeled with its subgroup, then its other subgroups. Subgroups fold on
-   * their own and take thread drops, but reorder and focus only with their
-   * top-level group.
-   */
-  const colorOf = (group: ThreadNode) =>
-    colorForWorkstream(group.id, ws.server.catalog, group.topicId);
+  const newThreadIn = useCallback(
+    (group: ThreadNode) => () => {
+      setComposerPreset(
+        group.hasSection
+          ? { sectionId: group.id }
+          : { topicId: group.topicId! },
+        group.label,
+      );
+      navigate.toCompose({ focusPrompt: true });
+    },
+    [navigate],
+  );
+  const colorOf = useCallback(
+    (group: ThreadNode) =>
+      colorForWorkstream(group.id, ws.server.catalog, group.topicId),
+    [ws.server.catalog],
+  );
+
   /**
    * The container above the workstream, in the color the organizer gave that
    * container, so every area of one parent shows the same parent color.
    */
-  const prefixColorOf = (group: ThreadNode) =>
-    group.parentTopicId
-      ? colorForWorkstream(
-          group.parentTopicId,
-          ws.server.catalog,
-          group.parentTopicId,
-        )
-      : undefined;
-  const renderCategorizedTrees = (group: ThreadNode, label?: string) =>
-    categoryRows(group.rows, group.categories).map((category, index) => (
-      <Fragment key={category.id ?? "unplaced"}>
-        {category.name ? (
-          <li
-            className="list-none"
-            style={{
-              marginTop:
-                index === 0
-                  ? SIDEBAR_GEOMETRY.category.firstTopGap
-                  : SIDEBAR_GEOMETRY.category.betweenGap,
-              marginBottom: SIDEBAR_GEOMETRY.category.afterGap,
-              height: SIDEBAR_GEOMETRY.category.height,
-              paddingLeft: SIDEBAR_GEOMETRY.category.indent,
-            }}
-          >
-            <h4
-              className="ws-text-category ws-category-label m-0 truncate"
-              style={workstreamColorStyle(colorOf(group)) as CSSProperties}
-            >
-              {label ? (
-                // An inline subgroup's categories name their owner first, as
-                // in an "Owner: Area" workstream name.
-                <>
-                  {label}
-                  <span className="sr-only">:</span> {category.name}
-                </>
-              ) : (
-                category.name
-              )}
-            </h4>
-          </li>
-        ) : null}
-        {renderTrees(
-          { ...group, rows: category.rows },
-          label,
-          Boolean(category.name),
-        )}
-      </Fragment>
-    ));
-  const renderGroupBody = (group: ThreadNode): ReactNode => [
-    <Fragment key="trees">{renderCategorizedTrees(group)}</Fragment>,
-    ...inlineGroups(group).map((sub) => (
-      <Fragment key={`inline:${sub.id}`}>
-        {renderCategorizedTrees(sub, shortLabel(sub.label))}
-      </Fragment>
-    )),
-    ...group.subgroups
-      .filter((sub) => !sub.inline)
-      .map((sub) => {
-        const render = (ref?: (element: HTMLElement | null) => void) => (
-          <WorkstreamGroup
-            group={sub}
-            color={colorOf(sub)}
-            prefixColor={prefixColorOf(sub)}
-            nested
-            sectionRef={ref}
-            collapsed={groupCollapsed(sub.id, false, sub.topicId)}
-            toggle={() => toggleGroup(sub.id, false, sub.topicId)}
-            onNewThread={newThreadIn(sub)}
-            snooze={groupSnoozeOf(sub)}
-          >
-            {renderGroupBody(sub)}
-          </WorkstreamGroup>
-        );
-        return (
-          <li key={sub.id} className="list-none">
-            <DropTarget
-              id={groupKey(sub.id)}
-              data={{ type: "target", groupId: sub.id }}
-            >
-              {render}
-            </DropTarget>
-          </li>
-        );
-      }),
-  ];
+  const prefixColorOf = useCallback(
+    (group: ThreadNode) =>
+      group.parentTopicId
+        ? colorForWorkstream(
+            group.parentTopicId,
+            ws.server.catalog,
+            group.parentTopicId,
+          )
+        : undefined,
+    [ws.server.catalog],
+  );
   const renderSortableGroup = (
     group: ThreadNode,
     props: Omit<GroupProps, "group" | "children">,
@@ -756,19 +763,38 @@ export function WorkstreamsThreadList({
       id={groupKey(group.id)}
       data={{ type: "group", groupId: group.id, pinned: group.prioritized }}
       disabled={!headersDrag}
+      surface={({ ref, style: sortableStyle, children }) =>
+        cloneElement(children as ReactElement<GroupProps>, {
+          sectionRef: ref,
+          style: { ...sortableStyle, ...style },
+        })
+      }
     >
-      {({ ref, style: sortableStyle, handle }) => (
+      {({ handle }) => (
         <WorkstreamGroup
           {...props}
           group={group}
           color={colorOf(group)}
           prefixColor={prefixColorOf(group)}
           snooze={groupSnoozeOf(group)}
-          sectionRef={ref}
-          style={{ ...sortableStyle, ...style }}
           handle={handle}
         >
-          {renderGroupBody(group)}
+          <GroupBody
+            group={group}
+            collapsed={props.collapsed}
+            renderRow={renderRow}
+            now={now}
+            projectionNow={projectionNow}
+            timestamps={timestamps}
+            groupMarks={groupMarks}
+            choosingTopic={choosingTopic}
+            colorOf={colorOf}
+            newThreadIn={newThreadIn}
+            groupSnoozeOf={groupSnoozeOf}
+            catalog={ws.server.catalog}
+            isCollapsed={isCollapsed}
+            toggle={toggle}
+          />
         </WorkstreamGroup>
       )}
     </Sortable>
@@ -877,7 +903,7 @@ export function WorkstreamsThreadList({
           />
         }
       >
-        {renderBandRows(recentRows, "recent", "recent")}
+        {renderBandRows(recentRows, recentPlan, "recent", "recent")}
       </Band>
     ) : null;
   const hasWorkstreams =
@@ -952,7 +978,7 @@ export function WorkstreamsThreadList({
     >
       <div className="flex flex-col">
         <SortableContext
-          items={populatedGroups.map((group) => groupKey(group.id))}
+          items={populatedGroupItems}
           strategy={verticalListSortingStrategy}
         >
           {populatedGroups.map((group, index) => {
@@ -993,7 +1019,18 @@ export function WorkstreamsThreadList({
                   style={marginTop ? { marginTop } : undefined}
                   muted
                 >
-                  {renderTrees(projection.unsorted)}
+                  <ThreadTrees
+                    rows={projection.unsorted.rows}
+                    groupId={projection.unsorted.id}
+                    renderRow={renderRow}
+                    now={now}
+                    projectionNow={projectionNow}
+                    timestamps={timestamps}
+                    collapsed={lowerCollapsed(projection.unsorted.id)}
+                    marks={groupMarks}
+                    choosingTopic={choosingTopic}
+                    isCollapsed={isCollapsed}
+                  />
                 </WorkstreamGroup>
               );
             }}
@@ -1008,7 +1045,7 @@ export function WorkstreamsThreadList({
             toggle={() => lowerToggle("__dormant", true)}
           >
             <SortableContext
-              items={dormantGroups.map((group) => groupKey(group.id))}
+              items={dormantGroupItems}
               strategy={verticalListSortingStrategy}
             >
               {dormantGroups.map((group, index) => {
@@ -1148,7 +1185,7 @@ export function WorkstreamsThreadList({
               workstreamsHeading,
               <SortableContext
                 key="pinned"
-                items={pinnedGroups.map((group) => groupKey(group.id))}
+                items={pinnedGroupItems}
                 strategy={verticalListSortingStrategy}
               >
                 {pinnedGroups.map((group, index) => {
@@ -1275,13 +1312,24 @@ export function WorkstreamsThreadList({
                           bandOptions.archived.sort,
                           ws.snoozeOf,
                         ).map((row) =>
-                          renderRow(row, "archived", undefined, false),
+                          renderRow(
+                            row,
+                            "archived",
+                            { display: now, projection: projectionNow },
+                            undefined,
+                            false,
+                          ),
                         )}
                       </ArchivedWorkstreamGroup>
                     </li>
                   );
                 })
-              : renderBandRows(archivedRows, "archived", "archived")}
+              : renderBandRows(
+                  archivedRows,
+                  archivedPlan,
+                  "archived",
+                  "archived",
+                )}
             {archived.experimental_archived?.status === "loading" ? (
               <li className="list-none px-2 py-1 text-xs text-muted-foreground">
                 Loading archived threads…
@@ -1325,7 +1373,12 @@ export function WorkstreamsThreadList({
               />
             }
           >
-            {renderBandRows(projection.snoozed, "snoozed", "snoozed")}
+            {renderBandRows(
+              projection.snoozed,
+              snoozedPlan,
+              "snoozed",
+              "snoozed",
+            )}
           </Band>
         ) : null}
         <NameDialog
@@ -1352,6 +1405,430 @@ export function WorkstreamsThreadList({
   );
 }
 
+type ThreadTreesProps = {
+  rows: readonly ThreadRow[];
+  groupId: string;
+  label?: string;
+  categorized?: boolean;
+  renderRow: RenderRow;
+  now: number;
+  projectionNow: number;
+  timestamps: "show" | "hover" | "hide";
+  collapsed?: boolean;
+  marks: boolean;
+  choosingTopic: boolean;
+  isCollapsed: (id: string, byDefault?: boolean) => boolean;
+};
+
+function sameThread(before: PluginSidebarThread, after: PluginSidebarThread) {
+  return before === after || shareJson(before, after) === before;
+}
+
+function sameRows(before: readonly ThreadRow[], after: readonly ThreadRow[]) {
+  return (
+    before.length === after.length &&
+    before.every((row, index) => {
+      const next = after[index]!;
+      return (
+        sameThread(row.thread, next.thread) &&
+        row.depth === next.depth &&
+        row.hasChildren === next.hasChildren &&
+        row.workstreamId === next.workstreamId &&
+        row.needsYou === next.needsYou
+      );
+    })
+  );
+}
+
+function useStableRows(rows: readonly ThreadRow[]) {
+  const previous = useRef(rows);
+  return useMemo(() => {
+    if (!sameRows(previous.current, rows)) previous.current = rows;
+    return previous.current;
+  }, [rows]);
+}
+
+function sameAges(
+  rows: readonly ThreadRow[],
+  timestamps: "show" | "hover" | "hide",
+  before: number,
+  after: number,
+) {
+  return (
+    timestamps === "hide" ||
+    before === after ||
+    rows.every(
+      (row) =>
+        relativeAge(row.thread.latestAttentionAt, before) ===
+        relativeAge(row.thread.latestAttentionAt, after),
+    )
+  );
+}
+
+/** A sortable root and its visible descendants, with drag-only surface updates. */
+function SortableThreadTree({
+  tree,
+  groupId,
+  label,
+  categorized = false,
+  renderRow,
+  now,
+  projectionNow,
+  marks,
+  choosingTopic,
+  isCollapsed,
+}: Omit<ThreadTreesProps, "rows" | "timestamps"> & {
+  tree: readonly ThreadRow[];
+}) {
+  const visible = useMemo(
+    () =>
+      unfoldedRows(tree, (id) =>
+        isCollapsed(foldKey("group", id), foldDefault("group")),
+      ),
+    [tree, isCollapsed],
+  );
+  const content = useCallback(
+    ({ handle }: { handle: DragHandle }) => (
+      <ul>
+        {visible.map((row, index) =>
+          renderRow(
+            row,
+            "group",
+            { display: now, projection: projectionNow },
+            index === 0 ? handle : undefined,
+            marks,
+            undefined,
+            undefined,
+            label,
+            categorized,
+          ),
+        )}
+      </ul>
+    ),
+    [visible, renderRow, now, projectionNow, marks, label, categorized],
+  );
+  const root = tree[0]!.thread;
+  return (
+    <Sortable
+      id={treeKey(root.id)}
+      data={{ type: "thread", threadId: root.id, groupId }}
+      disabled={choosingTopic}
+      className={cn("list-none", categorized && "pl-3")}
+    >
+      {content}
+    </Sortable>
+  );
+}
+
+/**
+ * A group's rows as sortable trees; the root row drags the whole tree.
+ * Every group decides its status slot together, so titles line up from
+ * one group to the next.
+ */
+const ThreadTrees = memo(
+  function ThreadTrees({
+    rows,
+    groupId,
+    label,
+    categorized = false,
+    renderRow,
+    now,
+    projectionNow,
+    timestamps,
+    marks,
+    choosingTopic,
+    isCollapsed,
+  }: ThreadTreesProps) {
+    const stableRows = useStableRows(rows);
+    const trees = useMemo(() => treesOf(stableRows), [stableRows]);
+    const items = useMemo(
+      () => trees.map((tree) => treeKey(tree[0]!.thread.id)),
+      [trees],
+    );
+    return (
+      <SortableContext items={items} strategy={verticalListSortingStrategy}>
+        {trees.map((tree) => (
+          <SortableThreadTree
+            key={tree[0]!.thread.id}
+            tree={tree}
+            groupId={groupId}
+            label={label}
+            categorized={categorized}
+            renderRow={renderRow}
+            now={now}
+            projectionNow={projectionNow}
+            marks={marks}
+            choosingTopic={choosingTopic}
+            isCollapsed={isCollapsed}
+          />
+        ))}
+      </SortableContext>
+    );
+  },
+  (before, after) =>
+    (before.collapsed && after.collapsed) ||
+    (before.collapsed === after.collapsed &&
+      sameRows(before.rows, after.rows) &&
+      before.groupId === after.groupId &&
+      before.label === after.label &&
+      before.categorized === after.categorized &&
+      before.renderRow === after.renderRow &&
+      before.timestamps === after.timestamps &&
+      before.marks === after.marks &&
+      before.choosingTopic === after.choosingTopic &&
+      before.isCollapsed === after.isCollapsed &&
+      sameAges(before.rows, before.timestamps, before.now, after.now)),
+);
+
+type GroupBodyProps = {
+  group: ThreadNode;
+  collapsed: boolean;
+  renderRow: RenderRow;
+  now: number;
+  projectionNow: number;
+  timestamps: "show" | "hover" | "hide";
+  groupMarks: boolean;
+  choosingTopic: boolean;
+  colorOf: (group: ThreadNode) => TopicColor;
+  newThreadIn: (group: ThreadNode) => () => void;
+  groupSnoozeOf: (group: ThreadGroup | ThreadNode) => GroupSnooze | undefined;
+  catalog: ServerState["catalog"];
+  isCollapsed: (id: string, byDefault?: boolean) => boolean;
+  toggle: (id: string, byDefault?: boolean) => void;
+};
+
+function CategorizedTrees({
+  group,
+  label,
+  renderRow,
+  now,
+  projectionNow,
+  timestamps,
+  collapsed,
+  groupMarks,
+  choosingTopic,
+  colorOf,
+  isCollapsed,
+}: Pick<
+  GroupBodyProps,
+  | "group"
+  | "renderRow"
+  | "now"
+  | "projectionNow"
+  | "timestamps"
+  | "collapsed"
+  | "groupMarks"
+  | "choosingTopic"
+  | "colorOf"
+  | "isCollapsed"
+> & { label?: string }) {
+  const rows = useStableRows(group.rows);
+  const categories = useMemo(
+    () => categoryRows(rows, group.categories),
+    [rows, group.categories],
+  );
+  const color = useMemo(
+    () => workstreamColorStyle(colorOf(group)) as CSSProperties,
+    [colorOf, group.id, group.topicId],
+  );
+  return categories.map((category, index) => (
+    <Fragment key={category.id ?? "unplaced"}>
+      {category.name ? (
+        <li
+          className="list-none"
+          style={{
+            marginTop:
+              index === 0
+                ? SIDEBAR_GEOMETRY.category.firstTopGap
+                : SIDEBAR_GEOMETRY.category.betweenGap,
+            marginBottom: SIDEBAR_GEOMETRY.category.afterGap,
+            height: SIDEBAR_GEOMETRY.category.height,
+            paddingLeft: SIDEBAR_GEOMETRY.category.indent,
+          }}
+        >
+          <h4
+            className="ws-text-category ws-category-label m-0 truncate"
+            style={color}
+          >
+            {label ? (
+              <>
+                {label}
+                <span className="sr-only">:</span> {category.name}
+              </>
+            ) : (
+              category.name
+            )}
+          </h4>
+        </li>
+      ) : null}
+      <ThreadTrees
+        rows={category.rows}
+        groupId={group.id}
+        label={label}
+        categorized={Boolean(category.name)}
+        renderRow={renderRow}
+        now={now}
+        projectionNow={projectionNow}
+        timestamps={timestamps}
+        collapsed={collapsed}
+        marks={groupMarks}
+        choosingTopic={choosingTopic}
+        isCollapsed={isCollapsed}
+      />
+    </Fragment>
+  ));
+}
+
+const collapseKeyOf = (group: ThreadNode, catalog: ServerState["catalog"]) =>
+  groupCollapseKey(group.id, group.topicId ?? catalog?.groups[group.id]);
+
+function NestedGroup(
+  props: GroupBodyProps & {
+    sectionRef?: (element: HTMLElement | null) => void;
+  },
+) {
+  const {
+    group,
+    catalog,
+    isCollapsed,
+    toggle,
+    colorOf,
+    newThreadIn,
+    groupSnoozeOf,
+    sectionRef,
+  } = props;
+  const key = collapseKeyOf(group, catalog);
+  const collapsed = isCollapsed(key, isCollapsed(group.id, false));
+  const toggleThis = useCallback(
+    () => toggle(key, collapsed),
+    [toggle, key, collapsed],
+  );
+  const onNewThread = useMemo(() => newThreadIn(group), [newThreadIn, group]);
+  return (
+    <WorkstreamGroup
+      group={group}
+      color={colorOf(group)}
+      nested
+      sectionRef={sectionRef}
+      collapsed={collapsed}
+      toggle={toggleThis}
+      onNewThread={onNewThread}
+      snooze={groupSnoozeOf(group)}
+    >
+      <GroupBody {...props} collapsed={collapsed} />
+    </WorkstreamGroup>
+  );
+}
+
+/** A group's own rows and nested groups, isolated from header and drag updates. */
+const GroupBody = memo(
+  function GroupBody(props: GroupBodyProps) {
+    const { group } = props;
+    return (
+      <>
+        <CategorizedTrees {...props} />
+        {inlineGroups(group).map((sub) => (
+          <CategorizedTrees
+            {...props}
+            key={`inline:${sub.id}`}
+            group={sub}
+            label={shortLabel(sub.label)}
+          />
+        ))}
+        {group.subgroups
+          .filter((sub) => !sub.inline)
+          .map((sub) => (
+            <li key={sub.id} className="list-none">
+              <DropTarget
+                id={groupKey(sub.id)}
+                data={{ type: "target", groupId: sub.id }}
+              >
+                {(ref) => (
+                  <NestedGroup {...props} group={sub} sectionRef={ref} />
+                )}
+              </DropTarget>
+            </li>
+          ))}
+      </>
+    );
+  },
+  (before, after) =>
+    (before.collapsed && after.collapsed) ||
+    (before.collapsed === after.collapsed &&
+      sameGroupData(before.group, after.group) &&
+      before.renderRow === after.renderRow &&
+      before.timestamps === after.timestamps &&
+      before.groupMarks === after.groupMarks &&
+      before.choosingTopic === after.choosingTopic &&
+      before.colorOf === after.colorOf &&
+      before.newThreadIn === after.newThreadIn &&
+      before.groupSnoozeOf === after.groupSnoozeOf &&
+      before.catalog === after.catalog &&
+      before.isCollapsed === after.isCollapsed &&
+      before.toggle === after.toggle &&
+      sameGroupAges(before.group, before.timestamps, before.now, after.now)),
+);
+
+function sameGroupData(before: ThreadNode, after: ThreadNode): boolean {
+  return (
+    before.id === after.id &&
+    before.name === after.name &&
+    before.label === after.label &&
+    before.total === after.total &&
+    before.needsYou === after.needsYou &&
+    before.lastActiveAt === after.lastActiveAt &&
+    before.prioritized === after.prioritized &&
+    before.topicId === after.topicId &&
+    before.hasSection === after.hasSection &&
+    before.inline === after.inline &&
+    before.categories === after.categories &&
+    sameRows(before.rows, after.rows) &&
+    before.sectionIds.length === after.sectionIds.length &&
+    before.sectionIds.every((id, index) => id === after.sectionIds[index]) &&
+    before.subgroups.length === after.subgroups.length &&
+    before.subgroups.every((sub, index) =>
+      sameGroupData(sub, after.subgroups[index]!),
+    )
+  );
+}
+
+function sameGroupAges(
+  group: ThreadNode,
+  timestamps: "show" | "hover" | "hide",
+  before: number,
+  after: number,
+): boolean {
+  return (
+    sameAges(group.rows, timestamps, before, after) &&
+    group.subgroups.every((sub) =>
+      sameGroupAges(sub, timestamps, before, after),
+    )
+  );
+}
+
+type SidebarThreadRowProps = {
+  handleRef?: DragHandle["ref"];
+  handleListeners?: DragHandle["listeners"];
+  thread: PluginSidebarThread;
+  depth: number;
+  active: boolean;
+  now: number;
+  timestamps: "show" | "hover" | "hide";
+  context?: string;
+  placement: Placement;
+  analysis?: ServerState["analysis"][string];
+  recap?: ServerState["recaps"][string];
+  showStatusSlot: boolean;
+  snooze?: ThreadSnooze;
+  snoozePrefs: ServerState["snoozePrefs"];
+  defaultWake: () => SnoozeWhen;
+  handlers: RowMenuHandlers;
+  disclosureExpanded?: boolean;
+  categorized: boolean;
+  onNavigate: () => void;
+  toggleDisclosure: (id: string, byDefault?: boolean) => void;
+};
+
 /**
  * A list row with stable action identities. Its memo compares every prop,
  * including callbacks, so an unrelated thread update skips the SDK hooks and
@@ -1369,7 +1846,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   showStatusSlot,
   snooze,
   snoozePrefs,
-  defaultSnoozeTitle,
   defaultWake,
   handlers,
   disclosureExpanded,
@@ -1378,28 +1854,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   toggleDisclosure,
   handleRef,
   handleListeners,
-}: {
-  handleRef?: DragHandle["ref"];
-  handleListeners?: DragHandle["listeners"];
-  thread: PluginSidebarThread;
-  depth: number;
-  active: boolean;
-  now: number;
-  context?: string;
-  placement: Placement;
-  analysis?: ServerState["analysis"][string];
-  recap?: ServerState["recaps"][string];
-  showStatusSlot: boolean;
-  snooze?: ThreadSnooze;
-  snoozePrefs: ServerState["snoozePrefs"];
-  defaultSnoozeTitle: string;
-  defaultWake: () => SnoozeWhen;
-  handlers: RowMenuHandlers;
-  disclosureExpanded?: boolean;
-  categorized: boolean;
-  onNavigate: () => void;
-  toggleDisclosure: (id: string, byDefault?: boolean) => void;
-}) {
+}: SidebarThreadRowProps) {
   const work = workView(thread, analysis, recap);
   let snoozeAction:
     | {
@@ -1413,10 +1868,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
     placement !== "archived" &&
     (placement !== "snoozed" || snooze !== undefined)
   ) {
+    const wake = defaultWake();
     const menu = (
-      <SnoozeMenuItems
+      <CurrentSnoozeMenuItems
         kit={plainMenuKit}
-        now={now}
         prefs={snoozePrefs}
         snooze={snooze}
         onSnooze={(when) => handlers.snooze(thread, when)}
@@ -1434,7 +1889,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
           }
         : {
             kind: "snooze",
-            title: defaultSnoozeTitle,
+            title: `Snooze ${describeWake(wake.until, Date.now(), wake.events)}`,
             run: () => handlers.snooze(thread, defaultWake()),
             menu,
           };
@@ -1484,7 +1939,61 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
       </li>
     </RowMenu>
   );
-});
+}, sameSidebarThreadRow);
+
+function sameSidebarThreadRow(
+  before: SidebarThreadRowProps,
+  after: SidebarThreadRowProps,
+) {
+  return (
+    sameThread(before.thread, after.thread) &&
+    before.depth === after.depth &&
+    before.active === after.active &&
+    before.timestamps === after.timestamps &&
+    before.context === after.context &&
+    before.placement === after.placement &&
+    before.analysis === after.analysis &&
+    before.recap === after.recap &&
+    before.showStatusSlot === after.showStatusSlot &&
+    before.snooze === after.snooze &&
+    before.snoozePrefs === after.snoozePrefs &&
+    before.defaultWake === after.defaultWake &&
+    before.handlers === after.handlers &&
+    before.disclosureExpanded === after.disclosureExpanded &&
+    before.categorized === after.categorized &&
+    before.onNavigate === after.onNavigate &&
+    before.toggleDisclosure === after.toggleDisclosure &&
+    before.handleRef === after.handleRef &&
+    before.handleListeners === after.handleListeners &&
+    (before.now === after.now ||
+      (before.timestamps === "hide" &&
+        (before.placement !== "snoozed" ||
+          describeWake(
+            before.snooze?.until ?? null,
+            before.now,
+            before.snooze?.events,
+          ) ===
+            describeWake(
+              after.snooze?.until ?? null,
+              after.now,
+              after.snooze?.events,
+            ))) ||
+      (before.timestamps !== "hide" &&
+        relativeAge(before.thread.latestAttentionAt, before.now) ===
+          relativeAge(after.thread.latestAttentionAt, after.now) &&
+        (before.placement !== "snoozed" ||
+          describeWake(
+            before.snooze?.until ?? null,
+            before.now,
+            before.snooze?.events,
+          ) ===
+            describeWake(
+              after.snooze?.until ?? null,
+              after.now,
+              after.snooze?.events,
+            ))))
+  );
+}
 
 /** The band of threads most worth the user's attention (see `selectUpNext`). */
 const UP_NEXT = "Up Next";
@@ -1861,13 +2370,37 @@ function WorkstreamGroup({
   children,
 }: GroupProps) {
   const { prefs } = usePrefs();
-  const incoming = useIncomingThread(group.id);
+  const bodyRef = useRef<HTMLUListElement | null>(null);
+  /** The section, for the gap the fold moves below it (see `useFoldGap`). */
+  const section = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!collapsed) return;
+    const root = section.current;
+    const list = bodyRef.current;
+    if (list) {
+      for (const trigger of list.querySelectorAll("button")) {
+        const leave = new Event("pointerleave");
+        Object.defineProperty(leave, "pointerType", { value: "mouse" });
+        trigger.dispatchEvent(leave);
+      }
+      const open = list.querySelector("[data-state='open']");
+      if (open)
+        (document.activeElement ?? open).dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+        );
+    }
+    // Focus that was inside the fold resets to <body> when it unmounts;
+    // move it to the header rather than dropping it from the list.
+    const active = document.activeElement;
+    if ((list && list.contains(active)) || active === document.body)
+      root?.querySelector<HTMLButtonElement>("button")?.focus();
+    // section.current is a ref; only `collapsed` gates the cleanup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collapsed]);
   const label = "label" in group ? group.label : group.name;
   const isWorkstream = "hasSection" in group && group.hasSection;
   const counts = headerCounts(group, collapsed, prefs?.sidebar);
   const fold = useFold(!collapsed);
-  /** The section, for the gap the fold moves below it (see `useFoldGap`). */
-  const section = useRef<HTMLElement>(null);
   const refSection = useRef(sectionRef);
   refSection.current = sectionRef;
   const setSection = useCallback((element: HTMLElement | null) => {
@@ -1907,113 +2440,125 @@ function WorkstreamGroup({
     </HoverAction>
   ) : null;
   return (
-    <section
-      ref={setSection}
-      aria-label={group.name}
-      data-flip-key={`group:${group.id}`}
-      data-prioritized={group.prioritized ? "" : undefined}
-      data-drop-target={incoming ? "" : undefined}
-      className={cn(
-        "rounded-md",
-        nested && "pt-1",
-        incoming && "bg-sidebar-accent/60",
-      )}
-      style={
-        {
-          ...style,
-          ...workstreamColorStyle(color ?? colorForWorkstream(group.id)),
-        } as CSSProperties
-      }
-    >
-      <HeaderMenu
-        focus={
-          onToggleFocus
-            ? { focused: group.prioritized, toggle: onToggleFocus }
-            : undefined
-        }
-        onNewWork={onNewThread}
-        snooze={snooze}
-      >
-        <div
-          ref={handle?.ref}
-          {...handle?.listeners}
-          className="group/row relative flex items-center gap-1.5 rounded-md pr-2"
-          style={{
-            height: SIDEBAR_GEOMETRY.workstreamHeader.height,
-            paddingLeft: nested
-              ? SIDEBAR_GEOMETRY.row.childIndent
-              : SIDEBAR_GEOMETRY.workstreamHeader.indent,
-          }}
+    <IncomingThread groupId={group.id}>
+      {(incoming) => (
+        <section
+          ref={setSection}
+          aria-label={group.name}
+          data-flip-key={`group:${group.id}`}
+          data-prioritized={group.prioritized ? "" : undefined}
+          data-drop-target={incoming ? "" : undefined}
+          className={cn(
+            "rounded-md",
+            nested && "pt-1",
+            incoming && "bg-sidebar-accent/60",
+          )}
+          style={
+            {
+              ...style,
+              ...workstreamColorStyle(color ?? colorForWorkstream(group.id)),
+            } as CSSProperties
+          }
         >
-          <span className={headingClass}>
-            {heading}
-            {/* The chevron is the header's only press: the row stays the
+          <HeaderMenu
+            focus={
+              onToggleFocus
+                ? { focused: group.prioritized, toggle: onToggleFocus }
+                : undefined
+            }
+            onNewWork={onNewThread}
+            snooze={snooze}
+          >
+            <div
+              ref={handle?.ref}
+              {...handle?.listeners}
+              className="group/row relative flex items-center gap-1.5 rounded-md pr-2"
+              style={{
+                height: SIDEBAR_GEOMETRY.workstreamHeader.height,
+                paddingLeft: nested
+                  ? SIDEBAR_GEOMETRY.row.childIndent
+                  : SIDEBAR_GEOMETRY.workstreamHeader.indent,
+              }}
+            >
+              <span className={headingClass}>
+                {heading}
+                {/* The chevron is the header's only press: the row stays the
               workstream's drag handle, and a press on the name does
               nothing. */}
-            <button
-              type="button"
-              aria-expanded={!collapsed}
-              aria-label={collapsed ? `Expand ${label}` : `Collapse ${label}`}
-              onPointerDown={(event) => event.stopPropagation()}
-              onMouseDown={(event) => event.stopPropagation()}
-              onTouchStart={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                toggle();
-              }}
-              className={cn(rowActionClass, "size-5")}
-            >
-              <FoldChevron open={!collapsed} />
-            </button>
-          </span>
-          {/* Keep the always-visible action at the trailing edge so revealing
-            other actions cannot move it underneath the pointer. */}
-          <RowActions>
-            {onNewThread ? (
-              <HoverAction
-                compact
-                label={`New work in ${group.name}`}
-                onClick={onNewThread}
-              >
-                <Icon name="Plus" className="size-3.5" />
-              </HoverAction>
-            ) : null}
-            {snooze ? (
-              <HoverMenuButton
-                compact
-                label={snooze.title}
-                onClick={snooze.run}
-                menu={snooze.menu}
-              >
-                <SnoozeIcon className="size-3.5" />
-              </HoverMenuButton>
-            ) : null}
-            {focusAction}
-          </RowActions>
-          {/* The header's details, as a thread row's age. */}
-          <span className="flex shrink-0 items-center gap-1 empty:hidden">
-            {counts.waiting ? (
-              <CountPill // slop-ok: 2 the product's waiting-count pill, an established header pattern
-                className="transition-colors duration-300"
-                title={`${group.needsYou} waiting on you`}
-              >
-                {group.needsYou}
-              </CountPill>
-            ) : null}
-            {counts.total ? (
-              <span className="text-[11px] tabular-nums text-muted-foreground">
-                {group.total}
+                <button
+                  type="button"
+                  aria-expanded={!collapsed}
+                  aria-label={
+                    collapsed ? `Expand ${label}` : `Collapse ${label}`
+                  }
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onTouchStart={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    toggle();
+                  }}
+                  className={cn(rowActionClass, "size-5")}
+                >
+                  <FoldChevron open={!collapsed} />
+                </button>
               </span>
-            ) : null}
-          </span>
-        </div>
-      </HeaderMenu>
-      {fold.render ? (
-        <div className="ws-fold" ref={fold.ref} {...presenceProps(fold.phase)}>
-          <ul className="list-none">{children}</ul>
-        </div>
-      ) : null}
-    </section>
+              {/* Keep the always-visible action at the trailing edge so revealing
+            other actions cannot move it underneath the pointer. */}
+              <RowActions>
+                {onNewThread ? (
+                  <HoverAction
+                    compact
+                    label={`New work in ${group.name}`}
+                    onClick={onNewThread}
+                  >
+                    <Icon name="Plus" className="size-3.5" />
+                  </HoverAction>
+                ) : null}
+                {snooze ? (
+                  <HoverMenuButton
+                    compact
+                    label={snooze.title}
+                    onClick={snooze.run}
+                    menu={snooze.menu}
+                  >
+                    <SnoozeIcon className="size-3.5" />
+                  </HoverMenuButton>
+                ) : null}
+                {focusAction}
+              </RowActions>
+              {/* The header's details, as a thread row's age. */}
+              <span className="flex shrink-0 items-center gap-1 empty:hidden">
+                {counts.waiting ? (
+                  <CountPill // slop-ok: 2 the product's waiting-count pill, an established header pattern
+                    className="transition-colors duration-300"
+                    title={`${group.needsYou} waiting on you`}
+                  >
+                    {group.needsYou}
+                  </CountPill>
+                ) : null}
+                {counts.total ? (
+                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                    {group.total}
+                  </span>
+                ) : null}
+              </span>
+            </div>
+          </HeaderMenu>
+          {fold.render ? (
+            <div
+              className="ws-fold"
+              ref={fold.ref}
+              {...presenceProps(fold.phase)}
+            >
+              <ul ref={bodyRef} className="list-none">
+                {children}
+              </ul>
+            </div>
+          ) : null}
+        </section>
+      )}
+    </IncomingThread>
   );
 }

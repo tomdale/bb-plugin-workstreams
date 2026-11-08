@@ -3,6 +3,7 @@ import { mountWithBands } from "./sidebar-fixture.tsx";
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { sidebarThread } from "./fixtures.ts";
+import * as presentation from "../../src/app/sidebar/presentation.ts";
 import { dragGuardRemoved, groupRows, mount } from "./sidebar-fixture.tsx";
 beforeEach(() => {
   window.localStorage.clear();
@@ -70,6 +71,35 @@ it("reorders roots by dragging a row", async () => {
     await dragGuardRemoved();
     slot.lifecycle.unmount();
   } finally {
+    restore();
+  }
+});
+
+it("does not rerender row content for drag transforms", async () => {
+  const restore = layoutByRows();
+  const rowRenders = vi.spyOn(presentation, "presentRow");
+  try {
+    const slot = await mount(
+      [
+        sidebarThread("l1", { title: "Loose one" }),
+        sidebarThread("l2", { title: "Loose two" }),
+      ],
+      { settings: { showRecent: false, showForYou: false } },
+    );
+    await waitFor(() => expect(groupRows(slot, "Unfiled")).toHaveLength(2));
+    rowRenders.mockClear();
+    const row = slot.container
+      .querySelector('[data-sidebar-thread-id="l1"]')!
+      .closest("li")!;
+    fireEvent.mouseDown(row, { button: 0, clientX: 10, clientY: 14 });
+    fireEvent.mouseMove(document, { clientX: 10, clientY: 24 });
+    fireEvent.mouseMove(document, { clientX: 10, clientY: 42 });
+    expect(rowRenders).not.toHaveBeenCalled();
+    fireEvent.mouseUp(document, { clientX: 10, clientY: 42 });
+    await dragGuardRemoved();
+    slot.lifecycle.unmount();
+  } finally {
+    rowRenders.mockRestore();
     restore();
   }
 });

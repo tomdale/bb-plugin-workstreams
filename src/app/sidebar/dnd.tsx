@@ -10,6 +10,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   type CSSProperties,
@@ -91,14 +92,20 @@ const collision =
   };
 
 /** Highlights only a group that collision detection has accepted for this tree. */
-export function useIncomingThread(groupId: string): boolean {
+export function IncomingThread({
+  groupId,
+  children,
+}: {
+  groupId: string;
+  children: (incoming: boolean) => ReactNode;
+}) {
   const { active, over } = useDndContext();
   const source = dataOf(active?.data.current);
   const target = dataOf(over?.data.current);
-  return (
+  return children(
     source?.type === "thread" &&
-    source.groupId !== groupId &&
-    target?.groupId === groupId
+      source.groupId !== groupId &&
+      target?.groupId === groupId,
   );
 }
 
@@ -126,6 +133,10 @@ export function useSidebarDnd({
     useSensor(TouchSensor, touchSensorOptions),
   );
   const suppressClick = useClickSuppression();
+  const latest = useRef({ onDrop, acceptsThread });
+  useLayoutEffect(() => {
+    latest.current = { onDrop, acceptsThread };
+  });
 
   const onDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -142,7 +153,7 @@ export function useSidebarDnd({
       }
       if (active.type === "group") {
         if (over.type === "group")
-          onDrop({
+          latest.current.onDrop({
             kind: "group",
             groupId: active.groupId,
             overGroupId: over.groupId,
@@ -152,7 +163,7 @@ export function useSidebarDnd({
       if (active.type !== "thread") return;
       const dragged = event.active.rect.current.translated;
       const target = event.over!.rect;
-      onDrop({
+      latest.current.onDrop({
         kind: "thread",
         threadId: active.threadId,
         fromGroupId: active.groupId,
@@ -163,19 +174,27 @@ export function useSidebarDnd({
           : false,
       });
     },
-    [containerRef, onDrop, suppressClick],
+    [containerRef, suppressClick],
   );
+  const accepts = useCallback(
+    (from: string, to: string) => latest.current.acceptsThread(from, to),
+    [],
+  );
+  const collisionDetection = useMemo(() => collision(accepts), [accepts]);
 
-  return {
-    contextProps: {
-      sensors,
-      collisionDetection: collision(acceptsThread),
-      modifiers: [verticalOnly],
-      onDragStart: suppressClick.begin,
-      onDragEnd,
-      onDragCancel: suppressClick.end,
-    },
-  };
+  return useMemo(
+    () => ({
+      contextProps: {
+        sensors,
+        collisionDetection,
+        modifiers: [verticalOnly],
+        onDragStart: suppressClick.begin,
+        onDragEnd,
+        onDragCancel: suppressClick.end,
+      },
+    }),
+    [sensors, collisionDetection, suppressClick, onDragEnd],
+  );
 }
 
 /**
@@ -212,25 +231,30 @@ export type DragHandle = {
 };
 
 /**
- * One reorderable item. Only listeners go on the handle: the keyboard
- * sortable attributes would turn a row that already holds a link into a
- * nested button.
+ * One reorderable item. Drag updates rerender only its shallow surface; the
+ * row or group content is cached until its own inputs change. Only listeners
+ * go on the handle: the keyboard sortable attributes would turn a row that
+ * already holds a link into a nested button.
  */
 export function Sortable({
   id,
   data,
   disabled = false,
+  className,
+  surface,
   children,
 }: {
   id: string;
   data: DragData;
   disabled?: boolean;
-  children: (binding: {
+  className?: string;
+  /** A group supplies its section; thread trees use the default `li`. */
+  surface?: (binding: {
     ref: (element: HTMLElement | null) => void;
     style: CSSProperties;
-    handle: DragHandle;
-    isDragging: boolean;
+    children: ReactNode;
   }) => ReactNode;
+  children: (binding: { handle: DragHandle }) => ReactNode;
 }) {
   const {
     setNodeRef,
@@ -248,23 +272,29 @@ export function Sortable({
     activeData?.type === "thread" &&
     data.type === "thread" &&
     activeData.groupId !== data.groupId;
-  return children({
-    ref: setNodeRef,
-    style: {
-      transform: CSS.Translate.toString(transform),
-      transition,
-      ...(incoming && { background: "var(--sidebar-accent)" }),
-      ...(isDragging && {
-        position: "relative",
-        zIndex: 10,
-        borderRadius: 6,
-        background: "var(--sidebar, var(--background))",
-        boxShadow: "0 4px 12px rgb(0 0 0 / 0.25)",
-      }),
-    },
-    handle: { ref: setActivatorNodeRef, listeners },
-    isDragging,
-  });
+  const handle = useMemo(
+    () => ({ ref: setActivatorNodeRef, listeners }),
+    [setActivatorNodeRef, listeners],
+  );
+  const content = useMemo(() => children({ handle }), [children, handle]);
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    ...(incoming && { background: "var(--sidebar-accent)" }),
+    ...(isDragging && {
+      position: "relative",
+      zIndex: 10,
+      borderRadius: 6,
+      background: "var(--sidebar, var(--background))",
+      boxShadow: "0 4px 12px rgb(0 0 0 / 0.25)",
+    }),
+  };
+  if (surface) return surface({ ref: setNodeRef, style, children: content });
+  return (
+    <li ref={setNodeRef} style={style} className={className}>
+      {content}
+    </li>
+  );
 }
 
 /** A group that accepts thread drops without reordering itself. */

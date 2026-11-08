@@ -98,11 +98,12 @@ export function usePresence<T>(
 ): PresenceEntry<T>[] {
   const committed = useRef<PresenceEntry<T>[] | null>(null);
   const timers = useRef(
-    new Map<
-      string,
-      { phase: PresencePhase; id: ReturnType<typeof setTimeout> }
-    >(),
+    new Map<string, { phase: PresencePhase; due: number }>(),
   );
+  const timeout = useRef<{
+    due: number;
+    id: ReturnType<typeof setTimeout>;
+  } | null>(null);
   const [, settle] = useReducer((n: number) => n + 1, 0);
   const entries = mergePresence(
     committed.current ?? [],
@@ -116,38 +117,57 @@ export function usePresence<T>(
   useEffect(() => {
     const live = new Set(entries.map((entry) => entry.key));
     for (const [key, timer] of timers.current)
-      if (!live.has(key)) {
-        clearTimeout(timer.id);
-        timers.current.delete(key);
-      }
+      if (!live.has(key)) timers.current.delete(key);
     for (const entry of entries) {
       const timer = timers.current.get(entry.key);
       if (timer?.phase === entry.phase) continue;
-      if (timer) clearTimeout(timer.id);
       timers.current.delete(entry.key);
       if (entry.phase === "idle") continue;
-      const { key, phase } = entry;
-      const id = setTimeout(
+      timers.current.set(entry.key, {
+        phase: entry.phase,
+        due: Date.now() + (entry.phase === "enter" ? ENTER_MS : LEAVE_MS),
+      });
+    }
+    const first = Math.min(
+      ...[...timers.current.values()].map((timer) => timer.due),
+    );
+    if (!Number.isFinite(first)) {
+      if (timeout.current) clearTimeout(timeout.current.id);
+      timeout.current = null;
+      return;
+    }
+    if (timeout.current?.due === first) return;
+    if (timeout.current) clearTimeout(timeout.current.id);
+    timeout.current = {
+      due: first,
+      id: setTimeout(
         () => {
-          timers.current.delete(key);
-          committed.current = (committed.current ?? []).flatMap((e) =>
-            e.key !== key || e.phase !== phase
-              ? [e]
-              : phase === "leave"
-                ? []
-                : [{ ...e, phase: "idle" as const }],
-          );
+          timeout.current = null;
+          const settling = new Map<string, PresencePhase>();
+          for (const [key, timer] of timers.current)
+            if (timer.due <= first) {
+              settling.set(key, timer.phase);
+              timers.current.delete(key);
+            }
+          committed.current = (committed.current ?? []).flatMap((entry) => {
+            const phase = settling.get(entry.key);
+            if (!phase || entry.phase !== phase) return [entry];
+            return phase === "leave"
+              ? []
+              : [{ ...entry, phase: "idle" as const }];
+          });
+          // Entries that share a deadline settle in one React commit.
           settle();
         },
-        phase === "enter" ? ENTER_MS : LEAVE_MS,
-      );
-      timers.current.set(key, { phase, id });
-    }
+        Math.max(0, first - Date.now()),
+      ),
+    };
   });
   useEffect(() => {
     const pending = timers.current;
     return () => {
-      for (const timer of pending.values()) clearTimeout(timer.id);
+      if (timeout.current) clearTimeout(timeout.current.id);
+      timeout.current = null;
       pending.clear();
     };
   }, []);

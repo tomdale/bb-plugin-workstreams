@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import * as presentation from "../../src/app/sidebar/presentation.ts";
 import * as groups from "../../src/domain/groups.ts";
@@ -120,13 +126,6 @@ it("profiles parent updates and preserves row interactions", async () => {
   expect(
     slot.getByRole("link", { name: "Thread 0" }).getAttribute("aria-current"),
   ).toBeNull();
-  fireEvent.click(slot.getByRole("link", { name: "Thread 1" }));
-  expect(onNavigate).toHaveBeenCalledOnce();
-  expect(slot.inspection.sidebarActionCalls.at(-1)).toMatchObject({
-    method: "open",
-    threadId: "thread-1",
-  });
-
   measure("collapse", () => {
     fireEvent.click(
       within(slot.getByRole("region", { name: "Alpha" })).getByRole("button", {
@@ -150,6 +149,12 @@ it("profiles parent updates and preserves row interactions", async () => {
       name: "Waiting for input",
     }),
   ).toBeTruthy();
+  fireEvent.click(slot.getByRole("link", { name: "Changed thread" }));
+  expect(onNavigate).toHaveBeenCalledOnce();
+  expect(slot.inspection.sidebarActionCalls.at(-1)).toMatchObject({
+    method: "open",
+    threadId: "thread-41",
+  });
 
   expect(
     Object.fromEntries(
@@ -168,18 +173,100 @@ it("profiles parent updates and preserves row interactions", async () => {
   });
   for (const measurement of Object.values(measurements))
     expect(measurement.menus).toBe(measurement.rows);
+  for (const name of [
+    "unchanged",
+    "equal-clones",
+    "active-navigation",
+    "collapse",
+  ])
+    expect(measurements[name]!.derived, name).toMatchObject({
+      categoryRows: 0,
+      treesOf: 0,
+    });
   expect(measurements.unchanged!.derived).toMatchObject({
     arrangeGroups: 0,
     descendantsOf: 0,
-    treesOf: 3,
   });
-  expect(measurements["single-thread"]!.derived).toMatchObject({
-    arrangeGroups: 1,
-    descendantsOf: 1,
-    treesOf: 3,
-  });
+  for (const name of ["single-thread", "live-status"])
+    expect(measurements[name]!.derived).toMatchObject({
+      arrangeGroups: 1,
+      descendantsOf: 1,
+      categoryRows: 1,
+      treesOf: 1,
+    });
   console.info(
     `SIDEBAR_PROFILE ${JSON.stringify({ threadCount: THREAD_COUNT, measurements })}`,
   );
   slot.lifecycle.unmount();
 }, 30_000);
+
+it("does no row or tree work on a minute tick when ages are hidden", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-01-01T12:00:00Z"));
+  const rowRenders = vi.spyOn(presentation, "presentRow");
+  const categoryPlan = vi.spyOn(categories, "categoryRows");
+  const trees = vi.spyOn(sidebarRows, "treesOf");
+  const slot = await mount(
+    [
+      sidebarThread("root", { sectionId: "sec_a", title: "Root task" }),
+      sidebarThread("other", { sectionId: "sec_b", title: "Other task" }),
+    ],
+    {
+      settings: {
+        timestamps: "hide",
+        showForYou: false,
+        showRecent: false,
+        showSnoozed: false,
+        showArchived: false,
+      },
+    },
+  );
+  await act(async () => vi.advanceTimersByTimeAsync(0));
+  expect(slot.getAllByRole("link")).toHaveLength(2);
+  expect(slot.container.querySelectorAll("[data-timestamp]")).toHaveLength(0);
+  rowRenders.mockClear();
+  categoryPlan.mockClear();
+  trees.mockClear();
+  await act(async () => vi.advanceTimersByTimeAsync(60_000));
+  expect(rowRenders).not.toHaveBeenCalled();
+  expect(categoryPlan).not.toHaveBeenCalled();
+  expect(trees).not.toHaveBeenCalled();
+  slot.lifecycle.unmount();
+});
+
+it("retains a row's previous time while its visible age is unchanged", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-01-01T12:00:00Z"));
+  const rowRenders = vi.spyOn(presentation, "presentRow");
+  const categoryPlan = vi.spyOn(categories, "categoryRows");
+  const trees = vi.spyOn(sidebarRows, "treesOf");
+  const slot = await mount(
+    [
+      sidebarThread("root", {
+        sectionId: "sec_a",
+        title: "Root task",
+        latestAttentionAt: Date.now() + 120_000,
+      }),
+    ],
+    {
+      settings: {
+        showForYou: false,
+        showRecent: false,
+        showSnoozed: false,
+        showArchived: false,
+      },
+    },
+  );
+  await act(async () => vi.advanceTimersByTimeAsync(0));
+  expect(slot.getAllByRole("link")).toHaveLength(1);
+  expect(slot.getByText("now", { selector: "[data-timestamp]" })).toBeTruthy();
+  rowRenders.mockClear();
+  categoryPlan.mockClear();
+  trees.mockClear();
+  await act(async () => vi.advanceTimersByTimeAsync(60_000));
+  expect(slot.getByText("now", { selector: "[data-timestamp]" })).toBeTruthy();
+  expect(rowRenders).not.toHaveBeenCalled();
+  expect(categoryPlan).not.toHaveBeenCalled();
+  expect(trees).not.toHaveBeenCalled();
+  slot.lifecycle.unmount();
+});

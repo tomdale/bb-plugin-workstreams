@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+import { act, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   foldState,
   mergePresence,
   settleFold,
   type FoldState,
+  usePresence,
   type PresenceEntry,
 } from "../../src/app/sidebar/motion.ts";
 
@@ -89,5 +92,69 @@ describe("settleFold", () => {
     expect(
       shape(settleFold({ render: true, phase: "leave", open: false })),
     ).toBe("unmounted:idle");
+  });
+});
+
+describe("usePresence", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    Object.defineProperty(Element.prototype, "animate", {
+      configurable: true,
+      value: () => ({}),
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (Element.prototype as { animate?: unknown }).animate;
+  });
+
+  it("settles entries with the same deadline in one timeout and commit", async () => {
+    const timeout = vi.spyOn(globalThis, "setTimeout");
+    let commits = 0;
+    const { result, rerender } = renderHook(
+      ({ items }: { items: string[] }) => {
+        commits++;
+        return usePresence(items, String);
+      },
+      { initialProps: { items: ["a", "b"] } },
+    );
+    timeout.mockClear();
+    rerender({ items: ["c", "d"] });
+    expect(view(result.current)).toEqual([
+      "a:leave",
+      "b:leave",
+      "c:enter",
+      "d:enter",
+    ]);
+    expect(
+      timeout.mock.calls.filter(([, delay]) => delay === 260),
+    ).toHaveLength(1);
+    commits = 0;
+    await act(async () => vi.advanceTimersByTimeAsync(259));
+    expect(view(result.current)).toEqual([
+      "a:leave",
+      "b:leave",
+      "c:enter",
+      "d:enter",
+    ]);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(view(result.current)).toEqual(["c:idle", "d:idle"]);
+    expect(commits).toBe(1);
+  });
+
+  it("keeps a later leave's full duration when replacing an enter", async () => {
+    const { result, rerender } = renderHook(
+      ({ items }: { items: string[] }) => usePresence(items, String),
+      { initialProps: { items: ["a", "b"] } },
+    );
+    rerender({ items: ["a", "b", "c"] });
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    rerender({ items: ["a", "b"] });
+    expect(view(result.current)).toEqual(["a:idle", "b:idle", "c:leave"]);
+    await act(async () => vi.advanceTimersByTimeAsync(259));
+    expect(view(result.current)).toEqual(["a:idle", "b:idle", "c:leave"]);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(view(result.current)).toEqual(["a:idle", "b:idle"]);
   });
 });
