@@ -44,6 +44,11 @@ import type { Topic, TopicAssignment } from "../domain/topics.ts";
 import { topicPath } from "../domain/topic-path.ts";
 import { activeHome } from "../domain/regroup.ts";
 import type { Prefs } from "../domain/prefs.ts";
+import {
+  diagnoseReply,
+  parseReplyTarget,
+  type ReplyIssue,
+} from "../domain/replyDiagnosis.ts";
 
 const terminalLine = (text: string) =>
   text
@@ -146,6 +151,40 @@ function localMinute(at: number): string {
   const d = new Date(at);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+type CompletedAgentMessage = {
+  seq: number;
+  turnId: string | null;
+  itemId: string;
+  text: string;
+};
+
+function asCompletedAgentMessage(event: unknown): CompletedAgentMessage | null {
+  const e = event as {
+    type?: string;
+    seq?: number;
+    scope?: { kind?: string; turnId?: string };
+    data?: { item?: { type?: string; id?: string; text?: string } };
+  };
+  if (
+    e.type !== "item/completed" ||
+    e.data?.item?.type !== "agentMessage" ||
+    typeof e.data.item.text !== "string" ||
+    typeof e.seq !== "number"
+  ) {
+    return null;
+  }
+  return {
+    seq: Math.floor(e.seq),
+    turnId: e.scope?.kind === "turn" ? (e.scope.turnId ?? null) : null,
+    itemId: e.data.item.id ?? "",
+    text: e.data.item.text,
+  };
+}
+
+function formatReplyIssue(issue: ReplyIssue): string {
+  return `${issue.line ? `Line ${issue.line}: ` : ""}${issue.message}`;
 }
 
 function entryLine(entry: JournalEntry): string {
@@ -725,6 +764,139 @@ export function registerCli(
                     ? "No model calls recorded yet."
                     : "No model calls recorded. Turn on Debug mode in Workstreams settings to record them.",
             };
+          },
+        }),
+        reply: cliCommand({
+          summary:
+            "Inspect an assistant reply's raw output and reply-block syntax",
+          positionals: [
+            {
+              name: "target",
+              description:
+                "Thread ID, @thread:<id>[#msg=<seq>], or thread/message URL",
+              required: true,
+            },
+          ],
+          options: {
+            message: {
+              type: "integer",
+              min: 1,
+              max: 1_000_000_000,
+              description:
+                "Message event sequence (#msg=<seq>); defaults to the latest assistant reply",
+            },
+            json: { type: "boolean", description: "Print JSON" },
+          },
+          async run({ positionals, options }) {
+            const parsedTarget = parseReplyTarget(
+              positionals.target,
+              options.message,
+            );
+            if (!parsedTarget) {
+              throw new PluginCliError(
+                `Invalid reply target "${positionals.target}".`,
+                {
+                  code: "invalid_reply_target",
+                  hint: "Pass a thread ID, @thread:<id>[#msg=<seq>], or a BB thread URL.",
+                },
+              );
+            }
+            const { threadId, messageSeq } = parsedTarget;
+            let matched: CompletedAgentMessage | null = null;
+            if (messageSeq !== undefined) {
+              const windowEvents = await bb.sdk.threads.events
+                .list({
+                  threadId,
+                  types: ["item/completed"],
+                  afterSeq: String(messageSeq - 1),
+                  beforeSeq: String(messageSeq + 10),
+                  limit: "20",
+                  order: "asc",
+                })
+                .catch(fail);
+              const candidates = windowEvents
+                .map(asCompletedAgentMessage)
+                .filter((m): m is CompletedAgentMessage => m !== null);
+              matched =
+                candidates.find((m) => m.seq === messageSeq) ??
+                candidates.find(
+                  (m) => m.seq >= messageSeq && m.seq <= messageSeq + 5,
+                ) ??
+                null;
+              if (!matched) {
+                const recent = await bb.sdk.threads.events
+                  .list({
+                    threadId,
+                    types: ["item/completed"],
+                    limit: "200",
+                    order: "desc",
+                  })
+                  .catch(fail);
+                matched =
+                  recent
+                    .map(asCompletedAgentMessage)
+                    .find((m): m is CompletedAgentMessage =>
+                      Boolean(m && m.seq === messageSeq),
+                    ) ?? null;
+              }
+              if (!matched) {
+                throw new PluginCliError(
+                  `No assistant reply at #msg=${messageSeq} in ${threadId}.`,
+                  { code: "reply_not_found" },
+                );
+              }
+            } else {
+              const recent = await bb.sdk.threads.events
+                .list({
+                  threadId,
+                  types: ["item/completed"],
+                  limit: "50",
+                  order: "desc",
+                })
+                .catch(fail);
+              matched =
+                recent
+                  .map(asCompletedAgentMessage)
+                  .find((m): m is CompletedAgentMessage => m !== null) ?? null;
+              if (!matched) {
+                throw new PluginCliError(
+                  `No assistant replies in ${threadId}.`,
+                  { code: "reply_not_found" },
+                );
+              }
+            }
+            const diagnosis = diagnoseReply(matched.text);
+            const payload = {
+              threadId,
+              messageSeq: matched.seq,
+              turnId: matched.turnId,
+              itemId: matched.itemId,
+              status: diagnosis.status,
+              issues: diagnosis.issues,
+              reply: diagnosis.reply,
+              raw: matched.text,
+            };
+            if (options.json) {
+              return { exitCode: 0, stdout: json(payload) };
+            }
+            const lines = [
+              `Thread:   @thread:${threadId}#msg=${matched.seq}`,
+              `Turn:     ${matched.turnId ?? "none"} (${matched.itemId || "unknown"})`,
+              `Status:   ${diagnosis.status}`,
+              "",
+              ...(diagnosis.issues.length
+                ? [
+                    "Issues:",
+                    ...diagnosis.issues.map(
+                      (issue) => `- ${formatReplyIssue(issue)}`,
+                    ),
+                    "",
+                  ]
+                : []),
+              "Raw agent output:",
+              matched.text,
+            ];
+            return { exitCode: 0, stdout: lines.join("\n") };
           },
         }),
         undo: cliCommand({

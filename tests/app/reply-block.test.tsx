@@ -6,8 +6,15 @@ import type {
 } from "@get-bb/plugin-sdk/app";
 import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { AssistantReplyDebug } from "../../src/app/reply/ReplyDebug.tsx";
 import { registerReplyBlock } from "../../src/app/reply/register.ts";
 import {
   COMPONENT_EXAMPLES,
@@ -623,4 +630,90 @@ it("shows the raw agent output before parsing only in Debug mode", async () => {
   await waitFor(() =>
     expect(on.container.querySelector("[data-reply-raw]")).toBeNull(),
   );
+});
+
+it("shows syntax issues and raw output on an unclosed reply in Debug mode", async () => {
+  const source = [
+    ":::reply",
+    "**Make approval a capability tied to a displayed draft.**",
+    "",
+    componentFence(COMPONENT_EXAMPLES.comparison),
+    "",
+    "Final paragraph.",
+    ":::reply",
+  ].join("\n");
+  const view = draw(source, { debug: true });
+  expect(view.container.querySelector("[data-original]")).not.toBeNull();
+  const summary = await view.findByText("Raw agent output");
+  const details = summary.closest("details")!;
+  expect(details.getAttribute("data-reply-status")).toBe("unclosed");
+  expect(details.textContent).toContain(
+    'Closing line is ":::reply" — close ":::reply" with ":::" alone on a line',
+  );
+  fireEvent.click(summary);
+  expect(
+    view.getByRole("list", { name: "Reply syntax issues" }).textContent,
+  ).toContain('close ":::reply" with ":::" alone on a line');
+  expect(view.getByLabelText("Raw agent output").textContent).toBe(source);
+});
+
+it("attaches raw output and syntax diagnostics to assistant rows without a ReplyBlock in Debug mode", async () => {
+  const broken = `::: reply\n${componentFence(COMPONENT_EXAMPLES.context)}\n:::`;
+  const row = render(
+    <div data-timeline-row-id="t1:assistant:kind:assistant|turn:turn1|parent:root|item:item1">
+      <div data-message-column="">
+        <div data-sidebar-swipe-selectable="true">
+          <p>::: reply</p>
+        </div>
+      </div>
+    </div>,
+  );
+  const overlay = renderSlot(
+    { component: AssistantReplyDebug },
+    {},
+    {
+      sdk: {
+        ...SDK,
+        threads: {
+          ...SDK.threads,
+          events: {
+            list: async () => [
+              {
+                id: "e1",
+                threadId: "t1",
+                createdAt: 0,
+                type: "item/completed",
+                seq: 115,
+                scope: { kind: "turn", turnId: "turn1" },
+                data: {
+                  providerThreadId: "p1",
+                  item: {
+                    type: "agentMessage",
+                    id: "item1",
+                    text: broken,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      rpc: {
+        prefs: () => ({ prefs: { advanced: { debug: true } } }),
+      },
+    },
+  );
+  await waitFor(() =>
+    expect(row.container.querySelector("[data-reply-raw]")).not.toBeNull(),
+  );
+  const details = row.container.querySelector<HTMLDetailsElement>(
+    "details[data-reply-raw]",
+  )!;
+  expect(details.getAttribute("data-reply-status")).toBe("missing");
+  expect(details.textContent).toContain(
+    '"::: reply" has a space after ":::" — write ":::reply" with no space.',
+  );
+  expect(row.getByLabelText("Raw agent output").textContent).toBe(broken);
+  overlay.lifecycle.unmount();
+  row.unmount();
 });

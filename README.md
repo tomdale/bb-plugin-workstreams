@@ -898,6 +898,9 @@ bb workstreams suggestions decline <id...|all> [--json]
 
 # Inspect recorded Debug-mode model traces (kinds: quick-analysis, full-analysis, placement, categories, split, tidy)
 bb workstreams trace [<trace-id>] [--thread <id>] [--entry <id>] [--kind <kind>] [--limit 1..500] [--json]
+
+# Inspect an assistant reply's raw output and diagnose :::reply / component syntax issues
+bb workstreams reply <thread-id|@thread:id[#msg=seq]|url> [--message <seq>] [--json]
 ```
 
 `show` returns at most 200 rows and reports truncation; JSON includes `count`,
@@ -1002,8 +1005,11 @@ recording and unlocks diagnostic tools across the UI:
 - **Composer routing diagnostics:** Expand the **Debug** disclosure in the
   new-thread composer to inspect live Quick-analysis confidence, inputs, token
   usage, reasoning, and copyable JSON diagnostics.
-- **Reply block raw output:** Expand **Raw agent output** on any reply block to
-  view the raw `:::reply` block text before parsing.
+- **Reply raw output & syntax diagnostics:** Expand **Raw agent output** on any
+  assistant reply (including unclosed `:::reply` blocks and responses where
+  `:::reply` failed to parse or was omitted) to view line-numbered syntax and
+  component diagnostics alongside the raw agent output before parsing, or run
+  `bb workstreams reply <target>` from the CLI.
 
 ---
 

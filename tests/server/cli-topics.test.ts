@@ -532,4 +532,48 @@ describe("CLI thread topic commands", () => {
       expect(res.exitCode).not.toBe(0);
     }
   });
+
+  it("reply inspects raw agent output and diagnoses malformed reply blocks by thread, mention, or URL", async () => {
+    const { w, rootThread } = await setup();
+    w.turn(rootThread.id);
+    w.say(rootThread.id, ":::reply\n# Valid first reply\n:::\n");
+    w.turn(rootThread.id);
+    const broken = [
+      ":::reply",
+      "**Draft approval required.**",
+      "",
+      '```workstreams\n{"type":"context","topic":"PR approval"}\n```',
+      "",
+      "Closing paragraph.",
+      ":::reply",
+    ].join("\n");
+    w.say(rootThread.id, broken);
+
+    const textRes = await w.harness.behavior.runCli([
+      "reply",
+      `http://127.0.0.1:38886/projects/proj_1/threads/${rootThread.id}#msg=21`,
+    ]);
+    expect(textRes.exitCode).toBe(0);
+    expect(textRes.stdout).toContain(`@thread:${rootThread.id}#msg=21`);
+    expect(textRes.stdout).toContain("Status:   unclosed");
+    expect(textRes.stdout).toContain(
+      'Line 9: Closing line is ":::reply" — close ":::reply" with ":::" alone on a line, not ":::reply".',
+    );
+    expect(textRes.stdout).toContain(broken);
+
+    const jsonRes = await w.harness.behavior.runCli([
+      "reply",
+      `@thread:${rootThread.id}#msg=11`,
+      "--json",
+    ]);
+    expect(jsonRes.exitCode).toBe(0);
+    const parsed = JSON.parse(jsonRes.stdout);
+    expect(parsed).toMatchObject({
+      threadId: rootThread.id,
+      messageSeq: 11,
+      status: "valid",
+      issues: [],
+      reply: { headline: "Valid first reply" },
+    });
+  });
 });

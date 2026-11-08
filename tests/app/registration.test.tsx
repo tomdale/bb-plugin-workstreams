@@ -19,6 +19,8 @@ it("binds UI surfaces to the components exercised by the SDK harness", async () 
     await import("../../src/app/question/QuestionCard.tsx");
   const { DeliveredQuestionCards } =
     await import("../../src/app/question/DeliveredQuestion.tsx");
+  const { AssistantReplyDebug } =
+    await import("../../src/app/reply/ReplyDebug.tsx");
   const { QuestionHistoryInline } =
     await import("../../src/app/question/QuestionHistory.tsx");
   const { StickyGoalHeader } =
@@ -88,6 +90,7 @@ it("binds UI surfaces to the components exercised by the SDK harness", async () 
   ).toBe(QuestionHistoryInline);
   for (const [id, component] of [
     ["delivered-questions", DeliveredQuestionCards],
+    ["assistant-reply-debug", AssistantReplyDebug],
     ["sticky-thread-goal", StickyGoalHeader],
     ["color-tokens", ColorTokenStyle],
   ] as const) {

@@ -10,6 +10,7 @@ import { TaskIdentityHeader } from "./header/TaskIdentityHeader.tsx";
 import { RecapCard } from "./composer/RecapCard.tsx";
 import { registerReplyBlock } from "./reply/register.ts";
 import { ClientReport } from "./reply/ClientReport.tsx";
+import { AssistantReplyDebug } from "./reply/ReplyDebug.tsx";
 import { SubagentDeliveries } from "./reply/SubagentDeliveries.tsx";
 import {
   QuestionAnchor,
@@ -58,6 +59,10 @@ export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({
     id: "subagent-deliveries",
     component: SubagentDeliveries,
+  });
+  app.slots.experimental_appOverlay({
+    id: "assistant-reply-debug",
+    component: AssistantReplyDebug,
   });
   app.slots.experimental_timelineRenderer({
     kind: "workstreams/ask-user-question",

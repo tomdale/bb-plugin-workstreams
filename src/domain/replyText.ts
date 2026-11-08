@@ -19,8 +19,13 @@ const processor = unified()
   .use(remarkMath)
   .use(remarkDirective);
 
+/** Parses a message with the remark plugins bb's chat pipeline uses. */
+export function parseReplyMarkdown(message: string): Root {
+  return processor.runSync(processor.parse(message)) as Root;
+}
+
 /** What bb hands a block's `parse`, plus the block's status. */
-type ReplyBlockInput = {
+export type ReplyBlockInput = {
   attributes: Record<string, string>;
   source: string;
   tree: Root;
@@ -40,7 +45,7 @@ function shift(node: unknown, delta: number): void {
     shift(child, delta);
 }
 
-function readBlock(
+export function readBlock(
   node: RootContent | undefined,
   message: string,
 ): ReplyBlockInput | null {
@@ -84,7 +89,7 @@ function readBlock(
 
 /** The server can recover the last top-level reply despite stray text around it. */
 export function lastReplyBlock(message: string): ReplyBlockInput | null {
-  const root = processor.runSync(processor.parse(message)) as Root;
+  const root = parseReplyMarkdown(message);
   for (const node of [...root.children].reverse()) {
     const block = readBlock(node, message);
     if (block) return block;
@@ -94,7 +99,7 @@ export function lastReplyBlock(message: string): ReplyBlockInput | null {
 
 /** Authored output is one top-level reply, with no other Markdown outside it. */
 export function onlyReplyBlock(message: string): ReplyBlockInput | null {
-  const root = processor.runSync(processor.parse(message)) as Root;
+  const root = parseReplyMarkdown(message);
   return root.children.length === 1
     ? readBlock(root.children[0], message)
     : null;

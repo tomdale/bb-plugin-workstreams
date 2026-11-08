@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { Markdown, useSdk, useBbNavigate } from "@get-bb/plugin-sdk/app";
 import type { ExperimentalMessageBlockProps } from "@get-bb/plugin-sdk/app";
-import { Icon } from "@/components/ui/icon";
 import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
 import { recapHostFileLink } from "../../domain/recapFileLinks.ts";
 import { CARD_LABELS, replySchema, type Reply } from "../../domain/reply.ts";
 import { useDebugMode } from "../debug/debug.ts";
-import { Code } from "../debug/Inspector.tsx";
 import { PLAIN_LIST_CLASS, PlainBody, PlainMarkdown } from "./PlainBody.tsx";
+import { ReplyDebug, useAssistantMessageText } from "./ReplyDebug.tsx";
 import { useDockedTurn } from "./useDockedTurn.ts";
 
 type Document = ComponentProps<typeof Markdown>["experimental_document"];
@@ -57,6 +56,7 @@ function useReplyWorkspace(threadId: string | null) {
 
 export function ReplyBlock({
   data,
+  error,
   status,
   source,
   message,
@@ -66,17 +66,34 @@ export function ReplyBlock({
   const docked = useDockedTurn(threadId, message.turnId ?? null);
   const workspace = useReplyWorkspace(threadId);
   const debug = useDebugMode();
+  const fullMessage = useAssistantMessageText(
+    debug && status !== "streaming" ? message.id : null,
+  );
+  const rawSource = fullMessage ?? source;
   const navigate = useBbNavigate();
   const lastGood = useRef<Reply | null>(null);
   const parsed = replySchema.safeParse(data);
   if (parsed.success) lastGood.current = parsed.data;
-  if (status === "unclosed") return <Original />;
+  if (status === "unclosed") {
+    return debug ? (
+      <div data-reply-unclosed="" className="min-w-0 space-y-4">
+        <Original />
+        <ReplyDebug source={rawSource} status={status} error={error} />
+      </div>
+    ) : (
+      <Original />
+    );
+  }
   const reply = parsed.success
     ? parsed.data
     : status === "streaming"
       ? lastGood.current
       : null;
-  if (!reply) return null;
+  if (!reply) {
+    return debug && status !== "streaming" ? (
+      <ReplyDebug source={rawSource} status={status} error={error} />
+    ) : null;
+  }
   const { card, headline, body } = reply;
   const showCard = !!card && docked === false;
   const title = headline ?? (showCard ? card?.headline : undefined);
@@ -168,24 +185,7 @@ export function ReplyBlock({
         </>
       ) : null}
       {debug ? (
-        <details
-          data-reply-raw=""
-          className="group/raw text-xs text-muted-foreground"
-        >
-          <summary className="flex w-fit cursor-pointer select-none list-none items-center gap-1.5 rounded py-0.5 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-            <Icon name="Bug" aria-hidden className="size-3.5 shrink-0" />
-            <span>Raw agent output</span>
-            <span
-              aria-hidden
-              className="inline-block transition-transform group-open/raw:rotate-90"
-            >
-              ›
-            </span>
-          </summary>
-          <div className="mt-1.5 text-foreground">
-            <Code content={source} label="Raw agent output" />
-          </div>
-        </details>
+        <ReplyDebug source={rawSource} status={status} error={error} />
       ) : null}
     </div>
   );
