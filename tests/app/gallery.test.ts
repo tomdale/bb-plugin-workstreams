@@ -313,6 +313,56 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
   );
 
   browserTest(
+    "pairs Change values responsively and distinguishes every check status",
+    async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(`${url}#reply-vocabulary`);
+      const selectComponent = async (name: string) => {
+        await page.getByRole("combobox", { name: "Reply component" }).click();
+        await page.getByRole("option", { name, exact: true }).click();
+      };
+      const widthControl = page.getByRole("radiogroup", {
+        name: "Preview width",
+      });
+
+      await selectComponent("Change");
+      const pair = page.locator("[data-reply-change-pair]");
+      expect(await pair.textContent()).toContain("Before");
+      expect(await pair.textContent()).toContain("After");
+      await widthControl.getByRole("radio", { name: "Wide" }).check();
+      const wideTracks = await pair.evaluate(
+        (element) =>
+          getComputedStyle(element).gridTemplateColumns.split(" ").length,
+      );
+      expect(wideTracks).toBe(2);
+      await widthControl.getByRole("radio", { name: "Phone" }).check();
+      const phoneTracks = await pair.evaluate(
+        (element) =>
+          getComputedStyle(element).gridTemplateColumns.split(" ").length,
+      );
+      expect(phoneTracks).toBe(1);
+
+      await selectComponent("Checks");
+      const statuses = await page
+        .locator("[data-reply-check-status]")
+        .evaluateAll((elements) =>
+          elements.map((element) =>
+            element.getAttribute("data-reply-check-status"),
+          ),
+        );
+      expect(statuses).toEqual([
+        "passed",
+        "passed",
+        "failed",
+        "skipped",
+        "blocked",
+        "untested",
+      ]);
+    },
+    60_000,
+  );
+
+  browserTest(
     "changes themes and widths without overflowing a narrow viewport",
     async ({ page }) => {
       await page.goto(`${url}#recap-card`);

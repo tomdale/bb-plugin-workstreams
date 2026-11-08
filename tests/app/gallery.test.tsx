@@ -65,27 +65,40 @@ async function mount(subPath = "gallery") {
 it("renders every specimen with its component", async () => {
   const slot = await mount();
   expect(slot.getByRole("heading", { level: 1 }).textContent).toBe("Gallery");
+  const change = slot.container.querySelector("[data-reply-change]");
+  expect(change?.querySelector("[data-reply-change-pair]")).not.toBeNull();
+  expect(change?.textContent).toContain("Before");
+  expect(change?.textContent).toContain("After");
+  const checks = slot.container.querySelector("[data-reply-checks]");
+  expect(checks?.querySelectorAll("[data-reply-check-status]")).toHaveLength(3);
+  const totals = checks?.querySelector('[aria-label="Reported test totals"]');
+  expect(
+    totals?.querySelector('[data-reply-test-total="passed"]')?.textContent,
+  ).toContain("8");
+  expect(
+    totals?.querySelector('[data-reply-test-total="failed"]')?.textContent,
+  ).toContain("0");
+  expect(
+    totals?.querySelector('[data-reply-test-total="skipped"]')?.textContent,
+  ).toContain("1");
   const shows = (text: string) =>
     expect(slot.getAllByText(text, { exact: false }).length).toBeGreaterThan(0);
   for (const text of [
-    // context, finding with evidence, prose, sequence, comparison, group
+    // context, prose, sequence, comparison, group
     "Queue card keyboard handling",
-    "Auto-repeat reads a stale position",
-    "Evidence: observed",
-    "src/app/page/queue/Queue.tsx",
     "A held key is one gesture",
     "Reproduce it",
-    "Status: passed",
+    "Passed",
     "Two ways to read the position",
     "Recommended",
     "Read the index from a ref",
     // the folded Details section
     "Details",
     // change, checks, delivery, recommendation, details component
-    "Before:",
+    "Before",
+    "After",
     "A held key re-read a stale index and skipped several cards",
     "Local suite",
-    "8 tests passed; 0 failed; 1 skipped",
     "Where the fix stands",
     "Status: blocked",
     "Merge after one pass on a real queue",

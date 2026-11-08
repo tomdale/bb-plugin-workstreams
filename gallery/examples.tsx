@@ -210,20 +210,37 @@ const replyParts = [
     before: "The results and review steps use the same emphasis.",
     after: "Review steps follow the goal and results.",
     unchanged: "The source content.",
-    limitation: "Live deployment still needs review.",
+    limitation:
+      "This sample compares reported content; it does not describe an application behavior change.",
   },
   {
     type: "checks",
     title: "Example checks",
-    scope: "Synthetic report; no checks were run by this sample.",
-    testTotals: { passed: 2, failed: 0, skipped: 1 },
+    scope:
+      "Synthetic report for the Gallery; it is not a test report for this repository.",
+    testTotals: { passed: 2, failed: 1, skipped: 1 },
     items: [
       { name: "Keyboard selection", status: "passed" },
       { name: "Long path wrapping", status: "passed" },
       {
+        name: "Theme fallback",
+        status: "failed",
+        detail: "Synthetic failure to show the failed status treatment.",
+      },
+      {
         name: "Phone layout",
         status: "skipped",
         detail: "Needs a coarse-pointer viewport.",
+      },
+      {
+        name: "BB interaction",
+        status: "blocked",
+        detail: "The standalone Gallery does not connect to a BB server.",
+      },
+      {
+        name: "Physical-device behavior",
+        status: "untested",
+        detail: "No physical device was used for this sample.",
       },
     ],
   },
@@ -269,7 +286,7 @@ const replyParts = [
 ] satisfies ReplyComponent[];
 
 function ReplyExample() {
-  const [type, setType] = useState<ReplyComponent["type"]>("finding");
+  const [type, setType] = useState<ReplyComponent["type"]>("change");
   const part = replyParts.find((item) => item.type === type)!;
   return (
     <div className="space-y-5">
@@ -285,9 +302,8 @@ function ReplyExample() {
         />
       </GalleryControls>
       <GalleryNotes>
-        Current renderer, not a proposed redesign: the vocabulary carries typed
-        information, but presentation is plain Markdown. Comparison options and
-        groups render in order, not as columns or new cards.
+        Change pairs Before and After; Checks separates scope, totals, and
+        statuses. Comparison options and groups keep their current rendering.
       </GalleryNotes>
       <LiveExample name="PlainBody" sources={["src/app/reply/PlainBody.tsx"]}>
         <div className="min-w-0 break-words">
@@ -401,8 +417,12 @@ export const examples: GalleryExample[] = [
     title: "Reply vocabulary",
     group: "Components",
     description:
-      "All eleven information components through the current PlainBody renderer, with explicitly synthetic claims and checks.",
-    source: `import { PlainBody } from "../src/app/reply/PlainBody";\nimport type { ReplyComponent } from "../src/domain/replyComponents";\n\n// The selector changes this part; PlainBody renders the selected vocabulary.\nconst part: ReplyComponent = ${JSON.stringify(replyParts[2], null, 2)};\n\n<PlainBody part={part} document={undefined} files={null} />`,
+      "All ten information components through PlainBody; Change pairs values and Checks displays synthetic totals and statuses.",
+    source: `import { PlainBody } from "../src/app/reply/PlainBody";\nimport type { ReplyComponent } from "../src/domain/replyComponents";\n\n// The selector changes this part; PlainBody renders the selected vocabulary.\nconst part: ReplyComponent = ${JSON.stringify(
+      replyParts.find((item) => item.type === "change"),
+      null,
+      2,
+    )};\n\n<PlainBody part={part} document={undefined} files={null} />`,
     render: () => <ReplyExample />,
   },
   {
