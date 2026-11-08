@@ -221,9 +221,15 @@ it("keeps supporting detail, all checks, and comparison details visible", () => 
     "1000 * (10 / 100)",
   );
   expect(screen.getByText("Unit tests")).toBeDefined();
-  expect(screen.getByText("Status: passed")).toBeDefined();
+  expect(
+    view.container.querySelector('[data-reply-check-status="passed"]')
+      ?.textContent,
+  ).toBe("Passed");
   expect(screen.getByText("Payment integration")).toBeDefined();
-  expect(screen.getByText("Status: skipped")).toBeDefined();
+  expect(
+    view.container.querySelector('[data-reply-check-status="skipped"]')
+      ?.textContent,
+  ).toBe("Skipped");
   expect(view.container.textContent).toContain("connection remains unverified");
   expect(view.container.textContent).toContain("100-cent discount");
   expect(view.container.querySelector("button, [hidden]")).toBeNull();
@@ -486,7 +492,7 @@ it("normalizes a relative prose link and supplies its workspace context", async 
   });
 });
 
-it("keeps visible ordinary list markers despite host CSS preflight", () => {
+it("keeps sequence markers and separates check rows from test totals", () => {
   const view = draw(body(COMPONENT_EXAMPLES.sequence));
   expect(view.container.querySelector("ol")?.className).toContain(
     "list-decimal",
@@ -494,9 +500,12 @@ it("keeps visible ordinary list markers despite host CSS preflight", () => {
   expect(view.container.querySelector("ol")?.className).toContain("pl-5");
   view.lifecycle.unmount();
   const checks = draw(body(COMPONENT_EXAMPLES.checks));
-  expect(checks.container.querySelector("ul")?.className).toContain(
-    "list-disc",
-  );
+  expect(
+    checks.container.querySelector("[data-reply-check-items]")?.className,
+  ).toContain("divide-y");
+  expect(
+    checks.container.querySelector('[aria-label="Reported test totals"]'),
+  ).not.toBeNull();
 });
 
 it("opens ordinary Markdown file URLs through the public file-preview API", async () => {
