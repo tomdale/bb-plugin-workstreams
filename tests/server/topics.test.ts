@@ -583,6 +583,47 @@ describe("TopicStore", () => {
     });
   });
 
+  it("keeps a settled topic unless the work shifts scope or narrows", () => {
+    const { corpus, db } = store();
+    const a = corpus.create("Alpha", "");
+    const b = corpus.create("Beta", "");
+    const child = corpus.create("Feature", "", a.id);
+    const answer = (id: string | null, scopeShift = false) => ({
+      subjectId: id,
+      proposed: null,
+      scopeShift,
+    });
+    const settle = (threadId: string, entityId: string | null) =>
+      db
+        .prepare(
+          "INSERT INTO ws_corpus_subject(thread_id, entity_id, evidence, source) VALUES (?, ?, 'k0', 'full')",
+        )
+        .run(threadId, entityId);
+    settle("t", a.id);
+    // A differing answer without a scope shift keeps the settled topic and
+    // records the basis, so the same requests are not reconsidered.
+    expect(corpus.applyAnalysis("t", answer(b.id), "full", "k1")).toBe(false);
+    expect(corpus.assignment("t")).toMatchObject({
+      entityId: a.id,
+      provenance: "full",
+      evidence: "k1",
+    });
+    // Neither does an unfiled answer clear it.
+    expect(corpus.applyAnalysis("t", answer(null), "full", "k2")).toBe(false);
+    expect(corpus.assignment("t").entityId).toBe(a.id);
+    // A narrowing beneath it or a scope shift still applies.
+    expect(corpus.applyAnalysis("t", answer(child.id), "full", "k3")).toBe(
+      true,
+    );
+    settle("s", a.id);
+    expect(corpus.applyAnalysis("s", answer(b.id, true), "full", "k4")).toBe(
+      true,
+    );
+    // A thread settled to no topic stays open to any filing.
+    settle("u", null);
+    expect(corpus.applyAnalysis("u", answer(b.id), "full", "k5")).toBe(true);
+  });
+
   it("keeps inherited priority when a proposed child still needs a reviewed filing plan", () => {
     const { corpus } = store();
     const product = corpus.create("Product", "A multi-capability product");

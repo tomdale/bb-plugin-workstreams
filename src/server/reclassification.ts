@@ -149,9 +149,12 @@ export class Reclassification {
               row.threadId,
               {
                 ...row.answer,
+                // An accepted repair replaces any settled topic, not only an
+                // inherited one; manual choices are skipped above.
                 scopeShift:
                   row.answer.scopeShift ||
-                  assignment.provenance === "inherited",
+                  assignment.provenance === "inherited" ||
+                  assignment.provenance === "full",
               },
               "full",
               row.basis ?? null,

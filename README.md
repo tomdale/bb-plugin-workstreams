@@ -71,7 +71,9 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
      a more specific topic beneath it, or when you explicitly apply a reviewed
      topic-repair plan or accept a suggestion.
    - `full` (settled by placement from the thread's requests) replaces `quick`
-     and updates prior `full` assignments.
+     and, like `inherited`, changes automatically only when placement reports a
+     scope shift or settles a more specific topic beneath it, or when you
+     explicitly re-analyze or reclassify the thread or accept a reviewed plan.
    - `quick` (the topic the composer's Quick analysis preview showed) fills only
      threads without a stronger source.
 4. **Agent reports outrank fallback status.** Structured questions
@@ -216,10 +218,10 @@ and turns without a new request never re-place a thread.
 
 - **Evidence:** the thread's generated title; its first, second, and latest
   substantive requests (a routed request is read without its
-  `[bb message from thread:…]` wrapper); its project; and its checkout. Subagent
-  results verified against Subagents' run records are not requests. If those
-  records are unavailable, Workstreams keeps the message rather than discarding
-  a possible user request.
+  `[bb message from thread:…]` wrapper); the outcome Full analysis settled; its
+  project; and its checkout. Subagent results verified against Subagents' run
+  records are not requests. If those records are unavailable, Workstreams keeps
+  the message rather than discarding a possible user request.
 - **Closed choice:** only topics without subtopics can be chosen. When none
   fits, placement may propose one new topic named for a lasting area of work,
   never for a task, pull request, or bug. A proposed subtopic of a topic that

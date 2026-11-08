@@ -8,7 +8,10 @@ export type ClassifyInput = {
   entities: Entity[];
   project?: string | null;
   requests?: string[];
-  placement?: Pick<PlacementInput, "title" | "checkout" | "hints" | "current">;
+  placement?: Pick<
+    PlacementInput,
+    "title" | "checkout" | "hints" | "current" | "goal"
+  >;
 };
 export const entities = [
   {
@@ -433,6 +436,29 @@ export const cases: Case[] = [
         checkout: "/work/loom",
         hints: ["Checkout normally contains Loom Recaps work."],
         current: { label: "Harbor: Providers", inherited: true },
+      },
+    },
+  },
+  {
+    // A settled topic holds through a sub-step request that names no owner.
+    id: "settled-goal-through-substep",
+    expected: "recap",
+    scopeShift: false,
+    input: {
+      prompt: "Evaluating recap rename guidance",
+      entities,
+      project: "Loom",
+      requests: [
+        "Evaluate and improve recap tidy suggestions and rename guidance across models using realistic test cases.",
+        "Draft the evaluation cases for the rename guidance.",
+        "Compare the Terra and Sol suggestions and assess which changes are genuinely useful.",
+      ],
+      placement: {
+        title: "Evaluating recap rename guidance",
+        checkout: "/work/loom",
+        hints: [],
+        current: { label: "Loom: Recaps", inherited: false },
+        goal: "Evaluate and improve recap tidy suggestions and rename guidance across models using realistic test cases.",
       },
     },
   },
