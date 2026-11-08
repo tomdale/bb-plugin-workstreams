@@ -96,6 +96,37 @@ export function identityDisplay(state: NewWorkState): {
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
+/**
+ * One routing model per composer draft. The host can keep several composer
+ * views alive for the same draft (a hidden kept-alive view beside the
+ * visible one); a model per banner would let each cancel the others'
+ * previews and leave the visible chip stale. Sharing one model keeps one
+ * preview pipeline per draft and one identity everywhere it shows. The last
+ * release disposes it.
+ */
+const routingModels = new Map<string, { model: NewWork; refs: number }>();
+
+export function acquireRoutingModel(key: string, create: () => NewWork) {
+  const existing = routingModels.get(key);
+  if (existing) {
+    existing.refs++;
+    return existing.model;
+  }
+  const model = create();
+  routingModels.set(key, { model, refs: 1 });
+  return model;
+}
+
+export function releaseRoutingModel(key: string, model: NewWork) {
+  const entry = routingModels.get(key);
+  if (!entry || entry.model !== model) return;
+  entry.refs--;
+  if (entry.refs === 0) {
+    routingModels.delete(key);
+    model.dispose();
+  }
+}
+
 export class NewWork {
   private state: NewWorkState;
   private listeners = new Set<() => void>();

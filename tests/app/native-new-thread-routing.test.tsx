@@ -328,7 +328,6 @@ it("reports the draft's identity so a plain Enter can be filed", async () => {
   await screen.findByRole("button", { name: "Topic: Alpha" });
   await waitFor(() =>
     expect(draftIdentity).toHaveBeenLastCalledWith({
-      clientId: expect.any(String),
       draftKey: expect.any(String),
       text: "Fix the parser in Alpha",
       projectChoice: { projectId: "project-alpha", source: "independent" },

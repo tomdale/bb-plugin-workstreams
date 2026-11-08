@@ -3,7 +3,9 @@ import { useComposer, useRpc, useSdk } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../../server/contract.ts";
 import type { Preview } from "../../server/preview.ts";
 import {
+  acquireRoutingModel,
   NewWork as NewWorkModel,
+  releaseRoutingModel,
   submittedProject,
   type NewWorkState,
 } from "./new-work.ts";
@@ -32,11 +34,12 @@ export function NewThreadRouting() {
     const primary = root?.closest<HTMLElement>(
       '[data-app-composer-role="primary"]',
     );
+    const scope = composer.scope;
     if (!root) return;
     if (
       !primary ||
       primary.closest('[role="dialog"]') ||
-      composer.scope.kind !== "new-thread"
+      scope.kind !== "new-thread"
     ) {
       setCheckedRoot(true);
       return;
@@ -44,28 +47,33 @@ export function NewThreadRouting() {
     setCheckedRoot(true);
     setComposerRoot(primary);
     const draftKey = composer.key;
-    const nativeModel = new NewWorkModel(
-      {
-        route: async (prompt, pickedProjectId) =>
-          (await rpc.call("preview", {
-            prompt,
-            pickedProjectId,
-            draftKey,
-          })) as Preview,
-        cancelRoute: () => {
-          void rpc.call("previewCancel", { draftKey }).catch(() => {});
+    // One model per draft, shared by every live banner for it.
+    let nativeModel!: NewWorkModel;
+    nativeModel = acquireRoutingModel(draftKey, () => {
+      nativeModel = new NewWorkModel(
+        {
+          route: async (prompt, pickedProjectId) =>
+            (await rpc.call("preview", {
+              prompt,
+              pickedProjectId,
+              draftKey,
+            })) as Preview,
+          cancelRoute: () => {
+            void rpc.call("previewCancel", { draftKey }).catch(() => {});
+          },
         },
-      },
-      takeProjectChoice(composer.scope.projectId),
-    );
-    // Opened from a workstream's ＋: the thread starts with its topic.
-    const preset = takeComposerPreset();
-    if (preset) nativeModel.selectWorkstream(preset.target, preset.label);
-    nativeModel.observe(composer.text);
-    nativeModel.observeSelection(composer.selection);
+        takeProjectChoice(scope.projectId),
+      );
+      // Opened from a workstream's ＋: the thread starts with its topic.
+      const preset = takeComposerPreset();
+      if (preset) nativeModel.selectWorkstream(preset.target, preset.label);
+      nativeModel.observe(composer.text);
+      nativeModel.observeSelection(composer.selection);
+      return nativeModel;
+    });
     setModel(nativeModel);
     return () => {
-      nativeModel.dispose();
+      releaseRoutingModel(draftKey, nativeModel);
       setModel((current) => (current === nativeModel ? null : current));
       setComposerRoot(null);
     };
