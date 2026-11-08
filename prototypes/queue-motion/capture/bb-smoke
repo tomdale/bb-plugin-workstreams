@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Runs the built lab through a throwaway BB server and host daemon.
+#
+# Usage: bb-smoke <plugin-dir>
+# The plugin must already be built (dist/ present).
+set -euo pipefail
+
+plugin_dir=$(cd "${1:?usage: bb-smoke <plugin-dir>}" && pwd)
+cli=${BB_CLI:-$(command -v bb)}
+daemon_dir=$(dirname "$cli")
+daemon_js=${BB_SMOKE_DAEMON_JS:-$daemon_dir/index.js}
+[[ -f $daemon_js ]] || { echo "bb host daemon entry not found: $daemon_js" >&2; exit 1; }
+server_js=${BB_SMOKE_SERVER_JS:-}
+if [[ -z $server_js ]]; then
+  candidate="$(dirname "$cli")/../../server/dist/index.js"
+  if [[ -f $candidate ]]; then
+    server_js=$candidate
+  else
+    server_js=/Applications/bb.app/Contents/Resources/app.asar.unpacked/node_modules/bb-app/server/dist/index.js
+  fi
+fi
+[[ -f $server_js ]] || { echo "bb server entry not found: $server_js" >&2; exit 1; }
+[[ -d $plugin_dir/dist ]] || { echo "build $plugin_dir first (no dist/)" >&2; exit 1; }
+
+free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])'; }
+data_dir=$(mktemp -d "${TMPDIR:-/tmp}/bb-plugin-smoke.XXXXXX" | sed "s#//*#/#g")
+server_port=$(free_port)
+daemon_port=$(free_port)
+server_pid=""
+daemon_pid=""
+cleanup() {
+  if [[ -n $daemon_pid ]]; then kill "$daemon_pid" 2>/dev/null || true; wait "$daemon_pid" 2>/dev/null || true; fi
+  if [[ -n $server_pid ]]; then
+    kill "$server_pid" 2>/dev/null || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$server_pid" 2>/dev/null || break; sleep 0.5; done
+    kill -9 "$server_pid" 2>/dev/null || true
+  fi
+  rm -rf "$data_dir"
+}
+trap cleanup EXIT
+
+# Inherited BB_* variables point at the daily server and the calling thread.
+isolated=(env -u BB_THREAD_ID -u BB_PROJECT_ID -u BB_ENVIRONMENT_ID -u BB_THREAD_STORAGE -u BB_CLI
+  BB_DATA_DIR="$data_dir" BB_SERVER_BIND_HOST=127.0.0.1 BB_SERVER_PORT="$server_port"
+  BB_HOST_DAEMON_PORT="$daemon_port" BB_SERVER_URL="http://127.0.0.1:$server_port")
+
+"${isolated[@]}" node "$server_js" >"$data_dir/server.log" 2>&1 &
+server_pid=$!
+for _ in $(seq 1 60); do
+  curl -fs -o /dev/null "http://127.0.0.1:$server_port/" 2>/dev/null && break
+  kill -0 "$server_pid" 2>/dev/null || { echo "server exited:" >&2; tail -20 "$data_dir/server.log" >&2; exit 1; }
+  sleep 0.5
+done
+
+umask 077
+curl -fsS -X POST -H 'content-type: application/json' -d '{}' "http://127.0.0.1:$server_port/internal/hosts/enroll-key" > "$data_dir/enroll.json"
+enroll_key=$(node -e 'const f=require("fs"); process.stdout.write(JSON.parse(f.readFileSync(process.argv[1])).enrollKey)' "$data_dir/enroll.json")
+enroll_host=$(node -e 'const f=require("fs"); process.stdout.write(JSON.parse(f.readFileSync(process.argv[1])).hostId)' "$data_dir/enroll.json")
+"${isolated[@]}" BB_HOST_ENROLL_KEY="$enroll_key" BB_HOST_ID="$enroll_host" BB_CLI_DIR="$daemon_dir" node "$daemon_js" >"$data_dir/daemon.log" 2>&1 &
+daemon_pid=$!
+for _ in $(seq 1 60); do curl -fs -o /dev/null "http://127.0.0.1:$daemon_port/health" 2>/dev/null && break; kill -0 "$daemon_pid" 2>/dev/null || { tail -20 "$data_dir/daemon.log"; exit 1; }; sleep 0.5; done
+[[ $("${isolated[@]}" bb status 2>&1 | grep 'Data dir') == *"$data_dir"* ]] || { echo "bb CLI is not talking to the throwaway server" >&2; exit 1; }
+"${isolated[@]}" bb plugin install "$plugin_dir" --yes >"$data_dir/install.log" 2>&1 || { cat "$data_dir/install.log" >&2; exit 1; }
+sleep 2
+listing=$("${isolated[@]}" bb plugin list 2>&1)
+entry=$(printf '%s\n' "$listing" | grep -B1 "source: path:$plugin_dir\$" | head -1)
+echo "$entry"
+# A fresh data directory has no plugin settings or secrets, so a plugin that
+# needs them stops at needs-configuration after loading; that still proves it
+# activates.
+# Match the status column exactly: an "incompatible" entry's message can
+# contain the word "running" ("running SDK is ...").
+status=$(printf '%s\n' "$entry" | awk '{print $2}')
+"${isolated[@]}" bb project create --name 'queue-lab-test' --root "$plugin_dir" --json > "$data_dir/project.json" || { echo 'project creation failed'; exit 1; }
+project_id=$(node -e 'const fs=require("fs");let j=JSON.parse(fs.readFileSync(process.argv[1])); process.stdout.write(j.id)' "$data_dir/project.json")
+node -e 'const Database=require("better-sqlite3"); const db=new Database(process.argv[1]); db.pragma("foreign_keys = ON"); db.prepare("INSERT INTO environments (id,project_id,host_id,path,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").run("env_storageqa", process.argv[2], process.argv[3], process.argv[4], "ready", Date.now(), Date.now()); db.close()' "$data_dir/bb.db" "$project_id" "$enroll_host" "$plugin_dir"
+"${isolated[@]}" QM_URL="http://127.0.0.1:$server_port/api/v1/environments/env_storageqa/files/prototypes/queue-motion/dist/queue-motion.html" node "$plugin_dir/prototypes/queue-motion/capture/real-bb-storage.mjs"
+case $status in
+  running) ;;
+  needs-configuration) echo "note: loaded, but needs settings this throwaway server lacks" >&2 ;;
+  *) echo "plugin did not activate" >&2; tail -40 "$data_dir/server.log" >&2; exit 1 ;;
+esac

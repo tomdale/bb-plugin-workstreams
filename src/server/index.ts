@@ -69,6 +69,7 @@ import { SnoozeWaker } from "./snoozeWake.ts";
 import { loadPrefs, savePrefs, seedPrefs } from "./prefs.ts";
 import { gatewayModel, type ModelChoice } from "../domain/prefs.ts";
 import { runWorker as completeWithWorker } from "./inference/worker.ts";
+import { registerQueueLab } from "./queueLab.ts";
 
 export { rpcContract } from "./contract.ts";
 
@@ -76,6 +77,7 @@ const RECONCILE_EVERY_MS = 60_000;
 const RECONCILE_DEBOUNCE_MS = 1_500;
 
 export default async function plugin(bb: BbPluginApi) {
+  registerQueueLab(bb);
   const db = openDatabase(bb);
   seedPrefs(db);
   const journal = new Journal(db);

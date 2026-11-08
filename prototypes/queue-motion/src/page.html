@@ -43,5 +43,28 @@
   </div>
 </main>
 <script>
-  /*JS*/
+  (() => {
+    const url = new URL(location.href);
+    const source =
+      /^\/api\/v1\/environments\/(env_[a-zA-Z0-9]+)\/files\/prototypes\/queue-motion\/dist\/queue-motion\.html$/.exec(
+        url.pathname,
+      );
+    if (
+      source &&
+      window.parent === window &&
+      ["127.0.0.1", "localhost"].includes(url.hostname)
+    ) {
+      try {
+        void localStorage;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "SecurityError") {
+          location.replace(
+            `${url.origin}/api/v1/plugins/workstreams/http/queue-motion?environment=${encodeURIComponent(source[1])}${url.hash}`,
+          );
+          return;
+        }
+      }
+    }
+    /*JS*/
+  })();
 </script>

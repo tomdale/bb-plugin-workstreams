@@ -1050,6 +1050,14 @@ npm test
 npm run build
 ```
 
+### Queue motion lab
+
+The [queue motion lab](prototypes/queue-motion/README.md) tests the queue's
+motion outside the Workstreams page. When its BB file link opens in an external
+browser on the BB machine, Workstreams launches the built lab on an isolated
+loopback origin so named presets can use browser storage. The BB file preview
+remains sandboxed; use **Open in external browser** to save presets there.
+
 ### Standalone design system gallery
 
 Run `npm run gallery` and open the local URL printed by Vite to browse the

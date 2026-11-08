@@ -11,7 +11,9 @@
     "sweep": "node sim/sweep.mjs",
     "sheets": "node capture/sheets.mjs",
     "record": "node capture/record.mjs",
-    "smoke": "node capture/smoke.mjs"
+    "smoke": "node capture/smoke.mjs",
+    "storage": "node capture/storage-redirect.mjs",
+    "smoke:bb": "bash capture/bb-smoke ../.."
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

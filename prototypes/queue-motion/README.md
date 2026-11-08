@@ -74,6 +74,16 @@ preset's name is refused. Applying one rewrites the hash, which carries the
 settings but not the name. If storage refuses a save or deletion, the page
 reports the failure rather than claiming it succeeded.
 
+A BB file preview is sandboxed and cannot use browser storage. In BB, choose
+**Open in external browser** to save presets. A local BB file URL opened in an
+external browser redirects to Workstreams' isolated lab origin at
+`127.0.0.1:38906`, retaining its hash. Workstreams serves the installed lab
+there only when it matches the linked environment's built lab. After the first
+launch, Workstreams starts the origin again on plugin reload so an open lab URL
+can reload. It needs the plugin to be running, the lab to be built, and that
+port to be free. The isolated origin and a `file://` page have separate browser
+storage. Remote BB URLs do not redirect to the local origin.
+
 `Copy settings`, beside the inspector's title, copies the current state to the
 clipboard as Markdown: the model, preset, speed, cards, reduced motion,
 `Bezier path` and the URL hash; a line naming every setting that differs from
@@ -304,6 +314,8 @@ npm run sweep -- params cascade    # effect of each cascade setting, one at a ti
 npm run sweep -- presets cascade   # the cascade's presets side by side
 npm run sweep -- limits cascade    # the same thresholds, and the rule for a card to count as shown
 npm run smoke                      # drives the built page in Chrome (run `npm run build` first)
+npm run storage                    # exercises the BB-style redirect and sandboxed preview
+npm run smoke:bb                   # exercises the redirect through a throwaway BB server and host daemon
 ```
 
 The sims run the drum or the cascade on a stepped clock with no browser
