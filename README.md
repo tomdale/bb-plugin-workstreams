@@ -1063,8 +1063,8 @@ from the plugin's Gallery view and is not registered or shipped in the plugin.
 Build a static copy with `npm run gallery:build`. It writes
 `gallery/dist/index.html` and `gallery/dist/sidebar.html`, each a single file
 with its script, styles, fonts, and icons inline, so you can open them directly
-from disk with no server. Rebuild after changing the gallery or the components
-it shows.
+from disk with no server. `npm run build` runs it after building the plugin, so
+the pages stay current whenever the plugin is rebuilt.
 
 The gallery includes foundations, work identity, settings compositions, actions
 and overlays, recap and question playgrounds, and reply examples. Its **Sidebar

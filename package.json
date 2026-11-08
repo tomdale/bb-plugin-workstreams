@@ -74,6 +74,7 @@
   },
   "scripts": {
     "build": "bb plugin build",
+    "postbuild": "npm run gallery:build",
     "gallery": "vite --config gallery/vite.config.ts",
     "gallery:build": "GALLERY_PAGE=gallery vite build --config gallery/vite.config.ts && GALLERY_PAGE=sidebar vite build --config gallery/vite.config.ts",
     "typecheck": "tsc --noEmit",
