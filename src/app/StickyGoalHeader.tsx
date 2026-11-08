@@ -97,16 +97,21 @@ function detach(mount: Mount | null): void {
   }
 }
 
-/** Find the active thread's native message scroller as BB remounts its pane. */
-function useMessageScroller(threadId: string | null): Mount | null {
+/**
+ * Own the heading's gap for the native message column's lifetime.
+ * Route selection hides a stale heading immediately; the outgoing gap stays
+ * until BB saves its reading position and replaces the column.
+ */
+export function useMessageScroller(threadId: string | null): Mount | null {
   const [mount, setMount] = useState<Mount | null>(null);
+  const activeThread = useRef(threadId);
+  const refresh = useRef<(() => void) | null>(null);
+  useLayoutEffect(() => {
+    activeThread.current = threadId;
+    refresh.current?.();
+  }, [threadId]);
 
   useEffect(() => {
-    if (!threadId) {
-      setMount(null);
-      return;
-    }
-
     let current: Mount | null = null;
     let frame = 0;
     const attach = () => {
@@ -125,15 +130,23 @@ function useMessageScroller(threadId: string | null): Mount | null {
       }
       const scroller = scrollers[0]!;
       const column = messageColumn(scroller);
-      if (!column) return;
-      if (current?.column === column && current.root.parentElement === column) {
+      if (
+        column &&
+        current?.column === column &&
+        current.root.parentElement === column &&
+        current.overlay.isConnected
+      ) {
         return;
       }
+      const threadId = activeThread.current;
       const wasAtBottom =
+        column !== null &&
+        threadId !== null &&
         scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop < 24;
-      const oldScrollTop = scroller.scrollTop;
       detach(current);
+      current = null;
       setMount(null);
+      if (!column || !threadId) return;
       const root = document.createElement("div");
       root.dataset.workstreamsStickyGoal = "";
       root.className = "ws-sticky-goal-root";
@@ -161,9 +174,9 @@ function useMessageScroller(threadId: string | null): Mount | null {
       const previousScrollPaddingPriority =
         scroller.style.getPropertyPriority("scroll-padding-top");
       column.prepend(root);
-      const added = initialHeight - columnPadTop;
+      // BB's position keeper compensates for insertion while reading older
+      // messages. A manual scroll write would interfere with its restoration.
       if (wasAtBottom) scroller.scrollTop = scroller.scrollHeight;
-      else scroller.scrollTop = oldScrollTop + added;
       current = {
         scroller,
         column,
@@ -188,6 +201,7 @@ function useMessageScroller(threadId: string | null): Mount | null {
         attach();
       });
     };
+    refresh.current = scheduleAttach;
     scheduleAttach();
     const observer = new MutationObserver((records) => {
       const detached =
@@ -207,15 +221,16 @@ function useMessageScroller(threadId: string | null): Mount | null {
     });
     observer.observe(document.body, { childList: true, subtree: true });
     return () => {
+      refresh.current = null;
       observer.disconnect();
       cancelAnimationFrame(frame);
       detach(current);
       current = null;
       setMount(null);
     };
-  }, [threadId]);
+  }, []);
 
-  return mount;
+  return mount?.threadId === threadId ? mount : null;
 }
 
 function useScrollState(

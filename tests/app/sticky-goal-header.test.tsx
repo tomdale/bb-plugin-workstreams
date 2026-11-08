@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { act, cleanup, waitFor } from "@testing-library/react";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { Profiler, type ProfilerOnRenderCallback } from "react";
 import {
@@ -12,7 +12,10 @@ import {
   headingScroll,
   titleExitDistance,
 } from "../../src/app/goalHeading.ts";
-import { StickyGoalHeader } from "../../src/app/StickyGoalHeader.tsx";
+import {
+  StickyGoalHeader,
+  useMessageScroller,
+} from "../../src/app/StickyGoalHeader.tsx";
 import { parsePrefs } from "../../src/domain/prefs.ts";
 import { emptyState, sidebarThread } from "./fixtures.ts";
 
@@ -117,6 +120,189 @@ async function mountHeading(
 
 const root = () => document.querySelector("[data-workstreams-sticky-goal]");
 const overlay = () => document.querySelector("[data-workstreams-goal-overlay]");
+
+function ScrollerProbe({ threadId }: { threadId: string | null }) {
+  const mount = useMessageScroller(threadId);
+  return <output data-testid="mounted-thread">{mount?.threadId ?? ""}</output>;
+}
+
+function readingScroller(scrollTop = 200) {
+  const scroller = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  const writes = vi.fn((value: number) => {
+    scrollTop = value;
+  });
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, value: 1000 },
+    clientHeight: { configurable: true, value: 400 },
+    scrollTop: {
+      configurable: true,
+      get: () => scrollTop,
+      set: writes,
+    },
+  });
+  return { scroller, writes };
+}
+
+const nextFrame = () =>
+  act(
+    () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+  );
+
+it("leaves detached-reader scroll compensation to BB on attachment", async () => {
+  paneFixture({ recap: false });
+  const { scroller, writes } = readingScroller();
+  const slot = render(<ScrollerProbe threadId="t1" />);
+  await waitFor(() => expect(root()).not.toBeNull());
+  expect(scroller.scrollTop).toBe(200);
+  expect(writes).not.toHaveBeenCalled();
+  slot.unmount();
+});
+
+it("keeps following the newest message when attaching at the bottom", async () => {
+  paneFixture({ recap: false });
+  const { scroller, writes } = readingScroller(600);
+  Object.defineProperty(scroller, "scrollHeight", {
+    configurable: true,
+    get: () =>
+      1000 +
+      Number.parseFloat((root() as HTMLElement)?.style.marginBottom || "0"),
+  });
+  const slot = render(<ScrollerProbe threadId="t1" />);
+  await waitFor(() => expect(root()).not.toBeNull());
+  expect(writes).toHaveBeenCalledWith(scroller.scrollHeight);
+  slot.unmount();
+});
+
+it("preserves the outgoing gap through the host snapshot and binds the new heading to the replacement column", async () => {
+  paneFixture({ recap: false });
+  const { scroller, writes } = readingScroller();
+  const column = document.querySelector<HTMLElement>('[data-test="column"]')!;
+  const slot = render(<ScrollerProbe threadId="t1" />);
+  await waitFor(() => expect(root()).not.toBeNull());
+  const outgoing = root() as HTMLElement;
+  const outgoingOverlay = overlay()!;
+  const gap = outgoing.style.marginBottom;
+  slot.rerender(<ScrollerProbe threadId="t2" />);
+  expect(slot.getByTestId("mounted-thread").textContent).toBe("");
+  await nextFrame();
+  expect(root()).toBe(outgoing);
+  expect(outgoing.style.marginBottom).toBe(gap);
+  expect(outgoing.parentElement).toBe(column);
+  expect(writes).not.toHaveBeenCalled();
+
+  await act(async () => {
+    column.append(document.createTextNode("Finishing the outgoing render"));
+  });
+  await nextFrame();
+  expect(root()).toBe(outgoing);
+  expect(slot.getByTestId("mounted-thread").textContent).toBe("");
+
+  const replacement = column.cloneNode(false) as HTMLElement;
+  column.replaceWith(replacement);
+  await waitFor(() =>
+    expect(slot.getByTestId("mounted-thread").textContent).toBe("t2"),
+  );
+  expect(root()?.parentElement).toBe(replacement);
+  expect(
+    document.querySelectorAll("[data-workstreams-sticky-goal]"),
+  ).toHaveLength(1);
+  expect(outgoing.parentElement).toBeNull();
+  expect(outgoingOverlay.isConnected).toBe(false);
+  expect(scroller.scrollTop).toBe(200);
+  expect(writes).not.toHaveBeenCalled();
+  slot.unmount();
+});
+
+it("reuses the outgoing gap when selection reverses before the pane changes", async () => {
+  paneFixture({ recap: false });
+  const { writes } = readingScroller();
+  const slot = render(<ScrollerProbe threadId="t1" />);
+  await waitFor(() => expect(root()).not.toBeNull());
+  const original = root();
+  for (const threadId of ["t2", "t1", "t2", "t1"]) {
+    slot.rerender(<ScrollerProbe threadId={threadId} />);
+    await nextFrame();
+    expect(root()).toBe(original);
+    expect(slot.getByTestId("mounted-thread").textContent).toBe(
+      threadId === "t1" ? "t1" : "",
+    );
+  }
+  expect(writes).not.toHaveBeenCalled();
+  slot.unmount();
+});
+
+it("keeps the outgoing gap when returning Home until the native pane is removed", async () => {
+  paneFixture({ recap: false });
+  readingScroller();
+  const slot = render(<ScrollerProbe threadId="t1" />);
+  await waitFor(() => expect(root()).not.toBeNull());
+  const outgoing = root()!;
+  slot.rerender(<ScrollerProbe threadId={null} />);
+  await nextFrame();
+  expect(root()).toBe(outgoing);
+  expect(slot.getByTestId("mounted-thread").textContent).toBe("");
+  document.querySelector("[data-thread-window]")!.remove();
+  await waitFor(() => expect(overlay()).toBeNull());
+  expect(outgoing.parentElement).toBeNull();
+  slot.unmount();
+});
+
+it("restores native scroll padding and removes the gap and overlay on disposal", async () => {
+  paneFixture({ recap: false });
+  const { scroller } = readingScroller();
+  scroller.style.setProperty("scroll-padding-top", "19px", "important");
+  const slot = render(<ScrollerProbe threadId="t1" />);
+  await waitFor(() => expect(root()).not.toBeNull());
+  expect(scroller.style.scrollPaddingTop).not.toBe("19px");
+  slot.unmount();
+  expect(root()).toBeNull();
+  expect(overlay()).toBeNull();
+  expect(scroller.style.scrollPaddingTop).toBe("19px");
+  expect(scroller.style.getPropertyPriority("scroll-padding-top")).toBe(
+    "important",
+  );
+});
+
+it("keeps a detached reader near the bottom detached during overlay recovery", async () => {
+  paneFixture({ recap: false });
+  const { scroller, writes } = readingScroller();
+  Object.defineProperty(scroller, "scrollHeight", {
+    configurable: true,
+    get: () =>
+      1000 +
+      Number.parseFloat((root() as HTMLElement)?.style.marginBottom || "0"),
+  });
+  const slot = render(<ScrollerProbe threadId="t1" />);
+  await waitFor(() => expect(root()).not.toBeNull());
+  const position = scroller.scrollHeight - scroller.clientHeight - 80;
+  scroller.scrollTop = position;
+  writes.mockClear();
+  const original = overlay()!;
+  original.remove();
+  await waitFor(() => expect(overlay()).not.toBeNull());
+  expect(overlay()).not.toBe(original);
+  expect(scroller.scrollTop).toBe(position);
+  expect(writes).not.toHaveBeenCalled();
+  slot.unmount();
+});
+
+it("recovers an overlay removed while the message column remains mounted", async () => {
+  paneFixture({ recap: false });
+  readingScroller();
+  const slot = render(<ScrollerProbe threadId="t1" />);
+  await waitFor(() => expect(root()).not.toBeNull());
+  const original = overlay()!;
+  original.remove();
+  await waitFor(() => expect(overlay()).not.toBeNull());
+  expect(overlay()).not.toBe(original);
+  expect(
+    document.querySelectorAll("[data-workstreams-sticky-goal]"),
+  ).toHaveLength(1);
+  slot.unmount();
+});
 
 it.each([0, 1, 2, 3, 7])(
   "reserves space for the goal's visible lines, capped at three (%i)",

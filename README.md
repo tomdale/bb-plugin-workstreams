@@ -505,7 +505,9 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
   feathered background while a compact copy fades into the top bar (or stays
   pinned in the timeline when the bar is too narrow). In **Settings →
   Workstreams → Threads**, choose **Title transition → Scroll** to have both
-  headings slide as they fade.
+  headings slide as they fade. Switching threads preserves your reading
+  position. When you follow the newest message, the view stays attached to it as
+  the heading loads.
 - **Thread header actions:**
   - **Parent thread** (optional, off by default): Opens the parent thread from a
     delegate's header.
