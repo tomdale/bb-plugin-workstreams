@@ -163,7 +163,7 @@ describe("diagnoseReply", () => {
       {
         line: 3,
         message:
-          '"workstreams" code fence is outside a ":::reply" block, so it renders as raw JSON.',
+          '"workstreams" code fence is outside a ":::reply" block, so it renders as raw source.',
       },
     ]);
 
