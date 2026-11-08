@@ -91,13 +91,13 @@ describe("reply architecture checks", () => {
   });
 
   it("inspects prose fields inside typed and grouped components, preserving fenced examples", () => {
-    const finding = {
-      type: "finding" as const,
+    const change = {
+      type: "change" as const,
       title: "Diagnosis",
-      explanation: 'recommendation(choice: "X", reason: "Y")',
-      certainty: "inferred" as const,
+      before: 'recommendation(choice: "X", reason: "Y")',
+      after: "The prose remains ordinary text.",
     };
-    expect(corruptionProblems([finding], "")).toContain(
+    expect(corruptionProblems([change], "")).toContain(
       "Possible unfenced component call in prose",
     );
     expect(
@@ -106,7 +106,7 @@ describe("reply architecture checks", () => {
           {
             type: "group",
             relationship: "supporting",
-            children: [finding, { type: "text", body: "Support" }],
+            children: [change, { type: "text", body: "Support" }],
           },
         ],
         "",
@@ -116,8 +116,8 @@ describe("reply architecture checks", () => {
       corruptionProblems(
         [
           {
-            ...finding,
-            explanation: `\`\`\`text\n${finding.explanation}\n\`\`\``,
+            ...change,
+            before: `\`\`\`text\n${change.before}\n\`\`\``,
           },
         ],
         "",
