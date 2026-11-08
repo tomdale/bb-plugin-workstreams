@@ -246,7 +246,7 @@ function RecapExample() {
           className="grid gap-3"
           style={{
             gridTemplateColumns:
-              "repeat(auto-fit, minmax(min(100%, 9rem), 1fr))",
+              "repeat(auto-fit, minmax(min(100%, 20rem), 1fr))",
           }}
         >
           <ExampleChoice

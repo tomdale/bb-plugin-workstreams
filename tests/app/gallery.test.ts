@@ -864,8 +864,10 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(`${url}#reply-vocabulary`);
       const selectComponent = async (name: string) => {
-        await page.getByRole("combobox", { name: "Reply component" }).click();
-        await page.getByRole("option", { name, exact: true }).click();
+        await page
+          .getByRole("radiogroup", { name: "Reply component" })
+          .getByRole("radio", { name, exact: true })
+          .click();
       };
       const widthControl = page.getByRole("radiogroup", {
         name: "Preview width",
@@ -998,9 +1000,9 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       page.on("pageerror", (error) => errors.push(error.message));
       await page.setViewportSize({ width: 1200, height: 1000 });
       await page.goto(`${url}#question-form`);
-      await page.getByRole("combobox", { name: "Question preset" }).click();
       await page
-        .getByRole("option", { name: "Freeform only", exact: true })
+        .getByRole("radiogroup", { name: "Question preset" })
+        .getByRole("radio", { name: "Freeform only", exact: true })
         .click();
       const answer = page.getByRole("textbox", { name: "Context answer" });
       await answer.fill("Keep payment approval visible");
@@ -1107,8 +1109,10 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       await page
         .getByRole("button", { name: "Review checkout changes", exact: true })
         .waitFor();
-      await page.getByRole("combobox", { name: "Dialog submission" }).click();
-      await page.getByRole("option", { name: "Hold pending" }).click();
+      await page
+        .getByRole("radiogroup", { name: "Dialog submission" })
+        .getByRole("radio", { name: "Hold pending" })
+        .click();
       await trigger.click();
       await dialog.getByRole("button", { name: "Save", exact: true }).click();
       await dialog
@@ -1133,8 +1137,10 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
     "removes color overrides when leaving the color example",
     async ({ page }) => {
       await page.goto(`${url}#colors`);
-      await page.getByRole("combobox", { name: "Color choice" }).click();
-      await page.getByRole("option", { name: "Custom hex" }).click();
+      await page
+        .getByRole("radiogroup", { name: "Color choice" })
+        .getByRole("radio", { name: "Custom hex" })
+        .click();
       expect(
         await page.locator("style[data-gallery-color-tokens]").textContent(),
       ).toContain("--ws-needs-you");
@@ -1173,13 +1179,17 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
           requests.push(request.url());
       });
       await page.goto(`${url}#recap-card`);
-      await page.getByRole("combobox", { name: "Reported state" }).click();
-      await page.getByRole("option", { name: "Complete", exact: true }).click();
+      await page
+        .getByRole("radiogroup", { name: "Reported state" })
+        .getByRole("radio", { name: "Complete", exact: true })
+        .click();
       await page
         .getByText("Added the compact release summary", { exact: true })
         .waitFor();
-      await page.getByRole("combobox", { name: "Reported state" }).click();
-      await page.getByRole("option", { name: "Waiting", exact: true }).click();
+      await page
+        .getByRole("radiogroup", { name: "Reported state" })
+        .getByRole("radio", { name: "Waiting", exact: true })
+        .click();
       await page
         .getByText("Waiting for the release checks", { exact: true })
         .waitFor();
