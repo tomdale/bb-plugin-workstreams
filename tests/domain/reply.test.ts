@@ -57,12 +57,12 @@ describe("composed replies", () => {
   it("keeps prose in place on both sides of a component", () => {
     const data = read(
       block(
-        `The caller supplies a percentage.\n\n${componentFence(COMPONENT_EXAMPLES.finding)}\n\nConvert it before applying the discount.`,
+        `The caller supplies a percentage.\n\n${componentFence(COMPONENT_EXAMPLES.context)}\n\nConvert it before applying the discount.`,
       ),
     );
     expect(data.body.map((part) => part.type)).toEqual([
       "text",
-      "finding",
+      "context",
       "text",
     ]);
     expect(data.body[0]).toEqual({
@@ -229,7 +229,7 @@ describe("composed replies", () => {
 
   it("keeps malformed component source without losing surrounding prose or the recap", () => {
     const source =
-      ':::reply{state="complete"}\n# Investigated the failure\n- [x] The source was preserved\n\nBefore.\n\n```workstreams\n{"type":"finding","title":"unfinished"}\n```\n\nAfter.\n:::\n';
+      ':::reply{state="complete"}\n# Investigated the failure\n- [x] The source was preserved\n\nBefore.\n\n```workstreams\nnotAComponent(value: "source")\n```\n\nAfter.\n:::\n';
     const data = read(source);
     expect(data.body.map((part) => part.type)).toEqual([
       "text",
@@ -237,7 +237,7 @@ describe("composed replies", () => {
       "text",
     ]);
     expect(data.body[1]).toMatchObject({
-      source: expect.stringContaining('"unfinished"'),
+      source: expect.stringContaining('"source"'),
       error: expect.stringContaining("Component not displayed"),
     });
     expect(toText(data)).toContain("Before.");
@@ -246,7 +246,7 @@ describe("composed replies", () => {
 
   it("shows a pending component until its code fence closes", () => {
     const source =
-      ':::reply\nAn explanation.\n\n```workstreams\n{"type":"finding","title":"';
+      ':::reply\nAn explanation.\n\n```workstreams\n{"type":"retiredComponent","value":"';
     expect(read(source, true).body.map((part) => part.type)).toEqual([
       "text",
       "pending",
@@ -254,9 +254,6 @@ describe("composed replies", () => {
     const completeJson =
       ':::reply\n```workstreams\n{"type":"text","body":"Complete JSON but the fence is still open"}';
     expect(read(completeJson, true).body).toEqual([{ type: "pending" }]);
-    expect(
-      read(block(componentFence(COMPONENT_EXAMPLES.finding))).body[0]?.type,
-    ).toBe("finding");
   });
 
   it("keeps a final unterminated component as source even if its JSON is valid", () => {
@@ -397,8 +394,16 @@ describe("evidence paths", () => {
   ])("rejects invalid file-line coordinates %j", (patch) => {
     expect(
       replyComponentSchema.safeParse({
-        ...COMPONENT_EXAMPLES.finding,
-        evidence: [{ label: "Source", location: "src/coupon.ts", ...patch }],
+        ...COMPONENT_EXAMPLES.checks,
+        items: [
+          {
+            name: "Unit tests",
+            status: "passed",
+            evidence: [
+              { label: "Source", location: "src/coupon.ts", ...patch },
+            ],
+          },
+        ],
       }).success,
     ).toBe(false);
   });
@@ -415,8 +420,14 @@ describe("component boundary", () => {
   ])("rejects an unsafe evidence target %s", (location) => {
     expect(
       replyComponentSchema.safeParse({
-        ...COMPONENT_EXAMPLES.finding,
-        evidence: [{ label: "Source", location }],
+        ...COMPONENT_EXAMPLES.checks,
+        items: [
+          {
+            name: "Unit tests",
+            status: "passed",
+            evidence: [{ label: "Source", location }],
+          },
+        ],
       }).success,
     ).toBe(false);
   });

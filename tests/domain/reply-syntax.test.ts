@@ -42,15 +42,13 @@ describe("compact component syntax", () => {
     const parts = compileComponents(
       [
         'context(topic: "A")',
-        'finding(title: "T", explanation: "E")',
+        'retiredComponent(value: "x")',
         'recommendation(choice: "C", reason: "R")',
       ].join("\n"),
     );
     expect(parts.map((p) => p.ok)).toEqual([true, false, true]);
     expect(parts[1]).toMatchObject({
-      error: expect.stringContaining(
-        'finding is missing required field "certainty" (observed|inferred|unknown)',
-      ),
+      error: expect.stringContaining('Unknown component "retiredComponent"'),
     });
   });
 
@@ -68,19 +66,21 @@ describe("compact component syntax", () => {
     });
     expect(
       compileComponents(
-        'finding(title: "T", explanation: "E", certainty: "observed")',
+        'checks(title: "T", scope: "S", items: [{name: "N", status: passed}])',
       )[0]?.ok,
     ).toBe(true);
   });
 
   it("locates errors by line and column", () => {
-    expect(error('finding(\n  titel: "T",\n)')).toBe(
-      'Component not displayed (line 2, col 3): finding has no field "titel"; did you mean "title"?',
+    expect(error('change(\n  titel: "T",\n)')).toBe(
+      'Component not displayed (line 2, col 3): change has no field "titel"; did you mean "title"?',
     );
     expect(error('chnge(title: "T")')).toContain('did you mean "change"?');
     expect(
-      error('finding(title: "T", explanation: "E", certainty: obsrved)'),
-    ).toContain("did you mean observed?");
+      error(
+        'checks(title: "T", scope: "S", items: [{name: "N", status: pasd}])',
+      ),
+    ).toContain("did you mean passed?");
     expect(
       error(
         'checks(title: "T", scope: "S", items: [{name: "N", staus: passed}])',
@@ -123,9 +123,9 @@ describe("compact component syntax", () => {
   it("validates group children individually and forbids nested groups", () => {
     expect(
       error(
-        'group(relationship: peers, children: [text(body: "a"), finding(title: "x")])',
+        'group(relationship: peers, children: [text(body: "a"), retiredComponent(value: "x")])',
       ),
-    ).toContain("finding is missing required field");
+    ).toContain('Unknown component "retiredComponent"');
     expect(
       error(
         'group(relationship: peers, children: [text(body: "a"), group(relationship: peers, children: [])])',
@@ -155,9 +155,6 @@ describe("compact component syntax", () => {
 
   it("generates one signature line per component from the schemas", () => {
     const lines = signatureLines();
-    expect(lines).toContain(
-      "finding(title: text, explanation: text, certainty: observed|inferred|unknown, consequence?: text, evidence?: [Evidence, …] (1–32))",
-    );
     expect(lines.filter((l) => /^\w+\(/.test(l))).toHaveLength(
       Object.keys(COMPONENT_EXAMPLES).length,
     );

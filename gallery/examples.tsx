@@ -158,21 +158,6 @@ const replyParts = [
     body: "The summary keeps **the result** first, followed by review steps and `paths/that/wrap.ts`.\n\nOrdinary prose stays in the message flow.",
   },
   {
-    type: "finding",
-    title: "The narrow layout wraps long paths",
-    explanation:
-      "The fixture uses a long filename to exercise the available width.",
-    certainty: "observed",
-    consequence: "The reader can keep the pane narrow.",
-    evidence: [
-      {
-        label: "Synthetic layout fixture",
-        detail:
-          "This is example evidence, not an independently verified result.",
-      },
-    ],
-  },
-  {
     type: "sequence",
     title: "Review the summary",
     steps: [
@@ -269,7 +254,7 @@ const replyParts = [
 ] satisfies ReplyComponent[];
 
 function ReplyExample() {
-  const [type, setType] = useState<ReplyComponent["type"]>("finding");
+  const [type, setType] = useState<ReplyComponent["type"]>("context");
   const part = replyParts.find((item) => item.type === type)!;
   return (
     <div className="space-y-5">
@@ -401,8 +386,8 @@ export const examples: GalleryExample[] = [
     title: "Reply vocabulary",
     group: "Components",
     description:
-      "All eleven information components through the current PlainBody renderer, with explicitly synthetic claims and checks.",
-    source: `import { PlainBody } from "../src/app/reply/PlainBody";\nimport type { ReplyComponent } from "../src/domain/replyComponents";\n\n// The selector changes this part; PlainBody renders the selected vocabulary.\nconst part: ReplyComponent = ${JSON.stringify(replyParts[2], null, 2)};\n\n<PlainBody part={part} document={undefined} files={null} />`,
+      "All ten information components through the current PlainBody renderer, with explicitly synthetic claims and checks.",
+    source: `import { PlainBody } from "../src/app/reply/PlainBody";\nimport type { ReplyComponent } from "../src/domain/replyComponents";\n\n// The selector changes this part; PlainBody renders the selected vocabulary.\nconst part: ReplyComponent = ${JSON.stringify(replyParts[0], null, 2)};\n\n<PlainBody part={part} document={undefined} files={null} />`,
     render: () => <ReplyExample />,
   },
   {

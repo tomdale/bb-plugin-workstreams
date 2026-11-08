@@ -165,9 +165,6 @@ for it.
 
 - **Context:** A compact, muted orientation line for the subject and reported
   location. Keep background explanation as ordinary prose.
-- **Finding:** Lead with the conclusion. Show `observed`, `inferred`, or
-  `unknown` as an explicit, quiet certainty cue. Keep the explanation and
-  consequence readable; place evidence labels and details beneath the claim.
 - **Text:** Ordinary Markdown prose, unboxed. Preserve the author's paragraphs,
   lists, and inline formatting.
 - **Sequence:** A numbered path with aligned step markers and short supporting

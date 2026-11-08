@@ -112,16 +112,6 @@ export function PlainBody({
           {md(part.background)}
         </>
       );
-    case "finding":
-      return (
-        <>
-          {title(part.title)}
-          <p>Evidence: {part.certainty}</p>
-          {md(part.explanation)}
-          {md(part.consequence)}
-          {evidence(part.evidence)}
-        </>
-      );
     case "comparison":
       return (
         <>

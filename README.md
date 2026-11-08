@@ -569,33 +569,33 @@ which adds a message-block slot, you also get **Structured replies**:
   Information components are converted to Markdown in source order, including
   grouped components. There are no component panels, columns, custom article
   headings, lead treatment, disclosures, or reply-specific animations.
-- Parsing and validation retain the structured information: findings and
-  evidence, comparisons, sequences, behavior changes, checks, delivery records,
-  recommendations, and bounded groups. A reply's kind remains separate from
-  whether its work is complete, ready for review, or waiting.
+- Parsing and validation retain the structured information: comparisons,
+  sequences, behavior changes, checks, delivery records, recommendations, and
+  bounded groups. Checks and delivery stages can include evidence links. A
+  reply's kind remains separate from whether its work is complete, ready for
+  review, or waiting.
 - Components are written as `name(field: value, …)` statements inside
   `workstreams` fences; one fence holds one or more of them. Every argument is
   named, and values are static: `"text"`, numbers, `true`, `false`, `null`,
-  `[lists]`, `{key: value}` objects, bare enum words such as
-  `certainty: observed`, and, inside `group`, nested components. `"""…"""` holds
-  multi-line text; text containing a triple-backtick fence needs a four-backtick
-  `workstreams` fence. Operators, templates, variables, and bindings are
-  rejected. Field names, required fields, enums, and limits come from the same
-  schemas that validate a component, and the signature lines in the agent
-  instructions are generated from them. A statement that fails shows its source
-  with a one-line reason that carries a line and column and, for a near-miss
-  field, enum word, or component name, a "did you mean"; the other statements in
-  the fence still render. Replies stored with a JSON object in the fence keep
-  rendering.
-- Relative evidence paths stay inside the message's workspace; external files
-  use explicit absolute paths. Native file previews preserve literal filename
-  characters and separate line ranges.
-- Components contain reported information, not independently verified facts.
-  Check and delivery scopes identify where and when a result applies. The
-  read-only `WorkstreamsReplyExamples` tool supplies illustrative, validated
-  examples only to sessions using Structured replies; it never executes work.
-  Existing agent sessions may need a fresh start to receive a newly registered
-  tool and its guidance.
+  `[lists]`, `{key: value}` objects, bare enum words such as check `status`,
+  and, inside `group`, nested components. `"""…"""` holds multi-line text; text
+  containing a triple-backtick fence needs a four-backtick `workstreams` fence.
+  Operators, templates, variables, and bindings are rejected. Field names,
+  required fields, enums, and limits come from the same schemas that validate a
+  component, and the signature lines in the agent instructions are generated
+  from them. A statement that fails shows its source with a one-line reason that
+  carries a line and column and, for a near-miss field, enum word, or component
+  name, a "did you mean"; the other statements in the fence still render.
+  Replies stored with a JSON object in the fence keep rendering.
+- Checks and delivery stages can include evidence links. Relative evidence paths
+  stay inside the message's workspace; external files use explicit absolute
+  paths. Native file previews preserve literal filename characters and separate
+  line ranges. Components contain reported information, not independently
+  verified facts. Check and delivery scopes identify where and when a result
+  applies. The read-only `WorkstreamsReplyExamples` tool supplies illustrative,
+  validated examples only to sessions using Structured replies; it never
+  executes work. Existing agent sessions may need a fresh start to receive a
+  newly registered tool and its guidance.
 - The docked recap owns its headline, results, and actions. Historical and
   dismissed recaps show their headline, results, and review references as plain
   Markdown, without duplicate send actions. A malformed component shows its
