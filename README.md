@@ -841,7 +841,8 @@ collections and writes reviewed topic suggestions. | | **Advanced** | **Analysis
 machine** | Automatic | Enrolled BB machine used for gateway model calls when
 multiple machines are connected. | | **Advanced** | **Debug mode** | `Off` |
 Records redacted model traces (`7` days / `1,000` records) and reveals
-**Inspect** buttons, composer diagnostics, and Activity model-call rows. |
+**Inspect** buttons, composer diagnostics, raw reply-block output, and Activity
+model-call rows. |
 
 ### Gateway vs. provider worker models
 
@@ -1000,6 +1001,8 @@ recording and unlocks diagnostic tools across the UI:
 - **Composer routing diagnostics:** Expand the **Debug** disclosure in the
   new-thread composer to inspect live Quick-analysis confidence, inputs, token
   usage, reasoning, and copyable JSON diagnostics.
+- **Reply block raw output:** Expand **Raw agent output** on any reply block to
+  view the raw `:::reply` block text before parsing.
 
 ---
 

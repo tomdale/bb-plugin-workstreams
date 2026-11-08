@@ -2,7 +2,7 @@
 import type { TraceLink } from "../../domain/trace.ts";
 import { usePrefs } from "../prefs.ts";
 
-/** Whether debug is on; inspect buttons render only then. */
+/** Whether debug is on; inspect buttons and debug disclosures render only then. */
 export function useDebugMode(): boolean {
   const { prefs } = usePrefs();
   return prefs?.advanced.debug ?? false;

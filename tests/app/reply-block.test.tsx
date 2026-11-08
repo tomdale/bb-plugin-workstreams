@@ -81,6 +81,7 @@ function draw(
   options: {
     streaming?: boolean;
     docked?: { turnId: string; dismissed?: boolean };
+    debug?: boolean;
   } = {},
 ) {
   const block = registration();
@@ -88,6 +89,9 @@ function draw(
     sdk: SDK,
     openFilePreview: () => true,
     rpc: {
+      ...(options.debug !== undefined
+        ? { prefs: () => ({ prefs: { advanced: { debug: options.debug } } }) }
+        : {}),
       state: () => ({
         recaps: options.docked
           ? { t1: { id: "r1", turnId: options.docked.turnId } }
@@ -595,4 +599,28 @@ it("withholds recap fields while server ownership is unknown", async () => {
   resolve({ recaps: {}, dismissedRecaps: [] });
   await screen.findByRole("heading", { name: "Work is saved" });
   expect(view.container.textContent).toContain("A concrete result");
+});
+
+it("shows the raw agent output before parsing only in Debug mode", async () => {
+  const source = `:::reply\n# Parsed heading\n\n${componentFence(COMPONENT_EXAMPLES.context)}\n:::\n`;
+  const off = draw(source, { debug: false });
+  expect(off.container.querySelector("[data-reply-raw]")).toBeNull();
+  expect(off.queryByLabelText("Raw agent output")).toBeNull();
+  off.lifecycle.unmount();
+
+  const on = draw(source, { debug: true });
+  const summary = await on.findByText("Raw agent output");
+  const details = summary.closest("details")!;
+  expect(details.hasAttribute("data-reply-raw")).toBe(true);
+  expect(details.open).toBe(false);
+  fireEvent.click(summary);
+  expect(details.open).toBe(true);
+  expect(on.getByLabelText("Raw agent output").textContent).toBe(source);
+
+  await on.behavior.emitRealtime("prefs", {
+    prefs: { advanced: { debug: false } },
+  });
+  await waitFor(() =>
+    expect(on.container.querySelector("[data-reply-raw]")).toBeNull(),
+  );
 });
