@@ -674,10 +674,51 @@ function showHead(n: number, animate: boolean) {
     });
 }
 
+// ---- simulated holds ----------------------------------------------------------------------------------
+
+/**
+ * A simulated key hold: `hold.down` or `hold.up` starts one at the near end of the queue and runs it as a held
+ * key does, a press at once and then repeats after `repeatDelay` every `repeatMs`, on the page's clock (so
+ * speed, Pause and Step apply), and releases it when the front reaches the far end. A real key, a model switch
+ * or a click on the running button stops it.
+ */
+let run: { dir: 1 | -1; t: number; next: number; end: number } | null = null;
+
+function startRun(dir: 1 | -1) {
+  stopRun();
+  held = 0;
+  const start = dir > 0 ? 0 : N - 1;
+  sim.jump(start);
+  showHead(start, false);
+  run = { dir, t: 0, next: vcfg.repeatDelay, end: N - 1 - start };
+  sim.keyDown ? sim.keyDown(dir) : sim.press(dir);
+  paint();
+  wake();
+  syncButtons();
+}
+function stopRun() {
+  if (!run) return;
+  run = null;
+  sim.keyUp?.();
+  syncButtons();
+}
+/** Moves the simulated hold `d` ms along: the repeats it owes, and its release at the far end. */
+function runStep(d: number) {
+  if (!run) return;
+  run.t += d;
+  while (run && run.t >= run.next) {
+    if (sim.cur === run.end) break;
+    sim.press(run.dir);
+    run.next += vcfg.repeatMs;
+  }
+  if (run && sim.cur === run.end) stopRun();
+}
+
 function advance(ms: number) {
   let r = ms;
   while (r > 1e-9) {
     const d = Math.min(1000 / 60, r);
+    runStep(d);
     sim.step(d);
     r -= d;
   }
@@ -720,6 +761,7 @@ function press(dir: 1 | -1) {
 onMove = (c) => showHead(c, true);
 
 function build(mode: Mode, cur = sim ? sim.cur : 0) {
+  run = null;
   opt.v = mode;
   sanitize(opt);
   refreshCfg();
@@ -793,6 +835,11 @@ const BODIES: Record<ModuleId, () => string> = {
     row(
       "Clock",
       `<div class="pair">${button("clock.pause", "pause", labelOf("clock.pause"))}${button("clock.step", "step", labelOf("clock.step"))}</div>`,
+    ) +
+    row(
+      "Hold",
+      `<div class="pair">${button("hold.down", "run:1", "↓ from top")}${button("hold.up", "run:-1", "↑ from bottom")}</div>`,
+      'id="hold-row"',
     ) +
     switchButton("reduced", "reduced") +
     settingsOf("playback") +
@@ -924,7 +971,9 @@ function syncButtons() {
                   ? opt.path === "1"
                   : k === "u"
                     ? appliedIs(shownSaved[Number(v)])
-                    : false;
+                    : k === "run"
+                      ? run?.dir === Number(v)
+                      : false;
     b.classList.toggle("on", on);
     if (!["step", "copy", "save", "ud"].includes(k!))
       b.setAttribute("aria-pressed", String(on));
@@ -932,6 +981,12 @@ function syncButtons() {
   // Each model shows its own preset buttons; the product has none.
   $("#presets").hidden = opt.v === "product";
   $("#save-row").hidden = opt.v === "product";
+  // Under reduced motion a held key moves one card, so there is no hold to simulate.
+  $("#hold-row").hidden = reduced();
+  $('#inspector [data-act="run:1"]').textContent =
+    run?.dir === 1 ? "Stop" : "↓ from top";
+  $('#inspector [data-act="run:-1"]').textContent =
+    run?.dir === -1 ? "Stop" : "↑ from bottom";
   for (const b of $$("#presets button")) b.hidden = b.dataset.mode !== opt.v;
   $('#inspector [data-act="pause"]').textContent = paused
     ? "Paused"
@@ -1208,6 +1263,11 @@ inspector.addEventListener("click", (e) => {
     build(b.dataset.mode as Mode);
   }
   if (k === "save") saveCurrent();
+  if (k === "run") {
+    const dir = Number(v) as 1 | -1;
+    if (run?.dir === dir) stopRun();
+    else startRun(dir);
+  }
   if (k === "u") {
     const saved = shownSaved[Number(v)];
     if (saved) {
@@ -1245,6 +1305,7 @@ inspector.addEventListener("click", (e) => {
     syncAll();
   }
   if (k === "reduced") {
+    stopRun();
     opt.reduced = opt.reduced === "1" ? "0" : "1";
     refreshCfg();
     sim.jump(sim.cur);
@@ -1308,6 +1369,8 @@ addEventListener("keydown", (e) => {
   const d = keyDir(e.key);
   if (!d) return;
   e.preventDefault();
+  // A real key takes over from a simulated hold.
+  stopRun();
   tips.dismiss();
   if (reduced()) {
     if (!e.repeat) press(d);

@@ -379,6 +379,60 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "There is no undo: save the settings again to bring it back. The built-in presets cannot be deleted.",
     tune: "Prune presets you no longer compare against, so the Saved row stays short.",
   }),
+  "hold.down": (f) => ({
+    what: "Simulates holding ↓ from the first card to the last: it moves the stack to the top first, then holds the key until the front reaches the end.",
+    effect: [
+      [
+        "Click",
+        t`The stack jumps to the first card and a held ↓ starts at once: one press, then a repeat every \`hold repeat interval ms\` (${f.def("kri")} ms) after \`hold repeat delay ms\` (${f.def("krd")} ms), as the OS repeats a held key. The key is released when the last card is in front. While it runs the button reads Stop; click it to release early.`,
+      ],
+    ],
+    needs:
+      "It runs on the page's clock, so Speed, Pause and Step apply to it, and the model's hold settings (held speed-up, fold, loose clearing, hold delay) react as they do to a real key. A real ↑ or ↓, a model button or Reduced motion stops it. Hidden under reduced motion, where a held key moves one card.",
+    tune: "Use it to compare presets on the same run from end to end: click it, watch at `¼×`, then change one setting and run it again.",
+  }),
+  "hold.up": (f) => ({
+    what: "Simulates holding ↑ from the last card to the first: it moves the stack to the bottom first, then holds the key until the first card is back in front.",
+    effect: [
+      [
+        "Click",
+        t`The stack jumps to the last card and a held ↑ starts at once, repeating every ${f.def("kri")} ms after ${f.def("krd")} ms with the Hold settings as they are, and is released when the first card is in front. While it runs the button reads Stop.`,
+      ],
+    ],
+    needs:
+      "The same as `↓ from top`, the other way: every card comes back from behind the pile, so it shows the incoming fade, the covered card's fade and the rise through the turn.",
+    tune: "Run it after `↓ from top` to check that returning cards look as good as leaving ones.",
+  }),
+  "setting.krd": (f) => ({
+    what: "How long a simulated hold waits after its first press before it starts repeating, as the OS's key repeat delay.",
+    effect: [
+      [
+        "Raise",
+        "A longer pause after the first card leaves before the run speeds up, like a slow repeat delay in the system's keyboard settings.",
+      ],
+      [
+        "Lower",
+        "The repeats start sooner, so the second card follows the first almost at once.",
+      ],
+    ],
+    needs: t`Only the simulated holds read it; a real key repeats at the system's own rate. The model's \`hold delay ms\` is separate: it counts from the key going down before the held speed-up or fold starts. Default ${f.def("krd")} ms.`,
+    tune: "Match it to the system setting you want to test: macOS's default delay is short, a long one shows how a tap followed by a hold feels.",
+  }),
+  "setting.kri": (f) => ({
+    what: "How often a simulated hold repeats its press, in ms, as the OS's key repeat rate.",
+    effect: [
+      [
+        "Raise",
+        "Fewer presses arrive per second. Once the interval is longer than a trip, the pace follows the repeats instead of the model.",
+      ],
+      [
+        "Lower",
+        "Presses arrive faster than the model takes them, so the pace is the model's own and the extra presses wait or are dropped.",
+      ],
+    ],
+    needs: t`Only the simulated holds read it. The drum takes at most one waiting press, so a fast repeat never queues a backlog. Default ${f.def("kri")} ms, about the rate of a fast system key repeat.`,
+    tune: "Leave it fast to see the model's own pace; slow it to see how the stack copes with a slow keyboard.",
+  }),
   copy: () => ({
     what: "Copies the current settings to the clipboard as Markdown, to paste into a note, an issue or a chat.",
     effect: [

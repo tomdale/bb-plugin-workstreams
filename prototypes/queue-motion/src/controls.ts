@@ -689,6 +689,10 @@ export type ViewCfg = {
   fadeMs: number;
   /** How long the heading fades in when the front card changes, ms; 0 swaps it at once. */
   headMs: number;
+  /** A simulated hold's wait before its first repeat, ms, as the OS's key repeat delay. */
+  repeatDelay: number;
+  /** A simulated hold's interval between repeats, ms, as the OS's key repeat rate. */
+  repeatMs: number;
   handles: boolean;
   allKnots: boolean;
   inner: number;
@@ -702,6 +706,8 @@ export const VIEW_DEFAULT: ViewCfg = {
   overlay: false,
   fadeMs: 160,
   headMs: 160,
+  repeatDelay: 250,
+  repeatMs: 33,
   handles: true,
   allKnots: false,
   inner: INNER_KNOTS,
@@ -738,6 +744,33 @@ export const VIEW_SETTINGS: readonly Setting<ViewCfg, Partial<ViewCfg>>[] = [
     read: (c) => c.headMs,
     write: (headMs) => ({ headMs }),
     // Under reduced motion the heading changes at once, so the fade has nothing to draw.
+    shown: (c) => !c.reduced,
+  },
+  // The simulated holds (`hold.down`, `hold.up`) run only while cards move.
+  {
+    kind: "range",
+    key: "krd",
+    group: "playback",
+    label: "hold repeat delay ms",
+    unit: "ms",
+    min: 100,
+    max: 800,
+    step: 10,
+    read: (c) => c.repeatDelay,
+    write: (repeatDelay) => ({ repeatDelay }),
+    shown: (c) => !c.reduced,
+  },
+  {
+    kind: "range",
+    key: "kri",
+    group: "playback",
+    label: "hold repeat interval ms",
+    unit: "ms",
+    min: 15,
+    max: 120,
+    step: 1,
+    read: (c) => c.repeatMs,
+    write: (repeatMs) => ({ repeatMs }),
     shown: (c) => !c.reduced,
   },
   {
@@ -916,6 +949,18 @@ export const CONTROLS: readonly Control[] = [
     meta: "default off",
   },
   { id: "held", label: "held", kind: "readout", meta: "0 to 1" },
+  {
+    id: "hold.down",
+    label: "Hold ↓ from the top",
+    kind: "button",
+    meta: "simulated key hold",
+  },
+  {
+    id: "hold.up",
+    label: "Hold ↑ from the bottom",
+    kind: "button",
+    meta: "simulated key hold",
+  },
   {
     id: "copy",
     label: "Copy settings",

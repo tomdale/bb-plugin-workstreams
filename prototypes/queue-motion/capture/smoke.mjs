@@ -467,6 +467,85 @@ async function controlsDriveThePage(browser) {
       `Copy settings in the product lists no preset or model settings (${JSON.stringify(product.slice(0, 300))})`,
     );
 
+    // The simulated holds start at the near end and run the whole queue, then release; Stop ends one early.
+    const runs = {};
+    for (const [name, hash, act] of [
+      ["drum down", "#v=drum&preset=natural", "run:1"],
+      ["drum up", "#v=drum&preset=fold", "run:-1"],
+      ["product down", "#v=product", "run:1"],
+      ["cascade up", "#v=cascade", "run:-1"],
+    ]) {
+      await load(page, hash);
+      await page.evaluate(() => {
+        window.__sim.pause();
+        window.__sim.jump(5);
+      });
+      await page.click(`button[data-act="${act}"]`);
+      const start = await page.evaluate(() => window.__sim.cur());
+      const label = await page.$eval(`button[data-act="${act}"]`, (b) => [
+        b.textContent,
+        b.getAttribute("aria-pressed"),
+      ]);
+      let frames = 0;
+      while (frames < 1800) {
+        await page.evaluate(() => {
+          for (let f = 0; f < 30; f++) window.__sim.advance(1000 / 60);
+        });
+        frames += 30;
+        const done = await page.$eval(
+          `button[data-act="${act}"]`,
+          (b) => b.getAttribute("aria-pressed") === "false",
+        );
+        if (done) break;
+      }
+      runs[name] = {
+        start,
+        end: await page.evaluate(() => window.__sim.cur()),
+        n: await page.evaluate(() => document.querySelectorAll(".card").length),
+        label,
+        after: await page.$eval(
+          `button[data-act="${act}"]`,
+          (b) => b.textContent,
+        ),
+        ms: Math.round((frames * 1000) / 60),
+      };
+    }
+    expect(
+      Object.entries(runs).every(([name, r]) => {
+        const down = name.endsWith("down");
+        return (
+          // The first press is taken at once, so the front has already left the near end by one.
+          r.start === (down ? 1 : r.n - 2) &&
+          r.end === (down ? r.n - 1 : 0) &&
+          r.label[0] === "Stop" &&
+          r.label[1] === "true" &&
+          r.after !== "Stop"
+        );
+      }),
+      `the simulated holds reset to the near end, run to the far end and release (${JSON.stringify(runs)})`,
+    );
+    await load(page, "#v=drum&preset=natural");
+    await page.evaluate(() => window.__sim.pause());
+    await page.click('button[data-act="run:1"]');
+    await page.evaluate(() => {
+      for (let f = 0; f < 30; f++) window.__sim.advance(1000 / 60);
+    });
+    await page.click('button[data-act="run:1"]');
+    const stopped = await page.evaluate(() => {
+      for (let f = 0; f < 120; f++) window.__sim.advance(1000 / 60);
+      return window.__sim.cur();
+    });
+    const later = await page.evaluate(() => {
+      for (let f = 0; f < 120; f++) window.__sim.advance(1000 / 60);
+      return window.__sim.cur();
+    });
+    await load(page, "#v=drum&reduced=1");
+    const holdRowHidden = await page.$eval("#hold-row", (r) => r.hidden);
+    expect(
+      stopped > 0 && stopped < 11 && later === stopped && holdRowHidden,
+      `Stop releases a simulated hold early, and reduced motion hides the holds (front ${stopped}, then ${later})`,
+    );
+
     // Save preset stores the state under a name, its chip restores it, and × deletes it.
     await load(page, "#v=drum&preset=natural&cap=30&sway=40");
     const state = () =>
@@ -1010,6 +1089,8 @@ const pathKeys = (mode, { reduced = false, overlay = false } = {}) =>
 const VIEW_SHOWN = {
   rfade: (s) => s.reduced,
   hfade: (s) => !s.reduced,
+  krd: (s) => !s.reduced,
+  kri: (s) => !s.reduced,
   handles: (s) => s.overlay,
   knots: (s) => s.overlay && s.handles,
   inner: (s) => s.overlay,
@@ -1020,7 +1101,7 @@ const VIEW_SHOWN = {
 };
 /** What the overlay draws: shown only while `Bezier path` is on. */
 const OVERLAY_KEYS = Object.keys(VIEW_SHOWN).filter(
-  (k) => !["rfade", "hfade"].includes(k),
+  (k) => !["rfade", "hfade", "krd", "kri"].includes(k),
 );
 const viewKeys = ({ reduced = false, overlay = false, handles = true } = {}) =>
   Object.keys(VIEW_SHOWN).filter((k) =>
