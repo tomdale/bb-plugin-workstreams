@@ -38,6 +38,26 @@ describe("WorkstreamName", () => {
     expect(getByText("Automations").className).toContain("ws-workstream-name");
   });
 
+  it("lets the caller's classes replace its default type", () => {
+    const plain = render(
+      <WorkstreamName name="Workstreams" className="font-medium" />,
+    ).getByText("Workstreams");
+    expect(plain.className).toContain("font-medium");
+    expect(plain.className).not.toContain("font-semibold");
+    expect(plain.className).not.toContain("ws-text-workstream");
+    const { getByText } = render(
+      <WorkstreamName
+        name="Vercel Agent: Automations"
+        className="text-[12px]"
+      />,
+    );
+    const split = getByText("Automations").parentElement!;
+    expect(split.className).toContain("text-[12px]");
+    // The parts carry no size or weight of their own, so they inherit it.
+    for (const part of [getByText("Vercel Agent"), getByText("Automations")])
+      expect(part.className).not.toMatch(/\b(text-\[|font-|leading-)/);
+  });
+
   it("treats a leading or trailing colon as a plain name", () => {
     expect(splitWorkstreamName(":test")).toBeNull();
     expect(splitWorkstreamName("test:")).toBeNull();

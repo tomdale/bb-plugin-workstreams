@@ -243,9 +243,8 @@ describe("row hover buttons", () => {
       });
       const section = await slot.findByRole("region", { name: "Zeta" });
       const header = section.querySelector(".group\\/row")!;
-      const actions = within(header as HTMLElement)
-        .getAllByRole("button")
-        .slice(1);
+      // An empty workstream keeps no fold control, so its actions lead.
+      const actions = within(header as HTMLElement).getAllByRole("button");
       expect(
         actions.map((button) => button.getAttribute("aria-label")),
       ).toEqual([

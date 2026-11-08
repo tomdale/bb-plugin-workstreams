@@ -14,6 +14,7 @@ import type {
   ThreadSnooze,
 } from "../../domain/snooze.ts";
 import { compareGroupNames } from "../../domain/group-name-order.ts";
+import { takesThreads } from "../../domain/topics.ts";
 import { topicPath } from "../../domain/topic-path.ts";
 import { useSharedServerState } from "../serverState.ts";
 import { isAutomaticTopic } from "../task/TaskIdentity.tsx";
@@ -27,6 +28,11 @@ export type RowMenuHandlers = {
   /** Opens the Custom… snooze dialog. */
   customSnooze: (thread: PluginSidebarThread) => void;
   wake: (thread: PluginSidebarThread) => void;
+  /**
+   * Puts a failed RPC where it can be read. A menu closes on the choice it
+   * makes, so the sidebar's own notice is the place to show one.
+   */
+  reportError: (cause: unknown) => void;
   /** Debug mode: opens the thread's model calls. */
   inspect: (thread: PluginSidebarThread) => void;
   assignIdentity?: (thread: PluginSidebarThread, entityId: string) => void;
@@ -74,6 +80,21 @@ export function RowMenu({
     : "No topic";
   const isFork = Boolean(assignment?.inheritedFrom);
   const automatic = isAutomaticTopic(assignment);
+  // A topic holds threads or subtopics, never both (see `takesThreads`), so
+  // a parent topic cannot be a thread's topic and is not offered here.
+  const chosenTopics = entities
+    .filter((entity) => takesThreads(entity.id, entities))
+    .sort((a, b) =>
+      compareGroupNames(displayTopicPath(a.id), displayTopicPath(b.id)),
+    );
+  const assignTopic = (entityId: string) => {
+    if (handlers.assignIdentity) handlers.assignIdentity(thread, entityId);
+    else
+      void rpc
+        .call("taskAssign", { threadId: thread.id, entityId })
+        .then(() => refresh())
+        .catch(handlers.reportError);
+  };
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
@@ -115,7 +136,8 @@ export function RowMenu({
                         } else {
                           void rpc
                             .call("taskReclassify", { threadId: thread.id })
-                            .then(() => refresh());
+                            .then(() => refresh())
+                            .catch(handlers.reportError);
                         }
                       }}
                     >
@@ -130,45 +152,27 @@ export function RowMenu({
                       ) : null}
                     </Item>
                     <Separator />
-                    {entities.length ? (
-                      entities
-                        .slice()
-                        .sort((a, b) =>
-                          compareGroupNames(
-                            displayTopicPath(a.id),
-                            displayTopicPath(b.id),
-                          ),
-                        )
-                        .map((entity) => {
-                          const isChosen =
-                            !automatic && entity.id === currentEntity?.id;
-                          return (
-                            <Item
-                              key={entity.id}
-                              disabled={isChosen}
-                              onSelect={() => {
-                                if (handlers.assignIdentity) {
-                                  handlers.assignIdentity(thread, entity.id);
-                                } else {
-                                  void rpc
-                                    .call("taskAssign", {
-                                      threadId: thread.id,
-                                      entityId: entity.id,
-                                    })
-                                    .then(() => refresh());
-                                }
-                              }}
-                            >
-                              <span className="flex-1 truncate">
-                                {displayTopicPath(entity.id)}
-                              </span>
-                              {isChosen ? (
-                                <Icon name="Check" className="ml-2 size-3.5" />
-                              ) : null}
-                            </Item>
-                          );
-                        })
+                    {chosenTopics.length ? (
+                      chosenTopics.map((entity) => {
+                        const isChosen =
+                          !automatic && entity.id === currentEntity?.id;
+                        return (
+                          <Item
+                            key={entity.id}
+                            disabled={isChosen}
+                            onSelect={() => assignTopic(entity.id)}
+                          >
+                            <span className="flex-1 truncate">
+                              {displayTopicPath(entity.id)}
+                            </span>
+                            {isChosen ? (
+                              <Icon name="Check" className="ml-2 size-3.5" />
+                            ) : null}
+                          </Item>
+                        );
+                      })
                     ) : (
+                      // A topic tree always has a leaf, so this is an empty catalog.
                       <Item disabled onSelect={() => undefined}>
                         No topics yet
                       </Item>

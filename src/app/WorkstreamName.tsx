@@ -15,6 +15,10 @@ export function splitWorkstreamName(
  * A workstream's name. An area of a larger product ("Workstreams: Recaps")
  * shows the owner subdued before the area, without the colon; the colon is
  * kept in the accessible text so screen readers hear the full name.
+ *
+ * Its weight and line height are defaults that the caller's `className`
+ * replaces, and the parts inherit the result, so Home and the archived
+ * groups set their own type. A sidebar header passes `ws-text-workstream`.
  */
 export function WorkstreamName({
   name,
@@ -32,7 +36,7 @@ export function WorkstreamName({
     return (
       <span
         className={cn(
-          "ws-text-workstream truncate",
+          "truncate font-semibold leading-[1.2]",
           accent
             ? "ws-workstream-name"
             : muted
@@ -45,7 +49,7 @@ export function WorkstreamName({
       </span>
     );
   return (
-    <span className={cn("truncate", className)}>
+    <span className={cn("truncate font-[450] leading-[1.2]", className)}>
       <span
         className={cn(
           "ws-text-prefix text-muted-foreground/60",

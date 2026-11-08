@@ -550,7 +550,9 @@
 }
 /* Sidebar typography: one semantic class per text role. Color stays on the
    identity and theme classes below; these only set size, weight, and rhythm.
-   The geometry these accompany lives in sidebar/tokens.ts. */
+   The geometry these accompany lives in sidebar/tokens.ts. These rules sit
+   outside Tailwind's utilities layer, so they beat any utility on the same
+   element: a role sets only what no caller or row state varies. */
 .ws-text-section {
   font-size: 11px;
   font-weight: 600;
@@ -563,25 +565,21 @@
   font-weight: 600;
   line-height: 1.2;
 }
-.ws-text-inline-workstream {
-  font-size: 13px;
+/* The owner and area of an "Owner: Area" name inherit the caller's type, so
+   Home and the archived groups keep their own; in a sidebar workstream header
+   they read lighter than a plain name. */
+.ws-text-workstream > :is(.ws-text-prefix, .ws-text-inline-workstream) {
   font-weight: 450;
-  line-height: 1.2;
-}
-.ws-text-prefix {
-  font-size: 13px;
-  font-weight: 450;
-  line-height: 1.2;
 }
 .ws-text-category {
   font-size: 12px;
   font-weight: 500;
   line-height: 1.2;
 }
+/* Weight comes from the row (medium while unread or active) and line height
+   from its geometry (`rowGeometry`). */
 .ws-text-thread {
   font-size: 13px;
-  font-weight: 400;
-  line-height: 1.2;
 }
 
 /* A category inherits its workstream hue, tempered by the theme's muted ink. */

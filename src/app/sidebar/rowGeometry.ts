@@ -10,6 +10,20 @@ export const INDENT_PX = SIDEBAR_GEOMETRY.row.childIndent;
 /** Children indent at most this many levels; deeper rows stay put. */
 export const MAX_INDENT = 3;
 
+type RowHeight =
+  | typeof SIDEBAR_GEOMETRY.row.rootHeight
+  | typeof SIDEBAR_GEOMETRY.row.childHeight;
+
+/**
+ * The Tailwind class for each one-line row height token. Tailwind generates
+ * only classes spelled out in source, so a token cannot build its class at
+ * run time; a token value without an entry here fails the typecheck.
+ */
+const ROW_HEIGHT_CLASS = {
+  21: "h-[21px]",
+  28: "h-7",
+} as const satisfies Record<RowHeight, string>;
+
 /**
  * The layout values a sidebar row derives from its depth and placement: its
  * left padding, its height and line-height classes, and whether its hover
@@ -39,14 +53,18 @@ export function rowGeometry(options: {
   const paddingLeft =
     baseIndent + Math.min(options.depth, MAX_INDENT) * INDENT_PX;
 
-  // A root row is 21px and a nested row 28px (`h-7`); a two-line row sizes
-  // itself from its content, so it carries no height class (the `items-start`
-  // layout in Row.tsx sets the title's 20px line).
+  // A one-line row takes its height token; a two-line row sizes itself from
+  // its content, so it carries no height class (the `items-start` layout in
+  // Row.tsx centers its marks on the title's 20px line).
   const heightClass = options.hasSubtitle
     ? ""
-    : options.depth > 0
-      ? "h-7 items-center"
-      : "h-[21px] items-center";
+    : `${
+        ROW_HEIGHT_CLASS[
+          options.depth > 0
+            ? SIDEBAR_GEOMETRY.row.childHeight
+            : SIDEBAR_GEOMETRY.row.rootHeight
+        ]
+      } items-center`;
 
   // Nested and two-line rows give their titles a 20px (`leading-5`) line so
   // the aside stays centered on it; a root's title sits on a tighter 1.2

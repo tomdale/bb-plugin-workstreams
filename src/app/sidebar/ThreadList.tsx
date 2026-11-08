@@ -198,6 +198,13 @@ export function WorkstreamsThreadList({
   const nameOf = new Map(sections.map((s) => [s.id, s.name]));
   const prioritizedIds = ws.server.order.prioritized;
   const groupSort = prefs?.sidebar.groupSort ?? "alphabetical";
+  /**
+   * A header drag writes the stored manual order, which the active groups do
+   * not show under another sort. Dormant groups are displayed in manual order
+   * regardless, but header dragging still follows the selected sort. Thread
+   * rows drag under every sort.
+   */
+  const headersDrag = groupSort === "manual" && !choosingTopic;
   // Unfiled, a group only while it has threads, sits between the populated
   // workstreams and the empty ones. With any workstream focused, the rest
   // (with Unfiled and Dormant) sit hidden behind a toggle below the focused
@@ -331,6 +338,7 @@ export function WorkstreamsThreadList({
     snooze: (thread, when) => applySnooze({ threads: [thread] }, when),
     customSnooze: (thread) => setCustomSnooze({ threads: [thread] }),
     wake: (thread) => wakeThreads(ws.setSnoozes, [thread]),
+    reportError: report,
   };
   const snoozePrefs = ws.snoozePrefs;
   const preset = defaultPreset(snoozePrefs);
@@ -700,6 +708,7 @@ export function WorkstreamsThreadList({
       key={group.id}
       id={groupKey(group.id)}
       data={{ type: "group", groupId: group.id, pinned: group.prioritized }}
+      disabled={!headersDrag}
     >
       {({ ref, style: sortableStyle, handle }) => (
         <WorkstreamGroup
@@ -956,7 +965,7 @@ export function WorkstreamsThreadList({
               {dormantGroups.map((group, index) => {
                 const prev = index > 0 ? dormantGroups[index - 1]! : null;
                 const prevCollapsed = prev
-                  ? groupCollapsed(group.id, true, group.topicId)
+                  ? groupCollapsed(prev.id, true, prev.topicId)
                   : false;
                 const marginTop = workstreamGap(prev, group, prevCollapsed);
                 return (
@@ -1636,6 +1645,22 @@ function WorkstreamGroup({
   const label = "label" in group ? group.label : group.name;
   const isWorkstream = "hasSection" in group && group.hasSection;
   const counts = headerCounts(group, collapsed, prefs?.sidebar);
+  /** A group with threads folds, so only its header is a button. */
+  const folds = group.total > 0;
+  const headingClass =
+    "group/heading relative flex min-w-0 flex-1 items-center text-left";
+  const heading = (
+    <WorkstreamName
+      name={label}
+      muted={muted || nested}
+      accent={isWorkstream}
+      className={
+        nested && !isWorkstream
+          ? "text-[11px] font-semibold uppercase tracking-wide"
+          : "ws-text-workstream"
+      }
+    />
+  );
   const focusAction = onToggleFocus ? (
     <HoverAction
       compact
@@ -1692,16 +1717,13 @@ function WorkstreamGroup({
               : SIDEBAR_GEOMETRY.workstreamHeader.indent,
           }}
         >
-          <button
-            type="button"
-            aria-expanded={group.total > 0 ? !collapsed : undefined}
-            onClick={group.total > 0 ? toggle : undefined}
-            className={cn(
-              "group/heading relative flex min-w-0 flex-1 items-center text-left",
-              group.total > 0 && "cursor-pointer",
-            )}
-          >
-            {group.total > 0 ? (
+          {folds ? (
+            <button
+              type="button"
+              aria-expanded={!collapsed}
+              onClick={toggle}
+              className={cn(headingClass, "cursor-pointer")}
+            >
               <span
                 aria-hidden="true"
                 className="absolute top-1/2 flex h-3.5 -translate-y-1/2 items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100"
@@ -1717,18 +1739,13 @@ function WorkstreamGroup({
                   className="size-3"
                 />
               </span>
-            ) : null}
-            <WorkstreamName
-              name={label}
-              muted={muted || nested}
-              accent={isWorkstream}
-              className={
-                nested && !isWorkstream
-                  ? "text-[11px] font-semibold uppercase tracking-wide"
-                  : "ws-text-workstream"
-              }
-            />
-          </button>
+              {heading}
+            </button>
+          ) : (
+            // An empty workstream has nothing to fold: a button here would
+            // take focus and a press that do nothing.
+            <div className={headingClass}>{heading}</div>
+          )}
           {/* Keep the always-visible action at the trailing edge so revealing
             other actions cannot move it underneath the pointer. */}
           <RowActions>

@@ -254,11 +254,13 @@ it("shows Unfiled, then recent empty workstreams; empty ones get a scoped New wo
   expect(slot.queryByRole("button", { name: /Dormant/ })).toBeNull();
   const empty = within(slot.getByRole("region", { name: "Zeta" }));
   expect(empty.queryByText("0")).toBeNull();
-  const header = empty.getByRole("button", { name: "Zeta" });
-  expect(header.hasAttribute("aria-expanded")).toBe(false);
-  expect(header.querySelector('[data-icon^="Chevron"]')).toBeNull();
-  fireEvent.click(header);
-  expect(header.hasAttribute("aria-expanded")).toBe(false);
+  // An empty workstream has nothing to fold, so its header is not a button.
+  expect(empty.queryByRole("button", { name: "Zeta" })).toBeNull();
+  expect(
+    slot
+      .getByRole("region", { name: "Zeta" })
+      .querySelector('.group\\/heading [data-icon^="Chevron"]'),
+  ).toBeNull();
   expect(
     within(slot.getByRole("region", { name: "Beta" }))
       .getByRole("button", { name: "Beta" })

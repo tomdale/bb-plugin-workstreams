@@ -233,8 +233,10 @@ export function Row({
         {/* The band's or subgroup's context and the age follow the title
             itself, so the row's trailing end is left to its marks and hover
             buttons. */}
-        <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className={cn("ws-text-thread min-w-0 truncate", leadingClass)}>
+        <span
+          className={cn("flex min-w-0 items-baseline gap-1.5", leadingClass)}
+        >
+          <span className="ws-text-thread min-w-0 truncate">
             <ThreadTitle threadId={thread.id} />
           </span>
           {context ? (
