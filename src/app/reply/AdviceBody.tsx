@@ -25,27 +25,18 @@ const COLUMNS: Record<number, string> = {
  * field starts at the same height across a visual row of options even when
  * another option omits it.
  */
-export function ComparisonBody({
-  part,
-  md,
-  title,
-}: {
-  part: Comparison;
-  md: Md;
-  title: (value: string) => ReactNode;
-}) {
+export function ComparisonBody({ part, md }: { part: Comparison; md: Md }) {
   return (
-    <div data-reply-comparison="" className="@container/comparison min-w-0">
-      {title(part.title)}
+    <div className="@container/comparison min-w-0">
       <ul
         data-reply-comparison-options=""
-        className={`m-0 mt-2 grid list-none grid-cols-1 gap-x-6 p-0 ${COLUMNS[part.items.length] ?? ""}`}
+        className={`m-0 grid list-none grid-cols-1 gap-x-6 p-0 ${COLUMNS[part.items.length] ?? ""}`}
       >
         {part.items.map((item, i) => (
           <li
             key={i}
             data-reply-comparison-option={item.recommended ? "recommended" : ""}
-            className={`row-span-4 grid min-w-0 grid-rows-subgrid gap-y-0 border-t pt-2 pb-3 ${
+            className={`row-span-4 grid min-w-0 grid-rows-subgrid gap-y-0 border-t px-3.5 pt-2 pb-3 ${
               item.recommended
                 ? "border-t-2 border-(--ws-reply-accent,var(--foreground)) pt-[calc(0.5rem-1px)]"
                 : "border-border"

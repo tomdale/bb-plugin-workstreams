@@ -45,7 +45,8 @@ it("renders the steps as an ordered list with numbers in the mark column", () =>
     // is decoration.
     const number = step.querySelector("[data-reply-step-number]");
     expect(number?.textContent).toBe(String(i + 1));
-    expect(number?.getAttribute("aria-hidden")).toBe("true");
+    // The drawn number sits in a mark cell hidden from assistive technology.
+    expect(number?.closest('[aria-hidden="true"]')).not.toBeNull();
     expect(number?.className).toContain("tabular-nums");
   }
 });
@@ -55,7 +56,7 @@ it("joins every step but the last to the next with a rail", () => {
     ...draw(sequence).querySelectorAll("[data-reply-sequence-step]"),
   ];
   const rails = steps.map(
-    (step) => step.querySelectorAll("span.bg-border[aria-hidden]").length,
+    (step) => step.querySelectorAll("[data-reply-rail]").length,
   );
   expect(rails).toEqual([1, 1, 0]);
 });

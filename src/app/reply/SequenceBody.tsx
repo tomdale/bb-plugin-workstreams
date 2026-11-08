@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import type { ReplyPart } from "../../domain/replyComponents.ts";
 import { LABEL_CLASS, MARK_CLASS, MARK_ROW_CLASS } from "../recap/marks.tsx";
+import { PANEL_ROW_CLASS, RailCell } from "./Panel.tsx";
+import { SECONDARY_CLASS } from "./type.ts";
 
 type Sequence = Extract<ReplyPart, { type: "sequence" }>;
 
@@ -15,37 +17,32 @@ type Sequence = Extract<ReplyPart, { type: "sequence" }>;
 export function SequenceBody({
   part,
   md,
-  title,
+  pad = PANEL_ROW_CLASS,
 }: {
   part: Sequence;
   md: (content: string | undefined) => ReactNode;
-  title: (value: string) => ReactNode;
+  /** Row padding; a part already inside a frame draws its rows flush. */
+  pad?: string;
 }) {
   const last = part.steps.length - 1;
   return (
-    <div data-reply-sequence="" className="min-w-0">
-      {title(part.title)}
-      <ol data-reply-sequence-steps="" className="m-0 mt-2 list-none p-0">
+    <div className="min-w-0">
+      <ol data-reply-sequence-steps="" className="m-0 list-none p-0">
         {part.steps.map((step, i) => (
           <li
             key={i}
             data-reply-sequence-step={i + 1}
             data-reply-attention={step.attention ? "" : undefined}
-            className={`relative ${MARK_ROW_CLASS} ${i < last ? "pb-2" : ""}`}
+            className={`${MARK_ROW_CLASS} ${pad} ${i < last ? "pb-2" : ""}`}
           >
-            {i < last ? (
+            <RailCell rail={i < last}>
               <span
-                aria-hidden="true"
-                className="absolute top-[calc(0.2em+17px)] bottom-[calc(3px-0.2em)] left-[6.5px] w-px bg-border max-md:pointer-coarse:top-[calc(0.2em+19px)] max-md:pointer-coarse:left-[8.5px]"
-              />
-            ) : null}
-            <span
-              aria-hidden="true"
-              data-reply-step-number=""
-              className={`${MARK_CLASS} flex translate-y-px items-end justify-center text-[11px] font-medium leading-none tabular-nums text-muted-foreground max-md:pointer-coarse:text-xs`}
-            >
-              {i + 1}
-            </span>
+                data-reply-step-number=""
+                className={`${MARK_CLASS} flex w-full items-end justify-center text-[11px] font-medium leading-none tabular-nums text-muted-foreground max-md:pointer-coarse:text-xs`}
+              >
+                {i + 1}
+              </span>
+            </RailCell>
             <div className="min-w-0">
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 [&_p]:m-0">
                 {md(step.title)}
@@ -61,7 +58,7 @@ export function SequenceBody({
               {step.detail ? (
                 <div
                   data-reply-step-detail=""
-                  className="mt-0.5 text-muted-foreground [&_p]:my-0"
+                  className={`mt-0.5 text-muted-foreground ${SECONDARY_CLASS} [&_p]:m-0`}
                 >
                   {md(step.detail)}
                 </div>

@@ -264,14 +264,18 @@ it("keeps supporting detail, all checks, and comparison details visible", () => 
     "1000 * (10 / 100)",
   );
   expect(screen.getByText("Unit tests")).toBeDefined();
+  // Every row prints its status word, at the right edge where one column can
+  // be scanned; the mark beside the name carries the shape and the tone.
   expect(
-    view.container.querySelector('[data-reply-check-status="passed"]')
-      ?.textContent,
+    view.container.querySelector(
+      '[data-reply-check-item="passed"] [data-reply-status-word]',
+    )?.textContent,
   ).toBe("Passed");
   expect(screen.getByText("Payment integration")).toBeDefined();
   expect(
-    view.container.querySelector('[data-reply-check-status="skipped"]')
-      ?.textContent,
+    view.container.querySelector(
+      '[data-reply-check-item="skipped"] [data-reply-status-word]',
+    )?.textContent,
   ).toBe("Skipped");
   expect(view.container.textContent).toContain("connection remains unverified");
   expect(view.container.textContent).toContain("100-cent discount");
@@ -559,11 +563,13 @@ it("keeps sequence markers and leads check rows with status marks", () => {
       item.firstElementChild?.hasAttribute("data-reply-check-status"),
     ).toBe(true);
     expect(item.firstElementChild?.querySelector("svg")).not.toBeNull();
-    // Only statuses other than passed repeat their label beside the name.
-    const shown = item.querySelector('[aria-hidden="true"]:not(svg)');
-    if (item.getAttribute("data-reply-check-item") === "passed")
-      expect(shown).toBeNull();
-    else expect(shown?.textContent).not.toBe("");
+    // Every row prints its status word, in one column at the right edge.
+    expect(item.querySelector("[data-reply-status-word]")?.textContent).toBe(
+      { passed: "Passed", failed: "Failed", skipped: "Skipped" }[
+        item.getAttribute("data-reply-check-item") as
+          "passed" | "failed" | "skipped"
+      ],
+    );
   }
 });
 

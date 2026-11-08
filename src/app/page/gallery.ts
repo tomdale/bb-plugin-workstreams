@@ -202,6 +202,80 @@ const delivered = block([
   } satisfies ReplyComponent),
 ]);
 
+/** One reply holding a failure, a blocked row, and a stage nobody has reached. */
+const held = block([
+  "# The order sync still runs once per burst",
+  "The handler now reads the queue's position from a ref, so a burst of repeats moves the card one place per press. The sync test still fails: the fixture replays two requests in one tick, and the coalescing key is sent before the queue drains.",
+  componentFence({
+    type: "checks",
+    title: "The branch's checks",
+    scope: "GitHub Actions, run 4821 on fix/queue-held-key",
+    testTotals: { passed: 5, failed: 1, skipped: 0 },
+    items: [
+      { name: "typecheck", status: "passed" },
+      {
+        name: "unit tests",
+        status: "failed",
+        detail:
+          "One failure in tests/app/queue.test.ts: the coalescing key is sent before the queue drains.",
+        evidence: [
+          {
+            label: "queue.test.tsx L88–104",
+            location: "tests/app/queue.test.tsx",
+            line: 88,
+            endLine: 104,
+          },
+        ],
+      },
+      {
+        name: "smoke check against a throwaway server",
+        status: "blocked",
+        detail: "Waits on the unit tests.",
+      },
+      {
+        name: "replay against a real queue",
+        status: "untested",
+        detail: "No display is attached to this machine.",
+      },
+    ],
+  } satisfies ReplyComponent),
+  componentFence({
+    type: "delivery",
+    title: "Where the fix stands",
+    scope: "branch fix/queue-held-key",
+    stages: [
+      {
+        name: "Committed",
+        status: "done",
+        detail: "abc1234 on the task branch",
+      },
+      {
+        name: "Pushed",
+        status: "pending",
+        detail: "Waits for the failing unit test.",
+      },
+      {
+        name: "Deployed",
+        status: "blocked",
+        detail: "The plugin reloads after merge.",
+      },
+      {
+        name: "Release note",
+        status: "unknown",
+        detail: "No note has been written.",
+      },
+    ],
+  } satisfies ReplyComponent),
+  componentFence({
+    type: "recommendation",
+    choice: "Fix the coalescing key before anyone reviews",
+    reason:
+      "The failing test is the branch's own evidence that the sync still fires twice, and a review would have to start there anyway.",
+    qualification:
+      "Skip this only if the fixture is wrong; the replay against a real queue says it is not.",
+  } satisfies ReplyComponent),
+]);
+
 const fallbacks = block([
   "# Two parts that cannot be displayed as written",
   "A fence that is still arriving shows a placeholder until its closing line lands. A fence that closes with something the component schema rejects keeps its source readable, with the reason above it.",
@@ -272,6 +346,24 @@ export const SPECIMENS: readonly Specimen[] = [
           "recommendation",
           "details component",
           "directive",
+        ],
+      },
+    ],
+  },
+  {
+    title: "A change that is not ready",
+    intro:
+      "The same parts reporting what went wrong: a failing check, a blocked row, a delivery that stops before it ships, and the recommendation that follows from them.",
+    messages: [
+      { from: "user", text: "Is it ready to review?" },
+      {
+        from: "agent",
+        block: held,
+        features: [
+          "checks with a failure",
+          "blocked row",
+          "delivery",
+          "recommendation",
         ],
       },
     ],

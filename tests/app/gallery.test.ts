@@ -1154,12 +1154,18 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         change.locator("[data-reply-change]").evaluate((change) => {
           const rows = [...change.querySelectorAll("[data-reply-change-row]")];
           return rows.map((row) => {
-            const label = row.querySelector("dt")!.getBoundingClientRect();
-            const value = row.querySelector("dd")!.getBoundingClientRect();
+            const label = row.querySelector("dt")!;
+            const value = row.querySelector("dd")!;
+            const box = label.getBoundingClientRect();
+            const beside =
+              value.getBoundingClientRect().left >= box.right &&
+              value.getBoundingClientRect().top < box.bottom;
             return {
-              beside: value.left >= label.right && value.top < label.bottom,
-              valueLeft: Math.round(value.left),
-              labelLines: Math.round(label.height / 16),
+              beside,
+              valueLeft: Math.round(value.getBoundingClientRect().left),
+              // A label is never broken across lines: the shared gutter is
+              // wide enough for the longest one.
+              clipped: label.scrollWidth > label.clientWidth + 1,
             };
           });
         });
@@ -1169,7 +1175,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       // One shared gutter: every value starts at the same edge, and no label
       // wraps.
       expect(new Set(wide.map((row) => row.valueLeft)).size).toBe(1);
-      expect(wide.every((row) => row.labelLines <= 1)).toBe(true);
+      expect(wide.every((row) => !row.clipped)).toBe(true);
       await widthControl.getByRole("radio", { name: "Phone" }).check();
       const phone = await placement();
       expect(phone.map((row) => row.beside)).toEqual([

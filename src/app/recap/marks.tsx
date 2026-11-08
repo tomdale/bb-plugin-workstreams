@@ -30,10 +30,13 @@ export function Glyph({
   path,
   className,
   filled = false,
+  dashed = false,
 }: {
   path: string;
   className: string;
   filled?: boolean;
+  /** A broken stroke, for a state nobody has established yet. */
+  dashed?: boolean;
 }) {
   return (
     <svg
@@ -45,6 +48,7 @@ export function Glyph({
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
+      strokeDasharray={dashed ? "2 2.4" : undefined}
     >
       <path d={path} />
     </svg>

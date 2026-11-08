@@ -1,0 +1,133 @@
+import type { ReactNode } from "react";
+import { Glyph, MARK_CLASS } from "../recap/marks.tsx";
+import type { StatusShape } from "./status.ts";
+
+/**
+ * The frame a part draws when its data is a list of parallel rows: checks, a
+ * delivery, a sequence, a comparison, a change, or a supporting group. It is the
+ * recessed, bordered box subagent deliveries already use, so a reply's parts read
+ * as objects of the same family as the message surface around them.
+ *
+ * A part with one subject (context, a recommendation, supporting detail) draws a
+ * label and no frame, and prose is never framed.
+ */
+
+/**
+ * The frame carries the reply's body size, so a panel nested in another surface
+ * cannot pass a larger size down to its rows.
+ */
+const PANEL_CLASS =
+  "min-w-0 overflow-hidden rounded-lg border bg-surface-recessed text-[13px] leading-[21px]";
+
+/** A row's padding inside a panel, on the design's 14px gutter. */
+export const PANEL_ROW_CLASS = "px-3.5 py-2";
+
+export function Panel({
+  part,
+  title,
+  scope,
+  summary,
+  children,
+}: {
+  /** The part's type, recorded so a test and the gallery can find the frame. */
+  part: string;
+  title?: ReactNode;
+  scope?: ReactNode;
+  /** A tally that summarises state, at the right edge of the header. */
+  summary?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      // The part's own marker, so a framed part answers to the same attribute
+      // whether or not it drew a panel.
+      {...{ [`data-reply-${part}`]: "" }}
+      data-reply-panel={part}
+      className={`${PANEL_CLASS} border-border`}
+    >
+      {title || scope || summary ? (
+        <div
+          data-reply-panel-header=""
+          className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 border-b border-border px-3.5 py-2"
+        >
+          <div className="min-w-0 flex-1 basis-48">
+            {title ? (
+              <div data-reply-panel-title="" className="text-foreground">
+                {title}
+              </div>
+            ) : null}
+            {scope ? (
+              <div className="mt-0.5 min-w-0 text-[12px] leading-[18px] text-muted-foreground">
+                {scope}
+              </div>
+            ) : null}
+          </div>
+          {summary}
+        </div>
+      ) : null}
+      {children}
+    </section>
+  );
+}
+
+/**
+ * A row's status mark. It is decorative: the word beside the row carries the
+ * state, and the shape and the tint are what make a failure findable first.
+ */
+export function StatusMark({
+  status,
+  data,
+}: {
+  status: StatusShape;
+  /** The part's own marker attribute, so a test can find the row's raw status. */
+  data?: Record<string, string>;
+}) {
+  return (
+    <span {...data} aria-hidden="true" className={`flex ${status.tone}`}>
+      <Glyph path={status.path} className={MARK_CLASS} dashed={status.dashed} />
+    </span>
+  );
+}
+
+/**
+ * The mark column of a rail. The line joining a row to the next one is drawn
+ * inside this cell, so it follows the mark wherever the row's padding puts it.
+ */
+export function RailCell({
+  data,
+  rail,
+  children,
+}: {
+  data?: Record<string, string>;
+  /** Whether another row follows, which is what the line joins. */
+  rail: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      {...data}
+      aria-hidden="true"
+      className="relative flex self-stretch justify-center"
+    >
+      {children}
+      {rail ? (
+        <span
+          data-reply-rail=""
+          className="absolute top-[calc(0.2em+17px)] -bottom-2 left-1/2 w-px bg-border"
+        />
+      ) : null}
+    </span>
+  );
+}
+
+/** The status word at a row's right edge, where one column can be scanned. */
+export function StatusWord({ status }: { status: StatusShape }) {
+  return (
+    <span
+      data-reply-status-word={status.word}
+      className={`text-[11px] font-medium leading-[17.6px] ${status.tone}`}
+    >
+      {status.word}
+    </span>
+  );
+}

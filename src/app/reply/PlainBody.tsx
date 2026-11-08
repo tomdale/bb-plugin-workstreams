@@ -1,175 +1,59 @@
-import type { ComponentProps } from "react";
-import {
-  Markdown,
-  UrlLink,
-  experimental_FileLink as FileLink,
-} from "@get-bb/plugin-sdk/app";
-import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
-import { normalizeReplyMarkdown } from "./markdown.ts";
-import { BODY_CLASS, SECONDARY_CLASS } from "./type.ts";
-import { SequenceBody } from "./SequenceBody.tsx";
+import type { ReactNode } from "react";
+import { Markdown } from "@get-bb/plugin-sdk/app";
+import type { RecapFiles } from "../../domain/recap.ts";
+import type { ReplyPart } from "../../domain/replyComponents.ts";
 import { ComparisonBody, RecommendationBody } from "./AdviceBody.tsx";
+import { ChangeBody } from "./ChangeBody.tsx";
+import { CheckRows, TestTotals } from "./ChecksBody.tsx";
 import { ContextBody } from "./ContextBody.tsx";
+import { DeliveryStages } from "./DeliveryBody.tsx";
 import { DetailsBody } from "./DetailsBody.tsx";
+import { PlainMarkdown, type ReplyDocument } from "./Evidence.tsx";
 import { GroupBody } from "./GroupBody.tsx";
-import {
-  CHECK,
-  Glyph,
-  LABEL_CLASS,
-  MARK_CLASS,
-  MARK_ROW_CLASS,
-} from "../recap/marks.tsx";
-import {
-  evidenceFilePath,
-  type ReplyEvidence,
-  type ReplyPart,
-} from "../../domain/replyComponents.ts";
+import { PANEL_ROW_CLASS, Panel } from "./Panel.tsx";
+import { PartTitle, titleMarkdown } from "./PartTitle.tsx";
+import { SequenceBody } from "./SequenceBody.tsx";
+import { BODY_CLASS, SECONDARY_CLASS } from "./type.ts";
 
-type Document = ComponentProps<typeof Markdown>["experimental_document"];
-type Context = { document: Document; files: RecapFiles | null };
-type CheckStatus = Extract<
-  ReplyPart,
-  { type: "checks" }
->["items"][number]["status"];
+export { PlainMarkdown };
 
-const CHECK_STATUS_LABEL: Record<CheckStatus, string> = {
-  passed: "Passed",
-  failed: "Failed",
-  skipped: "Skipped",
-  blocked: "Blocked",
-  untested: "Not tested",
-};
-// Stroked marks in the recap card's glyph style; each status has its own
-// shape so the list reads without color.
-const CHECK_STATUS_PATH: Record<CheckStatus, string> = {
-  passed: CHECK,
-  failed: "M4.5 4.5 11.5 11.5 M11.5 4.5 4.5 11.5",
-  skipped: "M4.5 8H11.5",
-  blocked: "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9Z M4.8 11.2 11.2 4.8",
-  untested: "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9Z",
-};
-const CHECK_STATUS_TONE: Record<CheckStatus, string> = {
-  passed: "text-(--ws-complete-text)",
-  failed: "text-(--ws-failure-text)",
-  skipped: "text-muted-foreground",
-  blocked: "text-muted-foreground",
-  untested: "text-muted-foreground",
-};
+type Context = { document: ReplyDocument; files: RecapFiles | null };
 
-/** The leading mark; its label is announced but shown only beside the name. */
-function CheckStatusMark({ status }: { status: CheckStatus }) {
-  return (
-    <span
-      data-reply-check-status={status}
-      className={`flex ${CHECK_STATUS_TONE[status]}`}
-    >
-      <Glyph path={CHECK_STATUS_PATH[status]} className={MARK_CLASS} />
-      <span className="sr-only">{CHECK_STATUS_LABEL[status]}</span>
-    </span>
-  );
-}
+/**
+ * The parts whose data is a list of parallel rows, and which therefore draw a
+ * panel. A part with one subject — context, a recommendation, supporting
+ * detail — draws its label and no frame, and prose is never framed.
+ */
+const ROW_PARTS = new Set<ReplyPart["type"]>([
+  "checks",
+  "delivery",
+  "sequence",
+  "comparison",
+  "change",
+]);
 
-type StageStatus = Extract<
-  ReplyPart,
-  { type: "delivery" }
->["stages"][number]["status"];
-
-const STAGE_STATUS_LABEL: Record<StageStatus, string> = {
-  done: "Done",
-  pending: "Pending",
-  blocked: "Blocked",
-  unknown: "Unknown",
-};
-// The same glyph family as the check marks: done and blocked share their
-// check counterparts' shapes; pending is a clock and unknown a question mark.
-const STAGE_STATUS_PATH: Record<StageStatus, string> = {
-  done: CHECK,
-  pending: "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9Z M8 5.75V8l1.5 1",
-  blocked: CHECK_STATUS_PATH.blocked,
-  unknown:
-    "M5.3 5.8a2.7 2.7 0 1 1 3.85 2.45c-.75.4-1.15.95-1.15 1.75v.2 M8 12.9v.01",
-};
-const STAGE_STATUS_TONE: Record<StageStatus, string> = {
-  done: CHECK_STATUS_TONE.passed,
-  pending: "text-muted-foreground",
-  blocked: "text-muted-foreground",
-  unknown: "text-muted-foreground",
-};
-
-export const PLAIN_LIST_CLASS = `mb-2 pl-5 text-foreground [&>li]:mb-1 ${BODY_CLASS}`;
-
-export function PlainMarkdown({
-  content,
-  document,
-}: {
-  content: string | undefined;
-  document: Document;
-}) {
-  return content ? (
-    <Markdown
-      content={normalizeReplyMarkdown(content)}
-      experimental_document={document}
-    />
-  ) : null;
-}
-
-function Evidence({
-  items,
-  document,
-  files,
-}: Context & { items?: ReplyEvidence[] }) {
-  if (!items?.length) return null;
-  return (
-    <ul className={`${PLAIN_LIST_CLASS} list-disc`}>
-      {items.map((item, i) => {
-        const path =
-          item.location && !item.location.startsWith("https://")
-            ? evidenceFilePath(item.location, files?.root ?? null)
-            : null;
-        const target = path ? fileTarget(path, files) : null;
-        return (
-          <li key={i}>
-            {item.location?.startsWith("https://") ? (
-              <UrlLink href={item.location}>{item.label}</UrlLink>
-            ) : target ? (
-              <FileLink
-                target={target}
-                location={
-                  item.line
-                    ? {
-                        kind: "range",
-                        startLine: item.line,
-                        endLine: item.endLine ?? item.line,
-                      }
-                    : null
-                }
-              >
-                {item.label}
-              </FileLink>
-            ) : (
-              item.label
-            )}
-            <PlainMarkdown content={item.detail} document={document} />
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
+/**
+ * One part of a reply.
+ *
+ * `framed` is false for a part drawn inside another part's panel, such as a
+ * child of a supporting group: that frame is the only frame, so the child draws
+ * its rows flush and without a border of its own.
+ */
 export function PlainBody({
   part,
   document,
   files,
-}: Context & { part: ReplyPart }) {
+  framed = true,
+}: Context & { part: ReplyPart; framed?: boolean }) {
   const md = (content: string | undefined) => (
     <PlainMarkdown content={content} document={document} />
   );
-  const evidence = (items: ReplyEvidence[] | undefined) => (
-    <Evidence items={items} document={document} files={files} />
-  );
-  const title = (value: string) =>
-    md(value.includes("\n") ? value : `### ${value}`);
+  const title = (value: string | undefined) =>
+    value ? <PartTitle>{md(titleMarkdown(value))}</PartTitle> : null;
+  const panelled = framed && ROW_PARTS.has(part.type);
+  /** The part's own marker, on its root whether that root is a panel or not. */
+  const mark = (type: string) => ({ [`data-reply-${type}`]: "" });
+  const pad = panelled ? PANEL_ROW_CLASS : "";
   switch (part.type) {
     case "text":
       return md(part.body);
@@ -194,195 +78,121 @@ export function PlainBody({
       );
     case "context":
       return <ContextBody part={part} md={md} />;
-    case "comparison":
-      return <ComparisonBody part={part} md={md} title={title} />;
-    case "sequence":
-      return <SequenceBody part={part} md={md} title={title} />;
-    case "change": {
-      const notes: [string, string][] = [];
-      if (part.unchanged) notes.push(["Unchanged", part.unchanged]);
-      if (part.limitation) notes.push(["Limitation", part.limitation]);
-      const row = ([label, value]: [string, string]) => (
-        <div
-          key={label}
-          data-reply-change-row={label.toLowerCase()}
-          className="col-span-full grid grid-cols-subgrid gap-y-0.5 py-2 @max-[24rem]/change:grid-cols-1"
-        >
-          <dt
-            className={`${LABEL_CLASS} whitespace-nowrap text-(--ws-reply-accent,var(--muted-foreground))`}
-          >
-            {label}
-          </dt>
-          <dd className="m-0 min-w-0 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0">
-            {md(value)}
-          </dd>
+    case "comparison": {
+      const rows = <ComparisonBody part={part} md={md} />;
+      return panelled ? (
+        <Panel part="comparison" title={title(part.title)}>
+          {rows}
+        </Panel>
+      ) : (
+        <div {...mark("comparison")} className="min-w-0">
+          {title(part.title)}
+          {rows}
         </div>
       );
-      return (
-        <div data-reply-change="" className="@container/change min-w-0">
+    }
+    case "sequence": {
+      const rows = <SequenceBody part={part} md={md} pad={pad} />;
+      return panelled ? (
+        <Panel part="sequence" title={title(part.title)}>
+          {rows}
+        </Panel>
+      ) : (
+        <div {...mark("sequence")} className="min-w-0">
           {title(part.title)}
-          {/* The recap card's label gutter, widened to fit its longest label
-              and shared by every row; labels stack above values when narrow. */}
-          <dl className="m-0 grid grid-cols-[minmax(3.25rem,max-content)_minmax(0,1fr)] gap-x-3 divide-y divide-border @max-[24rem]/change:grid-cols-1">
-            <div
-              data-reply-change-pair=""
-              className="col-span-full grid grid-cols-subgrid divide-y divide-border"
-            >
-              {row(["Before", part.before])}
-              {row(["After", part.after])}
-            </div>
-            {notes.map(row)}
-          </dl>
+          {rows}
+        </div>
+      );
+    }
+    case "change": {
+      const rows = <ChangeBody part={part} md={md} pad={pad} />;
+      return panelled ? (
+        <Panel part="change" title={title(part.title)}>
+          {rows}
+        </Panel>
+      ) : (
+        <div {...mark("change")} className="min-w-0">
+          {title(part.title)}
+          {rows}
         </div>
       );
     }
     case "checks": {
-      const totals = part.testTotals
-        ? ([
-            ["passed", part.testTotals.passed],
-            ["failed", part.testTotals.failed],
-            ["skipped", part.testTotals.skipped],
-          ] as const)
-        : [];
-      return (
-        <div data-reply-checks="" className="min-w-0">
+      const rows = (
+        <CheckRows
+          part={part}
+          document={document}
+          files={files}
+          md={md}
+          pad={pad}
+        />
+      );
+      return panelled ? (
+        <Panel
+          part="checks"
+          title={title(part.title)}
+          scope={md(part.scope)}
+          summary={
+            part.testTotals ? <TestTotals totals={part.testTotals} /> : null
+          }
+        >
+          {rows}
+        </Panel>
+      ) : (
+        <div {...mark("checks")} className="min-w-0">
           {title(part.title)}
-          <div
-            className={`${SECONDARY_CLASS} text-muted-foreground [&_p]:my-0`}
-          >
+          <div className={`${SECONDARY_CLASS} text-muted-foreground [&_p]:m-0`}>
             {md(part.scope)}
           </div>
-          {totals.length ? (
-            <ul
-              aria-label="Reported test totals"
-              className={`m-0 mt-1 flex list-none flex-wrap gap-x-3 p-0 ${SECONDARY_CLASS} text-muted-foreground`}
-            >
-              {totals.map(([status, count]) => (
-                <li key={status} data-reply-test-total={status}>
-                  <span
-                    className={`font-medium tabular-nums ${
-                      count > 0 && status === "passed"
-                        ? "text-(--ws-complete-text)"
-                        : count > 0 && status === "failed"
-                          ? "text-(--ws-failure-text)"
-                          : "text-foreground"
-                    }`}
-                  >
-                    {count.toLocaleString()}
-                  </span>{" "}
-                  {status}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <ul
-            data-reply-check-items=""
-            className="m-0 mt-2 list-none space-y-1.5 p-0"
-          >
-            {part.items.map((item, i) => (
-              <li
-                key={i}
-                data-reply-check-item={item.status}
-                className={MARK_ROW_CLASS}
-              >
-                <CheckStatusMark status={item.status} />
-                <div className="min-w-0">
-                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 [&_p]:m-0">
-                    {md(item.name)}
-                    {item.status === "passed" ? null : (
-                      <span
-                        aria-hidden="true"
-                        className={`${LABEL_CLASS} pt-0 ${CHECK_STATUS_TONE[item.status]}`}
-                      >
-                        {CHECK_STATUS_LABEL[item.status]}
-                      </span>
-                    )}
-                  </div>
-                  {item.detail ? (
-                    <div className="mt-0.5 text-muted-foreground [&_p]:my-0">
-                      {md(item.detail)}
-                    </div>
-                  ) : null}
-                  {item.evidence?.length ? evidence(item.evidence) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
+          {part.testTotals ? <TestTotals totals={part.testTotals} /> : null}
+          {rows}
         </div>
       );
     }
-    case "delivery":
-      return (
-        <div data-reply-delivery="" className="min-w-0">
+    case "delivery": {
+      const rows = (
+        <DeliveryStages
+          part={part}
+          document={document}
+          files={files}
+          md={md}
+          pad={pad}
+        />
+      );
+      return panelled ? (
+        <Panel part="delivery" title={title(part.title)} scope={md(part.scope)}>
+          {rows}
+        </Panel>
+      ) : (
+        <div {...mark("delivery")} className="min-w-0">
           {title(part.title)}
-          <div
-            className={`${SECONDARY_CLASS} text-muted-foreground [&_p]:my-0`}
-          >
+          <div className={`${SECONDARY_CLASS} text-muted-foreground [&_p]:m-0`}>
             {md(part.scope)}
           </div>
-          {/* An ordered list whose marks a thin rail joins, so the stages
-              read as one path in order. */}
-          <ol data-reply-delivery-stages="" className="m-0 mt-2 list-none p-0">
-            {part.stages.map((stage, i) => (
-              <li
-                key={i}
-                data-reply-delivery-stage={stage.status}
-                className={`relative ${MARK_ROW_CLASS} ${i < part.stages.length - 1 ? "pb-2" : ""}`}
-              >
-                {i < part.stages.length - 1 ? (
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-[calc(0.2em+17px)] bottom-[calc(3px-0.2em)] left-[6.5px] w-px bg-border max-md:pointer-coarse:top-[calc(0.2em+19px)] max-md:pointer-coarse:left-[8.5px]"
-                  />
-                ) : null}
-                <span
-                  data-reply-stage-status={stage.status}
-                  className={`flex ${STAGE_STATUS_TONE[stage.status]}`}
-                >
-                  <Glyph
-                    path={STAGE_STATUS_PATH[stage.status]}
-                    className={MARK_CLASS}
-                  />
-                  <span className="sr-only">
-                    {STAGE_STATUS_LABEL[stage.status]}
-                  </span>
-                </span>
-                <div className="min-w-0">
-                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 [&_p]:m-0">
-                    {md(stage.name)}
-                    {stage.status === "done" ? null : (
-                      <span
-                        aria-hidden="true"
-                        className={`${LABEL_CLASS} pt-0 ${STAGE_STATUS_TONE[stage.status]}`}
-                      >
-                        {STAGE_STATUS_LABEL[stage.status]}
-                      </span>
-                    )}
-                  </div>
-                  {stage.detail ? (
-                    <div className="mt-0.5 text-muted-foreground [&_p]:my-0">
-                      {md(stage.detail)}
-                    </div>
-                  ) : null}
-                  {stage.evidence?.length ? evidence(stage.evidence) : null}
-                </div>
-              </li>
-            ))}
-          </ol>
+          {rows}
         </div>
       );
+    }
     case "recommendation":
       return <RecommendationBody part={part} md={md} />;
     case "details":
-      return <DetailsBody part={part} md={md} title={title} />;
+      return <DetailsBody part={part} md={md} />;
     case "group":
       return (
         <GroupBody
           part={part}
           renderChild={(child) => (
-            <PlainBody part={child} document={document} files={files} />
+            <PlainBody
+              part={child}
+              document={document}
+              files={files}
+              framed={false}
+            />
           )}
         />
       );
   }
 }
+
+/** A bullet list the reply writes itself: evidence under a check, a step's sources. */
+export const PLAIN_LIST_CLASS = `mb-2 pl-5 text-foreground [&>li]:mb-1 ${BODY_CLASS}`;
