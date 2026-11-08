@@ -11,6 +11,8 @@ import {
   useState,
 } from "react";
 import { cn } from "@/lib/utils";
+import { menuSurfaceClass } from "../primitives/menu.ts";
+import { StatusDot } from "../primitives/StatusDot.tsx";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
@@ -470,13 +472,7 @@ function WaitingAgents({ agents }: { agents: readonly WaitingAgent[] }) {
               compact ? "py-0.5" : "py-1",
             )}
           >
-            <span
-              aria-hidden
-              className={cn(
-                "size-[7px] shrink-0 rounded-full",
-                AGENT_DOT[view.tone],
-              )}
-            />
+            <StatusDot size="sm" tone={AGENT_DOT[view.tone]} />
             <span className="flex min-w-0 max-w-[45%] shrink-0">
               <ActivityThreadLink
                 threadId={agent.threadId}
@@ -1254,7 +1250,7 @@ function NextActions({
               {...portalScope}
               align="start"
               sideOffset={4}
-              className="z-50 min-w-52 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+              className={menuSurfaceClass("52")}
             >
               {actions.map((action, index) => (
                 <DropdownMenu.Item

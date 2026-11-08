@@ -15,7 +15,7 @@ import "./app.css";
 
 type Theme = "light" | "dark" | "system";
 
-const groups = ["Foundations", "Components"] as const;
+const groups = ["Foundations", "Primitives", "Components"] as const;
 const introductionSource = `import { WorkstreamIcon } from "../src/app/WorkstreamIcon";
 import { WorkstreamName } from "../src/app/WorkstreamName";
 import { RecapCardPreview } from "../src/app/composer/RecapCard";

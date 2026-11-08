@@ -14,6 +14,7 @@ import { questionExample } from "./examples/questions";
 import { recapExample } from "./examples/recaps";
 import { settingsExample } from "./examples/settings";
 import { overlaysExample } from "./examples/overlays";
+import { primitiveExamples } from "./examples/primitives";
 import { WorkstreamIcon } from "../src/app/WorkstreamIcon";
 import { WorkstreamName } from "../src/app/WorkstreamName";
 import { PROMPT_CLASS } from "../src/app/question/question-presentation";
@@ -27,7 +28,7 @@ import {
 export interface GalleryExample {
   id: string;
   title: string;
-  group: "Foundations" | "Components";
+  group: "Foundations" | "Components" | "Primitives";
   description: string;
   source: string;
   render: () => ReactNode;
@@ -535,6 +536,7 @@ export const examples: GalleryExample[] = [
     source: `import { WorkstreamIcon } from "../src/app/WorkstreamIcon";\nimport { WorkstreamName } from "../src/app/WorkstreamName";\nimport { allocateFamilyColor, workstreamColorStyle } from "../src/domain/workstreamColor";\n\n<div style={workstreamColorStyle(allocateFamilyColor([]))}>\n  <WorkstreamIcon />\n  <WorkstreamName name="Workstreams: Recaps" accent />\n</div>`,
     render: () => <IdentityExample />,
   },
+  ...primitiveExamples,
   settingsExample,
   overlaysExample,
   recapExample,

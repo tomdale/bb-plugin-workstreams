@@ -16,6 +16,10 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { toast } from "sonner";
 import { useRealtime } from "@get-bb/plugin-sdk/app";
 import { cn } from "@/lib/utils";
+import { menuSurfaceClass } from "../../primitives/menu.ts";
+import { KeyChip } from "../../primitives/KeyChip.tsx";
+import { SectionHeading } from "../../primitives/SectionHeading.tsx";
+import { StatusDot } from "../../primitives/StatusDot.tsx";
 import { Icon } from "@/components/ui/icon";
 import {
   Dialog,
@@ -266,13 +270,13 @@ export function TopicsTab({ ws, query }: { ws: Workstreams; query: string }) {
   ) =>
     list.length || extra ? (
       <section aria-label={title} className="mt-8">
-        <h2 className="mb-1.5 flex items-baseline gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <SectionHeading className="mb-1.5 flex items-baseline gap-2">
           {title}
           <span className="font-normal normal-case tracking-normal text-muted-foreground/70">
             {open(list).length + (extra ? unresolved.length : 0)}
             {note ? ` · ${note}` : ""}
           </span>
-        </h2>
+        </SectionHeading>
         <div
           className={cn(
             GRID,
@@ -394,8 +398,9 @@ export function TopicsTab({ ws, query }: { ws: Workstreams; query: string }) {
       <ProjectSuggestions ws={ws} />
       <TopicTree ws={ws} query={query} />
       <p className="mt-7 text-[11px] text-muted-foreground/70 max-md:pointer-coarse:hidden">
-        <Kbd>j</Kbd> <Kbd>k</Kbd> move · <Kbd>a</Kbd> accept · <Kbd>d</Kbd>{" "}
-        decline · <Kbd>u</Kbd> undo
+        <KeyChip inline>j</KeyChip> <KeyChip inline>k</KeyChip> move ·{" "}
+        <KeyChip inline>a</KeyChip> accept · <KeyChip inline>d</KeyChip> decline
+        · <KeyChip inline>u</KeyChip> undo
       </p>
       <RepairsDialog
         open={repairs}
@@ -415,14 +420,6 @@ export function TopicsTab({ ws, query }: { ws: Workstreams; query: string }) {
 const GRID =
   "grid grid-cols-[minmax(0,1fr)_9.5rem_13.5rem] items-baseline gap-x-4 max-[560px]:grid-cols-[auto_minmax(0,1fr)]";
 const BLOCK = "relative gap-y-[3px] rounded-md px-2 py-2.5 pl-[19px]";
-
-function Kbd({ children }: { children: string }) {
-  return (
-    <kbd className="rounded-[3px] border border-border px-1 font-sans">
-      {children}
-    </kbd>
-  );
-}
 
 function Block({
   suggestion,
@@ -611,16 +608,14 @@ function Health({
             : `Workstreams up to date${at ? ` · last checked ${relativeAge(at, Date.now())} ago`.replace(" now ago", " just now") : ""}`;
   return (
     <div className="flex flex-wrap items-center gap-2 gap-y-1 text-muted-foreground">
-      <span
-        aria-hidden
-        className={cn(
-          "size-1.5 shrink-0 rounded-full",
+      <StatusDot
+        tone={
           status === "failed"
             ? "bg-(--ws-failure)"
             : working || asking
               ? "animate-pulse bg-(--ws-waiting)"
-              : "bg-(--ws-complete)",
-        )}
+              : "bg-(--ws-complete)"
+        }
       />
       <span role="status" className="min-w-0">
         {text}
@@ -659,7 +654,7 @@ function Health({
             {...portalScope}
             align="end"
             sideOffset={4}
-            className="z-50 min-w-48 rounded-lg border border-border bg-popover p-1 text-[13px] text-popover-foreground shadow-md"
+            className={menuSurfaceClass("48", "text-[13px]")}
           >
             <DropdownMenu.Item
               disabled={busy || working}

@@ -8,6 +8,12 @@ import { Icon } from "@/components/ui/icon";
 import { usePortalScopeProps } from "@/lib/portal-scope";
 import { cn } from "@/lib/utils";
 import { useDebugMode } from "../debug/debug.ts";
+import {
+  MENU_ITEM_CLASS,
+  MENU_ITEM_DISABLED_CLASS,
+  MENU_ITEM_HIGHLIGHT_TEXT_CLASS,
+  menuSurfaceClass,
+} from "../primitives/menu.ts";
 import type {
   SnoozePrefs,
   SnoozeWhen,
@@ -102,7 +108,7 @@ export function RowMenu({
         <ContextMenu.Content
           {...portalScope}
           aria-label="Thread actions"
-          className="z-50 min-w-48 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+          className={menuSurfaceClass("48")}
         >
           <Item onSelect={() => actions.open(thread.id, { split: true })}>
             Open in split
@@ -118,7 +124,7 @@ export function RowMenu({
             <ContextMenu.Portal>
               <ContextMenu.SubContent
                 {...portalScope}
-                className="z-50 max-h-96 min-w-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+                className={menuSurfaceClass("56", "max-h-96 overflow-y-auto")}
               >
                 {isFork ? (
                   <Item disabled onSelect={() => undefined}>
@@ -210,7 +216,7 @@ export function RowMenu({
             <ContextMenu.Portal>
               <ContextMenu.SubContent
                 {...portalScope}
-                className="z-50 min-w-56 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+                className={menuSurfaceClass("56")}
               >
                 <SnoozeMenuItems
                   kit={contextMenuKit}
@@ -269,7 +275,7 @@ export function HeaderMenu({
         <ContextMenu.Content
           {...portalScope}
           aria-label="Workstream actions"
-          className="z-50 min-w-48 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+          className={menuSurfaceClass("48")}
         >
           {focus ? (
             <Item onSelect={focus.toggle}>
@@ -284,7 +290,7 @@ export function HeaderMenu({
               <ContextMenu.Portal>
                 <ContextMenu.SubContent
                   {...portalScope}
-                  className="z-50 min-w-56 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+                  className={menuSurfaceClass("56")}
                 >
                   <SnoozeMenuItems
                     kit={contextMenuKit}
@@ -304,9 +310,9 @@ export function HeaderMenu({
 }
 
 const itemClass = cn(
-  "flex cursor-pointer select-none items-center rounded-md px-2 py-1.5 text-sm outline-none",
-  "data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground",
-  "data-[disabled]:cursor-default data-[disabled]:opacity-50",
+  MENU_ITEM_CLASS,
+  MENU_ITEM_HIGHLIGHT_TEXT_CLASS,
+  MENU_ITEM_DISABLED_CLASS,
 );
 
 function Item({

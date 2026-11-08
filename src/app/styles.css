@@ -218,6 +218,19 @@
   );
 }
 
+/* StatusDot's workstream dot takes the topic's hue (`workstreamColorStyle`
+   sets --ws-color-dot or --ws-hue). The hollow dot holds its place for
+   collections that are not workstreams (Unfiled, Dormant, Snoozed), so every
+   name starts at the same edge. */
+.ws-dot-workstream {
+  background: var(--ws-color-dot, oklch(64% 0.15 var(--ws-hue, 250)));
+}
+.ws-dot-hollow {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px
+    color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+}
+
 /* Keep Up Next visible while workstreams scroll beneath it. The list is the
    sidebar's own scroll container, so this sticky presence wrapper stays at its
    top edge without covering the list's controls. */

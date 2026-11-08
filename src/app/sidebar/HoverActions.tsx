@@ -16,6 +16,7 @@ import {
 import * as Popover from "@radix-ui/react-popover";
 import { usePortalScopeProps } from "@/lib/portal-scope";
 import { cn } from "@/lib/utils";
+import { menuSurfaceClass } from "../primitives/menu.ts";
 import { Hint } from "../Hint.tsx";
 
 /** How long the pointer rests on the button before its menu opens. */
@@ -200,7 +201,7 @@ export function HoverMenuButton({
           align="end"
           sideOffset={2}
           collisionPadding={8}
-          className="z-50 min-w-60 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md outline-none"
+          className={menuSurfaceClass("60", "outline-none")}
           onPointerEnter={cancel}
           onPointerLeave={(event) => {
             if (mouse(event)) schedule(false, MENU_CLOSE_DELAY_MS);

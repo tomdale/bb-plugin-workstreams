@@ -3,6 +3,7 @@ import { useBbNavigate, useRealtime } from "@get-bb/plugin-sdk/app";
 import { Button } from "@/components/ui/button";
 import type { ProjectSuggestion } from "../../../server/projectAssociations.ts";
 import type { useWorkstreams } from "../../useWorkstreams.ts";
+import { SectionHeading } from "../../primitives/SectionHeading.tsx";
 
 export function ProjectSuggestions({
   ws,
@@ -84,9 +85,7 @@ export function ProjectSuggestions({
       aria-label="Project associations"
       className="mt-8 space-y-3 outline-none"
     >
-      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Project associations
-      </h2>
+      <SectionHeading>Project associations</SectionHeading>
       {error ? (
         <p role="alert" className="text-xs text-destructive">
           {error}

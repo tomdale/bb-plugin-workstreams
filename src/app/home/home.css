@@ -386,20 +386,6 @@ section:has(> [data-bb-plugin-root] > [data-ws-home="hidden"]) {
     color-mix(in oklab, currentColor 10%, transparent)
   );
 }
-.ws-home-dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--ws-color-dot, oklch(64% 0.15 var(--ws-hue, 250)));
-}
-/* Collections that are not workstreams (Unfiled, Dormant, Snoozed) keep the
-   dot's place with a hollow ring, so every name starts at the same edge. */
-.ws-home-dot-none {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px
-    color-mix(in oklab, var(--muted-foreground) 55%, transparent);
-}
 .ws-home-group-name {
   min-width: 0;
   flex: 0 1 auto;
@@ -434,14 +420,6 @@ section:has(> [data-bb-plugin-root] > [data-ws-home="hidden"]) {
   align-items: center;
   gap: 8px;
   margin-left: auto;
-}
-.ws-home-pill {
-  padding: 0 8px;
-  border-radius: 999px;
-  font-size: var(--text-xs, 0.75rem);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.375rem;
 }
 .ws-home-total {
   min-width: 1.5ch;

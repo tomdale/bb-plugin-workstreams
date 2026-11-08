@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
+import { StatusDot } from "../primitives/StatusDot.tsx";
 import {
   Popover,
   PopoverContent,
@@ -317,10 +318,7 @@ function TokenPreview({ token }: { token: ColorToken }) {
         color: `var(${v}-text)`,
       }}
     >
-      <span
-        className="size-2 rounded-full"
-        style={{ backgroundColor: `var(${v})` }}
-      />
+      <StatusDot size="md" style={{ backgroundColor: `var(${v})` }} />
       Aa
     </span>
   );

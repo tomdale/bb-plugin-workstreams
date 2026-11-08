@@ -69,7 +69,7 @@ const ALLOWED: { file: string; text: string; reason: string }[] = [
     reason: "a workstream's identity color, from its hue",
   },
   {
-    file: "src/app/home/home.css",
+    file: "src/app/styles.css",
     text: "oklch(64% 0.15 var(--ws-hue, 250))",
     reason: "a workstream's identity color, from its hue",
   },

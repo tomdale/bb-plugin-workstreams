@@ -13,6 +13,8 @@ import { WorkstreamName } from "../WorkstreamName.tsx";
 import type { WorkView } from "../useWorkstreams.ts";
 import { hasStatusMark } from "../sidebar/presentation.ts";
 import { FocusIcon } from "../sidebar/FocusIcon.tsx";
+import { CountPill } from "../primitives/CountPill.tsx";
+import { StatusDot } from "../primitives/StatusDot.tsx";
 import { HomeRow } from "./HomeRow.tsx";
 import {
   descendantCount,
@@ -145,9 +147,9 @@ export function WorkstreamGroups({
               {!showLower && (lowerWaiting || lowerTotal) ? (
                 <span className="ws-home-counts" aria-hidden="true">
                   {lowerWaiting ? (
-                    <span className="ws-home-pill ws-needs-you-pill">
+                    <CountPill size="roomy">
                       {plan.lowerCounts.needsYou}
-                    </span>
+                    </CountPill>
                   ) : null}
                   {lowerTotal ? (
                     <span className="ws-home-total">
@@ -309,11 +311,11 @@ function GroupSection({
         <button type="button" aria-expanded={open} onClick={onToggle}>
           <Icon name="ChevronRight" className="ws-home-chevron" aria-hidden />
           {nested ? null : isUnfiled ? (
-            <span className="ws-home-dot ws-home-dot-none" aria-hidden="true" />
+            <StatusDot size="md" hollow />
           ) : (
-            <span
-              className="ws-home-dot"
-              aria-hidden="true"
+            <StatusDot
+              size="md"
+              workstream
               style={
                 workstreamColorStyle(
                   env.colorOf(
@@ -337,12 +339,12 @@ function GroupSection({
           ) : null}
           <span className="ws-home-counts">
             {showsCount(env.waitingCount, !open) && group.needsYou > 0 ? (
-              <span className="ws-home-pill ws-needs-you-pill">
+              <CountPill size="roomy">
                 <span aria-hidden="true">{group.needsYou}</span>
                 <span className="sr-only">
                   , {group.needsYou} waiting on you
                 </span>
-              </span>
+              </CountPill>
             ) : null}
             {showsCount(env.threadCount, !open) && group.total > 0 ? (
               <span className="ws-home-total">
@@ -444,7 +446,7 @@ function Fold({
           onClick={() => env.toggle(id, false)}
         >
           <Icon name="ChevronRight" className="ws-home-chevron" aria-hidden />
-          <span className="ws-home-dot ws-home-dot-none" aria-hidden="true" />
+          <StatusDot size="md" hollow />
           <span className="ws-home-group-name">{title}</span>
           <span className="ws-home-counts">
             <span className="ws-home-total">

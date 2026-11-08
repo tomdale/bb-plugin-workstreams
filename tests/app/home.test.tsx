@@ -98,7 +98,7 @@ describe("Home screen", () => {
     expect(slot.queryByRole("region", { name: "Billing" })).toBeNull();
     expect(links(region(slot, "Vertex"))).toHaveLength(6);
     const dot = region(slot, "Vertex").querySelector(
-      ".ws-home-dot",
+      ".ws-dot-workstream",
     ) as HTMLElement;
     expect(dot.style.getPropertyValue("--ws-hue")).toBe("110");
     expect(dot.style.getPropertyValue("--ws-color-dot")).toContain("60.00%");
@@ -130,7 +130,7 @@ describe("Home screen", () => {
     );
     const label = row.querySelector(".ws-home-ws") as HTMLElement;
     const group = await slot.findByRole("region", { name: "Alpha" });
-    const dot = group.querySelector(".ws-home-dot") as HTMLElement;
+    const dot = group.querySelector(".ws-dot-workstream") as HTMLElement;
     expect(label.style.getPropertyValue("--ws-color-light")).toContain(
       "50.00%",
     );

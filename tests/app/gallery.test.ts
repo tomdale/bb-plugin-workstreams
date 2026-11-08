@@ -118,6 +118,59 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
   );
 
   browserTest.concurrent(
+    "documents each primitive with its variants side by side",
+    async ({ page }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      const pages: Record<string, string[]> = {
+        "status-dot": ["State tones", "Sizes", "Workstream and hollow"],
+        "count-pill": ["Compact", "Roomy", "Wide count"],
+        "key-chip": ["Default", "Bright", "Inline"],
+        "section-heading": ["Title only", "With a count", "With an action"],
+        "menu-classes": ["Resting and highlighted", "Wider surface"],
+      };
+      for (const [id, variants] of Object.entries(pages)) {
+        await page.goto(`${url}#${id}`);
+        for (const name of variants)
+          await page.getByRole("group", { name, exact: true }).waitFor();
+      }
+      await page.goto(`${url}#status-dot`);
+      const compact = page.getByRole("group", { name: "Sizes" });
+      const widths = await compact
+        .locator("span[aria-hidden=true]")
+        .evaluateAll((dots) =>
+          dots.map((dot) => Math.round(dot.getBoundingClientRect().width)),
+        );
+      expect(widths).toEqual([6, 7, 8]);
+      await page.goto(`${url}#count-pill`);
+      const roomy = await page
+        .getByRole("group", { name: "Roomy" })
+        .getByText("2", { exact: true })
+        .evaluate((pill) => {
+          const style = getComputedStyle(pill);
+          return [
+            style.paddingLeft,
+            style.fontSize,
+            style.fontWeight,
+            style.lineHeight,
+            style.borderRadius,
+          ];
+        });
+      expect(roomy.slice(0, 4)).toEqual(["8px", "12px", "500", "22px"]);
+      expect(parseFloat(roomy[4]!)).toBeGreaterThan(100);
+      await page.goto(`${url}#menu-classes`);
+      expect(
+        await page
+          .getByRole("menu", { name: "Menu, width 48" })
+          .getByRole("menuitem")
+          .count(),
+      ).toBe(4);
+      expect(errors).toEqual([]);
+    },
+    60_000,
+  );
+
+  browserTest.concurrent(
     "forwards the sidebar playground's gallery address to its page",
     async ({ page }) => {
       await page.goto(`${url}#sidebar-playground`);

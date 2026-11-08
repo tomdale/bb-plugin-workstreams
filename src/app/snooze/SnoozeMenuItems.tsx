@@ -1,5 +1,13 @@
 import type { ComponentType, ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { cn } from "@/lib/utils";
+import {
+  MENU_ITEM_CLASS,
+  MENU_ITEM_HIGHLIGHT_TEXT_CLASS,
+  MENU_LABEL_CLASS,
+  MENU_SEPARATOR_CLASS,
+  menuSurfaceClass,
+} from "../primitives/menu.ts";
 import {
   describeWake,
   snoozeChoices,
@@ -96,8 +104,7 @@ export function SnoozeMenuItems({
   );
 }
 
-export const snoozeMenuContentClass =
-  "z-50 min-w-60 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md";
+export const snoozeMenuContentClass = menuSurfaceClass("60");
 
 /** The item primitives a snooze menu is drawn with. */
 export type MenuKit = {
@@ -106,25 +113,24 @@ export type MenuKit = {
   Separator: ComponentType;
 };
 
-export const menuItemClass =
-  "flex w-full cursor-pointer select-none items-center rounded-md px-2 py-1.5 text-left text-sm outline-none";
-const labelClass = "px-2 py-1.5 text-xs text-muted-foreground";
-const separatorClass = "my-1 h-px bg-border";
+export const menuItemClass = cn(MENU_ITEM_CLASS, "w-full text-left");
 
 /** Items inside a Radix dropdown menu. */
 const dropdownMenuKit: MenuKit = {
   Item: ({ onSelect, children }) => (
     <DropdownMenu.Item
       onSelect={onSelect}
-      className={`${menuItemClass} data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground`}
+      className={cn(menuItemClass, MENU_ITEM_HIGHLIGHT_TEXT_CLASS)}
     >
       {children}
     </DropdownMenu.Item>
   ),
   Label: ({ children }) => (
-    <DropdownMenu.Label className={labelClass}>{children}</DropdownMenu.Label>
+    <DropdownMenu.Label className={MENU_LABEL_CLASS}>
+      {children}
+    </DropdownMenu.Label>
   ),
-  Separator: () => <DropdownMenu.Separator className={separatorClass} />,
+  Separator: () => <DropdownMenu.Separator className={MENU_SEPARATOR_CLASS} />,
 };
 
 const plainItemClass = `${menuItemClass} border-0 bg-transparent text-inherit hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground`;
@@ -145,6 +151,6 @@ export const plainMenuKit: MenuKit = {
       {children}
     </button>
   ),
-  Label: ({ children }) => <div className={labelClass}>{children}</div>,
-  Separator: () => <div role="separator" className={separatorClass} />,
+  Label: ({ children }) => <div className={MENU_LABEL_CLASS}>{children}</div>,
+  Separator: () => <div role="separator" className={MENU_SEPARATOR_CLASS} />,
 };

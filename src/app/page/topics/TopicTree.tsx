@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { SectionHeading } from "../../primitives/SectionHeading.tsx";
 import type { Topic } from "../../../domain/topics.ts";
 import { topicAncestors } from "../../../domain/topics.ts";
 import { topicPath } from "../../../domain/topic-path.ts";
@@ -116,7 +117,7 @@ export function TopicTree({ ws, query }: { ws: Workstreams; query: string }) {
 
   return (
     <section aria-label="Topics" className="mt-10">
-      <h2 className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <SectionHeading className="mb-1.5 flex items-center gap-2">
         Topics
         <span className="flex-1" />
         {empty && !query ? (
@@ -135,7 +136,7 @@ export function TopicTree({ ws, query }: { ws: Workstreams; query: string }) {
         >
           New topic…
         </button>
-      </h2>
+      </SectionHeading>
       {rows.length ? (
         <ul className="-mx-2">
           {rows.map(({ topic, depth }) => {

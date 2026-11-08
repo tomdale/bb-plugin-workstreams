@@ -42,6 +42,13 @@ import { Icon } from "@/components/ui/icon";
 import { WORKSTREAM_ICON } from "../workstream-icon.ts";
 import { cn } from "@/lib/utils";
 import {
+  MENU_ITEM_CLASS,
+  MENU_LABEL_CLASS,
+  MENU_SEPARATOR_CLASS,
+  menuSurfaceClass,
+} from "../primitives/menu.ts";
+import { CountPill } from "../primitives/CountPill.tsx";
+import {
   UNFILED_NAME,
   type Group,
   type Row as RowModel,
@@ -1172,9 +1179,7 @@ export function WorkstreamsThreadList({
                           aria-hidden="true"
                         >
                           {lowerWaiting ? (
-                            <span className="ws-needs-you-pill rounded-full px-1.5 text-[11px] font-medium tabular-nums">
-                              {lowerCounts.needsYou}
-                            </span>
+                            <CountPill>{lowerCounts.needsYou}</CountPill>
                           ) : null}
                           {lowerTotal ? (
                             <span className="text-[11px] tabular-nums text-muted-foreground/70">
@@ -1492,9 +1497,9 @@ function SidebarViewOptionsMenu({
           align="end"
           sideOffset={4}
           aria-label="Sort workstreams"
-          className="z-50 min-w-48 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+          className={menuSurfaceClass("48")}
         >
-          <DropdownMenu.Label className="px-2 py-1.5 text-xs text-muted-foreground">
+          <DropdownMenu.Label className={MENU_LABEL_CLASS}>
             Sort workstreams
           </DropdownMenu.Label>
           <DropdownMenu.RadioGroup
@@ -1507,7 +1512,7 @@ function SidebarViewOptionsMenu({
               <DropdownMenu.RadioItem
                 key={value}
                 value={value}
-                className="flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent"
+                className={cn(MENU_ITEM_CLASS, "gap-2")}
               >
                 <span className="inline-flex size-4 items-center justify-center">
                   <DropdownMenu.ItemIndicator>
@@ -1558,9 +1563,9 @@ function BandOptionsMenu({
         <DropdownMenu.Content
           align="end"
           sideOffset={4}
-          className="z-50 min-w-48 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md"
+          className={menuSurfaceClass("48")}
         >
-          <DropdownMenu.Label className="px-2 py-1.5 text-xs text-muted-foreground">
+          <DropdownMenu.Label className={MENU_LABEL_CLASS}>
             Sort by
           </DropdownMenu.Label>
           <DropdownMenu.RadioGroup
@@ -1571,7 +1576,7 @@ function BandOptionsMenu({
               <DropdownMenu.RadioItem
                 key={value}
                 value={value}
-                className="flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent"
+                className={cn(MENU_ITEM_CLASS, "gap-2")}
               >
                 <span className="inline-flex size-4 items-center justify-center">
                   <DropdownMenu.ItemIndicator>
@@ -1582,13 +1587,13 @@ function BandOptionsMenu({
               </DropdownMenu.RadioItem>
             ))}
           </DropdownMenu.RadioGroup>
-          <DropdownMenu.Separator className="my-1 h-px bg-border" />
+          <DropdownMenu.Separator className={MENU_SEPARATOR_CLASS} />
           <DropdownMenu.CheckboxItem
             checked={options.grouped}
             onCheckedChange={(checked) =>
               onChange({ grouped: checked === true })
             }
-            className="flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent"
+            className={cn(MENU_ITEM_CLASS, "gap-2")}
           >
             <span className="inline-flex size-4 items-center justify-center">
               <DropdownMenu.ItemIndicator>
@@ -1776,12 +1781,12 @@ function WorkstreamGroup({
           {/* The header's details, as a thread row's age. */}
           <span className="flex shrink-0 items-center gap-1 empty:hidden">
             {counts.waiting ? (
-              <span
-                className="ws-needs-you-pill rounded-full px-1.5 text-[11px] font-medium tabular-nums transition-colors duration-300"
+              <CountPill
+                className="transition-colors duration-300"
                 title={`${group.needsYou} waiting on you`}
               >
                 {group.needsYou}
-              </span>
+              </CountPill>
             ) : null}
             {counts.total ? (
               <span className="text-[11px] tabular-nums text-muted-foreground/70">

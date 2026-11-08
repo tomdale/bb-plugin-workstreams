@@ -9,6 +9,8 @@ import { useLayoutEffect, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import type { PluginNavPanelProps } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
+import { cn } from "@/lib/utils";
+import { MENU_ITEM_HIGHLIGHT_TEXT_CLASS } from "../primitives/menu.ts";
 import { usePortalScopeProps } from "@/lib/portal-scope";
 import { useWorkstreams } from "../useWorkstreams.ts";
 import { useDebugMode } from "../debug/debug.ts";
@@ -112,7 +114,7 @@ const VIEW_TITLES: Record<View["kind"], string> = {
 function PageMenu({ onOpen }: { onOpen: (view: View) => void }) {
   const portalScope = usePortalScopeProps();
   const debug = useDebugMode();
-  const item = `${menuItemClass} data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground`;
+  const item = cn(menuItemClass, MENU_ITEM_HIGHLIGHT_TEXT_CLASS);
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger

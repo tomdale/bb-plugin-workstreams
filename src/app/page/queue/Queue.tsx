@@ -23,6 +23,7 @@
  * Keys: 1–3 send a reply (⇧ edits it first), R reply, S snooze (1–6 in its
  * menu), E archive, O open, U undo, ↓ → skip ahead, ↑ ← skip back.
  */
+import { KeyChip } from "../../primitives/KeyChip.tsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   experimental_useSidebarThreadActions,
@@ -56,7 +57,6 @@ import {
   CardStack,
   Composer,
   Heading,
-  KeyChip,
   SUGGESTION_FRAME,
   SuggestionCard,
   ThreadActions,

@@ -11,6 +11,7 @@ import { ThreadTitle, useBbNavigate, useRpc } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { usePortalScopeProps } from "@/lib/portal-scope";
 import { cn } from "@/lib/utils";
+import { StatusDot } from "../primitives/StatusDot.tsx";
 import { relativeAge } from "../../domain/presentation.ts";
 import {
   TRACE_KIND_TITLE,
@@ -235,14 +236,12 @@ function TraceList({
               onClick={() => onSelect(trace.id)}
               className="flex h-7 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-state-hover aria-[current=true]:bg-state-active"
             >
-              <span
-                aria-hidden
-                className={cn(
-                  "size-1.5 shrink-0 rounded-full",
+              <StatusDot
+                tone={
                   trace.status === "ok"
                     ? "bg-muted-foreground/50"
-                    : "bg-destructive",
-                )}
+                    : "bg-destructive"
+                }
               />
               <span className="w-36 shrink-0 truncate text-muted-foreground">
                 {TRACE_KIND_TITLE[trace.kind]}

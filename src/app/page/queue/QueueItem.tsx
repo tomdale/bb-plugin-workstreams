@@ -27,6 +27,7 @@ import {
   SnoozeMenuItems,
   snoozeMenuContentClass,
 } from "../../snooze/SnoozeMenuItems.tsx";
+import { KeyChip } from "../../primitives/KeyChip.tsx";
 import { WorkstreamIcon } from "../../WorkstreamIcon.tsx";
 import type { QueueCard } from "./card.ts";
 import { LEAD as PILE_LEAD } from "./stackEngine.ts";
@@ -34,31 +35,6 @@ import { LEAD as PILE_LEAD } from "./stackEngine.ts";
 /** The card scales up as a whole, its type and spacing together (`CONTENT`
  * sets the padding that lands its text 24px in). */
 const CARD_ZOOM = 1.15;
-
-/** A key, drawn as an outlined chip; the answers' digits and the buttons' letters match. */
-export function KeyChip({
-  children,
-  bright = false,
-  className,
-}: {
-  children: ReactNode;
-  bright?: boolean;
-  className?: string;
-}) {
-  return (
-    <kbd
-      className={cn(
-        "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-[4px] border px-1 font-sans text-[11px] font-medium not-italic transition-colors max-md:pointer-coarse:hidden",
-        bright
-          ? "border-foreground/40 text-foreground"
-          : "border-border text-muted-foreground",
-        className,
-      )}
-    >
-      {children}
-    </kbd>
-  );
-}
 
 export type QueueHeading = {
   /** The workstream path, joined for display ("Vercel Agent: Automations"). */

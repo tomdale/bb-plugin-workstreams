@@ -236,6 +236,25 @@ motion that makes surrounding content jump. Follow `prefers-reduced-motion` for
 every nonessential animation and transition. A static state must still
 communicate the same information.
 
+## Shared primitives
+
+`src/app/primitives/` holds the low-level pieces that several surfaces draw the
+same way, and each has a page in the gallery's Primitives group:
+
+- `StatusDot`: a small circle that carries color only. Pair it with a word. It
+  takes a state tone, the workstream hue, or a hollow ring.
+- `CountPill`: the Needs you count on group headers, compact in the sidebar and
+  roomy on Home.
+- `KeyChip`: an outlined key for a shortcut, hidden under a coarse pointer
+  except in its inline form.
+- `SectionHeading`: the small uppercase heading over a page section.
+- `menu.ts`: the surface, item, label, and separator classes of Workstreams' own
+  Radix menus, matching BB's menu surface.
+
+Use a primitive instead of repeating its classes. Add one only when a pattern
+appears in three or more places with the same look; a pattern that varies by
+surface (the reply accent chips, empty-state messages) stays local.
+
 ## Implementation and review
 
 - Use BB theme variables for neutral surfaces and Workstreams variables for
