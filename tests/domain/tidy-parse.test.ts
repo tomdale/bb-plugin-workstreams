@@ -170,6 +170,16 @@ describe("tidyPrompt", () => {
     );
   });
 
+  it("asks for local child names and a rename rather than reparenting", () => {
+    const prompt = tidyPrompt(input);
+    expect(prompt).toContain(
+      "Child topic names should name their area relative to the parent",
+    );
+    expect(prompt).toContain("Use a rename only");
+    expect(prompt).toContain("never reparent it for this cleanup");
+    expect(prompt).toContain("does not collide with a sibling");
+  });
+
   it("asks for the edit before its reason", () => {
     const schema = tidySchema() as {
       properties: { edits: { items: { properties: object } } };

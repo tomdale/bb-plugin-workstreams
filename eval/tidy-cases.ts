@@ -144,6 +144,36 @@ export const cases: TidyCase[] = [
     names: { review: "Code Review" },
   },
   {
+    id: "nested-redundant-prefix",
+    about:
+      "An already nested topic repeats its parent's name and should be renamed locally",
+    input: input(
+      [
+        ...BACKDROP,
+        ["tom", "tomdaleOS", null, "Personal application and workflows"],
+        [
+          "preview",
+          "TomdaleOS Preview Environment",
+          "tom",
+          "Preview deployment environments and session validation",
+        ],
+        ["prompting", "Prompting", "tom", "Improving prompts"],
+      ],
+      [
+        ...BACKDROP_THREADS,
+        "preview: Validate preview cookies",
+        "preview: Test a preview session",
+        "prompting: Improve first-turn prompts",
+      ],
+    ),
+    expect: [{ op: "rename", topic: "preview" }],
+    forbid: [
+      { op: "reparent", topic: "preview", parent: null },
+      { op: "merge", from: "preview", into: "tom" },
+    ],
+    names: { preview: "Preview Environment" },
+  },
+  {
     id: "described-part",
     about:
       "A top-level topic whose description says it's part of another product moves under it",

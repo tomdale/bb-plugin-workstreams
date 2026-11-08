@@ -324,7 +324,9 @@ organizing suggestions does not disable automatic categories.
   with subtopics ("Vercel Agent Code Review" beside "Vercel Agent") gets a
   suggestion to move under it, renamed without the shared words ("Code Review");
   the old name stays as an alias. These need no model call, so they appear
-  whenever the tree changes.
+  whenever the tree changes. Tidy can also suggest renaming an existing child
+  whose name repeats its parent's leading words, keeping a clear, distinct local
+  name and leaving its parent unchanged.
 - **Memory:** Tidy sees the topics you filed threads under, the suggestions you
   accepted, and the ones you declined; a suggestion identical to a declined one
   is never proposed again.

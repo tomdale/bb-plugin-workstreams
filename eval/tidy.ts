@@ -111,7 +111,7 @@ await Promise.all(
         ([topic, name]) =>
           !edits.some(
             (e) =>
-              e.edit.op === "reparent" &&
+              (e.edit.op === "reparent" || e.edit.op === "rename") &&
               e.edit.topic === topic &&
               e.edit.name?.toLowerCase() === name.toLowerCase(),
           ),
