@@ -11,7 +11,8 @@ import {
   type Reply,
   type ReplyStatus,
 } from "./reply.ts";
-import { COMPONENT_FENCE, replyComponentSchema } from "./replyComponents.ts";
+import { compileFence } from "./reply.ts";
+import { COMPONENT_FENCE } from "./replyComponents.ts";
 import { parseReplyMarkdown, readBlock } from "./replyText.ts";
 
 export type ReplyIssue = {
@@ -41,23 +42,18 @@ function codeClosed(source: string): boolean {
   );
 }
 
-function validateComponentNode(node: Code, source: string): string | null {
+/** Every reason a component fence would not render, one per failing statement. */
+function validateComponentNode(node: Code, source: string): string[] {
   const from = node.position?.start.offset;
   const to = node.position?.end.offset;
   const raw =
     from !== undefined && to !== undefined ? source.slice(from, to).trim() : "";
   if (raw && !codeClosed(raw)) {
-    return "Component not displayed: close the workstreams code fence.";
+    return ["Component not displayed: close the workstreams code fence."];
   }
-  try {
-    const parsed = replyComponentSchema.safeParse(JSON.parse(node.value));
-    if (!parsed.success) {
-      return `Component not displayed: ${parsed.error.issues[0]?.message ?? "invalid fields"}`;
-    }
-    return null;
-  } catch {
-    return "Component not displayed: use a JSON object inside the workstreams fence.";
-  }
+  return compileFence(node.value, raw).flatMap((part) =>
+    part.type === "unparsed" ? [part.error] : [],
+  );
 }
 
 function walkChildren(
@@ -152,15 +148,13 @@ export function diagnoseReply(
       } else if (node.type === "code" && node.lang === COMPONENT_FENCE) {
         issues.push({
           line: node.position?.start.line,
-          message: `"${COMPONENT_FENCE}" code fence is outside a ":::${REPLY_BLOCK}" block, so it renders as raw JSON.`,
+          message: `"${COMPONENT_FENCE}" code fence is outside a ":::${REPLY_BLOCK}" block, so it renders as raw source.`,
         });
-        const componentError = validateComponentNode(node, message);
-        if (componentError) {
+        for (const message_ of validateComponentNode(node, message))
           issues.push({
             line: node.position?.start.line,
-            message: componentError,
+            message: message_,
           });
-        }
       }
     });
     if (issues.length === 0) {
@@ -201,14 +195,14 @@ export function diagnoseReply(
       if (outside.type === "code" && outside.lang === COMPONENT_FENCE) {
         issues.push({
           line: outside.position?.start.line,
-          message: `"${COMPONENT_FENCE}" code fence is outside ":::${REPLY_BLOCK}", so it renders as raw JSON.`,
+          message: `"${COMPONENT_FENCE}" code fence is outside ":::${REPLY_BLOCK}", so it renders as raw source.`,
         });
       }
       walkChildren(outside, (child) => {
         if (child.type === "code" && child.lang === COMPONENT_FENCE) {
           issues.push({
             line: child.position?.start.line,
-            message: `"${COMPONENT_FENCE}" code fence is outside ":::${REPLY_BLOCK}", so it renders as raw JSON.`,
+            message: `"${COMPONENT_FENCE}" code fence is outside ":::${REPLY_BLOCK}", so it renders as raw source.`,
           });
         }
       });
@@ -310,13 +304,8 @@ export function diagnoseReply(
   const innerSource = blockInput?.source ?? "";
   for (const child of contentChildren) {
     if (child.type === "code" && child.lang === COMPONENT_FENCE) {
-      const componentError = validateComponentNode(child, innerSource);
-      if (componentError) {
-        issues.push({
-          line: child.position?.start.line,
-          message: componentError,
-        });
-      }
+      for (const message of validateComponentNode(child, innerSource))
+        issues.push({ line: child.position?.start.line, message });
     } else if (
       child.type === "containerDirective" &&
       child.name === REPLY_BLOCK &&

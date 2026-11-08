@@ -129,7 +129,7 @@ function codeClosed(source: string): boolean {
  * is a JSON object is read as one JSON component, the form earlier replies
  * were stored in.
  */
-function compileFence(content: string, raw: string): ReplyPart[] {
+export function compileFence(content: string, raw: string): ReplyPart[] {
   if (/^\s*\{/.test(content)) {
     try {
       const parsed = replyComponentSchema.safeParse(JSON.parse(content));
