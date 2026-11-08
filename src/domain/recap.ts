@@ -12,7 +12,7 @@ import type { AgentReport, StoredAnalysis, WorkState } from "./analysis.ts";
 
 export const RECAP_TOOL = "WorkstreamsRecap";
 
-export const RECAP_CORRECTION = `Your turn ended without a recap. Any answer you already gave is visible to the user; do not repeat it. Finish any remaining authorized work, then call ${RECAP_TOOL}: if the answer is complete, write no second reply; otherwise give the missing information in the reply that follows the call. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
+export const RECAP_CORRECTION = `Your turn ended without a recap. Any answer you already gave is visible to the user: do not repeat it and add no closing note. Finish any remaining authorized work, then call ${RECAP_TOOL}. When the recap carries the answer, nothing follows the call. When it does not, one reply follows the call with the missing information, and nothing follows that reply. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
 
 /**
  * How a turn's result stands: complete, awaiting review, or waiting on an async task.

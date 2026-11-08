@@ -513,6 +513,15 @@ describe("delivered instructions", () => {
       "Put `:::reply` and its attributes on their own line",
     );
   });
+  it.each([true, false])(
+    "keeps a block when the request fixes the output, recap tool %s",
+    (recap) => {
+      const text = replyInstructions(recap);
+      expect(text).toContain(
+        "A request that fixes the output — one word, exact text, no formatting — still goes in the block, which then holds what was asked for and nothing else.",
+      );
+    },
+  );
   it("teaches an example that parses through the production path", () => {
     const example = /^:::reply(?:\{[^\n]*\})?\n[\s\S]*?\n:::$/m.exec(
       replyInstructions(true),

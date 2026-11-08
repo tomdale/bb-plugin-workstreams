@@ -1018,16 +1018,17 @@ describe("turn endings with reply blocks", () => {
     const [correction] = s.corrections();
     const message = (correction!.input as { text: string }[])[0]!.text;
     expect(message).toContain("Your turn ended without a recap.");
-    expect(message).toContain(
-      `then call ${RECAP_TOOL}: if the answer is complete, write no second reply`,
-    );
+    expect(message).toContain(`then call ${RECAP_TOOL}.`);
     expect(message).toContain(
       "Any answer you already gave is visible to the user",
     );
-    expect(message).toContain("do not repeat it");
-    expect(message).toContain("write no second reply");
+    expect(message).toContain("add no closing note");
+    // A recap that carries the answer ends the turn; nothing is added after it.
     expect(message).toContain(
-      "give the missing information in the reply that follows the call",
+      "When the recap carries the answer, nothing follows the call",
+    );
+    expect(message).toContain(
+      "one reply follows the call with the missing information, and nothing follows that reply",
     );
     expect(message).toContain("Finish any remaining authorized work");
     expect(message).toContain("ask through the available question-card tool");
