@@ -1048,26 +1048,16 @@ export default async function plugin(bb: BbPluginApi) {
           if (previews.get(draftKey) === controller) previews.delete(draftKey);
         }
       }),
-    previewCancel: async ({ draftKey, clientId }) => {
+    previewCancel: async ({ draftKey }) => {
       const canceled = cancelPreview(draftKey);
-      previewLog(
-        "cancel-rpc",
-        draftKey,
-        `client=${clientId ?? "-"} canceled=${canceled}`,
-      );
+      previewLog("cancel-rpc", draftKey, `canceled=${canceled}`);
       return { canceled };
     },
-    draftIdentity: async ({
-      draftKey,
-      text,
-      identity,
-      projectChoice,
-      clientId,
-    }) => {
+    draftIdentity: async ({ draftKey, text, identity, projectChoice }) => {
       previewLog(
         "identity",
         draftKey,
-        `client=${clientId ?? "-"} len=${text.trim().length} identity=${identity ? `${identity.provenance}:${identity.entityId ?? identity.proposal?.name ?? "none"}` : "null"}`,
+        `len=${text.trim().length} identity=${identity ? `${identity.provenance}:${identity.entityId ?? identity.proposal?.name ?? "none"}` : "null"}`,
       );
       const choice = projectAssociations.draftChoice(draftKey, projectChoice);
       const started = drafts.report(draftKey, text, identity, choice);
