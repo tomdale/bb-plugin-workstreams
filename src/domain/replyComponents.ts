@@ -54,6 +54,11 @@ export const evidenceSchema = z
       .optional(),
     line: z.number().int().positive().optional(),
     endLine: z.number().int().positive().optional(),
+    threadId: z
+      .string()
+      .regex(/^thr_[a-zA-Z0-9_-]+$/)
+      .max(200)
+      .optional(),
   })
   .strict()
   .refine(
@@ -66,7 +71,11 @@ export const evidenceSchema = z
       message: "Line references need a file location and an ordered range.",
       path: ["line"],
     },
-  );
+  )
+  .refine((item) => !item.threadId || !item.location, {
+    message: "Use a threadId or a location, not both.",
+    path: ["threadId"],
+  });
 export type ReplyEvidence = z.infer<typeof evidenceSchema>;
 
 const context = z
@@ -189,6 +198,65 @@ const details = z
   .object({ type: z.literal("details"), title: text, body: text })
   .strict();
 
+const table = z
+  .object({
+    type: z.literal("table"),
+    title: text,
+    scope: text.optional(),
+    columns: z.array(text).min(1).max(12),
+    rows: z.array(z.array(z.string()).max(12)).max(256),
+  })
+  .strict()
+  .refine(
+    (value) => value.rows.every((row) => row.length === value.columns.length),
+    {
+      message: "Each table row must have one cell per column.",
+      path: ["rows"],
+    },
+  );
+const references = z
+  .object({
+    type: z.literal("references"),
+    title: text,
+    items: z.array(evidenceSchema).min(1).max(256),
+  })
+  .strict();
+export const reviewStepSchema = z
+  .object({
+    title: text,
+    detail: text.optional(),
+    requires: text.optional(),
+    expected: text.optional(),
+  })
+  .strict();
+const review = z
+  .object({
+    type: z.literal("review"),
+    title: text,
+    scope: text.optional(),
+    steps: z.array(reviewStepSchema).min(1).max(256),
+  })
+  .strict();
+export const replyActionSchema = z
+  .object({
+    title: text,
+    detail: text.optional(),
+    owner: text.optional(),
+    condition: text.optional(),
+    permission: text.optional(),
+    message: text.optional(),
+    recommended: z.boolean().optional(),
+  })
+  .strict();
+const actions = z
+  .object({
+    type: z.literal("actions"),
+    title: text,
+    scope: text.optional(),
+    items: z.array(replyActionSchema).min(1).max(256),
+  })
+  .strict();
+
 /** Each component's schema by call name; the catalog, parser, and examples read this table. */
 export const leafSchemas = {
   context,
@@ -200,6 +268,10 @@ export const leafSchemas = {
   delivery,
   recommendation,
   details,
+  table,
+  references,
+  review,
+  actions,
 } as const;
 const replyLeafSchema = z.discriminatedUnion("type", [
   context,
@@ -211,6 +283,10 @@ const replyLeafSchema = z.discriminatedUnion("type", [
   delivery,
   recommendation,
   details,
+  table,
+  references,
+  review,
+  actions,
 ]);
 export const groupSchema = z
   .object({
@@ -285,6 +361,7 @@ export function evidenceFilePath(
 /** Link labels and literal filename characters cannot change a Markdown target. */
 export function evidenceMarkdown(item: ReplyEvidence): string {
   const label = item.label.replace(/[\\\[\]`*_~]/g, "\\$&");
+  if (item.threadId) return `${label} (@thread:${item.threadId})`;
   if (!item.location) return label;
   const web = item.location.startsWith("https://");
   const target = web
@@ -376,6 +453,56 @@ export function componentText(part: ReplyPart): string {
         .join("\n\n");
     case "details":
       return `### ${part.title}\n\n${part.body}`;
+    case "table": {
+      const cell = (value: string) =>
+        value.replace(/\|/g, "\\|").replace(/\n/g, "<br>");
+      return [
+        `### ${part.title}`,
+        part.scope,
+        `| ${part.columns.map(cell).join(" | ")} |\n| ${part.columns.map(() => "---").join(" | ")} |\n${part.rows.map((row) => `| ${row.map(cell).join(" | ")} |`).join("\n")}`,
+        part.rows.length ? undefined : "No rows.",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    case "references":
+      return `### ${part.title}\n\n${evidenceText(part.items)}`;
+    case "review":
+      return [
+        `### ${part.title}`,
+        part.scope,
+        ...part.steps.map((step, i) =>
+          [
+            `${i + 1}. ${step.title}`,
+            step.detail,
+            step.requires && `Requires: ${step.requires}`,
+            step.expected && `Expected: ${step.expected}`,
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+        ),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    case "actions":
+      return [
+        `### ${part.title}`,
+        part.scope,
+        ...part.items.map((item) =>
+          [
+            `${item.recommended ? "Recommended: " : ""}${item.title}`,
+            item.detail,
+            item.owner && `Owner: ${item.owner}`,
+            item.condition && `When: ${item.condition}`,
+            item.permission && `Permission: ${item.permission}`,
+            item.message && `Request: ${item.message}`,
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+        ),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
     case "group":
       return part.children.flat().map(componentText).join("\n\n");
   }

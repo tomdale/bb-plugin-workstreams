@@ -11,6 +11,7 @@ import {
 } from "../../domain/replyComponents.ts";
 import { normalizeReplyMarkdown } from "./markdown.ts";
 import { BODY_CLASS } from "./type.ts";
+import { ActivityThreadLink } from "../page/ActivityThreadLink.tsx";
 
 export type ReplyDocument = ComponentProps<
   typeof Markdown
@@ -57,8 +58,20 @@ export function Evidence({
             : null;
         const target = path ? fileTarget(path, files) : null;
         return (
-          <li key={i}>
-            {item.location?.startsWith("https://") ? (
+          <li
+            key={i}
+            data-reply-reference=""
+            className="min-w-0 [overflow-wrap:anywhere]"
+          >
+            {item.threadId ? (
+              <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                {item.label}
+                <ActivityThreadLink
+                  threadId={item.threadId}
+                  fallback={item.threadId}
+                />
+              </span>
+            ) : item.location?.startsWith("https://") ? (
               <UrlLink href={item.location}>{item.label}</UrlLink>
             ) : target ? (
               <FileLink
@@ -76,7 +89,17 @@ export function Evidence({
                 {item.label}
               </FileLink>
             ) : (
-              item.label
+              <span>
+                {item.label}
+                {item.location ? (
+                  <code className="ml-2 text-[0.85em] text-muted-foreground [overflow-wrap:anywhere]">
+                    {item.location}
+                    {item.line
+                      ? `:${item.line}${item.endLine ? `–${item.endLine}` : ""}`
+                      : ""}
+                  </code>
+                ) : null}
+              </span>
             )}
             <PlainMarkdown content={item.detail} document={document} />
           </li>

@@ -5,6 +5,14 @@ import { PANEL_ROW_CLASS, RailCell } from "./Panel.tsx";
 import { SECONDARY_CLASS } from "./type.ts";
 
 type Sequence = Extract<ReplyPart, { type: "sequence" }>;
+type Review = Extract<ReplyPart, { type: "review" }>;
+type Step = {
+  title: string;
+  detail?: string;
+  attention?: boolean;
+  requires?: string;
+  expected?: string;
+};
 
 /**
  * A sequence as recap card steps: each step number sits in the mark column,
@@ -19,16 +27,17 @@ export function SequenceBody({
   md,
   pad = PANEL_ROW_CLASS,
 }: {
-  part: Sequence;
+  part: Sequence | Review;
   md: (content: string | undefined) => ReactNode;
   /** Row padding; a part already inside a frame draws its rows flush. */
   pad?: string;
 }) {
-  const last = part.steps.length - 1;
+  const steps: Step[] = part.steps;
+  const last = steps.length - 1;
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 [overflow-wrap:anywhere]">
       <ol data-reply-sequence-steps="" className="m-0 list-none p-0">
-        {part.steps.map((step, i) => (
+        {steps.map((step, i) => (
           <li
             key={i}
             data-reply-sequence-step={i + 1}
@@ -43,7 +52,7 @@ export function SequenceBody({
                 {i + 1}
               </span>
             </RailCell>
-            <div className="min-w-0">
+            <div className="@container/step min-w-0">
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 [&_p]:m-0">
                 {md(step.title)}
                 {step.attention ? (
@@ -62,6 +71,29 @@ export function SequenceBody({
                 >
                   {md(step.detail)}
                 </div>
+              ) : null}
+              {step.requires || step.expected ? (
+                <dl className="m-0 mt-1 grid grid-cols-[minmax(3.25rem,max-content)_minmax(0,1fr)] gap-x-3 gap-y-1 @max-[24rem]/step:grid-cols-1">
+                  {(
+                    [
+                      ["Requires", step.requires],
+                      ["Expected", step.expected],
+                    ] as const
+                  ).map(([label, value]) =>
+                    value ? (
+                      <div
+                        key={label}
+                        data-reply-step-field={label.toLowerCase()}
+                        className="col-span-full grid grid-cols-subgrid gap-y-0.5 @max-[24rem]/step:grid-cols-1"
+                      >
+                        <dt className={`${LABEL_CLASS} text-muted-foreground`}>
+                          {label}
+                        </dt>
+                        <dd className="m-0 min-w-0 [&_p]:m-0">{md(value)}</dd>
+                      </div>
+                    ) : null,
+                  )}
+                </dl>
               ) : null}
             </div>
           </li>

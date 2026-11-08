@@ -104,6 +104,15 @@ const cases = [
     bodyOnly: true,
   },
   {
+    id: "report-components",
+    state: "complete",
+    types: ["table", "references", "review", "actions"],
+    request:
+      "Explain the supplied coupon examples using a table: at 1,000 cents, 10 percent gives a 100-cent discount and 20 percent gives 200 cents. List the supplied calculation reference src/coupon.ts at lines 12–16 and report reference reports/tests.json without claiming you inspected them. Give ordered review instructions with prerequisites and expected values, then possible next actions with owner, condition, permission, and an optional request message. Use table, references, review, and actions components. This is advice from supplied facts; no code was changed or tests run. Do not implement or ask for approval.",
+    expected: ["table", "references", "review", "actions"],
+    next: true,
+  },
+  {
     id: "short",
     state: "complete",
     types: [],

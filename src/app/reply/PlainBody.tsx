@@ -8,7 +8,9 @@ import { CheckRows, TestTotals } from "./ChecksBody.tsx";
 import { ContextBody } from "./ContextBody.tsx";
 import { DeliveryStages } from "./DeliveryBody.tsx";
 import { DetailsBody } from "./DetailsBody.tsx";
-import { PlainMarkdown, type ReplyDocument } from "./Evidence.tsx";
+import { Evidence, PlainMarkdown, type ReplyDocument } from "./Evidence.tsx";
+import { ActionsBody } from "./ActionsBody.tsx";
+import { TableBody } from "./TableBody.tsx";
 import { GroupBody } from "./GroupBody.tsx";
 import { PANEL_ROW_CLASS, Panel } from "./Panel.tsx";
 import { PartTitle, titleMarkdown } from "./PartTitle.tsx";
@@ -18,7 +20,11 @@ import { BODY_CLASS, SECONDARY_CLASS } from "./type.ts";
 
 export { PlainMarkdown };
 
-type Context = { document: ReplyDocument; files: RecapFiles | null };
+type Context = {
+  document: ReplyDocument;
+  files: RecapFiles | null;
+  threadId?: string | null;
+};
 
 /**
  * The parts whose data is a list of parallel rows, and which therefore draw a
@@ -31,6 +37,10 @@ const ROW_PARTS = new Set<ReplyPart["type"]>([
   "sequence",
   "comparison",
   "change",
+  "table",
+  "references",
+  "review",
+  "actions",
 ]);
 
 /**
@@ -45,6 +55,7 @@ export function PlainBody({
   document,
   files,
   framed = true,
+  threadId = null,
 }: Context & { part: ReplyPart; framed?: boolean }) {
   const md = (content: string | undefined) => (
     <PlainMarkdown content={content} document={document} />
@@ -55,6 +66,26 @@ export function PlainBody({
   /** The part's own marker, on its root whether that root is a panel or not. */
   const mark = (type: string) => ({ [`data-reply-${type}`]: "" });
   const pad = panelled ? PANEL_ROW_CLASS : "";
+  const report = (name: string, rows: ReactNode, scope?: string) =>
+    panelled ? (
+      <Panel
+        part={part.type}
+        title={title(name)}
+        scope={scope ? md(scope) : undefined}
+      >
+        {rows}
+      </Panel>
+    ) : (
+      <div {...mark(part.type)} className="min-w-0 [overflow-wrap:anywhere]">
+        {title(name)}
+        {scope ? (
+          <div className={`${SECONDARY_CLASS} text-muted-foreground [&_p]:m-0`}>
+            {md(scope)}
+          </div>
+        ) : null}
+        {rows}
+      </div>
+    );
   switch (part.type) {
     case "text":
       return md(part.body);
@@ -105,6 +136,31 @@ export function PlainBody({
         </div>
       );
     }
+    case "table":
+      return report(
+        part.title,
+        <TableBody part={part} md={md} pad={panelled ? "px-3.5" : ""} />,
+        part.scope,
+      );
+    case "references":
+      return report(
+        part.title,
+        <div className={pad}>
+          <Evidence items={part.items} document={document} files={files} />
+        </div>,
+      );
+    case "review":
+      return report(
+        part.title,
+        <SequenceBody part={part} md={md} pad={pad} />,
+        part.scope,
+      );
+    case "actions":
+      return report(
+        part.title,
+        <ActionsBody part={part} md={md} threadId={threadId} pad={pad} />,
+        part.scope,
+      );
     case "change": {
       const rows = <ChangeBody part={part} md={md} pad={pad} />;
       return panelled ? (
@@ -194,6 +250,7 @@ export function PlainBody({
               document={document}
               files={files}
               framed={false}
+              threadId={threadId}
             />
           )}
         />

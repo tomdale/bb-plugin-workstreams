@@ -21,6 +21,7 @@ import { PROMPT_CLASS } from "../src/app/question/question-presentation";
 import { PlainBody } from "../src/app/reply/PlainBody";
 import { BODY_CLASS } from "../src/app/reply/type";
 import type { ReplyComponent } from "../src/domain/replyComponents";
+import { COMPONENT_EXAMPLES } from "../src/domain/replyExamples";
 import {
   allocateFamilyColor,
   workstreamColorStyle,
@@ -333,6 +334,12 @@ const replyParts = [
       ],
     ],
   },
+  ...[
+    COMPONENT_EXAMPLES.table,
+    COMPONENT_EXAMPLES.references,
+    COMPONENT_EXAMPLES.review,
+    COMPONENT_EXAMPLES.actions,
+  ],
 ] satisfies ReplyComponent[];
 
 const replyAccents = (() => {

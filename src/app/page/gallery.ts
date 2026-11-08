@@ -4,7 +4,10 @@
  * authored on purpose. Blocks are built from `componentFence`, so each
  * component is a typed object rather than hand-written JSON.
  */
-import { componentFence } from "../../domain/replyExamples.ts";
+import {
+  COMPONENT_EXAMPLES,
+  componentFence,
+} from "../../domain/replyExamples.ts";
 import type { ReplyComponent } from "../../domain/replyComponents.ts";
 
 type AgentReply = {
@@ -366,6 +369,28 @@ export const SPECIMENS: readonly Specimen[] = [
           "delivery",
           "recommendation",
         ],
+      },
+    ],
+  },
+  {
+    title: "Tables and review instructions",
+    intro:
+      "Tabular results, complete references, ordered review steps, and follow-up requests in the reply body.",
+    messages: [
+      {
+        from: "user",
+        text: "Show the coupon calculations, references, and how to review them.",
+      },
+      {
+        from: "agent",
+        block: block(
+          ["table", "references", "review", "actions"].map((name) =>
+            componentFence(
+              COMPONENT_EXAMPLES[name as keyof typeof COMPONENT_EXAMPLES],
+            ),
+          ),
+        ),
+        features: ["table", "references", "review", "actions"],
       },
     ],
   },

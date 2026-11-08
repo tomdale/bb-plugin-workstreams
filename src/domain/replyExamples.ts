@@ -12,6 +12,10 @@ export const COMPONENT_NAMES = [
   "delivery",
   "recommendation",
   "details",
+  "table",
+  "references",
+  "review",
+  "actions",
   "group",
 ] as const;
 export const COMPONENT_EXAMPLES: Record<
@@ -123,6 +127,74 @@ export const COMPONENT_EXAMPLES: Record<
     type: "details",
     title: "Supporting calculation",
     body: "For an amount of 1000 cents:\n\n```ts\nconst discount = 1000 * (10 / 100);\n```\n\nThe discount is 100 cents.",
+  },
+  table: {
+    type: "table",
+    title: "Coupon discounts",
+    scope: "Amounts are in cents; callers supply whole percentages.",
+    columns: ["Amount", "Percent", "Discount"],
+    rows: [
+      ["1,000", "10", "100"],
+      ["1,000", "20", "200"],
+    ],
+  },
+  references: {
+    type: "references",
+    title: "Calculation references",
+    items: [
+      {
+        label: "Calculation",
+        location: "src/coupon.ts",
+        line: 12,
+        endLine: 16,
+        detail: "Converts the caller's whole percentage before subtracting.",
+      },
+      {
+        label: "Test report",
+        location: "reports/tests.json",
+        detail: "Results for the recorded run.",
+      },
+    ],
+  },
+  review: {
+    type: "review",
+    title: "Review the coupon calculation",
+    scope: "Check the caller's units before changing the calculation.",
+    steps: [
+      {
+        title: "Check the caller's units",
+        detail: "Inspect the value passed to the calculation.",
+        expected: "Ten percent is passed as 10.",
+      },
+      {
+        title: "Calculate a ten-percent discount",
+        requires: "Use an amount of 1,000 cents and a percentage of 10.",
+        expected: "The discount is 100 cents.",
+      },
+    ],
+  },
+  actions: {
+    type: "actions",
+    title: "Next actions",
+    scope: "Review the caller before requesting implementation.",
+    items: [
+      {
+        title: "Review the caller",
+        detail: "Confirm that the caller supplies whole percentages.",
+        owner: "Reviewer",
+        recommended: true,
+        message: "Review the coupon caller and confirm its percentage units",
+      },
+      {
+        title: "Add a regression test",
+        condition:
+          "If the current tests do not cover ten percent of 1,000 cents.",
+        permission: "Requires a new implementation request",
+        owner: "Agent",
+        message:
+          "Add a coupon regression test for ten percent of 1,000 cents if that case is missing",
+      },
+    ],
   },
   group: {
     type: "group",

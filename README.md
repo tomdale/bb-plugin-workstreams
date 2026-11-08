@@ -587,6 +587,28 @@ which adds a message-block slot, you also get **Structured replies**:
   `blocked` is a stage that cannot proceed and `not-started` one nobody has
   reached. A reply's kind remains separate from whether its work is complete,
   ready for review, or waiting.
+- Report components also include `table`, `references`, `review`, and `actions`,
+  rendered directly by Workstreams with the shared reply panels and no
+  Generative UI dependency:
+  - `table` shows Markdown cells, column headers, and an optional scope for
+    units or conditions. Rows must match the columns. Wide tables scroll inside
+    the reply; empty tables retain their headers.
+  - `references` retains the complete list and each reference's purpose. Files
+    open in native previews with explicit line ranges; web links retain their
+    supplied revision. A `threadId` renders a native thread link with its role
+    label. When a file cannot be routed, its literal path remains readable.
+  - `review` shows ordered instructions, prerequisites, and expected results.
+    These remain instructions to perform, without controls that mark them
+    passed.
+  - `actions` shows all supplied options, owners, conditions, permissions, and
+    recommendations. A `message` is shown verbatim before **Copy request** and
+    **Add to message** controls. Adding appends to the original thread's
+    composer without submitting or replacing its draft. It is disabled for
+    another thread, a new-thread draft, an editor, or a gallery without that
+    thread's composer. Items without a message have no request controls.
+    Reference, review, and action lists allow up to 256 entries, separately from
+    the recap's short lists. These are rendering components, not a background
+    UI-writing agent; recap state and send behavior are unchanged.
 - Components are written as `name(field: value, …)` statements inside
   `workstreams` fences; one fence holds one or more of them. Every argument is
   named, and values are static: `"text"`, numbers, `true`, `false`, `null`,

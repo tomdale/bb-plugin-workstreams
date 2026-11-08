@@ -211,6 +211,29 @@ for it.
   Markdown at full contrast, unboxed and never collapsed, because the answer or
   essential caveats may land there. A `### Details` heading in prose renders the
   same way.
+- **Table:** Column headers and Markdown cells in the shared reply panel, with
+  fine row rules. Scope states units or conditions above it. A wide table
+  scrolls within its own keyboard-focusable region; its cells and long
+  references wrap. An empty table keeps its headers and states that it has no
+  rows.
+- **References:** A complete list in the shared reply panel, with native file
+  previews, line ranges, web links, and supporting Markdown as check evidence.
+  Keep the supplied revision and each reference's purpose; do not replace a
+  pinned link with current main. Long lists remain complete in the reply body.
+- **Review:** The sequence's shared panel, ordered marks and rail, with explicit
+  Requires and Expected rows beneath each instruction. Scope gives the review
+  environment or version. All steps remain visible; these instructions have no
+  pass/fail toggles.
+- **Actions:** Rows in the shared reply panel, separated by fine rules. The
+  title leads, followed by detail, owner, condition, and permission when
+  supplied. A recommendation uses the reply accent, not a completion color. Show
+  the exact request text before its controls so the user can inspect it. Copy
+  request copies the supplied message; Add to message appends it to the matching
+  thread's draft and never submits. Both controls identify their action through
+  its title. Without a matching thread composer, adding is disabled and copying
+  remains available. A row without a message has no request controls. All
+  supplied options remain visible; the recap's three-action limit does not apply
+  to the reply body.
 - **Group:** Peers share one row in equal columns when the message column fits
   every peer at its minimum width, and otherwise each takes the full width; they
   never wrap into a ragged second row. Supporting children sit beneath the first

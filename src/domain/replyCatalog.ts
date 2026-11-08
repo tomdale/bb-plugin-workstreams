@@ -5,7 +5,13 @@
  * this one description, so none can drift from what the schemas accept.
  */
 import type { z } from "zod";
-import { evidenceSchema, groupSchema, leafSchemas } from "./replyComponents.ts";
+import {
+  evidenceSchema,
+  groupSchema,
+  leafSchemas,
+  reviewStepSchema,
+  replyActionSchema,
+} from "./replyComponents.ts";
 
 export type Shape =
   | { kind: "text" }
@@ -29,7 +35,11 @@ type Def = {
   }[];
 };
 const defOf = (schema: z.ZodType) => schema._zod.def as unknown as Def;
-const NAMED = new Map<z.ZodType, string>([[evidenceSchema, "Evidence"]]);
+const NAMED = new Map<z.ZodType, string>([
+  [evidenceSchema, "Evidence"],
+  [reviewStepSchema, "ReviewStep"],
+  [replyActionSchema, "ReplyAction"],
+]);
 
 function describe(schema: z.ZodType): { shape: Shape; optional: boolean } {
   let current = schema,
@@ -139,7 +149,10 @@ export function signatureLines(): string[] {
     ...Object.entries(CATALOG).map(
       ([name, shape]) => `${name}(${fieldsText(shape)})`,
     ),
-    `Evidence = ${typeText(EVIDENCE_SHAPE, true)}`,
+    ...[...NAMED].map(
+      ([schema, name]) =>
+        `${name} = ${typeText(objectShape(schema, name), true)}`,
+    ),
   ];
 }
 

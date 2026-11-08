@@ -165,6 +165,7 @@ export function ReplyBlock({
           part={part}
           document={workspace?.document}
           files={workspace?.files ?? null}
+          threadId={threadId}
         />
       ))}
       {showCard && card ? <LegacyCard card={card} md={md} /> : null}

@@ -196,9 +196,11 @@ it("renders every component as readable Markdown and native links in one reply",
   expect(view.container.textContent).not.toContain("\x60\x60\x60workstreams");
   expect(
     view.container.querySelector(
-      "[data-reply-component], aside, article, button, footer",
+      "[data-reply-component], aside, article, footer",
     ),
   ).toBeNull();
+  for (const button of view.container.querySelectorAll("button"))
+    expect(button.closest("[data-reply-actions]")).not.toBeNull();
   expect(block.className).toContain("ws-reply-accent min-w-0 space-y-4");
   // The body size on the container is what keeps an unsized label from
   // rendering at the browser default, larger than the prose it labels.
