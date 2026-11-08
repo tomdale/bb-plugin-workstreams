@@ -229,6 +229,9 @@ export class PresetView {
   get range() {
     return `${n0(this.raw.ivMin)}–${n0(this.raw.ivMax)}`;
   }
+  get ivMax() {
+    return n0(this.raw.ivMax);
+  }
   get step() {
     return n2(this.raw.step);
   }

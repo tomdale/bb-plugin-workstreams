@@ -17,7 +17,6 @@ import {
   CONTROLS,
   DECKS,
   DECK_SIZE,
-  DRUM_PRESETS,
   FOLDED,
   MODULES,
   MODES,

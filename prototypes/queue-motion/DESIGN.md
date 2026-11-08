@@ -96,9 +96,10 @@ not where the motion starts to look rushed.
 
 | Preset (60 Hz, `npm run sweep -- presets`) | Held ↑ / ↓, cards/s | Interval range | Worst step-to-step change | Max jump, px/frame | Problems |
 | ------------------------------------------ | ------------------- | -------------- | ------------------------- | ------------------ | -------- |
-| `natural`                                  | 5.5 / 5.5           | 100–300 ms     | 3.00×                     | 24                 | 0        |
-| `even`                                     | 4.0 / 3.9           | 217–283 ms     | 1.15×                     | 25                 | 0        |
-| `even + held speed`                        | 4.7 / 4.7           | 183–233 ms     | 1.18×                     | 31                 | 0        |
+| `shipped`                                  | 5.8 / 5.7           | 133–283 ms     | 1.89×                     | 31                 | 0        |
+| `natural`                                  | 5.0 / 5.2           | 100–367 ms     | 3.00×                     | 24                 | 0        |
+| `even`                                     | 4.0 / 3.9           | 217–283 ms     | 1.15×                     | 24                 | 0        |
+| `even + held speed`                        | 4.7 / 4.6           | 183–250 ms     | 1.18×                     | 31                 | 0        |
 | `fold`                                     | 10.1 / 10.8         | 83–167 ms      | 1.67×                     | 31                 | 0        |
 
 While a key is held, a held state λ rises from 0 to 1 (the page's `held`
@@ -109,9 +110,9 @@ at 250 ms, taps of 60, 100 and 150 ms peak at 0.00 on `fold`. `ramp` and `fold`
 both read λ.
 
 - **`tempo`** spaces presses by a planned interval, so the pace follows the
-  tallest card nearby and changes gently. `constant` uses one interval; with
-  `ramp` on, 225 ms gives 4.4 / 4.4 cards/s with no problems and 200 ms gives 2
-  swaps (`constant interval` on `constant with held speed-up`). `lookahead`
+  tallest card nearby and changes gently. `constant` uses one interval, which
+  the page sets as a pace; with `ramp` on, 5 cards/s (a 200 ms beat) gives 5.0 /
+  4.8 cards/s with no problems (`pace` on `speed up, steady beat`). `lookahead`
   takes, for each step, the moving average of the moving maximum of the
   estimated clear times over `window` cards each way, which never drops below
   the step's own estimate and eases toward a tall card before it arrives. A
@@ -124,12 +125,10 @@ both read λ.
   scale gives `natural`'s pace because the trips outlast the plan. The even pace
   costs speed: `even` runs 28% below `natural`.
 - **`ramp`** stiffens the springs (3 to 4.5 Hz) and raises the edge budget (24
-  to 30 px/frame) with λ. Alone it raises the pace to 7.2 / 7.3 cards/s and
-  gives 2 checker problems, both swaps in a held ↓ on the second mixed set; the
-  intervals run 67–233 ms and the worst step-to-step change is 3.50× (3.00× in
-  `natural`). With the held spring at 3 or 3.5 Hz the suite is clean (6.2 / 6.4
-  and 6.6 / 6.8 cards/s). `even + held speed` adds a tempo and is clean at the
-  default 4.5 Hz.
+  to 30 px/frame) with λ. Alone it raises the pace to 5.9 / 6.5 cards/s with no
+  checker problems, but the intervals run 83–350 ms and the worst step-to-step
+  change is 4.20× (3.00× in `natural`). `even + held speed` adds a tempo, and
+  `shipped` a steady beat, which even it out.
 - **`fold`** includes `ramp`'s speed-up and shrinks every card's drawn height
   toward `H0` (73 px) with λ, which takes the height out of the trip. The card
   that lands unfolds on release, or on arrival at the end of the queue. At 10
@@ -167,9 +166,8 @@ both read λ.
   rising card is on its way, instead of staying tall until covered. The limit
   holds for every card, so no edge jumps when a card turns around mid-flight.
   The cost is in the margins, not the presets: every preset passes
-  `npm run check`, but a tap spring of 4.5 Hz or more, a held budget of 39 on
-  `even + held speed` and a 225 ms beat with held speed-up each give one to a
-  few more.
+  `npm run check`, but a tap spring of 4.5 Hz or more gives 9 to 21 clip-band
+  problems.
 - **`loose`** includes `ramp`'s speed-up and shrinks only the heights the
   clearing geometry uses, toward `H0` with λ, while every card is drawn whole. A
   leaving card drops just far enough to clear a card of that virtual height, so
@@ -220,9 +218,19 @@ card's bottom edge removes the lower part of the card behind, and no pixel of
 that card is drawn in the band. The original rule counts the band and reports
 169 hits (all of the clip-band kind) across the natural preset's suite
 scenarios, and 148 across the cascade's `default` (`npm run suite -- cascade`).
-The corrected rule reports 0 for both. The suite asserts the corrected rule. The
-product test (`tests/app/queue/stack-engine.test.ts`) runs neither rule, so
-adding one is a decision (see Open).
+The corrected rule reports 0 for both.
+
+The corrected rule also counts a draw-order swap only when the two cards overlap
+in both frames. Cards that meet in the frame their order changes show only the
+new order, so nothing is seen to pass through. That happens when a leaving card
+flips while clear and, within the same frame, the next press sends the card in
+front of it down onto it, which a held speed-up makes common: on `shipped`, for
+instance, cards meet by 2.8 px on the second mixed set. The only swaps the
+drum's sweeps report are the ones `loose` makes by passing over a card.
+
+The suite asserts the corrected rule. The product test
+(`tests/app/queue/stack-engine.test.ts`) runs neither rule, so adding one is a
+decision (see Open).
 
 The lab page runs the corrected rule too: its Measured module applies `problems`
 and `maxJump` to the frames the page draws, recorded about every 1/60 s of page

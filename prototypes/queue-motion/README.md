@@ -272,7 +272,7 @@ The drum's presets:
 
 | Preset              | What changes while a key is held                                                                                           |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `shipped`           | `QUEUE_CFG`: speed up after 250 ms, on a steady beat of 6.7 cards/s (150 ms). Not in the sweeps or `npm run check`.        |
+| `shipped`           | `QUEUE_CFG`: speed up after 250 ms, on a steady beat of 6.7 cards/s (150 ms).                                              |
 | `natural`           | Nothing. The pace follows card heights: tall cards slow it, short cards speed it up.                                       |
 | `even`              | Planned pacing: presses are spaced by an interval planned from the heights ahead.                                          |
 | `even + held speed` | The same plan at 0.85×, and speed up while held.                                                                           |
@@ -309,8 +309,9 @@ The sims run the drum or the cascade on a stepped clock with no browser
 them as closely as its real cards can. The frame checker (`sim/check.mjs`) flags
 edge jumps, draw-order swaps while cards overlap, shade jumps, and changes to a
 drawn bottom edge that nothing covers. `npm run sweep -- limits` prints its
-thresholds. It has two rules for that last case; DESIGN.md explains the
-difference. `npm run check` asserts the corrected rule.
+thresholds. It has two rules for that last case, and the corrected one counts a
+swap only when the cards overlap in both frames; DESIGN.md explains both.
+`npm run check` asserts the corrected rule.
 
 `npm run suite -- cascade` runs the cascade's presets with the drum's `natural`
 and `even` beside them as controls, at 60 and 120 Hz (`--hz 60` runs one rate),
@@ -402,9 +403,8 @@ display's.
   so the lab holds only the options still in play.
 - A new preset is a `PRESETS` entry in `drum.ts` or in `src/cascade.ts` and a
   tooltip entry under `preset.<name>`; the page picks the button up and the
-  presets sweep measures it. The drum's `shipped` is the lab's own entry,
-  `QUEUE_CFG` at the head of `DRUM_PRESETS` in `src/controls.ts`, so the sweeps
-  and `npm run check` do not measure it.
+  presets sweep measures it. The drum's `shipped` is `QUEUE_CFG`, at the head of
+  `PRESETS`, so the sweeps and `npm run check` measure what ships.
 - Tooltip numbers come from the sweeps (`Facts` in `src/facts.ts`), from a
   setting's default, or from a named constant. The `t` text tag rejects a digit
   typed into the text, and `f.expect` rejects a claim the sweeps no longer show.

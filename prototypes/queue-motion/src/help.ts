@@ -109,21 +109,22 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
   },
 
   // ---- presets -----------------------------------------------------------------------------------
-  "preset.shipped": () => {
+  "preset.shipped": (f) => {
     const q = QUEUE_CFG;
+    const p = f.preset("shipped");
+    f.expect(p.clean, "what ships passes the checker");
     const hz = (w: number | undefined) => String((w ?? 0) / TAU);
-    const perFrame = (v: number | undefined) => String((v ?? 0) / 60);
     const ms = q.tempo?.ms ?? 0;
     return {
       what: "The configuration the queue ships with, `QUEUE_CFG` in `drum.ts`: a held key stiffens the springs and raises the top speed after a short hold, and presses keep a steady beat.",
       effect: [
         [
           "Feels",
-          t`A tap runs on a ${hz(q.omega0)} Hz spring with a ${perFrame(q.vcap)} px/frame budget. After ${q.holdDelay} ms held the spring rises to ${hz(q.omega1)} Hz and the budget to ${perFrame(q.vcap1)}, and a press waits at least ${ms} ms after the last, so a hold runs at most ${(1000 / ms).toFixed(1)} cards/s. A tall card takes longer than the beat, so the pace still dips at it.`,
+          t`A tap runs on a ${hz(q.omega0)} Hz spring with a top speed of ${q.vcap} px/s. After ${q.holdDelay} ms held the spring rises to ${hz(q.omega1)} Hz and the top speed to ${q.vcap1} px/s, and a press waits at least ${ms} ms after the last, so a hold runs at most ${(1000 / ms).toFixed(1)} cards/s. A tall card takes longer than the beat, so the pace still dips at it.`,
         ],
         [
           "Measured",
-          "The sweeps do not measure this preset. Hold a key and read the Measured module; on the alternating Cards deck the beat stretches at every tall card.",
+          t`Held ↑ / ↓ ${p.pace} cards/s, intervals ${p.range} ms, worst step-to-step change ${p.step}×, ${p.clean ? "no checker problems" : p.problems}. A tap ↑ lands in ${p.tapUp} ms and a tap ↓ settles in ${p.tapDn} ms. The beat stretches at every tall card: the slowest step is ${p.ivMax} ms against a beat of ${ms} ms.`,
         ],
         [
           "Good for",
@@ -201,8 +202,8 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     const base = scale.start,
       low = scale.at(0.7);
     f.expect(
-      p.clean && p.raw.heldUp > even.raw.heldUp && !low.clean,
-      "even + held speed is clean, faster than even, and fails at a smaller scale",
+      p.clean && p.raw.heldUp > even.raw.heldUp && rate(low) > rate(base),
+      "even + held speed is clean, faster than even, and faster still at a smaller plan",
     );
     return {
       what: "The same plan at a shorter interval, which stiffer springs and a higher top speed make possible once a key has been held: planned pacing, and `while held` set to `speed up`.",
@@ -221,7 +222,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
       ],
       needs: t`Sets \`pacing\` to \`planned\` (\`plan window\` ${f.def("tw")}, \`plan\` ${base.value}×) and \`while held\` to \`speed up\`: after \`speeds up after\` the spring goes from ${f.def("w0")} to ${f.def("w1")} Hz and the top speed from ${f.def("cap")} to ${f.def("cap1")} px/s.`,
-      tune: t`Lower \`plan\` for more pace and watch the checker: ${low.value}× reports ${low.verdict}. Under a plan, \`held spring\` and \`held top speed\` leave the pace alone, so tune the plan first.`,
+      tune: t`Lower \`plan\` for more pace and watch the checker: ${low.value}× gives ${low.pace} cards/s with ${low.verdict}. Under a plan, \`held spring\` and \`held top speed\` leave the pace alone, so tune the plan first.`,
     };
   },
   "preset.fold": (f) => {
@@ -789,11 +790,11 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     const off = f.preset("no held ramp");
     f.expect(
       rate(alone) > nat.raw.heldUp &&
-        !alone.clean &&
+        alone.raw.step > nat.raw.step &&
         fold.clean &&
         !loose.clean &&
         cd.raw.heldUp > off.raw.heldUp,
-      "speeding up is faster than natural and not clean alone, fold is clean, passing over is not, and the cascade's speed-up is faster than its tap pace",
+      "speeding up is faster than natural but less even, fold is clean, passing over is not, and the cascade's speed-up is faster than its tap pace",
     );
     return {
       what: "What a held key does to the cards once it has been held past `speeds up after`: nothing more than a tap does, speed up, fold every card to its header line, or let a leaving card pass over the next one. The cascade offers the first two.",
@@ -817,7 +818,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       ],
       needs:
         "Fold and pass over include the speed-up. Anything but `same as taps` shows `speeds up after`, `held spring` and `held top speed`; fold and pass over also show `held height`. A tap shorter than `speeds up after` changes nothing, and a hold that reaches the end of the queue stops there. The held readout in Measured shows how far the held state has risen.",
-      tune: t`Start from a preset that makes the choice: \`shipped\` or \`even + held speed\` to speed up, \`fold\`, \`loose\`. Then set \`pacing\`: speeding up with the presses following the cards leaves ${alone.verdict} and a worst step-to-step change of ${alone.step}× (${nat.step}× on \`natural\`), which a steady beat or a plan clears.`,
+      tune: t`Start from a preset that makes the choice: \`shipped\` or \`even + held speed\` to speed up, \`fold\`, \`loose\`. Then set \`pacing\`: speeding up with the presses following the cards leaves a worst step-to-step change of ${alone.step}× (${nat.step}× on \`natural\`), which a steady beat or a plan evens out.`,
     };
   },
   "setting.pacing": (f) => {
@@ -984,7 +985,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "a larger plan is slower",
     );
     f.expect(
-      hs.clean && !hsLow.clean && hs.raw.step < noRamp.raw.step,
+      hs.clean && hs.raw.step < noRamp.raw.step,
       "speeding up makes a smaller plan clean and steadier",
     );
     return {
@@ -999,7 +1000,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`Shorter intervals, until a tall card's real trip outlasts the plan. At ${half.value}× the pace is ${half.pace} cards/s, close to \`natural\`'s ${nat.pace}, and the worst step-to-step change is back up to ${half.step}× (${nat.step}× on \`natural\`).`,
         ],
       ],
-      needs: t`Drum only. Speeding up shortens the real trips, so it lets the plan run shorter: \`even + held speed\` plans at ${hs.value}× and keeps ${hs.step}×, while the same plan without it reaches intervals of ${noRamp.ivMax} ms (${noRamp.step}×). Speeding up at ${hsLow.value}× gives ${hsLow.verdict}. The plan's estimate is in Finish.`,
+      needs: t`Drum only. Speeding up shortens the real trips, so it lets the plan run shorter: \`even + held speed\` plans at ${hs.value}× and keeps ${hs.step}×, while the same plan without it reaches intervals of ${noRamp.ivMax} ms (${noRamp.step}×). Speeding up at ${hsLow.value}× gives ${hsLow.pace} cards/s with ${hsLow.verdict}. The plan's estimate is in Finish.`,
       tune: t`Start at ${f.def("ts")}×, or ${hs.value}× while speeding up. Lower it a little at a time until the pace suits you, and stop when the worst step-to-step change starts to climb or the checker reports a problem.`,
     };
   },
@@ -1027,7 +1028,10 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       [f0, f250, f600, f800].every((r) => r.clean),
       "every value is clean on fold",
     );
-    f.expect(!a600.clean, "a late speed-up adds problems to speeding up alone");
+    f.expect(
+      a.sweep.rows.every((r) => r.problems === 0),
+      "every value is clean speeding up alone",
+    );
     f.expect(
       Math.abs(rate(e0) - rate(e800)) < 0.1,
       "the delay does not move a planned pace",
@@ -1057,7 +1061,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
       ],
       needs: t`Shown while \`while held\` is anything but \`same as taps\`. Under a plan the plan sets the pace and the delay changes nothing measurable: \`even + held speed\` holds ${e0.pace} cards/s at ${e0.value} ms and ${e800.pace} at ${e800.value} ms. The held state reaches ${f.rise.level} about ${f.rise.seconds} s after the delay.`,
-      tune: t`Start at ${f.def("delay")}. Lower it until a normal tap begins to fold or speed up, then back off. On \`fold\` and on the cascade every value swept is clean, so it is a safe knob for pace. Speeding up alone, a late start adds problems: ${a600.verdict} at ${a600.value} ms.`,
+      tune: t`Start at ${f.def("delay")}. Lower it until a normal tap begins to fold or speed up, then back off. On \`fold\`, speeding up alone and on the cascade every value swept is clean, so it is a safe knob for pace; speeding up alone, ${a600.value} ms still gives ${a600.pace} cards/s.`,
     };
   },
   "setting.w1": (f) => {
@@ -1082,8 +1086,10 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "a stiffer held spring speeds up a fold",
     );
     f.expect(
-      f5.clean && !f6.clean && a35.clean && !a7.clean,
-      "held spring values are clean up to the ones quoted",
+      fo.sweep.rows.every((r) => r.problems === 0) &&
+        a.sweep.rows.every((r) => r.problems === 0) &&
+        a7.raw.step > a35.raw.step,
+      "every held spring swept on the drum is clean, and a stiffer one is less even",
     );
     f.expect(
       Math.abs(rate(e3) - rate(e7)) < 0.1,
@@ -1106,7 +1112,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
       ],
       needs: t`Shown while \`while held\` is anything but \`same as taps\`. \`held top speed\` caps what a stiffer spring can do. Under a plan it leaves the pace alone: \`even + held speed\` stays at ${e3.pace} cards/s from ${e3.value} to ${e7.value} Hz. The line under the slider gives it as a multiple of \`tap spring\`.`,
-      tune: t`Start at ${f.def("w1")}. On \`fold\`, ${f5.value} Hz is clean (${f5.pace} cards/s) and ${f6.value} Hz gives ${f6.verdict}; speeding up alone, ${a35.value} Hz is clean and ${a7.value} Hz gives ${a7.verdict}; on the cascade ${c8.value} Hz gives ${c8.verdict}. If a raise adds swaps, add a steady beat before you lower the spring.`,
+      tune: t`Start at ${f.def("w1")}. On the drum every value swept is clean, so judge by evenness: on \`fold\`, ${f5.value} Hz keeps a worst step-to-step change of ${f5.step}× (${f5.pace} cards/s) and ${f6.value} Hz ${f6.step}×; speeding up alone, ${a35.value} Hz gives ${a35.step}× and ${a7.value} Hz ${a7.step}×. On the cascade ${c8.value} Hz gives ${c8.verdict}. If a raise makes the rhythm uneven, add a steady beat before you lower the spring.`,
     };
   },
   "setting.cap1": (f) => {
@@ -1133,12 +1139,12 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "a higher held top speed speeds up a fold",
     );
     f.expect(
-      f39.clean && e30.clean && !e39.clean && !f40.clean && !e40.clean,
-      "a fold is clean through the last held top speed below the jump limit, and even + held speed through the default",
+      f39.clean && e39.clean && !f40.clean && !e40.clean,
+      "a fold and even + held speed are clean through the last held top speed below the jump limit",
     );
     f.expect(
-      !a24.clean && !a30.clean && !a39.clean,
-      "speeding up alone is not clean at any held top speed",
+      a24.clean && a30.clean && a39.clean,
+      "speeding up alone is clean below the jump limit",
     );
     f.expect(
       Math.abs(rate(e30) - rate(e39)) < 0.1,
@@ -1157,11 +1163,11 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
         [
           "Lower",
-          t`Below \`top speed\` (${f.def("cap")} px/s) a hold moves slower than a tap would and cards start to collide: \`even + held speed\` at ${e24.value} gives ${e24.verdict}.`,
+          t`Below \`top speed\` (${f.def("cap")} px/s) a hold moves slower than a tap would: on \`fold\`, ${f24.value} gives ${f24.pace} cards/s, and under a plan the pace stays at ${e24.pace}.`,
         ],
       ],
       needs: t`Shown while \`while held\` is anything but \`same as taps\`. The held spring decides how hard a card tries to move and this limits it. Under a plan the pace stays put: \`even + held speed\` holds ${e30.pace} cards/s at ${e30.value} and at ${e39.value}. A \`pace\` set on the cascade keeps its cards/s whatever this is, by changing the spacing. The line under the slider gives it in px per frame.`,
-      tune: t`Start at ${f.def("cap1")}, the shipped engine's peak edge speed. ${f39.value} is the highest clean value on \`fold\`. At ${f40.value} the checker reports jumps (an edge moved over ${f.limit.jump} px in a frame): ${f40.problems} on \`fold\`, ${e40.problems} on \`even + held speed\`. Speeding up alone is not clean at any value swept; on the cascade keep it at ${c30.value} or below and set the pace with \`pace\`.`,
+      tune: t`Start at ${f.def("cap1")}, the shipped engine's peak edge speed. ${f39.value} is the highest clean value on \`fold\`, on \`even + held speed\` and speeding up alone. At ${f40.value} the checker reports jumps (an edge moved over ${f.limit.jump} px in a frame): ${f40.problems} on \`fold\`, ${e40.problems} on \`even + held speed\`. On the cascade keep it at ${c30.value} or below and set the pace with \`pace\`.`,
     };
   },
   "setting.h0": (f) => {
@@ -1179,8 +1185,8 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "a taller held height is slower",
     );
     f.expect(
-      h50.clean && h60.clean && h73.clean && h130.clean && !h160.clean,
-      "held heights from the lower to the upper quoted value are clean",
+      s.sweep.rows.every((r) => r.problems === 0),
+      "every held height swept is clean",
     );
     return {
       what: "The height every card draws at while folded, or the height a leaving card clears while passing over, in px. A card shorter than this grows to it when folded.",
@@ -1194,8 +1200,8 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`A thinner strip and a faster hold: ${h60.value} gives ${h60.pace} cards/s. ${h50.value} gives ${h50.pace} and is ${h50.verdict}, but a strip that thin leaves little to recognise.`,
         ],
       ],
-      needs: t`Drum only, shown while \`while held\` is \`fold to the header line\` or \`pass over the next card\`. A taller fold keeps more text but slows the hold, and past ${h130.value} cards swap draw order: ${h160.value} gives ${h160.verdict}. The line under the slider gives the shortest card on the stage.`,
-      tune: t`Start at ${f.def("h0")}, one line of status and goal. Pick the height by what you want to read while scanning; the sweep is clean from ${h50.value} to ${h130.value} and fails at ${h160.value}. To change the pace without changing the look, use \`speeds up after\`.`,
+      needs: t`Drum only, shown while \`while held\` is \`fold to the header line\` or \`pass over the next card\`. A taller fold keeps more text but slows the hold: ${h160.value} gives ${h160.pace} cards/s. The line under the slider gives the shortest card on the stage.`,
+      tune: t`Start at ${f.def("h0")}, one line of status and goal. Pick the height by what you want to read while scanning; the sweep is clean from ${h50.value} to ${h160.value}. To change the pace without changing the look, use \`speeds up after\`.`,
     };
   },
 

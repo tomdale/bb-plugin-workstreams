@@ -7,7 +7,6 @@
 import {
   Drum,
   PRESETS,
-  QUEUE_CFG,
   type DrumPatch,
 } from "../../../src/app/page/queue/drum.ts";
 import { INNER_KNOTS } from "./ring.ts";
@@ -31,15 +30,7 @@ export const SPEEDS: readonly { id: string; label: string }[] = [
   { id: "0.5", label: "½×" },
   { id: "1", label: "1×" },
 ];
-/**
- * The drum's presets on the page: `shipped`, the configuration the queue ships with (`QUEUE_CFG`), first, then
- * the model's own `PRESETS`. The sweeps and `npm run check` measure only `PRESETS`.
- */
-export const DRUM_PRESETS: Record<string, DrumPatch> = {
-  shipped: QUEUE_CFG,
-  ...PRESETS,
-};
-export const PRESET_NAMES: string[] = Object.keys(DRUM_PRESETS);
+export const PRESET_NAMES: string[] = Object.keys(PRESETS);
 export const CASCADE_PRESET_NAMES: string[] = Object.keys(CASCADE_PRESETS);
 /** The presets a mode offers; the product has none. */
 export const presetsOf = (mode: string): readonly string[] =>
@@ -1262,7 +1253,7 @@ function applyAll<C, P>(
 
 /** The preset's configuration with every setting the state overrides. */
 export function drumCfg(opt: Opt): Cfg {
-  const base: Cfg = Drum.config(DRUM_PRESETS[opt.preset ?? ""]);
+  const base: Cfg = Drum.config(PRESETS[opt.preset ?? ""]);
   return applyAll(SETTINGS, opt, base, (c, p) => ({
     ...c,
     ...p,

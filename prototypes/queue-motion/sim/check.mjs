@@ -3,8 +3,10 @@
  *   mode "orig"      — the product test's rule set (jump 40 px, clip band 16 px must be covered in the NEW
  *                      frame, shade 0.2, draw-order swap while overlapping unless covered by a third card).
  *   mode "corrected" — same, but a clip band must be covered in the frame in which the card was drawn there
- *                      (new frame for an appearing band, OLD frame for a disappearing one), and the band
- *                      threshold is a parameter.
+ *                      (new frame for an appearing band, OLD frame for a disappearing one), the band
+ *                      threshold is a parameter, and a swap counts only when the two cards overlap in both
+ *                      frames: cards that meet in the frame the order changes show only the new order, so
+ *                      nothing is seen to pass through.
  * Frames are arrays of views {key, painted, layer, scale, top, bottom, natBottom, shade}.
  */
 const byKey = (frame) => new Map(frame.map((c) => [c.key, c]));
@@ -63,6 +65,9 @@ export function problems(frames, mode = "orig", opts = {}) {
         const before = Math.sign(a.get(x.key).layer - a.get(y.key).layer);
         const after = Math.sign(x.layer - y.layer);
         if (before === after) continue;
+        const ax = a.get(x.key),
+          ay = a.get(y.key);
+        if (mode !== "orig" && overlap(ax, ay) <= 1) continue;
         if (
           overlap(x, y) > 1 &&
           !covered(

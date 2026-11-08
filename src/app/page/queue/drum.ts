@@ -154,8 +154,25 @@ export const DEFAULT_CFG: DrumConfig = {
   tempo: { kind: "none", ms: 285, window: 2, a: 60, b: 0.62, scale: 1 },
 };
 
+/**
+ * The settings the queue ships with: at least 150 ms between presses (a tall card's trip still takes longer), and
+ * a held key that stiffens the springs (3 to 5 Hz) and raises the edge budget (17 to 30 px/frame) after a 250 ms
+ * hold. Taps and holds never fold the cards.
+ */
+export const QUEUE_CFG: DrumPatch = {
+  ramp: true,
+  omega0: TAU * 3,
+  omega1: TAU * 5,
+  vcap: 17 * 60,
+  vcap1: 30 * 60,
+  holdDelay: 250,
+  tempo: { kind: "constant", ms: 150 },
+};
+
 /** Named settings the page and the sweeps share. Each overlays DEFAULT_CFG. */
 export const PRESETS: Record<string, DrumPatch> = {
+  /** What the queue ships with, so the sweeps and the checks measure it with the rest. */
+  shipped: QUEUE_CFG,
   /** The defaults: the pace follows the card heights. */
   natural: {},
   /** A planned interval between presses, so the pace changes gently. */
@@ -169,21 +186,6 @@ export const PRESETS: Record<string, DrumPatch> = {
   fold: { fold: true },
   /** Cards stay whole, but a held key clears a virtual height, so cards pass over one another. */
   loose: { loose: true, tempo: { kind: "constant", ms: 100 } },
-};
-
-/**
- * The settings the queue ships with: the `even + held speed` preset with a constant 150 ms between presses, so
- * every card takes the same time however tall it is, and a held key that stiffens the springs (3 to 5 Hz) and
- * raises the edge budget (17 to 30 px/frame) after a 250 ms hold. Taps and holds never fold the cards.
- */
-export const QUEUE_CFG: DrumPatch = {
-  ramp: true,
-  omega0: TAU * 3,
-  omega1: TAU * 5,
-  vcap: 17 * 60,
-  vcap1: 30 * 60,
-  holdDelay: 250,
-  tempo: { kind: "constant", ms: 150 },
 };
 
 export class Drum {
