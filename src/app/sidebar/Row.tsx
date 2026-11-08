@@ -223,11 +223,10 @@ export function Row({
       <span
         className={cn(
           "pointer-events-none relative flex min-w-0 flex-1 flex-col",
-          thread.isUnread || active
-            ? "font-medium text-foreground"
-            : attention
-              ? "text-foreground"
-              : "text-muted-foreground group-hover/row:text-foreground",
+          thread.isUnread && "font-medium",
+          thread.isUnread || active || attention
+            ? "text-foreground"
+            : "text-muted-foreground group-hover/row:text-foreground",
         )}
       >
         {/* The band's or subgroup's context and the age follow the title

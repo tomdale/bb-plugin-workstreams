@@ -10,6 +10,8 @@ import {
   WritableStream,
 } from "node:stream/web";
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
+import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { Row } from "../../src/app/sidebar/Row.tsx";
 import { afterEach, beforeEach, describe, expect } from "vitest";
 import { SIDEBAR_GEOMETRY } from "../../src/app/sidebar/tokens.ts";
 import { section, sidebarThread } from "./fixtures.ts";
@@ -40,6 +42,8 @@ const utilities = `@layer utilities {
   .flex { display: flex; }
   .flex-col { flex-direction: column; }
   .flex-1 { flex: 1; }
+  .shrink-0 { flex-shrink: 0; }
+  .gap-1\\.5 { gap: 0.375rem; }
   .items-center { align-items: center; }
   .items-start { align-items: flex-start; }
   .items-baseline { align-items: baseline; }
@@ -177,7 +181,7 @@ describe.skipIf(browserUnavailable)(
         for (const name of ["unread", "read", "active", "child", "twoLine"])
           expect(type[name]!.size, name).toBe("13px");
         expect(type.unread!.weight).toBe("500");
-        expect(type.active!.weight).toBe("500");
+        expect(type.active!.weight).toBe("400");
         expect(type.read!.weight).toBe("400");
         expect(type.child!.weight).toBe("400");
         expect(type.read!.line).toBe("15.6px");
@@ -186,6 +190,84 @@ describe.skipIf(browserUnavailable)(
         expect(type.twoLine!.line).toBe("20px");
         expect(type.rootRow!.height).toBe(SIDEBAR_GEOMETRY.row.rootHeight);
         expect(type.childRow!.height).toBe(SIDEBAR_GEOMETRY.row.childHeight);
+      },
+    );
+
+    browserTest(
+      "keeps read-row title and timestamp geometry when activation changes",
+      async ({ page }) => {
+        const fontPath =
+          "../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2";
+        const font = readFileSync(new URL(fontPath, import.meta.url)).toString(
+          "base64",
+        );
+        for (const title of [
+          "Reading changes",
+          "Reviewing a long sidebar title that must truncate at the available width",
+        ]) {
+          const thread = sidebarThread("stable", { title });
+          const props = {
+            thread,
+            depth: 0,
+            active: false,
+            now: Date.now(),
+            onNavigate: () => undefined,
+          };
+          const slot = renderSlot({ component: Row }, props, {
+            sidebarThreads: {
+              status: "ready",
+              threads: [thread],
+              sections: [],
+              projects: [],
+            },
+            rpc: {
+              prefs: () => ({ prefs: { sidebar: { timestamps: "show" } } }),
+            },
+          });
+          await waitFor(() =>
+            expect(
+              slot.container.querySelector("[data-timestamp]"),
+            ).not.toBeNull(),
+          );
+          const geometry = async () => {
+            await page.setContent(
+              `<style>${theme}${utilities}${pluginStyles}@font-face { font-family: RowTest; font-weight: 100 900; src: url(data:font/woff2;base64,${font}); } .ws-row { width: 280px; font-family: RowTest; }</style>${slot.container.innerHTML}`,
+            );
+            await page.evaluate(() => document.fonts.ready);
+            return page.evaluate(() => {
+              const row = document.querySelector(".ws-row")!;
+              const title = row.querySelector(".ws-text-thread")!;
+              const range = document.createRange();
+              range.selectNodeContents(title);
+              const rect = (el: Element | Range) => {
+                const { x, y, width, height } = el.getBoundingClientRect();
+                return { x, y, width, height };
+              };
+              return {
+                weight: getComputedStyle(title).fontWeight,
+                row: rect(row),
+                title: rect(title),
+                ink: rect(range),
+                timestamp: rect(row.querySelector("[data-timestamp]")!),
+                status: rect(row.querySelector(".ws-status-slot")!),
+              };
+            });
+          };
+          expect(slot.getByText(title)).toBeTruthy();
+          const before = await geometry();
+          expect(before.weight).toBe("400");
+          slot.rerender(<Row {...props} active />);
+          expect(slot.getByRole("link").getAttribute("aria-current")).toBe(
+            "page",
+          );
+          expect(await geometry()).toEqual(before);
+          slot.rerender(<Row {...props} />);
+          expect(slot.getByRole("link").hasAttribute("aria-current")).toBe(
+            false,
+          );
+          expect(await geometry()).toEqual(before);
+          slot.lifecycle.unmount();
+        }
       },
     );
 

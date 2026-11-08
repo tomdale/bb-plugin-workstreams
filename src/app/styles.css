@@ -601,7 +601,7 @@
   font-weight: 500;
   line-height: 1.2;
 }
-/* Weight comes from the row (medium while unread or active) and line height
+/* Weight comes from the row (medium while unread) and line height
    from its geometry (`rowGeometry`). */
 .ws-text-thread {
   font-size: 13px;

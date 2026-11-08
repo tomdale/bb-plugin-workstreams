@@ -454,7 +454,9 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
 #### Row indicators and actions
 
 Thread ages refresh once a minute. Snoozes wake at their expiry time, and empty
-workstreams leave the list when their grace period ends.
+workstreams leave the list when their grace period ends. Active rows use a
+highlighted background and foreground text without changing title weight. Unread
+titles use medium weight.
 
 - **Status marks:** Live BB runtime indicators (customizable working spinner,
   `?` waiting, `!` error, `✎` unsent draft, unread dot) and Workstreams status
