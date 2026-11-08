@@ -193,11 +193,20 @@ const replyParts = [
         summary: "Keep the goal and essential rows.",
         recommended: true,
         qualification: "Useful when the message column is narrow.",
+        detail:
+          "Results beyond the first three fold behind the card's `More` control.",
       },
       {
         name: "Full",
-        summary: "Keep results and review steps together.",
+        summary:
+          "Keep every result, review step, and artifact link together in one long card.",
         qualification: "Uses more vertical space.",
+      },
+      {
+        name: "Two-column",
+        summary: "Put results beside review steps.",
+        detail:
+          "Needs a wide message column; it falls back to Full below about 40rem.",
       },
     ],
   },
@@ -270,7 +279,8 @@ const replyParts = [
   {
     type: "recommendation",
     choice: "Use the compact layout in a narrow pane.",
-    reason: "It keeps the goal and the essential next step visible.",
+    reason:
+      "It keeps the goal and the essential next step visible without scrolling, even when the card reports several results.",
     qualification: "Use Full when the result details matter during review.",
   },
   {

@@ -173,9 +173,15 @@ for it.
   title comes first, with any detail muted beneath it. An attention step shows
   the word Attention beside its title in the reply accent, the thread's
   workstream identity color (muted when unfiled), never a state color.
-- **Comparison:** Keep options visibly paired and aligned. Use columns only when
-  each option has enough width; stack them on narrow screens. Mark a
-  recommendation with a label and restrained emphasis, not color alone.
+- **Comparison:** Each option reads in one order: its name, the summary, any
+  qualification, then any detail, muted and smaller. Options sit in columns only
+  when all of them fit in one row at about 13rem each (two, three, or four
+  options); otherwise, and always for five or more, they stack. In columns every
+  field shares a row across the options, so summaries, qualifications, and
+  details start at the same height. A hairline rule sits above each option; the
+  recommended option's rule is heavier and in the reply accent, and a small
+  accent "Recommended" label sits beside its name, so the recommendation never
+  rests on color alone.
 - **Change:** Recap card rows: Before, After, Unchanged, and Limitation each
   take a small label in the card's label gutter beside the value, stacked above
   it when narrow. The gutter is at least the card's 3.25rem and widens to fit
@@ -194,9 +200,11 @@ for it.
   one path. Done is a check, pending a clock, blocked a struck circle, and
   unknown a question mark; every status but done also shows its label beside the
   name. Do not imply that a reported stage was independently verified.
-- **Recommendation:** Give the choice a clear typographic lead, then the reason
-  and any qualification. Do not borrow `review` or `complete` color to make
-  advice appear like a work state.
+- **Recommendation:** The choice leads in semibold text. The reason and any
+  qualification follow as recap card rows, labeled "Reason" and "Caveat" in the
+  card's label gutter beside each value and stacked above it when narrow. Labels
+  take the reply accent, like Change; do not borrow `review` or `complete` color
+  to make advice appear like a work state.
 - **Details:** Give the section a clear heading and preserve its body as
   Markdown. Supporting detail may be visually quieter; do not hide the answer or
   essential caveats inside it.

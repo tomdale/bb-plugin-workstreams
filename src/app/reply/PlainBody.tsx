@@ -1,4 +1,4 @@
-import { Fragment, type ComponentProps } from "react";
+import type { ComponentProps } from "react";
 import {
   Markdown,
   UrlLink,
@@ -7,6 +7,7 @@ import {
 import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
 import { normalizeReplyMarkdown } from "./markdown.ts";
 import { SequenceBody } from "./SequenceBody.tsx";
+import { ComparisonBody, RecommendationBody } from "./AdviceBody.tsx";
 import {
   CHECK,
   Glyph,
@@ -189,20 +190,7 @@ export function PlainBody({
         </>
       );
     case "comparison":
-      return (
-        <>
-          {title(part.title)}
-          {part.items.map((item, i) => (
-            <Fragment key={i}>
-              {md(item.name)}
-              {item.recommended ? <p>Recommended</p> : null}
-              {md(item.summary)}
-              {md(item.qualification)}
-              {md(item.detail)}
-            </Fragment>
-          ))}
-        </>
-      );
+      return <ComparisonBody part={part} md={md} title={title} />;
     case "sequence":
       return <SequenceBody part={part} md={md} title={title} />;
     case "change": {
@@ -375,13 +363,7 @@ export function PlainBody({
         </div>
       );
     case "recommendation":
-      return (
-        <>
-          {md(part.choice)}
-          {md(part.reason)}
-          {md(part.qualification)}
-        </>
-      );
+      return <RecommendationBody part={part} md={md} />;
     case "details":
       return (
         <>
