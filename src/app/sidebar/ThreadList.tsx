@@ -552,7 +552,7 @@ export function WorkstreamsThreadList({
       return (
         <li key={`${placement}:${id ?? "unsorted"}`} className="list-none">
           <section
-            aria-label={`${placement === "archived" ? "Archived " : `${placement[0]!.toUpperCase()}${placement.slice(1)} · `}${name}`}
+            aria-label={`${placement[0]!.toUpperCase()}${placement.slice(1)} ${name}`}
             className="px-1"
           >
             <h3 className="px-1.5 py-0.5 text-[12px] font-medium text-muted-foreground">
@@ -674,7 +674,16 @@ export function WorkstreamsThreadList({
               className="ws-text-category ws-category-label m-0 truncate"
               style={workstreamColorStyle(colorOf(group)) as CSSProperties}
             >
-              {label ? `${label} · ${category.name}` : category.name}
+              {label ? (
+                // An inline subgroup's categories name their owner first, as
+                // in an "Owner: Area" workstream name.
+                <>
+                  {label}
+                  <span className="sr-only">:</span> {category.name}
+                </>
+              ) : (
+                category.name
+              )}
             </h4>
           </li>
         ) : null}
@@ -1088,9 +1097,6 @@ export function WorkstreamsThreadList({
               <Band
                 title={UP_NEXT}
                 box="attention"
-                count={
-                  shownNeedsRows.length > 1 ? shownNeedsRows.length : undefined
-                }
                 markless={!needsMarks}
                 badge={
                   focus.active ? (
@@ -1199,10 +1205,10 @@ export function WorkstreamsThreadList({
                           aria-hidden="true"
                         >
                           {lowerWaiting ? (
-                            <CountPill>{lowerCounts.needsYou}</CountPill>
+                            <CountPill>{lowerCounts.needsYou}</CountPill> // slop-ok: 2 the product's waiting-count pill, an established header pattern
                           ) : null}
                           {lowerTotal ? (
-                            <span className="text-[11px] tabular-nums text-muted-foreground/70">
+                            <span className="text-[11px] tabular-nums text-muted-foreground">
                               {lowerCounts.total}
                             </span>
                           ) : null}
@@ -1518,6 +1524,7 @@ function Band({
   children,
 }: {
   title: string;
+  /** Row total, shown only while the band is collapsed. */
   count?: number;
   box?: "attention" | "neutral";
   /** A small mark after the title. */
@@ -1540,7 +1547,7 @@ function Band({
         {title}
         {badge}
       </span>
-      {count !== undefined ? (
+      {count !== undefined && collapsed ? (
         <span
           className={cn(
             "tabular-nums",
@@ -1559,17 +1566,16 @@ function Band({
         data-flip-key={flipKey}
         className={cn(
           box === "attention"
-            ? "ws-needs mx-2 my-1.5 p-1"
-            : "ws-band-neutral my-1 px-2 py-1",
+            ? "ws-needs mx-2 my-1.5 p-1" // slop-ok: 2 the Needs you band, an established product surface
+            : "ws-band-neutral my-1 px-2 py-1", // slop-ok: 2 the neutral band, an established product surface
         )}
       >
         <div className="flex items-center gap-1">
           <h2
             className={cn(
               "flex min-w-0 flex-1 items-center gap-1 pr-1.5",
-              box === "attention"
-                ? "pb-1 text-[12px] font-medium"
-                : "py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+              "text-[12px] font-medium",
+              box === "attention" ? "pb-1" : "py-0.5",
               markless ? "pl-3.5" : "pl-1.5",
               box === "attention"
                 ? "ws-needs-heading"
@@ -1591,7 +1597,7 @@ function Band({
           type="button"
           aria-expanded={!collapsed}
           onClick={toggle}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-sidebar-accent/60"
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] font-medium text-muted-foreground hover:bg-sidebar-accent/60"
         >
           <Icon
             name={collapsed ? "ChevronRight" : "ChevronDown"}
@@ -1815,7 +1821,7 @@ function WorkstreamGroup({
       accent={isWorkstream}
       className={
         nested && !isWorkstream
-          ? "text-[11px] font-semibold uppercase tracking-wide"
+          ? "text-[12px] font-medium"
           : "ws-text-workstream"
       }
     />
@@ -1935,7 +1941,7 @@ function WorkstreamGroup({
           {/* The header's details, as a thread row's age. */}
           <span className="flex shrink-0 items-center gap-1 empty:hidden">
             {counts.waiting ? (
-              <CountPill
+              <CountPill // slop-ok: 2 the product's waiting-count pill, an established header pattern
                 className="transition-colors duration-300"
                 title={`${group.needsYou} waiting on you`}
               >
@@ -1943,7 +1949,7 @@ function WorkstreamGroup({
               </CountPill>
             ) : null}
             {counts.total ? (
-              <span className="text-[11px] tabular-nums text-muted-foreground/70">
+              <span className="text-[11px] tabular-nums text-muted-foreground">
                 {group.total}
               </span>
             ) : null}

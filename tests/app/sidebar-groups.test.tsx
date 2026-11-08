@@ -184,9 +184,11 @@ describe("nested workstreams", () => {
         },
       });
       const heading = await slot.findByRole("heading", {
-        name: inline ? "Alert Investigations · Triage" : "Triage",
+        name: inline ? "Alert Investigations: Triage" : "Triage",
       });
-      expect(heading.children).toHaveLength(0);
+      expect(heading.textContent).toBe(
+        inline ? "Alert Investigations: Triage" : "Triage",
+      );
       expect(Number(heading.style.getPropertyValue("--ws-hue"))).toBe(35);
       expect(heading.style.getPropertyValue("--ws-color-light")).toContain(
         "50.00%",

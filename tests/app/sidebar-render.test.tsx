@@ -313,8 +313,8 @@ it("sorts and groups Recent from its section menu and persists the preference", 
       name: "Group by workstream",
     }),
   );
-  expect(groupRows(slot, "Recent · Alpha")).toEqual(["Zulu task"]);
-  expect(groupRows(slot, "Recent · Beta")).toEqual(["Alpha task"]);
+  expect(groupRows(slot, "Recent Alpha")).toEqual(["Zulu task"]);
+  expect(groupRows(slot, "Recent Beta")).toEqual(["Alpha task"]);
   expect(
     JSON.parse(window.localStorage.getItem("workstreams:v1:band-options")!)
       .recent,
