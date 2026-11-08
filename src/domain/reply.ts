@@ -5,6 +5,7 @@
  */
 import type { Heading, List, ListItem, Nodes, Root, RootContent } from "mdast";
 import { z } from "zod";
+import { compileComponents } from "./replyCompile.ts";
 import {
   COMPONENT_FENCE,
   componentText,
@@ -120,6 +121,53 @@ function codeClosed(source: string): boolean {
         lines.at(-1)!,
       ),
     )
+  );
+}
+
+/**
+ * One fence holds one or more compact-syntax statements. A fence whose content
+ * is a JSON object is read as one JSON component, the form earlier replies
+ * were stored in.
+ */
+function compileFence(content: string, raw: string): ReplyPart[] {
+  if (/^\s*\{/.test(content)) {
+    try {
+      const parsed = replyComponentSchema.safeParse(JSON.parse(content));
+      if (parsed.success) return [parsed.data];
+      return [
+        {
+          type: "unparsed",
+          source: raw,
+          error: `Component not displayed: ${parsed.error.issues[0]?.message ?? "invalid fields"}`,
+        },
+      ];
+    } catch {
+      return [
+        {
+          type: "unparsed",
+          source: raw,
+          error: "Component not displayed: the JSON object is malformed.",
+        },
+      ];
+    }
+  }
+  const compiled = compileComponents(content);
+  if (!compiled.length)
+    return [
+      {
+        type: "unparsed",
+        source: raw,
+        error: "Component not displayed: the workstreams fence is empty.",
+      },
+    ];
+  return compiled.map((item) =>
+    item.ok
+      ? item.component
+      : {
+          type: "unparsed" as const,
+          source: compiled.length === 1 ? raw : item.source,
+          error: item.error,
+        },
   );
 }
 
@@ -250,23 +298,7 @@ export function parse(
         );
         continue;
       }
-      try {
-        const parsed = replyComponentSchema.safeParse(JSON.parse(node.value));
-        if (parsed.success) body.push(parsed.data);
-        else
-          body.push({
-            type: "unparsed",
-            source: raw,
-            error: `Component not displayed: ${parsed.error.issues[0]?.message ?? "invalid fields"}`,
-          });
-      } catch {
-        body.push({
-          type: "unparsed",
-          source: raw,
-          error:
-            "Component not displayed: use a JSON object inside the workstreams fence.",
-        });
-      }
+      body.push(...compileFence(node.value, raw));
       continue;
     }
     buffer.push(node);

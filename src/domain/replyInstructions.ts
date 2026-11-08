@@ -3,6 +3,7 @@
  * examples ride on their own optional tool, so each delivered instruction
  * remains within BB's per-text budget.
  */
+import { signatureLines } from "./replyCatalog.ts";
 import { RECAP_TOOL } from "./recap.ts";
 import { REPLY_BLOCK } from "./reply.ts";
 export const REPLY_EXAMPLES_TOOL = "WorkstreamsReplyExamples";
@@ -27,34 +28,26 @@ function alone(): string {
  */
 function withRecapTool(): string {
   return `When required input is missing, put the explanation in a reply block before calling the available question-card tool; the card ends the turn. Otherwise the whole reply is one reply block — the answer, however short, then the explanation, completion details, and relevant commit or PR links — and you end the turn with the ${RECAP_TOOL} tool call. The recap card comes from that call, so the block sets no state and carries no headline, results, or Next. ${MARKERS}
-Example, with one component in each fence:
+Example, with two components in one fence:
 :::reply
 # Arrow keys follow the card order
 Holding a key flips one card at a time.
 
 \`\`\`workstreams
-{"type":"context","topic":"Queue card keys","background":"Report the key handling change."}
-\`\`\`
-
-\`\`\`workstreams
-{"type":"change","title":"Arrow keys","before":"Holding a key did nothing","after":"Holding a key flips one card at a time"}
+context(topic: "Queue card keys", background: "Report the key handling change.")
+change(title: "Arrow keys", before: "Holding a key did nothing", after: "Holding a key flips one card at a time")
 \`\`\`
 :::`;
 }
 
 export const REPLY_COMPONENT_INSTRUCTIONS = `Write the answer and causal reasoning in complete Markdown paragraphs; name actors and observable behavior, use concrete words, put conditions first, and keep qualifications beside their claims. Supporting detail stays with its explanation. Actions name their effect. Distinguish local from CI checks, passed from untested, and committed, built, pushed, installed, and deployed.
 For substantive replies, orient the reader with context; investigations use finding for conclusion/certainty/evidence, changes use change for before/after, and advice uses recommendation for choice/reason/boundary. These are defaults, not requirements for unrelated components. Short replies need no components; a clean test run may need only a sentence.
-Compose components as one JSON object per workstreams fence inside the reply block, at the body's top level and outside lists and quotes; a workstreams fence elsewhere in the message is ordinary Markdown, so the reader sees the JSON text. Call ${REPLY_EXAMPLES_TOOL} for needed types before authoring them; its examples are illustrative, not thread evidence. Ordinary code uses its own language tag. Values are complete readable Markdown, preserved in the text body. Use every required field and only named fields; omit only those marked optional:
-context: topic; optional where, background.
-text: body (Markdown).
-finding: title, explanation, certainty (observed|inferred|unknown); optional consequence, evidence.
-comparison: title, 2–8 items with name, summary; optional qualification, detail, recommended. Essential reasons belong in summary or qualification; consequential trade-offs in qualification; supporting explanation in detail. Numerical scores need a stated measurement or scoring method.
-sequence: title, steps with title; optional detail, attention per step.
-change: title, before, after; optional unchanged, limitation beside the change.
-checks: title, scope, items with name, status (passed|failed|skipped|blocked|untested); optional detail, evidence per item. Optional testTotals {passed,failed,skipped} uses actual nonnegative counts.
-delivery: title, scope, stages with name, status (done|pending|blocked|unknown); optional detail and evidence per stage. Reported status is not independent proof.
-recommendation: choice, reason; optional qualification beside the recommendation.
-details: title, body (Markdown). Required actions and important qualifications stay with what they qualify.
-group: relationship="peers" for comparable pieces or "supporting" for explanation plus support. children: 2–8 components or nonempty lists kept together, at most 8 components total; no nested groups.
-Evidence: label; optional detail, location (HTTPS or literal file path), line, endLine (1-based). Link factual claims to real reports, source, or artifacts and preserve uncertainty. Distinguish a mock's presentation check from verifying its claims. Workspace files use relative paths; external files use absolute paths.
+Compose components as statements in workstreams fences inside the reply block, at the body's top level and outside lists and quotes; a workstreams fence elsewhere in the message is ordinary Markdown, so the reader sees the source. A fence holds one or more components, each written as \`name(field: value, …)\`. Every argument is named and every value is static: "double-quoted text", numbers, true, false, [lists], {key: value} objects, and bare enum words. Text values are complete readable Markdown, preserved in the text body; \`"""\` opens and closes multi-line text, and text that contains a \`\`\` fence needs a four-backtick workstreams fence. Call ${REPLY_EXAMPLES_TOOL} for needed types before authoring them; its examples are illustrative, not thread evidence. Ordinary code uses its own language tag. Use every required field and only named fields; \`?\` marks optional ones and (n–m) bounds a list's length:
+${signatureLines().join("\n")}
+comparison: essential reasons belong in summary or qualification; consequential trade-offs in qualification; supporting explanation in detail. Numerical scores need a stated measurement or scoring method.
+checks: testTotals uses actual nonnegative counts.
+delivery: reported status is not independent proof.
+details: required actions and important qualifications stay with what they qualify.
+group: relationship is peers for comparable pieces or supporting for explanation plus support; children are components or lists of components kept together, at most 8 components in total, with no nested group.
+Evidence: link factual claims to real reports, source, or artifacts and preserve uncertainty. location is HTTPS or a literal file path; line and endLine (1-based) need a file path. Distinguish a mock's presentation check from verifying its claims. Workspace files use relative paths; external files use absolute paths.
 Choose components for the reply's purpose, omit unhelpful ones, and share context, sources, and actions without repeating them per piece. Components display information; required input and approval use question cards, not components.`;

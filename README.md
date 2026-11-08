@@ -573,6 +573,20 @@ which adds a message-block slot, you also get **Structured replies**:
   evidence, comparisons, sequences, behavior changes, checks, delivery records,
   recommendations, and bounded groups. A reply's kind remains separate from
   whether its work is complete, ready for review, or waiting.
+- Components are written as `name(field: value, …)` statements inside
+  `workstreams` fences; one fence holds one or more of them. Every argument is
+  named, and values are static: `"text"`, numbers, `true`, `false`, `null`,
+  `[lists]`, `{key: value}` objects, bare enum words such as
+  `certainty: observed`, and, inside `group`, nested components. `"""…"""` holds
+  multi-line text; text containing a triple-backtick fence needs a four-backtick
+  `workstreams` fence. Operators, templates, variables, and bindings are
+  rejected. Field names, required fields, enums, and limits come from the same
+  schemas that validate a component, and the signature lines in the agent
+  instructions are generated from them. A statement that fails shows its source
+  with a one-line reason that carries a line and column and, for a near-miss
+  field, enum word, or component name, a "did you mean"; the other statements in
+  the fence still render. Replies stored with a JSON object in the fence keep
+  rendering.
 - Relative evidence paths stay inside the message's workspace; external files
   use explicit absolute paths. Native file previews preserve literal filename
   characters and separate line ranges.

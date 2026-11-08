@@ -1,5 +1,6 @@
 /* Shared, synthetic component examples used by the agent guide and its tests. */
 import type { ReplyComponent } from "./replyComponents.ts";
+import { formatComponent } from "./replyFormat.ts";
 
 export const COMPONENT_NAMES = [
   "context",
@@ -173,6 +174,13 @@ export const COMPONENT_EXAMPLES: Record<
   },
 };
 
+/** A component as the fence an agent writes; text holding backtick fences gets a longer outer fence. */
 export function componentFence(component: ReplyComponent): string {
-  return `\`\`\`workstreams\n${JSON.stringify(component)}\n\`\`\``;
+  const source = formatComponent(component);
+  const longest = Math.max(
+    2,
+    ...[...source.matchAll(/`+/g)].map((run) => run[0].length),
+  );
+  const fence = "`".repeat(longest + 1);
+  return `${fence}workstreams\n${source}\n${fence}`;
 }

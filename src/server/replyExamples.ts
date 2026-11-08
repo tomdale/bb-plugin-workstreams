@@ -15,7 +15,7 @@ export function registerReplyExamples(bb: BbPluginApi): void {
   bb.agents.registerTool({
     name: REPLY_EXAMPLES_TOOL,
     description:
-      "Read illustrative JSON examples for the information components you plan to compose in your final reply. Request the needed types; omit types to read all examples. The examples are not evidence about the current thread.",
+      "Read illustrative examples for the information components you plan to compose in your final reply. Request the needed types; omit types to read all examples. The examples are not evidence about the current thread.",
     instructions: REPLY_COMPONENT_INSTRUCTIONS,
     presentation: {
       label: { pending: "Reading reply examples", completed: "Reply examples" },

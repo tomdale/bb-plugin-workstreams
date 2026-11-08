@@ -22,12 +22,10 @@ function relativeEscapesWorkspace(path: string): boolean {
   return false;
 }
 
-const evidenceSchema = z
+export const evidenceSchema = z
   .object({
     label: text,
     detail: text.optional(),
-    line: z.number().int().positive().optional(),
-    endLine: z.number().int().positive().optional(),
     location: text
       .refine((value) => {
         if (/[\u0000-\u001f]/.test(value) || value.startsWith("//"))
@@ -50,6 +48,8 @@ const evidenceSchema = z
         );
       }, "Use HTTPS or a file path; relative paths stay in the workspace.")
       .optional(),
+    line: z.number().int().positive().optional(),
+    endLine: z.number().int().positive().optional(),
   })
   .strict()
   .refine(
@@ -189,6 +189,19 @@ const details = z
   .object({ type: z.literal("details"), title: text, body: text })
   .strict();
 
+/** Each component's schema by call name; the catalog, parser, and examples read this table. */
+export const leafSchemas = {
+  context,
+  text: prose,
+  finding,
+  comparison,
+  sequence,
+  change,
+  checks,
+  delivery,
+  recommendation,
+  details,
+} as const;
 const replyLeafSchema = z.discriminatedUnion("type", [
   context,
   prose,
@@ -201,25 +214,21 @@ const replyLeafSchema = z.discriminatedUnion("type", [
   recommendation,
   details,
 ]);
-export const replyComponentSchema = z.union([
-  replyLeafSchema,
-  z
-    .object({
-      type: z.literal("group"),
-      relationship: z.enum(["peers", "supporting"]),
-      children: z
-        .array(
-          z.union([replyLeafSchema, z.array(replyLeafSchema).min(1).max(8)]),
-        )
-        .min(2)
-        .max(8),
-    })
-    .strict()
-    .refine(
-      (group) => group.children.flat().length <= 8,
-      "A group contains at most eight components.",
-    ),
-]);
+export const groupSchema = z
+  .object({
+    type: z.literal("group"),
+    relationship: z.enum(["peers", "supporting"]),
+    children: z
+      .array(z.union([replyLeafSchema, z.array(replyLeafSchema).min(1).max(8)]))
+      .min(2)
+      .max(8),
+  })
+  .strict()
+  .refine(
+    (group) => group.children.flat().length <= 8,
+    "A group contains at most eight components.",
+  );
+export const replyComponentSchema = z.union([replyLeafSchema, groupSchema]);
 export type ReplyLeaf = z.infer<typeof replyLeafSchema>;
 export type ReplyComponent = z.infer<typeof replyComponentSchema>;
 export const replyPartSchema = z.union([
