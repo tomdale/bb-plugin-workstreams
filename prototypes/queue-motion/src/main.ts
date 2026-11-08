@@ -7,6 +7,7 @@ import { StackEngine } from "../../../src/app/page/queue/stackEngine.ts";
 import { Drum, LEAD } from "../../../src/app/page/queue/drum.ts";
 import { Cascade } from "./cascade.ts";
 import {
+  BEZIER_DX,
   CASCADE_PRESET_NAMES,
   CASCADE_SETTINGS,
   CONTROLS,
@@ -142,22 +143,183 @@ function buildDom() {
 buildDom();
 document.fonts?.ready.then(remeasure);
 
+// ---- cubic Bezier path for incoming and outgoing cards ----------------------------
+const STAGE_X = 340;
+const BEZIER_TUCK_DX = 48;
+const S0 = 1000 / 1170;
+const C1_Y = 0.2;
+const C2_Y = 0.8;
+
+type Pt = { x: number; y: number };
+type Cubic = [Pt, Pt, Pt, Pt];
+type Role = "pile" | "out" | "in";
+type BezierPaths = {
+  out: Cubic;
+  in: Cubic;
+  tuck?: Cubic;
+  pile: number[];
+  endLabel: "turn" | "park";
+};
+
+function makeArc(y0: number, y3: number, dx: number): Cubic {
+  const dy = y3 - y0;
+  return [
+    { x: STAGE_X, y: y0 },
+    { x: STAGE_X + dx, y: y0 + C1_Y * dy },
+    { x: STAGE_X + dx, y: y0 + C2_Y * dy },
+    { x: STAGE_X, y: y3 },
+  ];
+}
+
+/** Solves Y(s) = y0 + u * (y3 - y0) on a cubic Bezier with vertical control fractions 0.2 and 0.8. */
+function solveArcS(u: number): number {
+  const clamped = Math.min(1, Math.max(0, u));
+  let s = clamped;
+  for (let k = 0; k < 4; k++) {
+    const f = (0.6 + (1.2 - 0.8 * s) * s) * s - clamped;
+    const df = 0.6 + 2.4 * s * (1 - s);
+    s = Math.min(1, Math.max(0, s - f / df));
+  }
+  return s;
+}
+
+/** Horizontal offset from STAGE_X on `makeArc(y0, y3, dx)` at the point where Y(s) = y. */
+function arcOffsetX(y: number, y0: number, y3: number, dx: number): number {
+  const span = y3 - y0;
+  if (Math.abs(span) < 1e-4) return 0;
+  const s = solveArcS((y - y0) / span);
+  return 3 * s * (1 - s) * dx;
+}
+
+function evalCubic([p0, p1, p2, p3]: Cubic, s: number): Pt {
+  const m = 1 - s;
+  const b0 = m * m * m;
+  const b1 = 3 * m * m * s;
+  const b2 = 3 * m * s * s;
+  const b3 = s * s * s;
+  return {
+    x: b0 * p0.x + b1 * p1.x + b2 * p2.x + b3 * p3.x,
+    y: b0 * p0.y + b1 * p1.y + b2 * p2.y + b3 * p3.y,
+  };
+}
+
+function evalTangent([p0, p1, p2, p3]: Cubic, s: number): Pt {
+  const m = 1 - s;
+  const dx =
+    3 * m * m * (p1.x - p0.x) +
+    6 * m * s * (p2.x - p1.x) +
+    3 * s * s * (p3.x - p2.x);
+  const dy =
+    3 * m * m * (p1.y - p0.y) +
+    6 * m * s * (p2.y - p1.y) +
+    3 * s * s * (p3.y - p2.y);
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: dx / len, y: dy / len };
+}
+
+const cubicPath = ([p0, p1, p2, p3]: Cubic) =>
+  `M ${p0.x.toFixed(1)} ${p0.y.toFixed(1)} C ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}, ${p3.x.toFixed(1)} ${p3.y.toFixed(1)}`;
+
+const drumTuckTop = (d: Drum, i: number) => {
+  const hn = i + 1 < d.N ? d.hd(i + 1) : d.hd(i);
+  const yTuck = Math.max(4 / S0, (hn - d.cfg.hidePx) / S0 - d.hd(i));
+  return LEAD + S0 * yTuck;
+};
+
+const slotTops = (slot: (q: number) => { y: number; z: number }) =>
+  [0, 1, 2].map((q) => {
+    const p = slot(q);
+    return LEAD + (1000 / (1000 - p.z)) * p.y;
+  });
+
+function drumCardMotion(
+  d: Drum,
+  i: number,
+  top: number,
+  signs: Map<string, number>,
+  key: string,
+): { x: number; role: Role } {
+  const c = d.c[i]!;
+  const want = d.target(i) < 0 ? 1 : -1;
+  if (c >= -1e-4) {
+    signs.set(key, want);
+    return { x: 0, role: "pile" };
+  }
+  const role: Role = want > 0 ? "out" : "in";
+  const turn = d.turnTop(i);
+  if (c > -1) {
+    const prev = signs.get(key);
+    const sign =
+      prev === undefined || c > -0.02 || c < -0.98
+        ? want
+        : prev + (want - prev) * 0.22;
+    signs.set(key, sign);
+    return { x: arcOffsetX(top, LEAD, turn, sign * BEZIER_DX), role };
+  }
+  signs.set(key, want);
+  if (c <= -2 + 1e-3) return { x: 0, role };
+  return {
+    x: arcOffsetX(top, turn, drumTuckTop(d, i), -BEZIER_TUCK_DX),
+    role,
+  };
+}
+
+function drumBezierPaths(d: Drum): BezierPaths {
+  const safeFront = Math.min(Math.max(0, d.front), Math.max(0, d.N - 1));
+  const raw = d.views();
+  const outMover = raw.find(
+    (v) => v.painted && v.c < -1e-3 && v.c > -1 && d.target(v.i) < 0,
+  );
+  const inMover = raw.find(
+    (v) => v.painted && v.c < -1e-3 && d.target(v.i) >= 0,
+  );
+  const tuckMover = raw.find((v) => v.painted && v.c < -1e-3);
+  const outTurn = outMover
+    ? d.turnTop(outMover.i)
+    : d.N > 0
+      ? d.turnTop(safeFront)
+      : LEAD + 200;
+  const inTurn = inMover
+    ? d.turnTop(inMover.i)
+    : d.front > 0
+      ? d.turnTop(d.front - 1)
+      : d.N > 0
+        ? LEAD + d.hg(0) + 16 + d.dip()
+        : outTurn;
+  const tuckY = tuckMover
+    ? drumTuckTop(d, tuckMover.i)
+    : d.N > 0
+      ? drumTuckTop(d, safeFront)
+      : LEAD + 4;
+  return {
+    out: makeArc(LEAD, outTurn, BEZIER_DX),
+    in: makeArc(inTurn, LEAD, -BEZIER_DX),
+    tuck: makeArc(outTurn, tuckY, -BEZIER_TUCK_DX),
+    pile: slotTops((q) => d.slot(q)),
+    endLabel: "turn",
+  };
+}
+
 // ---- the two simulations behind one interface --------------------------------------
 type View = {
   key: string;
   painted: boolean;
   layer: number;
   scale: number;
+  x: number;
   y: number;
+  top: number;
   vis: number;
   shade: number;
   content?: number;
+  role: Role;
 };
 interface Sim {
   cur: number;
   press(dir: 1 | -1): boolean;
   step(ms: number): void;
   views(): View[];
+  paths(): BezierPaths;
   busy(): boolean;
   jump(n: number): void;
   setHeights(heights: number[]): void;
@@ -173,6 +335,7 @@ function drumSim(cur: number): Sim {
   refreshCfg();
   const d = new Drum(heights, cfg);
   d.jump(cur);
+  const signs = new Map<string, number>();
   let last = cur;
   const check = () => {
     if (d.front !== last) {
@@ -195,10 +358,20 @@ function drumSim(cur: number): Sim {
       check();
     },
     views: () =>
-      d.views().map((v: any) => ({ ...v, vis: (v.bottom - v.top) / v.scale })),
+      d.views().map((v: any) => {
+        const { x, role } = drumCardMotion(d, v.i, v.top, signs, v.key);
+        return {
+          ...v,
+          x,
+          role,
+          vis: (v.bottom - v.top) / v.scale,
+        };
+      }),
+    paths: () => drumBezierPaths(d),
     busy: () => d.isBusy(),
     jump: (n) => {
       d.jump(n);
+      signs.clear();
       last = n;
     },
     setHeights: (h) => d.setHeights(h),
@@ -223,6 +396,7 @@ function cascadeSim(cur: number): Sim {
   refreshCfg();
   const m = new Cascade(heights, modelCfg(ccfg));
   m.jump(cur);
+  const signs = new Map<string, number>();
   let last = cur;
   const check = () => {
     if (m.front !== last) {
@@ -244,17 +418,48 @@ function cascadeSim(cur: number): Sim {
       m.step(ms);
       check();
     },
-    views: () =>
-      m.views().map((v) => ({
-        ...v,
-        vis:
-          v.group === 0 && v.bottom >= v.natBottom - 1e-6
-            ? v.h
-            : (v.bottom - v.top) / v.scale,
-      })),
+    views: () => {
+      const parkTop = LEAD + m.cfg.park;
+      return m.views().map((v) => {
+        const want = m.target(v.i) < 0 ? 1 : -1;
+        let x = 0;
+        let role: Role = "pile";
+        if (v.c < -1e-4 && v.c > -1 + 1e-4) {
+          role = want > 0 ? "out" : "in";
+          const prev = signs.get(v.key);
+          const sign =
+            prev === undefined || v.c > -0.02 || v.c < -0.98
+              ? want
+              : prev + (want - prev) * 0.22;
+          signs.set(v.key, sign);
+          x = arcOffsetX(v.top, LEAD, parkTop, sign * BEZIER_DX);
+        } else {
+          signs.set(v.key, want);
+        }
+        return {
+          ...v,
+          x,
+          role,
+          vis:
+            v.group === 0 && v.bottom >= v.natBottom - 1e-6
+              ? v.h
+              : (v.bottom - v.top) / v.scale,
+        };
+      });
+    },
+    paths: () => {
+      const parkTop = LEAD + m.cfg.park;
+      return {
+        out: makeArc(LEAD, parkTop, BEZIER_DX),
+        in: makeArc(parkTop, LEAD, -BEZIER_DX),
+        pile: slotTops((q) => m.slot(q)),
+        endLabel: "park",
+      };
+    },
     busy: () => m.isBusy(),
     jump: (n) => {
       m.jump(n);
+      signs.clear();
       last = n;
     },
     setHeights: (h) => m.setHeights(h),
@@ -274,9 +479,11 @@ function productSim(cur: number): Sim {
   const keys = ALL.map((_, i) => "k" + i);
   const e = new StackEngine();
   e.setHeights(new Map(keys.map((k, i) => [k, heights[i]!])));
+  const signs = new Map<string, number>();
   let at = cur;
   const win = () => keys.slice(at, at + 4);
   e.sync(win(), undefined, true, at > 0);
+  const drumOf = () => (e as any).drum as Drum;
   const sim: Sim = {
     get cur() {
       return at;
@@ -296,10 +503,19 @@ function productSim(cur: number): Sim {
     },
     keyUp: () => e.release(),
     step: (ms) => e.step(ms / 1000),
-    views: () => e.frame().cards,
+    views: () => {
+      const d = drumOf();
+      return e.frame().cards.map((v, i) => {
+        const top = LEAD + v.scale * v.y;
+        const { x, role } = drumCardMotion(d, i, top, signs, v.key);
+        return { ...v, x, top, role };
+      });
+    },
+    paths: () => drumBezierPaths(drumOf()),
     busy: () => e.frame().busy,
     jump(n) {
       at = n;
+      signs.clear();
       e.sync(win(), undefined, true, at > 0);
     },
     setHeights: (h) => e.setHeights(new Map(keys.map((k, i) => [k, h[i]!]))),
@@ -323,17 +539,110 @@ const showsHeld = () =>
     ? cfg.fold || cfg.ramp || cfg.loose
     : opt.v === "cascade" && ccfg.ramp);
 
+function chevron(arc: Cubic, s: number, cls: string): string {
+  const pt = evalCubic(arc, s);
+  const t = evalTangent(arc, s);
+  const arm = 5.5;
+  const spread = 4.2;
+  const bx = pt.x - t.x * arm;
+  const by = pt.y - t.y * arm;
+  const lx = bx - t.y * spread;
+  const ly = by + t.x * spread;
+  const rx = bx + t.y * spread;
+  const ry = by - t.x * spread;
+  return `<path class="bz-arrow ${cls}" d="M ${lx.toFixed(1)} ${ly.toFixed(1)} L ${pt.x.toFixed(1)} ${pt.y.toFixed(1)} L ${rx.toFixed(1)} ${ry.toFixed(1)}"/>`;
+}
+
+function paintBezier(views: View[]) {
+  const svg = $("#bezier");
+  const show = opt.path === "1";
+  svg.toggleAttribute("hidden", !show);
+  if (!show) return;
+  const p = sim.paths();
+  const [o0, o1, o2, o3] = p.out;
+  const [i0, i1, i2, i3] = p.in;
+  const outMid = evalCubic(p.out, 0.5);
+  const inMid = evalCubic(p.in, 0.5);
+  const parts: string[] = [
+    // Control-point handles and knots
+    `<line class="bz-handle" x1="${o0.x}" y1="${o0.y.toFixed(1)}" x2="${o1.x.toFixed(1)}" y2="${o1.y.toFixed(1)}"/>`,
+    `<line class="bz-handle" x1="${o3.x}" y1="${o3.y.toFixed(1)}" x2="${o2.x.toFixed(1)}" y2="${o2.y.toFixed(1)}"/>`,
+    `<line class="bz-handle" x1="${i0.x}" y1="${i0.y.toFixed(1)}" x2="${i1.x.toFixed(1)}" y2="${i1.y.toFixed(1)}"/>`,
+    `<line class="bz-handle" x1="${i3.x}" y1="${i3.y.toFixed(1)}" x2="${i2.x.toFixed(1)}" y2="${i2.y.toFixed(1)}"/>`,
+    `<circle class="bz-ctrl bz-ctrl-out" cx="${o1.x.toFixed(1)}" cy="${o1.y.toFixed(1)}" r="3"/>`,
+    `<circle class="bz-ctrl bz-ctrl-out" cx="${o2.x.toFixed(1)}" cy="${o2.y.toFixed(1)}" r="3"/>`,
+    `<circle class="bz-ctrl bz-ctrl-in" cx="${i1.x.toFixed(1)}" cy="${i1.y.toFixed(1)}" r="3"/>`,
+    `<circle class="bz-ctrl bz-ctrl-in" cx="${i2.x.toFixed(1)}" cy="${i2.y.toFixed(1)}" r="3"/>`,
+  ];
+  // Pile spine above the front card
+  if (p.pile.length >= 3) {
+    parts.push(
+      `<line class="bz-pile" x1="${STAGE_X}" y1="${p.pile[2]!.toFixed(1)}" x2="${STAGE_X}" y2="${p.pile[0]!.toFixed(1)}"/>`,
+      `<circle class="bz-slot" cx="${STAGE_X}" cy="${p.pile[1]!.toFixed(1)}" r="2.5"/>`,
+      `<circle class="bz-slot" cx="${STAGE_X}" cy="${p.pile[2]!.toFixed(1)}" r="2.5"/>`,
+    );
+  }
+  // Drum behind-pile tuck curve
+  if (p.tuck) {
+    const t3 = p.tuck[3];
+    const labelY = Math.max(LEAD + 14, t3.y + 3.5);
+    parts.push(
+      `<path class="bz-tuck" data-curve="tuck" d="${cubicPath(p.tuck)}"/>`,
+      `<circle class="bz-anchor-tuck" cx="${t3.x}" cy="${t3.y.toFixed(1)}" r="3.5"/>`,
+      `<text class="bz-label bz-label-tuck" x="${t3.x + 10}" y="${labelY.toFixed(1)}" text-anchor="start">tuck</text>`,
+    );
+  }
+  // Outgoing and incoming cubic Bezier curves
+  parts.push(
+    `<path class="bz-out" data-curve="out" d="${cubicPath(p.out)}"/>`,
+    `<path class="bz-in" data-curve="in" d="${cubicPath(p.in)}"/>`,
+    chevron(p.out, 0.5, "bz-arrow-out"),
+    chevron(p.in, 0.5, "bz-arrow-in"),
+    `<text class="bz-label bz-label-out" x="${(outMid.x + 10).toFixed(1)}" y="${(outMid.y + 4).toFixed(1)}" text-anchor="start">out ↓</text>`,
+    `<text class="bz-label bz-label-in" x="${(inMid.x - 10).toFixed(1)}" y="${(inMid.y + 4).toFixed(1)}" text-anchor="end">↑ in</text>`,
+  );
+  // Anchors
+  parts.push(
+    `<circle class="bz-anchor" cx="${STAGE_X}" cy="${LEAD}" r="4.2"/>`,
+    `<text class="bz-label bz-label-node" x="${STAGE_X + 10}" y="${LEAD - 6}" text-anchor="start">front</text>`,
+    `<circle class="bz-anchor" cx="${STAGE_X}" cy="${o3.y.toFixed(1)}" r="4.2"/>`,
+    `<text class="bz-label bz-label-node" x="${STAGE_X + 10}" y="${(o3.y + 4).toFixed(1)}" text-anchor="start">${p.endLabel}</text>`,
+  );
+  if (Math.abs(i0.y - o3.y) > 2) {
+    parts.push(
+      `<circle class="bz-anchor" cx="${STAGE_X}" cy="${i0.y.toFixed(1)}" r="3.6"/>`,
+      `<text class="bz-label bz-label-node" x="${STAGE_X - 10}" y="${(i0.y + 4).toFixed(1)}" text-anchor="end">${p.endLabel} ↑</text>`,
+    );
+  }
+  // Live markers for painted cards
+  const isRed = reduced();
+  for (const v of views) {
+    if (!v.painted) continue;
+    const cx = STAGE_X + (isRed ? 0 : v.x);
+    parts.push(
+      `<circle class="bz-dot bz-dot-${v.role}" data-dot="${v.key}" cx="${cx.toFixed(1)}" cy="${v.top.toFixed(1)}" r="${v.role === "pile" ? "3.8" : "5"}"/>`,
+    );
+  }
+  svg.innerHTML = parts.join("");
+}
+
 function paint() {
   // The product engine holds only the pile and the cards still leaving it; every other card stays hidden.
   const held = new Set<number>();
-  for (const v of sim.views()) {
+  const views = sim.views();
+  const isRed = reduced();
+  for (const v of views) {
     const i = Number(v.key.slice(1));
     held.add(i);
     const e = els[i]!;
     const st = e.el.style;
     st.visibility = !v.painted ? "hidden" : "";
     st.zIndex = String(v.layer);
-    st.transform = `scale(${v.scale.toFixed(5)}) translateY(${v.y.toFixed(2)}px)`;
+    const dx = isRed ? 0 : v.x;
+    st.transform =
+      Math.abs(dx) > 0.01
+        ? `translateX(${dx.toFixed(2)}px) scale(${v.scale.toFixed(5)}) translateY(${v.y.toFixed(2)}px)`
+        : `scale(${v.scale.toFixed(5)}) translateY(${v.y.toFixed(2)}px)`;
     const vis = Math.max(0, v.vis).toFixed(2) + "px";
     e.shadow.style.height = e.frame.style.height = e.shade.style.height = vis;
     const natural = heights[i]!;
@@ -350,6 +659,7 @@ function paint() {
   els.forEach((e, i) => {
     if (!held.has(i)) e.el.style.visibility = "hidden";
   });
+  paintBezier(views);
   const text = showsHeld() ? `held ${sim.lam!().toFixed(2)}` : "";
   const readout = $("#lam");
   if (readout.textContent !== text) readout.textContent = text;
@@ -463,7 +773,11 @@ function renderBar() {
       button("clock.pause", "pause", labelOf("clock.pause")) +
         button("clock.step", "step", labelOf("clock.step")),
     ) +
-    group("", button("reduced", "reduced", labelOf("reduced"))) +
+    group(
+      "",
+      button("reduced", "reduced", labelOf("reduced")) +
+        button("path", "path", labelOf("path")),
+    ) +
     `<span id="lam" class="lam" data-help="held" tabindex="0" hidden></span>`;
 }
 
@@ -481,7 +795,9 @@ function syncBar() {
               ? paused
               : k === "reduced"
                 ? opt.reduced === "1"
-                : false;
+                : k === "path"
+                  ? opt.path === "1"
+                  : false;
     b.classList.toggle("on", on);
     if (k !== "step") b.setAttribute("aria-pressed", String(on));
   }
@@ -685,6 +1001,11 @@ $("#bar").addEventListener("click", (e) => {
     paint();
     syncAll();
   }
+  if (k === "path") {
+    opt.path = opt.path === "1" ? "0" : "1";
+    paint();
+    syncAll();
+  }
   (b as HTMLElement).blur();
 });
 
@@ -732,6 +1053,7 @@ addEventListener("hashchange", () => {
   if (rebuild) build(opt.v as Mode);
   else {
     sim.setCfg?.();
+    paint();
     syncBar();
     syncSettings();
     syncStage();

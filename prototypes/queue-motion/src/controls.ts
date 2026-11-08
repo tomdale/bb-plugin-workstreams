@@ -15,6 +15,8 @@ import {
 export const TAU = 2 * Math.PI;
 /** How long the new front card fades in under reduced motion, ms. */
 export const FADE_MS = 160;
+/** Horizontal control-point offset of the incoming and outgoing cubic Bezier arcs, px from the column centre. */
+export const BEZIER_DX = 96;
 
 export type Mode = "product" | "drum" | "cascade";
 export const MODES: readonly { id: Mode; label: string }[] = [
@@ -511,6 +513,12 @@ export const CONTROLS: readonly Control[] = [
     kind: "toggle",
     meta: "default off",
   },
+  {
+    id: "path",
+    label: "Bezier path",
+    kind: "toggle",
+    meta: "default off",
+  },
   { id: "held", label: "held", kind: "readout", meta: "0 to 1" },
   {
     id: "about",
@@ -530,13 +538,20 @@ export const CONTROLS: readonly Control[] = [
 
 // ---- page state ------------------------------------------------------------------------------------
 
-/** The page's state, as the URL hash holds it: `v`, `preset`, `speed`, `reduced`, and one entry per setting key. */
+/** The page's state, as the URL hash holds it: `v`, `preset`, `speed`, `reduced`, `path`, and one entry per setting key. */
 export type Opt = Record<string, string>;
 export const SETTING_KEYS: readonly string[] = [
   ...SETTINGS.map((s) => s.key),
   ...CASCADE_SETTINGS.map((s) => s.key),
 ];
-const OPT_KEYS = new Set(["v", "preset", "speed", "reduced", ...SETTING_KEYS]);
+const OPT_KEYS = new Set([
+  "v",
+  "preset",
+  "speed",
+  "reduced",
+  "path",
+  ...SETTING_KEYS,
+]);
 
 /** The known keys of a URL hash; anything else is dropped. */
 export function parseOpt(hash: string): Opt {

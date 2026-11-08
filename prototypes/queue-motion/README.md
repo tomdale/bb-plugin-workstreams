@@ -40,6 +40,7 @@ the drum and the cascade. The controls:
 | Settings bar          | The running model's settings as sliders, toggles and one choice. The drum's are in the groups Taps, Pace and Held keys, the cascade's in Taps, Pace and Stage. Moving one overrides the preset.                     |
 | Speed, Clock          | ¼×, ½×, 1×; pause and step one 1/60 s frame. The clock is the page's own, so a paused page is a frame you can read.                                                                                                 |
 | Reduced motion        | No card moves; the new front fades in over 160 ms. The system's reduced-motion setting turns it on too.                                                                                                             |
+| Bezier path           | Renders the incoming and outgoing cubic Bezier curves, control handles, anchors (`front`, `turn` or `park`, `tuck`), and live card markers on the stage.                                                            |
 | Held readout          | `held 0.00` to `held 1.00` beside the buttons while the drum's held speed-up, fold or loose clearing is on, or the cascade's ramp is: how far the held state has risen.                                             |
 | How the drum works    | A panel at the bottom left: the ring path the cards follow, the four problems the frame checker counts, and which settings group acts on which part. The product shows it too.                                      |
 | How the cascade works | The same panel while the cascade runs: the exit channel and the clip line, what sets the pace of a held key, the four problems, and which settings group acts on which part.                                        |
@@ -96,14 +97,14 @@ cascade's `default` with a held spacing of 125 px and no edge fade). `v` is
 `product`, `drum` or `cascade`. `preset` is a preset name of that model, and a
 name the model lacks gives its first preset (`natural` for the drum, `default`
 for the cascade); the product has no presets. `speed` is `0.25`, `0.5` or `1`,
-and `reduced` is `1` or `0`. Every other key is a setting's key from the two
-tables above: the drum's `w0`, `cap`, `fadein`, `cover`, `tk`, `tw`, `ts`,
-`tms`, `slack`, `ramp`, `fold`, `loose`, `delay`, `w1`, `cap1` and `h0`, and the
-cascade's `cw0`, `ccap`, `sp0`, `sp1`, `cdelay`, `park`, `fade` and `shade`. The
-two models' keys differ, so one hash can hold both models' settings, and the
-model that `v` names reads only its own. A toggle is `1` or `0`, `tk` is one of
-its three choices, and a slider's value is clamped to its range. The page
-ignores a key or value it does not recognise.
+and `reduced` and `path` are `1` or `0`. Every other key is a setting's key from
+the two tables above: the drum's `w0`, `cap`, `fadein`, `cover`, `tk`, `tw`,
+`ts`, `tms`, `slack`, `ramp`, `fold`, `loose`, `delay`, `w1`, `cap1` and `h0`,
+and the cascade's `cw0`, `ccap`, `sp0`, `sp1`, `cdelay`, `park`, `fade` and
+`shade`. The two models' keys differ, so one hash can hold both models'
+settings, and the model that `v` names reads only its own. A toggle is `1` or
+`0`, `tk` is one of its three choices, and a slider's value is clamped to its
+range. The page ignores a key or value it does not recognise.
 
 The drum's presets:
 

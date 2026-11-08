@@ -11,6 +11,7 @@
  */
 import { DEFAULT_CFG } from "./cascade.ts";
 import {
+  BEZIER_DX,
   FADE_MS,
   PILE_CLEARANCE,
   SPEEDS,
@@ -365,6 +366,22 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     needs:
       "The page also turns it on when the system setting `prefers-reduced-motion` is set. It applies to every model and overrides every preset and setting, which have no effect while it is on.",
     tune: "Use it to check the fallback: press ↓ and ↑ and look for a calm cut with nothing sliding. Turn it off to compare with the motion.",
+  }),
+  path: () => ({
+    what: "Draws the cubic Bezier curves that incoming and outgoing cards follow on the stage, with their control points, anchors and live card markers.",
+    effect: [
+      [
+        "On",
+        t`Shows the outgoing curve on the right and the incoming curve on the left between the \`front\` anchor and the \`turn\` or \`park\` anchor, with control handles at ±${BEZIER_DX} px (an arc of ±${0.75 * BEZIER_DX} px at mid-trip), the drum's behind-pile \`tuck\` curve, the pile spine, and a moving dot for each painted card.`,
+      ],
+      [
+        "Off",
+        "Hides the overlay; cards still follow the same incoming and outgoing Bezier curves.",
+      ],
+    ],
+    needs:
+      "Works in every model. In the drum and the product the lower anchor is the turn pose for the card being cleared, and the dashed inner curve shows the tuck behind the pile; in the cascade the lower anchor is the clip line at `park`.",
+    tune: "Turn it on with `¼×` speed, or click Pause and Step during a press, to watch each card's marker ride its cubic Bezier curve between the anchors.",
   }),
   held: (f) => ({
     what: "A readout of the held state, from zero (tap behaviour) to one (the full speed-up, fold or ramp), shown while one of them is on.",

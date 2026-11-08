@@ -78,11 +78,122 @@ h1 {
 .clip.on {
   display: block;
   overflow: hidden;
-  margin: 6px -40px 0;
-  padding: 0 40px;
+  margin: 6px -140px 0;
+  padding: 0 140px;
 }
 .clip.on .stage {
   margin-top: 0;
+}
+.bezier {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 680px;
+  height: 600px;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 999;
+}
+.bz-out,
+.bz-in,
+.bz-tuck,
+.bz-pile,
+.bz-arrow {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bz-out {
+  stroke: #d95f18;
+  stroke-width: 2.25;
+}
+.bz-in {
+  stroke: #2b5ce6;
+  stroke-width: 2.25;
+}
+.bz-tuck {
+  stroke: #7c65c9;
+  stroke-width: 1.6;
+  stroke-dasharray: 4 4;
+  opacity: 0.85;
+}
+.bz-pile {
+  stroke: #666;
+  stroke-width: 1.75;
+}
+.bz-handle {
+  stroke: #9ca3af;
+  stroke-width: 1;
+  stroke-dasharray: 2.5 2.5;
+  opacity: 0.75;
+}
+.bz-ctrl {
+  fill: #fff;
+  stroke-width: 1.4;
+}
+.bz-ctrl-out {
+  stroke: #d95f18;
+}
+.bz-ctrl-in {
+  stroke: #2b5ce6;
+}
+.bz-arrow-out {
+  stroke: #d95f18;
+  stroke-width: 2;
+}
+.bz-arrow-in {
+  stroke: #2b5ce6;
+  stroke-width: 2;
+}
+.bz-anchor {
+  fill: #fff;
+  stroke: #222;
+  stroke-width: 1.75;
+}
+.bz-anchor-tuck {
+  fill: #fff;
+  stroke: #7c65c9;
+  stroke-width: 1.75;
+}
+.bz-slot {
+  fill: #666;
+}
+.bz-dot {
+  stroke: #fff;
+  stroke-width: 1.75;
+}
+.bz-dot-out {
+  fill: #d95f18;
+}
+.bz-dot-in {
+  fill: #2b5ce6;
+}
+.bz-dot-pile {
+  fill: #222;
+}
+.bz-label {
+  font:
+    600 11px/1 -apple-system,
+    Inter,
+    system-ui,
+    sans-serif;
+  paint-order: stroke;
+  stroke: rgb(255 255 255 / 0.92);
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+}
+.bz-label-out {
+  fill: #b8480b;
+}
+.bz-label-in {
+  fill: #1f49c4;
+}
+.bz-label-tuck {
+  fill: #634cb0;
+}
+.bz-label-node {
+  fill: #333;
+  font-weight: 550;
 }
 .card {
   position: absolute;

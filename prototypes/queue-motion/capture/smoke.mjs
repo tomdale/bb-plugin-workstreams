@@ -313,6 +313,42 @@ async function controlsDriveThePage(browser) {
         )) === "true",
       "Reduced motion sets reduced=1 in the URL hash and is pressed",
     );
+    await page.click('button[data-act="reduced"]');
+    await page.click('button[data-act="path"]');
+    await page.keyboard.press("ArrowDown");
+    await page.click('button[data-act="step"]');
+    const bezier = await page.evaluate(() => {
+      const svg = document.getElementById("bezier");
+      const outD =
+        svg.querySelector('[data-curve="out"]')?.getAttribute("d") ?? "";
+      const inD =
+        svg.querySelector('[data-curve="in"]')?.getAttribute("d") ?? "";
+      const mover = window.__sim
+        .views()
+        .find((v) => v.role === "out" && v.painted);
+      return {
+        hash: location.hash.includes("path=1"),
+        pressed:
+          document
+            .querySelector('button[data-act="path"]')
+            ?.getAttribute("aria-pressed") === "true",
+        visible:
+          !svg.hasAttribute("hidden") &&
+          getComputedStyle(svg).display !== "none" &&
+          svg.getBoundingClientRect().width > 0,
+        cubic: outD.includes(" C ") && inD.includes(" C "),
+        movedX: mover ? Math.abs(mover.x) > 0.1 : false,
+      };
+    });
+    expect(
+      bezier.hash &&
+        bezier.pressed &&
+        bezier.visible &&
+        bezier.cubic &&
+        bezier.movedX,
+      `Bezier path toggle shows the cubic Bezier paths and moves outgoing cards along the arc (${JSON.stringify(bezier)})`,
+    );
+    await page.click('button[data-act="path"]');
   });
 }
 
