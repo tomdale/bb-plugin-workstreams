@@ -74,8 +74,9 @@ preset's name is refused. Applying one rewrites the hash, which carries the
 settings but not the name. If storage refuses a save or deletion, the page
 reports the failure rather than claiming it succeeded.
 
-A BB file preview is sandboxed and cannot use browser storage. In BB, choose
-**Open in external browser** to save presets. A local BB file URL opened in an
+A BB file preview is sandboxed and cannot use browser storage. Copy settings
+before choosing **Open in external browser**, then paste the copied hash into
+the browser address to restore your changes. A local BB file URL opened in an
 external browser redirects to Workstreams' isolated lab origin at
 `127.0.0.1:38906`, retaining its hash. Workstreams serves the installed lab
 there only when it matches the linked environment's built lab. After the first

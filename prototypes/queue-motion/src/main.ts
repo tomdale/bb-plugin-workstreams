@@ -142,17 +142,7 @@ const sway = (): Sway => ({
   peakBehind: pcfg.peakBehind,
   cross: pcfg.cross,
 });
-const reportPreviewHash = () => {
-  if (window.parent === window || location.origin === "null") return;
-  window.parent.postMessage(
-    { type: "bb:html-preview-hash", hash: location.hash },
-    location.origin,
-  );
-};
-const writeHash = () => {
-  location.hash = new URLSearchParams(opt).toString();
-  reportPreviewHash();
-};
+const writeHash = () => (location.hash = new URLSearchParams(opt).toString());
 
 // ---- DOM -------------------------------------------------------------------------
 const stage = $("#stage");
@@ -1126,7 +1116,7 @@ function saveCurrent() {
       window.parent !== window && location.pathname.startsWith("/api/v1/");
     saveNote(
       preview
-        ? "Open in external browser to save presets."
+        ? "Copy settings, then open in external browser to save presets."
         : "This browser would not store the preset.",
       false,
     );
@@ -1802,7 +1792,6 @@ addEventListener("keyup", (e) => {
   }
 });
 addEventListener("hashchange", () => {
-  reportPreviewHash();
   // The hash is the whole state, so Back and Forward restore it: keys the new hash lacks return to their defaults.
   const next = sanitize({
     v: "drum",
