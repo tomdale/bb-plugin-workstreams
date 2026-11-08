@@ -463,7 +463,7 @@ async function controlsDriveThePage(browser) {
       product.includes("- Model: Product now") &&
         !product.includes("- Preset:") &&
         product.includes("- Changed: nothing") &&
-        product.includes("| top speed | `cap` | 1020 px/s | 1020 px/s |") &&
+        product.includes("| top speed | `cap` | 2640 px/s | 2640 px/s |") &&
         product.includes("### Route"),
       `Copy settings in the product lists no preset and the shipped values, unchanged (${JSON.stringify(product.slice(0, 300))})`,
     );
@@ -764,6 +764,10 @@ async function runState(page) {
     `a typed value sets the slider and the hash, clamped to its range (${JSON.stringify({ typed, clamped })})`,
   );
   // A folded module's heading counts its changed settings.
+  await page.$eval('input[data-k="cap"]', (e) => {
+    e.value = "1800";
+    e.dispatchEvent(new Event("input", { bubbles: true }));
+  });
   await page.click('[data-module="taps"] > summary');
   const count = await page.$eval('[data-module="taps"] .mod-count', (c) => [
     c.textContent,
@@ -1778,11 +1782,19 @@ async function settingsVisibility(browser) {
     // page's settings.
     await load(page, `${PRODUCT.hash}&path=1`);
     const productKeys = await shownKeys(page);
-    const shipped = { pacing: "steady", held: "ramp" };
+    const shipped = { pacing: "steady", held: "loose" };
     const productWant = [
-      ...["w0", "cap", "held", "pacing", "pace", "delay", "w1", "cap1"].filter(
-        (k) => SHOWN[k](shipped),
-      ),
+      ...[
+        "w0",
+        "cap",
+        "held",
+        "pacing",
+        "pace",
+        "delay",
+        "w1",
+        "cap1",
+        "h0",
+      ].filter((k) => SHOWN[k](shipped)),
       ...pathKeys("product", { overlay: true }),
       ...viewKeys({ overlay: true }),
     ];
@@ -1795,7 +1807,7 @@ async function settingsVisibility(browser) {
     );
     const capValue = await page.$eval('input[data-k="cap"]', (e) => e.value);
     expect(
-      sameSet(productKeys, productWant) && readonly && capValue === "1020",
+      sameSet(productKeys, productWant) && readonly && capValue === "2640",
       `the product shows the shipped Taps and Held keys read only, and the path's and the page's settings (${productKeys.join(", ")}; cap ${capValue})`,
     );
   });

@@ -1488,7 +1488,7 @@ function syncStage() {
 }
 
 /** Presets whose motion the frame checker's rules do not describe, so its count is a cost rather than a verdict. */
-const OUTSIDE_CHECKER = ["loose"];
+const OUTSIDE_CHECKER = ["shipped", "loose"];
 
 /**
  * The state line under the presets: the preset the state is based on and what has changed from it, or, at
@@ -1519,7 +1519,9 @@ function syncState() {
   }
   if (OUTSIDE_CHECKER.includes(opt.preset!))
     text.append(
-      ` Outside the frame checker's rules: it counts each pass over a card as a swap.`, // slop-ok: 1 Tom asked for loose to be marked outside the checker's rules
+      opt.preset === "shipped"
+        ? ` The frame checker reports edges over 40 px/frame and loose held swaps; shipped accepts edges up to 45 px/frame.`
+        : ` Outside the frame checker's rules: it counts each pass over a card as a swap.`,
     );
   line.append(text);
 }

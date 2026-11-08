@@ -86,7 +86,7 @@ const server = http.createServer(async (req, res) => {
   } else if (url.pathname === "/preview") {
     res.writeHead(200, { "content-type": "text/html" });
     res.end(
-      `<button id="open">Open in external browser</button><iframe id="lab" sandbox="allow-scripts" src="${file}#v=drum&preset=natural&cap=30"></iframe><script>window.reportedHash = ''; addEventListener('message', e => { if (e.source === document.getElementById('lab').contentWindow && e.origin === 'null' && e.data?.type === 'bb:html-preview-hash') window.reportedHash = e.data.hash }); document.getElementById('open').onclick = () => window.open(${JSON.stringify(file)} + window.reportedHash, '_blank')</script>`,
+      `<button id="open">Open in external browser</button><iframe id="lab" sandbox="allow-scripts" src="${file}#v=drum&preset=natural&cap=1800"></iframe><script>window.reportedHash = ''; addEventListener('message', e => { if (e.source === document.getElementById('lab').contentWindow && e.origin === 'null' && e.data?.type === 'bb:html-preview-hash') window.reportedHash = e.data.hash }); document.getElementById('open').onclick = () => window.open(${JSON.stringify(file)} + window.reportedHash, '_blank')</script>`,
     );
   } else {
     res.writeHead(404).end();
@@ -97,11 +97,12 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ executablePath: CHROME });
 const page = await browser.newPage();
 try {
-  await page.goto(`${origin}${file}#v=drum&preset=natural&cap=30&sway=40`);
+  await page.goto(`${origin}${file}#v=drum&preset=natural&cap=1800&sway=40`);
   await page.locator('input[data-k="cap"]').waitFor();
   assert.equal(new URL(page.url()).origin, lab.origin);
-  assert.equal(await page.locator('input[data-k="cap"]').inputValue(), "30");
+  assert.equal(await page.locator('input[data-k="cap"]').inputValue(), "1800");
   assert.equal(await page.locator('input[data-k="sway"]').inputValue(), "40");
+  await page.locator('[data-act="save"]').click();
   await page.locator("#preset-name").fill("fast");
   await page.locator('[data-act="save"]').click();
   assert.equal(await page.locator("#save-note").textContent(), "Saved “fast”.");
@@ -110,11 +111,12 @@ try {
   await page.reload();
   await page.locator('[data-act="p:fold"]').click();
   await page.locator('#saved-chips [data-act="u:0"]').click();
-  assert.equal(await page.locator('input[data-k="cap"]').inputValue(), "30");
+  assert.equal(await page.locator('input[data-k="cap"]').inputValue(), "1800");
   await page.locator('input[data-k="cap"]').evaluate((input) => {
-    input.value = "35";
+    input.value = "2100";
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
+  await page.locator('[data-act="save"]').click();
   await page.locator("#preset-name").fill("fast");
   await page.locator('[data-act="save"]').click();
   assert.equal(
@@ -123,13 +125,14 @@ try {
   );
   await page.reload();
   await page.locator('#saved-chips [data-act="u:0"]').click();
-  assert.equal(await page.locator('input[data-k="cap"]').inputValue(), "35");
+  assert.equal(await page.locator('input[data-k="cap"]').inputValue(), "2100");
   await page.evaluate(() => {
     window.originalSetItem = Storage.prototype.setItem;
     Storage.prototype.setItem = () => {
       throw new DOMException("full", "QuotaExceededError");
     };
   });
+  await page.locator('[data-act="save"]').click();
   await page.locator("#preset-name").fill("denied");
   await page.locator('[data-act="save"]').click();
   assert.equal(
@@ -158,6 +161,7 @@ try {
 
   await page.goto(`${origin}/preview`);
   const frame = page.frameLocator("iframe");
+  await frame.locator('[data-act="save"]').click();
   await frame.locator("#preset-name").fill("blocked");
   await frame.locator('[data-act="save"]').click();
   assert.equal(
@@ -165,16 +169,16 @@ try {
     "Open in external browser to save presets.",
   );
   await frame.locator('input[data-k="cap"]').evaluate((input) => {
-    input.value = "38";
+    input.value = "2280";
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  await page.waitForFunction(() => window.reportedHash.includes("cap=38"));
+  await page.waitForFunction(() => window.reportedHash.includes("cap=2280"));
   const popupPromise = page.waitForEvent("popup");
   await page.locator("#open").click();
   const popup = await popupPromise;
   await popup.locator('input[data-k="cap"]').waitFor();
   assert.equal(new URL(popup.url()).origin, lab.origin);
-  assert.equal(await popup.locator('input[data-k="cap"]').inputValue(), "38");
+  assert.equal(await popup.locator('input[data-k="cap"]').inputValue(), "2280");
   await popup.close();
   assert.equal(page.frames().length, 2);
   console.log(

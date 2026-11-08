@@ -288,7 +288,7 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     label: "pace",
     unit: "cards/s",
     min: 2.5,
-    max: 15,
+    max: 17,
     step: 0.1,
     read: (c) => 1000 / c.tempo.ms,
     write: (v) => ({ tempo: { ms: 1000 / v } }),

@@ -4,7 +4,8 @@ import { CHROME } from "./lib.mjs";
 const b = await chromium.launch({ executablePath: CHROME });
 const p = await b.newPage();
 try {
-  await p.goto(process.env.QM_URL + "#v=drum&preset=natural&cap=30&sway=40");
+  await p.goto(process.env.QM_URL + "#v=drum&preset=natural&cap=1800&sway=40");
+  await p.locator("[data-act=save]").click();
   await p.locator("#preset-name").fill("isolated test");
   await p.locator("[data-act=save]").click();
   if (
@@ -15,12 +16,13 @@ try {
   await p.reload();
   await p.locator('[data-act="p:fold"]').click();
   await p.locator('#saved-chips [data-act="u:0"]').click();
-  if ((await p.locator("input[data-k=cap]").inputValue()) !== "30")
+  if ((await p.locator("input[data-k=cap]").inputValue()) !== "1800")
     throw Error("restore failed");
   await p.locator("input[data-k=cap]").evaluate((e) => {
-    e.value = "35";
+    e.value = "2100";
     e.dispatchEvent(new Event("input", { bubbles: true }));
   });
+  await p.locator("[data-act=save]").click();
   await p.locator("#preset-name").fill("isolated test");
   await p.locator("[data-act=save]").click();
   if (
@@ -30,7 +32,7 @@ try {
     throw Error("replace failed");
   await p.reload();
   await p.locator('#saved-chips [data-act="u:0"]').click();
-  if ((await p.locator("input[data-k=cap]").inputValue()) !== "35")
+  if ((await p.locator("input[data-k=cap]").inputValue()) !== "2100")
     throw Error("replacement restore failed");
   await p.evaluate(() => {
     window.oldSet = Storage.prototype.setItem;
@@ -38,6 +40,7 @@ try {
       throw new DOMException("full", "QuotaExceededError");
     };
   });
+  await p.locator("[data-act=save]").click();
   await p.locator("#preset-name").fill("denied");
   await p.locator("[data-act=save]").click();
   if (

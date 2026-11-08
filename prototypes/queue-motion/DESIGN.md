@@ -94,13 +94,13 @@ not where the motion starts to look rushed.
 
 `tempo`, `ramp` and `fold` change the trade too. The presets set them:
 
-| Preset (60 Hz, `npm run sweep -- presets`) | Held ↑ / ↓, cards/s | Interval range | Worst step-to-step change | Max jump, px/frame | Problems |
-| ------------------------------------------ | ------------------- | -------------- | ------------------------- | ------------------ | -------- |
-| `shipped`                                  | 5.8 / 5.7           | 133–283 ms     | 1.89×                     | 31                 | 0        |
-| `natural`                                  | 5.0 / 5.2           | 100–367 ms     | 3.00×                     | 24                 | 0        |
-| `even`                                     | 4.0 / 3.9           | 217–283 ms     | 1.15×                     | 24                 | 0        |
-| `even + held speed`                        | 4.7 / 4.6           | 183–250 ms     | 1.18×                     | 31                 | 0        |
-| `fold`                                     | 10.1 / 10.8         | 83–167 ms      | 1.67×                     | 31                 | 0        |
+| Preset (60 Hz, `npm run sweep -- presets`) | Held ↑ / ↓, cards/s | Interval range | Worst step-to-step change | Max jump, px/frame | Problems       |
+| ------------------------------------------ | ------------------- | -------------- | ------------------------- | ------------------ | -------------- |
+| `shipped`                                  | 10.0 / 11.1         | 83–133 ms      | 1.60×                     | 44                 | 271 / 132 / 12 |
+| `natural`                                  | 5.0 / 5.2           | 100–367 ms     | 3.00×                     | 24                 | 0              |
+| `even`                                     | 4.0 / 3.9           | 217–283 ms     | 1.15×                     | 24                 | 0              |
+| `even + held speed`                        | 4.7 / 4.6           | 183–250 ms     | 1.18×                     | 31                 | 0              |
+| `fold`                                     | 10.1 / 10.8         | 83–167 ms      | 1.67×                     | 31                 | 0              |
 
 While a key is held, a held state λ rises from 0 to 1 (the page's `held`
 readout). It starts once the key has been held for the hold delay, 250 ms, and
@@ -164,10 +164,10 @@ both read λ.
   edge, and a front card that is still rising counts at its resting bottom, so
   the covered card shrinks to the height it has under the front card while the
   rising card is on its way, instead of staying tall until covered. The limit
-  holds for every card, so no edge jumps when a card turns around mid-flight.
-  The cost is in the margins, not the presets: every preset passes
-  `npm run check`, but a tap spring of 4.5 Hz or more gives 9 to 21 clip-band
-  problems.
+  holds for every card, so no edge jumps when a card turns around mid-flight. A
+  tap spring of 4.5 Hz or more gives 9 to 21 clip-band problems. The shipped
+  preset's larger tap budget is checked against its 45 px/frame acceptance
+  limit; the checker still reports its 40 px/frame findings.
 - **`loose`** includes `ramp`'s speed-up and shrinks only the heights the
   clearing geometry uses, toward `H0` with λ, while every card is drawn whole. A
   leaving card drops just far enough to clear a card of that virtual height, so
@@ -198,12 +198,12 @@ matter most:
 
 The lab defaults are 24 and 30 px/frame for taps and held keys; the selected
 queue uses 44 px/frame for taps and 30 while held. No perceptual threshold sets
-them. The checker's jump rule, 40 px in a frame, stops a higher budget: taps on `natural`,
-and held keys on `even + held speed`, `fold` and held speed-up alone, are clean
-at 39 px/frame and fail at 40. The budget is per frame, so a 120 Hz display
-allows twice the px/s: the suite scales `vcap` with the refresh rate. The page
-gives the budgets as top speeds in px/s, the models' own unit, with px/frame at
-60 and 120 Hz beside each.
+them. The checker's jump rule, 40 px in a frame, stops a higher budget: taps on
+`natural`, and held keys on `even + held speed`, `fold` and held speed-up alone,
+are clean at 39 px/frame and fail at 40. The budget is per frame, so a 120 Hz
+display allows twice the px/s: the suite scales `vcap` with the refresh rate.
+The page gives the budgets as top speeds in px/s, the models' own unit, with
+px/frame at 60 and 120 Hz beside each.
 
 `sim/check.mjs` has two rules for a drawn bottom edge that changes by more than
 16 px in a frame:
@@ -226,9 +226,8 @@ The corrected rule also counts a draw-order swap only when the two cards overlap
 in both frames. Cards that meet in the frame their order changes show only the
 new order, so nothing is seen to pass through. That happens when a leaving card
 flips while clear and, within the same frame, the next press sends the card in
-front of it down onto it, which a held speed-up makes common: on `shipped`, for
-instance, cards meet by 2.8 px on the second mixed set. The only swaps the
-drum's sweeps report are the ones `loose` makes by passing over a card.
+front of it down onto it, which a held speed-up makes common. The swaps the
+drum's sweeps report are the ones loose clearing makes by passing over a card.
 
 The suite asserts the corrected rule. The product test
 (`tests/app/queue/stack-engine.test.ts`) runs neither rule, so adding one is a

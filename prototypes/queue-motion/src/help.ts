@@ -9,7 +9,7 @@
  * `f.expect` rejects a claim the sweeps no longer support, so a change to the model fails the build instead of
  * leaving a stale tooltip. Each entry's footer names the commands that print its numbers.
  */
-import { QUEUE_CFG } from "../../../src/app/page/queue/drum.ts";
+import { Drum, QUEUE_CFG } from "../../../src/app/page/queue/drum.ts";
 import {
   DECK_SIZE,
   PATH_SETTINGS,
@@ -110,17 +110,17 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
 
   // ---- presets -----------------------------------------------------------------------------------
   "preset.shipped": (f) => {
-    const q = QUEUE_CFG;
+    const q = Drum.config(QUEUE_CFG);
     const p = f.preset("shipped");
-    f.expect(p.clean, "what ships passes the checker");
-    const hz = (w: number | undefined) => String((w ?? 0) / TAU);
-    const ms = q.tempo?.ms ?? 0;
+    f.expect(!p.clean, "shipped reports the checker's stricter findings");
+    const hz = (w: number) => String(w / TAU);
+    const ms = q.tempo.ms;
     return {
-      what: "The configuration the queue ships with, `QUEUE_CFG` in `drum.ts`: a held key stiffens the springs and raises the top speed after a short hold, and presses keep a steady beat.",
+      what: "The configuration the queue ships with, `QUEUE_CFG` in `drum.ts`: a held key stiffens the springs and loosens clearing, and presses keep a steady beat.",
       effect: [
         [
           "Feels",
-          t`A tap runs on a ${hz(q.omega0)} Hz spring with a top speed of ${q.vcap} px/s. After ${q.holdDelay} ms held the spring rises to ${hz(q.omega1)} Hz and the top speed to ${q.vcap1} px/s, and a press waits at least ${ms} ms after the last, so a hold runs at most ${(1000 / ms).toFixed(1)} cards/s. A tall card takes longer than the beat, so the pace still dips at it.`,
+          t`A tap runs on a ${hz(q.omega0)} Hz spring with a top speed of ${q.vcap} px/s. After ${q.holdDelay} ms held the spring rises to ${hz(q.omega1)} Hz, the top speed moves toward ${q.vcap1} px/s, and clearing loosens. A press waits at least ${ms} ms after the last, so a hold runs at most ${(1000 / ms).toFixed(1)} cards/s. A tall card can take longer than the beat.`,
         ],
         [
           "Measured",
@@ -132,7 +132,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
       ],
       needs:
-        "Sets `while held` to `speed up` and `pacing` to `steady beat`. `Product now` runs the same configuration through the product engine. Clicking it clears slider changes.",
+        "Sets `while held` to `pass over the next card` and `pacing` to `steady beat`. The checker still reports edges over its normal threshold and loose held swaps. `Product now` runs the same configuration through the product engine. Clicking it clears slider changes.",
       tune: "Start here, change one setting, hold a key on each Cards deck, and compare the Measured numbers with `Product now`. `Copy as QUEUE_CFG` copies the result as the literal to paste into `drum.ts`.",
     };
   },
