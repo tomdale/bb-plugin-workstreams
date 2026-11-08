@@ -4,7 +4,7 @@
  * which formats it, records the command that prints it, and throws for a figure nobody measured, so a tooltip
  * cannot quote a number the sims do not produce. `t` rejects a digit typed into the text.
  */
-import { defaultOf } from "./controls.ts";
+import { defaultOf, digitsOf, stepOf } from "./controls.ts";
 
 type Kinds = Record<"jump" | "band" | "shade" | "swap", number>;
 /** The model a sweep or preset row was measured on. */
@@ -332,9 +332,11 @@ export class Facts {
     };
   }
 
-  /** A slider's value with nothing overridden, as the page shows it. */
-  def(key: string): string {
-    return String(Math.round(defaultOf(key) * 1000) / 1000);
+  /** A slider's value with nothing overridden, as the page shows it; a key both models share reads the drum's unless `model` is `cascade`. */
+  def(key: string, model?: ModelName): string {
+    const s = stepOf(key);
+    const d = s ? digitsOf(s) : 3;
+    return String(Math.round(defaultOf(key, model) * 10 ** d) / 10 ** d);
   }
 
   preset(name: string): PresetView {

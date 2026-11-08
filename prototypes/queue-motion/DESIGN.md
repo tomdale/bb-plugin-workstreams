@@ -83,11 +83,11 @@ a whole card with at most one more card after it (G9).
 
 Faster means moving the same edges farther in the same time, and the edge budget
 caps that. With no tempo, `ramp` or `fold`, raising the tap budget alone lifts
-`natural` from 5.5 / 5.5 cards/s at 24 px/frame to 6.3 / 6.3 at 30 and 7.0 / 7.3
-at 39, with no checker problems (`edge budget, tap` in
+`natural` from 5.0 / 5.2 cards/s at 24 px/frame (1440 px/s) to 5.4 / 5.9 at 30
+and 5.9 / 6.4 at 39, with no checker problems (`top speed` in
 `npm run sweep -- params`). The pace stays tied to card height: the intervals
-run 83–200 ms at 39 and 100–300 ms at 24. The first failure is at 40 px/frame,
-with 394 jumps, because the checker's jump rule fires when an edge moves more
+run 83–333 ms at 39 and 100–367 ms at 24. The first failure is at 40 px/frame,
+with 391 jumps, because the checker's jump rule fires when an edge moves more
 than 40 px in a frame. No perceptual threshold sets the budget (see the edge
 budgets section below), so the sweep shows where the checker stops a higher one,
 not where the motion starts to look rushed.
@@ -202,8 +202,9 @@ edges up to about 30 px per frame. No perceptual threshold sets them. The
 checker's jump rule, 40 px in a frame, stops a higher budget: taps on `natural`,
 and held keys on `even + held speed` and `fold`, are clean at 39 px/frame and
 fail at 40. The budget is per frame, so a 120 Hz display allows twice the px/s:
-the suite scales `vcap` with the refresh rate, and the page's px/frame sliders
-convert at 60 Hz.
+the suite scales `vcap` with the refresh rate. The page gives the budgets as top
+speeds in px/s, the models' own unit, with px/frame at 60 and 120 Hz beside
+each.
 
 `sim/check.mjs` has two rules for a drawn bottom edge that changes by more than
 16 px in a frame:
@@ -405,37 +406,40 @@ px/s: left unscaled, a 120 Hz run holds 10.7 cards/s and its largest move is
 
 ### Settings kept and pruned
 
-The page has eight cascade sliders. Six move a number the suite prints, and two,
-`shade` and `fade`, change only what the page draws.
-`npm run sweep -- params cascade` changes one setting at a time on `default`, at
-60 Hz:
+The page has eleven cascade settings, and the five it shares with the drum
+(`w0`, `cap`, `delay`, `w1`, `cap1`) use the drum's keys and names. Nine move a
+number the suite prints, and two, `shade` and `fade`, change only what the page
+draws. `held` is the ramp, on (`speed up`) or off (`same as taps`, the
+`no held ramp` preset). `pace` and `pace0` are written as the spacings the model
+reads: `spacing1` is the train's top speed divided by `pace`, and `spacing0` is
+`vcap` divided by `pace0`. `npm run sweep -- params cascade` changes one setting
+at a time on `default`, at 60 Hz:
 
-| Setting                  | Swept          | What it moves                                                                                                                    |
-| ------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `sp1`, spacing held      | 100–216 px     | Held pace, 14.7 down to 8.1 cards/s. At 100 px the largest held move is 40 px/frame, the checker's limit.                        |
-| `sp0`, spacing at rest   | 150–300 px     | Held pace by under a card per second, 11.4 down to 10.5, and the first cards of a hold.                                          |
-| `park`                   | 360–560 px     | Tap ↑, 483 to 617 ms; the fewest frames a card is shown, 7 to 10; cards in front of the pile, 3 to 4. Held pace 10.8 throughout. |
-| `cw0`, spring Hz, tap    | 2–6 Hz         | Tap ↑, 700 to 433 ms; tap ↓, 317 to 117 ms; landing speed, 0.8 to 7.7 px/frame. Held pace 10.8 throughout.                       |
-| `ccap`, edge budget, tap | 16–40 px/frame | Tap ↑, 700 to 467 ms; held pace, 10.5 to 11.6 cards/s. At 40 px/frame the checker finds 30 jumps.                                |
-| `cdelay`, hold delay     | 0–600 ms       | Held pace, 11.6 down to 9.6 cards/s.                                                                                             |
-| `shade`, leave shade     | 0–0.5          | No number: all three rows print the same.                                                                                        |
-| `fade`, edge fade        | 0–134 px       | No number: the page draws the mask, and the sims do not.                                                                         |
-
-Two settings are fixed model values with no slider, the held spring (`omega1`,
-4.5 Hz) and the held edge budget (`vcap1`, 30 px/frame). Both stay in
-`DEFAULT_CFG` because the ramp runs to them. Neither has a sweep in
-`CASCADE_PARAMS`; a sweep of either there prints the rows quoted here.
+| Setting                       | Swept          | What it moves                                                                                                                    |
+| ----------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `pace`                        | 8–18 cards/s   | Held pace, 7.7 up to 14.7 cards/s. At 18 cards/s (100 px) the largest held move is 40 px/frame, the checker's limit.             |
+| `pace0`, pace before speed-up | 5–9.6 cards/s  | Held pace by under a card per second, 10.5 up to 11.4, and the first cards of a hold.                                            |
+| `park`                        | 360–560 px     | Tap ↑, 483 to 617 ms; the fewest frames a card is shown, 7 to 10; cards in front of the pile, 3 to 4. Held pace 10.8 throughout. |
+| `w0`, tap spring              | 2–6 Hz         | Tap ↑, 700 to 433 ms; tap ↓, 317 to 117 ms; landing speed, 0.8 to 7.7 px/frame. Held pace 10.8 throughout.                       |
+| `cap`, top speed              | 960–2400 px/s  | Tap ↑, 700 to 467 ms; held pace, 10.5 to 11.6 cards/s. At 2400 px/s (40 px/frame) the checker finds 30 jumps.                    |
+| `delay`, speeds up after      | 0–600 ms       | Held pace, 11.6 down to 9.6 cards/s.                                                                                             |
+| `w1`, held spring             | 3–8 Hz         | No pace: 10.8 cards/s throughout. See below.                                                                                     |
+| `cap1`, held top speed        | 1440–2640 px/s | Held pace, 9.0 up to 14.7 cards/s, with the spacing left at 150 px. See below.                                                   |
+| `shade`, leave shade          | 0–0.5          | No number: all three rows print the same.                                                                                        |
+| `fade`, edge fade             | 0–134 px       | No number: the page draws the mask, and the sims do not.                                                                         |
 
 - **The held spring** does not move the pace: at 3, 4.5 and 6 Hz the held run is
   10.8 cards/s at 83–117 ms with a 1.20× step. It moves the largest held edge
-  move (32.2, 32.8 and 38.3 px/frame) and the fewest frames a card is shown (8,
-  10 and 10). A held spring of 3 Hz fails the visibility rule, and 8 Hz gives 36
+  move (32, 33 and 38 px/frame) and the fewest frames a card is shown (8, 10 and
+  10). A held spring of 3 Hz fails the visibility rule, and 8 Hz gives 36
   problems (15 jumps, 21 fade flickers).
-- **The held edge budget** sets the pace the way `sp1` does, with a smaller
-  margin. Budgets of 24, 30 and 36 px/frame give 9.0, 10.8 and 12.7 cards/s;
-  `sp1` of 183, 150 and 125 px gives 9.3, 10.8 and 12.7 with 0 problems and 10
-  or more frames for every card. A budget of 36 gives 6 jumps (largest held move
-  42.3 px/frame) and shows the fewest card for 8 frames, and 39 gives 30 jumps.
+- **The held top speed** sets the pace the way `pace` does, with a smaller
+  margin. Top speeds of 1440, 1800 and 2160 px/s give 9.0, 10.8 and 12.7 cards/s
+  at the default spacing; a `pace` of 10, 12 and 14 cards/s gives 9.3, 10.8 and
+  12.2 with 0 problems and 10 or more frames for every card. A top speed of 2160
+  gives 6 jumps (largest held move 42 px/frame) and shows the fewest card for 8
+  frames. On the page a `pace` set in cards/s keeps its value when the held top
+  speed changes, by changing the spacing.
 
 ### Defaults settled by looking
 
@@ -551,7 +555,7 @@ A port into `stackEngine.ts` and the product page has these parts:
   line, is open, and so is the mask's cost over four shadowed cards in the
   product's DOM.
 - **A decision on pace and tap ↑.** The product ships a constant 150 ms between
-  presses (`QUEUE_CFG`), and the cascade runs 83–117 ms held, which `sp1` sets.
+  presses (`QUEUE_CFG`), and the cascade runs 83–117 ms held, which `pace` sets.
   Its tap ↑ lands in 550 ms against the drum's 483, because the card rises from
   480 px below. `park` at 360 px lands in 483 ms and shows a card for 7 frames
   against the 10 the rule needs.

@@ -68,11 +68,22 @@ export const park = (page) =>
  * settings it already holds. The pointer is parked first, or Chrome would hover whatever sits under it once the
  * page lays out.
  */
+/**
+ * Opens the page at `hash`, then opens the modules that start folded (Finish, Page, Overlay) and every `more`
+ * line, so every control the state shows can be reached. The page remembers folds, so they stay open on the next
+ * load; the About panel is left as the page has it.
+ */
 export async function load(page, hash = "") {
   await park(page);
   await page.goto("about:blank");
   await page.goto(PAGE + hash);
   await page.waitForFunction(() => window.__help && window.__sim);
+  await page.evaluate(() => {
+    for (const d of document.querySelectorAll(
+      'details.mod[data-module="finish"], details.mod[data-module="page"], details.mod[data-module="overlay"], details.more',
+    ))
+      d.open = true;
+  });
   await page.waitForTimeout(250);
 }
 

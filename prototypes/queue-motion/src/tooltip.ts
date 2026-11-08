@@ -91,12 +91,27 @@ export function installTooltips(scroller: HTMLElement): Tooltips {
 
   const controlOf = (n: EventTarget | null) =>
     n instanceof Element ? n.closest<HTMLElement>("[data-help]") : null;
-  // A setting's own control is its `data-k` element; its value field and reset button come before it.
-  const focusable = (c: HTMLElement) =>
-    c.matches("button, input, select, summary, [tabindex]")
-      ? c
-      : (c.querySelector<HTMLElement>("[data-k]") ??
-        c.querySelector<HTMLElement>("button, input, select"));
+  /**
+   * The element a control's tooltip describes: the control itself when it takes focus, else the part of it that
+   * has the focus (one radio of a choice), else its own `data-k` element, which its value field and reset
+   * button come before.
+   */
+  const focusable = (c: HTMLElement) => {
+    if (c.matches("button, input, select, summary, [tabindex]")) return c;
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      c.contains(active) &&
+      active.matches("input, select, button")
+    )
+      return active;
+    return (
+      c.querySelector<HTMLElement>("[data-k]") ??
+      c.querySelector<HTMLElement>("button, input, select")
+    );
+  };
+  /** The element `aria-describedby` was set on while the tooltip shows. */
+  let described: HTMLElement | null = null;
 
   function place(c: HTMLElement) {
     const r = c.getBoundingClientRect();
@@ -144,11 +159,13 @@ export function installTooltips(scroller: HTMLElement): Tooltips {
     tip.hidden = false;
     place(c);
     anchor = c;
-    focusable(c)?.setAttribute("aria-describedby", tip.id);
+    described = focusable(c);
+    described?.setAttribute("aria-describedby", tip.id);
   }
 
   function hide() {
-    if (anchor) focusable(anchor)?.removeAttribute("aria-describedby");
+    described?.removeAttribute("aria-describedby");
+    described = null;
     anchor = null;
     tip.hidden = true;
   }

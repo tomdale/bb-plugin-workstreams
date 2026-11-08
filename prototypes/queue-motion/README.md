@@ -11,13 +11,14 @@ The product runs the drum (`src/app/page/queue/drum.ts`) through
 `src/app/page/queue/stackEngine.ts`, which keeps a short row of cards on the
 drum as the queue's pile changes. The drum's settings as shipped are `QUEUE_CFG`
 in `drum.ts`: the `even + held speed` preset with a constant 150 ms interval, a
-3 Hz tap spring and 17 px/frame tap budget, and a 5 Hz held spring and 30
-px/frame held budget after a 250 ms hold. The page offers it as the drum's
-`shipped` preset. The lab imports both files, so a rebuild shows the product as
-it is on this branch. The cascade (`src/cascade.ts`) is the lab's own model, and
-the product does not run it. [DESIGN.md](DESIGN.md) lists the goals the motion
-must meet, explains how the drum and the cascade work, and records what limits
-the pace of a held key, what the cascade costs, and what is still open.
+3 Hz tap spring and a 1020 px/s (17 px/frame) top speed, and a 5 Hz held spring
+and a 1800 px/s (30 px/frame) held top speed after a 250 ms hold. The page
+offers it as the drum's `shipped` preset. The lab imports both files, so a
+rebuild shows the product as it is on this branch. The cascade
+(`src/cascade.ts`) is the lab's own model, and the product does not run it.
+[DESIGN.md](DESIGN.md) lists the goals the motion must meet, explains how the
+drum and the cascade work, and records what limits the pace of a held key, what
+the cascade costs, and what is still open.
 
 ## Run the page
 
@@ -29,25 +30,29 @@ open dist/queue-motion.html
 ```
 
 Press ↓ and ↑ (or `j` and `k`); the line under the stack says so. A held key
-repeats at the OS rate; the first press also starts the hold that the drum's
-fold and speed-up settings and the cascade's ramp react to. The stack fills the
-window left of the inspector, a pane anchored to the right edge at full height
-that scrolls on its own; on a window too narrow for the 680 px card, the stack
-scales down to fit. The inspector is a column of modules, each folded or opened
-from its heading. The page remembers which modules are folded (in
-`localStorage`, not the URL hash), and a module with nothing to show under the
-running model and its settings is hidden whole. The modules:
+repeats at the OS rate; the first press also starts the hold that `while held`
+reacts to. The stack fills the window left of the inspector, a pane anchored to
+the right edge at full height that scrolls on its own; on a window too narrow
+for the 680 px card, the stack scales down to fit. The inspector is a column of
+modules, each folded or opened from its heading, in the order a tuner asks its
+questions: what am I looking at, how do I drive it, what does it measure, then
+the knobs. Finish, Page and Overlay start folded. The page remembers which
+modules are folded (in `localStorage`, not the URL hash), and a module with
+nothing to show under the running model and its settings is hidden whole. The
+modules:
 
-| Module                | What it holds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Model                 | The Model buttons: `Product now` runs the drum at `shipped` through `src/app/page/queue/stackEngine.ts`, imported as it is, and has no presets or model modules; `Elastic drum` runs `drum.ts` with the lab's settings, and `Cascade` runs `src/cascade.ts` with its own. Then the running model's preset buttons (the drum's `shipped`, which is `QUEUE_CFG`, then `PRESETS` in `drum.ts`; the cascade's `PRESETS` in `src/cascade.ts`), the state line, and the buttons `Revert to <preset>`, `Save as preset…` and, for the drum, `Copy as QUEUE_CFG`. A preset click clears every model setting change. |
-| Playback              | Speed (¼×, ½×, 1×), Pause and Step (one 1/60 s frame; the clock is the page's own, so a paused page is a frame you can read), Hold (`↓ from top` jumps to the first card and holds ↓ until the last is in front, `↑ from bottom` the reverse, on the page's clock with the OS-like repeat set by `krd` and `kri`; the running button reads Stop, and a real key, a model switch or Reduced motion stops it), Cards (the deck on the stage, below), `Reduced motion` (no card moves and the new front fades in; the system's reduced-motion setting turns it on too), and the page's fades.                  |
-| Measured              | What the page measures on its own frames: the held readout, the pace of the latest hold, the last hold the other way, the last tap each way, and the frame checker over the last run (below). Hidden under reduced motion.                                                                                                                                                                                                                                                                                                                                                                                  |
-| Taps, Pace, Held keys | The drum's settings, while the drum runs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Taps, Pace, Stage     | The cascade's settings, while the cascade runs. Each model's Taps and Pace modules hold only its own settings.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Path                  | The Path settings, which shape the path a moving card follows in every model.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Overlay               | `Bezier path` draws the rounded loop a moving card follows as cubic Bezier segments: down in front of the pile, across the column at `turn`, and up behind it to `tuck` (the cascade: one bow down to `park`), with handles, a ring at each leg's widest point, anchors and live card markers. While it is on, the module shows what it draws.                                                                                                                                                                                                                                                              |
-| How the drum works    | The About module, folded at first: the ring path the cards follow, the four problems the frame checker counts, and which module acts on which part. The product shows it too. While the cascade runs its heading is How the cascade works: the exit channel and the clip line, what sets the pace of a held key, and the same problems.                                                                                                                                                                                                                                                                     |
+| Module             | What it holds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Run                | The Model buttons: `Product now` runs the drum at `shipped` through `src/app/page/queue/stackEngine.ts`, imported as it is, and shows the drum's Taps and Held keys read only at their shipped values; `Elastic drum` runs `drum.ts` with the lab's settings, and `Cascade` runs `src/cascade.ts`. Then the running model's preset buttons (the drum's `shipped`, which is `QUEUE_CFG`, then `PRESETS` in `drum.ts`; the cascade's `PRESETS` in `src/cascade.ts`), the state line, and the buttons `Revert to <preset>`, `Save as preset…` and, for the drum, `Copy as QUEUE_CFG`. A preset click clears every model setting change. |
+| Drive              | Speed (¼×, ½×, 1×), Clock (Pause, and Step one 1/60 s frame; the clock is the page's own, so a paused page is a frame you can read), Hold (`↓ from top` jumps to the first card and holds ↓ until the last is in front, `↑ from bottom` the reverse, on the page's clock with the OS-like repeat set by `krd` and `kri`; the running button reads Stop, and a real key, a model switch or Reduced motion stops it), Cards (the deck on the stage, below), and `Reduced motion` (no card moves and the new front fades in; the system's reduced-motion setting turns it on too).                                                      |
+| Measured           | What the page measures on its own frames: the held readout, the pace of the latest hold, the last hold the other way, the last tap each way, and the frame checker over the last run (below). Hidden under reduced motion.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Taps               | How one card travels: `tap spring` and `top speed`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Held keys          | What a held key does: `while held`, the drum's `pacing`, `pace` (or the plan, or the measured pace), the cascade's `pace before speed-up`, `speeds up after`, `held spring`, `held top speed`, and the drum's `held height`.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Route              | Where a leaving card goes: the drum's `tuck depth`, the cascade's `park`, `edge fade` and `leave shade`, the path's `sway` and `bank`, and a `more` line that folds the loop's shaping (`sway behind`, `widest point`, `widest point behind`, `column crossing`).                                                                                                                                                                                                                                                                                                                                                                    |
+| Finish             | The drum's settings looked at once, after the motion is settled: the fades, the tall-card wash, the tuck spring, and the plan's estimate.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Page               | The page's own fades and the simulated holds' key repeat.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Overlay            | `Bezier path` draws the rounded loop a moving card follows as cubic Bezier segments: down in front of the pile, across the column at `turn`, and up behind it to `tuck` (the cascade: one bow down to `park`), with handles, a ring at each leg's widest point, anchors and live card markers. While it is on, the module shows what it draws.                                                                                                                                                                                                                                                                                       |
+| How the drum works | The About module, folded at first: the ring path the cards follow, the four problems the frame checker counts, and which module acts on which part. The product shows it too. While the cascade runs its heading is How the cascade works: the exit channel and the clip line, what sets the pace of a held key, and the same problems.                                                                                                                                                                                                                                                                                              |
 
 The state line under the presets names the preset the state is based on. At the
 preset itself its chip is filled and the line reads `<preset>, nothing changed.`
@@ -60,29 +65,29 @@ so the checker's count is its cost. For the product the line says what it runs.
 `Save as preset…` opens a name field and then saves the current settings under
 that name as a preset of the running model in this browser's `localStorage` (the
 product has none); Enter saves and Escape closes the field. A saved preset
-records the built-in preset it starts from and every model, Path and page
-setting the URL hash overrides; speed, reduced motion and `Bezier path` are not
-part of it. Its chip, in the Saved row, restores those settings and is marked
-while they match; its × deletes it. An empty name saves as `my preset` and a
-number, a saved preset's name replaces that preset, and a built-in preset's name
-is refused. Applying one rewrites the hash, which carries the settings but not
-the name.
+records the built-in preset it starts from and every model, path and page
+setting the URL hash overrides; speed, cards, reduced motion and `Bezier path`
+are not part of it. Its chip, in the Saved row, restores those settings and is
+marked while they match; its × deletes it. An empty name saves as `my preset`
+and a number, a saved preset's name replaces that preset, and a built-in
+preset's name is refused. Applying one rewrites the hash, which carries the
+settings but not the name.
 
 `Copy settings`, beside the inspector's title, copies the current state to the
 clipboard as Markdown: the model, preset, speed, cards, reduced motion,
 `Bezier path` and the URL hash; a line naming every setting that differs from
 its preset or default, old and new value; and a table per module of every
 setting the inspector shows, with changed values in bold beside the preset's
-value (model settings) or the default (Path and Overlay settings). A hidden
-setting changes nothing, so it is left out. The button reads `Copied` for a
-moment.
+value (model settings) or the default (path and page settings). A hidden setting
+changes nothing, so it is left out. The product's table lists the shipped values
+it shows. The button reads `Copied` for a moment.
 
 `Copy as QUEUE_CFG` copies the drum's configuration as the `QUEUE_CFG` literal
 in `drum.ts`, in that file's idiom (`omega1: TAU * 5`, `vcap1: 30 * 60`,
 `tempo: { kind: "constant", ms: 150 }`): every field `QUEUE_CFG` sets, in its
 order, then any other field that differs from `DEFAULT_CFG`, with the tempo's
 kind and the fields that kind reads. At `shipped` it copies the literal
-`drum.ts` holds.
+`drum.ts` holds. A pace set in cards/s lands in it as the interval it writes.
 
 The Cards switch picks the deck on the stage, 12 cards each: `lab`, the page's
 six sample cards (240, 73, 162, 284, 96 and 140 px); `mixed 330`, real cards
@@ -93,108 +98,119 @@ starts at its first card.
 The Measured module reads the page's own frames with the sims' functions
 (`src/meter.ts`). A run starts with a press while nothing moves and ends at rest
 with no key down; one card moved makes it a tap, more a hold. `held` is the held
-state, a bar from 0.00 to 1.00, shown while the drum's held speed-up, fold or
-loose clearing is on, or the cascade's ramp is. `pace` is the latest hold: mean
-cards/s over its steps (a step is the time between two changes of the model's
-front card, on the page's clock, so ¼× reads as 1×), the shortest and longest
-step, and the worst change from one step to the next. `last` is the last hold
-the other way. `tap` is the last tap each way: ↑ lands and ↓ settles by
-`landFrame`, and the landing speed by `landingSpeed`, both from `sim/lib.mjs`.
-`checker` runs `problems` (the corrected rule) and `maxJump` from
-`sim/check.mjs` over the run: problems by kind, the card and time of the last,
-the largest edge move, and for the cascade the most cards in front of the pile.
-The page records a frame once about 1/60 s of page clock has passed, so the
-per-frame figures read as the sims' at any display rate or speed. The numbers
-clear when a model setting, the preset, the model or the deck changes. Every
-control has a tooltip, which says what the control is, what you see when you
-change it, what it works with, and how to tune it, and lists the sweep commands
-behind its numbers. Hover shows it after a short pause, keyboard focus at once,
-and Escape dismisses it. It opens to the left of the inspector, over the stage,
-and scrolls when it is taller than the window.
+state, a bar from 0.00 to 1.00, shown while `while held` is anything but
+`same as taps`. `pace` is the latest hold: mean cards/s over its steps (a step
+is the time between two changes of the model's front card, on the page's clock,
+so ¼× reads as 1×), the shortest and longest step, and the worst change from one
+step to the next. `last` is the last hold the other way. `tap` is the last tap
+each way: ↑ lands and ↓ settles by `landFrame`, and the landing speed by
+`landingSpeed`, both from `sim/lib.mjs`. `checker` runs `problems` (the
+corrected rule) and `maxJump` from `sim/check.mjs` over the run: problems by
+kind, the card and time of the last, the largest edge move, and for the cascade
+the most cards in front of the pile. The page records a frame once about 1/60 s
+of page clock has passed, so the per-frame figures read as the sims' at any
+display rate or speed. The numbers clear when a model setting, the preset, the
+model or the deck changes.
+
+Every control has a tooltip, which says what the control is, what you see when
+you change it, what it works with, and how to tune it, and lists the sweep
+commands behind its numbers. Hover shows it after a short pause, keyboard focus
+at once, and Escape dismisses it. It opens to the left of the inspector, over
+the stage, and scrolls when it is taller than the window.
 
 A setting shows only while it changes something under the current configuration
 (last column of its table), and a hidden setting keeps its value. A slider's
 value beside its name is a field: type a value and press Enter, and it is
 clamped to the range. A value that differs from the preset's (model settings) or
-the default (Path and page settings) is bold, with a `reset` beside it, and a
-folded module's heading says how many of its shown settings are changed. Under
-reduced motion no card moves, so the model settings that shape motion hide with
-their modules, and so do the held readout and, unless `Bezier path` is on, the
-Path settings; the cascade's Stage settings stay, since they still cut and fade
-the stage. Each slider's range and default are in `SETTINGS`,
-`CASCADE_SETTINGS`, `PATH_SETTINGS` or `VIEW_SETTINGS` in `src/controls.ts` and
-at the top of its tooltip. The key is the setting's name in the URL hash. The
-drum's settings are in three modules, Taps, Pace and Held keys:
+the default (path and page settings) is bold, with a `reset` beside it, and a
+folded module's heading, or Route's `more` line, says how many of its shown
+settings are changed. Some settings carry a line under them: a top speed in
+px/frame at 60 and 120 Hz, a pace as the beat in ms or the spacing in px beside
+the pace the page measured, a held spring as a multiple of the tap spring, the
+last tap the page measured under `tap spring`, and the shortest card under
+`held height`. Under reduced motion no card moves, so the settings that shape
+motion hide with their modules, and so do Measured and, unless `Bezier path` is
+on, the path's settings; the cascade's `park`, `edge fade` and `leave shade`
+stay, since they still cut and fade the stage. Each slider's range and default
+are in `SETTINGS`, `CASCADE_SETTINGS`, `PATH_SETTINGS` or `VIEW_SETTINGS` in
+`src/controls.ts` and at the top of its tooltip. The key is the setting's name
+in the URL hash.
 
-| Module    | Setting                    | Key      | Shown when             |
-| --------- | -------------------------- | -------- | ---------------------- |
-| Taps      | spring Hz, tap             | `w0`     | always                 |
-|           | edge budget, tap px/frame  | `cap`    | always                 |
-|           | incoming fade-in per s     | `fadein` | always                 |
-|           | covered card fade          | `cover`  | always                 |
-|           | tuck spring ×              | `tuck`   | always                 |
-|           | tuck depth px              | `hide`   | always                 |
-|           | tall-card wash rise ms     | `wrise`  | always                 |
-|           | tall-card wash clear ms    | `wclear` | always                 |
-| Pace      | tempo                      | `tk`     | always                 |
-|           | tempo window               | `tw`     | tempo is `lookahead`   |
-|           | tempo scale                | `ts`     | tempo is `lookahead`   |
-|           | estimate base ms           | `ta`     | tempo is `lookahead`   |
-|           | estimate ms per px         | `tb`     | tempo is `lookahead`   |
-|           | constant interval ms       | `tms`    | tempo is `constant`    |
-| Held keys | held speed-up              | `ramp`   | fold and loose are off |
-|           | fold while held            | `fold`   | always                 |
-|           | loosen clearing while held | `loose`  | fold is off            |
-|           | hold delay ms              | `delay`  | a held setting is on   |
-|           | spring Hz, held            | `w1`     | a held setting is on   |
-|           | edge budget, held px/frame | `cap1`   | a held setting is on   |
-|           | held height px             | `h0`     | fold or loose is on    |
+The two models share one key, one name and one row for each knob they have in
+common, so a value set on the drum holds when the cascade runs and the other way
+round. The drum's and the cascade's settings:
 
-`tuck` multiplies the spring on the last stretch behind the pile (`tuckRate` in
-`drum.ts`), and `hide` is how far inside the pile's lower edge a tucked card
-ends (`hidePx`); a card too tall to hide that way washes out instead, rising
-with the `wrise` time constant (`washTauOut`) and clearing with `wclear`
-(`washTauIn`). `ta` and `tb` are the lookahead planner's estimate of a trip,
-`scale × (ta + tb · height)` ms (`tempo.a` and `tempo.b`). All six are fields of
-the drum's configuration with the product's defaults, so the product is
-unchanged.
+| Module    | Setting              | Key      | Model   | Shown when                                        |
+| --------- | -------------------- | -------- | ------- | ------------------------------------------------- |
+| Taps      | tap spring           | `w0`     | both    | always                                            |
+|           | top speed            | `cap`    | both    | always                                            |
+| Held keys | while held           | `held`   | both    | always                                            |
+|           | pacing               | `pacing` | drum    | always                                            |
+|           | pace                 | `pace`   | both    | the drum: pacing is `steady`; the cascade: always |
+|           | plan                 | `ts`     | drum    | pacing is `planned`                               |
+|           | pace before speed-up | `pace0`  | cascade | while held is `ramp`                              |
+|           | speeds up after      | `delay`  | both    | while held is not `none`                          |
+|           | held spring          | `w1`     | both    | while held is not `none`                          |
+|           | held top speed       | `cap1`   | both    | while held is not `none`                          |
+|           | held height          | `h0`     | drum    | while held is `fold` or `loose`                   |
+| Route     | tuck depth           | `hide`   | drum    | always                                            |
+|           | park                 | `park`   | cascade | always                                            |
+|           | edge fade            | `fade`   | cascade | always                                            |
+|           | leave shade          | `shade`  | cascade | always                                            |
+| Finish    | incoming fade-in     | `fadein` | drum    | always                                            |
+|           | covered card fade    | `cover`  | drum    | always                                            |
+|           | tuck spring          | `tuck`   | drum    | always                                            |
+|           | tall-card wash rise  | `wrise`  | drum    | always                                            |
+|           | tall-card wash clear | `wclear` | drum    | always                                            |
+|           | plan window          | `tw`     | drum    | pacing is `planned`                               |
+|           | plan base            | `ta`     | drum    | pacing is `planned`                               |
+|           | plan per px          | `tb`     | drum    | pacing is `planned`                               |
 
-The cascade's settings are in three modules too: Taps, Pace and Stage. The ramp
-shapes `sp0`, `cdelay`, `cw1` and `ccap1`, so the `no held ramp` preset hides
-them. The largest `fade` is `park` minus 346 px: the fade starts no higher than
+`held` is one choice for what a held key does once it has been held past
+`speeds up after`: `none` (same as taps), `ramp` (speed up: the springs and top
+speeds ramp to their held values), `fold` (fold every card to its header line)
+and `loose` (pass over the next card: a leaving card clears only a virtual
+height). Fold and pass over include the speed-up and write `ramp` too; the
+cascade offers `none` and `ramp`. `pacing` is how the drum spaces a held key's
+presses: `cards` (follows the cards: no pace to set, so the row shows the pace
+the page measured), `steady` (a steady beat: `tempo.kind` constant) or `planned`
+(`lookahead`, scaled by `ts`). The top speeds, `cap` and `cap1`, are px/s
+(`vcap` and `vcap1`); the frame checker's limit is 40 px in a frame, so 2400
+px/s is the limit at 60 Hz and twice that at 120 Hz.
+
+`pace` is in cards/s. Under a steady beat the drum writes it as the least
+interval between presses, `tempo.ms = 1000 / pace`; a tall card can outlast the
+beat, so the pace measured beside it can be lower. The cascade writes it as the
+spacing between leaving cards at the speed the train runs at,
+`spacing1 = vcap1 / pace` (`vcap / pace` with `while held` at `same as taps`),
+and `pace0` as `spacing0 = vcap / pace0`; a pace keeps its cards/s when a top
+speed changes. `tuck` multiplies the spring on the last stretch behind the pile
+(`tuckRate` in `drum.ts`), and `hide` is how far inside the pile's lower edge a
+tucked card ends (`hidePx`); a card too tall to hide that way washes out
+instead, rising with the `wrise` time constant (`washTauOut`) and clearing with
+`wclear` (`washTauIn`). `ta` and `tb` are the plan's estimate of a trip,
+`ts × (ta + tb · height)` ms (`tempo.a` and `tempo.b`), over `tw` cards each
+way. The largest `fade` is `park` minus 346 px: the fade starts no higher than
 the bottom of the tallest card (330 px) and its 16 px shadow, so no pile card
 fades.
 
-| Module | Setting                    | Key      | Shown when     |
-| ------ | -------------------------- | -------- | -------------- |
-| Taps   | spring Hz, tap             | `cw0`    | always         |
-|        | edge budget, tap px/frame  | `ccap`   | always         |
-| Pace   | spacing at rest px         | `sp0`    | the ramp is on |
-|        | spacing held px            | `sp1`    | always         |
-|        | hold delay ms              | `cdelay` | the ramp is on |
-|        | spring Hz, held            | `cw1`    | the ramp is on |
-|        | edge budget, held px/frame | `ccap1`  | the ramp is on |
-| Stage  | park px                    | `park`   | always         |
-|        | edge fade px               | `fade`   | always         |
-|        | leave shade                | `shade`  | always         |
+The path's settings shape the path a moving card follows in every model, the
+product included, and Route shows them while the path shows on screen: while
+cards sway, which is whenever reduced motion is off, or while `Bezier path`
+draws it. They move cards sideways only: each model's vertical motion, springs
+and top speeds, and so every number the frame checker reports, are the same at
+any value. A preset button keeps them. The sway is a function of where the card
+is on its ring, so a card that changes direction mid-flight retraces it;
+`src/ring.ts` holds the curve.
 
-The Path settings shape the path a moving card follows in every model, the
-product included, and the Path module shows them while the path shows on screen:
-while cards sway, which is whenever reduced motion is off, or while
-`Bezier path` draws it. They move cards sideways only: each model's vertical
-motion, springs and edge budgets, and so every number the frame checker reports,
-are the same at any value. A preset button keeps them. The sway is a function of
-where the card is on its ring, so a card that changes direction mid-flight
-retraces it; `src/ring.ts` holds the curve.
-
-| Module | Setting             | Key     | Shown when                                                     |
-| ------ | ------------------- | ------- | -------------------------------------------------------------- |
-| Path   | sway in front px    | `sway`  | reduced motion is off, or `Bezier path` is on                  |
-|        | sway behind px      | `swayb` | the same, and the drum or the product runs                     |
-|        | widest point        | `peak`  | reduced motion is off, or `Bezier path` is on, and a leg sways |
-|        | widest point behind | `peakb` | the same, and the drum or the product runs                     |
-|        | column crossing     | `cross` | the same, and the drum or the product runs                     |
-|        | bank deg            | `bank`  | reduced motion is off, and a leg sways                         |
+| Module        | Setting             | Key     | Shown when                                                     |
+| ------------- | ------------------- | ------- | -------------------------------------------------------------- |
+| Route         | sway                | `sway`  | reduced motion is off, or `Bezier path` is on                  |
+|               | bank                | `bank`  | reduced motion is off, and a leg sways                         |
+| Route, `more` | sway behind         | `swayb` | the same as `sway`, and the drum or the product runs           |
+|               | widest point        | `peak`  | reduced motion is off, or `Bezier path` is on, and a leg sways |
+|               | widest point behind | `peakb` | the same, and the drum or the product runs                     |
+|               | column crossing     | `cross` | the same, and the drum or the product runs                     |
 
 `sway` is the widest sideways offset, in px, on the way down in front of the
 pile (positive is right), `swayb` the same on the drum's leg behind the pile,
@@ -211,19 +227,19 @@ column, and the settings that shape the sway hide.
 The page's own settings belong to no model, every model shows them, and a preset
 button keeps them:
 
-| Module   | Setting                 | Key       | Shown when                                 |
-| -------- | ----------------------- | --------- | ------------------------------------------ |
-| Playback | reduced fade ms         | `rfade`   | reduced motion is on                       |
-|          | heading fade ms         | `hfade`   | reduced motion is off                      |
-|          | hold repeat delay ms    | `krd`     | reduced motion is off                      |
-|          | hold repeat interval ms | `kri`     | reduced motion is off                      |
-| Overlay  | control handles         | `handles` | `Bezier path` is on                        |
-|          | handles at every knot   | `knots`   | `Bezier path` and `control handles` are on |
-|          | knots per stretch       | `inner`   | `Bezier path` is on                        |
-|          | direction arrows        | `arrows`  | `Bezier path` is on                        |
-|          | labels                  | `labels`  | `Bezier path` is on                        |
-|          | pile spine              | `spine`   | `Bezier path` is on                        |
-|          | card markers            | `dots`    | `Bezier path` is on                        |
+| Module  | Setting               | Key       | Shown when                                 |
+| ------- | --------------------- | --------- | ------------------------------------------ |
+| Page    | reduced fade          | `rfade`   | reduced motion is on                       |
+|         | heading fade          | `hfade`   | reduced motion is off                      |
+|         | hold repeat delay     | `krd`     | reduced motion is off                      |
+|         | hold repeat interval  | `kri`     | reduced motion is off                      |
+| Overlay | control handles       | `handles` | `Bezier path` is on                        |
+|         | handles at every knot | `knots`   | `Bezier path` and `control handles` are on |
+|         | knots per stretch     | `inner`   | `Bezier path` is on                        |
+|         | direction arrows      | `arrows`  | `Bezier path` is on                        |
+|         | labels                | `labels`  | `Bezier path` is on                        |
+|         | pile spine            | `spine`   | `Bezier path` is on                        |
+|         | card markers          | `dots`    | `Bezier path` is on                        |
 
 `rfade` is how long the new front card fades in under reduced motion (160 ms by
 default, 0 to 600), and `hfade` how long the heading fades in when the front
@@ -235,42 +251,40 @@ stretch of the path (2 by default, 0 to 6): two keep the drawn curve within a
 pixel of the path the cards follow, and fewer show how far a coarse fit strays.
 It changes only the drawing.
 
-The URL hash holds the state, for example `#v=drum&preset=fold&cap1=34` (`fold`
-with a held edge budget of 34 px/frame) or `#v=cascade&sp1=125&fade=0` (the
-cascade's `default` with a held spacing of 125 px and no edge fade). `v` is
-`product`, `drum` or `cascade`. `preset` is a preset name of that model, and a
-name the model lacks gives its first preset (`shipped` for the drum, `default`
-for the cascade); the product has no presets. `speed` is `0.25`, `0.5` or `1`,
-`cards` is `lab`, `w2` (`mixed 330`) or `alt` (`330 and 73`), and `reduced` and
-`path` are `1` or `0`. Every other key is a setting's key from the tables above:
-the drum's `w0`, `cap`, `fadein`, `cover`, `tuck`, `hide`, `wrise`, `wclear`,
-`tk`, `tw`, `ts`, `ta`, `tb`, `tms`, `ramp`, `fold`, `loose`, `delay`, `w1`,
-`cap1` and `h0`, the cascade's `cw0`, `ccap`, `sp0`, `sp1`, `cdelay`, `cw1`,
-`ccap1`, `park`, `fade` and `shade`, the path's `sway`, `swayb`, `peak`,
-`peakb`, `cross` and `bank`, which every model reads, and the page's `rfade`,
+The URL hash holds the state, for example `#v=drum&preset=fold&cap1=2040`
+(`fold` with a held top speed of 2040 px/s) or `#v=cascade&pace=14&fade=0` (the
+cascade's `default` at 14 cards/s held and no edge fade). `v` is `product`,
+`drum` or `cascade`. `preset` is a preset name of that model, and a name the
+model lacks gives its first preset (`shipped` for the drum, `default` for the
+cascade); the product has no presets. `speed` is `0.25`, `0.5` or `1`, `cards`
+is `lab`, `w2` (`mixed 330`) or `alt` (`330 and 73`), and `reduced` and `path`
+are `1` or `0`. Every other key is a setting's key from the tables above: the
+models' `w0`, `cap`, `held`, `pacing`, `pace`, `ts`, `pace0`, `delay`, `w1`,
+`cap1`, `h0`, `hide`, `park`, `fade`, `shade`, `fadein`, `cover`, `tuck`,
+`wrise`, `wclear`, `tw`, `ta` and `tb`, the path's `sway`, `bank`, `swayb`,
+`peak`, `peakb` and `cross`, which every model reads, and the page's `rfade`,
 `hfade`, `krd`, `kri`, `handles`, `knots`, `inner`, `arrows`, `labels`, `spine`
-and `dots`. The two models' keys differ, so one hash can hold both models'
-settings, and the model that `v` names reads only its own. A toggle is `1` or
-`0`, `tk` is one of its three choices, and a slider's value is clamped to its
-range. The page ignores a key or value it does not recognise.
+and `dots`. A key both models have sets both; a model ignores the keys it lacks.
+A toggle is `1` or `0`, a choice is one of its options, and a slider's value is
+clamped to its range. The page ignores a key or value it does not recognise.
 
 The drum's presets:
 
-| Preset              | What changes while a key is held                                                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `shipped`           | `QUEUE_CFG`: stiffer springs and a higher edge budget after the hold delay, presses at least 150 ms apart. Not in the sweeps or `npm run check`. |
-| `natural`           | Nothing. The pace follows card heights: tall cards slow it, short cards speed it up.                                                             |
-| `even`              | Presses are spaced by a tempo planned from the heights ahead.                                                                                    |
-| `even + held speed` | The same tempo at a smaller scale, with stiffer springs and a higher edge budget while held.                                                     |
-| `fold`              | Every card folds toward its header line, so trips are short and the pace passes 10 cards/s.                                                      |
-| `loose`             | Cards stay whole, but a leaving card clears a virtual height, so cards pass over one another. Outside the checker's rules.                       |
+| Preset              | What changes while a key is held                                                                                           |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `shipped`           | `QUEUE_CFG`: speed up after 250 ms, on a steady beat of 6.7 cards/s (150 ms). Not in the sweeps or `npm run check`.        |
+| `natural`           | Nothing. The pace follows card heights: tall cards slow it, short cards speed it up.                                       |
+| `even`              | Planned pacing: presses are spaced by an interval planned from the heights ahead.                                          |
+| `even + held speed` | The same plan at 0.85×, and speed up while held.                                                                           |
+| `fold`              | Every card folds toward its header line, so trips are short and the pace passes 10 cards/s.                                |
+| `loose`             | Cards stay whole, but a leaving card clears a virtual height, so cards pass over one another. Outside the checker's rules. |
 
 The cascade's presets:
 
-| Preset         | What changes while a key is held                                                               |
-| -------------- | ---------------------------------------------------------------------------------------------- |
-| `default`      | The train tightens: cards leave closer together, on a stiffer spring and a higher edge budget. |
-| `no held ramp` | Nothing: the train runs at the held spacing from the first repeat.                             |
+| Preset         | What changes while a key is held                                                             |
+| -------------- | -------------------------------------------------------------------------------------------- |
+| `default`      | Speed up: the train goes from 6.7 to 12 cards/s, on a stiffer spring and a higher top speed. |
+| `no held ramp` | Same as taps: the train runs at `pace` from the first repeat.                                |
 
 ## Run the checks
 
@@ -301,16 +315,16 @@ difference. `npm run check` asserts the corrected rule.
 `npm run suite -- cascade` runs the cascade's presets with the drum's `natural`
 and `even` beside them as controls, at 60 and 120 Hz (`--hz 60` runs one rate),
 and prints one table per rate. `cascade:default` runs one cascade preset. The
-edge budgets are px/frame, so the 120 Hz table runs the cascade's train faster
-than the 60 Hz one. `npm run check` runs `npm run suite -- cascade --check`,
-which holds the cascade's columns, and not the controls, to the drum's
-invariants and to its own (`cascadeInvariants` in `sim/suite.mjs`): no
-draw-order change among painted cards, the same held pace on every height set
-within 5 %, held ↑ and ↓ within 5 % of each other over five key-repeat phases,
-no step-to-step interval change over 1.35×, a landing speed of at most 2
-px/frame, no reversal jump over the tap budget, every card that passes the front
-shown for at least 10 frames (`npm run sweep -- limits cascade` prints the
-rule), and the drum's pile.
+suite holds the top speeds at the same px/frame at both rates, so the 120 Hz
+table runs the cascade's train faster than the 60 Hz one. `npm run check` runs
+`npm run suite -- cascade --check`, which holds the cascade's columns, and not
+the controls, to the drum's invariants and to its own (`cascadeInvariants` in
+`sim/suite.mjs`): no draw-order change among painted cards, the same held pace
+on every height set within 5 %, held ↑ and ↓ within 5 % of each other over five
+key-repeat phases, no step-to-step interval change over 1.35×, a landing speed
+of at most 2 px/frame, no reversal jump over the tap top speed, every card that
+passes the front shown for at least 10 frames (`npm run sweep -- limits cascade`
+prints the rule), and the drum's pile.
 
 The tooltips quote the sweeps, so `npm run build` runs them (`computeFacts` in
 `sim/sweep.mjs`) and then the tooltip check (`src/verify.ts`). The build fails
@@ -326,14 +340,19 @@ sliders and held keys driving the page. It checks the state line, the preset
 chips' marks, Revert, a setting's reset and typed value, the folded headings'
 counts, `Save as preset…`, that `Copy as QUEUE_CFG` at `shipped` copies the
 literal in `drum.ts`, the Cards decks, and that Measured reads a hold, a tap and
-the checker. It checks that the inspector is anchored to the right edge at full
-height with the stack fitting beside it, that each model shows its own modules
-and hides the empty ones, and that a folded module stays folded. For the cascade
-it also checks which of its settings show under each preset, that its stage is
-cut at `LEAD + park`, and that `fade` is capped at `park` minus 346 px. It
-checks that this README names every preset and setting key in backticks.
-`QUEUE_MOTION_PAGE` points it, and the capture scripts, at a copy of the built
-page, so a rebuild cannot change the page under a running script.
+the checker. It checks which settings show in all twelve pacing and while-held
+states, that a key both models share keeps its value across the model switch,
+that a pace in cards/s writes the drum's beat and the cascade's spacing, Route's
+`more` line, that Finish, Page and Overlay start folded, and that the product
+shows its shipped settings read only. It checks that the inspector is anchored
+to the right edge at full height with the stack fitting beside it, that each
+model shows its own modules and hides the empty ones, and that a folded module
+stays folded. For the cascade it also checks which of its settings show under
+each preset, that its stage is cut at `LEAD + park`, and that `fade` is capped
+at `park` minus 346 px. It checks that this README names every preset and
+setting key in backticks. `QUEUE_MOTION_PAGE` points it, and the capture
+scripts, at a copy of the built page, so a rebuild cannot change the page under
+a running script.
 
 ## Capture frames and recordings
 
@@ -372,9 +391,15 @@ display's.
   entry, and a sweep in `CASCADE_PARAMS` in `sim/sweep.mjs`; a setting that only
   the page draws, like `fade`, has no `DEFAULT_CFG` entry and no sweep, and one
   that belongs to the page itself, like `rfade` or an overlay toggle, is a
-  `VIEW_SETTINGS` entry that the page reads where it draws. Every control has a
-  tooltip, and the build fails when one has none. Delete all of a setting's
-  entries when it is dropped, so the lab holds only the options still in play.
+  `VIEW_SETTINGS` entry that the page reads where it draws. A knob both models
+  have takes the same key, name and module in both lists, one tooltip that
+  covers both, and a sweep on each model's context. A setting in the page's
+  units that the model stores differently (a pace in cards/s written as an
+  interval or a spacing) computes its field in `write`; one whose field depends
+  on another setting is marked `derived`, and its sweep's `make` reads the
+  context's whole configuration. Every control has a tooltip, and the build
+  fails when one has none. Delete all of a setting's entries when it is dropped,
+  so the lab holds only the options still in play.
 - A new preset is a `PRESETS` entry in `drum.ts` or in `src/cascade.ts` and a
   tooltip entry under `preset.<name>`; the page picks the button up and the
   presets sweep measures it. The drum's `shipped` is the lab's own entry,

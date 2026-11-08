@@ -94,8 +94,8 @@ const EVEN_HELD = {
   hash: "#v=drum&preset=even%20%2B%20held%20speed", // lookahead tempo and the held speed-up
 };
 const FOLD = {
-  name: "fold + constant",
-  hash: "#v=drum&preset=fold&tk=constant",
+  name: "fold + steady beat",
+  hash: "#v=drum&preset=fold&pacing=steady",
 };
 const PRODUCT = { name: "product", hash: "#v=product" };
 const CASCADE = { name: "cascade", hash: "#v=cascade" };
@@ -239,18 +239,17 @@ const settingHidden = (page, key) =>
 
 async function controlsDriveThePage(browser) {
   await withPage(browser, "controls", async (page) => {
-    await page.goto(`${PAGE}#v=drum`);
-    await page.waitForTimeout(400);
+    await load(page, "#v=drum");
 
     // A preset, a held key, a slider, a select, and the model switch.
     await page.click('button[data-act="p:fold"]');
     expect(
-      await page.$eval('input[data-k="fold"]', (e) => e.checked),
-      "the fold preset turns the fold toggle on",
+      await page.$eval('input[data-k="held"][value="fold"]', (e) => e.checked),
+      "the fold preset sets while held to fold to the header line",
     );
     expect(
-      await settingHidden(page, "ramp"),
-      "the fold preset hides the held speed-up toggle, which fold includes",
+      !(await settingHidden(page, "h0")),
+      "the fold preset shows held height, which a fold reads",
     );
     expect(
       await page.$eval('button[data-act="p:fold"]', (b) =>
@@ -268,13 +267,13 @@ async function controlsDriveThePage(browser) {
     const front = await page.evaluate(() => window.__sim.cur());
     expect(front >= 5, `a held ↓ advances the front (front ${front})`);
     await page.$eval('input[data-k="cap"]', (e) => {
-      e.value = "20";
+      e.value = "1200";
       e.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    await page.selectOption('select[data-k="tk"]', "constant");
+    await page.selectOption('select[data-k="pacing"]', "steady");
     const hash = await page.evaluate(() => location.hash);
     expect(
-      hash.includes("cap=20") && hash.includes("tk=constant"),
+      hash.includes("cap=1200") && hash.includes("pacing=steady"),
       `settings land in the URL hash (${hash})`,
     );
     await page.click('button[data-act="v:product"]');
@@ -422,7 +421,7 @@ async function controlsDriveThePage(browser) {
     // out what the inspector hides.
     const copies = {};
     for (const [name, hash] of [
-      ["drum", "#v=drum&preset=natural&sway=40&cap=30"],
+      ["drum", "#v=drum&preset=natural&sway=40&cap=1800"],
       ["product", "#v=product"],
     ]) {
       await load(page, hash);
@@ -447,12 +446,13 @@ async function controlsDriveThePage(browser) {
         drum.includes("- Preset: `natural`") &&
         drum.includes("- Cards: lab") &&
         drum.includes("sway=40") &&
-        drum.includes("| sway in front px | `sway` | **40 px** | 24 px |") &&
+        drum.includes("| sway | `sway` | **40 px** | 24 px |") &&
+        drum.includes("| top speed | `cap` | **1800 px/s** | 1440 px/s |") &&
         drum.includes(
-          "| edge budget, tap px/frame | `cap` | **30 px/frame** | 24 px/frame |",
+          "| while held | `held` | same as taps | same as taps |",
         ) &&
-        drum.includes("`cap` 24 px/frame → 30 px/frame") &&
-        drum.includes("### Path") &&
+        drum.includes("`cap` 1440 px/s → 1800 px/s") &&
+        drum.includes("### Route") &&
         !drum.includes("`tw`") &&
         !drum.includes("`park`") &&
         !drum.includes("`handles`"),
@@ -463,9 +463,9 @@ async function controlsDriveThePage(browser) {
       product.includes("- Model: Product now") &&
         !product.includes("- Preset:") &&
         product.includes("- Changed: nothing") &&
-        !product.includes("### Taps") &&
-        product.includes("### Path"),
-      `Copy settings in the product lists no preset or model settings (${JSON.stringify(product.slice(0, 300))})`,
+        product.includes("| top speed | `cap` | 1020 px/s | 1020 px/s |") &&
+        product.includes("### Route"),
+      `Copy settings in the product lists no preset and the shipped values, unchanged (${JSON.stringify(product.slice(0, 300))})`,
     );
 
     // The simulated holds start at the near end and run the whole queue, then release; Stop ends one early.
@@ -548,7 +548,7 @@ async function controlsDriveThePage(browser) {
     );
 
     // Save preset stores the state under a name, its chip restores it, and × deletes it.
-    await load(page, "#v=drum&preset=natural&cap=30&sway=40");
+    await load(page, "#v=drum&preset=natural&cap=1800&sway=40");
     const state = () =>
       page.evaluate(() => ({
         chips: [
@@ -604,10 +604,10 @@ async function controlsDriveThePage(browser) {
     const restored = await state();
     expect(
       fold.chips[0].on === "false" &&
-        !fold.hash.includes("cap=30") &&
+        !fold.hash.includes("cap=1800") &&
         restored.chips[0].on === "true" &&
         restored.hash.includes("preset=natural") &&
-        restored.hash.includes("cap=30") &&
+        restored.hash.includes("cap=1800") &&
         restored.hash.includes("sway=40") &&
         // The saved preset changes natural, so natural is outlined as the preset it is based on.
         (await page.$eval('button[data-act="p:natural"]', (b) =>
@@ -700,16 +700,14 @@ async function runState(page) {
     `the drum starts at shipped, the first preset, filled and unchanged, and loose is marked outside the checker (${JSON.stringify(start)})`,
   );
   await page.$eval('input[data-k="cap"]', (e) => {
-    e.value = "30";
+    e.value = "1800";
     e.dispatchEvent(new Event("input", { bubbles: true }));
   });
   const moved = await look();
   expect(
     moved.on.length === 0 &&
       JSON.stringify(moved.based) === '[["shipped","mixed"]]' &&
-      /^Based on shipped, with 1 change: edge budget, tap px\/frame\./.test(
-        moved.state,
-      ) &&
+      /^Based on shipped, with 1 change: top speed\./.test(moved.state) &&
       moved.revert === "Revert to shipped" &&
       moved.capReset &&
       moved.capChanged,
@@ -732,21 +730,21 @@ async function runState(page) {
     `reset puts one setting back and Revert puts them all back (${JSON.stringify({ reset: reset.hash, reverted: reverted.hash })})`,
   );
   // A value typed beside a slider applies on Enter, clamped to the slider's range.
-  await page.fill('[data-v="cap"]', "31");
+  await page.fill('[data-v="cap"]', "1860");
   await page.press('[data-v="cap"]', "Enter");
   const typed = await page.evaluate(() => ({
     hash: location.hash,
     slider: document.querySelector('input[data-k="cap"]').value,
   }));
-  await page.fill('[data-v="cap"]', "999");
+  await page.fill('[data-v="cap"]', "99999");
   await page.press('[data-v="cap"]', "Enter");
   const clamped = await page.$eval('input[data-k="cap"]', (e) => [
     e.value,
     e.max,
   ]);
   expect(
-    typed.hash.includes("cap=31") &&
-      typed.slider === "31" &&
+    typed.hash.includes("cap=1860") &&
+      typed.slider === "1860" &&
       clamped[0] === clamped[1],
     `a typed value sets the slider and the hash, clamped to its range (${JSON.stringify({ typed, clamped })})`,
   );
@@ -941,7 +939,7 @@ async function helpMatchesControls(browser) {
       localStorage.setItem(
         "queue-motion-lab.presets",
         JSON.stringify({
-          drum: [{ name: "seeded", opt: { preset: "natural", cap: "30" } }],
+          drum: [{ name: "seeded", opt: { preset: "natural", cap: "1800" } }],
         }),
       ),
     );
@@ -1057,8 +1055,8 @@ async function keyboardShowsTips(browser) {
       ["model.drum", 'button[data-help="model.drum"]'],
       ["preset.even", 'button[data-help="preset.even"]'],
       ["setting.cap", 'input[data-k="cap"]'],
-      ["setting.fold", 'input[data-k="fold"]'],
-      ["setting.tk", 'select[data-k="tk"]'],
+      ["setting.held", 'input[data-k="held"][value="fold"]'],
+      ["setting.pacing", 'select[data-k="pacing"]'],
       ["reduced", 'button[data-help="reduced"]'],
       ["about", 'summary[data-help="about"]'],
       ["held", "#lam"],
@@ -1118,10 +1116,10 @@ async function keyboardShowsTips(browser) {
       expect(await tipCloses(page), `${name}: it closes when the focus leaves`);
     }
 
-    // Tab walks the controls in page order, and each stop shows its tooltip. The Model module's heading comes
+    // Tab walks the controls in page order, and each stop shows its tooltip. The Run module's heading comes
     // first: it is focusable, so the keyboard can fold the module, and carries no tooltip.
     await load(page, NATURAL.hash);
-    await page.focus('[data-module="model"] > summary');
+    await page.focus('[data-module="run"] > summary');
     const stops = [];
     for (const key of ["Tab", "Tab", "Shift+Tab"]) {
       await page.keyboard.press(key);
@@ -1129,7 +1127,7 @@ async function keyboardShowsTips(browser) {
     }
     expect(
       stops.join("|") === "Product now|Elastic drum|Product now",
-      `Tab and Shift+Tab step from the Model heading through the first controls, each with its tooltip (${stops.join(" | ")})`,
+      `Tab and Shift+Tab step from the Run heading through the first controls, each with its tooltip (${stops.join(" | ")})`,
     );
   });
 }
@@ -1301,49 +1299,54 @@ async function edges(browser) {
 
 // ---- which settings the inspector shows --------------------------------------------------------------------
 
-/** `shown` in src/controls.ts, per setting key, for a tempo kind and the held speed-up, fold and loose toggles. */
+/**
+ * `shown` in src/controls.ts, per drum setting key, for a pacing and a while-held choice. `pace.cards` is the
+ * readout that takes the pace slider's place while the presses follow the cards.
+ */
 const SHOWN = {
   w0: () => true,
   cap: () => true,
-  cover: () => true,
-  fadein: () => true,
-  tk: () => true,
-  fold: () => true,
-  loose: (s) => !s.fold,
-  tw: (s) => s.tk === "lookahead",
-  ts: (s) => s.tk === "lookahead",
-  tms: (s) => s.tk === "constant",
-  tuck: () => true,
+  held: () => true,
+  pacing: () => true,
+  pace: (s) => s.pacing === "steady",
+  ts: (s) => s.pacing === "planned",
+  delay: (s) => s.held !== "none",
+  w1: (s) => s.held !== "none",
+  cap1: (s) => s.held !== "none",
+  h0: (s) => s.held === "fold" || s.held === "loose",
   hide: () => true,
+  fadein: () => true,
+  cover: () => true,
+  tuck: () => true,
   wrise: () => true,
   wclear: () => true,
-  ta: (s) => s.tk === "lookahead",
-  tb: (s) => s.tk === "lookahead",
-  ramp: (s) => !s.fold && !s.loose,
-  delay: (s) => s.fold || s.ramp || s.loose,
-  w1: (s) => s.fold || s.ramp || s.loose,
-  cap1: (s) => s.fold || s.ramp || s.loose,
-  h0: (s) => s.fold || s.loose,
+  tw: (s) => s.pacing === "planned",
+  ta: (s) => s.pacing === "planned",
+  tb: (s) => s.pacing === "planned",
 };
 
-/** The same for the cascade, whose only condition is the ramp. */
+/** The same for the cascade, whose only condition is the while-held choice; its keys it shares with the drum are the drum's. */
 const CASCADE_SHOWN = {
-  cw0: () => true,
-  ccap: () => true,
-  sp0: (s) => s.ramp,
-  sp1: () => true,
-  cdelay: (s) => s.ramp,
-  cw1: (s) => s.ramp,
-  ccap1: (s) => s.ramp,
+  w0: () => true,
+  cap: () => true,
+  held: () => true,
+  pace: () => true,
+  pace0: (s) => s.ramp,
+  delay: (s) => s.ramp,
+  w1: (s) => s.ramp,
+  cap1: (s) => s.ramp,
   park: () => true,
   fade: () => true,
   shade: () => true,
 };
+/** The drum's keys the cascade lacks. */
+const DRUM_ONLY = Object.keys(SHOWN).filter((k) => !(k in CASCADE_SHOWN));
 
 /**
- * The path's settings, which every model shows while the path shows on screen: while cards sway (reduced motion
- * off) or `Bezier path` draws it. The leg behind the pile and the column crossing are the drum's and the
- * product's, and the bank turns only moving cards, so reduced motion hides it. With the default sway on.
+ * The path's settings, in Route, which every model shows while the path shows on screen: while cards sway
+ * (reduced motion off) or `Bezier path` draws it. The leg behind the pile and the column crossing are the
+ * drum's and the product's, and the bank turns only moving cards, so reduced motion hides it. With the default
+ * sway on.
  */
 const PATH_SHOWN = {
   sway: () => true,
@@ -1358,7 +1361,7 @@ const pathKeys = (mode, { reduced = false, overlay = false } = {}) =>
     ? []
     : Object.keys(PATH_SHOWN).filter((k) => PATH_SHOWN[k](mode, reduced));
 
-/** The page's own settings: the playback fades, and what `Bezier path` draws while it is on. */
+/** The page's own settings: its fades and key repeat in Page, and what `Bezier path` draws while it is on. */
 const VIEW_SHOWN = {
   rfade: (s) => s.reduced,
   hfade: (s) => !s.reduced,
@@ -1381,20 +1384,29 @@ const viewKeys = ({ reduced = false, overlay = false, handles = true } = {}) =>
     VIEW_SHOWN[k]({ reduced, overlay, handles }),
   );
 
-/** The setting keys the inspector draws now. */
+/** The setting keys the inspector draws now, with the pace readout as `pace.cards`. */
 const shownKeys = (page) =>
   page.evaluate(() =>
-    [...document.querySelectorAll("#inspector [data-key]")]
+    [...document.querySelectorAll("#inspector [data-key], #pace-cards")]
       .filter(
         (el) =>
           !el.closest("[hidden]") &&
           !el.closest("details:not([open]) > :not(summary)") &&
           el.getClientRects().length > 0,
       )
-      .map((el) => el.dataset.key),
+      .map((el) => el.dataset.key ?? "pace.cards"),
   );
 const sameSet = (a, b) =>
   a.length === b.length && a.every((k) => b.includes(k));
+const slide = (page, key, value) =>
+  page.$eval(
+    `input[data-k="${key}"]`,
+    (e, v) => {
+      e.value = v;
+      e.dispatchEvent(new Event("input", { bubbles: true }));
+    },
+    value,
+  );
 
 async function settingsVisibility(browser) {
   await withPage(browser, "settings", async (page) => {
@@ -1408,117 +1420,136 @@ async function settingsVisibility(browser) {
     };
 
     await load(page, NATURAL.hash);
-    await only(["tw", "ts"], false, "natural: tempo window and scale");
-    await only(["tms"], false, "natural: constant interval");
+    await only(["ts", "tw", "pace"], false, "natural: the plan and the pace");
+    await only(["pace.cards"], true, "natural: the measured pace readout");
     await only(
       ["delay", "w1", "cap1", "h0"],
       false,
-      "natural: the held settings and folded height",
+      "natural: the speed-up's settings and held height",
     );
-    await only(["ramp"], true, "natural: the held speed-up toggle");
     await only(
-      ["w0", "cap", "tk", "fold"],
+      ["w0", "cap", "held", "pacing"],
       true,
       "natural: the always-on settings",
     );
 
-    await page.selectOption('select[data-k="tk"]', "lookahead");
-    await only(["tw", "ts"], true, "tempo lookahead: tempo window and scale");
-    await only(["tms"], false, "tempo lookahead: constant interval");
-    await page.selectOption('select[data-k="tk"]', "constant");
-    await only(["tms"], true, "tempo constant: constant interval");
-    await only(["tw", "ts"], false, "tempo constant: window and scale");
-    await page.selectOption('select[data-k="tk"]', "none");
-    await only(["tw", "ts", "tms"], false, "tempo none: no tempo settings");
-
-    await page.check('input[data-k="fold"]');
-    await only(["ramp"], false, "fold on: the held speed-up toggle");
-    await only(
-      ["delay", "w1", "cap1", "h0"],
-      true,
-      "fold on: the held settings and folded height",
+    await page.selectOption('select[data-k="pacing"]', "planned");
+    await only(["ts", "tw", "ta", "tb"], true, "planned: the plan");
+    await only(["pace", "pace.cards"], false, "planned: the pace");
+    await page.selectOption('select[data-k="pacing"]', "steady");
+    await only(["pace"], true, "steady beat: the pace slider");
+    await only(["ts", "pace.cards"], false, "steady beat: the plan");
+    const beat = await page.evaluate(
+      () =>
+        document.querySelector('[data-key="pace"] .set-note')?.textContent ??
+        "",
     );
-    await page.uncheck('input[data-k="fold"]');
-    await only(["ramp"], true, "fold off: the held speed-up toggle returns");
-    await only(
-      ["delay", "w1", "cap1", "h0"],
-      false,
-      "fold off: the held settings and folded height",
+    await slide(page, "pace", "8");
+    const beat8 = await page.evaluate(() => ({
+      note: document.querySelector('[data-key="pace"] .set-note').textContent,
+      hash: location.hash,
+    }));
+    expect(
+      /^A beat of \d+ ms/.test(beat) &&
+        beat8.note.startsWith("A beat of 125 ms") &&
+        beat8.hash.includes("pace=8"),
+      `the pace in cards/s writes the beat in ms, shown beside the measured pace (${JSON.stringify({ beat, beat8 })})`,
     );
 
-    // Every combination of tempo, held speed-up, fold and loose clearing, driven through the controls. Loose
-    // clearing hides while fold is on, so the two are never on together.
+    // Every combination of pacing and while held, driven through the controls.
     const wrong = [];
     let states = 0;
-    for (const tk of ["none", "constant", "lookahead"])
-      for (const ramp of [false, true])
-        for (const [fold, loose] of [
-          [false, false],
-          [true, false],
-          [false, true],
-        ]) {
-          states++;
-          await page.setChecked('input[data-k="fold"]', false);
-          await page.setChecked('input[data-k="loose"]', false);
-          await page.setChecked('input[data-k="ramp"]', ramp);
-          await page.selectOption('select[data-k="tk"]', tk);
-          await page.setChecked('input[data-k="fold"]', fold);
-          if (loose) await page.setChecked('input[data-k="loose"]', true);
-          const want = Object.keys(SHOWN).filter((k) =>
-            SHOWN[k]({ tk, ramp, fold, loose }),
+    for (const pacing of ["cards", "steady", "planned"])
+      for (const held of ["none", "ramp", "fold", "loose"]) {
+        states++;
+        await page.selectOption('select[data-k="pacing"]', pacing);
+        await page.check(`input[data-k="held"][value="${held}"]`);
+        const want = Object.keys(SHOWN).filter((k) =>
+          SHOWN[k]({ pacing, held }),
+        );
+        if (pacing === "cards") want.push("pace.cards");
+        const now = (await shownKeys(page)).filter(
+          (k) => k in SHOWN || k === "pace.cards",
+        );
+        const off = want.filter((k) => !now.includes(k));
+        const extra = now.filter((k) => !want.includes(k));
+        if (off.length || extra.length)
+          wrong.push(
+            `pacing ${pacing}, held ${held}: ${[off.length && `missing ${off}`, extra.length && `extra ${extra}`].filter(Boolean).join(", ")}`,
           );
-          const now = (await shownKeys(page)).filter((k) => k in SHOWN);
-          const off = want.filter((k) => !now.includes(k));
-          const extra = now.filter((k) => !want.includes(k));
-          if (off.length || extra.length)
-            wrong.push(
-              `tempo ${tk}, ramp ${ramp}, fold ${fold}, loose ${loose}: ${[off.length && `missing ${off}`, extra.length && `extra ${extra}`].filter(Boolean).join(", ")}`,
-            );
-        }
+      }
     expect(
       wrong.length === 0,
-      `the inspector shows what src/controls.ts says in all ${states} tempo, ramp, fold and loose states${wrong.length ? `: ${wrong.join("; ")}` : ""}`,
+      `the inspector shows what src/controls.ts says in all ${states} pacing and while-held states${wrong.length ? `: ${wrong.join("; ")}` : ""}`,
     );
 
     // A preset button clears every override.
     await load(page, NATURAL.hash);
     const dflt = await page.$eval('input[data-k="cap"]', (e) => e.value);
-    await page.$eval('input[data-k="cap"]', (e) => {
-      e.value = "20";
-      e.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await page.selectOption('select[data-k="tk"]', "constant");
-    await page.check('input[data-k="fold"]');
+    await slide(page, "cap", "1200");
+    await page.selectOption('select[data-k="pacing"]', "steady");
+    await page.check('input[data-k="held"][value="fold"]');
     await page.click('button[data-act="path"]');
-    await page.$eval('input[data-k="sway"]', (e) => {
-      e.value = "40";
-      e.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    await slide(page, "sway", "40");
     await page.uncheck('input[data-k="labels"]');
     await page.click('button[data-act="p:natural"]');
     const cleared = await page.evaluate(() => ({
       cap: document.querySelector('input[data-k="cap"]').value,
-      tk: document.querySelector('select[data-k="tk"]').value,
-      fold: document.querySelector('input[data-k="fold"]').checked,
+      pacing: document.querySelector('select[data-k="pacing"]').value,
+      held: document.querySelector('input[data-k="held"]:checked')?.value,
       sway: document.querySelector('input[data-k="sway"]').value,
       labels: document.querySelector('input[data-k="labels"]').checked,
       keys: [...new URLSearchParams(location.hash.slice(1)).keys()],
     }));
     expect(
       cleared.cap === dflt &&
-        cleared.tk === "none" &&
-        !cleared.fold &&
+        cleared.pacing === "cards" &&
+        cleared.held === "none" &&
         !cleared.keys.some((k) => k in SHOWN) &&
         cleared.sway === "40" &&
         !cleared.labels,
       `a preset button clears every model setting override and keeps the path's and the page's (${JSON.stringify(cleared)})`,
     );
 
-    // The cascade has its own settings: the ramp's hide with the ramp, and each model's hide under the other.
+    // The cascade shares the drum's keys where the two models share a knob, and offers two while-held choices.
     const CASCADE_KEYS = Object.keys(CASCADE_SHOWN);
     await load(page, CASCADE.hash);
     await only(CASCADE_KEYS, true, "cascade: its settings");
-    await only(Object.keys(SHOWN), false, "cascade: the drum's settings");
+    await only(DRUM_ONLY, false, "cascade: the drum's own settings");
+    const options = await page.$$eval('[data-key="held"] label', (ls) =>
+      ls.filter((l) => !l.hidden).map((l) => l.dataset.option),
+    );
+    expect(
+      options.join(",") === "none,ramp",
+      `the cascade's while held offers same as taps and speed up (${options.join(", ")})`,
+    );
+    // A shared key carries across the model switch: a top speed set on the drum is the cascade's too.
+    await load(page, "#v=drum&preset=natural&cap=1800&w0=4");
+    await page.click('button[data-act="v:cascade"]');
+    const carried = await page.evaluate(() => ({
+      cap: document.querySelector('input[data-k="cap"]').value,
+      w0: document.querySelector('input[data-k="w0"]').value,
+    }));
+    expect(
+      carried.cap === "1800" && carried.w0 === "4",
+      `a setting both models share keeps its value across the model switch (${JSON.stringify(carried)})`,
+    );
+    // The cascade's pace is written as a spacing at the train's speed, and keeps its cards/s when that changes.
+    await load(page, `${CASCADE.hash}&pace=10`);
+    const spacing = () =>
+      page.$eval('[data-key="pace"] .set-note', (n) => n.textContent);
+    const at10 = await spacing();
+    await slide(page, "cap1", "2160");
+    const faster = {
+      note: await spacing(),
+      pace: await page.$eval('input[data-k="pace"]', (e) => e.value),
+    };
+    expect(
+      at10.startsWith("180 px between cards at the held top speed") &&
+        faster.note.startsWith("216 px between cards") &&
+        faster.pace === "10",
+      `the cascade's pace writes the spacing at the held top speed and keeps its cards/s (${JSON.stringify({ at10, faster })})`,
+    );
     await only(
       pathKeys("cascade"),
       true,
@@ -1536,9 +1567,15 @@ async function settingsVisibility(browser) {
       false,
       "cascade under reduced motion, without Bezier path: the path's settings",
     );
+    await only(
+      ["park", "fade", "shade"],
+      true,
+      "cascade under reduced motion: the stage settings, which still cut the stage",
+    );
+    await load(page, `${NATURAL.hash}&reduced=1`);
     expect(
-      await page.$eval('[data-module="path"]', (m) => m.hidden),
-      "under reduced motion without Bezier path the Path module hides whole",
+      await page.$eval('[data-module="route"]', (m) => m.hidden),
+      "the drum under reduced motion without Bezier path hides Route whole",
     );
     await load(page, `${CASCADE.hash}&reduced=1&path=1`);
     await only(
@@ -1559,6 +1596,17 @@ async function settingsVisibility(browser) {
       "no sway on either leg: the settings that shape the sway",
     );
     await only(["sway", "swayb"], true, "no sway: the sway sliders stay");
+    // Route's more line names the settings it folds and counts the changed ones.
+    await load(page, `${NATURAL.hash}&peak=0.3`);
+    const more = await page.$eval(
+      "details.more .more-text",
+      (t) => t.textContent,
+    );
+    expect(
+      more ===
+        "4 more: sway behind, widest point, widest point behind, column crossing. 1 changed",
+      `Route's more line names its settings and counts the changed ones (${more})`,
+    );
 
     // The page's own settings: each fade with its motion setting, and the overlay's parts with the overlay.
     const viewCases = [
@@ -1584,7 +1632,7 @@ async function settingsVisibility(browser) {
     await only(
       CASCADE_KEYS.filter((k) => !CASCADE_SHOWN[k]({ ramp: false })),
       false,
-      "no held ramp: the settings the ramp shapes",
+      "no held ramp: the settings the speed-up shapes",
     );
     await only(
       CASCADE_KEYS.filter((k) => CASCADE_SHOWN[k]({ ramp: false })),
@@ -1592,7 +1640,11 @@ async function settingsVisibility(browser) {
       "no held ramp: the other cascade settings",
     );
     await load(page, NATURAL.hash);
-    await only(CASCADE_KEYS, false, "natural: the cascade's settings");
+    await only(
+      CASCADE_KEYS.filter((k) => !(k in SHOWN)),
+      false,
+      "natural: the cascade's own settings",
+    );
 
     // The edge fade stays below the pile: its slider stops at park minus the tallest card and 16 px.
     await load(page, "#v=cascade&park=400&fade=999");
@@ -1617,16 +1669,29 @@ async function settingsVisibility(browser) {
       `the cascade's stage is cut at LEAD + park and its fade is capped at park − 346 (${JSON.stringify(stage)})`,
     );
 
-    // Product mode has no model settings: only the path's and the page's.
+    // The product shows the drum's Taps and Held keys at their shipped values, read only, and the path's and the
+    // page's settings.
     await load(page, `${PRODUCT.hash}&path=1`);
     const productKeys = await shownKeys(page);
+    const shipped = { pacing: "steady", held: "ramp" };
     const productWant = [
+      ...["w0", "cap", "held", "pacing", "pace", "delay", "w1", "cap1"].filter(
+        (k) => SHOWN[k](shipped),
+      ),
       ...pathKeys("product", { overlay: true }),
       ...viewKeys({ overlay: true }),
     ];
+    const readonly = await page.evaluate(() =>
+      [
+        ...document.querySelectorAll(
+          '[data-key="cap"] input, [data-key="held"] input',
+        ),
+      ].every((i) => i.disabled),
+    );
+    const capValue = await page.$eval('input[data-k="cap"]', (e) => e.value);
     expect(
-      sameSet(productKeys, productWant),
-      `product mode with Bezier path shows only the path's and the page's settings (${productKeys.join(", ")})`,
+      sameSet(productKeys, productWant) && readonly && capValue === "1020",
+      `the product shows the shipped Taps and Held keys read only, and the path's and the page's settings (${productKeys.join(", ")}; cap ${capValue})`,
     );
   });
 }
@@ -1641,12 +1706,19 @@ const modulesShown = (page) =>
       .filter((m) => !m.hidden)
       .map((m) => m.dataset.module),
   }));
-const ALWAYS = ["model", "playback", "measured", "path", "overlay", "about"];
-const MODEL_MODULES = {
-  product: [],
-  drum: ["taps", "pace", "held"],
-  cascade: ["taps", "pace", "stage"],
-};
+const ALWAYS = [
+  "run",
+  "drive",
+  "measured",
+  "taps",
+  "held",
+  "route",
+  "page",
+  "overlay",
+  "about",
+];
+/** The modules a model adds: only the drum has Finish settings. */
+const MODEL_MODULES = { product: [], drum: ["finish"], cascade: [] };
 
 async function inspector(browser) {
   // Anchored to the right edge at full height, with the stage taking the rest of the width and the column
@@ -1693,6 +1765,25 @@ async function inspector(browser) {
       size,
     );
 
+  await withPage(browser, "default folds", async (page) => {
+    // Finish, Page and Overlay start folded on a page that has never folded anything, as does Route's more line.
+    await page.goto(`${PAGE}${NATURAL.hash}`);
+    await page.waitForFunction(() => window.__sim);
+    const startFolded = await page.evaluate(() =>
+      ["finish", "page", "overlay", "taps", "held", "route"].map((id) => [
+        id,
+        document.querySelector(`[data-module="${id}"]`).open,
+      ]),
+    );
+    const moreOpen = await page.$eval("details.more", (d) => d.open);
+    expect(
+      JSON.stringify(startFolded) ===
+        '[["finish",false],["page",false],["overlay",false],["taps",true],["held",true],["route",true]]' &&
+        !moreOpen,
+      `Finish, Page and Overlay start folded, the knobs' modules open, and Route's more line folded (${JSON.stringify({ startFolded, moreOpen })})`,
+    );
+  });
+
   await withPage(browser, "modules", async (page) => {
     // Each model shows its own modules and hides those with nothing to show under it.
     for (const mode of ["product", "drum", "cascade"]) {
@@ -1705,10 +1796,11 @@ async function inspector(browser) {
       );
     }
 
-    // Under reduced motion no card moves: the modules that shape motion hide, and the cascade's Stage stays.
+    // Under reduced motion no card moves: the modules that shape motion hide, and the cascade's Route stays
+    // for the stage settings that still cut and fade the stage.
     for (const [mode, want] of [
-      ["drum", ["model", "playback", "overlay", "about"]],
-      ["cascade", ["model", "playback", "stage", "overlay", "about"]],
+      ["drum", ["run", "drive", "page", "overlay", "about"]],
+      ["cascade", ["run", "drive", "route", "page", "overlay", "about"]],
     ]) {
       await load(page, `#v=${mode}&reduced=1`);
       const now = await modulesShown(page);
@@ -1773,37 +1865,37 @@ async function hashHygiene(browser) {
       `the hash drops keys the page does not know once it settles (still has ${stray.join(", ") || "none"})`,
     );
 
-    await load(page, "#v=drum&cap=99");
+    await load(page, "#v=drum&cap=99999");
     const cap = await page.$eval('input[data-k="cap"]', (e) => ({
       value: Number(e.value),
       max: Number(e.max),
     }));
     expect(
       cap.value === cap.max && own.length === 0,
-      `cap=99 clamps the slider to its maximum without an error (${JSON.stringify(cap)})`,
+      `cap=99999 clamps the slider to its maximum without an error (${JSON.stringify(cap)})`,
     );
 
     // Values that name nothing give the defaults.
-    await load(page, "#v=bogus&speed=3&tk=bogus&fold=2&cap=abc&w0=");
-    const fallback = await page.evaluate(() => ({
-      model: document.querySelector('button[data-act^="v:"].on')?.dataset.act,
-      speed: document.querySelector('button[data-act^="s:"].on')?.dataset.act,
-      tk: document.querySelector('select[data-k="tk"]').value,
-      fold: document.querySelector('input[data-k="fold"]').checked,
-      cap: document.querySelector('input[data-k="cap"]').value,
-    }));
-    const defaults = await load(page, "#v=drum").then(() =>
-      page.evaluate(() => ({
-        tk: document.querySelector('select[data-k="tk"]').value,
-        cap: document.querySelector('input[data-k="cap"]').value,
-      })),
+    await load(
+      page,
+      "#v=bogus&speed=3&pacing=bogus&held=bogus&cards=bogus&cap=abc&w0=",
     );
+    const read = () =>
+      page.evaluate(() => ({
+        model: document.querySelector('button[data-act^="v:"].on')?.dataset.act,
+        speed: document.querySelector('button[data-act^="s:"].on')?.dataset.act,
+        cards: document.querySelector('button[data-act^="c:"].on')?.dataset.act,
+        pacing: document.querySelector('select[data-k="pacing"]').value,
+        held: document.querySelector('input[data-k="held"]:checked')?.value,
+        cap: document.querySelector('input[data-k="cap"]').value,
+      }));
+    const fallback = await read();
+    const defaults = await load(page, "#v=drum").then(read);
     expect(
       fallback.model === "v:drum" &&
         fallback.speed === "s:1" &&
-        !fallback.fold &&
-        fallback.tk === defaults.tk &&
-        fallback.cap === defaults.cap &&
+        fallback.cards === "c:lab" &&
+        JSON.stringify(fallback) === JSON.stringify(defaults) &&
         own.length === 0,
       `values that name nothing fall back to the defaults (${JSON.stringify(fallback)})`,
     );

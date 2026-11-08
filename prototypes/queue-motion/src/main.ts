@@ -18,6 +18,7 @@ import {
   DECKS,
   DECK_SIZE,
   DRUM_PRESETS,
+  FOLDED,
   MODULES,
   MODES,
   PATH_KEYS,
@@ -30,7 +31,9 @@ import {
   VIEW_SETTINGS,
   cascadeCfg,
   drumCfg,
+  digitsOf,
   maxOf,
+  measuredPace,
   modelCfg,
   parseOpt,
   pathCfg,
@@ -40,6 +43,7 @@ import {
   type Cfg,
   type Mode,
   type ModuleId,
+  type NoteContext,
   type Opt,
   type PathCfg,
   type Setting,
@@ -90,7 +94,7 @@ const faceHTML = (it: any) => {
       ? `<div class="row"><h3>Review</h3><ul>${it.review.map((d: string, n: number) => `<li><b>${n + 1}.</b><span>${d}</span></li>`).join("")}</ul></div>`
       : "",
   ].join("");
-  return `<p class="st">${it.l}<span>${it.a} · #${it.n}</span></p><p class="goal">${it.g}</p>${rows ? `<div class="rows">${rows}</div>` : ""}`;
+  return `<p class="st">${it.l}<span>${it.a} · #${it.n}</span></p><p class="goal">${it.g}</p>${rows ? `<div class="rows">${rows}</div>` : ""}`; // slop-ok: 2 the queue card's own face, drawn as the product draws it
 };
 
 /**
@@ -712,6 +716,8 @@ function syncMeasured() {
   setText($("#m-last"), meter.lastText());
   setText($("#m-tap"), meter.tapText());
   setText($("#m-checker"), meter.checkerText(opt.v === "cascade"));
+  setText($("#m-pace-cards"), measuredPace(noteContext()));
+  syncNotes();
 }
 
 function showHead(n: number, animate: boolean) {
@@ -860,7 +866,11 @@ function build(mode: Mode, cur = sim ? sim.cur : 0) {
 // The inspector is drawn once from the lists in controls.ts and updated in place, so a control that is hovered
 // or focused is never replaced under the pointer. Every control carries `data-help`, the id of its tooltip.
 // Each module is a <details>; a module with nothing to show under the current configuration is hidden whole.
-const round = (v: number) => Math.round(v * 1000) / 1000;
+/** A slider's value as the inspector shows it: to as many decimals as its step has. */
+const shown = (s: { step: number }, v: number) => {
+  const k = 10 ** digitsOf(s.step);
+  return Math.round(v * k) / k;
+};
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 const labelOf = (id: string) => CONTROLS.find((c) => c.id === id)!.label;
 const button = (help: string, act: string, text: string, mode = "") =>
@@ -871,34 +881,60 @@ const switchButton = (help: string, act: string) =>
 const row = (label: string, body: string, attrs = "") =>
   `<div class="ins-row" ${attrs}><span class="row-label">${esc(label)}</span>${body}</div>`;
 
-const ALL_SETTINGS: readonly Setting<any, unknown>[] = [
-  ...SETTINGS,
-  ...CASCADE_SETTINGS,
-  ...PATH_SETTINGS,
-  ...VIEW_SETTINGS,
-];
+/**
+ * Every setting the inspector draws, once per key: a setting both models share is one row, drawn from the drum's
+ * entry and synced from the running model's (its range, options and value).
+ */
+const ALL_SETTINGS: readonly Setting<any, unknown>[] = (() => {
+  const out: Setting<any, unknown>[] = [...SETTINGS];
+  // A cascade setting the drum lacks goes after the cascade setting before it, so each model reads in its order.
+  CASCADE_SETTINGS.forEach((s, i) => {
+    if (out.some((x) => x.key === s.key)) return;
+    const prev = CASCADE_SETTINGS[i - 1];
+    const at = prev ? out.findIndex((x) => x.key === prev.key) : -1;
+    out.splice(at < 0 ? out.length : at + 1, 0, s);
+  });
+  return [...out, ...PATH_SETTINGS, ...VIEW_SETTINGS];
+})();
 
 /** The button that puts one setting back to its preset's or default value; it shows while the value differs. */
 const resetButton = (s: Setting<any, unknown>) =>
   `<button type="button" class="reset" data-help="reset" data-act="reset:${s.key}" aria-label="Reset ${esc(s.label)}" hidden>reset</button>`;
+const optionLabel = (
+  s: Extract<Setting<any, unknown>, { kind: "select" }>,
+  o: string,
+) => esc(s.labels?.[o] ?? o);
 
 /**
  * One setting: its name, its value (a slider's value is a text field, so a value can be typed), the reset
- * button, and the control. A limit that depends on another setting is set when the settings are synced.
+ * button, the control, and a note line. A choice drawn as radio buttons lists every option any model offers;
+ * the sync hides those the running model lacks. A limit that depends on another setting is set when the
+ * settings are synced.
  */
 const settingHtml = (s: Setting<any, unknown>) => {
   const host = `data-help="setting.${s.key}" data-key="${s.key}"`;
   const id = `set-${s.key}`;
+  const note = `<p class="set-note" hidden></p>`;
   if (s.kind === "range")
-    return `<div class="set set-range" ${host}><label class="set-name" for="${id}">${esc(s.label)}</label><span class="set-value"><input type="text" class="num" data-v="${s.key}" inputmode="decimal" autocomplete="off" spellcheck="false" aria-label="${esc(s.label)}, value">${s.unit ? `<span class="unit">${esc(s.unit)}</span>` : ""}</span>${resetButton(s)}<input type="range" id="${id}" data-k="${s.key}" min="${s.min}"${typeof s.max === "number" ? ` max="${s.max}"` : ""} step="${s.step}"></div>`;
+    return `<div class="set set-range" ${host}><label class="set-name" for="${id}">${esc(s.label)}</label><span class="set-value"><input type="text" class="num" data-v="${s.key}" inputmode="decimal" autocomplete="off" spellcheck="false" aria-label="${esc(s.label)}, value">${s.unit ? `<span class="unit">${esc(s.unit)}</span>` : ""}</span>${resetButton(s)}<input type="range" id="${id}" data-k="${s.key}" min="${s.min}"${typeof s.max === "number" ? ` max="${s.max}"` : ""} step="${s.step}">${note}</div>`;
   if (s.kind === "toggle")
     return `<div class="set set-toggle" ${host}><label><input type="checkbox" data-k="${s.key}"><span class="set-name">${esc(s.label)}</span></label>${resetButton(s)}</div>`;
-  return `<div class="set set-select" ${host}><label class="set-name" for="${id}">${esc(s.label)}</label><select id="${id}" data-k="${s.key}">${s.options.map((o) => `<option>${o}</option>`).join("")}</select>${resetButton(s)}</div>`;
+  if (s.radio) {
+    const options = ALL_SETTINGS.filter((x) => x.key === s.key)
+      .concat(CASCADE_SETTINGS.filter((x) => x.key === s.key))
+      .flatMap((x) => (x.kind === "select" ? x.options : []))
+      .filter((o, i, all) => all.indexOf(o) === i);
+    return `<fieldset class="set set-radio" ${host}><legend class="set-name">${esc(s.label)}</legend>${resetButton(s)}${options.map((o) => `<label data-option="${o}"><input type="radio" name="${id}" value="${o}" data-k="${s.key}">${optionLabel(s, o)}</label>`).join("")}</fieldset>`;
+  }
+  return `<div class="set set-select" ${host}><label class="set-name" for="${id}">${esc(s.label)}</label><select id="${id}" data-k="${s.key}">${s.options.map((o) => `<option value="${o}">${optionLabel(s, o)}</option>`).join("")}</select>${resetButton(s)}${note}</div>`;
 };
-const settingsOf = (group: ModuleId) =>
-  ALL_SETTINGS.filter((s) => s.group === group)
+const settingsOf = (group: ModuleId, more = false) =>
+  ALL_SETTINGS.filter((s) => s.group === group && !!s.more === more)
     .map(settingHtml)
     .join("");
+/** A module's `more` line: a fold inside the module for the settings looked at once. */
+const moreOf = (group: ModuleId) =>
+  `<details class="more" data-fold="${group}.more"${startsOpen(`${group}.more`) ? " open" : ""}><summary><span class="more-text"></span></summary><div class="more-body">${settingsOf(group, true)}</div></details>`;
 
 /** One line of the Measured module: a label and the text `syncMeasured` writes. */
 const measuredLine = (id: string, label: string) =>
@@ -906,7 +942,7 @@ const measuredLine = (id: string, label: string) =>
 
 /** The body of each module: its buttons, then its settings. */
 const BODIES: Record<ModuleId, () => string> = {
-  model: () =>
+  run: () =>
     `<div class="seg seg-3" role="group" aria-label="Model">${MODES.map((m) => button(`model.${m.id}`, `v:${m.id}`, m.label)).join("")}</div>` +
     `<div class="field" id="presets"><span class="row-label">Preset</span><div class="chips">${PRESET_NAMES.map(
       (p) => button(`preset.${p}`, `p:${p}`, p, "drum"),
@@ -918,7 +954,7 @@ const BODIES: Record<ModuleId, () => string> = {
     `<div class="actions" id="actions">${button("preset.revert", "revert", labelOf("preset.revert"))}${button("preset.save", "save", labelOf("preset.save"))}${button("copy.cfg", "copycfg", labelOf("copy.cfg"))}</div>` +
     `<div class="save-row" id="save-row" hidden><input type="text" id="preset-name" maxlength="40" placeholder="Name" aria-label="Saved preset name" autocomplete="off" spellcheck="false"></div>` +
     `<p class="save-note" id="save-note" role="status"></p>`,
-  playback: () =>
+  drive: () =>
     row(
       "Speed",
       `<div class="seg" role="group" aria-label="Speed">${SPEEDS.map((s) => button("speed", `s:${s.id}`, s.label)).join("")}</div>`,
@@ -936,8 +972,7 @@ const BODIES: Record<ModuleId, () => string> = {
       "Cards",
       `<div class="seg seg-3" role="group" aria-label="Cards">${DECKS.map((d) => button("cards", `c:${d.id}`, d.label)).join("")}</div>`,
     ) +
-    switchButton("reduced", "reduced") +
-    settingsOf("playback"),
+    switchButton("reduced", "reduced"),
   measured: () =>
     `<div id="lam" class="readout" data-help="held" tabindex="0" hidden><span class="row-label">held</span><span class="meter"><i></i></span><output>0.00</output></div>` +
     measuredLine("pace", "pace") +
@@ -945,16 +980,24 @@ const BODIES: Record<ModuleId, () => string> = {
     measuredLine("tap", "tap") +
     measuredLine("checker", "checker"),
   taps: () => settingsOf("taps"),
-  pace: () => settingsOf("pace"),
-  held: () => settingsOf("held"),
-  stage: () => settingsOf("stage"),
-  path: () => settingsOf("path"),
+  // While the presses follow the cards nothing sets the drum's pace, so a readout takes the slider's place.
+  held: () =>
+    settingsOf("held").replace(
+      '<div class="set set-range" data-help="setting.pace"',
+      `<div class="readout measure" id="pace-cards" data-help="pace.cards" tabindex="0" hidden><span class="row-label">pace</span><span class="m-text" id="m-pace-cards"></span></div><div class="set set-range" data-help="setting.pace"`,
+    ),
+  route: () => settingsOf("route") + moreOf("route"),
+  finish: () => settingsOf("finish"),
+  page: () => settingsOf("page"),
   overlay: () => switchButton("path", "path") + settingsOf("overlay"),
   about: () =>
     `<div class="panel" id="about"></div><div class="panel" id="about-cascade" hidden></div>`,
 };
 
-/** Which modules the reader has collapsed or opened, kept across visits; the hash holds only the motion's state. */
+/**
+ * Which modules, and `more` lines inside them, the reader has collapsed or opened, kept across visits; the hash
+ * holds only the motion's state.
+ */
 const FOLDS_KEY = "queue-motion-lab.modules";
 const folds: Record<string, boolean> = (() => {
   try {
@@ -963,8 +1006,10 @@ const folds: Record<string, boolean> = (() => {
     return {};
   }
 })();
-/** Every module starts open but the About panel, which is long. */
-const startsOpen = (id: ModuleId) => folds[id] ?? id !== "about";
+/** A module starts open unless it is one of `FOLDED`; a `more` line starts folded. */
+const startsOpen = (id: string) =>
+  folds[id] ??
+  (!(FOLDED as readonly string[]).includes(id) && !id.endsWith(".more"));
 
 function renderInspector() {
   $("#modules").innerHTML = MODULES.map((m) => {
@@ -979,7 +1024,7 @@ function renderInspector() {
 
 // ---- saved presets (saved.ts) ------------------------------------------------------------------------
 
-/** The saved presets the Model module shows now, in chip order: a chip's `data-act` names its index here. */
+/** The saved presets the Run module shows now, in chip order: a chip's `data-act` names its index here. */
 let shownSaved: SavedPreset[] = [];
 
 /** The hash keys a preset button replaces: every model setting, and with a saved preset the path's and the page's. */
@@ -1070,9 +1115,16 @@ const bareOpt = (): Opt => ({
   ...(opt.reduced ? { reduced: opt.reduced } : {}),
 });
 
+/** The drum's configuration as the product runs it: `shipped`, which the product engine imports as `QUEUE_CFG`. */
+const SHIPPED: Cfg = drumCfg({ preset: "shipped" });
+/** The settings the product shows, read only: the drum's Taps and Held keys, at their shipped values. */
+const PRODUCT_SETTINGS = SETTINGS.filter(
+  (s) => s.group === "taps" || s.group === "held",
+);
+
 /**
- * The running model's settings beside their values now and with nothing overridden (the preset's), for every
- * model setting the state changes; the product has none.
+ * The running model's settings beside their values now and with nothing overridden (the preset's). The product
+ * has no settings of its own; it lists the drum's Taps and Held keys at their shipped values.
  */
 function modelLists(): [readonly Setting<any, unknown>[], unknown, unknown][] {
   const bare = bareOpt();
@@ -1080,7 +1132,7 @@ function modelLists(): [readonly Setting<any, unknown>[], unknown, unknown][] {
     ? [[SETTINGS, cfg, drumCfg(bare)]]
     : opt.v === "cascade"
       ? [[CASCADE_SETTINGS, ccfg, cascadeCfg(bare)]]
-      : [];
+      : [[PRODUCT_SETTINGS, SHIPPED, SHIPPED]];
 }
 
 /** The labels of the running model's settings whose value differs from the preset's. */
@@ -1155,32 +1207,73 @@ function syncButtons() {
   $("#lam").hidden = !showsHeld();
 }
 
+/** What a setting's note may quote from the page now. */
+const noteContext = (): NoteContext => ({
+  hold: meter.hold,
+  tap: meter.tap,
+  shortest: heights.length ? Math.min(...heights.filter((h) => h > 0)) : 0,
+});
+/** The settings whose notes show now, with the configuration they read; `syncNotes` rewrites them each frame. */
+let notes: { host: HTMLElement; s: Setting<any, unknown>; c: unknown }[] = [];
+function syncNotes() {
+  const n = noteContext();
+  for (const { host, s, c } of notes) {
+    const text = s.note?.(c, n) ?? "";
+    const el = host.querySelector<HTMLElement>(".set-note")!;
+    setText(el, text);
+    el.hidden = !text;
+  }
+}
+
 /**
  * Shows one list's settings that change something under configuration `c`, with their current values; a value
- * that differs from `base` (the preset's, or the default) is marked changed and offers its reset.
+ * that differs from `base` (the preset's, or the default) is marked changed and offers its reset. `readonly`
+ * shows the values without letting them change, as the product does.
  */
 function syncList<C>(
   list: readonly Setting<C, unknown>[],
   c: C,
   base: C,
-  active: boolean,
+  active: (s: Setting<C, unknown>) => boolean,
+  readonly = false,
 ) {
   const root = $("#inspector");
   for (const s of list) {
     const host = root.querySelector<HTMLElement>(`[data-key="${s.key}"]`)!;
-    host.hidden = !active || !s.shown(c);
-    const changed = valueText(s, c) !== valueText(s, base);
+    host.hidden = !active(s) || !s.shown(c);
+    if (host.hidden) continue;
+    const changed = !readonly && valueText(s, c) !== valueText(s, base);
     host.classList.toggle("changed", changed);
+    host.classList.toggle("readonly", readonly);
     host.querySelector<HTMLElement>(".reset")!.hidden = !changed;
-    const input = host.querySelector<HTMLInputElement | HTMLSelectElement>(
-      "[data-k]",
-    )!;
-    if (s.kind === "toggle") (input as HTMLInputElement).checked = s.read(c);
-    else if (s.kind === "select") input.value = s.read(c);
-    else {
+    for (const el of host.querySelectorAll<HTMLInputElement>("input, select"))
+      el.disabled = readonly;
+    const note = host.querySelector<HTMLElement>(".set-note");
+    if (s.note && note) notes.push({ host, s, c });
+    else if (note) {
+      // A setting with no note of its own shows the sweeps' verdict from its tooltip, if it has one.
+      const verdict = HELP[`setting.${s.key}`]?.verdict ?? "";
+      setText(note, verdict);
+      note.hidden = !verdict;
+    }
+    if (s.kind === "toggle") {
+      host.querySelector<HTMLInputElement>("[data-k]")!.checked = s.read(c);
+    } else if (s.kind === "select") {
+      const v = s.read(c);
+      if (s.radio)
+        for (const r of host.querySelectorAll<HTMLInputElement>("[data-k]")) {
+          r.checked = r.value === v;
+          r.closest<HTMLElement>("label")!.hidden = !s.options.includes(
+            r.value,
+          );
+        }
+      else host.querySelector<HTMLSelectElement>("[data-k]")!.value = v;
+    } else {
+      const input = host.querySelector<HTMLInputElement>("[data-k]")!;
       const max = maxOf(s, c);
-      (input as HTMLInputElement).max = String(max);
-      const v = round(s.read(c));
+      input.min = String(s.min);
+      input.max = String(max);
+      const v = shown(s, s.read(c));
       if (Number(input.value) !== v) input.value = String(v);
       const typed = host.querySelector<HTMLInputElement>(".num")!;
       if (document.activeElement !== typed) typed.value = String(v);
@@ -1194,46 +1287,68 @@ function syncList<C>(
 }
 
 /** The modules that hold settings, and so hide when none of them shows. */
-const SETTING_MODULES = ["taps", "pace", "held", "stage", "path"] as const;
+const SETTING_MODULES = ["taps", "held", "route", "finish", "page"] as const;
+/** Every model setting key, the drum's and the cascade's. */
+const MODEL_KEYS = new Set(SETTING_KEYS);
 
 /**
- * Shows the running model's settings, the Path settings while the path shows on screen, and the page's own,
- * each only while it changes something; then hides every settings module left with nothing to show, and
- * writes on each heading how many of its shown settings are changed. The product has no model settings of its
- * own. Under reduced motion no card moves, so the settings that shape motion change nothing and hide, and so
- * does the Measured module; the cascade's Stage settings still cut and fade the stage, so they stay.
+ * Shows the running model's settings, the path's while it shows on screen, and the page's own, each only while
+ * it changes something; then hides every settings module left with nothing to show, and writes on each folded
+ * heading and `more` line how many of its shown settings are changed. A key both models share is one row,
+ * synced from the running model's entry. The product shows the drum's Taps and Held keys at their shipped
+ * values, read only. Under reduced motion no card moves, so the settings that shape motion change nothing and
+ * hide, and so does the Measured module; the cascade's stage settings still cut and fade the stage, so they
+ * stay.
  */
 function syncSettings() {
   const moving = !reduced();
   const bare = bareOpt();
-  const cbase = cascadeCfg(bare);
-  syncList(SETTINGS, cfg, drumCfg(bare), opt.v === "drum" && moving);
-  syncList(
-    CASCADE_SETTINGS.filter((s) => s.group !== "stage"),
-    ccfg,
-    cbase,
-    opt.v === "cascade" && moving,
+  notes = [];
+  const root = $("#inspector");
+  for (const key of MODEL_KEYS)
+    root.querySelector<HTMLElement>(`[data-key="${key}"]`)!.hidden = true;
+  const live = (s: Setting<any, unknown>) => moving || !!s.still;
+  if (opt.v === "drum") syncList(SETTINGS, cfg, drumCfg(bare), live);
+  else if (opt.v === "cascade")
+    syncList(CASCADE_SETTINGS, ccfg, cascadeCfg(bare), live);
+  else syncList(PRODUCT_SETTINGS, SHIPPED, SHIPPED, () => moving, true);
+  syncList(PATH_SETTINGS, pcfg, pathCfg(bare, reduced()), () => true);
+  syncList(VIEW_SETTINGS, vcfg, viewCfg(bare, reduced()), () => true);
+  // The drum's pace has no slider while the presses follow the cards: the readout shows what was measured.
+  $("#pace-cards").hidden = !(
+    moving &&
+    (opt.v === "drum" || opt.v === "product") &&
+    (opt.v === "product" ? SHIPPED : cfg).tempo.kind === "none"
   );
-  syncList(
-    CASCADE_SETTINGS.filter((s) => s.group === "stage"),
-    ccfg,
-    cbase,
-    opt.v === "cascade",
-  );
-  syncList(PATH_SETTINGS, pcfg, pathCfg(bare, reduced()), true);
-  syncList(VIEW_SETTINGS, vcfg, viewCfg(bare, reduced()), true);
   for (const id of SETTING_MODULES) {
     const mod = $(`[data-module="${id}"]`);
     mod.hidden = $$(`[data-module="${id}"] [data-key]`).every((l) => l.hidden);
   }
   $('[data-module="measured"]').hidden = !moving;
+  const changedIn = (el: Element) =>
+    [...el.querySelectorAll<HTMLElement>("[data-key].changed")].filter(
+      (h) => !h.hidden,
+    ).length;
   for (const mod of $$("[data-module]")) {
-    const n = [
-      ...mod.querySelectorAll<HTMLElement>("[data-key].changed"),
-    ].filter((h) => !h.hidden).length;
-    const count = mod.querySelector<HTMLElement>(".mod-count");
+    const n = changedIn(mod);
+    const count = mod.querySelector<HTMLElement>(":scope > summary .mod-count");
     if (count) setText(count, n ? `${n} changed` : "");
   }
+  for (const more of $$("details.more")) {
+    const shownHere = [
+      ...more.querySelectorAll<HTMLElement>(".more-body [data-key]"),
+    ].filter((h) => !h.hidden);
+    more.hidden = shownHere.length === 0;
+    const names = shownHere.map(
+      (h) => ALL_SETTINGS.find((s) => s.key === h.dataset.key)!.label,
+    );
+    const n = changedIn(more);
+    setText(
+      more.querySelector<HTMLElement>(".more-text")!,
+      `${names.length} more: ${names.join(", ")}${n ? `. ${n} changed` : ""}`,
+    );
+  }
+  syncNotes();
 }
 
 // ---- Copy settings ------------------------------------------------------------------------------------
@@ -1241,8 +1356,8 @@ function syncSettings() {
 /** A setting's value as the inspector shows it, with its unit. */
 function valueText(s: Setting<any, unknown>, c: unknown): string {
   if (s.kind === "toggle") return s.read(c) ? "on" : "off";
-  if (s.kind === "select") return s.read(c);
-  const v = String(round(s.read(c)));
+  if (s.kind === "select") return s.labels?.[s.read(c)] ?? s.read(c);
+  const v = String(shown(s, s.read(c)));
   // A word unit takes a space (`24 px`); a symbol does not (`4°`, `1.4×`, `8/s`).
   return !s.unit
     ? v
@@ -1259,8 +1374,7 @@ function currentSettingsMarkdown(): string {
   const bare = bareOpt();
   const isReduced = reduced();
   const lists: [readonly Setting<any, unknown>[], unknown, unknown][] = [
-    [SETTINGS, cfg, drumCfg(bare)],
-    [CASCADE_SETTINGS, ccfg, cascadeCfg(bare)],
+    ...modelLists(),
     [PATH_SETTINGS, pcfg, pathCfg(bare, isReduced)],
     [VIEW_SETTINGS, vcfg, viewCfg(bare, isReduced)],
   ];
@@ -1283,7 +1397,13 @@ function currentSettingsMarkdown(): string {
         });
       }
   }
-  const modelModules = new Set(["Taps", "Pace", "Held keys", "Stage"]);
+  // Route holds model settings, which a preset sets, and the path's, which have defaults.
+  const baseNames: Record<string, string> = {
+    Taps: "Preset",
+    "Held keys": "Preset",
+    Finish: "Preset",
+    Route: "Preset or default",
+  };
   return settingsMarkdown({
     model: MODES.find((m) => m.id === opt.v)!.label,
     preset: opt.v === "product" ? null : opt.preset!,
@@ -1293,7 +1413,7 @@ function currentSettingsMarkdown(): string {
     overlay: opt.path === "1",
     hash: location.hash,
     rows,
-    baseName: (m) => (modelModules.has(m) ? "Preset" : "Default"),
+    baseName: (m) => baseNames[m] ?? "Default",
   });
 }
 
@@ -1369,7 +1489,7 @@ function syncState() {
   }
   if (OUTSIDE_CHECKER.includes(opt.preset!))
     text.append(
-      ` Outside the frame checker's rules: passing over a card is a draw-order swap by design, so the checker counts its cost.`,
+      ` Outside the frame checker's rules: it counts each pass over a card as a swap.`, // slop-ok: 1 Tom asked for loose to be marked outside the checker's rules
     );
   line.append(text);
 }
@@ -1575,6 +1695,8 @@ inspector.addEventListener("click", (e) => {
 function saveFolds() {
   for (const mod of $$("[data-module]") as HTMLDetailsElement[])
     folds[mod.dataset.module!] = mod.open;
+  for (const more of $$("[data-fold]") as HTMLDetailsElement[])
+    folds[more.dataset.fold!] = more.open;
   try {
     localStorage.setItem(FOLDS_KEY, JSON.stringify(folds));
   } catch {}

@@ -1,7 +1,7 @@
 /**
  * Saved presets: the reader's own named sets of settings, kept in this browser's `localStorage` beside the
  * built-in presets. A saved preset belongs to one model (the drum or the cascade; the product has no presets)
- * and holds the built-in preset it starts from and every model, Path and page setting the URL hash overrides,
+ * and holds the built-in preset it starts from and every model, path and page setting the URL hash overrides,
  * as the hash spells them. Applying one is a hash change, so the hash stays the whole state: it restores a
  * saved preset's settings on a machine that has never seen the preset, though not its name.
  */

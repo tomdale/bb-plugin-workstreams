@@ -95,24 +95,41 @@ export type CascadeCfg = CascadeConfig & { fade: number };
 type CascadePagePatch = CascadePatch & { fade?: number };
 
 /**
- * The inspector's modules, top to bottom. A setting names the module it sits in as its `group`; `model`,
- * `playback` and `about` also hold the page's buttons, the held readout and the panel. A module with nothing to
- * show under the current model and configuration is hidden whole.
+ * The inspector's modules, top to bottom. A setting names the module it sits in as its `group`; `run`, `drive`,
+ * `measured` and `about` hold the page's buttons, readouts and the panel instead. A module with nothing to show
+ * under the current model and configuration is hidden whole, and `FOLDED` modules start folded.
  */
 export const MODULES = [
-  { id: "model", label: "Model" },
-  { id: "playback", label: "Playback" },
+  { id: "run", label: "Run" },
+  { id: "drive", label: "Drive" },
   { id: "measured", label: "Measured" },
   { id: "taps", label: "Taps" },
-  { id: "pace", label: "Pace" },
   { id: "held", label: "Held keys" },
-  { id: "stage", label: "Stage" },
-  { id: "path", label: "Path" },
+  { id: "route", label: "Route" },
+  { id: "finish", label: "Finish" },
+  { id: "page", label: "Page" },
   { id: "overlay", label: "Overlay" },
   { id: "about", label: "About" },
 ] as const;
 export type ModuleId = (typeof MODULES)[number]["id"];
-export type GroupId = Exclude<ModuleId, "model" | "measured" | "about">;
+export type GroupId = Exclude<ModuleId, "run" | "drive" | "measured" | "about">;
+/** The modules that start folded: what is looked at once, after the motion is settled. */
+export const FOLDED: readonly ModuleId[] = [
+  "finish",
+  "page",
+  "overlay",
+  "about",
+];
+
+/**
+ * What a setting's note may quote besides the configuration: the Measured module's latest hold each way and
+ * tap each way, and the shortest card on the stage, px.
+ */
+export type NoteContext = {
+  hold: Partial<Record<1 | -1, { rate: number }>>;
+  tap: Partial<Record<1 | -1, { land: number }>>;
+  shortest: number;
+};
 
 type Base<C> = {
   /** The setting's short name: its key in the URL hash and in `sim/sweep.mjs`. */
@@ -121,8 +138,18 @@ type Base<C> = {
   label: string;
   /** Whether the setting changes anything under this configuration; a setting that does not is hidden. */
   shown: (c: C) => boolean;
+  /** Folded under its module's `more` line: shaping that is looked at once. */
+  more?: boolean;
+  /** It changes what is drawn even with no motion, so it stays under reduced motion. */
+  still?: boolean;
+  /** A line under the setting: what its value amounts to, and what the page measured of it. */
+  note?: (c: C, n: NoteContext) => string;
 };
-/** One setting of a model whose configuration is `C`; `write` returns the patch that sets it, of type `P`. */
+/**
+ * One setting of a model whose configuration is `C`; `write` returns the patch that sets it, of type `P`. A
+ * `derived` slider's patch depends on the rest of the configuration (`c`, with every other setting the state
+ * asks for applied): pace in cards/s is written as an interval or a spacing at the current top speed.
+ */
 export type Setting<C = Cfg, P = Patch> =
   | (Base<C> & {
       kind: "range";
@@ -132,7 +159,8 @@ export type Setting<C = Cfg, P = Patch> =
       max: number | ((c: C) => number);
       step: number;
       read: (c: C) => number;
-      write: (v: number) => P;
+      write: (v: number, c: C) => P;
+      derived?: boolean;
     })
   | (Base<C> & {
       kind: "toggle";
@@ -142,6 +170,10 @@ export type Setting<C = Cfg, P = Patch> =
   | (Base<C> & {
       kind: "select";
       options: readonly string[];
+      /** What each option reads as on the page; an option with none reads as itself. */
+      labels?: Record<string, string>;
+      /** Drawn as a column of radio buttons rather than a menu. */
+      radio?: boolean;
       read: (c: C) => string;
       write: (v: string) => P;
     });
@@ -150,16 +182,59 @@ export const maxOf = <C>(
   s: Extract<Setting<C, unknown>, { kind: "range" }>,
   c: C,
 ) => (typeof s.max === "number" ? s.max : s.max(c));
+/** How many decimals a slider's value shows: as many as its step has. */
+export const digitsOf = (step: number) =>
+  Math.max(0, Math.min(3, Math.ceil(-Math.log10(step) - 1e-9)));
 
 const always = () => true;
-const heldState = (c: Cfg) => c.fold || c.ramp || c.loose;
+const fmt = (v: number, d = 1) => String(Math.round(v * 10 ** d) / 10 ** d);
+/** An edge budget in px/s, as px per frame at 60 and 120 Hz. */
+const perFrame = (pxs: number) =>
+  `${fmt(pxs / 60)} px/frame at 60 Hz, ${fmt(pxs / 120)} at 120 Hz.`;
+/** The Measured module's latest hold each way, as a sentence. */
+export const measuredPace = (n: NoteContext) => {
+  const dn = n.hold[1],
+    up = n.hold[-1];
+  if (!dn && !up) return "Measured: no hold yet.";
+  return `Measured ${[dn && `↓ ${dn.rate.toFixed(1)}`, up && `↑ ${up.rate.toFixed(1)}`].filter(Boolean).join(", ")} cards/s.`;
+};
+const tapNote = (n: NoteContext) => {
+  const up = n.tap[-1],
+    dn = n.tap[1];
+  if (!up && !dn) return "";
+  return `Measured: ${[up && `↑ lands in ${Math.round(up.land)} ms`, dn && `↓ settles in ${Math.round(dn.land)} ms`].filter(Boolean).join(", ")}.`;
+};
+
+/**
+ * What a held key does to the cards, one choice for both models: `none` keeps the tap behaviour, `ramp` speeds
+ * the springs and edge budgets up, `fold` folds every card toward its header line and `loose` lets a leaving
+ * card pass over the next one. Fold and loose clearing include the speed-up, so both write `ramp` too.
+ */
+const HELD_LABELS = {
+  none: "same as taps",
+  ramp: "speed up",
+  fold: "fold to the header line",
+  loose: "pass over the next card",
+};
+const heldOf = (c: Cfg) =>
+  c.fold ? "fold" : c.loose ? "loose" : c.ramp ? "ramp" : "none";
+const speedsUp = (c: Cfg) => heldOf(c) !== "none";
+/** How a held key's presses are spaced, as the page names `tempo.kind`. */
+const PACING: Record<string, string> = {
+  cards: "none",
+  steady: "constant",
+  planned: "lookahead",
+};
+const pacingOf = (c: Cfg) =>
+  Object.keys(PACING).find((k) => PACING[k] === c.tempo.kind) ?? "cards";
 
 export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
+  // ---- taps
   {
     kind: "range",
     key: "w0",
     group: "taps",
-    label: "spring Hz, tap",
+    label: "tap spring",
     unit: "Hz",
     min: 1.5,
     max: 6,
@@ -167,25 +242,161 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     read: (c) => c.omega0 / TAU,
     write: (v) => ({ omega0: TAU * v }),
     shown: always,
+    note: (_, n) => tapNote(n),
   },
   {
     kind: "range",
     key: "cap",
     group: "taps",
-    label: "edge budget, tap px/frame",
-    unit: "px/frame",
-    min: 12,
-    max: 44,
-    step: 1,
-    read: (c) => c.vcap / 60,
-    write: (v) => ({ vcap: 60 * v }),
+    label: "top speed",
+    unit: "px/s",
+    min: 720,
+    max: 2640,
+    step: 60,
+    read: (c) => c.vcap,
+    write: (vcap) => ({ vcap }),
+    shown: always,
+    note: (c) => perFrame(c.vcap),
+  },
+  // ---- held keys
+  {
+    kind: "select",
+    key: "held",
+    group: "held",
+    label: "while held",
+    radio: true,
+    options: ["none", "ramp", "fold", "loose"],
+    labels: HELD_LABELS,
+    read: heldOf,
+    write: (v) => ({
+      ramp: v !== "none",
+      fold: v === "fold",
+      loose: v === "loose",
+    }),
+    shown: always,
+  },
+  {
+    kind: "select",
+    key: "pacing",
+    group: "held",
+    label: "pacing",
+    options: ["cards", "steady", "planned"],
+    labels: {
+      cards: "follows cards",
+      steady: "steady beat",
+      planned: "planned",
+    },
+    read: pacingOf,
+    write: (v) => ({ tempo: { kind: PACING[v] } }),
     shown: always,
   },
   {
     kind: "range",
+    key: "pace",
+    group: "held",
+    label: "pace",
+    unit: "cards/s",
+    min: 2.5,
+    max: 15,
+    step: 0.1,
+    read: (c) => 1000 / c.tempo.ms,
+    write: (v) => ({ tempo: { ms: 1000 / v } }),
+    shown: (c) => c.tempo.kind === "constant",
+    note: (c, n) =>
+      `A beat of ${Math.round(c.tempo.ms)} ms at the least: a tall card can take longer. ${measuredPace(n)}`,
+  },
+  {
+    kind: "range",
+    key: "ts",
+    group: "held",
+    label: "plan",
+    unit: "×",
+    min: 0.5,
+    max: 1.4,
+    step: 0.05,
+    read: (c) => c.tempo.scale,
+    write: (scale) => ({ tempo: { scale } }),
+    shown: (c) => c.tempo.kind === "lookahead",
+    note: (_, n) => measuredPace(n),
+  },
+  {
+    kind: "range",
+    key: "delay",
+    group: "held",
+    label: "speeds up after",
+    unit: "ms",
+    min: 0,
+    max: 800,
+    step: 10,
+    read: (c) => c.holdDelay,
+    write: (holdDelay) => ({ holdDelay }),
+    shown: speedsUp,
+  },
+  {
+    kind: "range",
+    key: "w1",
+    group: "held",
+    label: "held spring",
+    unit: "Hz",
+    min: 2,
+    max: 8,
+    step: 0.1,
+    read: (c) => c.omega1 / TAU,
+    write: (v) => ({ omega1: TAU * v }),
+    shown: speedsUp,
+    note: (c) => `${fmt(c.omega1 / c.omega0, 2)}× the tap spring.`,
+  },
+  {
+    kind: "range",
+    key: "cap1",
+    group: "held",
+    label: "held top speed",
+    unit: "px/s",
+    min: 720,
+    max: 2640,
+    step: 60,
+    read: (c) => c.vcap1,
+    write: (vcap1) => ({ vcap1 }),
+    shown: speedsUp,
+    note: (c) => perFrame(c.vcap1),
+  },
+  {
+    kind: "range",
+    key: "h0",
+    group: "held",
+    label: "held height",
+    unit: "px",
+    min: 40,
+    max: 200,
+    step: 1,
+    read: (c) => c.H0,
+    write: (H0) => ({ H0 }),
+    shown: (c) => c.fold || c.loose,
+    note: (_, n) =>
+      n.shortest > 0
+        ? `The shortest card is ${Math.round(n.shortest)} px.`
+        : "",
+  },
+  // ---- route
+  {
+    kind: "range",
+    key: "hide",
+    group: "route",
+    label: "tuck depth",
+    unit: "px",
+    min: 0,
+    max: 12,
+    step: 1,
+    read: (c) => c.hidePx,
+    write: (hidePx) => ({ hidePx }),
+    shown: always,
+  },
+  // ---- finish
+  {
+    kind: "range",
     key: "fadein",
-    group: "taps",
-    label: "incoming fade-in per s",
+    group: "finish",
+    label: "incoming fade-in",
     unit: "/s",
     min: 0,
     max: 12,
@@ -197,9 +408,9 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
   {
     kind: "range",
     key: "cover",
-    group: "taps",
+    group: "finish",
     label: "covered card fade",
-    unit: "×",
+    unit: "",
     min: 0,
     max: 1,
     step: 0.05,
@@ -210,8 +421,8 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
   {
     kind: "range",
     key: "tuck",
-    group: "taps",
-    label: "tuck spring ×",
+    group: "finish",
+    label: "tuck spring",
     unit: "×",
     min: 1,
     max: 2.5,
@@ -222,22 +433,9 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
   },
   {
     kind: "range",
-    key: "hide",
-    group: "taps",
-    label: "tuck depth px",
-    unit: "px",
-    min: 0,
-    max: 12,
-    step: 1,
-    read: (c) => c.hidePx,
-    write: (hidePx) => ({ hidePx }),
-    shown: always,
-  },
-  {
-    kind: "range",
     key: "wrise",
-    group: "taps",
-    label: "tall-card wash rise ms",
+    group: "finish",
+    label: "tall-card wash rise",
     unit: "ms",
     min: 10,
     max: 400,
@@ -249,8 +447,8 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
   {
     kind: "range",
     key: "wclear",
-    group: "taps",
-    label: "tall-card wash clear ms",
+    group: "finish",
+    label: "tall-card wash clear",
     unit: "ms",
     min: 10,
     max: 400,
@@ -260,20 +458,10 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     shown: always,
   },
   {
-    kind: "select",
-    key: "tk",
-    group: "pace",
-    label: "tempo",
-    options: ["none", "constant", "lookahead"],
-    read: (c) => c.tempo.kind,
-    write: (kind) => ({ tempo: { kind } }),
-    shown: always,
-  },
-  {
     kind: "range",
     key: "tw",
-    group: "pace",
-    label: "tempo window",
+    group: "finish",
+    label: "plan window",
     unit: "cards",
     min: 1,
     max: 3,
@@ -284,22 +472,9 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
   },
   {
     kind: "range",
-    key: "ts",
-    group: "pace",
-    label: "tempo scale",
-    unit: "×",
-    min: 0.5,
-    max: 1.4,
-    step: 0.05,
-    read: (c) => c.tempo.scale,
-    write: (scale) => ({ tempo: { scale } }),
-    shown: (c) => c.tempo.kind === "lookahead",
-  },
-  {
-    kind: "range",
     key: "ta",
-    group: "pace",
-    label: "estimate base ms",
+    group: "finish",
+    label: "plan base",
     unit: "ms",
     min: 0,
     max: 200,
@@ -311,8 +486,8 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
   {
     kind: "range",
     key: "tb",
-    group: "pace",
-    label: "estimate ms per px",
+    group: "finish",
+    label: "plan per px",
     unit: "ms/px",
     min: 0,
     max: 1.5,
@@ -320,100 +495,6 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     read: (c) => c.tempo.b,
     write: (b) => ({ tempo: { b } }),
     shown: (c) => c.tempo.kind === "lookahead",
-  },
-  {
-    kind: "range",
-    key: "tms",
-    group: "pace",
-    label: "constant interval ms",
-    unit: "ms",
-    min: 60,
-    max: 400,
-    step: 5,
-    read: (c) => c.tempo.ms,
-    write: (ms) => ({ tempo: { ms } }),
-    shown: (c) => c.tempo.kind === "constant",
-  },
-  {
-    kind: "toggle",
-    key: "ramp",
-    group: "held",
-    label: "held speed-up",
-    read: (c) => c.ramp,
-    write: (ramp) => ({ ramp }),
-    // Fold and loose clearing already include the speed-up, so with either on this toggle changes nothing.
-    shown: (c) => !c.fold && !c.loose,
-  },
-  {
-    kind: "toggle",
-    key: "fold",
-    group: "held",
-    label: "fold while held",
-    read: (c) => c.fold,
-    write: (fold) => ({ fold }),
-    shown: always,
-  },
-  {
-    kind: "toggle",
-    key: "loose",
-    group: "held",
-    label: "loosen clearing while held",
-    read: (c) => c.loose,
-    write: (loose) => ({ loose }),
-    // Fold already shrinks the heights that clearing uses, so with fold on this toggle changes nothing.
-    shown: (c) => !c.fold,
-  },
-  {
-    kind: "range",
-    key: "delay",
-    group: "held",
-    label: "hold delay ms",
-    unit: "ms",
-    min: 0,
-    max: 800,
-    step: 10,
-    read: (c) => c.holdDelay,
-    write: (holdDelay) => ({ holdDelay }),
-    shown: heldState,
-  },
-  {
-    kind: "range",
-    key: "w1",
-    group: "held",
-    label: "spring Hz, held",
-    unit: "Hz",
-    min: 2,
-    max: 8,
-    step: 0.1,
-    read: (c) => c.omega1 / TAU,
-    write: (v) => ({ omega1: TAU * v }),
-    shown: heldState,
-  },
-  {
-    kind: "range",
-    key: "cap1",
-    group: "held",
-    label: "edge budget, held px/frame",
-    unit: "px/frame",
-    min: 12,
-    max: 44,
-    step: 1,
-    read: (c) => c.vcap1 / 60,
-    write: (v) => ({ vcap1: 60 * v }),
-    shown: heldState,
-  },
-  {
-    kind: "range",
-    key: "h0",
-    group: "held",
-    label: "held height px",
-    unit: "px",
-    min: 40,
-    max: 200,
-    step: 1,
-    read: (c) => c.H0,
-    write: (H0) => ({ H0 }),
-    shown: (c) => c.fold || c.loose,
   },
 ];
 
@@ -434,16 +515,23 @@ const FADE_DEFAULT = 100;
 
 /** With the ramp off the held state changes nothing, so the settings that shape it are hidden. */
 const ramps = (c: CascadeCfg) => c.ramp;
+/** The edge budget a full train runs at: the held one with the ramp on, the tap one without. */
+const trainSpeed = (c: CascadeCfg) => (c.ramp ? c.vcap1 : c.vcap);
 
+/**
+ * The cascade's settings. Those it shares with the drum have the drum's key and name, so one hash sets both
+ * models alike; `pace` and `pace before speed-up` are written as the spacing between leaving cards at the edge
+ * budget the train runs at.
+ */
 export const CASCADE_SETTINGS: readonly Setting<
   CascadeCfg,
   CascadePagePatch
 >[] = [
   {
     kind: "range",
-    key: "cw0",
+    key: "w0",
     group: "taps",
-    label: "spring Hz, tap",
+    label: "tap spring",
     unit: "Hz",
     min: 1.5,
     max: 6,
@@ -451,51 +539,70 @@ export const CASCADE_SETTINGS: readonly Setting<
     read: (c) => c.omega0 / TAU,
     write: (v) => ({ omega0: TAU * v }),
     shown: always,
+    note: (_, n) => tapNote(n),
   },
   {
     kind: "range",
-    key: "ccap",
+    key: "cap",
     group: "taps",
-    label: "edge budget, tap px/frame",
-    unit: "px/frame",
-    min: 12,
-    max: 44,
-    step: 1,
-    read: (c) => c.vcap / 60,
-    write: (v) => ({ vcap: 60 * v }),
+    label: "top speed",
+    unit: "px/s",
+    min: 720,
+    max: 2640,
+    step: 60,
+    read: (c) => c.vcap,
+    write: (vcap) => ({ vcap }),
+    shown: always,
+    note: (c) => perFrame(c.vcap),
+  },
+  {
+    kind: "select",
+    key: "held",
+    group: "held",
+    label: "while held",
+    radio: true,
+    options: ["none", "ramp"],
+    labels: HELD_LABELS,
+    read: (c) => (c.ramp ? "ramp" : "none"),
+    write: (v) => ({ ramp: v === "ramp" }),
     shown: always,
   },
   {
     kind: "range",
-    key: "sp0",
-    group: "pace",
-    label: "spacing at rest px",
-    unit: "px",
-    min: 150,
-    max: 300,
-    step: 1,
-    read: (c) => c.spacing0,
-    write: (spacing0) => ({ spacing0 }),
+    key: "pace",
+    group: "held",
+    label: "pace",
+    unit: "cards/s",
+    min: 4,
+    max: 18,
+    step: 0.1,
+    read: (c) => trainSpeed(c) / c.spacing1,
+    write: (v, c) => ({ spacing1: trainSpeed(c) / v }),
+    derived: true,
+    shown: always,
+    note: (c, n) =>
+      `${Math.round(c.spacing1)} px between cards at the ${c.ramp ? "held top speed" : "top speed"}. ${measuredPace(n)}`,
+  },
+  {
+    kind: "range",
+    key: "pace0",
+    group: "held",
+    label: "pace before speed-up",
+    unit: "cards/s",
+    min: 3,
+    max: 12,
+    step: 0.1,
+    read: (c) => c.vcap / c.spacing0,
+    write: (v, c) => ({ spacing0: c.vcap / v }),
+    derived: true,
     shown: ramps,
+    note: (c) => `${Math.round(c.spacing0)} px between cards at the top speed.`,
   },
   {
     kind: "range",
-    key: "sp1",
-    group: "pace",
-    label: "spacing held px",
-    unit: "px",
-    min: 100,
-    max: 216,
-    step: 1,
-    read: (c) => c.spacing1,
-    write: (spacing1) => ({ spacing1 }),
-    shown: always,
-  },
-  {
-    kind: "range",
-    key: "cdelay",
-    group: "pace",
-    label: "hold delay ms",
+    key: "delay",
+    group: "held",
+    label: "speeds up after",
     unit: "ms",
     min: 0,
     max: 800,
@@ -506,9 +613,9 @@ export const CASCADE_SETTINGS: readonly Setting<
   },
   {
     kind: "range",
-    key: "cw1",
-    group: "pace",
-    label: "spring Hz, held",
+    key: "w1",
+    group: "held",
+    label: "held spring",
     unit: "Hz",
     min: 2,
     max: 8,
@@ -516,25 +623,27 @@ export const CASCADE_SETTINGS: readonly Setting<
     read: (c) => c.omega1 / TAU,
     write: (v) => ({ omega1: TAU * v }),
     shown: ramps,
+    note: (c) => `${fmt(c.omega1 / c.omega0, 2)}× the tap spring.`,
   },
   {
     kind: "range",
-    key: "ccap1",
-    group: "pace",
-    label: "edge budget, held px/frame",
-    unit: "px/frame",
-    min: 12,
-    max: 44,
-    step: 1,
-    read: (c) => c.vcap1 / 60,
-    write: (v) => ({ vcap1: 60 * v }),
+    key: "cap1",
+    group: "held",
+    label: "held top speed",
+    unit: "px/s",
+    min: 720,
+    max: 2640,
+    step: 60,
+    read: (c) => c.vcap1,
+    write: (vcap1) => ({ vcap1 }),
     shown: ramps,
+    note: (c) => perFrame(c.vcap1),
   },
   {
     kind: "range",
     key: "park",
-    group: "stage",
-    label: "park px",
+    group: "route",
+    label: "park",
     unit: "px",
     min: 360,
     max: 560,
@@ -542,12 +651,13 @@ export const CASCADE_SETTINGS: readonly Setting<
     read: (c) => c.park,
     write: (park) => ({ park }),
     shown: always,
+    still: true,
   },
   {
     kind: "range",
     key: "fade",
-    group: "stage",
-    label: "edge fade px",
+    group: "route",
+    label: "edge fade",
     unit: "px",
     min: 0,
     max: (c) => fadeCap(c.park),
@@ -555,11 +665,12 @@ export const CASCADE_SETTINGS: readonly Setting<
     read: (c) => Math.min(c.fade, fadeCap(c.park)),
     write: (fade) => ({ fade }),
     shown: always,
+    still: true,
   },
   {
     kind: "range",
     key: "shade",
-    group: "stage",
+    group: "route",
     label: "leave shade",
     unit: "",
     min: 0,
@@ -568,6 +679,7 @@ export const CASCADE_SETTINGS: readonly Setting<
     read: (c) => c.leaveShade,
     write: (leaveShade) => ({ leaveShade }),
     shown: always,
+    still: true,
   },
 ];
 
@@ -575,10 +687,11 @@ export const CASCADE_SETTINGS: readonly Setting<
 
 /**
  * The sideways shape of the path a moving card follows (`ring.ts`). It belongs to no model: every model, the
- * product included, shows these settings, and a preset button leaves them as they are. `loop` says whether
- * the running model has a leg behind the pile (the drum and the product do, the cascade does not). The path
- * shows on screen while cards sway (`moving`: reduced motion is off) or while `Bezier path` draws it
- * (`overlay`); with neither, its settings change nothing and hide.
+ * product included, shows these settings in Route, and a preset button leaves them as they are. `loop` says
+ * whether the running model has a leg behind the pile (the drum and the product do, the cascade does not). The
+ * path shows on screen while cards sway (`moving`: reduced motion is off) or while `Bezier path` draws it
+ * (`overlay`); with neither, its settings change nothing and hide. Sway and bank are what the eye sees first;
+ * the rest shape the loop and fold under Route's `more` line.
  */
 export type PathCfg = {
   sway: number;
@@ -610,8 +723,8 @@ export const PATH_SETTINGS: readonly Setting<PathCfg, Partial<PathCfg>>[] = [
   {
     kind: "range",
     key: "sway",
-    group: "path",
-    label: "sway in front px",
+    group: "route",
+    label: "sway",
     unit: "px",
     min: -80,
     max: 80,
@@ -622,61 +735,9 @@ export const PATH_SETTINGS: readonly Setting<PathCfg, Partial<PathCfg>>[] = [
   },
   {
     kind: "range",
-    key: "swayb",
-    group: "path",
-    label: "sway behind px",
-    unit: "px",
-    min: -80,
-    max: 80,
-    step: 1,
-    read: (c) => c.swayBehind,
-    write: (swayBehind) => ({ swayBehind }),
-    shown: (c) => pathShows(c) && c.loop,
-  },
-  {
-    kind: "range",
-    key: "peak",
-    group: "path",
-    label: "widest point",
-    unit: "",
-    min: 0.25,
-    max: 0.75,
-    step: 0.05,
-    read: (c) => c.peak,
-    write: (peak) => ({ peak }),
-    shown: (c) => pathShows(c) && swaying(c),
-  },
-  {
-    kind: "range",
-    key: "peakb",
-    group: "path",
-    label: "widest point behind",
-    unit: "",
-    min: 0.25,
-    max: 0.75,
-    step: 0.05,
-    read: (c) => c.peakBehind,
-    write: (peakBehind) => ({ peakBehind }),
-    shown: (c) => pathShows(c) && c.loop && swaying(c),
-  },
-  {
-    kind: "range",
-    key: "cross",
-    group: "path",
-    label: "column crossing",
-    unit: "",
-    min: -0.3,
-    max: 0.3,
-    step: 0.05,
-    read: (c) => c.cross,
-    write: (cross) => ({ cross }),
-    shown: (c) => pathShows(c) && c.loop && swaying(c),
-  },
-  {
-    kind: "range",
     key: "bank",
-    group: "path",
-    label: "bank deg",
+    group: "route",
+    label: "bank",
     unit: "°",
     min: -10,
     max: 10,
@@ -686,9 +747,65 @@ export const PATH_SETTINGS: readonly Setting<PathCfg, Partial<PathCfg>>[] = [
     // Only the cards turn: the overlay alone shows no bank.
     shown: (c) => c.moving && swaying(c),
   },
+  {
+    kind: "range",
+    key: "swayb",
+    group: "route",
+    label: "sway behind",
+    unit: "px",
+    min: -80,
+    max: 80,
+    step: 1,
+    read: (c) => c.swayBehind,
+    write: (swayBehind) => ({ swayBehind }),
+    shown: (c) => pathShows(c) && c.loop,
+    more: true,
+  },
+  {
+    kind: "range",
+    key: "peak",
+    group: "route",
+    label: "widest point",
+    unit: "",
+    min: 0.25,
+    max: 0.75,
+    step: 0.05,
+    read: (c) => c.peak,
+    write: (peak) => ({ peak }),
+    shown: (c) => pathShows(c) && swaying(c),
+    more: true,
+  },
+  {
+    kind: "range",
+    key: "peakb",
+    group: "route",
+    label: "widest point behind",
+    unit: "",
+    min: 0.25,
+    max: 0.75,
+    step: 0.05,
+    read: (c) => c.peakBehind,
+    write: (peakBehind) => ({ peakBehind }),
+    shown: (c) => pathShows(c) && c.loop && swaying(c),
+    more: true,
+  },
+  {
+    kind: "range",
+    key: "cross",
+    group: "route",
+    label: "column crossing",
+    unit: "",
+    min: -0.3,
+    max: 0.3,
+    step: 0.05,
+    read: (c) => c.cross,
+    write: (cross) => ({ cross }),
+    shown: (c) => pathShows(c) && c.loop && swaying(c),
+    more: true,
+  },
 ];
 
-// ---- what the page draws: playback fades and the Bezier path overlay -------------------------------
+// ---- the page itself: its fades, the simulated key repeat, and the Bezier path overlay -------------
 
 /**
  * Settings of the page itself, which no model reads and a preset button keeps. `reduced` is whether reduced
@@ -735,8 +852,8 @@ export const VIEW_SETTINGS: readonly Setting<ViewCfg, Partial<ViewCfg>>[] = [
   {
     kind: "range",
     key: "rfade",
-    group: "playback",
-    label: "reduced fade ms",
+    group: "page",
+    label: "reduced fade",
     unit: "ms",
     min: 0,
     max: 600,
@@ -748,8 +865,8 @@ export const VIEW_SETTINGS: readonly Setting<ViewCfg, Partial<ViewCfg>>[] = [
   {
     kind: "range",
     key: "hfade",
-    group: "playback",
-    label: "heading fade ms",
+    group: "page",
+    label: "heading fade",
     unit: "ms",
     min: 0,
     max: 600,
@@ -763,8 +880,8 @@ export const VIEW_SETTINGS: readonly Setting<ViewCfg, Partial<ViewCfg>>[] = [
   {
     kind: "range",
     key: "krd",
-    group: "playback",
-    label: "hold repeat delay ms",
+    group: "page",
+    label: "hold repeat delay",
     unit: "ms",
     min: 100,
     max: 800,
@@ -776,8 +893,8 @@ export const VIEW_SETTINGS: readonly Setting<ViewCfg, Partial<ViewCfg>>[] = [
   {
     kind: "range",
     key: "kri",
-    group: "playback",
-    label: "hold repeat interval ms",
+    group: "page",
+    label: "hold repeat interval",
     unit: "ms",
     min: 15,
     max: 120,
@@ -867,10 +984,14 @@ const cascadeBase = (preset?: CascadePatch): CascadeCfg => ({
 export type Control = { id: string; label: string; kind: string; meta: string };
 
 const round = (v: number) => Math.round(v * 1000) / 1000;
-/** A slider's value in a configuration with nothing overridden, whichever model it belongs to. */
-export function defaultOf(key: string): number {
+/**
+ * A slider's value in a configuration with nothing overridden. A key both models share reads the drum's
+ * unless `model` is `cascade`.
+ */
+export function defaultOf(key: string, model = "drum"): number {
   const drum = SETTINGS.find((x) => x.key === key);
-  if (drum?.kind === "range") return drum.read(Drum.config());
+  if (drum?.kind === "range" && model !== "cascade")
+    return drum.read(Drum.config());
   const cascade = CASCADE_SETTINGS.find((x) => x.key === key);
   if (cascade?.kind === "range") return cascade.read(cascadeBase());
   const path = PATH_SETTINGS.find((x) => x.key === key);
@@ -878,6 +999,14 @@ export function defaultOf(key: string): number {
   const view = VIEW_SETTINGS.find((x) => x.key === key);
   if (view?.kind === "range") return view.read(VIEW_DEFAULT);
   throw new Error(`${key} is not a slider, so it has no numeric default`);
+}
+
+/** A slider's step, from whichever list holds it; undefined for a key that is not a slider. */
+export function stepOf(key: string): number | undefined {
+  for (const list of [SETTINGS, CASCADE_SETTINGS, PATH_SETTINGS, VIEW_SETTINGS])
+    for (const s of list as readonly Setting<any, unknown>[])
+      if (s.key === key && s.kind === "range") return s.step;
+  return undefined;
 }
 
 function describeSetting<C>(s: Setting<C, unknown>, base: C): Control {
@@ -898,11 +1027,12 @@ function describeSetting<C>(s: Setting<C, unknown>, base: C): Control {
       kind: "toggle",
       meta: `default ${s.read(base) ? "on" : "off"}`,
     };
+  const name = (o: string) => s.labels?.[o] ?? o;
   return {
     id,
     label: s.label,
     kind: "choice",
-    meta: `${s.options.join(", ")}; default ${s.read(base)}`,
+    meta: `${s.options.map(name).join(", ")}; default ${name(s.read(base))}`,
   };
 }
 
@@ -981,6 +1111,12 @@ export const CONTROLS: readonly Control[] = [
   },
   { id: "held", label: "held", kind: "readout", meta: "0 to 1" },
   {
+    id: "pace.cards",
+    label: "pace",
+    kind: "readout",
+    meta: "measured",
+  },
+  {
     id: "measured.pace",
     label: "pace",
     kind: "readout",
@@ -1014,13 +1150,13 @@ export const CONTROLS: readonly Control[] = [
     id: "hold.down",
     label: "Hold ↓ from the top",
     kind: "button",
-    meta: "simulated key hold",
+    meta: "simulated key hold", // slop-ok: 2 the existing hold buttons' tooltip meta
   },
   {
     id: "hold.up",
     label: "Hold ↑ from the bottom",
     kind: "button",
-    meta: "simulated key hold",
+    meta: "simulated key hold", // slop-ok: 2 the existing hold buttons' tooltip meta
   },
   {
     id: "copy",
@@ -1040,8 +1176,11 @@ export const CONTROLS: readonly Control[] = [
     kind: "note",
     meta: "opens a panel",
   },
+  // A setting both models share is one control, described by the drum's; its tooltip covers both.
   ...SETTINGS.map((s) => describeSetting(s, Drum.config())),
-  ...CASCADE_SETTINGS.map((s) => describeSetting(s, cascadeBase())),
+  ...CASCADE_SETTINGS.filter((s) => !SETTINGS.some((d) => d.key === s.key)).map(
+    (s) => describeSetting(s, cascadeBase()),
+  ),
   ...PATH_SETTINGS.map((s) => describeSetting(s, PATH_DEFAULT)),
   ...VIEW_SETTINGS.map((s) => describeSetting(s, VIEW_DEFAULT)),
 ];
@@ -1055,8 +1194,10 @@ export const CONTROLS: readonly Control[] = [
  */
 export type Opt = Record<string, string>;
 export const SETTING_KEYS: readonly string[] = [
-  ...SETTINGS.map((s) => s.key),
-  ...CASCADE_SETTINGS.map((s) => s.key),
+  ...new Set([
+    ...SETTINGS.map((s) => s.key),
+    ...CASCADE_SETTINGS.map((s) => s.key),
+  ]),
 ];
 export const PATH_KEYS: readonly string[] = PATH_SETTINGS.map((s) => s.key);
 export const VIEW_KEYS: readonly string[] = VIEW_SETTINGS.map((s) => s.key);
@@ -1082,32 +1223,51 @@ export function parseOpt(hash: string): Opt {
 
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v));
-/** The patch a hash value asks for, or null when the value names nothing; a slider's value is clamped to its range under `base`. */
+/**
+ * The patch a hash value asks for, or null when the value names nothing; a slider's value is clamped to its range
+ * under `base`, and a derived slider is written against `base`.
+ */
 function patchFor<C, P>(s: Setting<C, P>, raw: string, base: C): P | null {
   if (s.kind === "toggle")
     return raw === "1" ? s.write(true) : raw === "0" ? s.write(false) : null;
   if (s.kind === "select") return s.options.includes(raw) ? s.write(raw) : null;
   const v = Number(raw);
   return raw !== "" && Number.isFinite(v)
-    ? s.write(clamp(v, s.min, maxOf(s, base)))
+    ? s.write(clamp(v, s.min, maxOf(s, base)), base)
     : null;
+}
+
+/**
+ * `base` with every setting of `list` that the state overrides, through `merge`. Derived settings go last, so
+ * each is written against the configuration every other override has made: a pace keeps its cards/s whatever
+ * top speed the state asks for.
+ */
+function applyAll<C, P>(
+  list: readonly Setting<C, P>[],
+  opt: Opt,
+  base: C,
+  merge: (c: C, p: P) => C,
+): C {
+  let cfg = base;
+  for (const late of [false, true])
+    for (const s of list) {
+      const raw = opt[s.key];
+      if (raw === undefined || (s.kind === "range" && !!s.derived) !== late)
+        continue;
+      const p = patchFor(s, raw, cfg);
+      if (p) cfg = merge(cfg, p);
+    }
+  return cfg;
 }
 
 /** The preset's configuration with every setting the state overrides. */
 export function drumCfg(opt: Opt): Cfg {
   const base: Cfg = Drum.config(DRUM_PRESETS[opt.preset ?? ""]);
-  const over: Patch = {};
-  for (const s of SETTINGS) {
-    const raw = opt[s.key];
-    if (raw === undefined) continue;
-    const p = patchFor(s, raw, base);
-    if (p) Object.assign(over, { ...p, tempo: { ...over.tempo, ...p.tempo } });
-  }
-  return Drum.config({
-    ...base,
-    ...over,
-    tempo: { ...base.tempo, ...over.tempo },
-  });
+  return applyAll(SETTINGS, opt, base, (c, p) => ({
+    ...c,
+    ...p,
+    tempo: { ...c.tempo, ...p.tempo },
+  }));
 }
 
 /**
@@ -1116,14 +1276,10 @@ export function drumCfg(opt: Opt): Cfg {
  */
 export function cascadeCfg(opt: Opt): CascadeCfg {
   const base = cascadeBase(CASCADE_PRESETS[opt.preset ?? ""]);
-  const over: CascadePagePatch = {};
-  for (const s of CASCADE_SETTINGS) {
-    const raw = opt[s.key];
-    if (raw === undefined) continue;
-    const p = patchFor(s, raw, base);
-    if (p) Object.assign(over, p);
-  }
-  const cfg = { ...base, ...over };
+  const cfg = applyAll(CASCADE_SETTINGS, opt, base, (c, p) => ({
+    ...c,
+    ...p,
+  }));
   return { ...cfg, fade: Math.min(cfg.fade, fadeCap(cfg.park)) };
 }
 

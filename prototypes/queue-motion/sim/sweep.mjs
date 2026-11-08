@@ -39,16 +39,19 @@ const preset = (name, presets = PRESETS) => {
     throw new Error(`sweep context names a missing preset: ${name}`);
   return presets[name];
 };
-/** The configurations a setting is swept on. A preset's name means that preset. */
+/**
+ * The configurations a setting is swept on. A preset's name means that preset; the others are named in the
+ * page's words: `speed up` is the while-held choice of that name, and `steady beat` the pacing of that name.
+ */
 export const CONTEXTS = {
   natural: preset("natural"),
   even: preset("even"),
   "even + held speed": preset("even + held speed"),
   fold: preset("fold"),
-  "held speed-up alone": { ramp: true },
-  constant: { tempo: { kind: "constant" } },
-  "constant with held speed-up": { ramp: true, tempo: { kind: "constant" } },
-  "fold with constant": { fold: true, tempo: { kind: "constant" } },
+  "speed up": { ramp: true },
+  "steady beat": { tempo: { kind: "constant" } },
+  "speed up, steady beat": { ramp: true, tempo: { kind: "constant" } },
+  "fold, steady beat": { fold: true, tempo: { kind: "constant" } },
   loose: preset("loose"),
 };
 const withTempo = (base, patch) => ({
@@ -58,8 +61,9 @@ const withTempo = (base, patch) => ({
 });
 
 /**
- * A setting's sweep. `id` is the setting's short name on the page (the hash key). `values` are the points
- * measured and `def` the one the context starts at (marked `*` in the table). `taps` is true for a setting that
+ * A setting's sweep. `id` is the setting's short name on the page (the hash key), and `values` are in the
+ * page's units: edge budgets in px/s, pace in cards/s. `values` are the points measured and `def` the one the
+ * context starts at (marked `*` in the table). `taps` is true for a setting that
  * changes a single press; the others only act while a key is held or between presses, so their tap numbers do
  * not move and are skipped.
  */
@@ -80,7 +84,7 @@ const heldSweeps = (id, label, make, byContext) =>
 export const PARAMS = [
   sweep(
     "w0",
-    "spring Hz, tap",
+    "tap spring, Hz",
     "natural",
     (v) => ({ omega0: TAU * v }),
     [2, 3, 4.5, 6],
@@ -89,16 +93,16 @@ export const PARAMS = [
   ),
   sweep(
     "cap",
-    "edge budget, tap, px/frame",
+    "top speed, px/s",
     "natural",
-    (v) => ({ vcap: v * HZ }),
-    [16, 24, 30, 36, 39, 40, 44],
-    24,
+    (v) => ({ vcap: v }),
+    [960, 1440, 1800, 2160, 2340, 2400, 2640],
+    1440,
     true,
   ),
   sweep(
     "fadein",
-    "incoming fade-in, per s",
+    "incoming fade-in, /s",
     "natural",
     (v) => ({ incomingFade: v }),
     [0, 4, 8, 9, 12],
@@ -152,7 +156,7 @@ export const PARAMS = [
   ),
   sweep(
     "tw",
-    "tempo window",
+    "plan window",
     "even",
     (v) => ({ tempo: { window: v } }),
     [1, 2, 3, 4, 6],
@@ -160,7 +164,7 @@ export const PARAMS = [
   ),
   sweep(
     "ta",
-    "estimate base, ms",
+    "plan base, ms",
     "even",
     (v) => ({ tempo: { a: v } }),
     [0, 30, 60, 120, 200],
@@ -168,45 +172,41 @@ export const PARAMS = [
   ),
   sweep(
     "tb",
-    "estimate per px, ms",
+    "plan per px, ms",
     "even",
     (v) => ({ tempo: { b: v } }),
     [0, 0.3, 0.62, 1, 1.5],
     0.62,
   ),
-  ...heldSweeps("ts", "tempo scale", (v) => ({ tempo: { scale: v } }), {
+  ...heldSweeps("ts", "plan, ×", (v) => ({ tempo: { scale: v } }), {
     even: [[0.5, 0.7, 0.85, 1, 1.2, 1.4], 1],
     "even + held speed": [[0.7, 0.85, 1], 0.85],
   }),
-  ...heldSweeps("tms", "constant interval, ms", (v) => ({ tempo: { ms: v } }), {
-    constant: [[150, 200, 250, 285, 350, 400], 285],
-    "constant with held speed-up": [[200, 225, 250, 285], 285],
-    "fold with constant": [[80, 100, 150, 200, 250], 285],
-    loose: [[60, 80, 100, 150, 200], 100],
+  // Pace under a steady beat is written as the beat's interval, 1000 / pace ms; each context starts at its own.
+  ...heldSweeps("pace", "pace, cards/s", (v) => ({ tempo: { ms: 1000 / v } }), {
+    "steady beat": [[2.5, 3, 3.5, 4, 5, 6.5], 3.5],
+    "speed up, steady beat": [[3.5, 4, 4.5, 5], 3.5],
+    "fold, steady beat": [[4, 5, 6.5, 10, 12.5], 3.5],
+    loose: [[5, 6.5, 10, 12.5, 15], 10],
   }),
-  ...heldSweeps("delay", "hold delay, ms", (v) => ({ holdDelay: v }), {
-    "held speed-up alone": [[0, 250, 600], 250],
+  ...heldSweeps("delay", "speeds up after, ms", (v) => ({ holdDelay: v }), {
+    "speed up": [[0, 250, 600], 250],
     "even + held speed": [[0, 250, 800], 250],
     fold: [[0, 250, 600, 800], 250],
   }),
-  ...heldSweeps("w1", "spring Hz, held", (v) => ({ omega1: TAU * v }), {
-    "held speed-up alone": [[3, 3.5, 4.5, 7], 4.5],
+  ...heldSweeps("w1", "held spring, Hz", (v) => ({ omega1: TAU * v }), {
+    "speed up": [[3, 3.5, 4.5, 7], 4.5],
     "even + held speed": [[3, 4.5, 7], 4.5],
     fold: [[3, 4.5, 5, 6, 7], 4.5],
   }),
-  ...heldSweeps(
-    "cap1",
-    "edge budget, held, px/frame",
-    (v) => ({ vcap1: v * HZ }),
-    {
-      "held speed-up alone": [[24, 30, 39, 40, 44], 30],
-      "even + held speed": [[24, 30, 39, 40, 44], 30],
-      fold: [[24, 30, 39, 40, 44], 30],
-    },
-  ),
+  ...heldSweeps("cap1", "held top speed, px/s", (v) => ({ vcap1: v }), {
+    "speed up": [[1440, 1800, 2340, 2400, 2640], 1800],
+    "even + held speed": [[1440, 1800, 2340, 2400, 2640], 1800],
+    fold: [[1440, 1800, 2340, 2400, 2640], 1800],
+  }),
   sweep(
     "h0",
-    "folded height, px",
+    "held height, px",
     "fold",
     (v) => ({ H0: v }),
     [50, 60, 73, 110, 130, 160],
@@ -333,23 +333,32 @@ const CASCADE_CONTEXTS = {
   default: preset("default", CASCADE.PRESETS),
   "no held ramp": preset("no held ramp", CASCADE.PRESETS),
 };
+/** The edge budget a cascade train runs at: the held one with the ramp on, the tap one without. */
+const trainSpeed = (c) => (c.ramp ? c.vcap1 : c.vcap);
 /**
- * The cascade's sweeps, one per model slider on the page, under the key the page uses for it. `sp0`, `sp1`, the
- * hold delay and the held spring and budget act only while a key is held, so their tap numbers are skipped.
+ * The cascade's sweeps, one per model slider on the page, under the key the page uses for it. Its pace knobs are
+ * written as the page writes them: `pace` as the spacing at the speed the train runs at, `pace0` as the resting
+ * spacing at the tap budget. They, the hold delay and the held spring and budget act only while a key is held,
+ * so their tap numbers are skipped.
  */
 export const CASCADE_PARAMS = [
   sweep(
-    "sp0",
-    "spacing at rest, px",
+    "pace0",
+    "pace before speed-up, cards/s",
     "default",
-    (v) => ({ spacing0: v }),
-    [150, 183, 216, 250, 300],
-    216,
+    (v, c) => ({ spacing0: c.vcap / v }),
+    [5, 6, 6.7, 8, 9.6],
+    6.7,
   ),
-  ...heldSweeps("sp1", "spacing held, px", (v) => ({ spacing1: v }), {
-    default: [[100, 125, 150, 183, 216], 150],
-    "no held ramp": [[100, 125, 150, 183, 216], 150],
-  }),
+  ...heldSweeps(
+    "pace",
+    "pace, cards/s",
+    (v, c) => ({ spacing1: trainSpeed(c) / v }),
+    {
+      default: [[8, 10, 12, 14, 18], 12],
+      "no held ramp": [[6, 8, 9.6, 12, 14.4], 9.6],
+    },
+  ),
   sweep(
     "park",
     "park, px",
@@ -360,8 +369,8 @@ export const CASCADE_PARAMS = [
     true,
   ),
   sweep(
-    "cw0",
-    "spring Hz, tap",
+    "w0",
+    "tap spring, Hz",
     "default",
     (v) => ({ omega0: TAU * v }),
     [2, 3, 4.5, 6],
@@ -369,37 +378,37 @@ export const CASCADE_PARAMS = [
     true,
   ),
   sweep(
-    "ccap",
-    "edge budget, tap, px/frame",
+    "cap",
+    "top speed, px/s",
     "default",
-    (v) => ({ vcap: v * HZ }),
-    [16, 24, 30, 36, 40],
-    24,
+    (v) => ({ vcap: v }),
+    [960, 1440, 1800, 2160, 2400],
+    1440,
     true,
   ),
   sweep(
-    "cdelay",
-    "hold delay, ms",
+    "delay",
+    "speeds up after, ms",
     "default",
     (v) => ({ holdDelay: v }),
     [0, 250, 600],
     250,
   ),
   sweep(
-    "cw1",
-    "spring Hz, held",
+    "w1",
+    "held spring, Hz",
     "default",
     (v) => ({ omega1: TAU * v }),
     [3, 4.5, 6, 8],
     4.5,
   ),
   sweep(
-    "ccap1",
-    "edge budget, held, px/frame",
+    "cap1",
+    "held top speed, px/s",
     "default",
-    (v) => ({ vcap1: v * HZ }),
-    [24, 30, 36, 40, 44],
-    30,
+    (v) => ({ vcap1: v }),
+    [1440, 1800, 2160, 2400, 2640],
+    1800,
   ),
   sweep(
     "shade",
@@ -429,10 +438,14 @@ export function paramRows({ model, contexts, params, merge } = DRUM_SWEEPS) {
     taps: p.taps,
     rows: p.values.map((value) => ({
       value,
-      ...measure(merge(contexts[p.context], p.make(value)), {
-        taps: p.taps,
-        model,
-      }),
+      // `make` may read the context's whole configuration, as a derived page setting does.
+      ...measure(
+        merge(
+          contexts[p.context],
+          p.make(value, model.Model.config(contexts[p.context])),
+        ),
+        { taps: p.taps, model },
+      ),
     })),
   }));
 }
