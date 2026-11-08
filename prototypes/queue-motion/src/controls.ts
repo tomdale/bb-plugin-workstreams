@@ -878,6 +878,24 @@ export const CONTROLS: readonly Control[] = [
   ...PRESET_NAMES.map(presetButton),
   ...CASCADE_PRESET_NAMES.map(presetButton),
   {
+    id: "preset.saved",
+    label: "Saved preset",
+    kind: "button",
+    meta: "stored in this browser",
+  },
+  {
+    id: "preset.delete",
+    label: "Delete saved preset",
+    kind: "button",
+    meta: "button",
+  },
+  {
+    id: "preset.save",
+    label: "Save preset",
+    kind: "button",
+    meta: "stored in this browser",
+  },
+  {
     id: "speed",
     label: "Speed",
     kind: "buttons",

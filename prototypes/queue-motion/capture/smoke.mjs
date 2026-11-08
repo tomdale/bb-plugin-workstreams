@@ -466,6 +466,92 @@ async function controlsDriveThePage(browser) {
         product.includes("### Path"),
       `Copy settings in the product lists no preset or model settings (${JSON.stringify(product.slice(0, 300))})`,
     );
+
+    // Save preset stores the state under a name, its chip restores it, and × deletes it.
+    await load(page, "#v=drum&preset=natural&cap=30&sway=40");
+    const state = () =>
+      page.evaluate(() => ({
+        chips: [
+          ...document.querySelectorAll('#saved-chips [data-act^="u:"]'),
+        ].map((b) => ({
+          name: b.textContent,
+          on: b.getAttribute("aria-pressed"),
+        })),
+        savedHidden: document.getElementById("saved").hidden,
+        note: document.getElementById("save-note").textContent,
+        bad: document.getElementById("save-note").classList.contains("bad"),
+        hash: location.hash,
+        cur: window.__sim.cur(),
+      }));
+    const before = await state();
+    await page.fill("#preset-name", "fast");
+    await page.press("#preset-name", "j");
+    await page.press("#preset-name", "ArrowDown");
+    await page.waitForTimeout(300);
+    const typed = await state();
+    expect(
+      typed.cur === before.cur &&
+        (await page.inputValue("#preset-name")) === "fastj",
+      `keys typed into the preset name are text, not presses (front ${before.cur} → ${typed.cur})`,
+    );
+    await page.fill("#preset-name", "fast");
+    await page.click('button[data-act="save"]');
+    const saved = await state();
+    expect(
+      !saved.savedHidden &&
+        saved.chips.length === 1 &&
+        saved.chips[0].name === "fast" &&
+        saved.chips[0].on === "true" &&
+        saved.note === "Saved “fast”." &&
+        (await page.inputValue("#preset-name")) === "",
+      `Save preset adds a marked chip for the current settings (${JSON.stringify(saved)})`,
+    );
+    await page.click('button[data-act="p:fold"]');
+    const fold = await state();
+    await page.click('#saved-chips button[data-act="u:0"]');
+    const restored = await state();
+    expect(
+      fold.chips[0].on === "false" &&
+        !fold.hash.includes("cap=30") &&
+        restored.chips[0].on === "true" &&
+        restored.hash.includes("preset=natural") &&
+        restored.hash.includes("cap=30") &&
+        restored.hash.includes("sway=40") &&
+        (await page.$eval('button[data-act="p:natural"]', (b) =>
+          b.classList.contains("on"),
+        )),
+      `a saved chip restores its preset and settings (${JSON.stringify({ fold: fold.hash, restored: restored.hash })})`,
+    );
+    await load(page, "#v=drum");
+    const reloaded = await state();
+    await page.fill("#preset-name", "fold");
+    await page.click('button[data-act="save"]');
+    const refused = await state();
+    await load(page, "#v=cascade");
+    const cascadeSaved = await state();
+    const cascadeRow = await page.$eval("#save-row", (r) => r.hidden);
+    await load(page, "#v=product");
+    const productRow = await page.$eval("#save-row", (r) => r.hidden);
+    await load(page, "#v=drum");
+    await page.click('#saved-chips button[data-act="ud:0"]');
+    const deleted = await state();
+    const stored = await page.evaluate(() =>
+      localStorage.getItem("queue-motion-lab.presets"),
+    );
+    expect(
+      reloaded.chips.length === 1 &&
+        reloaded.chips[0].on === "false" &&
+        refused.bad &&
+        refused.chips.length === 1 &&
+        cascadeSaved.savedHidden &&
+        !cascadeRow &&
+        productRow &&
+        deleted.savedHidden &&
+        deleted.chips.length === 0 &&
+        deleted.note === "Deleted “fast”." &&
+        !stored.includes("fast"),
+      `saved presets persist, belong to their model, refuse a built-in name and delete (${JSON.stringify({ reloaded, refused, cascadeSaved, productRow, deleted })})`,
+    );
   });
 }
 
@@ -496,6 +582,16 @@ async function helpMatchesControls(browser) {
 
     // (b) The real DOM draws every one of them, across the states, and nothing else carries data-help.
     const rendered = new Set();
+    // A saved preset lives in this browser's storage, so one is stored first for its chip to draw.
+    await load(page, NATURAL.hash);
+    await page.evaluate(() =>
+      localStorage.setItem(
+        "queue-motion-lab.presets",
+        JSON.stringify({
+          drum: [{ name: "seeded", opt: { preset: "natural", cap: "30" } }],
+        }),
+      ),
+    );
     for (const state of STATES) {
       await load(page, state.hash);
       for (const c of await visibleControls(page)) rendered.add(c.id);

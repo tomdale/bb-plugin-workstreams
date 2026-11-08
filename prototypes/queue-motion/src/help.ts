@@ -343,6 +343,42 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "Works in every model. The held state and the drum's tempo run on the page's clock, so a held key does not advance them while it is paused.",
     tune: "Press ↓, click Pause during the trip, then click Step to walk the rest of it one frame at a time.",
   }),
+  "preset.save": () => ({
+    what: "Saves every setting as it is now as a preset of the running model, under the name in the field beside it, in this browser's storage.",
+    effect: [
+      [
+        "Click",
+        "A chip with the name appears in the Saved row under the built-in presets, and a line under the field says it was saved. An empty name saves as `my preset` and a number; a saved preset's name replaces that preset; a built-in preset's name is refused. Enter in the field saves too.",
+      ],
+    ],
+    needs:
+      "Each model keeps its own saved presets, and the product has none. A saved preset records the built-in preset it starts from and every model, Path and Overlay or playback setting you have changed; speed, reduced motion and `Bezier path` stay as they are when you apply it. It lives in this browser's `localStorage`, so another browser or a cleared storage does not have it; `Copy settings` or the URL hash carries the same settings anywhere.",
+    tune: "Save a configuration before you try something risky, then click its chip to come back to it. Save variants under names that say what they change.",
+  }),
+  "preset.saved": () => ({
+    what: "A preset you saved with `Save preset`, kept in this browser.",
+    effect: [
+      [
+        "Click",
+        "Restores the settings it saved: the built-in preset it started from, marked too, and every setting it changed, model, Path and page alike. Any change since is replaced. The chip is marked while the settings match it.",
+      ],
+    ],
+    needs:
+      "Applying it rewrites the URL hash, which then carries its settings but not its name. Speed, reduced motion and `Bezier path` stay as they are. The × beside it deletes it.",
+    tune: "Change a slider after applying it and the mark goes away; click the chip again to go back, or save under the same name to keep the change.",
+  }),
+  "preset.delete": () => ({
+    what: "Deletes the saved preset beside it from this browser.",
+    effect: [
+      [
+        "Click",
+        "The chip goes away at once and a line under the name field says it was deleted. The settings on screen stay as they are.",
+      ],
+    ],
+    needs:
+      "There is no undo: save the settings again to bring it back. The built-in presets cannot be deleted.",
+    tune: "Prune presets you no longer compare against, so the Saved row stays short.",
+  }),
   copy: () => ({
     what: "Copies the current settings to the clipboard as Markdown, to paste into a note, an issue or a chat.",
     effect: [

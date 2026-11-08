@@ -48,6 +48,16 @@ hidden whole. The modules:
 | Overlay               | `Bezier path` draws the rounded loop a moving card follows as cubic Bezier segments: down in front of the pile, across the column at `turn`, and up behind it to `tuck` (the cascade: one bow down to `park`), with handles, a ring at each leg's widest point, anchors and live card markers. While it is on, the module shows what it draws.                                                           |
 | How the drum works    | The About module, folded at first: the ring path the cards follow, the four problems the frame checker counts, and which module acts on which part. The product shows it too. While the cascade runs its heading is How the cascade works: the exit channel and the clip line, what sets the pace of a held key, and the same problems.                                                                  |
 
+`Save preset`, under the preset buttons, saves the current settings as a named
+preset of the running model in this browser's `localStorage` (the product has
+none). A saved preset records the built-in preset it starts from and every
+model, Path and page setting the URL hash overrides; speed, reduced motion and
+`Bezier path` are not part of it. Its chip, in the Saved row, restores those
+settings and is marked while they match; its × deletes it. An empty name saves
+as `my preset` and a number, a saved preset's name replaces that preset, and a
+built-in preset's name is refused. Applying one rewrites the hash, which carries
+the settings but not the name.
+
 `Copy settings`, beside the inspector's title, copies the current state to the
 clipboard as Markdown: the model, preset, speed, reduced motion, `Bezier path`
 and the URL hash; a line naming every setting that differs from its preset or

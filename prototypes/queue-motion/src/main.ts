@@ -50,6 +50,12 @@ import {
   type Sway,
 } from "./ring.ts";
 import { settingsMarkdown, type CopyRow } from "./copy.ts";
+import {
+  deletePreset,
+  savePreset,
+  savedPresets,
+  type SavedPreset,
+} from "./saved.ts";
 import { ABOUT, ABOUT_CASCADE, HELP, captionFor } from "./help.ts";
 import { inline, installTooltips } from "./tooltip.ts";
 // @ts-ignore: plain JS data
@@ -726,6 +732,7 @@ function build(mode: Mode, cur = sim ? sim.cur : 0) {
   showHead(cur, false);
   paint();
   wake();
+  renderSaved();
   syncAll();
 }
 
@@ -774,6 +781,9 @@ const BODIES: Record<ModuleId, () => string> = {
     ).join("")}${CASCADE_PRESET_NAMES.map((p) =>
       button(`preset.${p}`, `p:${p}`, p, "cascade"),
     ).join("")}</div></div>` +
+    `<div class="field" id="saved" hidden><span class="row-label">Saved</span><div class="chips" id="saved-chips"></div></div>` +
+    `<div class="save-row" id="save-row"><input type="text" id="preset-name" maxlength="40" placeholder="Name" aria-label="Saved preset name" autocomplete="off" spellcheck="false">${button("preset.save", "save", labelOf("preset.save"))}</div>` +
+    `<p class="save-note" id="save-note" role="status"></p>` +
     `<p class="caption" id="note"></p>`,
   playback: () =>
     row(
@@ -820,6 +830,82 @@ function renderInspector() {
   }).join("");
 }
 
+// ---- saved presets (saved.ts) ------------------------------------------------------------------------
+
+/** The saved presets the Model module shows now, in chip order: a chip's `data-act` names its index here. */
+let shownSaved: SavedPreset[] = [];
+
+/** The hash keys a preset button replaces: every model setting, and with a saved preset the path's and the page's. */
+const PRESET_OWNED = [...SETTING_KEYS, ...PATH_KEYS, ...VIEW_KEYS];
+
+/** The state `o` would give with `saved` applied over it. */
+const withSaved = (o: Opt, saved: SavedPreset): Opt => {
+  const out: Opt = { ...o };
+  for (const k of PRESET_OWNED) delete out[k];
+  return Object.assign(out, saved.opt);
+};
+
+/** Every configuration the motion and the page read, for comparing two states by effect rather than spelling. */
+const effect = (o: Opt) => {
+  const r = o.reduced === "1" || systemReduced.matches;
+  return JSON.stringify([
+    drumCfg(o),
+    cascadeCfg(o),
+    pathCfg(o, r),
+    viewCfg(o, r),
+  ]);
+};
+
+/** Whether the state is what `saved` gives: every setting it records, and no other override, has the same effect. */
+const appliedIs = (saved: SavedPreset | undefined) =>
+  !!saved && effect(opt) === effect(withSaved(opt, saved));
+
+/** Redraws the saved preset chips for the running model; the product has none. */
+function renderSaved() {
+  shownSaved = savedPresets(opt.v!);
+  $("#saved").hidden = shownSaved.length === 0;
+  $("#saved-chips").innerHTML = shownSaved
+    .map(
+      (p, i) =>
+        `<span class="saved-chip">${button("preset.saved", `u:${i}`, p.name)}<button type="button" class="del" data-help="preset.delete" data-act="ud:${i}" aria-label="Delete ${esc(p.name).replace(/"/g, "&quot;")}">×</button></span>`,
+    )
+    .join("");
+}
+
+let noteReset = 0;
+function saveNote(text: string, ok: boolean) {
+  const note = $("#save-note");
+  note.textContent = text;
+  note.classList.toggle("bad", !ok);
+  clearTimeout(noteReset);
+  noteReset = window.setTimeout(() => (note.textContent = ""), 2400);
+}
+
+/**
+ * Saves the state under the name in the field, or `my preset N` when it is empty. A built-in preset's name is
+ * refused, so a saved chip never reads like a built-in one; a saved preset's name replaces that preset.
+ */
+function saveCurrent() {
+  const mode = opt.v;
+  if (mode !== "drum" && mode !== "cascade") return;
+  const field = $("#preset-name") as HTMLInputElement;
+  const name =
+    field.value.trim() || `my preset ${savedPresets(mode).length + 1}`;
+  if (presetsOf(mode).includes(name)) {
+    saveNote(`“${name}” is a built-in preset; choose another name.`, false);
+    return;
+  }
+  const replaced = savedPresets(mode).some((p) => p.name === name);
+  if (!savePreset(mode, name, opt)) {
+    saveNote("This browser would not store the preset.", false);
+    return;
+  }
+  field.value = "";
+  renderSaved();
+  syncButtons();
+  saveNote(replaced ? `Replaced “${name}”.` : `Saved “${name}”.`, true);
+}
+
 function syncButtons() {
   for (const b of $$("#inspector button[data-act]")) {
     const [k, v] = (b.dataset.act ?? "").split(":");
@@ -836,13 +922,16 @@ function syncButtons() {
                 ? opt.reduced === "1"
                 : k === "path"
                   ? opt.path === "1"
-                  : false;
+                  : k === "u"
+                    ? appliedIs(shownSaved[Number(v)])
+                    : false;
     b.classList.toggle("on", on);
-    if (k !== "step" && k !== "copy")
+    if (!["step", "copy", "save", "ud"].includes(k!))
       b.setAttribute("aria-pressed", String(on));
   }
   // Each model shows its own preset buttons; the product has none.
   $("#presets").hidden = opt.v === "product";
+  $("#save-row").hidden = opt.v === "product";
   for (const b of $$("#presets button")) b.hidden = b.dataset.mode !== opt.v;
   $('#inspector [data-act="pause"]').textContent = paused
     ? "Paused"
@@ -1118,6 +1207,24 @@ inspector.addEventListener("click", (e) => {
     opt.preset = v!;
     build(b.dataset.mode as Mode);
   }
+  if (k === "save") saveCurrent();
+  if (k === "u") {
+    const saved = shownSaved[Number(v)];
+    if (saved) {
+      for (const key of PRESET_OWNED) delete opt[key];
+      Object.assign(opt, saved.opt);
+      build(opt.v as Mode);
+    }
+  }
+  if (k === "ud") {
+    const saved = shownSaved[Number(v)];
+    if (saved && (opt.v === "drum" || opt.v === "cascade")) {
+      deletePreset(opt.v, saved.name);
+      renderSaved();
+      syncButtons();
+      saveNote(`Deleted “${saved.name}”.`, true);
+    }
+  }
   if (k === "s") {
     opt.speed = v!;
     syncAll();
@@ -1172,6 +1279,11 @@ inspector.addEventListener(
   true,
 );
 addEventListener("pagehide", saveFolds);
+// Another tab of the lab may save or delete a preset.
+addEventListener("storage", () => {
+  renderSaved();
+  syncButtons();
+});
 // The system's reduced-motion setting can change while the page is open.
 systemReduced.addEventListener("change", () => {
   refreshCfg();
@@ -1185,7 +1297,14 @@ const keyDir = (k: string): 1 | -1 | 0 =>
   k === "ArrowDown" || k === "j" ? 1 : k === "ArrowUp" || k === "k" ? -1 : 0;
 /** Every keydown, OS repeats included, is a press; the first also starts the drum's hold, and key-up ends it. */
 let held: 1 | -1 | 0 = 0;
+/** Keys typed into a text field (the saved preset's name) are text, not presses. */
+const typing = (e: KeyboardEvent) =>
+  e.target instanceof HTMLInputElement && e.target.type === "text";
 addEventListener("keydown", (e) => {
+  if (typing(e)) {
+    if (e.key === "Enter") saveCurrent();
+    return;
+  }
   const d = keyDir(e.key);
   if (!d) return;
   e.preventDefault();
@@ -1202,7 +1321,7 @@ addEventListener("keydown", (e) => {
   wake();
 });
 addEventListener("keyup", (e) => {
-  if (keyDir(e.key)) {
+  if (!typing(e) && keyDir(e.key)) {
     held = 0;
     sim.keyUp?.();
     paint();
