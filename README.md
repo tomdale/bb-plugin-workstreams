@@ -1104,7 +1104,16 @@ reusable compiled dependency code. Each process owns its native modules. DOM
 tests use jsdom; layout checks use real Chrome with a fresh browser context per
 test. Server fixtures use real, disposable SQLite databases with synchronous
 disk flushing disabled; they cover transactions, migrations, and reopening
-storage, not recovery after power loss.
+storage, not recovery after power loss. Fake worlds copy an empty current-schema
+image into each fresh database. Real migrations produce that image once per test
+module, and plugin installation still verifies the migration ledger. Migration
+and storage-boundary tests use `createTestPluginHost` to start from an empty
+database. Fixture tests compare the cloned schema and hashes with a fresh
+migration and check isolation, rollback, reopen, and cleanup.
+
+Gallery browser scenarios share a file-scoped Vite server and browser, with at
+most two scenarios running concurrently. Each scenario owns a fresh browser
+context, so cookies, storage, viewport, and theme changes stay isolated.
 
 Component tests mount the real component through the SDK harness without loading
 unrelated UI surfaces. `tests/app/registration.test.tsx` checks the plugin's

@@ -14,6 +14,8 @@ export default defineConfig({
     // while reusing compiled dependencies. More workers contend with Chrome.
     pool: "vmForks",
     maxWorkers: Math.min(8, availableParallelism()),
+    // Browser scenarios have independent contexts, but share CPU with workers.
+    maxConcurrency: 2,
     vmMemoryLimit: "512MB",
   },
 });

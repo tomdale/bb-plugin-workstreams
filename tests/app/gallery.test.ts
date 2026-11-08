@@ -62,7 +62,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
     }
   });
 
-  browserTest(
+  browserTest.concurrent(
     "navigates real specimens, filters pages, and shows source",
     async ({ page }) => {
       const errors: string[] = [];
@@ -109,7 +109,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
     60_000,
   );
 
-  browserTest(
+  browserTest.concurrent(
     "offers a local sidebar playground with independent connecting lines",
     async ({ page }) => {
       const errors: string[] = [];
@@ -243,7 +243,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
     60_000,
   );
 
-  browserTest(
+  browserTest.concurrent(
     "uses fixture topic colors and scoped status tokens in both sidebar previews",
     async ({ page }) => {
       const errors: string[] = [];
@@ -391,7 +391,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
     60_000,
   );
 
-  browserTest(
+  browserTest.concurrent(
     "renders every specimen with real tokens and bounded controls",
     async ({ page }) => {
       const errors: string[] = [];
@@ -460,7 +460,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
     60_000,
   );
 
-  browserTest(
+  browserTest.concurrent(
     "places Change labels in a gutter and distinguishes every check status",
     async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
@@ -527,7 +527,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
     60_000,
   );
 
-  browserTest(
+  browserTest.concurrent(
     "changes themes and widths without overflowing a narrow viewport",
     async ({ page }) => {
       await page.goto(`${url}#recap-card`);
@@ -593,7 +593,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
     60_000,
   );
 
-  browserTest(
+  browserTest.concurrent(
     "runs recap and question controls locally without BB requests",
     async ({ page }) => {
       const requests: string[] = [];
