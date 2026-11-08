@@ -406,6 +406,9 @@ body[data-embedded="true"] .playground {
   --status-primary: #006fee;
   --status-waiting: #f2c94c;
   --status-error: #e5484d;
+  --primary: var(--status-primary);
+  --warning-text: var(--status-waiting);
+  --destructive: var(--status-error);
   --status-decision: color-mix(in oklab, oklch(76.9% 0.188 70.08) 75%, #ededed);
   --family-gap: 8px;
   --item-gap: 8px;

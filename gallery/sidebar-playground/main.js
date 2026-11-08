@@ -2811,6 +2811,9 @@ function renderUnit(item, mode, panel, lower, hasParent) {
   const unit = document.createElement("div");
   unit.className = "unit";
   unit.style.setProperty("--color", `var(--${item.color})`);
+  // The fixture supplies a theme-specific color; production names read these tokens.
+  unit.style.setProperty("--ws-color-light", "var(--color)");
+  unit.style.setProperty("--ws-color-dark", "var(--color)");
   const variant = hasParent
       ? "grouped"
       : mode === "prefix" && item.parent

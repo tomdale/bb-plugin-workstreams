@@ -244,6 +244,154 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
   );
 
   browserTest(
+    "uses fixture topic colors and scoped status tokens in both sidebar previews",
+    async ({ page }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.goto(`${url}sidebar.html`);
+      await page.locator("#after .ws-workstream-name").first().waitFor();
+      const colorsByTheme: Record<string, string> = {};
+      for (const theme of ["Dark", "Light"] as const) {
+        await page.getByRole("button", { name: theme, exact: true }).click();
+        const panels = await page.evaluate(() => {
+          const samples = (panel: string) => {
+            const root = document.getElementById(panel)!;
+            const resolvedColor = (element: Element, value: string) => {
+              const probe = document.createElement("span");
+              probe.style.color = value;
+              probe.style.display = "none";
+              element.append(probe);
+              const color = getComputedStyle(probe).color;
+              probe.remove();
+              return color;
+            };
+            const units = Array.from(root.querySelectorAll(".unit"));
+            const names = units.map((unit) => ({
+              name: unit.querySelector(".ws-workstream-name")!.textContent,
+              actual: getComputedStyle(
+                unit.querySelector(".ws-workstream-name")!,
+              ).color,
+              expected: resolvedColor(unit, "var(--color)"),
+            }));
+            const firstWithPrefix = units.find((unit) =>
+              unit.querySelector(".ws-text-prefix"),
+            )!;
+            const prefix = firstWithPrefix.querySelector(".ws-text-prefix")!;
+            const firstWithCategory = units.find((unit) =>
+              unit.querySelector(".cat"),
+            )!;
+            const category = firstWithCategory.querySelector(".cat")!;
+            const marks = [
+              [".ws-work-review", "--ws-review-mark"],
+              [".ws-work-complete", "--ws-complete-mark"],
+              [".ws-work-needs_decision", "--ws-needs-you-soft"],
+              [".ws-mark-waiting", "--ws-needs-you-mark"],
+              [".ws-mark-error", "--ws-failure-mark"],
+            ].map(([selector, token]) => {
+              const mark = root.querySelector(selector!)!;
+              return {
+                selector,
+                token: getComputedStyle(mark).getPropertyValue(token!).trim(),
+                actual: getComputedStyle(mark).color,
+                expected: resolvedColor(mark, `var(${token})`),
+                fixture: resolvedColor(
+                  mark,
+                  {
+                    ".ws-work-review": "var(--status-primary)",
+                    ".ws-work-complete": "#30a46c",
+                    ".ws-mark-waiting": "var(--status-waiting)",
+                    ".ws-mark-error": "var(--status-error)",
+                  }[selector!] ?? `var(${token})`,
+                ),
+              };
+            });
+            const unread = root.querySelector(".ws-mark-unread")!;
+            return {
+              names,
+              unread: {
+                actual: getComputedStyle(unread, "::before").backgroundColor,
+                expected: resolvedColor(unread, "var(--status-primary)"),
+              },
+              prefix: {
+                actual: getComputedStyle(prefix).color,
+                expected: resolvedColor(
+                  firstWithPrefix,
+                  "color-mix(in oklab, var(--color) 60%, black)",
+                ),
+              },
+              category: {
+                actual: getComputedStyle(category).color,
+                expected: resolvedColor(
+                  firstWithCategory,
+                  "color-mix(in oklab, var(--color) 45%, oklch(from var(--color) l 0 h))",
+                ),
+              },
+              marks,
+            };
+          };
+          return { trial: samples("after"), current: samples("before") };
+        });
+        for (const panel of [panels.trial, panels.current]) {
+          expect(
+            new Set(panel.names.map((name) => name.actual)).size,
+          ).toBeGreaterThan(2);
+          for (const name of panel.names)
+            expect(name.actual, String(name.name)).toBe(name.expected);
+          expect(panel.prefix.actual).toBe(panel.prefix.expected);
+          expect(panel.category.actual).toBe(panel.category.expected);
+          expect(panel.unread.actual).toBe(panel.unread.expected);
+          for (const mark of panel.marks) {
+            expect(mark.token, mark.selector).not.toBe("");
+            expect(mark.actual, mark.selector).toBe(mark.expected);
+            expect(mark.actual, mark.selector).toBe(mark.fixture);
+          }
+        }
+        expect(panels.trial.names).toEqual(panels.current.names);
+        colorsByTheme[theme] = panels.trial.names[0]!.actual;
+      }
+      expect(colorsByTheme.Dark).not.toBe(colorsByTheme.Light);
+
+      await page
+        .getByRole("button", { name: "Workstreams", exact: true })
+        .click();
+      const currentName = page
+        .locator("#before .unit")
+        .filter({
+          has: page.getByRole("button", { name: "Prompting", exact: true }),
+        })
+        .locator(".ws-workstream-name");
+      const trialName = page
+        .locator("#after .unit")
+        .filter({
+          has: page.getByRole("button", { name: "Prompting", exact: true }),
+        })
+        .locator(".ws-workstream-name");
+      const currentColor = await currentName.evaluate(
+        (el) => getComputedStyle(el).color,
+      );
+      await page
+        .getByLabel("Workstream headers: Color", { exact: true })
+        .selectOption("custom");
+      await page.locator("#font_workstream_customColor").fill("#336699");
+      expect(await trialName.evaluate((el) => getComputedStyle(el).color)).toBe(
+        "rgb(51, 102, 153)",
+      );
+      expect(
+        await currentName.evaluate((el) => getComputedStyle(el).color),
+      ).toBe(currentColor);
+      await page.reload();
+      expect(await trialName.evaluate((el) => getComputedStyle(el).color)).toBe(
+        "rgb(51, 102, 153)",
+      );
+      expect(
+        await currentName.evaluate((el) => getComputedStyle(el).color),
+      ).toBe(currentColor);
+      expect(errors).toEqual([]);
+    },
+    60_000,
+  );
+
+  browserTest(
     "renders every specimen with real tokens and bounded controls",
     async ({ page }) => {
       const errors: string[] = [];

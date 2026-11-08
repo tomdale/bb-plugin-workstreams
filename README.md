@@ -1056,8 +1056,9 @@ threads. Line controls set visibility, width, color, indent, and spacing.
 Changes and expandable state can be shared in the URL; fragments from older
 playground settings URLs can be applied to this page. The examples use the
 plugin's thread rows and workstream names with local fixtures, while the
-alternative grouping and layout treatments are simulated. Nothing writes to BB
-or ships in the plugin.
+alternative grouping and layout treatments are simulated. Topic and status
+colors use the playground's light and dark fixtures, not your live BB settings.
+Nothing writes to BB or ships in the plugin.
 
 Settings and overlay actions update local state and an action log. Question
 presets cover freeform and multi-question forms, submission states, and retained
