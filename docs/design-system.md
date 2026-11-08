@@ -136,9 +136,8 @@ A question card uses the `needsYou` token to identify a choice that requires the
 person's input. The question is the largest text in the card; option labels,
 details, and descriptions step down in that order. Options expose radio or
 checkbox roles, keyboard navigation, a clear selected state, and visible
-keyboard focus.
-Phone controls and text meet the coarse-pointer and iOS input-size constraints
-in `question/question-presentation.tsx`.
+keyboard focus. Phone controls and text meet the coarse-pointer and iOS
+input-size constraints in `question/question-presentation.tsx`.
 
 ### Navigation and work identity
 
