@@ -68,9 +68,17 @@ for (const test of queue) {
     const expected = test.partitions
       .map((partition) => [...partition].sort().join(","))
       .sort();
+    const chainedNames = decision.keep
+      ? []
+      : decision.categories
+          .map((category) => category.name)
+          .filter((name) => /[,&]/.test(name));
     passed =
       JSON.stringify(actual) === JSON.stringify(expected) &&
-      (!("keep" in test) || decision.keep === test.keep);
+      (!("keep" in test) || decision.keep === test.keep) &&
+      (!test.noChainNames || chainedNames.length === 0);
+    if (test.noChainNames && chainedNames.length)
+      error = `chained names: ${chainedNames.join("; ")}`;
   } catch (failure) {
     error = String(failure);
   }

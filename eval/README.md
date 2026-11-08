@@ -51,11 +51,13 @@ placement answers with a proposal, which a typed question can't express.
 
 `node eval/categories.ts` evaluates the production category prompt, schema, and
 parser against synthetic collections. Cases cover creation at either topic
-depth, keeping a useful arrangement, arrivals, departures, changed work, and
-untrusted text in evidence. `EVAL_HOLDOUT=1` uses reserved cases. Partition
-checks ignore category-name wording; stability cases also require the explicit
-keep decision. This measures the supplied collections, not production grouping
-accuracy.
+depth, keeping a useful arrangement, arrivals (forming a new category or joining
+an existing one), departures, changed work, regrouping an arrangement that is
+mostly singletons, and untrusted text in evidence. `EVAL_HOLDOUT=1` uses
+reserved cases. Partition checks ignore category-name wording, except flagged
+cases that reject names chaining themes; stability cases also require the
+explicit keep decision. This measures the supplied collections, not production
+grouping accuracy.
 
 - `EVAL_MODEL`: defaults to the Organization model's shipped default
 - `EVAL_REASONING_LEVEL`: defaults to that model's shipped reasoning level

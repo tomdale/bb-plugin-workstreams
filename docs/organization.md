@@ -68,16 +68,20 @@ up. Each assessment fetches bounded first, second, and latest requests,
 excluding verified subagent deliveries. It can recategorize all names and
 memberships, but should preserve the arrangement unless a change offers a
 meaningful organizational benefit. Cosmetic differences and marginal tidiness
-are not reasons to regroup. There is no throttle, periodic assessment,
-recommendation queue, or incremental-only mode.
+are not reasons to regroup. Threads missing from the current categories join the
+existing category whose theme they share. There is no throttle, periodic
+assessment, recommendation queue, or incremental-only mode.
 
 The classifier chooses useful distinctions among these threads, with plain names
-and coherent membership. It prefers several roots per category but may use a
-singleton for distinct work. It does not force equal sizes or a General/Other
-catch-all. Fresh generations need at least two categories; an active generation
-can contract as its collection changes. Every eligible root must appear exactly
-once. Unsupported IDs, omissions, duplicate memberships, empty categories, and
-duplicate names invalidate a replacement.
+and coherent membership. A category groups threads that share one theme;
+singletons are for work sharing a theme with no other thread, and an arrangement
+that is mostly singletons is regrouped. A name states its members' shared theme
+without chaining themes; names that no longer cover their members are renamed.
+It does not force equal sizes or a General/Other catch-all. Fresh generations
+need at least two categories; an active generation can contract as its
+collection changes. Every eligible root must appear exactly once. Unsupported
+IDs, omissions, duplicate memberships, empty categories, and duplicate names
+invalidate a replacement.
 
 Category state is stored in plugin database metadata, separately from topic
 assignments: generation ID, category IDs and names, member root IDs, and the
