@@ -627,7 +627,7 @@ describe("small groups", () => {
     // Section heading: Workstreams
     const heading = slot.getByRole("heading", { name: "Workstreams" });
     expect(heading.parentElement?.style.height).toBe("13px");
-    expect(heading.parentElement?.style.marginTop).toBe("2px");
+    expect(heading.parentElement?.style.marginTop).toBe("8px");
     expect(heading.parentElement?.style.marginBottom).toBe("9px");
     expect(heading.parentElement?.style.paddingLeft).toBe("10px");
 

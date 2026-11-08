@@ -893,7 +893,7 @@ export function WorkstreamsThreadList({
             onClick={() =>
               navigate.toPluginPanel("home", { subPath: "organization" })
             }
-            className="ws-needs-you-text ws-suggestions-action flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-[1.5px] text-[11px] leading-[1.2] font-medium transition-colors"
+            className="ws-needs-you-text ws-suggestions-action flex shrink-0 cursor-pointer items-center gap-0.5 rounded-md px-1.5 py-[1.5px] text-[11px] leading-[1.2] font-medium transition-colors"
           >
             <Icon name="MagicWand01" className="size-3" aria-hidden />
             Reorganize
@@ -1567,7 +1567,7 @@ function Band({
             className={cn(
               "flex min-w-0 flex-1 items-center gap-1 pr-1.5",
               box === "attention"
-                ? "py-1 text-[12px] font-medium"
+                ? "pb-1 text-[12px] font-medium"
                 : "py-0.5 text-[11px] font-semibold uppercase tracking-wide",
               markless ? "pl-3.5" : "pl-1.5",
               box === "attention"
