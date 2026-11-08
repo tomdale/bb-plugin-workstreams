@@ -58,6 +58,8 @@ export type PlacementInput = {
     readonly label: string;
     readonly inherited: boolean;
   } | null;
+  /** The context digest Full analysis settled for the thread, when it has one. */
+  readonly digest?: string | null;
 };
 
 export type PlacementOutput = TopicAnswer & { scopeShift: boolean };
@@ -203,6 +205,9 @@ export function placementPrompt(input: PlacementInput): string {
       : null,
     input.current
       ? `Its current topic${input.current.inherited ? ", from the thread or workstream it was started from" : ""}:\n${tagged("current_topic", line(input.current.label, 200))}`
+      : null,
+    input.digest
+      ? `The thread's accumulated context, which a single later request refines more often than it replaces:\n${tagged("thread_digest", line(input.digest, 500))}`
       : null,
   ].filter(Boolean);
   return `${HEADER}

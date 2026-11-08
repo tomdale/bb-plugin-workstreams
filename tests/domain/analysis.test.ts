@@ -77,6 +77,42 @@ describe("Full analysis", () => {
     });
   });
 
+  it("settles an accumulated context digest alongside the outcome", () => {
+    const input: FullAnalysisInput = {
+      ...base,
+      digest: "The thread evaluates the Workstreams plugin's tidy suggestions.",
+    };
+    const prompt = fullAnalysisPrompt(input);
+    expect(prompt).toContain('"digest": string|null');
+    expect(prompt).toContain(
+      "<thread_digest>\nThe thread evaluates the Workstreams plugin's tidy suggestions.",
+    );
+    expect(fullAnalysisSchema(input)).toHaveProperty("properties.digest");
+    expect(
+      parseFullAnalysis(
+        JSON.stringify({
+          recap: "Done",
+          state: "done",
+          threadGoal: null,
+          digest: "  The thread\n evaluates tidy guidance.  ",
+        }),
+        base,
+      ),
+    ).toMatchObject({ digest: "The thread evaluates tidy guidance." });
+    for (const digest of [null, "", 42, "x".repeat(481)]) {
+      expect(
+        parseFullAnalysis(
+          JSON.stringify({ recap: "Done", state: "done", digest }),
+          base,
+        ),
+      ).toMatchObject({ digest: null });
+    }
+    const statusOnly = { ...base, mode: "status" } as const;
+    expect(fullAnalysisSchema(statusOnly)).not.toHaveProperty(
+      "properties.digest",
+    );
+  });
+
   it("rejects malformed outcomes without losing other analysis fields", () => {
     for (const threadGoal of [
       null,
@@ -166,6 +202,7 @@ describe("Full analysis", () => {
       "state",
       "needsYou",
       "threadGoal",
+      "digest",
       "goal",
     ]);
     expect(required({ ...base, mode: "status" })).toEqual([
@@ -178,7 +215,7 @@ describe("Full analysis", () => {
         ...base,
         report: { state: "complete", headline: "Done", latest: [] },
       }),
-    ).toEqual(["threadGoal", "goal"]);
+    ).toEqual(["threadGoal", "digest", "goal"]);
   });
 
   it("doesn't ask for status the agent already reported", () => {
@@ -195,6 +232,7 @@ describe("Full analysis", () => {
     expect(parsed).toEqual({
       status: null,
       threadGoal: null,
+      digest: null,
       goal: "Fixing stale build cache",
     });
   });
@@ -208,6 +246,7 @@ describe("Full analysis", () => {
     ).toEqual({
       status: { recap: "Waiting on CI", state: "blocked", needsYou: null },
       threadGoal: null,
+      digest: null,
       goal: null,
     });
   });

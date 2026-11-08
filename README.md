@@ -199,6 +199,11 @@ Full analysis settles:
   requests even when you gave the thread its title; turns without new requests
   carry the goal forward. Existing open threads receive goals through analysis
   catch-up. Until a goal is available, the subtitle is omitted.
+- **Context digest:** Two or three short sentences recording what the work is,
+  what it has established, and the product or area that owns it. Each settled
+  turn revises the digest in place, so established facts survive later
+  sub-step requests. Placement reads the digest when choosing a topic, so
+  ownership decisions rest on the thread's accumulated context.
 - **Fallback recap and status:** Only when the agent did not call
   `WorkstreamsRecap`, Full analysis supplies a one-line recap, work state
   (`needs_decision`, `review`, `blocked`, `in_progress`, or `done`), and a short
@@ -216,10 +221,10 @@ and turns without a new request never re-place a thread.
 
 - **Evidence:** the thread's generated title; its first, second, and latest
   substantive requests (a routed request is read without its
-  `[bb message from thread:…]` wrapper); its project; and its checkout. Subagent
-  results verified against Subagents' run records are not requests. If those
-  records are unavailable, Workstreams keeps the message rather than discarding
-  a possible user request.
+  `[bb message from thread:…]` wrapper); the context digest Full analysis
+  settled; its project; and its checkout. Subagent results verified against
+  Subagents' run records are not requests. If those records are unavailable,
+  Workstreams keeps the message rather than discarding a possible user request.
 - **Closed choice:** only topics without subtopics can be chosen. When none
   fits, placement may propose one new topic named for a lasting area of work,
   never for a task, pull request, or bug. A proposed subtopic of a topic that

@@ -58,6 +58,17 @@ describe("placementPrompt", () => {
       "<checkout>\n/Users/me/Code/Repos/api/main\n</checkout>",
     );
     expect(prompt).not.toContain("current_topic");
+    expect(prompt).not.toContain("thread_digest");
+  });
+
+  it("shows the thread's accumulated context when analysis settled one", () => {
+    const prompt = placementPrompt({
+      ...input,
+      digest: "The thread evaluates the Automations plugin's tidy suggestions.",
+    });
+    expect(prompt).toContain(
+      "<thread_digest>\nThe thread evaluates the Automations plugin's tidy suggestions.\n</thread_digest>",
+    );
   });
 
   it("tells topics with the same name apart by their parents", () => {

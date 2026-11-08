@@ -8,7 +8,10 @@ export type ClassifyInput = {
   entities: Entity[];
   project?: string | null;
   requests?: string[];
-  placement?: Pick<PlacementInput, "title" | "checkout" | "hints" | "current">;
+  placement?: Pick<
+    PlacementInput,
+    "title" | "checkout" | "hints" | "current" | "digest"
+  >;
 };
 export const entities = [
   {
@@ -433,6 +436,30 @@ export const cases: Case[] = [
         checkout: "/work/loom",
         hints: ["Checkout normally contains Loom Recaps work."],
         current: { label: "Harbor: Providers", inherited: true },
+      },
+    },
+  },
+  {
+    // The digest anchors ownership when the latest request is a sub-step
+    // naming no product and the checkout belongs to a different one.
+    id: "digest-anchors-owner",
+    expected: "recap",
+    scopeShift: false,
+    input: {
+      prompt: "Evaluating recap rename guidance",
+      entities,
+      project: "Harbor",
+      requests: [
+        "Evaluate and improve the recap rename suggestions across models using realistic test cases.",
+        "Compare the Terra and Sol suggestions and assess which changes are genuinely useful.",
+      ],
+      placement: {
+        title: "Evaluating recap rename guidance",
+        checkout: "/work/harbor",
+        hints: [],
+        current: { label: "Loom: Recaps", inherited: false },
+        digest:
+          "The thread evaluates the Loom plugin's recap title and rename suggestions, comparing model outputs against realistic thread catalogs.",
       },
     },
   },

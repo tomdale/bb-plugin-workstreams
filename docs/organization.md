@@ -107,9 +107,11 @@ supplies the topic it showed. Explicit composer choices have manual priority.
 
 Placement makes one closed-set call on the first request and again beside Full
 analysis after a new substantive request. It sees the generated title, first,
-second, and latest substantive requests, project, checkout, and
-continuation/start hints. A checkout's usual topic is a hint unless at least two
-of its threads point at other repositories. Title edits, model changes,
+second, and latest substantive requests, the context digest Full analysis
+settled, project, checkout, and continuation/start hints. Full analysis
+maintains the digest across turns: two or three sentences naming what the work
+is, what it has established, and its owner, revised in place as turns settle. A checkout's usual topic is a hint unless at least two of its
+threads point at other repositories. Title edits, model changes,
 topic-definition changes, and control-only requests do not re-place a thread.
 
 Only leaf topics within the two-level limit can be chosen. A new first-level

@@ -127,7 +127,7 @@ export class Analyzer {
         question(
           thread: PlacementThread,
           requests: readonly string[],
-          options?: { force?: boolean },
+          options?: { force?: boolean; digest?: string | null },
         ): Promise<PlacementQuestion | null>;
         ask(
           threadId: string,
@@ -320,7 +320,7 @@ export class Analyzer {
     const question = await placement.question(
       { ...thread, sourceThreadId: context.sourceThreadId },
       context.requests.map((r) => r.text),
-      { force: true, ...options },
+      { digest: this.get(threadId)?.digest ?? null, force: true, ...options },
     );
     if (!question) throw new Error("The thread has no request to place.");
     const title = displayTitle(thread);
@@ -433,6 +433,7 @@ export class Analyzer {
           ? await this.deps.placement.question(
               { ...thread, sourceThreadId: context.sourceThreadId },
               context.requests.map((r) => r.text),
+              { digest: previous?.digest ?? null },
             )
           : null;
       // Placement runs beside Full analysis; it fails on its own.
@@ -476,6 +477,7 @@ export class Analyzer {
             (settled ||
               (previous !== undefined && previous.revision >= revision)),
           threadGoal: previous?.threadGoal ?? null,
+          digest: previous?.digest ?? null,
           continuation: full
             ? await this.continuation(
                 thread.id,
@@ -520,6 +522,9 @@ export class Analyzer {
           threadGoal: full
             ? (output.threadGoal ?? previous?.threadGoal ?? null)
             : (previous?.threadGoal ?? null),
+          digest: full
+            ? (output.digest ?? previous?.digest ?? null)
+            : (previous?.digest ?? null),
           reported: reported !== null,
           requestsKey: full
             ? context.requestsKey

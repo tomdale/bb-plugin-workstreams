@@ -48,6 +48,8 @@ export const RECAP_MAX = 140;
 export const GOAL_MAX = 48;
 /** A safety bound for a thread goal's short sentence; oversized output is refused. */
 export const THREAD_GOAL_MAX = 240;
+/** A safety bound for the accumulated context digest; oversized output is refused. */
+export const DIGEST_MAX = 480;
 /** A request is excerpted to this much for Quick analysis. */
 const QUICK_REQUEST_CHARS = 1500;
 
@@ -63,6 +65,11 @@ type ThreadAnalysis = {
    * older row; null records an analysis that couldn't establish an outcome.
    */
   readonly threadGoal?: string | null;
+  /**
+   * The accumulated context: what the work is and what it has established.
+   * Settled and carried forward like `threadGoal`; placement reads it.
+   */
+  readonly digest?: string | null;
   readonly topicError?: string;
   /** The thread's `latestAttentionAt` when it was analyzed. */
   readonly revision: number;
@@ -259,6 +266,7 @@ const PROMPT_TAGS = [
   "parent_thread",
   "continuation_context",
   "thread_goal",
+  "thread_digest",
   "checkout",
   "hint",
   "group",
@@ -474,6 +482,8 @@ export type FullAnalysisInput = {
   readonly preserveTitle?: boolean;
   /** The settled outcome; null model output keeps it through intermediate steps. */
   readonly threadGoal?: string | null;
+  /** The settled context digest; null model output keeps it. */
+  readonly digest?: string | null;
   /** Bounded context from an explicitly referenced continuation thread. */
   readonly continuation?: string | null;
   readonly listing?: ThreadListing | null;
@@ -543,6 +553,8 @@ const THREAD_GOAL_RULES = `- threadGoal: the desired outcome of the thread, in o
   Examples: "Copy the focused thread's link with a customizable keyboard shortcut." "Make the review code easier to navigate without changing its behavior." "Help PR authors see open findings at a glance without losing access to resolved feedback." "Determine whether the action upgrade is safe to retain and which risks need addressing."
   Follow the user's evolving purpose across the conversation. Keep the settled outcome through testing, shipping, housekeeping, side questions, and requests to continue. Change it when the user's purpose changes, such as moving from auditing to implementing or from reviewing code to designing comments. The agent's report describes the latest turn, not the thread's purpose. Return null to keep the settled outcome while it still fits, or when the requests do not establish a purpose; otherwise return the sentence.`;
 
+const DIGEST_RULES = `- digest: the thread's accumulated context in two or three short sentences: what the work is, what it has established so far, and the product, tool, or area that owns it. Name the owner explicitly so the work is recognizable without the conversation. Revise the settled digest as the work establishes new facts; never discard established facts that still hold, and never let one later request replace what the thread has been about. Return null to keep the settled digest, or when the requests establish nothing yet.`;
+
 const TITLE_SECTION: Record<TitledBy, string> = {
   workstreams: "The thread's title, which Workstreams wrote:",
   other: "The thread's title, which BB or an agent gave it:",
@@ -559,8 +571,8 @@ export function fullAnalysisPrompt(input: FullAnalysisInput): string {
     keys.push('"recap": string', '"state": string', '"needsYou": string|null');
   }
   if (input.mode === "full") {
-    fields.push(THREAD_GOAL_RULES);
-    keys.push('"threadGoal": string|null');
+    fields.push(THREAD_GOAL_RULES, DIGEST_RULES);
+    keys.push('"threadGoal": string|null', '"digest": string|null');
   }
   const naming = namesThread(input);
   if (naming) {
@@ -573,6 +585,7 @@ export function fullAnalysisPrompt(input: FullAnalysisInput): string {
   if (input.mode === "full")
     sections.push(
       `The settled thread outcome:\n${tagged("thread_goal", redact(input.threadGoal ?? "(not yet established)"))}`,
+      `The accumulated thread context:\n${tagged("thread_digest", redact(input.digest ?? "(not yet established)"))}`,
     );
   if (naming && (input.listing?.group || input.listing?.parent))
     sections.push(listingBlock(input.listing));
@@ -616,11 +629,13 @@ export function fullAnalysisSchema(
     properties.state = { type: "string", enum: [...WORK_STATES] };
     properties.needsYou = { type: ["string", "null"] };
   }
-  if (input.mode === "full")
+  if (input.mode === "full") {
     properties.threadGoal = {
       type: ["string", "null"],
       maxLength: THREAD_GOAL_MAX,
     };
+    properties.digest = { type: ["string", "null"], maxLength: DIGEST_MAX };
+  }
   if (namesThread(input)) properties.goal = titleFieldSchema;
   return {
     type: "object",
@@ -643,11 +658,20 @@ const fullOutputSchema = z.object({
     .nullable()
     .catch(null)
     .optional(),
+  digest: z
+    .string()
+    .transform((text) => text.replace(/\s+/g, " ").trim())
+    .pipe(z.string().min(1).max(DIGEST_MAX))
+    .nullable()
+    .catch(null)
+    .optional(),
 });
 
 type FullAnalysisOutput = {
   /** A new desired outcome, or null to keep the settled goal. */
   threadGoal: string | null;
+  /** A new accumulated context digest, or null to keep the settled one. */
+  digest: string | null;
   /** Present only when the agent didn't report the turn. */
   status: { recap: string; state: WorkState; needsYou: string | null } | null;
   /**
@@ -680,6 +704,7 @@ export function parseFullAnalysis(
   return {
     status,
     threadGoal: input.mode === "full" ? (parsed.threadGoal ?? null) : null,
+    digest: input.mode === "full" ? (parsed.digest ?? null) : null,
     goal: namesThread(input) ? composeTitle(parsed.goal, input.listing) : null,
   };
 }

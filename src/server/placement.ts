@@ -173,7 +173,7 @@ export class Placement {
   async question(
     thread: PlacementThread,
     rawRequests: readonly string[],
-    options: { force?: boolean; within?: string } = {},
+    options: { force?: boolean; within?: string; digest?: string | null } = {},
   ): Promise<PlacementQuestion | null> {
     const topics = this.deps.topics;
     const assignment = topics.assignment(thread.id);
@@ -220,6 +220,7 @@ export class Placement {
               inherited: assignment.provenance === "inherited",
             }
           : null,
+        digest: options.digest ?? null,
       },
     };
   }
