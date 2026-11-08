@@ -1,21 +1,64 @@
 // @vitest-environment jsdom
-import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import type {
+  PluginSidebarThread,
+  PluginSidebarThreadsState,
+} from "@get-bb/plugin-sdk/app";
 import { useBbContext } from "@get-bb/plugin-sdk/app";
+import { memo } from "react";
 import {
   installTestPluginRuntime,
   renderSlot,
 } from "@get-bb/plugin-sdk/testing/app";
-import { cleanup, waitFor } from "@testing-library/react";
-import { afterEach, expect, it } from "vitest";
+import { act, cleanup, waitFor } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
 import { useGoalContext } from "../../src/app/goalContext.ts";
+import { useStableSidebarThreads } from "../../src/app/useStableSidebarThreads.ts";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 
-afterEach(cleanup);
+const sidebarControl = vi.hoisted(() => {
+  let snapshot: PluginSidebarThreadsState;
+  const listeners = new Set<() => void>();
+  return {
+    subscriptions: 0,
+    snapshot: () => snapshot,
+    set: (next: PluginSidebarThreadsState) => {
+      snapshot = next;
+      for (const listener of listeners) listener();
+    },
+    subscribe: (listener: () => void) => {
+      sidebarControl.subscriptions++;
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+});
 
-/** The heading's data, as the sticky heading receives it. */
-function Heading() {
-  const { threadId } = useBbContext();
-  const context = useGoalContext(threadId);
+vi.mock("@get-bb/plugin-sdk/app", async (importActual) => {
+  const actual = await importActual<typeof import("@get-bb/plugin-sdk/app")>();
+  const React = await import("react");
+  return {
+    ...actual,
+    experimental_useSidebarThreads: () =>
+      React.useSyncExternalStore(
+        sidebarControl.subscribe,
+        sidebarControl.snapshot,
+      ),
+  };
+});
+
+let headingRenders = 0;
+afterEach(() => {
+  cleanup();
+  headingRenders = 0;
+  sidebarControl.subscriptions = 0;
+});
+
+const HeadingView = memo(function HeadingView({
+  context,
+}: {
+  context: ReturnType<typeof useGoalContext>;
+}) {
+  headingRenders++;
   if (!context) return <p>no heading</p>;
   return (
     <div>
@@ -27,6 +70,27 @@ function Heading() {
       </p>
     </div>
   );
+});
+
+/** The heading's data, as the sticky heading receives it. */
+function Heading() {
+  const { threadId } = useBbContext();
+  return <HeadingView context={useGoalContext(threadId)} />;
+}
+
+function WideProducer() {
+  useStableSidebarThreads();
+  return null;
+}
+
+function Headings() {
+  return (
+    <>
+      <WideProducer />
+      <Heading />
+      <Heading />
+    </>
+  );
 }
 
 async function mount(
@@ -35,17 +99,19 @@ async function mount(
   otherThreads: PluginSidebarThread[] = [],
 ) {
   installTestPluginRuntime();
+  const sidebarThreads: PluginSidebarThreadsState = {
+    status: "ready",
+    threads: [thread, ...otherThreads],
+    sections: [section("sec_1", "Lumen"), section("sec_2", "Other")],
+    projects: [],
+    experimental_archived: null,
+  };
+  sidebarControl.set(sidebarThreads);
   return renderSlot({ id: "heading", component: Heading } as never, {}, {
     settings: {},
     context: { threadId: thread.id, projectId: "proj_1" },
     rpc: { state: () => ({ ...emptyState(), ...server }) },
-    sidebarThreads: {
-      status: "ready",
-      threads: [thread, ...otherThreads],
-      sections: [section("sec_1", "Lumen"), section("sec_2", "Other")],
-      projects: [],
-      experimental_archived: null,
-    },
+    sidebarThreads,
   } as never);
 }
 
@@ -158,19 +224,57 @@ it("omits an unknown or repeated outcome rather than falling back to recaps", as
   }
 });
 
+it("serves narrow goal contexts without rerendering for unrelated threads", async () => {
+  installTestPluginRuntime();
+  const selected = sidebarThread("t1", {
+    title: "Selected thread",
+    sectionId: "sec_1",
+  });
+  const other = sidebarThread("other", { title: "Other thread" });
+  const sidebarThreads: PluginSidebarThreadsState = {
+    status: "ready",
+    threads: [selected, other],
+    sections: [section("sec_1", "Lumen")],
+    projects: [],
+    experimental_archived: null,
+  };
+  sidebarControl.set(sidebarThreads);
+  const slot = renderSlot({ component: Headings }, {}, {
+    context: { threadId: "t1", projectId: "proj_1" },
+    rpc: { state: () => emptyState() },
+    sidebarThreads,
+  } as never);
+  await slot.findAllByRole("heading", { level: 2 });
+  const renders = headingRenders;
+  expect(sidebarControl.subscriptions).toBe(1);
+
+  const changed = sidebarThread("other", { title: "Changed elsewhere" });
+  await act(async () =>
+    sidebarControl.set({ ...sidebarThreads, threads: [selected, changed] }),
+  );
+  expect(headingRenders).toBe(renders);
+  expect(slot.getAllByRole("heading", { level: 2 })[0]!.textContent).toBe(
+    "Selected thread",
+  );
+  expect(sidebarControl.subscriptions).toBe(1);
+  slot.lifecycle.unmount();
+});
+
 it("renders nothing for a thread BB doesn't list", async () => {
   installTestPluginRuntime();
+  const sidebarThreads: PluginSidebarThreadsState = {
+    status: "ready",
+    threads: [],
+    sections: [],
+    projects: [],
+    experimental_archived: null,
+  };
+  sidebarControl.set(sidebarThreads);
   const slot = renderSlot({ id: "heading", component: Heading } as never, {}, {
     settings: {},
     context: { threadId: "gone", projectId: "proj_1" },
     rpc: { state: () => emptyState() },
-    sidebarThreads: {
-      status: "ready",
-      threads: [],
-      sections: [],
-      projects: [],
-      experimental_archived: null,
-    },
+    sidebarThreads,
   } as never);
   expect(slot.getByText("no heading")).toBeTruthy();
   slot.lifecycle.unmount();

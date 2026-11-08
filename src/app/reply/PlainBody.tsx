@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo, useCallback, type ReactNode } from "react";
 import { Markdown } from "@get-bb/plugin-sdk/app";
 import type { RecapFiles } from "../../domain/recap.ts";
 import type { ReplyPart } from "../../domain/replyComponents.ts";
@@ -50,43 +50,57 @@ const ROW_PARTS = new Set<ReplyPart["type"]>([
  * child of a supporting group: that frame is the only frame, so the child draws
  * its rows flush and without a border of its own.
  */
-export function PlainBody({
+export const PlainBody = memo(function PlainBody({
   part,
   document,
   files,
   framed = true,
   threadId = null,
 }: Context & { part: ReplyPart; framed?: boolean }) {
-  const md = (content: string | undefined) => (
-    <PlainMarkdown content={content} document={document} />
+  const md = useCallback(
+    (content: string | undefined) => (
+      <PlainMarkdown content={content} document={document} />
+    ),
+    [document],
   );
-  const title = (value: string | undefined) =>
-    value ? <PartTitle>{md(titleMarkdown(value))}</PartTitle> : null;
+  const title = useCallback(
+    (value: string | undefined) =>
+      value ? <PartTitle>{md(titleMarkdown(value))}</PartTitle> : null,
+    [md],
+  );
   const panelled = framed && ROW_PARTS.has(part.type);
   /** The part's own marker, on its root whether that root is a panel or not. */
-  const mark = (type: string) => ({ [`data-reply-${type}`]: "" });
+  const mark = useCallback(
+    (type: string) => ({ [`data-reply-${type}`]: "" }),
+    [],
+  );
   const pad = panelled ? PANEL_ROW_CLASS : "";
-  const report = (name: string, rows: ReactNode, scope?: string) =>
-    panelled ? (
-      <Panel
-        // slop-ok: 2 Shared reply-list frame already used at this rendering boundary
-        part={part.type}
-        title={title(name)}
-        scope={scope ? md(scope) : undefined}
-      >
-        {rows}
-      </Panel>
-    ) : (
-      <div {...mark(part.type)} className="min-w-0 [overflow-wrap:anywhere]">
-        {title(name)}
-        {scope ? (
-          <div className={`${SECONDARY_CLASS} text-muted-foreground [&_p]:m-0`}>
-            {md(scope)}
-          </div>
-        ) : null}
-        {rows}
-      </div>
-    );
+  const report = useCallback(
+    (name: string, rows: ReactNode, scope?: string) =>
+      panelled ? (
+        <Panel
+          // slop-ok: 2 Shared reply-list frame already used at this rendering boundary
+          part={part.type}
+          title={title(name)}
+          scope={scope ? md(scope) : undefined}
+        >
+          {rows}
+        </Panel>
+      ) : (
+        <div {...mark(part.type)} className="min-w-0 [overflow-wrap:anywhere]">
+          {title(name)}
+          {scope ? (
+            <div
+              className={`${SECONDARY_CLASS} text-muted-foreground [&_p]:m-0`}
+            >
+              {md(scope)}
+            </div>
+          ) : null}
+          {rows}
+        </div>
+      ),
+    [panelled, part.type, title, md, mark],
+  );
   switch (part.type) {
     case "text":
       return md(part.body);
@@ -257,7 +271,7 @@ export function PlainBody({
         />
       );
   }
-}
+});
 
 /** A bullet list the reply writes itself: evidence under a check, a step's sources. */
 export const PLAIN_LIST_CLASS = `mb-2 pl-5 text-foreground [&>li]:mb-1 ${BODY_CLASS}`;

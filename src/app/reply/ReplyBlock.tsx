@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ComponentProps } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
 import { Markdown, useSdk, useBbNavigate } from "@get-bb/plugin-sdk/app";
 import type { ExperimentalMessageBlockProps } from "@get-bb/plugin-sdk/app";
 import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
@@ -7,6 +14,7 @@ import { replySchema, type Reply } from "../../domain/reply.ts";
 import { useDebugMode } from "../debug/debug.ts";
 import { useGoalContext } from "../goalContext.ts";
 import { workstreamColorStyle } from "../../domain/workstreamColor.ts";
+import { shareJson } from "../structuralSharing.ts";
 import { PlainBody, PlainMarkdown } from "./PlainBody.tsx";
 import { ReplyDebug, useAssistantMessageText } from "./ReplyDebug.tsx";
 import { useDockedTurn } from "./useDockedTurn.ts";
@@ -76,9 +84,19 @@ export function ReplyBlock({
   );
   const rawSource = fullMessage ?? source;
   const navigate = useBbNavigate();
+  const md = useCallback(
+    (content: string | undefined) => (
+      <PlainMarkdown content={content} document={workspace?.document} />
+    ),
+    [workspace?.document],
+  );
   const lastGood = useRef<Reply | null>(null);
-  const parsed = replySchema.safeParse(data);
-  if (parsed.success) lastGood.current = parsed.data;
+  const parsed = useMemo(() => replySchema.safeParse(data), [data]);
+  if (parsed.success) {
+    // Streaming parses produce fresh trees even for parts that did not change.
+    // Keep those parts at their old identity so memoized bodies can skip them.
+    lastGood.current = shareJson(lastGood.current, parsed.data);
+  }
   if (status === "unclosed") {
     return debug ? (
       <div data-reply-unclosed="" className={`min-w-0 space-y-4 ${BODY_CLASS}`}>
@@ -90,7 +108,7 @@ export function ReplyBlock({
     );
   }
   const reply = parsed.success
-    ? parsed.data
+    ? lastGood.current
     : status === "streaming"
       ? lastGood.current
       : null;
@@ -103,9 +121,6 @@ export function ReplyBlock({
   const showCard = !!card && docked === false;
   const title = headline ?? (showCard ? card?.headline : undefined);
   if (!title && !body.length && !showCard) return null;
-  const md = (content: string | undefined) => (
-    <PlainMarkdown content={content} document={workspace?.document} />
-  );
   // `BODY_CLASS` on the container is what keeps an unsized label at the size of
   // the prose it labels, rather than at the browser default.
   return (

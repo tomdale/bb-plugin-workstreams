@@ -493,6 +493,37 @@ it("says the check is due once the countdown runs out", async () => {
   expect(slot.queryByTestId("status-check-progress")).toBeNull();
 });
 
+it("does not start an interval for an already-due status check", async () => {
+  const interval = vi.spyOn(globalThis, "setInterval");
+  const slot = await mount({
+    recap: { ...WORKING, at: Date.now() - 120_000 },
+  });
+  expect(await slot.findByText("Checking now")).toBeTruthy();
+  expect(interval.mock.calls.filter(([, delay]) => delay === 1_000)).toEqual(
+    [],
+  );
+});
+
+it("clears the countdown interval on its final Checking now tick", async () => {
+  vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+  const interval = vi.spyOn(globalThis, "setInterval");
+  const cleared = vi.spyOn(globalThis, "clearInterval");
+  const slot = await mount({
+    recap: { ...WORKING, at: Date.now(), timeout: 2 },
+  });
+  await slot.findByRole("region", { name: "Latest recap" });
+  const countdowns = interval.mock.calls.filter(([, delay]) => delay === 1_000);
+  expect(countdowns).toHaveLength(1);
+  const countdownIndex = interval.mock.calls.findIndex(
+    ([, delay]) => delay === 1_000,
+  );
+  const timer = interval.mock.results[countdownIndex]!.value;
+
+  await act(async () => vi.advanceTimersByTimeAsync(2_000));
+  expect(slot.getByText("Checking now")).toBeTruthy();
+  expect(cleared).toHaveBeenCalledWith(timer);
+});
+
 it.each(["full", "minimal"])(
   "uses the Waiting goal as the title (%s)",
   async (layout) => {

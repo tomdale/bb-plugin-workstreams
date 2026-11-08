@@ -606,12 +606,31 @@ it("does not scan the full timeline for unrelated DOM updates", async () => {
       await flush();
     }
     const streamingScans = scans() - beforeStreaming;
+    const beforeTimeline = scans();
+    const deliveryRow = message.container.querySelector<HTMLElement>(
+      '[data-timeline-row-id="thread:delivery"]',
+    )!;
+    const metadata = document.createElement("span");
+    deliveryRow.append(metadata);
+    await flush();
+    metadata.textContent = "Unrelated timeline metadata";
+    await flush();
+    const timelineScans = scans() - beforeTimeline;
 
-    expect({ composerScans, sidebarScans, streamingScans }).toEqual({
+    expect({
+      composerScans,
+      sidebarScans,
+      streamingScans,
+      timelineScans,
+    }).toEqual({
       composerScans: 0,
       sidebarScans: 0,
       streamingScans: 0,
+      timelineScans: 0,
     });
+    expect(
+      message.container.querySelectorAll("[data-ws-question-history]"),
+    ).toHaveLength(1);
   } finally {
     queries.mockRestore();
     overlay.lifecycle.unmount();

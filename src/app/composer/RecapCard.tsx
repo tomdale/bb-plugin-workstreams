@@ -4,6 +4,7 @@ import {
   createContext,
   Fragment,
   memo,
+  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -262,10 +263,20 @@ function useWaitingCountdown(recap: Recap, cancelled: boolean) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (recap.state !== "waiting" || cancelled) return;
+    const due = recap.at + (recap.timeout ?? 0) * 1000;
+    if (due <= Date.now()) {
+      setNow(Date.now());
+      return;
+    }
     setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      // Keep the final zero-second render, but leave no timer running at due.
+      if (current >= due) clearInterval(timer);
+    }, 1000);
     return () => clearInterval(timer);
-  }, [recap.id, recap.state, cancelled]);
+  }, [recap.id, recap.at, recap.timeout, recap.state, cancelled]);
   return Math.max(
     0,
     Math.ceil((recap.at + (recap.timeout ?? 0) * 1000 - now) / 1000),
@@ -781,7 +792,7 @@ function Links({
  * complete. Compact keeps the essential row unlabeled: review steps for
  * review, results when complete.
  */
-export function RecapSummary({
+export const RecapSummary = memo(function RecapSummary({
   recap,
   layout,
   files,
@@ -931,7 +942,7 @@ export function RecapSummary({
       </MarkdownDocumentContext.Provider>
     </div>
   );
-}
+});
 
 type RecapResponse = {
   recap: Recap | null;
@@ -954,7 +965,7 @@ function useRecap(threadId: string | null) {
   const rpc = useRpc<RpcContract>();
   const [state, setState] = useState<RecapResponse>(EMPTY);
   const version = useRef(0);
-  const load = () => {
+  const load = useCallback(() => {
     const current = ++version.current;
     if (!threadId) return setState(EMPTY);
     void rpc
@@ -963,39 +974,50 @@ function useRecap(threadId: string | null) {
         if (current === version.current) setState(next);
       })
       .catch(() => {});
-  };
-  useEffect(load, [rpc, threadId]);
+  }, [rpc, threadId]);
+  useEffect(load, [load]);
   useRealtime("changed", load);
-  const dismiss = async (recapId: string) => {
-    if (!threadId) return;
-    // Hide at once; retain the recap so the card can be restored.
-    setState((current) =>
-      current.recap?.id === recapId
-        ? {
-            ...current,
-            dismissed: true,
-            waitingCancelled:
-              current.waitingCancelled || current.recap.state === "waiting",
-          }
-        : current,
-    );
-    await rpc.call("recap_dismiss", { threadId, recapId }).catch(() => {});
-    load();
-  };
-  const restore = async (recapId: string) => {
-    if (!threadId) return;
-    setState((current) =>
-      current.recap?.id === recapId
-        ? { ...current, dismissed: false }
-        : current,
-    );
-    await rpc.call("recap_restore", { threadId, recapId }).catch(() => {});
-    load();
-  };
-  const sendNext = async (recapId: string, action: string) => {
-    if (!threadId) return;
-    await rpc.call("recap_send", { threadId, recapId, action }).catch(() => {});
-  };
+  const dismiss = useCallback(
+    async (recapId: string) => {
+      if (!threadId) return;
+      // Hide at once; retain the recap so the card can be restored.
+      setState((current) =>
+        current.recap?.id === recapId
+          ? {
+              ...current,
+              dismissed: true,
+              waitingCancelled:
+                current.waitingCancelled || current.recap.state === "waiting",
+            }
+          : current,
+      );
+      await rpc.call("recap_dismiss", { threadId, recapId }).catch(() => {});
+      load();
+    },
+    [rpc, threadId, load],
+  );
+  const restore = useCallback(
+    async (recapId: string) => {
+      if (!threadId) return;
+      setState((current) =>
+        current.recap?.id === recapId
+          ? { ...current, dismissed: false }
+          : current,
+      );
+      await rpc.call("recap_restore", { threadId, recapId }).catch(() => {});
+      load();
+    },
+    [rpc, threadId, load],
+  );
+  const sendNext = useCallback(
+    async (recapId: string, action: string) => {
+      if (!threadId) return;
+      await rpc
+        .call("recap_send", { threadId, recapId, action })
+        .catch(() => {});
+    },
+    [rpc, threadId],
+  );
   return { ...state, dismiss, restore, sendNext };
 }
 
@@ -1163,20 +1185,21 @@ function useShiftHeld(active: boolean) {
 }
 
 /** Actions stay as individual buttons only when all fit on one line. */
-function NextActions({
+const NextActions = memo(function NextActions({
   actions,
   onSend,
+  onCompose,
   state,
 }: {
   actions: NextAction[];
   onSend?: (message: string) => Promise<void>;
+  onCompose?: (message: string) => void;
   state: Recap["state"];
 }) {
   const [pending, setPending] = useState(false);
   const [menu, setMenu] = useState(false);
   const shiftHeld = useShiftHeld(menu);
   const portalScope = usePortalScopeProps();
-  const composer = useComposer();
   const rootRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -1203,19 +1226,18 @@ function NextActions({
     };
   }, [actions.length]);
 
-  const send = async (message: string) => {
-    if (!onSend || pending) return;
-    setPending(true);
-    try {
-      await onSend(message);
-    } finally {
-      setPending(false);
-    }
-  };
-  const compose = (message: string) => {
-    composer.insert(message, { at: "end" });
-    composer.focus();
-  };
+  const send = useCallback(
+    async (message: string) => {
+      if (!onSend || pending) return;
+      setPending(true);
+      try {
+        await onSend(message);
+      } finally {
+        setPending(false);
+      }
+    },
+    [onSend, pending],
+  );
   return (
     <div
       ref={rootRef}
@@ -1265,7 +1287,7 @@ function NextActions({
                   disabled={pending || !onSend}
                   onSelect={() => {
                     const message = nextActionMessage(action);
-                    if (shiftHeld) compose(message);
+                    if (shiftHeld) onCompose?.(message);
                     else void send(message);
                   }}
                   className="flex cursor-pointer flex-col gap-0.5 rounded-md px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent data-[disabled]:opacity-50"
@@ -1301,7 +1323,7 @@ function NextActions({
               <NextActionItem
                 action={action}
                 onSend={send}
-                onCompose={compose}
+                onCompose={onCompose}
                 disabled={pending}
               />
             </li>
@@ -1310,9 +1332,9 @@ function NextActions({
       )}
     </div>
   );
-}
+});
 
-function CardBody({
+export const CardBody = memo(function CardBody({
   recap,
   layout,
   files,
@@ -1324,10 +1346,12 @@ function CardBody({
   onArchive,
   onDismiss,
   onSend,
+  onCompose,
 }: CardProps & {
   onArchive?: () => void;
   onDismiss?: () => void;
   onSend?: (action: string) => Promise<void>;
+  onCompose?: (message: string) => void;
 }) {
   const compact = layout === "minimal";
   const compactArchive = compact && showArchive;
@@ -1391,6 +1415,7 @@ function CardBody({
             <NextActions
               actions={recap.next}
               onSend={onSend}
+              onCompose={onCompose}
               state={recap.state}
             />
           ) : null}
@@ -1443,7 +1468,7 @@ function CardBody({
       </button>
     </>
   );
-}
+});
 
 /**
  * A recap card as it appears above the composer, for showing outside a
@@ -1456,6 +1481,7 @@ export function RecapCardPreview({
   className,
   hashColors = NO_HASH_COLORS,
   agents = null,
+  paused = false,
 }: {
   recap: Recap;
   layout: RecapLayout;
@@ -1464,6 +1490,8 @@ export function RecapCardPreview({
   hashColors?: HashColorPrefs;
   /** Stand-ins for the recap's awaited agent threads. */
   agents?: Readonly<Record<string, AgentView>> | null;
+  /** Hidden carousel slides do not run their waiting countdown. */
+  paused?: boolean;
 }) {
   return (
     <PreviewAgents.Provider value={agents}>
@@ -1477,7 +1505,7 @@ export function RecapCardPreview({
             showArchive={showArchive}
             archiveBusy={false}
             archiveError={null}
-            waitingCancelled={false}
+            waitingCancelled={paused}
           />
         </div>
       </HashColors.Provider>
@@ -1578,8 +1606,14 @@ function useHold(
  * slot shrinks only as new content grows into it.
  */
 export function RecapCard() {
-  const { scope, isEmpty, attachmentCount, isRunning, isSubmitting } =
-    useComposer();
+  const composer = useComposer();
+  const { scope, isEmpty, attachmentCount, isRunning, isSubmitting } = composer;
+  const composerRef = useRef(composer);
+  composerRef.current = composer;
+  const composeNext = useCallback((message: string) => {
+    composerRef.current.insert(message, { at: "end" });
+    composerRef.current.focus();
+  }, []);
   const threadId = scope.kind === "thread" ? scope.threadId : null;
   const durableQuestion = usePendingQuestion(threadId);
   const { threads } = experimental_useSidebarThreads();
@@ -1612,6 +1646,20 @@ export function RecapCard() {
   const layout: RecapLayout = isPhone ? "minimal" : (prefs?.layout ?? "full");
   const visibleRecap = dismissed ? null : recap;
   const archive = useArchiveSuggestion(threadId, visibleRecap, continuing);
+  const archiveAction = useRef(archive.archive);
+  archiveAction.current = archive.archive;
+  const onArchive = useCallback(() => {
+    void archiveAction.current();
+  }, []);
+  const visibleRecapId = visibleRecap?.id ?? null;
+  const onDismiss = useCallback(() => {
+    if (visibleRecapId) void dismiss(visibleRecapId);
+  }, [dismiss, visibleRecapId]);
+  const onSend = useCallback(
+    (action: string) =>
+      visibleRecapId ? sendNext(visibleRecapId, action) : Promise.resolve(),
+    [sendNext, visibleRecapId],
+  );
   const markerRef = useRef<HTMLDivElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
@@ -1753,9 +1801,10 @@ export function RecapCard() {
               <div ref={bodyRef}>
                 <CardBody
                   {...frame}
-                  onArchive={() => void archive.archive()}
-                  onDismiss={() => void dismiss(frame.recap.id)}
-                  onSend={(action) => sendNext(frame.recap.id, action)}
+                  onArchive={onArchive}
+                  onDismiss={onDismiss}
+                  onSend={onSend}
+                  onCompose={composeNext}
                 />
               </div>
             </div>

@@ -220,6 +220,20 @@ it("adds a full request to the matching thread draft without sending or replacin
     expect(screen.getByText(text)).toBeDefined();
 });
 
+it("appends to the latest draft text at click time", async () => {
+  const view = draw(
+    actions([{ title: "Review", message: "Review the latest draft" }]),
+    { kind: "thread", threadId: "t1" },
+    "Earlier draft",
+  );
+  await view.behavior.setComposerText("Latest draft");
+  fireEvent.click(screen.getByRole("button", { name: "Add to message" }));
+  expect(view.inspection.composer.text).toBe(
+    "Latest draft\n\nReview the latest draft",
+  );
+  expect(view.inspection.composer.focusCount).toBe(1);
+});
+
 it.each<PluginComposerScope>([
   { kind: "thread", threadId: "other" },
   { kind: "new-thread", projectId: null },

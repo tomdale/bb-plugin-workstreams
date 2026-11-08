@@ -24,6 +24,20 @@ import type { ReplyComponent } from "../../src/domain/replyComponents.ts";
 import { blockInput } from "../domain/replyFixtures.ts";
 import { section, sidebarThread } from "./fixtures.ts";
 
+const replyRenders = vi.hoisted(() => ({ context: 0 }));
+vi.mock("../../src/app/reply/ContextBody.tsx", async (importActual) => {
+  const actual =
+    await importActual<typeof import("../../src/app/reply/ContextBody.tsx")>();
+  const React = await import("react");
+  return {
+    ...actual,
+    ContextBody: (props: React.ComponentProps<typeof actual.ContextBody>) => {
+      replyRenders.context++;
+      return React.createElement(actual.ContextBody, props);
+    },
+  };
+});
+
 vi.mock("@get-bb/plugin-sdk/app", async (importActual) => {
   const actual = await importActual<typeof import("@get-bb/plugin-sdk/app")>();
   const React = await import("react");
@@ -44,7 +58,10 @@ vi.mock("@get-bb/plugin-sdk/app", async (importActual) => {
       ),
   };
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  replyRenders.context = 0;
+});
 const SDK = {
   threads: {
     get: async () => ({
@@ -745,6 +762,48 @@ it("keeps the last good parse during a malformed streaming update", () => {
   );
   expect(view.container.querySelector("[data-reply-block]")).toBeNull();
 });
+it("skips reply bodies for identical closed data, even across a fresh parse", () => {
+  const block = registration();
+  const source = body(COMPONENT_EXAMPLES.context);
+  const base = props(block, source);
+  const sdk = {
+    ...SDK,
+    threads: { ...SDK.threads, get: () => new Promise<never>(() => {}) },
+  };
+  const view = renderSlot(block, base, { sdk });
+  const renders = replyRenders.context;
+
+  view.lifecycle.rerender(<block.component {...base} />);
+  expect(replyRenders.context).toBe(renders);
+  view.lifecycle.rerender(
+    <block.component {...base} data={structuredClone(base.data)} />,
+  );
+  expect(replyRenders.context).toBe(renders);
+  expect(view.container.textContent).toContain("Coupon calculation");
+});
+
+it("retains unchanged body identity across successive valid streaming parses", () => {
+  const block = registration();
+  const context = componentFence(COMPONENT_EXAMPLES.context);
+  const base = props(block, `:::reply\nBefore.\n\n${context}\n:::\n`, true);
+  const sdk = {
+    ...SDK,
+    threads: { ...SDK.threads, get: () => new Promise<never>(() => {}) },
+  };
+  const view = renderSlot(block, base, { sdk });
+  const renders = replyRenders.context;
+  const next = props(
+    block,
+    `:::reply\nBefore.\n\n${context}\n\nAfter.\n:::\n`,
+    true,
+  );
+
+  view.lifecycle.rerender(<block.component {...base} data={next.data} />);
+  expect(replyRenders.context).toBe(renders);
+  expect(view.container.textContent).toContain("Before.");
+  expect(view.container.textContent).toContain("After.");
+});
+
 it("withholds recap fields while server ownership is unknown", async () => {
   const block = registration();
   let resolve!: (value: unknown) => void;

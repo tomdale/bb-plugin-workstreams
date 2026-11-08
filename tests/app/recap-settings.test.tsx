@@ -12,6 +12,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
@@ -109,6 +110,20 @@ it.each([false, true])(
     expect(slot.queryByText(/reply blocks/)).toBeNull();
   },
 );
+
+it("does not tick the waiting example while its slide is hidden", async () => {
+  const interval = vi.spyOn(globalThis, "setInterval");
+  const slot = await mount();
+  await slot.findByRole("region", { name: "Recap preview" });
+  const countdowns = () =>
+    interval.mock.calls.filter(([, delay]) => delay === 1_000);
+  expect(countdowns()).toEqual([]);
+  fireEvent.click(slot.getByRole("button", { name: "Next example" }));
+  expect(countdowns()).toEqual([]);
+  fireEvent.click(slot.getByRole("button", { name: "Next example" }));
+  await slot.findByLabelText("Status check countdown");
+  expect(countdowns()).toHaveLength(1);
+});
 
 it("previews the recap card in each state and the chosen layout", async () => {
   const slot = await mount();

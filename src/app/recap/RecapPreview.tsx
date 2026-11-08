@@ -257,6 +257,7 @@ export function RecapPreview({
                 agents={example.agents}
                 hashColors={hashColors}
                 className="mb-0"
+                paused={!active}
               />
             </div>
           );

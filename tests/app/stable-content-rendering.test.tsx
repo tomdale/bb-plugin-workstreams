@@ -3,7 +3,7 @@ import { useComposer } from "@get-bb/plugin-sdk/app";
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { RecapSummary } from "../../src/app/composer/RecapCard.tsx";
+import { CardBody } from "../../src/app/composer/RecapCard.tsx";
 import {
   PlainMarkdown,
   type ReplyDocument,
@@ -14,6 +14,32 @@ import {
   type Recap,
   type RecapFiles,
 } from "../../src/domain/recap.ts";
+
+const recapRenders = vi.hoisted(() => ({
+  summary: 0,
+  footer: 0,
+  actions: 0,
+}));
+
+vi.mock("@/lib/portal-scope", () => ({
+  usePortalScopeProps: () => {
+    recapRenders.footer++;
+    return {};
+  },
+}));
+
+vi.mock("../../src/app/Hint.tsx", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../src/app/Hint.tsx")>();
+  const React = await import("react");
+  return {
+    ...actual,
+    Hint: (props: React.ComponentProps<typeof actual.Hint>) => {
+      recapRenders.actions++;
+      return props.children;
+    },
+  };
+});
 
 vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
   const actual =
@@ -26,6 +52,10 @@ vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
         "data-markdown": props.content,
         "data-document": JSON.stringify(props.experimental_document),
       }),
+    useBbNavigate: () => {
+      recapRenders.summary++;
+      return actual.useBbNavigate();
+    },
   };
 });
 
@@ -48,6 +78,9 @@ afterEach(() => {
   cleanup();
   vi.mocked(recapSegments).mockClear();
   vi.mocked(normalizeReplyMarkdown).mockClear();
+  recapRenders.summary = 0;
+  recapRenders.footer = 0;
+  recapRenders.actions = 0;
 });
 
 const THREAD = { kind: "thread", threadId: "t1" } as const;
@@ -65,7 +98,13 @@ const RECAP: Recap = {
   latest: ["First result", "Second result"],
   review: [],
   links: [],
-  next: [],
+  next: [
+    {
+      title: "Run tests",
+      message: "Run the full test suite",
+      description: "Check for regressions",
+    },
+  ],
 };
 const DOCUMENT: NonNullable<ReplyDocument> = {
   threadId: "t1",
@@ -88,15 +127,25 @@ function RecapSuite({
 }) {
   useComposer();
   return (
-    <RecapSummary
+    <CardBody
       recap={recap}
       layout="full"
       files={files}
       threadId={threadId}
-      clearance=""
+      showArchive
+      archiveBusy={false}
+      archiveError={null}
+      waitingCancelled={false}
+      onArchive={noop}
+      onDismiss={noop}
+      onSend={send}
+      onCompose={noop}
     />
   );
 }
+
+function noop() {}
+async function send() {}
 
 function ReplySuite({
   content,
@@ -125,11 +174,21 @@ it("segments recap text again only when its exact content changes", async () => 
     { composer: { scope: THREAD, text: "draft" } },
   );
   vi.mocked(recapSegments).mockClear();
+  recapRenders.summary = 0;
+  recapRenders.footer = 0;
+  recapRenders.actions = 0;
   for (let draft = 0; draft < 60; draft++)
     await view.behavior.setComposerText(`draft ${draft}`);
   const unchanged = vi.mocked(recapSegments).mock.calls.length;
-  report("recap-segments-60-drafts", { calls: unchanged, textRuns: 3 });
+  report("recap-segments-60-drafts", {
+    calls: unchanged,
+    textRuns: 3,
+    summaryRenders: recapRenders.summary,
+    footerRenders: recapRenders.footer,
+    actionRenders: recapRenders.actions,
+  });
   expect(unchanged).toBe(0);
+  expect(recapRenders).toEqual({ summary: 0, footer: 0, actions: 0 });
 
   const changedRecap: Recap = {
     ...RECAP,

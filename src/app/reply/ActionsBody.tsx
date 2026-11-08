@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from "react";
+import { memo, useId, useState, type ReactNode } from "react";
 import { useComposer } from "@get-bb/plugin-sdk/app";
 import { Button } from "@/components/ui/button";
 import type { ReplyPart } from "../../domain/replyComponents.ts";
@@ -9,7 +9,82 @@ import { SECONDARY_CLASS } from "./type.ts";
 type Actions = Extract<ReplyPart, { type: "actions" }>;
 type Md = (content: string | undefined) => ReactNode;
 
-function ActionRow({
+function ActionComposerControls({
+  message,
+  threadId,
+  titleId,
+}: {
+  message: string;
+  threadId: string | null;
+  titleId: string;
+}) {
+  const composer = useComposer();
+  const [copied, setCopied] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // Embedded worker replies must not write into the parent or another open draft.
+  const canCompose =
+    !!threadId &&
+    composer.scope.kind === "thread" &&
+    composer.scope.threadId === threadId;
+  return (
+    <>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 px-2.5 text-xs max-md:pointer-coarse:h-9 max-md:pointer-coarse:text-[13px]"
+          aria-describedby={titleId}
+          disabled={!canCompose}
+          onClick={() => {
+            try {
+              // Read the draft at click time, not when the action last rendered.
+              composer.insert((composer.text.trim() ? "\n\n" : "") + message, {
+                at: "end",
+              });
+              composer.focus();
+              setError(null);
+            } catch {
+              setError("Could not add the request to your message");
+            }
+          }}
+        >
+          Add to message
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2.5 text-xs max-md:pointer-coarse:h-9 max-md:pointer-coarse:text-[13px]"
+          aria-describedby={titleId}
+          onClick={async () => {
+            try {
+              if (!navigator.clipboard?.writeText)
+                throw new Error("Clipboard unavailable");
+              await navigator.clipboard.writeText(message);
+              setCopied(message);
+              setError(null);
+            } catch {
+              setError("Could not copy the request");
+            }
+          }}
+        >
+          {copied === message ? "Copied" : "Copy request"}
+        </Button>
+      </div>
+      {error ? (
+        <p
+          role="alert"
+          className={`mt-2 ${SECONDARY_CLASS} text-(--ws-failure-text)`}
+        >
+          {error}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+const ActionRow = memo(function ActionRow({
   item,
   md,
   threadId,
@@ -20,15 +95,7 @@ function ActionRow({
   threadId: string | null;
   pad: string;
 }) {
-  const composer = useComposer();
   const titleId = useId();
-  const [copied, setCopied] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // Embedded worker replies must not write into the parent or another open draft.
-  const canCompose =
-    !!threadId &&
-    composer.scope.kind === "thread" &&
-    composer.scope.threadId === threadId;
   const rows = [
     ["Owner", item.owner],
     ["When", item.condition],
@@ -80,62 +147,15 @@ function ActionRow({
         )}
       </dl>
       {item.message ? (
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7 px-2.5 text-xs max-md:pointer-coarse:h-9 max-md:pointer-coarse:text-[13px]"
-            aria-describedby={titleId}
-            disabled={!canCompose}
-            onClick={() => {
-              try {
-                composer.insert(
-                  (composer.text.trim() ? "\n\n" : "") + item.message!,
-                  { at: "end" },
-                );
-                composer.focus();
-                setError(null);
-              } catch {
-                setError("Could not add the request to your message");
-              }
-            }}
-          >
-            Add to message
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2.5 text-xs max-md:pointer-coarse:h-9 max-md:pointer-coarse:text-[13px]"
-            aria-describedby={titleId}
-            onClick={async () => {
-              try {
-                if (!navigator.clipboard?.writeText)
-                  throw new Error("Clipboard unavailable");
-                await navigator.clipboard.writeText(item.message!);
-                setCopied(item.message!);
-                setError(null);
-              } catch {
-                setError("Could not copy the request");
-              }
-            }}
-          >
-            {copied === item.message ? "Copied" : "Copy request"}
-          </Button>
-        </div>
-      ) : null}
-      {error ? (
-        <p
-          role="alert"
-          className={`mt-2 ${SECONDARY_CLASS} text-(--ws-failure-text)`}
-        >
-          {error}
-        </p>
+        <ActionComposerControls
+          message={item.message}
+          threadId={threadId}
+          titleId={titleId}
+        />
       ) : null}
     </li>
   );
-}
+});
 
 export function ActionsBody({
   part,
