@@ -52,11 +52,8 @@ import {
   groupRoots,
   type WorkstreamNode,
 } from "../../domain/groups.ts";
-import {
-  holdInPlace,
-  selectRecent,
-  selectUpNext,
-} from "../../domain/upNext.ts";
+import { selectRecent } from "../../domain/upNext.ts";
+import { initialUpNextState, planSidebarUpNext } from "./upNextState.ts";
 import { useWorkstreams } from "../useWorkstreams.ts";
 import { groupCollapseKey, useCollapsed } from "./useCollapsed.ts";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
@@ -283,46 +280,18 @@ export function WorkstreamsThreadList({
     prefs?.sidebar.threadCount !== "never" && lowerCounts.total > 0;
   const prioritized = focusedSections(arrangement, new Set(prioritizedIds));
 
-  // Up Next re-sorts live, except the open thread's row: it holds the place
-  // where the user found it (or where it first appeared while open), so
-  // reading or answering it, or focus arriving, never moves the row out from
-  // under them. It moves or leaves once they open another thread. Resolved
-  // from live groups, so a thread the user snoozes, hides, or archives still
-  // leaves.
-  const upNext = selectUpNext(projection, {
-    ...ws.upNextOptions,
-    prioritized,
-  });
-  // Show more lists what the rules trimmed below the rest; with nothing
-  // left to reveal it closes, so the next reveal starts collapsed.
-  if (showMore && upNext.more.length === 0) setShowMore(false);
-  const listed = showMore ? [...upNext.rows, ...upNext.more] : upNext.rows;
-  const shownBefore = useRef<readonly string[]>([]);
-  const [hold, setHold] = useState({ threadId: activeThreadId, index: -1 });
-  const ranked = listed.findIndex((row) => row.thread.id === activeThreadId);
-  const held =
-    hold.threadId !== activeThreadId
-      ? {
-          threadId: activeThreadId,
-          index: activeThreadId
-            ? shownBefore.current.indexOf(activeThreadId)
-            : -1,
-        }
-      : hold;
-  const settledHold =
-    held.index < 0 && ranked >= 0 ? { ...held, index: ranked } : held;
-  if (settledHold !== hold) setHold(settledHold);
-  const openRow = activeThreadId
-    ? [...projection.groups, projection.unsorted, ...projection.dormant]
-        .flatMap((group) => group.rows)
-        .find((row) => row.thread.id === activeThreadId)
-    : undefined;
-  const shownNeedsRows = holdInPlace(listed, openRow, settledHold.index);
-  const moreCount = upNext.more.filter(
-    (row) => !shownNeedsRows.includes(row),
-  ).length;
+  const upNextState = useRef(initialUpNextState);
+  const upNext = planSidebarUpNext(
+    upNextState.current,
+    projection,
+    { ...ws.upNextOptions, prioritized },
+    activeThreadId,
+    showMore,
+  );
+  if (showMore !== upNext.expanded) setShowMore(upNext.expanded);
+  const { rows: shownNeedsRows, moreCount } = upNext;
   useLayoutEffect(() => {
-    shownBefore.current = shownNeedsRows.map((row) => row.thread.id);
+    upNextState.current = upNext.state;
   });
   const focus = { active: upNext.focused };
   const recentRows = selectRecent(

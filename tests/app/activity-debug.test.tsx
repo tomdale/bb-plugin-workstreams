@@ -12,36 +12,13 @@ import { ActivityView } from "./activity-mount.tsx";
 import { emptyState } from "./fixtures.ts";
 import { chooseOption } from "./select.ts";
 
-afterEach(cleanup);
+import * as activityLoader from "../../src/app/page/activityLoader.ts";
+import { entry, trace } from "./activity-fixtures.ts";
 
-const trace = (id: string, overrides = {}) => ({
-  id,
-  at: 1000,
-  kind: "full-analysis",
-  status: "ok",
-  label: id,
-  model: "test/model",
-  durationMs: 1200,
-  replayOf: null,
-  usage: { input: 100, output: 20, cost: 0.01 },
-  error: null,
-  summary: "No change needed",
-  threads: [],
-  ...overrides,
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
 });
-const entry = {
-  id: "e1",
-  at: 900,
-  action: "move",
-  source: "user",
-  status: "applied",
-  rationale: "Moved a thread",
-  threads: [{ id: "missing-thread", name: "Parser thread" }],
-  workstreams: [],
-  undo: null,
-  detail: null,
-  traceIds: [],
-};
 async function page(rpc: Record<string, unknown>) {
   return renderSlot(
     { component: ActivityView },
@@ -178,62 +155,60 @@ it("filters internal calls, exposes metadata and event internals, and opens the 
   expect(slot.getByText("bad")).toBeTruthy();
 });
 
-it("loads older calls with a stable cursor and refreshes loaded history without duplicates", async () => {
-  const first = Array.from({ length: 100 }, (_, i) => trace(`call-${i}`));
-  let refreshed = false;
-  const traces = vi.fn(
-    ({ before }: { before?: { at: number; id: string } }) => ({
-      traces: before
-        ? [trace("older")]
-        : first.map((call, index) =>
-            refreshed && index === 0
-              ? { ...call, label: "Refreshed call" }
-              : call,
-          ),
+it("connects pagination, realtime, filter changes, and unmount to the loader", async () => {
+  let publish!: Parameters<typeof activityLoader.createActivityLoader>[1];
+  const load = vi.fn(async () => {});
+  const cancel = vi.fn();
+  vi.spyOn(activityLoader, "createActivityLoader").mockImplementation(
+    (_source, sink) => {
+      publish = sink;
+      return { load, cancel };
+    },
+  );
+  const slot = await page({});
+  await waitFor(() =>
+    expect(load).toHaveBeenLastCalledWith({
+      external: false,
+      debug: true,
+      traceLimit: 100,
+      callKind: "",
     }),
   );
-  const slot = await page({ traces });
-  fireEvent.click(
-    await slot.findByText("Load older model calls", { selector: "button" }),
-  );
-  expect(await slot.findByText("older")).toBeTruthy();
-  expect(traces).toHaveBeenCalledWith({
-    limit: 100,
-    before: { at: 1000, id: "call-99" },
+  act(() => {
+    publish.entries([entry]);
+    publish.calls([trace("first")], true);
   });
-  expect(
-    slot.queryByText("Load older model calls", { selector: "button" }),
-  ).toBeNull();
-  refreshed = true;
-  await slot.behavior.emitRealtime("changed", {});
-  await slot.findByText("Refreshed call");
-  expect(slot.container.querySelectorAll("li")).toHaveLength(102);
-  expect(slot.getByText("101 model calls shown · $1.0100")).toBeTruthy();
-}, 15000);
-
-it("ignores a stale trace request after changing the kind filter", async () => {
-  let resolveFirst!: (value: unknown) => void;
-  const traces = vi.fn(({ kind }: { kind?: string }) =>
-    kind
-      ? { traces: [trace("route-current", { kind: "quick-analysis" })] }
-      : new Promise((resolve) => {
-          resolveFirst = resolve;
-        }),
+  fireEvent.click(slot.getByRole("button", { name: "Load older model calls" }));
+  await waitFor(() =>
+    expect(load).toHaveBeenLastCalledWith(
+      expect.objectContaining({ traceLimit: 200 }),
+    ),
   );
-  const slot = await page({ traces });
-  await waitFor(() => expect(traces).toHaveBeenCalledTimes(1));
+  act(() => publish.calls([trace("first"), trace("older")], false));
+  expect(slot.getByText("older")).toBeTruthy();
+  expect(slot.getByText("2 model calls shown · $0.0200")).toBeTruthy();
+  expect(
+    slot.queryByRole("button", { name: "Load older model calls" }),
+  ).toBeNull();
+  load.mockClear();
+  await slot.behavior.emitRealtime("changed", {});
+  expect(load).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ traceLimit: 200 }),
+  );
+  cancel.mockClear();
   chooseOption(
     slot.getByRole("combobox", { name: "Filter by model call kind" }),
     "Quick analysis",
   );
-  await slot.findByText("route-current");
-  await act(async () =>
-    resolveFirst({
-      traces: [trace("route-stale", { kind: "quick-analysis" })],
-    }),
+  await waitFor(() =>
+    expect(load).toHaveBeenLastCalledWith(
+      expect.objectContaining({ callKind: "quick-analysis", traceLimit: 100 }),
+    ),
   );
-  expect(slot.getByText("route-current")).toBeTruthy();
-  expect(slot.queryByText("route-stale")).toBeNull();
+  expect(cancel).toHaveBeenCalled();
+  cancel.mockClear();
+  slot.lifecycle.unmount();
+  expect(cancel).toHaveBeenCalledExactlyOnceWith();
 });
 
 it("clears hidden debug-only filters when Debug mode turns off", async () => {

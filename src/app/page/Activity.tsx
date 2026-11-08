@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useRealtime,
   useRpc,
@@ -21,14 +21,14 @@ import { ActivityTerm } from "./ActivityTerm.tsx";
 import { ActivityThreadLink } from "./ActivityThreadLink.tsx";
 import { compareGroupNames } from "../../domain/group-name-order.ts";
 import { SelectField } from "../SelectField.tsx";
+import {
+  createActivityLoader,
+  TRACE_PAGE,
+  type ActivityEntry as JournalEntry,
+} from "./activityLoader.ts";
 
 /** The filter row's compact selects, sized to their chosen option. */
 const filterSelectClass = "h-7 w-auto px-2 text-xs";
-
-const TRACE_PAGE = 100;
-
-/** An entry with the debug traces of the model calls behind it. */
-type JournalEntry = Entry & { traceIds?: string[] };
 
 const ACTION_LABEL: Record<Entry["action"], string> = {
   move: "Move",
@@ -160,53 +160,36 @@ export function Activity({
   const [entries, setEntries] = useState<JournalEntry[] | null>(null);
   const [calls, setCalls] = useState<TraceSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const request = useRef(0);
   const hadDebug = useRef(false);
-  const load = useCallback(async () => {
-    const generation = ++request.current;
-    setError(null);
-    const report = (cause: unknown) => {
-      if (generation === request.current)
-        setError(cause instanceof Error ? cause.message : String(cause));
-    };
-    await Promise.all([
-      rpc.call("journal", { limit: 300, external }).then((result) => {
-        if (generation === request.current) setEntries(result.entries);
-      }, report),
-      (async () => {
-        const traces: TraceSummary[] = [];
-        let more = false;
-        let before: { at: number; id: string } | undefined;
-        // Refresh loaded history from the top so realtime updates cannot leave
-        // duplicates or retained-but-deleted traces in older pages.
-        if (debug) {
-          do {
-            const result = await rpc.call("traces", {
-              limit: TRACE_PAGE,
-              ...(callKind ? { kind: callKind } : {}),
-              ...(before ? { before } : {}),
-            });
-            if (generation !== request.current) return;
-            traces.push(...result.traces);
-            more = result.traces.length === TRACE_PAGE;
-            const last = result.traces.at(-1);
-            before = last ? { at: last.at, id: last.id } : undefined;
-          } while (more && traces.length < traceLimit);
-        }
-        if (generation === request.current) {
-          setCalls(traces);
-          setMoreCalls(more);
-        }
-      })().catch(report),
-    ]);
-  }, [rpc, external, debug, traceLimit, callKind]);
+  const loader = useMemo(
+    () =>
+      createActivityLoader(
+        {
+          journal: (input) =>
+            rpc.call("journal", input).then((result) => result.entries),
+          traces: (input) =>
+            rpc.call("traces", input).then((result) => result.traces),
+        },
+        {
+          entries: setEntries,
+          calls: (calls, more) => {
+            setCalls(calls);
+            setMoreCalls(more);
+          },
+          error: setError,
+        },
+      ),
+    [rpc],
+  );
+  const load = useCallback(
+    () => loader.load({ external, debug, traceLimit, callKind }),
+    [loader, external, debug, traceLimit, callKind],
+  );
   useRealtime("changed", load);
   useEffect(() => {
     void load();
-    return () => {
-      request.current++;
-    };
-  }, [load]);
+    return () => loader.cancel();
+  }, [load, loader]);
   useEffect(() => {
     if (debug) {
       hadDebug.current = true;

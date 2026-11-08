@@ -1041,6 +1041,16 @@ failure, cancellation, and ownership boundaries explicit. Ranking policy
 matrices belong in domain tests, with representative UI cases checking rendering
 and interactions.
 
+Stateful UI rules also run through production headless interfaces:
+`src/app/sidebar/upNextState.ts` plans Up Next's selected-row anchor and
+expanded rows, and `src/app/page/activityLoader.ts` owns Activity's pagination
+and request invalidation. Their tests drive state changes and deferred responses
+without mounting a page. DOM tests cover the React boundary: selection and
+Snooze, pagination controls, filter changes, realtime refresh, and effect
+cleanup. The Activity wiring test supplies a small loader result; the headless
+tests exercise the real loader with full pages. Keep these tests in `npm test`,
+not a separate fast suite.
+
 Run `npm run test:benchmark -- --runs 5 --output-dir /tmp/workstreams-benchmark`
 to measure full-suite wall-clock time, including npm and Vitest startup. The
 command saves each test report and log plus `benchmark.json` with

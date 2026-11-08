@@ -59,63 +59,6 @@ it("lists up to ten threads blocked on you, newest first, with the rest behind S
   slot.lifecycle.unmount();
 });
 
-it("leaves running threads out of Up Next until their turn ends", async () => {
-  const threads = [
-    sidebarThread("running", {
-      title: "Running",
-      status: "active",
-      indicator: "runtime",
-      latestAttentionAt: Date.now() - 1_000,
-    }),
-    sidebarThread("asking", {
-      title: "Asking",
-      status: "active",
-      hasPendingInteraction: true,
-      latestAttentionAt: Date.now() - 2_000,
-    }),
-    sidebarThread("done", {
-      title: "Done",
-      latestAttentionAt: Date.now() - 3_000,
-    }),
-  ];
-  const slot = await mountWithBands(threads, {
-    activeThreadId: null,
-    settings: { showRecent: false },
-  });
-  await waitFor(() =>
-    expect(groupRows(slot, "Up Next")).toEqual(["Asking", "Done"]),
-  );
-  // When the turn ends, BB marks the thread unread and it comes back.
-  threads[0] = {
-    ...threads[0]!,
-    status: "idle",
-    indicator: "none",
-    isUnread: true,
-    latestAttentionAt: Date.now(),
-  };
-  slot.selectThread(null);
-  await waitFor(() =>
-    expect(groupRows(slot, "Up Next")).toEqual(["Asking", "Running", "Done"]),
-  );
-  slot.lifecycle.unmount();
-});
-
-it("offers no Show more for trimmed read threads not blocked on you", async () => {
-  const slot = await mountWithBands(
-    [1, 2, 3, 4, 5, 6, 7].map((n) =>
-      sidebarThread(`t${n}`, {
-        title: `Thread ${n}`,
-        latestAttentionAt: Date.now() - n * 1_000,
-      }),
-    ),
-    { activeThreadId: null, settings: { showRecent: false } },
-  );
-  const band = await slot.findByRole("region", { name: "Up Next" });
-  await waitFor(() => expect(groupRows(slot, "Up Next")).toHaveLength(5));
-  expect(within(band).queryByRole("button", { name: /^Show/ })).toBeNull();
-  slot.lifecycle.unmount();
-});
-
 it("ranks a current needs-decision result as a question, but not a stale one", async () => {
   const at = Date.now();
   const result = (revision: number) => ({
@@ -173,142 +116,84 @@ const newer = () =>
     }),
   );
 
-it.each([
-  { nextThreadId: "o1", readOnSelect: false },
-  { nextThreadId: null, readOnSelect: false },
-  { nextThreadId: "o1", readOnSelect: true },
-])(
-  "holds a read result in place until $nextThreadId is selected (readOnSelect: $readOnSelect)",
-  async ({ nextThreadId, readOnSelect }) => {
-    const threads = [
-      sidebarThread("result", {
-        title: "Result",
-        isUnread: true,
-        latestAttentionAt: 10,
-      }),
-      ...newer(),
-    ];
-    const slot = await mountWithBands(threads, {
-      activeThreadId: "o5",
-      recaps: {
-        result: {
-          id: "result-recap",
-          turnId: "turn",
-          at: 10,
-          state: "complete",
-          goal: "Shipping",
-          latest: ["Finished"],
-          review: [],
-          links: [],
-        },
-      },
-    });
-    // Unread, the oldest thread outranks the read ones.
-    await waitFor(() =>
-      expect(groupRows(slot, "Up Next")).toEqual([
-        "Result, Complete",
-        "Other 1",
-        "Other 2",
-        "Other 3",
-        "Other 4",
-      ]),
-    );
-    if (!readOnSelect) slot.selectThread("result");
-    threads[0] = {
-      ...threads[0]!,
-      isUnread: false,
-      displayTitle: "Updated result",
-    };
-    slot.selectThread("result");
-    // Read, it would rank last and leave; it holds its row while open.
-    await waitFor(() => {
-      expect(groupRows(slot, "Up Next")).toEqual([
-        "Updated result, Complete",
-        "Other 1",
-        "Other 2",
-        "Other 3",
-        "Other 4",
-        "Other 5",
-      ]);
-    });
-    expect(slot.queryByRole("region", { name: "Recent" })).toBeNull();
-
-    slot.selectThread(nextThreadId);
-    expect(groupRows(slot, "Up Next")).not.toContain(
-      "Updated result, Complete",
-    );
-    expect(groupRows(slot, "Recent")).toEqual(["Updated result, Complete"]);
-    // Opening it again doesn't bring it back.
-    slot.selectThread("result");
-    expect(groupRows(slot, "Up Next")).not.toContain(
-      "Updated result, Complete",
-    );
-    slot.lifecycle.unmount();
-  },
-);
-
-it("releases a resolved question only after selecting another thread", async () => {
+it("holds a result marked read on selection until another thread opens", async () => {
   const threads = [
-    sidebarThread("question", {
-      title: "Question",
-      hasPendingInteraction: true,
+    sidebarThread("result", {
+      title: "Result",
+      isUnread: true,
       latestAttentionAt: 10,
     }),
     ...newer(),
   ];
-  const slot = await mountWithBands(threads, { activeThreadId: "question" });
-  await waitFor(() => expect(groupRows(slot, "Up Next")[0]).toBe("Question"));
-  threads[0] = {
-    ...threads[0]!,
-    hasPendingInteraction: false,
-    status: "active",
-  };
-  slot.selectThread("question");
+  const slot = await mountWithBands(threads, {
+    activeThreadId: "o5",
+    recaps: {
+      result: {
+        id: "result-recap",
+        turnId: "turn",
+        at: 10,
+        state: "complete",
+        goal: "Shipping",
+        latest: ["Finished"],
+        review: [],
+        links: [],
+      },
+    },
+  });
+  // Unread, the oldest thread outranks the read ones.
   await waitFor(() =>
     expect(groupRows(slot, "Up Next")).toEqual([
-      "Question",
+      "Result, Complete",
+      "Other 1",
+      "Other 2",
+      "Other 3",
+      "Other 4",
+    ]),
+  );
+  threads[0] = {
+    ...threads[0]!,
+    isUnread: false,
+    displayTitle: "Updated result",
+  };
+  slot.selectThread("result");
+  // Read, it would rank last and leave; it holds its row while open.
+  await waitFor(() => {
+    expect(groupRows(slot, "Up Next")).toEqual([
+      "Updated result, Complete",
       "Other 1",
       "Other 2",
       "Other 3",
       "Other 4",
       "Other 5",
-    ]),
-  );
+    ]);
+  });
+  expect(slot.queryByRole("region", { name: "Recent" })).toBeNull();
+
   slot.selectThread("o1");
-  expect(groupRows(slot, "Up Next")).not.toContain("Question");
+  expect(groupRows(slot, "Up Next")).not.toContain("Updated result, Complete");
+  expect(groupRows(slot, "Recent")).toEqual(["Updated result, Complete"]);
+  // Opening it again doesn't bring it back.
+  slot.selectThread("result");
+  expect(groupRows(slot, "Up Next")).not.toContain("Updated result, Complete");
   slot.lifecycle.unmount();
 });
 
-it.each(["hidden", "archived", "snoozed"])(
-  "still removes a selected Up Next thread when explicitly %s",
-  async (action) => {
-    const threads = [
-      sidebarThread("question", {
-        title: "Question",
-        hasPendingInteraction: true,
-        latestAttentionAt: 100,
-      }),
-    ];
-    const slot = await mountWithBands(threads, { activeThreadId: "question" });
-    const band = await slot.findByRole("region", { name: "Up Next" });
-    if (action === "snoozed") {
-      fireEvent.click(
-        within(band).getByRole("button", { name: /^Snooze until/ }),
-      );
-    } else {
-      threads[0] = {
-        ...threads[0]!,
-        isHidden: action === "hidden",
-        isArchived: action === "archived",
-      };
-      slot.selectThread("question");
-    }
-    await waitFor(() =>
-      expect(slot.queryByRole("region", { name: "Up Next" })).toBeNull(),
-    );
-    slot.lifecycle.unmount();
-  },
-);
+it("removes a selected Up Next thread through its Snooze button", async () => {
+  const threads = [
+    sidebarThread("question", {
+      title: "Question",
+      hasPendingInteraction: true,
+      latestAttentionAt: 100,
+    }),
+  ];
+  const slot = await mountWithBands(threads, { activeThreadId: "question" });
+  const band = await slot.findByRole("region", { name: "Up Next" });
+  fireEvent.click(within(band).getByRole("button", { name: /^Snooze until/ }));
+  await waitFor(() =>
+    expect(slot.queryByRole("region", { name: "Up Next" })).toBeNull(),
+  );
+  slot.lifecycle.unmount();
+});
 
 it("marks the agent's reported state, which outranks analysis", async () => {
   const at = Date.now();
