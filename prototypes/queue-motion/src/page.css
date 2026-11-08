@@ -424,6 +424,21 @@ h1 {
   padding: 12px 14px 10px;
   border-bottom: 1px solid var(--ins-line);
 }
+.ins-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+/* An action, not a setting: it sits by the title and says for a moment that it worked. */
+.inspector .copy {
+  flex: none;
+  font-size: 11.5px;
+}
+.inspector .copy.done {
+  color: #1a7f37;
+  border-color: #1a7f37;
+}
 .ins-head h2 {
   margin: 0;
   font-size: 13px;

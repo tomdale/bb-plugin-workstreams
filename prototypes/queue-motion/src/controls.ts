@@ -899,6 +899,12 @@ export const CONTROLS: readonly Control[] = [
   },
   { id: "held", label: "held", kind: "readout", meta: "0 to 1" },
   {
+    id: "copy",
+    label: "Copy settings",
+    kind: "button",
+    meta: "copies Markdown",
+  },
+  {
     id: "about",
     label: "How the drum works",
     kind: "note",

@@ -417,6 +417,55 @@ async function controlsDriveThePage(browser) {
         Math.abs(shapes.cross.x - shapes.plain.x) > 0.5,
       `bank deg turns a swaying card and column crossing reshapes the path, neither moving its top edge (${JSON.stringify(shapes)})`,
     );
+
+    // Copy settings puts the shown settings on the clipboard as Markdown, changed values in bold, and leaves
+    // out what the inspector hides.
+    const copies = {};
+    for (const [name, hash] of [
+      ["drum", "#v=drum&preset=natural&sway=40&cap=30"],
+      ["product", "#v=product"],
+    ]) {
+      await load(page, hash);
+      await page.evaluate(() => {
+        window.__copied = null;
+        navigator.clipboard.writeText = async (t) => {
+          window.__copied = t;
+        };
+      });
+      await page.click('button[data-act="copy"]');
+      await page.waitForFunction(() => window.__copied !== null);
+      copies[name] = await page.evaluate(() => ({
+        text: window.__copied,
+        label: document.querySelector('button[data-act="copy"]').textContent,
+      }));
+    }
+    const drum = copies.drum.text;
+    expect(
+      copies.drum.label === "Copied" &&
+        drum.startsWith("## Queue motion lab settings\n") &&
+        drum.includes("- Model: Elastic drum") &&
+        drum.includes("- Preset: `natural`") &&
+        drum.includes("sway=40") &&
+        drum.includes("| sway in front px | `sway` | **40 px** | 24 px |") &&
+        drum.includes(
+          "| edge budget, tap px/frame | `cap` | **30 px/frame** | 24 px/frame |",
+        ) &&
+        drum.includes("`cap` 24 px/frame → 30 px/frame") &&
+        drum.includes("### Path") &&
+        !drum.includes("`tw`") &&
+        !drum.includes("`park`") &&
+        !drum.includes("`handles`"),
+      `Copy settings copies the shown settings as Markdown, changed values in bold (${JSON.stringify(drum.slice(0, 400))})`,
+    );
+    const product = copies.product.text;
+    expect(
+      product.includes("- Model: Product now") &&
+        !product.includes("- Preset:") &&
+        product.includes("- Changed: nothing") &&
+        !product.includes("### Taps") &&
+        product.includes("### Path"),
+      `Copy settings in the product lists no preset or model settings (${JSON.stringify(product.slice(0, 300))})`,
+    );
   });
 }
 

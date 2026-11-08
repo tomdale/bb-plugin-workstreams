@@ -49,6 +49,7 @@ import {
   type Ring,
   type Sway,
 } from "./ring.ts";
+import { settingsMarkdown, type CopyRow } from "./copy.ts";
 import { ABOUT, ABOUT_CASCADE, HELP, captionFor } from "./help.ts";
 import { inline, installTooltips } from "./tooltip.ts";
 // @ts-ignore: plain JS data
@@ -837,7 +838,8 @@ function syncButtons() {
                   ? opt.path === "1"
                   : false;
     b.classList.toggle("on", on);
-    if (k !== "step") b.setAttribute("aria-pressed", String(on));
+    if (k !== "step" && k !== "copy")
+      b.setAttribute("aria-pressed", String(on));
   }
   // Each model shows its own preset buttons; the product has none.
   $("#presets").hidden = opt.v === "product";
@@ -903,6 +905,100 @@ function syncSettings() {
     const mod = $(`[data-module="${id}"]`);
     mod.hidden = $$(`[data-module="${id}"] [data-key]`).every((l) => l.hidden);
   }
+}
+
+// ---- Copy settings ------------------------------------------------------------------------------------
+
+/** A setting's value as the inspector shows it, with its unit. */
+function valueText(s: Setting<any, unknown>, c: unknown): string {
+  if (s.kind === "toggle") return s.read(c) ? "on" : "off";
+  if (s.kind === "select") return s.read(c);
+  const v = String(round(s.read(c)));
+  // A word unit takes a space (`24 px`); a symbol does not (`4°`, `1.4×`, `8/s`).
+  return !s.unit
+    ? v
+    : /^[a-z]/i.test(s.unit)
+      ? `${v} ${s.unit}`
+      : `${v}${s.unit}`;
+}
+
+/**
+ * The Markdown for the current state: every setting the inspector shows now, beside its value with nothing
+ * overridden (the preset's for a model's settings, the default for the path's and the page's).
+ */
+function currentSettingsMarkdown(): string {
+  const bare: Opt = {
+    v: opt.v!,
+    preset: opt.preset!,
+    ...(opt.path ? { path: opt.path } : {}),
+    ...(opt.reduced ? { reduced: opt.reduced } : {}),
+  };
+  const isReduced = reduced();
+  const lists: [readonly Setting<any, unknown>[], unknown, unknown][] = [
+    [SETTINGS, cfg, drumCfg(bare)],
+    [CASCADE_SETTINGS, ccfg, cascadeCfg(bare)],
+    [PATH_SETTINGS, pcfg, pathCfg(bare, isReduced)],
+    [VIEW_SETTINGS, vcfg, viewCfg(bare, isReduced)],
+  ];
+  const root = $("#inspector");
+  const rows: CopyRow[] = [];
+  for (const m of MODULES) {
+    const mod = root.querySelector<HTMLElement>(`[data-module="${m.id}"]`);
+    if (!mod || mod.hidden) continue;
+    for (const [list, now, base] of lists)
+      for (const s of list) {
+        if (s.group !== m.id) continue;
+        const host = mod.querySelector<HTMLElement>(`[data-key="${s.key}"]`);
+        if (!host || host.hidden) continue;
+        rows.push({
+          module: m.label,
+          label: s.label,
+          key: s.key,
+          value: valueText(s, now),
+          base: valueText(s, base),
+        });
+      }
+  }
+  const modelModules = new Set(["Taps", "Pace", "Held keys", "Stage"]);
+  return settingsMarkdown({
+    model: MODES.find((m) => m.id === opt.v)!.label,
+    preset: opt.v === "product" ? null : opt.preset!,
+    speed: SPEEDS.find((x) => x.id === opt.speed)?.label ?? `${opt.speed}×`,
+    reduced: isReduced,
+    overlay: opt.path === "1",
+    hash: location.hash,
+    rows,
+    baseName: (m) => (modelModules.has(m) ? "Preset" : "Default"),
+  });
+}
+
+/** Puts `text` on the clipboard: the async API where the page may use it, else a selected text area. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+    document.body.append(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  }
+}
+
+let copyReset = 0;
+async function copySettings(b: HTMLElement) {
+  const ok = await copyText(currentSettingsMarkdown());
+  b.textContent = ok ? "Copied" : "Copy failed";
+  b.classList.toggle("done", ok);
+  clearTimeout(copyReset);
+  copyReset = window.setTimeout(() => {
+    b.textContent = labelOf("copy");
+    b.classList.remove("done");
+  }, 1600);
 }
 
 /** The cascade cuts its stage at the clip line, `park` px below the front pose, and fades the last `fade` px. */
@@ -1048,6 +1144,7 @@ inspector.addEventListener("click", (e) => {
     paint();
     syncAll();
   }
+  if (k === "copy") copySettings(b);
   if (k === "path") {
     opt.path = opt.path === "1" ? "0" : "1";
     refreshCfg();

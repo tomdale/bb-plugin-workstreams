@@ -343,6 +343,18 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "Works in every model. The held state and the drum's tempo run on the page's clock, so a held key does not advance them while it is paused.",
     tune: "Press ↓, click Pause during the trip, then click Step to walk the rest of it one frame at a time.",
   }),
+  copy: () => ({
+    what: "Copies the current settings to the clipboard as Markdown, to paste into a note, an issue or a chat.",
+    effect: [
+      [
+        "Click",
+        "The button reads `Copied` for a moment. The text lists the model, preset, speed, reduced motion, `Bezier path` and the URL hash, then a line naming every setting that differs from its preset or default, then one table per inspector module of every setting it shows, with the changed values in bold beside the preset's or default value.",
+      ],
+    ],
+    needs:
+      "It copies only what the inspector shows: a setting that changes nothing under the current model and configuration is hidden, so it is left out. The hash line restores the whole state when pasted after the page's address.",
+    tune: "Set up the motion you want to share, then click it and paste. Compare two copies to see what changed between them.",
+  }),
   "clock.step": (f) => {
     const frame = (1000 / Number(f.hz)).toFixed(1);
     const p = f.preset("natural");

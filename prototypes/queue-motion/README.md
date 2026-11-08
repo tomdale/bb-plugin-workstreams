@@ -48,6 +48,14 @@ hidden whole. The modules:
 | Overlay               | `Bezier path` draws the rounded loop a moving card follows as cubic Bezier segments: down in front of the pile, across the column at `turn`, and up behind it to `tuck` (the cascade: one bow down to `park`), with handles, a ring at each leg's widest point, anchors and live card markers. While it is on, the module shows what it draws.                                                           |
 | How the drum works    | The About module, folded at first: the ring path the cards follow, the four problems the frame checker counts, and which module acts on which part. The product shows it too. While the cascade runs its heading is How the cascade works: the exit channel and the clip line, what sets the pace of a held key, and the same problems.                                                                  |
 
+`Copy settings`, beside the inspector's title, copies the current state to the
+clipboard as Markdown: the model, preset, speed, reduced motion, `Bezier path`
+and the URL hash; a line naming every setting that differs from its preset or
+default, old and new value; and a table per module of every setting the
+inspector shows, with changed values in bold beside the preset's value (model
+settings) or the default (Path and Overlay settings). A hidden setting changes
+nothing, so it is left out. The button reads `Copied` for a moment.
+
 The held readout, `held` with a bar from 0.00 to 1.00, shows in Playback while
 the drum's held speed-up, fold or loose clearing is on, or the cascade's ramp
 is: how far the held state has risen. Every control has a tooltip, which says
