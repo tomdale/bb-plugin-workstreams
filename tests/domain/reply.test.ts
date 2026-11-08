@@ -497,7 +497,7 @@ describe("delivered instructions", () => {
   it("puts the recap call first and the block last", () => {
     const text = replyInstructions(true);
     expect(text).toContain(
-      "When the work is done, call WorkstreamsRecap — the card comes from that call — and then write the block",
+      "When the turn reports finished work or a wait on another thread, call WorkstreamsRecap — the card comes from that call — and then write the block",
     );
     // The block carries the substance the card only summarizes.
     expect(text).toContain(
@@ -508,11 +508,23 @@ describe("delivered instructions", () => {
     expect(text).toContain("no closing sentence or second summary after it");
     // A question-card turn has no recap call, so the block is the last text.
     expect(text).toContain("When required input is missing, skip the recap:");
-    expect(text).toContain("a block is the turn's reply, not a progress note");
     expect(text).toContain(
       "Put `:::reply` and its attributes on their own line",
     );
   });
+  it.each([true, false])(
+    "keeps the block on a turn that reports a wait, recap tool %s",
+    (recap) => {
+      const text = replyInstructions(recap);
+      // A waiting turn is a reply, so plain text stays a progress note.
+      expect(text).toContain(
+        "Plain text is for a progress note written while work is still in progress",
+      );
+      expect(text).toContain(
+        "the turn's reply is the block, including a reply that reports a wait on another thread",
+      );
+    },
+  );
   it.each([true, false])(
     "keeps a block when the request fixes the output, recap tool %s",
     (recap) => {

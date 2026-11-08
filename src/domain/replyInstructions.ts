@@ -10,7 +10,8 @@ import { RECAP_TOOL } from "./recap.ts";
 import { REPLY_BLOCK } from "./reply.ts";
 export const REPLY_EXAMPLES_TOOL = "WorkstreamsReplyExamples";
 const MARKERS = `Put \`:::${REPLY_BLOCK}\` and its attributes on their own line, with no space after the colons or before \`{\`. Use a top-level block, closed with \`:::\` alone on a line. Fenced code works inside; a line that must be only \`:::\` goes inside \`::::reply\` and \`::::\`.`;
-const TURN_POSITION = `Write it as the turn's last text, with no closing sentence or second summary after it. Write plain text while work is still in progress; a block is the turn's reply, not a progress note.`;
+/** Text written before the reply is a progress note; a turn that waits still ends in the block. */
+const TURN_POSITION = `Write it as the turn's last text, with no closing sentence or second summary after it. Plain text is for a progress note written while work is still in progress; the turn's reply is the block, including a reply that reports a wait on another thread.`;
 /** A request for exact output shapes the body, not whether there is a block. */
 const EXACT_OUTPUT = `A request that fixes the output — one word, exact text, no formatting — still goes in the block, and changes only what the block holds: the asked-for text and nothing else.`;
 /** A question-card turn ends at the card, so the block precedes that call. */
@@ -34,7 +35,7 @@ function alone(): string {
  * starts its reply with, so the block that follows carries the body alone.
  */
 function withRecapTool(): string {
-  return `Every turn's reply is one \`:::${REPLY_BLOCK}\` block, which the app draws as the reply itself: the whole answer, even a one-sentence answer, then the explanation, completion details, and any relevant commit or PR links. When the work is done, call ${RECAP_TOOL} — the card comes from that call — and then write the block, which carries the substance the card only summarizes. ${EXACT_OUTPUT} ${TURN_POSITION} When required input is missing, skip the recap: ${ASK_EXCEPTION} A turn that only reports a missing recap ends at that call, with nothing after it. ${MARKERS}
+  return `Every turn's reply is one \`:::${REPLY_BLOCK}\` block, which the app draws as the reply itself: the whole answer, even a one-sentence answer, then the explanation, completion details, and any relevant commit or PR links. When the turn reports finished work or a wait on another thread, call ${RECAP_TOOL} — the card comes from that call — and then write the block, which carries the substance the card only summarizes. ${EXACT_OUTPUT} ${TURN_POSITION} When required input is missing, skip the recap: ${ASK_EXCEPTION} A turn that only reports a missing recap ends at that call, with nothing after it. ${MARKERS}
 Example, with two components in one fence:
 :::reply
 # Arrow keys follow the card order

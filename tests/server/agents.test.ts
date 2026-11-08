@@ -336,6 +336,9 @@ describe("configure", () => {
         expect(text).toContain(
           "call WorkstreamsRecap — the card comes from that call — and then write the block",
         );
+      // A waiting turn is a reply, so the block reaches it too.
+      if (composed)
+        expect(text).toContain("a reply that reports a wait on another thread");
 
       const recap = !options.sideChat && !options.noRecap;
       if (recap) expect(text).toContain("required for complete and review");
