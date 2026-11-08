@@ -571,6 +571,9 @@ export type PathCfg = {
   sway: number;
   swayBehind: number;
   peak: number;
+  peakBehind: number;
+  cross: number;
+  bank: number;
   loop: boolean;
   moving: boolean;
   overlay: boolean;
@@ -579,11 +582,16 @@ export const PATH_DEFAULT: PathCfg = {
   sway: 24,
   swayBehind: -24,
   peak: 0.5,
+  peakBehind: 0.5,
+  cross: 0,
+  bank: 0,
   loop: true,
   moving: true,
   overlay: false,
 };
 const pathShows = (c: PathCfg) => c.moving || c.overlay;
+/** Whether either leg sways at all: with no sway, the settings that shape it change nothing. */
+const swaying = (c: PathCfg) => c.sway !== 0 || (c.loop && c.swayBehind !== 0);
 
 export const PATH_SETTINGS: readonly Setting<PathCfg, Partial<PathCfg>>[] = [
   {
@@ -623,7 +631,47 @@ export const PATH_SETTINGS: readonly Setting<PathCfg, Partial<PathCfg>>[] = [
     step: 0.05,
     read: (c) => c.peak,
     write: (peak) => ({ peak }),
-    shown: pathShows,
+    shown: (c) => pathShows(c) && swaying(c),
+  },
+  {
+    kind: "range",
+    key: "peakb",
+    group: "path",
+    label: "widest point behind",
+    unit: "",
+    min: 0.25,
+    max: 0.75,
+    step: 0.05,
+    read: (c) => c.peakBehind,
+    write: (peakBehind) => ({ peakBehind }),
+    shown: (c) => pathShows(c) && c.loop && swaying(c),
+  },
+  {
+    kind: "range",
+    key: "cross",
+    group: "path",
+    label: "column crossing",
+    unit: "",
+    min: -0.3,
+    max: 0.3,
+    step: 0.05,
+    read: (c) => c.cross,
+    write: (cross) => ({ cross }),
+    shown: (c) => pathShows(c) && c.loop && swaying(c),
+  },
+  {
+    kind: "range",
+    key: "bank",
+    group: "path",
+    label: "bank deg",
+    unit: "°",
+    min: -10,
+    max: 10,
+    step: 0.5,
+    read: (c) => c.bank,
+    write: (bank) => ({ bank }),
+    // Only the cards turn: the overlay alone shows no bank.
+    shown: (c) => c.moving && swaying(c),
   },
 ];
 

@@ -129,18 +129,26 @@ are the same at any value. A preset button keeps them. The sway is a function of
 where the card is on its ring, so a card that changes direction mid-flight
 retraces it; `src/ring.ts` holds the curve.
 
-| Module | Setting          | Key     | Shown when                                    |
-| ------ | ---------------- | ------- | --------------------------------------------- |
-| Path   | sway in front px | `sway`  | reduced motion is off, or `Bezier path` is on |
-|        | sway behind px   | `swayb` | the same, and the drum or the product runs    |
-|        | widest point     | `peak`  | reduced motion is off, or `Bezier path` is on |
+| Module | Setting             | Key     | Shown when                                                     |
+| ------ | ------------------- | ------- | -------------------------------------------------------------- |
+| Path   | sway in front px    | `sway`  | reduced motion is off, or `Bezier path` is on                  |
+|        | sway behind px      | `swayb` | the same, and the drum or the product runs                     |
+|        | widest point        | `peak`  | reduced motion is off, or `Bezier path` is on, and a leg sways |
+|        | widest point behind | `peakb` | the same, and the drum or the product runs                     |
+|        | column crossing     | `cross` | the same, and the drum or the product runs                     |
+|        | bank deg            | `bank`  | reduced motion is off, and a leg sways                         |
 
 `sway` is the widest sideways offset, in px, on the way down in front of the
 pile (positive is right), `swayb` the same on the drum's leg behind the pile,
-and `peak` where along each leg the widest point sits, as a fraction of the leg.
-The defaults, `sway` 24, `swayb` −24 and `peak` 0.5, make a symmetric loop. With
-`sway` and `swayb` at 0 cards move as the models draw them, straight down and
-back up the column.
+`peak` where the front leg's widest point sits, as a fraction of the leg from
+the front, and `peakb` the same for the leg behind the pile, from the tuck.
+`cross` moves where the drum's path crosses the column, in ring units from the
+turn, so the loop leans one way or the other. `bank` turns a swaying card about
+its top centre, in degrees at the widest sway; positive swings its bottom edge
+out from the column. The defaults, `sway` 24, `swayb` −24, `peak` and `peakb`
+0.5, `cross` 0 and `bank` 0, make a symmetric, upright loop. With `sway` and
+`swayb` at 0 cards move as the models draw them, straight down and back up the
+column, and the settings that shape the sway hide.
 
 The page's own settings belong to no model, every model shows them, and a preset
 button keeps them:
@@ -176,12 +184,12 @@ the tables above: the drum's `w0`, `cap`, `fadein`, `cover`, `tuck`, `hide`,
 `wrise`, `wclear`, `tk`, `tw`, `ts`, `ta`, `tb`, `tms`, `slack`, `ramp`, `fold`,
 `loose`, `delay`, `w1`, `cap1` and `h0`, the cascade's `cw0`, `ccap`, `sp0`,
 `sp1`, `cdelay`, `cw1`, `ccap1`, `park`, `fade` and `shade`, the path's `sway`,
-`swayb` and `peak`, which every model reads, and the page's `rfade`, `hfade`,
-`handles`, `knots`, `inner`, `arrows`, `labels`, `spine` and `dots`. The two
-models' keys differ, so one hash can hold both models' settings, and the model
-that `v` names reads only its own. A toggle is `1` or `0`, `tk` is one of its
-three choices, and a slider's value is clamped to its range. The page ignores a
-key or value it does not recognise.
+`swayb`, `peak`, `peakb`, `cross` and `bank`, which every model reads, and the
+page's `rfade`, `hfade`, `handles`, `knots`, `inner`, `arrows`, `labels`,
+`spine` and `dots`. The two models' keys differ, so one hash can hold both
+models' settings, and the model that `v` names reads only its own. A toggle is
+`1` or `0`, `tk` is one of its three choices, and a slider's value is clamped to
+its range. The page ignores a key or value it does not recognise.
 
 The drum's presets:
 

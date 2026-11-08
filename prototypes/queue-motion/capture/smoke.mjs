@@ -384,6 +384,39 @@ async function controlsDriveThePage(browser) {
         tops["-40"].top === tops["24"].top,
       `sway in front px moves a leaving card sideways and leaves its top edge alone (${JSON.stringify(tops)})`,
     );
+
+    // The bank turns a swaying card about its top centre, and the column crossing moves the path without
+    // touching the card's top edge.
+    const shapes = {};
+    for (const [name, extra] of [
+      ["plain", ""],
+      ["bank", "&bank=6"],
+      ["cross", "&cross=-0.3&peakb=0.3"],
+    ]) {
+      await load(page, `#v=drum&preset=natural${extra}`);
+      await page.evaluate(() => {
+        window.__sim.pause();
+        window.__sim.jump(2);
+        window.__sim.press(1);
+      });
+      for (let f = 0; f < 10; f++)
+        await page.evaluate(() => window.__sim.advance(1000 / 60));
+      shapes[name] = await page.evaluate(() => {
+        const v = window.__sim
+          .views()
+          .find((v) => v.role === "out" && v.painted);
+        const el = document.querySelectorAll(".card")[Number(v.key.slice(1))];
+        return { x: v.x, top: v.top, transform: el.style.transform };
+      });
+    }
+    expect(
+      !shapes.plain.transform.includes("rotate") &&
+        /rotate\(-[\d.]+deg\)/.test(shapes.bank.transform) &&
+        shapes.bank.top === shapes.plain.top &&
+        shapes.cross.top === shapes.plain.top &&
+        Math.abs(shapes.cross.x - shapes.plain.x) > 0.5,
+      `bank deg turns a swaying card and column crossing reshapes the path, neither moving its top edge (${JSON.stringify(shapes)})`,
+    );
   });
 }
 
@@ -812,17 +845,21 @@ const CASCADE_SHOWN = {
 
 /**
  * The path's settings, which every model shows while the path shows on screen: while cards sway (reduced motion
- * off) or `Bezier path` draws it. The leg behind the pile is the drum's and the product's.
+ * off) or `Bezier path` draws it. The leg behind the pile and the column crossing are the drum's and the
+ * product's, and the bank turns only moving cards, so reduced motion hides it. With the default sway on.
  */
 const PATH_SHOWN = {
   sway: () => true,
   swayb: (mode) => mode !== "cascade",
   peak: () => true,
+  peakb: (mode) => mode !== "cascade",
+  cross: (mode) => mode !== "cascade",
+  bank: (mode, reduced) => !reduced,
 };
 const pathKeys = (mode, { reduced = false, overlay = false } = {}) =>
   reduced && !overlay
     ? []
-    : Object.keys(PATH_SHOWN).filter((k) => PATH_SHOWN[k](mode));
+    : Object.keys(PATH_SHOWN).filter((k) => PATH_SHOWN[k](mode, reduced));
 
 /** The page's own settings: the playback fades, and what `Bezier path` draws while it is on. */
 const VIEW_SHOWN = {
@@ -1025,6 +1062,13 @@ async function settingsVisibility(browser) {
       true,
       "drum with Bezier path: the path's settings",
     );
+    await load(page, `${NATURAL.hash}&path=1&sway=0&swayb=0`);
+    await only(
+      ["peak", "peakb", "cross", "bank"],
+      false,
+      "no sway on either leg: the settings that shape the sway",
+    );
+    await only(["sway", "swayb"], true, "no sway: the sway sliders stay");
 
     // The page's own settings: each fade with its motion setting, and the overlay's parts with the overlay.
     const viewCases = [

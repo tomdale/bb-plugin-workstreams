@@ -4,7 +4,7 @@
  *
  * The models move a card only in `y` and depth, so its top-centre runs straight down the column to the turn,
  * stops there, and runs straight back up behind the pile. The sway is a function of the ring coordinate alone
- * (`u = −c`), roughly `x = sway · sin(π·u)`, so it adds no state of its own and reverses with the card:
+ * (`u = −c`), roughly `x = sway · sin(π·u)` (see `sideways`), so it adds no state of its own and reverses with the card:
  * - drum, `0 ≤ u ≤ 2`, with the default sliders: out to the right in front of the pile, back across the column at the turn (where the
  *   vertical motion stops, so the card keeps moving instead of reversing in place), and to the left behind
  *   the pile before it hides at the tuck. A returning card runs the same loop backwards.
@@ -20,8 +20,15 @@ export type Sway = {
   front: number;
   /** Widest offset of the drum's leg behind the pile, px; positive is to the right. */
   behind: number;
-  /** How far along each leg the widest point sits, 0.25 to 0.75 of the leg; the behind leg mirrors it. */
+  /** How far along the front leg, from the front, the widest point sits: 0.25 to 0.75 of the leg. */
   peak: number;
+  /** How far along the drum's behind leg, from the tuck, its widest point sits: 0.25 to 0.75 of the leg. */
+  peakBehind: number;
+  /**
+   * Where the drum's path crosses the column, in ring units from the turn: 0 crosses at the turn, a negative
+   * value before it (the card reaches the turn already on the behind leg's side), a positive one after it.
+   */
+  cross: number;
 };
 
 export type Ring =
@@ -40,45 +47,86 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 export const ringSpan = (r: Ring) => (r.kind === "drum" ? 2 : 1);
 
 /**
- * A monotonic warp of `[0, 1]` that sends `peak` to one half, with finite slopes `1/k` at 0 and `k` at 1, where
- * `k = peak / (1 − peak)`. Running the sine's phase through it moves the widest point without a corner.
+ * The points that shape the sway, as `u` values: where the path leaves the column, each leg's widest point, where
+ * it crosses the column, and where it ends. The sine's phase passes a quarter turn at each, so the path is on
+ * the column at the even ones and widest at the odd ones.
  */
-function warp(v: number, peak: number): { w: number; dw: number } {
-  const k = peak / (1 - peak);
-  const d = v + (1 - v) * k;
-  return { w: v / d, dw: k / (d * d) };
+export function ringShape(r: Ring): number[] {
+  const { peak, peakBehind, cross } = r.sway;
+  if (r.kind === "channel") return [0, peak, 1];
+  const c = 1 + cross;
+  return [0, peak * c, c, 2 - peakBehind * (2 - c), 2];
 }
 
 /**
- * The sideways offset at `u` and its derivative: `x = A(u)·sin Θ(u)`. The phase `Θ` runs through `warp` on the
- * front leg and through its mirror image on the behind leg, so both legs meet at the turn with the same slope.
- * The amplitude eases from the front leg's to the behind leg's between their widest points on a smoothstep, so
- * a different width behind adds no corner either.
+ * The phase `Θ(u)` and its slope: a monotone piecewise cubic (Fritsch–Carlson) through a quarter turn at each of
+ * `ringShape`'s points, so the widest points and the crossing land where the sliders put them and the slope
+ * never jumps. With evenly spaced points it is the straight line `π·u`, a plain sine.
+ */
+function phase(xs: number[], u: number): { th: number; dth: number } {
+  const n = xs.length;
+  const ys = xs.map((_, k) => (Math.PI / 2) * k);
+  const d = xs.slice(1).map((x, k) => (ys[k + 1]! - ys[k]!) / (x - xs[k]!));
+  const m = xs.map((_, k) => {
+    if (k === 0)
+      return Math.max(
+        0,
+        ((2 * (xs[1]! - xs[0]!) + (xs[2]! - xs[1]!)) * d[0]! -
+          (xs[1]! - xs[0]!) * d[1]!) /
+          (xs[2]! - xs[0]!),
+      );
+    if (k === n - 1) {
+      const h0 = xs[k - 1]! - xs[k - 2]!,
+        h1 = xs[k]! - xs[k - 1]!;
+      return Math.max(
+        0,
+        ((2 * h1 + h0) * d[k - 1]! - h1 * d[k - 2]!) / (h0 + h1),
+      );
+    }
+    const h0 = xs[k]! - xs[k - 1]!,
+      h1 = xs[k + 1]! - xs[k]!;
+    const w1 = 2 * h1 + h0,
+      w2 = h1 + 2 * h0;
+    return (w1 + w2) / (w1 / d[k - 1]! + w2 / d[k]!);
+  });
+  let k = 0;
+  while (k < n - 2 && u > xs[k + 1]!) k++;
+  const h = xs[k + 1]! - xs[k]!;
+  const t = (u - xs[k]!) / h;
+  const t2 = t * t,
+    t3 = t2 * t;
+  const th =
+    (2 * t3 - 3 * t2 + 1) * ys[k]! +
+    (t3 - 2 * t2 + t) * h * m[k]! +
+    (-2 * t3 + 3 * t2) * ys[k + 1]! +
+    (t3 - t2) * h * m[k + 1]!;
+  const dth =
+    ((6 * t2 - 6 * t) * ys[k]! +
+      (3 * t2 - 4 * t + 1) * h * m[k]! +
+      (-6 * t2 + 6 * t) * ys[k + 1]! +
+      (3 * t2 - 2 * t) * h * m[k + 1]!) /
+    h;
+  return { th, dth };
+}
+
+/**
+ * The sideways offset at `u` and its derivative: `x = A(u)·sin Θ(u)`, with `Θ` from `phase`. The amplitude eases
+ * from the front leg's to the behind leg's between their widest points on a smoothstep, so a different width
+ * behind adds no corner.
  */
 function sideways(r: Ring, u: number): { x: number; dx: number } {
-  const { front, behind, peak } = r.sway;
+  const shape = ringShape(r);
+  const { th, dth } = phase(shape, u);
   if (r.kind === "channel") {
-    const { w, dw } = warp(u, peak);
-    return {
-      x: front * Math.sin(Math.PI * w),
-      dx: front * Math.cos(Math.PI * w) * Math.PI * dw,
-    };
-  }
-  let th: number, dth: number;
-  if (u <= 1) {
-    const { w, dw } = warp(u, peak);
-    th = Math.PI * w;
-    dth = Math.PI * dw;
-  } else {
-    const { w, dw } = warp(2 - u, peak);
-    th = Math.PI * (2 - w);
-    dth = Math.PI * dw;
+    const a = r.sway.front;
+    return { x: a * Math.sin(th), dx: a * Math.cos(th) * dth };
   }
   // sin Θ is negative behind the pile, so the amplitude there is the negated offset.
-  const a0 = front,
-    a1 = -behind,
-    span = 2 - 2 * peak;
-  const t = clamp01((u - peak) / span);
+  const a0 = r.sway.front,
+    a1 = -r.sway.behind;
+  const from = shape[1]!,
+    span = shape[3]! - from;
+  const t = clamp01((u - from) / span);
   const a = a0 + (a1 - a0) * smooth(t);
   const da = t > 0 && t < 1 ? ((a1 - a0) * 6 * t * (1 - t)) / span : 0;
   return {
@@ -124,32 +172,35 @@ export function ringPoint(r: Ring, u: number): RingPoint {
 export const INNER_KNOTS = 2;
 
 /**
- * The `u` values where the ring's cubic segments join: the front, each leg's widest point, the turn and the
- * tuck, with `inner` more knots spaced evenly inside each stretch between them. Two keep the curve within a
- * pixel at any slider setting; fewer show how far a coarse fit strays from the path the cards follow.
+ * The `u` values where the ring's cubic segments join: `ringShape`'s points and, on the drum, the turn (`u = 1`,
+ * where the path passes behind the pile), with `inner` more knots spaced evenly inside each stretch between
+ * them. Two keep the curve within a pixel at any slider setting; fewer show how far a coarse fit strays from the
+ * path the cards follow.
  */
 export function ringKnots(r: Ring, inner = INNER_KNOTS): number[] {
-  const p = r.sway.peak;
+  const named = [...ringShape(r)];
+  if (r.kind === "drum" && !named.some((u) => Math.abs(u - 1) < 1e-9))
+    named.push(1);
+  named.sort((a, b) => a - b);
   const n = inner + 1;
-  const leg = [
-    ...Array.from({ length: n }, (_, k) => (p * k) / n),
-    ...Array.from({ length: n }, (_, k) => p + ((1 - p) * k) / n),
-    1,
-  ];
-  return r.kind === "drum"
-    ? [
-        ...leg,
-        ...leg
-          .slice(0, -1)
-          .reverse()
-          .map((v) => 2 - v),
-      ]
-    : leg;
+  const out: number[] = [];
+  for (let k = 0; k + 1 < named.length; k++)
+    for (let j = 0; j < n; j++)
+      out.push(named[k]! + ((named[k + 1]! - named[k]!) * j) / n);
+  out.push(named[named.length - 1]!);
+  return out;
 }
 
-/** The knots that mark a named point: each leg's widest point. */
-export const ringPeaks = (r: Ring) =>
-  r.kind === "drum" ? [r.sway.peak, 2 - r.sway.peak] : [r.sway.peak];
+/** Each leg's widest point, as `u`. */
+export const ringPeaks = (r: Ring) => {
+  const shape = ringShape(r);
+  return r.kind === "drum" ? [shape[1]!, shape[3]!] : [shape[1]!];
+};
+
+/** Where the drum's path crosses the column, as `u`; the cascade's channel never does. */
+export const ringCrossing = (r: Ring) =>
+  r.kind === "drum" ? ringShape(r)[2]! : null;
+
 /**
  * The ring as cubic Bezier segments between its knots, in stage coordinates (`cx` is the column centre). Each
  * segment is the cubic Hermite interpolant of the ring's position and derivative at its ends, so the curve and

@@ -24,6 +24,12 @@ declare const __FACTS__: RawFacts;
 const PEAK = PATH_SETTINGS.find((s) => s.key === "peak")!;
 const PATH_PEAK_MIN = PEAK.kind === "range" ? PEAK.min : "";
 const PATH_PEAK_MAX = PEAK.kind === "range" ? PEAK.max : "";
+const rangeOf = (key: string) => {
+  const s = PATH_SETTINGS.find((x) => x.key === key)!;
+  return s.kind === "range" ? { min: s.min, max: s.max as number } : null;
+};
+const CROSS = rangeOf("cross")!;
+const BANK = rangeOf("bank")!;
 
 export type Help = {
   /** One plain line: what the control is. */
@@ -1331,7 +1337,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     tune: "Set it to the negative of `sway in front px` for a round loop, then press ↑ at `¼×` to watch the card come out from behind the pile.",
   }),
   "setting.peak": (f) => ({
-    what: "Where along each leg the card reaches its widest sway, as a fraction of the leg from the front (or from the tuck behind the pile).",
+    what: "Where along the leg in front of the pile the card reaches its widest sway, as a fraction of the leg from the front.",
     effect: [
       [
         "Raise",
@@ -1342,8 +1348,54 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         t`The widest point moves toward the front: the card swings out as soon as it leaves and drifts back to the column before the turn. At the least, ${PATH_PEAK_MIN}, the drop from the front starts at an angle.`,
       ],
     ],
-    needs: t`A look setting with the same numbers at every value, like \`sway in front px\`. The leg behind the pile mirrors it, so the loop stays symmetric about the turn. Default ${f.def("peak")}.`,
+    needs: t`A look setting with the same numbers at every value, like \`sway in front px\`. \`widest point behind\` places the other leg's widest point, and \`column crossing\` sets where this leg ends. Hidden while neither leg sways. Default ${f.def("peak")}.`,
     tune: "Leave it at the default for an even bow. Raise it if the card seems to swing out too early, lower it for a softer start.",
+  }),
+
+  "setting.peakb": (f) => ({
+    what: "Where along the drum's leg behind the pile the card reaches its widest sway, as a fraction of the leg from the tuck.",
+    effect: [
+      [
+        "Raise",
+        "The widest point moves toward the turn: a card leaving the turn swings out at once and comes back to the column well before the tuck, and a returning card (↑) swings out only near the turn.",
+      ],
+      [
+        "Lower",
+        "The widest point moves toward the tuck: a card leaves the turn close to the column and is still out to the side as it slides behind the pile.",
+      ],
+    ],
+    needs: t`Shown for the drum and the product while either leg sways. Most of this leg is behind the pile, so it shows as the card leaves the turn and as a returning card drops toward it. The slope where the legs meet stays continuous at any value. Default ${f.def("peakb")}.`,
+    tune: "Press ↓ and ↑ at `¼×` with `Bezier path` on and watch the dashed leg; move it with `column crossing` to lean the whole loop.",
+  }),
+  "setting.cross": (f) => ({
+    what: "Where the drum's path crosses back over the column, in ring units from the turn: zero crosses at the turn itself.",
+    effect: [
+      [
+        "Raise",
+        t`The crossing moves past the turn, into the leg behind the pile: the card is still out on the front leg's side as it reaches the turn and crosses over on the way up. At ${CROSS.max} the loop leans toward the front leg's side.`,
+      ],
+      [
+        "Lower",
+        t`The crossing moves before the turn: the card is already on the behind leg's side as it reaches the turn. At ${CROSS.min} the loop leans the other way.`,
+      ],
+    ],
+    needs: t`Shown for the drum and the product while either leg sways. A look setting: the turn, the tuck and every vertical edge stay where the model puts them, and the widest points stay at their fraction of each leg as the legs grow or shrink. Default ${f.def("cross")}.`,
+    tune: "Leave it at zero for a loop that turns about the turn. Move it a little either way at `¼×` with `Bezier path` on if the bottom of the loop looks too symmetric.",
+  }),
+  "setting.bank": (f) => ({
+    what: "How far a swaying card turns, in degrees, at the widest sway: it turns about its top centre in proportion to how far it is from the column.",
+    effect: [
+      [
+        "Raise",
+        t`Above zero the card's bottom edge swings out from the column, like a card hanging from its top edge; at ${BANK.max}° the turn is plain to see.`,
+      ],
+      [
+        "Lower",
+        t`Below zero the bottom edge swings in toward the column, so the card leans into the curve; at ${BANK.min}° it leans the most. At zero no card turns.`,
+      ],
+    ],
+    needs: t`Turns only cards that are moving, so reduced motion hides it, and it hides while neither leg sways. The top edge, which the frame checker measures, does not move; the turned card's lower corners do, and a card clipped to the one in front of it is clipped square. \`Bezier path\` draws no bank. Default ${f.def("bank")}.`,
+    tune: "Try a few degrees either way at `¼×`: a small positive bank reads as a swing, a small negative one as leaning into the turn. Past a few degrees the clipped edges start to show.",
   }),
 
   // ---- the drum's tuck, wash and planner estimate ----------------------------------------------------

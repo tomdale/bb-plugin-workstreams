@@ -41,6 +41,7 @@ import {
   ringCubics,
   ringKnots,
   ringPeaks,
+  ringCrossing,
   ringPoint,
   ringSpan,
   ringSway,
@@ -115,6 +116,8 @@ const sway = (): Sway => ({
   front: pcfg.sway,
   behind: pcfg.swayBehind,
   peak: pcfg.peak,
+  peakBehind: pcfg.peakBehind,
+  cross: pcfg.cross,
 });
 const writeHash = () => (location.hash = new URLSearchParams(opt).toString());
 
@@ -486,17 +489,18 @@ function paintBezier(views: View[]) {
   if (!show) return;
   const { ring, pile } = sim.overlay();
   const cubics = ringCubics(ring, STAGE_X, vcfg.inner);
-  // The drum's ring splits at the turn into the drop in front of the pile and the rise behind it.
-  const half = ring.kind === "drum" ? cubics.length / 2 : cubics.length;
+  const knots = ringKnots(ring, vcfg.inner);
+  // The drum's ring splits at the turn (always a knot) into the drop in front of the pile and the rise behind it.
+  const half = ring.kind === "drum" ? knots.indexOf(1) : cubics.length;
   const front = cubics.slice(0, half);
   const behind = cubics.slice(half);
+  const crossing = ringCrossing(ring);
   const parts: string[] = [];
   // Control-point handles at the knots the sliders move: each leg's widest point, and the turn. The other
   // knots only keep the fit close, so their handles show only when `handles at every knot` asks for them.
-  const knots = ringKnots(ring, vcfg.inner);
   const named = vcfg.allKnots
     ? knots
-    : [...ringPeaks(ring), ...(ring.kind === "drum" ? [1] : [])];
+    : [...ringPeaks(ring), ...(crossing === null ? [] : [1, crossing])];
   for (const u of vcfg.handles ? named : []) {
     const k = knots.indexOf(u);
     if (k <= 0 || k >= knots.length - 1) continue;
@@ -527,7 +531,8 @@ function paintBezier(views: View[]) {
       chevron(ring, 0.32, 1, "bz-arrow-out"),
       chevron(ring, 0.68, -1, "bz-arrow-in"),
     );
-  const lobe = ringPoint(ring, ring.sway.peak);
+  const [frontPeak, behindPeak] = ringPeaks(ring);
+  const lobe = ringPoint(ring, frontPeak!);
   const label = (text: string) => (vcfg.labels ? text : "");
   parts.push(
     label(
@@ -557,15 +562,18 @@ function paintBezier(views: View[]) {
         `<text class="bz-label bz-label-tuck" x="${STAGE_X - 10}" y="${f1(Math.max(LEAD + 14, t.y + 3.5))}" text-anchor="end">tuck</text>`,
       ),
     );
-    const back = ringPoint(ring, 2 - ring.sway.peak);
+    const back = ringPoint(ring, behindPeak!);
     parts.push(
       label(
         `<text class="bz-label bz-label-tuck" ${beside(back.x, back.x === 0 ? -1 : 1)} y="${f1(back.y + 4)}">behind</text>`,
       ),
     );
   }
-  // Each leg's widest point
-  for (const u of ringPeaks(ring)) {
+  // Each leg's widest point, and where the drum's path crosses the column when that is not the turn
+  for (const u of [
+    ...ringPeaks(ring),
+    ...(crossing !== null && Math.abs(crossing - 1) > 1e-9 ? [crossing] : []),
+  ]) {
     const k = ringPoint(ring, u);
     parts.push(
       `<circle class="bz-knot" cx="${f1(STAGE_X + k.x)}" cy="${f1(k.y)}" r="2.4"/>`,
@@ -583,6 +591,20 @@ function paintBezier(views: View[]) {
   svg.innerHTML = parts.join("");
 }
 
+/**
+ * How far a card at sideways offset `dx` turns, in degrees (CSS: positive is clockwise): `bank` at the widest
+ * sway either leg reaches, in proportion below it, with the bottom edge swinging out from the column for a
+ * positive `bank` and in toward it for a negative one.
+ */
+function bankOf(dx: number): number {
+  const widest = Math.max(
+    Math.abs(pcfg.sway),
+    pcfg.loop ? Math.abs(pcfg.swayBehind) : 0,
+  );
+  if (pcfg.bank === 0 || widest < 1e-6 || Math.abs(dx) < 0.01) return 0;
+  return (-pcfg.bank * dx) / widest;
+}
+
 function paint() {
   // The product engine holds only the pile and the cards still leaving it; every other card stays hidden.
   const held = new Set<number>();
@@ -596,10 +618,15 @@ function paint() {
     st.visibility = !v.painted ? "hidden" : "";
     st.zIndex = String(v.layer);
     const dx = isRed ? 0 : v.x;
+    const tilt = bankOf(dx);
+    // A tilted card turns about its own top centre: `scale(s) translateY(y)` is the same as `translateY(s·y)
+    // scale(s)`, so the rotation goes between them.
     st.transform =
-      Math.abs(dx) > 0.01
-        ? `translateX(${dx.toFixed(2)}px) scale(${v.scale.toFixed(5)}) translateY(${v.y.toFixed(2)}px)`
-        : `scale(${v.scale.toFixed(5)}) translateY(${v.y.toFixed(2)}px)`;
+      tilt !== 0
+        ? `translateX(${dx.toFixed(2)}px) translateY(${(v.scale * v.y).toFixed(2)}px) rotate(${tilt.toFixed(3)}deg) scale(${v.scale.toFixed(5)})`
+        : Math.abs(dx) > 0.01
+          ? `translateX(${dx.toFixed(2)}px) scale(${v.scale.toFixed(5)}) translateY(${v.y.toFixed(2)}px)`
+          : `scale(${v.scale.toFixed(5)}) translateY(${v.y.toFixed(2)}px)`;
     const vis = Math.max(0, v.vis).toFixed(2) + "px";
     e.shadow.style.height = e.frame.style.height = e.shade.style.height = vis;
     const natural = heights[i]!;
