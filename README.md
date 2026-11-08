@@ -1058,7 +1058,11 @@ Run `npm run gallery` and open the local URL printed by Vite to browse the
 Workstreams design system outside BB. The development-only app in `gallery/`
 imports the plugin's actual components and vendored BB controls. It is separate
 from the plugin's Gallery view and is not registered or shipped in the plugin.
-Build a static copy with `npm run gallery:build`.
+Build a static copy with `npm run gallery:build`. It writes
+`gallery/dist/index.html` and `gallery/dist/sidebar.html`, each a single file
+with its script, styles, fonts, and icons inline, so you can open them directly
+from disk with no server. Rebuild after changing the gallery or the components
+it shows.
 
 The gallery includes foundations, work identity, settings compositions, actions
 and overlays, recap and question playgrounds, and reply examples. Its **Sidebar

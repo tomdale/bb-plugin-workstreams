@@ -698,67 +698,37 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
   );
 
   browserTest.concurrent(
-    "uses the app defaults in the built gallery as well as the dev server",
+    "opens the built gallery from disk with the app defaults",
     async ({ page }) => {
       const root = fileURLToPath(new URL("../../", import.meta.url));
       const output = mkdtempSync(join(tmpdir(), "workstreams-gallery-"));
-      let preview: ChildProcess | undefined;
       try {
         const vite = `${root}node_modules/vite/bin/vite.js`;
         const config = `${root}gallery/vite.config.ts`;
-        await promisify(execFile)(
-          process.execPath,
-          [vite, "build", "--config", config, "--outDir", output],
-          { cwd: root, env: { ...process.env, NO_COLOR: "1" } },
-        );
-        preview = spawn(
-          process.execPath,
-          [
-            vite,
-            "preview",
-            "--config",
-            config,
-            "--outDir",
-            output,
-            "--host",
-            "127.0.0.1",
-            "--port",
-            "0",
-          ],
-          {
-            cwd: root,
-            env: { ...process.env, NO_COLOR: "1" },
-            stdio: ["ignore", "pipe", "pipe"],
-          },
-        );
-        const address = await new Promise<string>((resolve, reject) => {
-          let text = "";
-          const timer = setTimeout(
-            () => reject(new Error(`Gallery preview did not start: ${text}`)),
-            30_000,
+        for (const galleryPage of ["gallery", "sidebar"]) {
+          await promisify(execFile)(
+            process.execPath,
+            [vite, "build", "--config", config, "--outDir", output],
+            {
+              cwd: root,
+              env: {
+                ...process.env,
+                NO_COLOR: "1",
+                GALLERY_PAGE: galleryPage,
+              },
+            },
           );
-          const read = (chunk: Buffer) => {
-            text += chunk.toString();
-            const match = text.match(/http:\/\/127\.0\.0\.1:\d+\//);
-            if (match) {
-              clearTimeout(timer);
-              resolve(match[0]);
-            }
-          };
-          preview!.stdout!.on("data", read);
-          preview!.stderr!.on("data", read);
-          preview!.once("error", (error) => {
-            clearTimeout(timer);
-            reject(error);
-          });
-          preview!.once("exit", (code) => {
-            clearTimeout(timer);
-            reject(new Error(`Gallery preview exited (${code}): ${text}`));
-          });
-        });
+        }
         const errors: string[] = [];
         page.on("pageerror", (error) => errors.push(error.message));
-        await page.goto(`${address}sidebar.html`);
+        await page.goto(`file://${output}/index.html#recap-card`);
+        await page
+          .getByRole("heading", { name: "Recap card", exact: true })
+          .waitFor();
+        await page
+          .getByRole("navigation", { name: "Design system" })
+          .getByRole("link", { name: /Sidebar playground/ })
+          .click();
         await page.locator("#after .ws-row").first().waitFor();
         expect(await page.locator("#rowHeight").inputValue()).toBe(
           String(SIDEBAR_GEOMETRY.row.rootHeight),
@@ -769,13 +739,12 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         expect(await page.locator("#font_category_color").inputValue()).toBe(
           "default",
         );
+        await page.getByRole("link", { name: "Design system" }).click();
+        await page
+          .getByRole("heading", { name: "Introduction", exact: true })
+          .waitFor();
         expect(errors).toEqual([]);
       } finally {
-        if (preview && preview.exitCode === null) {
-          const exited = once(preview, "exit");
-          preview.kill("SIGTERM");
-          await exited;
-        }
         rmSync(output, { recursive: true, force: true });
       }
     },
