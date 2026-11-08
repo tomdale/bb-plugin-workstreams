@@ -12,6 +12,7 @@ import {
 import { buildToolResult, buildInteractionPayload } from "./translate.ts";
 import { copyAnswerAttachments } from "./attachments.ts";
 import {
+  DELIVERED_QUESTION_PREFIX,
   deliveredQuestionResult,
   questionResultSchema,
   type QuestionHistory,
@@ -368,7 +369,7 @@ export class QuestionStore {
         input: [
           {
             type: "text",
-            text: `My answer to your question (recovered after the question tool was interrupted):\n${JSON.stringify(result)}\nUse this as my answer and resume the work that depended on it.`,
+            text: `${DELIVERED_QUESTION_PREFIX}\n\n${JSON.stringify(result)}`,
             mentions: [],
           },
           ...images,

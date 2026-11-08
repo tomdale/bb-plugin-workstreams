@@ -184,7 +184,7 @@ describe("durable questions", () => {
     expect(await store().history("thread")).toEqual(rows);
     await host.harness.lifecycle.dispose();
   });
-  it("survives plugin reload and delivers the recovered answer as a user message", async () => {
+  it("survives plugin reload and delivers the answer without recovery details", async () => {
     const { host, send, plugin, store } = setup();
     const call = host.harness.callAgentTool("AskUserQuestion", input);
     await vi.waitFor(() =>
@@ -202,17 +202,17 @@ describe("durable questions", () => {
       false,
     );
     expect(send).toHaveBeenCalledOnce();
+    const result = (await store().history(threadId))[0]!.result;
     expect(send.mock.calls[0]).toEqual([
-      expect.objectContaining({
-        threadId,
-        mode: "auto",
-        input: [
-          expect.objectContaining({
-            text: expect.stringContaining("Ship tomorrow"),
-          }),
-        ],
-      }),
+      expect.objectContaining({ threadId, mode: "auto" }),
     ]);
+    const delivery = send.mock.calls[0]![0].input[0];
+    if (delivery?.type !== "text") throw new Error("Expected text delivery");
+    const prefix =
+      "Your earlier AskUserQuestion tool call has finished. Its result:\n\n";
+    expect(delivery.text.startsWith(prefix)).toBe(true);
+    expect(JSON.parse(delivery.text.slice(prefix.length))).toEqual(result);
+    expect(delivery.mentions).toEqual([]);
     expect(store().pending(threadId)).toBeNull();
     expect((await store().history(threadId))[0]).toMatchObject({
       status: "answered",
