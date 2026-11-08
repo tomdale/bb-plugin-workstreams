@@ -153,6 +153,31 @@ describe("the stack engine", () => {
     ).toBe(true);
   });
 
+  it("fades the content of the card a rising card covers, keeps its frame, and shrinks it", () => {
+    const q = queue(2);
+    // Item c2 is in front; a tap ↑ brings b1 (92 px) up over it.
+    expect(q.press("back")).toBe(true);
+    q.run(400);
+    const rest = q.frames.at(-1)!.cards.find((c) => c.key === "c2")!;
+    expect(rest.content).toBeLessThan(0.05);
+    // The covered card's frame and background are the pile's: never washed out beyond a pile slot's shade.
+    for (const frame of q.frames) {
+      const covered = frame.cards.find((c) => c.key === "c2")!;
+      expect(covered.shade).toBeLessThanOrEqual(0.3);
+    }
+    // It shrinks from its own height to about the front card's, without an edge jumping.
+    const tall = q.frames[0]!.cards.find((c) => c.key === "c2")!;
+    expect(tall.vis).toBeCloseTo(heightOf("c2"), 0);
+    expect(rest.vis).toBeLessThan(heightOf("b1") + 20);
+    let worst = 0;
+    for (let n = 1; n < q.frames.length; n++) {
+      const a = q.frames[n - 1]!.cards.find((c) => c.key === "c2")!;
+      const b = q.frames[n]!.cards.find((c) => c.key === "c2")!;
+      worst = Math.max(worst, Math.abs(b.vis * b.scale - a.vis * a.scale));
+    }
+    expect(worst).toBeLessThan(16);
+  });
+
   it("goes back past a card that is still on the drum without losing it", () => {
     const q = queue(2);
     q.press("forward");

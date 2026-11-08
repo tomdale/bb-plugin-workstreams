@@ -294,6 +294,8 @@ export function useQueueMotion(
           ? `inset(0 0 ${(view.h - view.vis).toFixed(2)}px 0 round ${CORNER}px)`
           : "";
       parts.shade.style.opacity = view.shade.toFixed(3);
+      parts.content.style.opacity =
+        view.content < 1 ? view.content.toFixed(3) : "";
       parts.base.style.setProperty("--ws-shadow", (1 - view.shade).toFixed(3));
       toggle(parts.el, "inert", !view.interactive);
       toggle(parts.el, "aria-hidden", !view.interactive, "true");

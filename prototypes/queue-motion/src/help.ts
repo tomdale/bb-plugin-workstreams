@@ -100,12 +100,8 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
   // ---- presets -----------------------------------------------------------------------------------
   "preset.natural": (f) => {
     const p = f.preset("natural");
-    const gate = f.slack(0.1);
     const cap = f.sweep("cap").at(30);
-    f.expect(
-      p.clean && gate.raw.problems === 0 && cap.clean,
-      "natural, gate slack 0.1 and a tap budget of 30 are clean",
-    );
+    f.expect(p.clean && cap.clean, "natural and a tap budget of 30 are clean");
     return {
       what: "The reviewed behaviour: every setting at its default, no fold, the edge budget on.",
       effect: [
@@ -123,7 +119,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
       ],
       needs: t`Sets nothing: clicking it clears every slider change and restores each default. Settings that need a tempo or a held state stay hidden.`,
-      tune: t`Start here. For an even pace choose \`even\`. To go faster without folding, raise \`gate slack\` to ${gate.value} (${gate.rate} cards/s, clean) or \`edge budget, tap\` to ${cap.value} (${cap.pace}, ${cap.verdict}).`,
+      tune: t`Start here. For an even pace choose \`even\`. To go faster without folding, raise \`edge budget, tap\` to ${cap.value} (${cap.pace}, ${cap.verdict}).`,
     };
   },
   "preset.even": (f) => {
@@ -423,8 +419,8 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "a stiffer tap spring speeds up a hold",
     );
     f.expect(
-      [slow, base, snappy, hard].every((r) => r.clean),
-      "every tap spring value is clean",
+      slow.clean && base.clean && !snappy.clean && !hard.clean,
+      "the two lower tap spring values are clean and the two higher fail",
     );
     return {
       what: "How stiff each card's spring is for a tap, and for a held key until its held state begins.",
@@ -439,7 +435,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
       ],
       needs: t`Every preset uses it for taps. With \`held speed-up\` or \`fold while held\` on, a hold ramps from this spring to \`spring Hz, held\` after the hold delay. The edge budget limits how far an edge may move in a frame.`,
-      tune: t`Start at ${base.value} and press ↑ once after each small change: ↑ is the slowest trip, so lag or a hard landing shows there first. The four values swept, ${slow.value} to ${hard.value} Hz, all pass the frame checker, so the limit is feel: past ${snappy.value} the landing speed climbs (${hard.landSpeed} px/frame at ${hard.value}) and the largest edge move in a hold reaches ${hard.jump} px/frame against a budget of ${f.def("cap")}.`,
+      tune: t`Start at ${base.value} and press ↑ once after each small change: ↑ is the slowest trip, so lag or a hard landing shows there first. ${slow.value} and ${base.value} Hz pass the frame checker; ${snappy.value} gives ${snappy.verdict} and ${hard.value} gives ${hard.verdict}. Past ${snappy.value} the landing speed also climbs (${hard.landSpeed} px/frame at ${hard.value}) and the largest edge move in a hold reaches ${hard.jump} px/frame against a budget of ${f.def("cap")}.`,
     };
   },
   "setting.cap": (f) => {
@@ -520,11 +516,11 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
   "setting.cover": (f) => {
     const s = f.sweep("cover");
     const off = s.at(0),
-      base = s.at(0.7),
+      half = s.at(0.7),
       full = s.at(1);
     f.expect(
-      [off, base, full].every((r) => r.clean),
-      "the covered card fade is clean at none, its default and full",
+      [off, half, full].every((r) => r.clean),
+      "the covered card fade is clean at none, 0.7 and full",
     );
     f.expect(
       Math.abs(rate(off) - rate(full)) < 0.1 &&
@@ -533,19 +529,19 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "the covered card fade does not change the pace or the landing times",
     );
     return {
-      what: "How far the card a rising card is about to cover fades, from 0 (no fade) to 1 (fully washed out). It acts on ↑ only: ↓ never has a card rising over another.",
+      what: "How far the content of the card a rising card is about to cover fades, from 0 (it stays) to 1 (gone). It acts on ↑ only. The card's frame and background are not faded, and the card shrinks to the height it has under the front card.",
       effect: [
         [
           "Raise",
-          "The old front card washes out as soon as the card coming back leaves its tuck, so it is already faint when that card passes over it and its text does not show through the edge of the rising card.",
+          "The old front card's text is gone as soon as the card coming back leaves its tuck, so it does not show through the edge of the rising card. Its frame and background keep the colour they have in the pile, so nothing brightens when the rising card lands.",
         ],
         [
           "Lower",
-          t`The old front card keeps its colour until the rising card is on it. At ${off.value} nothing fades early.`,
+          t`The text stays until the rising card is on it. At ${off.value} the content does not fade early; the card still shrinks to its pile height.`,
         ],
       ],
-      needs: t`The fade follows the rising card's progress, then lifts as it lands. It changes no position or timing: a tap ↑ lands in ${base.upLand} ms and held ↑ / ↓ runs at ${base.pace} cards/s at every value, ${base.verdict} at the default ${base.value} and ${full.verdict} at ${full.value}.`,
-      tune: t`Start at ${base.value}. Raise it to ${full.value} if the card underneath still reads while the new one passes over it. Lower it if the pile looks washed out during a held ↑.`,
+      needs: t`The content fades as the rising card leaves the tuck and stays gone while the card is in the pile. The drawn bottom edge shrinks at a limited rate, so it never jumps. No position or timing changes: a tap ↑ lands in ${full.upLand} ms and held ↑ / ↓ runs at ${full.pace} cards/s at every value, ${full.verdict} at ${full.value}.`,
+      tune: t`Start at ${full.value}. Lower it to ${half.value} to keep a trace of the text while the card is covered.`,
     };
   },
   "setting.tk": (f) => {
@@ -665,8 +661,8 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "a shorter constant interval is faster",
     );
     f.expect(
-      hs225.clean && !hs200.clean && fold150.clean && fold80.clean,
-      "held speed-up holds 225 ms cleanly and not 200, and fold holds 80 ms",
+      fold150.clean && fold80.clean && rate(hs200) > rate(hs225),
+      "fold holds 150 and 80 ms cleanly, and a shorter beat with held speed-up is faster",
     );
     return {
       what: "The fixed time between presses when `tempo` is `constant`, in ms. Cards per second is one second divided by it.",
@@ -681,7 +677,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
       ],
       needs: t`Only \`tempo\` = constant uses it. Held speed-up shortens trips, so the beat can run faster: with it on, ${hs225.value} ms holds ${hs225.range} ms at ${hs225.pace} cards/s, ${hs225.verdict}, while ${hs200.value} ms gives ${hs200.verdict}. Fold goes further: ${fold150.value} ms gives ${fold150.pace} cards/s and ${fold80.value} ms gives ${fold80.pace}, ${fold80.verdict}, with intervals ${fold80.range} ms.`,
-      tune: t`Start at the pace you want. When the interval range's upper end is above this setting, the trips are the limit, not the beat: raise the interval, or turn on \`held speed-up\` or \`fold while held\`. With held speed-up alone, ${hs225.value} ms is the shortest value swept that is clean.`,
+      tune: t`Start at the pace you want. When the interval range's upper end is above this setting, the trips are the limit, not the beat: raise the interval, or turn on \`held speed-up\` or \`fold while held\`. With held speed-up alone the checker finds ${hs225.verdict} at ${hs225.value} ms and ${hs200.verdict} at ${hs200.value}: a swap or two moves between values, so judge by feel.`,
     };
   },
   "setting.slack": (f) => {
@@ -699,8 +695,8 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       f2 = fo.at(0.2),
       f3 = fo.at(0.3);
     f.expect(
-      s1.raw.problems === 0 && s2.raw.problems > 0,
-      "gate slack is clean through its lower value and fails at the next",
+      s0.raw.problems === 0 && s1.raw.problems > 0 && s2.raw.problems > 0,
+      "gate slack is clean at zero and fails at the first values above it",
     );
     f.expect(
       s5.neverSettled,
@@ -716,7 +712,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       effect: [
         [
           "Raise",
-          t`The next card starts sooner: ${s0.rate} cards/s at ${s0.value}, ${s1.rate} at ${s1.value}, ${s3.rate} at ${s3.value}. Cards begin to overlap: at ${s2.value} the checker finds ${s2.verdict} (two cards change draw order while they overlap), at ${s3.value} it finds ${s3.verdict}.`,
+          t`The next card starts sooner: ${s0.rate} cards/s at ${s0.value}, ${s1.rate} at ${s1.value}, ${s3.rate} at ${s3.value}. Cards begin to overlap: at ${s1.value} the checker finds ${s1.verdict} (two cards change draw order while they overlap), at ${s3.value} it finds ${s3.verdict}.`,
         ],
         [
           "Lower",
@@ -724,7 +720,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
       ],
       needs: t`It matters only with \`tempo\` = none. Under a tempo the planned interval outlasts the gate, so held ↑ / ↓ stays ${e0.pace} cards/s (${e3.pace} at ${e3.value}) and the slider is hidden. With fold on, slack lifts ${f0.pace} to ${f2.pace} cards/s at ${f2.value}, with ${f1.verdict} at ${f1.value} and ${f3.verdict} at ${f3.value}.`,
-      tune: t`Start at ${s0.value}. ${s1.value} is the largest value on the slider with a clean sweep on \`natural\` (${s1.rate} cards/s). The slider stops at ${s3.value} because at ${s5.value} a held ↓ never settles (${s5.rate} cards/s, ${s5.problems} problems). For more pace than ${s1.value} allows, raise \`edge budget, tap\` or turn on fold.`,
+      tune: t`Start at ${s0.value}: on \`natural\` no value above it is clean (${s1.value} gives ${s1.verdict}). The slider stops at ${s3.value} because at ${s5.value} a held ↓ never settles (${s5.rate} cards/s, ${s5.problems} problems). For more pace, raise \`edge budget, tap\` or turn on fold.`,
     };
   },
 
@@ -918,8 +914,8 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "a higher held budget speeds up a fold",
     );
     f.expect(
-      f39.clean && e39.clean && !f40.clean && !e40.clean && !e24.clean,
-      "held budget values are clean through the last one below the jump limit",
+      f39.clean && e30.clean && !e39.clean && !f40.clean && !e40.clean,
+      "a fold is clean through the last held budget below the jump limit, and even + held speed through 30",
     );
     f.expect(
       !a24.clean && !a30.clean && !a39.clean,

@@ -57,6 +57,8 @@ const DIP_HELD = 6;
 /** Time constant, ms, of the covered card's fade in and out: a fade that follows its target cannot jump when the target does. */
 /** The most a card's shade along its path may change per second, 1/s, when it is not coming back: at 60 Hz that is 0.175 a frame, under the checker's 0.2. */
 const PATH_RATE = 10.5;
+/** The fastest the drawn bottom of the cards behind the front card may shrink, px per second: 12 px a frame at 60 Hz, under the checker's 16. */
+const SHRINK_RATE = 720;
 const COVER_TAU = 50;
 /** How much of the rising card's way from the tuck to the front it takes for the covered card's fade to reach its target. */
 const COVER_RISE = 0.35;
@@ -110,8 +112,12 @@ export type DrumView = {
   h: number;
   top: number;
   bottom: number;
+  /** The bottom the card is heading for; `bottom` follows it at a limited rate. */
+  targetBottom: number;
   natBottom: number;
   shade: number;
+  /** The opacity of the card's content, 0 to 1; its frame and background keep their shade. */
+  content: number;
   group: number;
   interactive: boolean;
 };
@@ -136,7 +142,7 @@ export const DEFAULT_CFG: DrumConfig = {
   H0: 73, // folded (header) height, or the virtual height `loose` clears, px
   holdDelay: 250, // ms a key is held before λ heads to 1
   incomingFade: 8, // how fast, in shade per second, a card coming back (a ↑) regains its colour from the moment it starts; 0 lets it follow its path
-  coverFade: 0.7, // how far the card a rising card is about to cover fades before the rising card reaches it, 0 to 1
+  coverFade: 1, // how far the content of a card a rising card is about to cover fades before the rising card reaches it, 0 to 1
   washTauIn: 40, // ms: the drawn wash of a too-tall card follows its path value, falling
   washTauOut: 120, // and rising
   hidePx: 3, // the tuck ends with the card's bottom this far inside the pile's lower edge
@@ -197,7 +203,13 @@ export class Drum {
   v: number[];
   /** The drawn wash of each too-tall card (lagged). */
   g: number[];
-  /** The fade of each pile card that a rising card is about to cover (lagged); see `coverTarget`. */
+  /**
+   * How much of each card's height, px, is trimmed from its drawn bottom, at a limited rate (`SHRINK_RATE`) so the
+   * edge never jumps: a card the front card is rising over shrinks to the height it has under the front card
+   * and the card behind a front card that is leaving grows back. NaN until the first step sets it.
+   */
+  trim: number[];
+  /** The fade of each card's content, 0 (whole) to 1 (gone), lagged; see `contentTarget`. */
   cf: number[];
   /** The shade along the path off the pile of each card, as drawn: it follows `pathShade` at a limited rate of change. */
   ps: number[];
@@ -222,8 +234,9 @@ export class Drum {
     this.c = heights.map((_, i) => i); // settled at front = 0
     this.v = heights.map(() => 0);
     this.g = heights.map(() => 0);
-    this.cf = heights.map(() => 0);
     this.ps = heights.map(() => 0);
+    this.trim = heights.map(() => NaN);
+    this.cf = heights.map((_, i) => this.contentTarget(i));
   }
   jump(n: number) {
     this.front = n;
@@ -243,10 +256,12 @@ export class Drum {
     this.g.splice(at, 0, 0);
     this.cf.splice(at, 0, 0);
     this.ps.splice(at, 0, 0);
+    this.trim.splice(at, 0, NaN);
     this.N++;
     if (at <= this.front) this.front++;
     this.g[at] = this.washTarget(at);
     this.ps[at] = this.pathShade(at);
+    this.cf[at] = this.contentTarget(at);
   }
   /** Takes out the card at index `at`, which must not be the front card; `front` keeps naming the same card. */
   remove(at: number) {
@@ -256,6 +271,7 @@ export class Drum {
     this.g.splice(at, 1);
     this.cf.splice(at, 1);
     this.ps.splice(at, 1);
+    this.trim.splice(at, 1);
     this.N--;
     if (at < this.front) this.front--;
   }
@@ -265,11 +281,12 @@ export class Drum {
       this.c[i] = this.target(i);
       this.v[i] = 0;
       this.g[i] = this.washTarget(i);
-      this.cf[i] = 0;
       this.ps[i] = this.pathShade(i);
     }
+    for (let i = 0; i < this.N; i++) this.cf[i] = this.contentTarget(i);
     this.lam = 0;
     this.lamV = 0;
+    this.trim.fill(NaN);
   }
   /** Replaces the card heights, keeping every card where it is; the next step moves them toward the new poses. */
   setHeights(heights: number[]) {
@@ -430,7 +447,8 @@ export class Drum {
     }
     const k = 1 - Math.exp((-dt * 1000) / COVER_TAU);
     for (let i = 0; i < this.N; i++)
-      this.cf[i]! += (this.coverTarget(i) - this.cf[i]!) * k;
+      this.cf[i]! += (this.contentTarget(i) - this.cf[i]!) * k;
+    this.trimStep(dt);
     for (let i = 0; i < this.N; i++) {
       const gt = this.washTarget(i);
       const tau = gt < this.g[i]! ? this.cfg.washTauIn : this.cfg.washTauOut;
@@ -499,7 +517,8 @@ export class Drum {
   }
   isBusy() {
     if (this.hold || this.pending) return true;
-    if (this.cf.some((x) => x > 1e-3)) return true;
+    for (let i = 0; i < this.N; i++)
+      if (Math.abs(this.cf[i]! - this.contentTarget(i)) > 1e-3) return true;
     for (let i = 0; i < this.N; i++)
       if (
         Math.abs(this.c[i]! - this.target(i)) > 1e-3 ||
@@ -527,21 +546,34 @@ export class Drum {
     return 1 - (1 - 0.48 * smooth(clamp(-1 - c, 0, 1))) * (1 - 0.35);
   }
   /**
-   * How far card `i`, in the pile, has faded because the card before it is rising to cover it (a ↑). The fade
-   * starts as the rising card leaves the tuck, well before it overlaps, reaches `coverFade` by the time it
-   * is a third of the way up, and lifts again as it lands, when the card behind it is clipped to its height.
+   * How far the content of card `i` has faded. A pile card's content goes as it recedes (by the time it is half
+   * a slot back), and the content of the card a rising card is about to cover goes as soon as the rising card
+   * leaves its tuck, well before it overlaps, and stays gone. The frame and background are not faded, so the
+   * card looks the same as the pile it settles into.
    */
-  coverTarget(i: number) {
+  contentTarget(i: number) {
+    const strength = this.cfg.coverFade;
+    if (strength <= 0) return 0;
+    const c = this.c[i]!;
+    const receding = c >= 0 ? strength * smooth(clamp(c / 0.5, 0, 1)) : 0;
     const j = i - 1;
-    if (this.cfg.coverFade <= 0 || j < 0 || this.target(j) < 0) return 0;
-    const cj = this.c[j]!;
-    if (cj >= 0) return 0;
-    const p = clamp((cj + 2) / 2, 0, 1);
-    return (
-      this.cfg.coverFade *
-      easeOut(clamp(p / COVER_RISE, 0, 1)) *
-      (1 - smooth(clamp((p - 0.85) / 0.15, 0, 1)))
-    );
+    if (j < 0 || this.target(j) < 0 || this.c[j]! >= 0) return receding;
+    const p = clamp((this.c[j]! + 2) / 2, 0, 1);
+    return Math.max(receding, strength * easeOut(clamp(p / COVER_RISE, 0, 1)));
+  }
+  /** Moves each card's trim toward what its drawn bottom is heading for, at no more than `SHRINK_RATE`. */
+  trimStep(dt: number) {
+    const views = this.views();
+    const step = SHRINK_RATE * dt;
+    for (let i = 0; i < this.N; i++) {
+      const v = views[i]!;
+      const want = Math.max(0, v.natBottom - v.targetBottom);
+      const now = this.trim[i]!;
+      this.trim[i] =
+        Number.isNaN(now) || !v.painted
+          ? want
+          : now + clamp(want - now, -step, step);
+    }
   }
   slot(q: number) {
     q = clamp(q, 0, VIS);
@@ -557,7 +589,7 @@ export class Drum {
       return {
         y: p.y,
         z: p.z,
-        shade: 1 - (1 - p.depth) * (1 - this.cf[i]!),
+        shade: p.depth,
         group: 1,
         painted: c < VIS - 1e-3,
         g: 0,
@@ -578,7 +610,7 @@ export class Drum {
       return {
         y: (T - LEAD) / sc(z),
         z,
-        shade: 1 - (1 - this.ps[i]!) * (1 - g) * (1 - this.cf[i]!),
+        shade: 1 - (1 - this.ps[i]!) * (1 - g),
         group: 0,
         painted: g < 0.98,
         g,
@@ -595,7 +627,7 @@ export class Drum {
     }
     const y = yTurn + (yTuck - yTurn) * smooth(r);
     const g = this.g[i]!;
-    const shade = 1 - (1 - this.ps[i]!) * (1 - g) * (1 - this.cf[i]!);
+    const shade = 1 - (1 - this.ps[i]!) * (1 - g);
     const parked = c <= -2 + 1e-3; // at or past the tuck: hidden (covered, or washed out)
     return { y, z: -ZDROP, shade, group: 2, painted: !parked && g < 0.98, g };
   }
@@ -614,6 +646,8 @@ export class Drum {
     for (let i = 0; i < N; i++) if (raw[i]!.group === 1) order.push(i);
     for (let i = N - 1; i >= 0; i--) if (raw[i]!.group === 2) order.push(i);
     const out = new Array(N);
+    // The bottom each card is heading for: clipped, in draw order, to the lower edge of the card in front of it
+    // (the pile looks the size of its front card), where a front card still rising counts at its resting bottom.
     let cover = Infinity;
     order.forEach((i, rank) => {
       const p = raw[i]!,
@@ -621,13 +655,19 @@ export class Drum {
         h = this.hd(i);
       const top = LEAD + s * p.y,
         nat = LEAD + s * (p.y + h);
-      let bottom = nat;
+      let targetBottom = nat;
       if (p.group !== 2) {
-        if (p.painted && cover < nat) bottom = Math.max(top, cover - 1.5);
+        if (p.painted && cover < nat) targetBottom = Math.max(top, cover - 1.5);
         // A loose leaver passes over the card behind it, so it does not clip that card to its own lower edge.
         const passing = this.cfg.loose && this.lam > 0.02 && p.group === 0;
-        if (p.painted && !passing) cover = Math.min(cover, bottom);
+        const rising = i === this.front && this.c[i]! < 0;
+        const edge = rising ? Math.min(targetBottom, LEAD + h) : targetBottom;
+        if (p.painted && !passing) cover = Math.min(cover, edge);
       }
+      const trim = this.trim[i]!;
+      const bottom = Number.isNaN(trim)
+        ? targetBottom
+        : Math.max(top, nat - trim);
       const vis = (bottom - top) / s;
       out[i] = {
         key: "k" + i,
@@ -640,8 +680,10 @@ export class Drum {
         h,
         top,
         bottom,
+        targetBottom,
         natBottom: nat,
         shade: p.shade,
+        content: 1 - this.cf[i]!,
         group: p.group,
         interactive: i === this.front && Math.abs(this.c[i]!) < 1e-3,
       };

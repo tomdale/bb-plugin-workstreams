@@ -151,6 +151,7 @@ type View = {
   y: number;
   vis: number;
   shade: number;
+  content?: number;
 };
 interface Sim {
   cur: number;
@@ -342,6 +343,8 @@ function paint() {
         ? `inset(0 0 ${(natural - v.vis).toFixed(2)}px 0 round 11.5px)`
         : "";
     e.shade.style.opacity = v.shade.toFixed(3);
+    const content = v.content ?? 1;
+    e.content.style.opacity = content < 1 ? content.toFixed(3) : "";
     e.shadow.style.opacity = (1 - v.shade).toFixed(3);
   }
   els.forEach((e, i) => {

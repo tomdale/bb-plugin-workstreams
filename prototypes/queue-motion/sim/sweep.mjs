@@ -113,7 +113,7 @@ export const PARAMS = [
     "natural",
     (v) => ({ coverFade: v }),
     [0, 0.35, 0.7, 1],
-    0.7,
+    1,
     true,
   ),
   sweep(

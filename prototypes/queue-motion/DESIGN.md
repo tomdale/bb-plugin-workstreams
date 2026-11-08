@@ -148,13 +148,25 @@ both read λ.
   0.2 in a frame (16 flickers in taps), so the default keeps a margin. Other
   cards' shade changes are limited to 10.5 per second so a card that turns
   around mid-flight cannot jump.
-- **`coverFade`** fades the card a returning card is about to cover. The pile
-  card after a card that is rising (a ↑) takes a fade of up to 0.7 that begins
-  as the card leaves its tuck, reaches its target when the card has risen a
-  third of the way, and lifts as the card lands. The fade follows its target
-  with a 50 ms time constant so it cannot jump when the target does; a fade that
-  did jump gave 5–30 fade flickers per ↑ hold. It moves no position, and
-  `npm run check` stays clean with it on.
+- **`coverFade`** fades the content, not the card, of the card a returning card
+  is about to cover. On a ↑ the pile card after the rising card loses its
+  content (up to 1, so none is visible) as the card leaves its tuck, and a pile
+  card's content goes as it recedes (by half a slot back). The content follows
+  its target with a 50 ms time constant. The frame and background are not faded,
+  so the card keeps the colour it has in the pile and nothing brightens when the
+  rising card lands; an earlier version faded the whole card and it jumped back
+  to the pile's colour at the end.
+- **The covered card shrinks early.** Each card's drawn bottom edge follows the
+  bottom it is heading for, at no more than 720 px/s (12 px a frame at 60 Hz,
+  under the checker's 16 px). A pile card is clipped to the front card's lower
+  edge, and a front card that is still rising counts at its resting bottom, so
+  the covered card shrinks to the height it has under the front card while the
+  rising card is on its way, instead of staying tall until covered. The limit
+  holds for every card, so no edge jumps when a card turns around mid-flight.
+  The cost is in the margins, not the presets: every preset passes
+  `npm run check`, but `gate slack` above 0 on `natural` now gives swaps, and a
+  tap spring of 4.5 Hz or more, a held budget of 39 on `even + held speed` and a
+  225 ms beat with held speed-up each give one to a few more.
 - **`loose`** includes `ramp`'s speed-up and shrinks only the heights the
   clearing geometry uses, toward `H0` with λ, while every card is drawn whole. A
   leaving card drops just far enough to clear a card of that virtual height, so

@@ -68,6 +68,8 @@ export type CardView = {
   h: number;
   /** The page colour laid over the card, 0–1; its shadow thins as it rises. */
   shade: number;
+  /** The opacity of the card's content, 0–1; its frame and background keep their shade. */
+  content: number;
 };
 
 export type StackFrame = {
@@ -211,6 +213,7 @@ export class StackEngine {
       vis: Math.max(0, (v.bottom - v.top) / v.scale),
       h: v.h,
       shade: v.shade,
+      content: v.content,
     }));
     const replies = this.below;
     return {
