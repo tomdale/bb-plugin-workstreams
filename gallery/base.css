@@ -14,6 +14,11 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-subtle-foreground: var(--subtle-foreground);
@@ -82,6 +87,19 @@
     --text-base: 1rem;
     --text-base--line-height: 1.5rem;
   }
+}
+
+:root {
+  --primary-foreground: var(--background);
+  --popover-foreground: var(--foreground);
+  --accent: var(--state-hover);
+  --accent-foreground: var(--foreground);
+  --success-foreground: var(--success);
+}
+
+[data-bb-plugin="workstreams"],
+[data-bb-plugin-root] {
+  --pr-merged: var(--ws-suggestion-original);
 }
 
 :root,

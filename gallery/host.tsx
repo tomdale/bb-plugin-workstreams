@@ -27,6 +27,7 @@ import Loading03Icon from "@hugeicons/core-free-icons/Loading03Icon";
 import PlusSignIcon from "@hugeicons/core-free-icons/PlusSignIcon";
 import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
 import Tick02Icon from "@hugeicons/core-free-icons/Tick02Icon";
+import UserIcon from "@hugeicons/core-free-icons/UserIcon";
 
 /*
  * Standalone fixtures for the SDK's host seam, not an emulation of BB services.
@@ -48,6 +49,7 @@ const icons: Readonly<Record<string, IconSvgElement>> = {
   Spinner: Loading03Icon,
   Plus: PlusSignIcon,
   Search: Search01Icon,
+  UserRound: UserIcon,
 };
 
 const assets: Readonly<Record<string, string>> = {

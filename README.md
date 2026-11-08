@@ -1047,9 +1047,19 @@ imports the plugin's actual components and vendored BB controls. It is separate
 from the plugin's Gallery view and is not registered or shipped in the plugin.
 Build a static copy with `npm run gallery:build`.
 
-The gallery includes foundations, work identity, recap and question playgrounds,
-and reply examples. Use its theme and preview-width controls to inspect the
-components, and open each example's source disclosure to see its imports. The
+The gallery includes foundations, work identity, settings compositions, actions
+and overlays, recap and question playgrounds, and reply examples. Settings and
+overlay actions update local state and an action log. Question presets cover
+freeform and multi-question forms, submission states, and retained answers;
+recap presets add artifacts, hashes, long content, and awaited-agent states.
+Color choices use the production token generator and reset when you leave the
+example. The standalone theme supplies neutral registry aliases and a Purple
+fixture from Workstreams' default suggestion color; it is not a live BB theme.
+
+Use the theme and preview-width controls to inspect the components, and open
+each example's source disclosure to see its imports. Overlay presentation can
+follow the viewport or use the registry's compact-view override; a drawer
+preview does not emulate touch media queries or a soft keyboard. The
 introduction preview fills the selected width: Wide uses the available space,
 Narrow caps it at 640px, and Phone caps it at 360px. All three fit within the
 page. Navigation links preserve the selected page in the URL hash.
