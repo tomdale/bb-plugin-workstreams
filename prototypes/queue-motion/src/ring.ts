@@ -120,13 +120,22 @@ export function ringPoint(r: Ring, u: number): RingPoint {
   return { x, y: r.turn + e * smooth(s), dx, dy: e * 6 * s * (1 - s) };
 }
 
+/** Knots inside each stretch of the ring when nothing overrides it: enough to keep the fit within a pixel. */
+export const INNER_KNOTS = 2;
+
 /**
  * The `u` values where the ring's cubic segments join: the front, each leg's widest point, the turn and the
- * tuck, with two more knots inside each stretch so the curve keeps within a pixel at any slider setting.
+ * tuck, with `inner` more knots spaced evenly inside each stretch between them. Two keep the curve within a
+ * pixel at any slider setting; fewer show how far a coarse fit strays from the path the cards follow.
  */
-export function ringKnots(r: Ring): number[] {
+export function ringKnots(r: Ring, inner = INNER_KNOTS): number[] {
   const p = r.sway.peak;
-  const leg = [0, p / 3, (2 * p) / 3, p, (2 * p + 1) / 3, (p + 2) / 3, 1];
+  const n = inner + 1;
+  const leg = [
+    ...Array.from({ length: n }, (_, k) => (p * k) / n),
+    ...Array.from({ length: n }, (_, k) => p + ((1 - p) * k) / n),
+    1,
+  ];
   return r.kind === "drum"
     ? [
         ...leg,
@@ -144,10 +153,11 @@ export const ringPeaks = (r: Ring) =>
 /**
  * The ring as cubic Bezier segments between its knots, in stage coordinates (`cx` is the column centre). Each
  * segment is the cubic Hermite interpolant of the ring's position and derivative at its ends, so the curve and
- * its tangent are continuous at every knot and stay within a small fraction of a pixel of the card's path.
+ * its tangent are continuous at every knot; with the default `inner` it stays within a small fraction of a pixel
+ * of the card's path.
  */
-export function ringCubics(r: Ring, cx: number): Cubic[] {
-  const knots = ringKnots(r);
+export function ringCubics(r: Ring, cx: number, inner = INNER_KNOTS): Cubic[] {
+  const knots = ringKnots(r, inner);
   const out: Cubic[] = [];
   for (let k = 0; k + 1 < knots.length; k++) {
     const a = knots[k]!;

@@ -92,13 +92,16 @@ export async function sheets(specs, scens, outDir = OUT + "/sheets", cols = 4) {
           preset: s.preset,
         },
       );
-      // The controls stay out of the sheets; they keep their space so the stack sits where it does on screen.
+      // The inspector stays out of the sheets: the stage takes the whole width, so the stack is at full size.
       await page.addStyleTag({
-        content: "#bars,.note,.model,.foot,.cover{visibility:hidden}",
+        content:
+          "#inspector{display:none}.stage-area{right:0}.foot,.cover{visibility:hidden}",
       });
-      const top = await page.evaluate(
-        () => document.querySelector("#bars").offsetHeight,
-      );
+      await page.waitForTimeout(50);
+      const { top, left } = await page.evaluate(() => {
+        const r = document.querySelector("#col").getBoundingClientRect();
+        return { top: r.top, left: r.left };
+      });
       const shots = [];
       const FRAME = 1000 / 60;
       let t = 0,
@@ -131,7 +134,7 @@ export async function sheets(specs, scens, outDir = OUT + "/sheets", cols = 4) {
         }
         if (t + 1e-6 >= nextShot) {
           const buf = await page.screenshot({
-            clip: { x: 150, y: top + 4, width: 700, height: 520 },
+            clip: { x: left - 10, y: top + 4, width: 700, height: 520 },
           });
           shots.push({ t: Math.round(t), data: buf.toString("base64") });
           nextShot += sc.step;

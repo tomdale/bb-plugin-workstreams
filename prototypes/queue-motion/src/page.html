@@ -1,39 +1,42 @@
 <!doctype html>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Queue motion lab</title>
 <style>
   /*CSS*/
 </style>
-<div id="bars">
-  <div class="bar" id="bar"></div>
-  <div class="bar sbar" id="sbar" hidden></div>
-</div>
-<div class="page" id="page">
-  <div class="col" id="col">
-    <div id="glide" style="transform: translateY(0)">
-      <div id="head"></div>
-      <div class="clip" id="clip">
-        <div class="stage" id="stage">
-          <svg
-            class="bezier"
-            id="bezier"
-            viewBox="0 0 680 600"
-            aria-hidden="true"
-            hidden
-          ></svg>
+<aside class="inspector" id="inspector" aria-label="Inspector">
+  <header class="ins-head">
+    <h2>Queue motion lab</h2>
+    <p>
+      Hold <kbd>↑</kbd> or <kbd>↓</kbd> (or <kbd>J</kbd>/<kbd>K</kbd>), with the
+      OS key repeat. Hover a control, or Tab to it, for its help.
+    </p>
+  </header>
+  <div id="modules"></div>
+</aside>
+<main class="stage-area" id="stage-area">
+  <div class="page" id="page">
+    <div class="col" id="col">
+      <div id="glide" style="transform: translateY(0)">
+        <div id="head"></div>
+        <div class="clip" id="clip">
+          <div class="stage" id="stage">
+            <svg
+              class="bezier"
+              id="bezier"
+              viewBox="0 0 680 600"
+              aria-hidden="true"
+              hidden
+            ></svg>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
-<div class="cover"></div>
-<div class="note" id="note"></div>
-<div class="foot"><span id="pos"></span></div>
-<details class="model">
-  <summary data-help="about">How the drum works</summary>
-  <div class="panel" id="about"></div>
-  <div class="panel" id="about-cascade" hidden></div>
-</details>
+  <div class="cover"></div>
+  <div class="foot"><span id="pos"></span></div>
+</main>
 <script>
   /*JS*/
 </script>

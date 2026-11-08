@@ -99,9 +99,11 @@ const FOLD = {
 };
 const PRODUCT = { name: "product", hash: "#v=product" };
 const CASCADE = { name: "cascade", hash: "#v=cascade" };
-/** The drum with `Bezier path` on, which shows the Path settings. */
+/** The drum with `Bezier path` on, which shows what the overlay draws. */
 const PATH = { name: "path", hash: "#v=drum&preset=natural&path=1" };
-const STATES = [NATURAL, EVEN_HELD, FOLD, PRODUCT, CASCADE, PATH];
+/** The drum under reduced motion, which shows the reduced fade. */
+const REDUCED = { name: "reduced", hash: "#v=drum&preset=natural&reduced=1" };
+const STATES = [NATURAL, EVEN_HELD, FOLD, PRODUCT, CASCADE, PATH, REDUCED];
 
 /** The tooltip rows a control's kind promises, besides the closing `Works with` and `Tune`. */
 const KIND_ROWS = {
@@ -585,8 +587,10 @@ async function keyboardShowsTips(browser) {
       expect(await tipCloses(page), `${name}: it closes when the focus leaves`);
     }
 
-    // Tab walks the controls in page order, and each stop shows its tooltip.
+    // Tab walks the controls in page order, and each stop shows its tooltip. The Model module's heading comes
+    // first: it is focusable, so the keyboard can fold the module, and carries no tooltip.
     await load(page, NATURAL.hash);
+    await page.focus('[data-module="model"] > summary');
     const stops = [];
     for (const key of ["Tab", "Tab", "Shift+Tab"]) {
       await page.keyboard.press(key);
@@ -594,7 +598,7 @@ async function keyboardShowsTips(browser) {
     }
     expect(
       stops.join("|") === "Product now|Elastic drum|Product now",
-      `Tab and Shift+Tab step through the first controls, each with its tooltip (${stops.join(" | ")})`,
+      `Tab and Shift+Tab step from the Model heading through the first controls, each with its tooltip (${stops.join(" | ")})`,
     );
   });
 }
@@ -652,7 +656,7 @@ async function dismissal(browser) {
 
 /**
  * The visible controls with their boxes and kinds, picked three ways: the one reaching furthest right, the
- * lowest one, and the slider on the lowest row of the settings bar (the last wrapped row).
+ * lowest one, and the slider lowest in the inspector.
  */
 async function edgePicks(page, byId) {
   const on = await visibleControls(page);
@@ -764,7 +768,7 @@ async function edges(browser) {
   );
 }
 
-// ---- which settings the bar shows --------------------------------------------------------------------------
+// ---- which settings the inspector shows --------------------------------------------------------------------
 
 /** `shown` in src/controls.ts, per setting key, for a tempo kind and the held speed-up, fold and loose toggles. */
 const SHOWN = {
@@ -779,6 +783,12 @@ const SHOWN = {
   ts: (s) => s.tk === "lookahead",
   tms: (s) => s.tk === "constant",
   slack: (s) => s.tk === "none",
+  tuck: () => true,
+  hide: () => true,
+  wrise: () => true,
+  wclear: () => true,
+  ta: (s) => s.tk === "lookahead",
+  tb: (s) => s.tk === "lookahead",
   ramp: (s) => !s.fold && !s.loose,
   delay: (s) => s.fold || s.ramp || s.loose,
   w1: (s) => s.fold || s.ramp || s.loose,
@@ -793,27 +803,62 @@ const CASCADE_SHOWN = {
   sp0: (s) => s.ramp,
   sp1: () => true,
   cdelay: (s) => s.ramp,
+  cw1: (s) => s.ramp,
+  ccap1: (s) => s.ramp,
   park: () => true,
   fade: () => true,
   shade: () => true,
 };
 
-/** The path's settings, which every model shows; the leg behind the pile is the drum's and the product's. */
+/**
+ * The path's settings, which every model shows while the path shows on screen: while cards sway (reduced motion
+ * off) or `Bezier path` draws it. The leg behind the pile is the drum's and the product's.
+ */
 const PATH_SHOWN = {
   sway: () => true,
   swayb: (mode) => mode !== "cascade",
   peak: () => true,
 };
-const pathKeys = (mode) =>
-  Object.keys(PATH_SHOWN).filter((k) => PATH_SHOWN[k](mode));
+const pathKeys = (mode, { reduced = false, overlay = false } = {}) =>
+  reduced && !overlay
+    ? []
+    : Object.keys(PATH_SHOWN).filter((k) => PATH_SHOWN[k](mode));
 
-/** The setting keys the settings bar draws now. */
+/** The page's own settings: the playback fades, and what `Bezier path` draws while it is on. */
+const VIEW_SHOWN = {
+  rfade: (s) => s.reduced,
+  hfade: (s) => !s.reduced,
+  handles: (s) => s.overlay,
+  knots: (s) => s.overlay && s.handles,
+  inner: (s) => s.overlay,
+  arrows: (s) => s.overlay,
+  labels: (s) => s.overlay,
+  spine: (s) => s.overlay,
+  dots: (s) => s.overlay,
+};
+/** What the overlay draws: shown only while `Bezier path` is on. */
+const OVERLAY_KEYS = Object.keys(VIEW_SHOWN).filter(
+  (k) => !["rfade", "hfade"].includes(k),
+);
+const viewKeys = ({ reduced = false, overlay = false, handles = true } = {}) =>
+  Object.keys(VIEW_SHOWN).filter((k) =>
+    VIEW_SHOWN[k]({ reduced, overlay, handles }),
+  );
+
+/** The setting keys the inspector draws now. */
 const shownKeys = (page) =>
   page.evaluate(() =>
-    [...document.querySelectorAll("#sbar [data-key]")]
-      .filter((el) => !el.closest("[hidden]") && el.getClientRects().length > 0)
+    [...document.querySelectorAll("#inspector [data-key]")]
+      .filter(
+        (el) =>
+          !el.closest("[hidden]") &&
+          !el.closest("details:not([open]) > :not(summary)") &&
+          el.getClientRects().length > 0,
+      )
       .map((el) => el.dataset.key),
   );
+const sameSet = (a, b) =>
+  a.length === b.length && a.every((k) => b.includes(k));
 
 async function settingsVisibility(browser) {
   await withPage(browser, "settings", async (page) => {
@@ -895,7 +940,7 @@ async function settingsVisibility(browser) {
           const want = Object.keys(SHOWN).filter((k) =>
             SHOWN[k]({ tk, ramp, fold, loose }),
           );
-          const now = await shownKeys(page);
+          const now = (await shownKeys(page)).filter((k) => k in SHOWN);
           const off = want.filter((k) => !now.includes(k));
           const extra = now.filter((k) => !want.includes(k));
           if (off.length || extra.length)
@@ -905,7 +950,7 @@ async function settingsVisibility(browser) {
         }
     expect(
       wrong.length === 0,
-      `the settings bar shows what src/controls.ts says in all ${states} tempo, ramp, fold and loose states${wrong.length ? `: ${wrong.join("; ")}` : ""}`,
+      `the inspector shows what src/controls.ts says in all ${states} tempo, ramp, fold and loose states${wrong.length ? `: ${wrong.join("; ")}` : ""}`,
     );
 
     // A preset button clears every override.
@@ -922,12 +967,14 @@ async function settingsVisibility(browser) {
       e.value = "40";
       e.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    await page.uncheck('input[data-k="labels"]');
     await page.click('button[data-act="p:natural"]');
     const cleared = await page.evaluate(() => ({
       cap: document.querySelector('input[data-k="cap"]').value,
       tk: document.querySelector('select[data-k="tk"]').value,
       fold: document.querySelector('input[data-k="fold"]').checked,
       sway: document.querySelector('input[data-k="sway"]').value,
+      labels: document.querySelector('input[data-k="labels"]').checked,
       keys: [...new URLSearchParams(location.hash.slice(1)).keys()],
     }));
     expect(
@@ -935,8 +982,9 @@ async function settingsVisibility(browser) {
         cleared.tk === "none" &&
         !cleared.fold &&
         !cleared.keys.some((k) => k in SHOWN) &&
-        cleared.sway === "40",
-      `a preset button clears every model setting override and keeps the path's (${JSON.stringify(cleared)})`,
+        cleared.sway === "40" &&
+        !cleared.labels,
+      `a preset button clears every model setting override and keeps the path's and the page's (${JSON.stringify(cleared)})`,
     );
 
     // The cascade has its own settings: the ramp's hide with the ramp, and each model's hide under the other.
@@ -945,22 +993,57 @@ async function settingsVisibility(browser) {
     await only(CASCADE_KEYS, true, "cascade: its settings");
     await only(Object.keys(SHOWN), false, "cascade: the drum's settings");
     await only(
-      Object.keys(PATH_SHOWN),
-      false,
-      "cascade without Bezier path: the path's settings",
-    );
-    await load(page, `${CASCADE.hash}&path=1`);
-    await only(
       pathKeys("cascade"),
       true,
-      "cascade with Bezier path: the path's settings",
+      "cascade: the path's settings, while cards sway",
     );
     await only(["swayb"], false, "cascade: no leg behind the pile");
+    await only(
+      OVERLAY_KEYS,
+      false,
+      "cascade without Bezier path: what the overlay draws",
+    );
+    await load(page, `${CASCADE.hash}&reduced=1`);
+    await only(
+      Object.keys(PATH_SHOWN),
+      false,
+      "cascade under reduced motion, without Bezier path: the path's settings",
+    );
+    expect(
+      await page.$eval('[data-module="path"]', (m) => m.hidden),
+      "under reduced motion without Bezier path the Path module hides whole",
+    );
+    await load(page, `${CASCADE.hash}&reduced=1&path=1`);
+    await only(
+      pathKeys("cascade", { reduced: true, overlay: true }),
+      true,
+      "cascade under reduced motion with Bezier path: the path's settings",
+    );
     await load(page, `${NATURAL.hash}&path=1`);
     await only(
-      pathKeys("drum"),
+      pathKeys("drum", { overlay: true }),
       true,
       "drum with Bezier path: the path's settings",
+    );
+
+    // The page's own settings: each fade with its motion setting, and the overlay's parts with the overlay.
+    const viewCases = [
+      [NATURAL.hash, {}],
+      [`${NATURAL.hash}&reduced=1`, { reduced: true }],
+      [`${NATURAL.hash}&path=1`, { overlay: true }],
+      [`${NATURAL.hash}&path=1&handles=0`, { overlay: true, handles: false }],
+      [`${NATURAL.hash}&path=1&reduced=1`, { overlay: true, reduced: true }],
+    ];
+    const viewWrong = [];
+    for (const [hash, state] of viewCases) {
+      await load(page, hash);
+      const now = (await shownKeys(page)).filter((k) => k in VIEW_SHOWN);
+      if (!sameSet(now, viewKeys(state)))
+        viewWrong.push(`${hash}: ${now.join(", ")}`);
+    }
+    expect(
+      viewWrong.length === 0,
+      `the page's settings show only when they change what is drawn, in ${viewCases.length} states${viewWrong.length ? `: ${viewWrong.join("; ")}` : ""}`,
     );
     await load(page, CASCADE.hash);
     await page.click('button[data-act="p:no held ramp"]');
@@ -1000,33 +1083,131 @@ async function settingsVisibility(browser) {
       `the cascade's stage is cut at LEAD + park and its fade is capped at park − 346 (${JSON.stringify(stage)})`,
     );
 
-    // Product mode has no model controls; with Bezier path on it shows the path's.
+    // Product mode has no model settings: only the path's and the page's.
     await load(page, `${PRODUCT.hash}&path=1`);
     const productKeys = await shownKeys(page);
+    const productWant = [
+      ...pathKeys("product", { overlay: true }),
+      ...viewKeys({ overlay: true }),
+    ];
     expect(
-      JSON.stringify(productKeys) === JSON.stringify(pathKeys("product")),
-      `product mode with Bezier path shows only the path's settings (${productKeys.join(", ")})`,
+      sameSet(productKeys, productWant),
+      `product mode with Bezier path shows only the path's and the page's settings (${productKeys.join(", ")})`,
     );
-    await load(page, PRODUCT.hash);
-    const bars = () =>
-      page.evaluate(() => ({
-        presets: document.getElementById("presets").hidden,
-        settings: document.getElementById("sbar").hidden,
-      }));
+  });
+}
+
+// ---- the inspector: its place, its modules, and what each model shows -------------------------------------
+
+/** Which modules the inspector shows, and whether the preset buttons show. */
+const modulesShown = (page) =>
+  page.evaluate(() => ({
+    presets: !document.getElementById("presets").hidden,
+    modules: [...document.querySelectorAll("[data-module]")]
+      .filter((m) => !m.hidden)
+      .map((m) => m.dataset.module),
+  }));
+const ALWAYS = ["model", "playback", "path", "overlay", "about"];
+const MODEL_MODULES = {
+  product: [],
+  drum: ["taps", "pace", "held"],
+  cascade: ["taps", "pace", "stage"],
+};
+
+async function inspector(browser) {
+  // Anchored to the right edge at full height, with the stage taking the rest of the width and the column
+  // scaled down to fit a narrow stage.
+  for (const size of [
+    SIZE,
+    { width: 640, height: 480 },
+    { width: 640, height: 300 },
+  ])
+    await withPage(
+      browser,
+      `inspector ${size.width}x${size.height}`,
+      async (page) => {
+        await load(page, NATURAL.hash);
+        const at = await page.evaluate(() => {
+          const box = (el) => el.getBoundingClientRect().toJSON();
+          const ins = document.getElementById("inspector");
+          return {
+            ins: box(ins),
+            stage: box(document.getElementById("stage-area")),
+            col: box(document.getElementById("col")),
+            scrolls: getComputedStyle(ins).overflowY,
+          };
+        });
+        const name = `${size.width}x${size.height}`;
+        expect(
+          Math.abs(at.ins.right - size.width) < 1 &&
+            at.ins.top === 0 &&
+            Math.abs(at.ins.bottom - size.height) < 1 &&
+            at.scrolls === "auto",
+          `${name}: the inspector is anchored to the right edge, full height, and scrolls on its own (${JSON.stringify(at.ins)})`,
+        );
+        expect(
+          Math.abs(at.stage.right - at.ins.left) < 1 && at.stage.left === 0,
+          `${name}: the stage takes the width left of the inspector (stage ${box(at.stage)})`,
+        );
+        expect(
+          at.col.left >= at.stage.left - 0.5 &&
+            at.col.right <= at.stage.right + 0.5 &&
+            (size.width < 1000 || Math.abs(at.col.width - 680) < 0.5),
+          `${name}: the card column fits the stage, at full width when there is room (column ${box(at.col)})`,
+        );
+      },
+      size,
+    );
+
+  await withPage(browser, "modules", async (page) => {
+    // Each model shows its own modules and hides those with nothing to show under it.
+    for (const mode of ["product", "drum", "cascade"]) {
+      await load(page, `#v=${mode}`);
+      const now = await modulesShown(page);
+      const want = [...ALWAYS, ...MODEL_MODULES[mode]];
+      expect(
+        sameSet(now.modules, want) && now.presets === (mode !== "product"),
+        `${mode}: the inspector shows the modules ${want.join(", ")}${mode === "product" ? " and no presets" : " and its presets"} (${JSON.stringify(now)})`,
+      );
+    }
+
+    // Under reduced motion no card moves: the modules that shape motion hide, and the cascade's Stage stays.
+    for (const [mode, want] of [
+      ["drum", ["model", "playback", "overlay", "about"]],
+      ["cascade", ["model", "playback", "stage", "overlay", "about"]],
+    ]) {
+      await load(page, `#v=${mode}&reduced=1`);
+      const now = await modulesShown(page);
+      expect(
+        sameSet(now.modules, want),
+        `${mode} under reduced motion: the inspector shows only ${want.join(", ")} (${now.modules.join(", ")})`,
+      );
+    }
+    await load(page, `${FOLD.hash}&reduced=1`);
     expect(
-      JSON.stringify(await bars()) === '{"presets":true,"settings":true}',
-      "product mode hides the preset row and the settings bar",
+      await page.$eval("#lam", (el) => el.hidden),
+      "under reduced motion the held readout hides: a held key never starts the hold",
     );
-    await page.click('button[data-act="v:drum"]');
+
+    // A module folds from its heading, and stays folded when the page is opened again.
+    await load(page, NATURAL.hash);
+    const tapsOn = async () => (await shownKeys(page)).includes("w0");
+    expect(await tapsOn(), "Taps starts open: its sliders show");
+    await page.click('[data-module="taps"] > summary');
+    expect(!(await tapsOn()), "clicking the Taps heading folds it");
+    await load(page, NATURAL.hash);
     expect(
-      JSON.stringify(await bars()) === '{"presets":false,"settings":false}',
-      "the elastic drum model shows them again",
+      !(await tapsOn()),
+      "the folded module stays folded when the page is opened again",
     );
-    await page.click('button[data-act="v:cascade"]');
-    expect(
-      JSON.stringify(await bars()) === '{"presets":false,"settings":false}',
-      "the cascade model shows its own",
+    await page.focus('[data-module="taps"] > summary');
+    await page.keyboard.press("Enter");
+    expect(await tapsOn(), "Enter on the focused heading opens it again");
+    const about = await page.$eval(
+      '[data-module="about"]',
+      (m) => !m.open && !m.hidden,
     );
+    expect(about, "the About module starts folded, showing only its heading");
   });
 }
 
@@ -1146,6 +1327,7 @@ const SECTIONS = {
   dismissal,
   edges,
   settings: settingsVisibility,
+  inspector,
   hash: hashHygiene,
   readme: readmeNamesEverything,
 };

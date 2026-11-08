@@ -31,15 +31,28 @@ body {
   height: 100vh;
   overflow: hidden;
 }
-.page {
-  position: absolute;
-  inset: 56px 0 0;
+/* The stage takes the viewport left of the inspector; the column scales down to fit it (fitStage in main.ts). */
+.stage-area {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: var(--ins-w);
   overflow: hidden;
 }
+.page {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  padding-top: 28px;
+}
+/* Centred on the stage by its own middle, so it stays centred when it is wider than the stage and scales. */
 .col {
   position: relative;
+  left: 50%;
   width: 680px;
-  margin: 0 auto;
+  margin-left: -340px;
+  transform-origin: 50% 0;
 }
 #glide {
   position: relative;
@@ -348,113 +361,6 @@ h1 {
   color: #111b;
   background: #fff;
 }
-.bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  font-size: 12.5px;
-  z-index: 99;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fafafa;
-}
-.grp {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.grp > span {
-  color: #888;
-  margin-right: 4px;
-}
-.bar button {
-  font: inherit;
-  border: 1px solid var(--line);
-  background: #fff;
-  border-radius: 6px;
-  padding: 3px 9px;
-  cursor: pointer;
-  color: #333;
-}
-.bar button.on {
-  background: #111;
-  color: #fff;
-  border-color: #111;
-}
-.note {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 56px;
-  text-align: center;
-  color: #888;
-  font-size: 13px;
-  padding: 0 40px;
-  z-index: 99;
-}
-.foot {
-  position: fixed;
-  bottom: 22px;
-  left: 0;
-  right: 0;
-  text-align: center;
-  color: var(--mid);
-  font-size: 13px;
-  z-index: 99;
-}
-.foot button {
-  font: inherit;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  color: #888;
-  padding: 2px 8px;
-}
-#bars {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 99;
-}
-#bars .bar {
-  position: static;
-  border-bottom: 1px solid #f0f0f0;
-}
-.sbar {
-  height: auto;
-  min-height: 34px;
-  background: #f4f6ff;
-  border-bottom: 1px solid #e3e6f5;
-  padding: 3px 12px;
-}
-.sbar label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.sbar input {
-  width: 78px;
-}
-.sbar output {
-  min-width: 26px;
-  color: #555;
-}
-.bar {
-  height: auto;
-  min-height: 56px;
-  flex-wrap: wrap;
-  padding: 6px 12px;
-  gap: 8px 18px;
-}
-.bar button {
-  font: inherit;
-}
 .stage {
   margin-top: 6px;
 }
@@ -462,70 +368,25 @@ h1 {
   display: block;
   min-height: 62px;
 }
-.note {
-  bottom: 48px;
-  line-height: 1.45;
-}
-.note .hint {
-  display: block;
-  color: #aaa;
-  font-size: 12px;
-  margin-top: 2px;
-}
-.model {
-  position: fixed;
-  left: 12px;
-  bottom: 10px;
-  font-size: 12px;
-  color: #888;
-  z-index: 99;
-  max-width: 900px;
-}
-.model summary {
-  cursor: pointer;
-}
-.model .panel {
-  background: #fafafa;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  padding: 8px 12px;
-  color: #555;
-  margin-bottom: 6px;
-  line-height: 1.45;
-}
-.model .panel p {
-  margin: 0 0 6px;
-}
-.model .panel ul {
-  margin: 0 0 6px;
-  padding-left: 18px;
-}
-.model .panel .src {
-  margin: 0;
-  color: #888;
-}
-.foot {
-  bottom: 10px;
-  z-index: 100;
-}
-.lam {
-  color: #888;
-  font-size: 12px;
-  margin-left: 8px;
-}
+/* The card position, under the stack. A strip of page colour keeps it readable over a card running low. */
 .cover {
-  position: fixed;
+  position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 112px;
-  background: #fff;
+  height: 40px;
+  background: var(--bg);
   z-index: 90;
 }
-.note {
-  z-index: 100;
-}
-.model {
+.foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  text-align: center;
+  color: var(--mid);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
   z-index: 100;
 }
 
@@ -533,19 +394,357 @@ h1 {
 [hidden] {
   display: none !important;
 }
-.sbar .grp {
+
+/* ---- the inspector: a pane at the right edge, full height, scrolling on its own ---------------------- */
+:root {
+  --ins-w: clamp(264px, 30vw, 320px);
+  --ins-bg: #f7f7f8;
+  --ins-line: #e4e4e7;
+  --ins-fg: #27272a;
+  --ins-mid: #71717a;
+  --accent: #18181b;
+}
+.inspector {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--ins-w);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--ins-bg);
+  border-left: 1px solid var(--ins-line);
+  color: var(--ins-fg);
+  font-size: 12.5px;
+  line-height: 1.4;
+  z-index: 101;
+  scrollbar-width: thin;
+}
+.ins-head {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--ins-line);
+}
+.ins-head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+}
+.ins-head p {
+  margin: 3px 0 0;
+  color: var(--ins-mid);
+  font-size: 11.5px;
+}
+.ins-head kbd {
+  font: 500 10.5px/1 system-ui;
+  border: 1px solid var(--ins-line);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 1px 3px;
+  background: #fff;
+  color: var(--ins-fg);
+}
+
+/* A module: a disclosure heading and its rows. */
+.mod {
+  border-bottom: 1px solid var(--ins-line);
+}
+.mod > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #52525b;
+  user-select: none;
+}
+.mod > summary::-webkit-details-marker {
+  display: none;
+}
+.mod > summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 4.5px solid currentColor;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  transition: transform 0.12s ease;
+  opacity: 0.7;
+}
+.mod[open] > summary::before {
+  transform: rotate(90deg);
+}
+.mod > summary:hover {
+  color: var(--ins-fg);
+}
+.mod > summary:focus-visible,
+.inspector button:focus-visible,
+.readout:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+/* The About module's heading names the panel, so it reads as a sentence. */
+.mod[data-module="about"] > summary {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+.mod-body {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 0 14px 12px;
+}
+
+/* Buttons: a segmented control for a choice of one, plain buttons for actions, chips for presets. */
+.inspector button {
+  font: inherit;
+  color: var(--ins-fg);
+  background: #fff;
+  border: 1px solid var(--ins-line);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.inspector button:hover {
+  border-color: #c4c4cc;
+}
+.inspector button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.seg {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+.seg button {
+  flex: 1;
+  min-width: 0;
+  border-radius: 0;
+  margin-left: -1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.seg button:first-child {
+  margin-left: 0;
+  border-radius: 6px 0 0 6px;
+}
+.seg button:last-child {
+  border-radius: 0 6px 6px 0;
+}
+.seg-3 button {
+  padding: 4px 2px;
+  font-size: 12px;
+}
+.chips {
+  display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
+  gap: 4px;
 }
-.sbar .grp + .grp {
-  border-left: 1px solid #d9def4;
-  padding-left: 14px;
+.chips button {
+  border-radius: 999px;
+  padding: 2px 9px;
 }
-.sbar input[type="checkbox"] {
-  width: auto;
+.pair {
+  display: flex;
+  gap: 4px;
+  flex: 1;
 }
-.lam {
+.pair button {
+  flex: 1;
+}
+.row-label {
+  color: var(--ins-mid);
+  font-size: 11.5px;
+}
+.ins-row {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.caption {
+  margin: 0;
+  color: var(--ins-mid);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.caption b {
+  color: var(--ins-fg);
+  font-weight: 600;
+}
+
+/* A toggle button drawn as a switch: the label at the left, the track at the right. */
+.inspector button.switch,
+.inspector button.switch.on {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--ins-fg);
+}
+.switch i {
+  position: relative;
+  flex: none;
+  width: 26px;
+  height: 15px;
+  border-radius: 999px;
+  background: #d4d4d8;
+  transition: background 0.12s ease;
+}
+.switch i::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  transition: transform 0.12s ease;
+}
+.switch.on i {
+  background: var(--accent);
+}
+.switch.on i::after {
+  transform: translateX(11px);
+}
+
+/* Settings. A slider: its name and value on one line, the track under them. */
+.set {
+  display: grid;
+  align-items: center;
+  column-gap: 8px;
+}
+.set-name {
+  min-width: 0;
+}
+.set-range {
+  grid-template-columns: 1fr auto;
+  row-gap: 0;
+}
+.set-range output {
+  font-variant-numeric: tabular-nums;
+  color: var(--ins-mid);
+  font-size: 11.5px;
+  text-align: right;
+  min-width: 3ch;
+}
+.set-range input {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
+  height: 16px;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.set-range input::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--accent) var(--fill, 50%),
+    #d4d4d8 var(--fill, 50%)
+  );
+}
+.set-range input::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4.5px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid #a1a1aa;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+}
+.set-range input:focus-visible {
+  outline: none;
+}
+.set-range input:focus-visible::-webkit-slider-thumb {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.3);
+}
+.set-toggle {
+  grid-template-columns: auto 1fr;
+  cursor: pointer;
+}
+.set-toggle input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+.set-select {
+  grid-template-columns: 1fr auto;
+}
+.set-select select {
+  font: inherit;
+  padding: 2px 4px;
+  border: 1px solid var(--ins-line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+/* The held readout: how far the held state has risen, as a number and a bar. */
+.readout {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 8px;
   cursor: help;
+}
+.readout .meter {
+  height: 4px;
+  border-radius: 2px;
+  background: #e4e4e7;
+  overflow: hidden;
+}
+.readout .meter i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: #d95f18;
+}
+.readout output {
+  font-variant-numeric: tabular-nums;
+  color: var(--ins-mid);
+  font-size: 11.5px;
+}
+
+/* The About module's panel. */
+.panel {
+  color: #52525b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.panel p {
+  margin: 0 0 6px;
+}
+.panel ul {
+  margin: 0 0 6px;
+  padding-left: 16px;
+}
+.panel .src {
+  margin: 0;
+  color: var(--ins-mid);
 }
 
 /* Tooltips (src/tooltip.ts). They take no pointer events, so one never covers a control you reach for. */
@@ -572,16 +771,6 @@ h1 {
     sans-serif;
   pointer-events: none;
 }
-/* On a short window the caption and the controls share the viewport: the controls stay on top and clickable. */
-#bars {
-  z-index: 101;
-}
-.note {
-  pointer-events: none;
-  background: #fff;
-  padding-top: 6px;
-}
-
 /* A tooltip taller than its room scrolls under the wheel; a classic scrollbar shows that it does. */
 .tip::-webkit-scrollbar {
   width: 8px;
@@ -631,7 +820,8 @@ h1 {
   font-size: 11px;
 }
 .tip code,
-.model .panel code {
+.panel code,
+.caption code {
   background: #f1f1f4;
   border-radius: 3px;
   padding: 0 3px;

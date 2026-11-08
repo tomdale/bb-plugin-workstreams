@@ -77,7 +77,8 @@ export async function load(page, hash = "") {
 }
 
 /**
- * The controls on screen: `[data-help]` elements with no hidden ancestor and a box, in page order. `i` is the
+ * The controls on screen: `[data-help]` elements with no hidden ancestor, not inside a folded inspector module,
+ * and with a box, in page order. `i` is the
  * element's index among all `[data-help]` elements (see `control`); `name` is its id, numbered when several
  * elements share it (the three speed buttons).
  */
@@ -85,7 +86,9 @@ export const visibleControls = (page) =>
   page.evaluate(() => {
     const all = [...document.querySelectorAll("[data-help]")];
     const on = all.flatMap((el, i) =>
-      !el.closest("[hidden]") && el.getClientRects().length > 0
+      !el.closest("[hidden]") &&
+      !el.closest("details:not([open]) > :not(summary)") &&
+      el.getClientRects().length > 0
         ? [{ i, id: el.dataset.help }]
         : [],
     );

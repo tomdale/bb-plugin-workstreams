@@ -1,15 +1,21 @@
 /**
  * Tooltips for the lab's controls. Any element with a `data-help` attribute gets one: hover shows it after a
  * short pause, keyboard focus shows it at once, and Escape, a click, or a card key dismisses it until the
- * pointer or focus leaves the control. It sits wholly above or below the control, never over it, clamped to
- * the viewport, and scrolls (wheel over the control, or the tooltip itself) when the text is taller than the
- * room. It takes no pointer events, so a tooltip never covers a neighbouring control while you reach for it.
+ * pointer or focus leaves the control. It sits beside the control, never over it: to its left, over the stage,
+ * when there is room there (the inspector's controls all sit at the right edge), otherwise wholly above or
+ * below it. It is clamped to the viewport and scrolls (wheel over the control, or the tooltip itself) when the
+ * text is taller than the room. It takes no pointer events, so a tooltip never covers a neighbouring control
+ * while you reach for it.
  */
 import { CONTROLS, type Control } from "./controls.ts";
 import { HELP, type Help } from "./help.ts";
 
 const GAP = 8;
 const MARGIN = 8;
+/** The narrowest a tooltip beside a control may be; with less room to the left it goes above or below. */
+const SIDE_MIN = 260;
+/** The widest a tooltip may be, px (the stylesheet's max-width). */
+const WIDEST = 460;
 const SHOW_DELAY = 250;
 const HIDE_DELAY = 60;
 /** After a tooltip closes, the next control's tooltip opens without the pause for this long, ms. */
@@ -67,7 +73,8 @@ export type Tooltips = {
   sync(): void;
 };
 
-export function installTooltips(): Tooltips {
+/** `scroller` is the scrolling container the controls sit in: a tooltip follows its control as it scrolls. */
+export function installTooltips(scroller: HTMLElement): Tooltips {
   const tip = element("div", "tip");
   tip.id = "tip";
   tip.setAttribute("role", "tooltip");
@@ -94,6 +101,19 @@ export function installTooltips(): Tooltips {
     const vw = document.documentElement.clientWidth;
     const vh = document.documentElement.clientHeight;
     tip.style.maxHeight = "";
+    tip.style.maxWidth = "";
+    const left = r.left - GAP - MARGIN;
+    if (left >= SIDE_MIN) {
+      // Beside the control, over the stage: the whole viewport height is its room.
+      const w = Math.min(WIDEST, left);
+      tip.style.maxWidth = `${w}px`;
+      const room = vh - 2 * MARGIN;
+      tip.style.maxHeight = `${room}px`;
+      const shown = Math.min(tip.offsetHeight, room);
+      tip.style.left = `${r.left - GAP - tip.offsetWidth}px`;
+      tip.style.top = `${Math.min(Math.max(r.top, MARGIN), vh - MARGIN - shown)}px`;
+      return;
+    }
     const w = tip.offsetWidth;
     const h = tip.offsetHeight;
     const below = vh - r.bottom - GAP - MARGIN;
@@ -189,7 +209,7 @@ export function installTooltips(): Tooltips {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !tip.hidden) dismiss();
   });
-  // The page does not scroll, so the wheel over a control scrolls a tooltip that is taller than its room.
+  // The wheel over a control scrolls a tooltip that is taller than its room, ahead of the inspector.
   document.addEventListener(
     "wheel",
     (e) => {
@@ -201,6 +221,14 @@ export function installTooltips(): Tooltips {
   );
   addEventListener("resize", () => hide());
   addEventListener("blur", () => hide());
+  // A tooltip follows its control as the inspector scrolls, and closes once the control leaves the inspector's view.
+  scroller.addEventListener("scroll", () => {
+    if (!anchor) return;
+    const r = anchor.getBoundingClientRect();
+    const view = scroller.getBoundingClientRect();
+    if (r.bottom <= view.top || r.top >= view.bottom) hide();
+    else place(anchor);
+  });
 
   return {
     dismiss,

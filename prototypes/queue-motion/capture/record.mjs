@@ -19,7 +19,8 @@ for (const spec of (process.argv[2] ?? "product,drum").split(",")) {
   fs.mkdirSync(dir, { recursive: true });
   const browser = await chromium.launch({ executablePath: CHROME });
   const ctx = await browser.newContext({
-    viewport: { width: 1000, height: 760 },
+    // Wide enough for the stack at full size beside the inspector.
+    viewport: { width: 1320, height: 760 },
   });
   const page = await ctx.newPage();
   const cdp = await ctx.newCDPSession(page);

@@ -10,28 +10,32 @@ import {
   CASCADE_PRESET_NAMES,
   CASCADE_SETTINGS,
   CONTROLS,
-  FADE_MS,
+  MODULES,
+  MODES,
   PATH_KEYS,
   PATH_SETTINGS,
-  pathCfg,
-  type PathCfg,
-  GROUPS,
-  MODES,
   PRESET_NAMES,
   SETTINGS,
   SETTING_KEYS,
   SPEEDS,
+  VIEW_KEYS,
+  VIEW_SETTINGS,
   cascadeCfg,
   drumCfg,
   maxOf,
   modelCfg,
   parseOpt,
+  pathCfg,
   presetsOf,
+  viewCfg,
   type CascadeCfg,
   type Cfg,
   type Mode,
+  type ModuleId,
   type Opt,
+  type PathCfg,
   type Setting,
+  type ViewCfg,
 } from "./controls.ts";
 import {
   ringCubics,
@@ -92,14 +96,19 @@ const opt: Opt = sanitize({
   speed: "1",
   ...parseOpt(location.hash),
 });
-/** The drum and cascade configurations the state asks for; recomputed whenever `opt` changes. */
+/** Reduced motion is in force when the button or the system setting asks for it. */
+const systemReduced = matchMedia("(prefers-reduced-motion: reduce)");
+const reduced = () => opt.reduced === "1" || systemReduced.matches;
+/** The drum, cascade, path and page configurations the state asks for; recomputed whenever `opt` changes. */
 let cfg: Cfg = drumCfg(opt);
 let ccfg: CascadeCfg = cascadeCfg(opt);
-let pcfg: PathCfg = pathCfg(opt);
+let pcfg: PathCfg = pathCfg(opt, reduced());
+let vcfg: ViewCfg = viewCfg(opt, reduced());
 const refreshCfg = () => {
   cfg = drumCfg(opt);
   ccfg = cascadeCfg(opt);
-  pcfg = pathCfg(opt);
+  pcfg = pathCfg(opt, reduced());
+  vcfg = viewCfg(opt, reduced());
 };
 /** The path's sideways shape for `ring.ts`, read fresh each frame so a slider applies mid-flight. */
 const sway = (): Sway => ({
@@ -427,13 +436,15 @@ let paused = false,
   raf = 0,
   last = 0,
   simClock = 0;
-const reduced = () =>
-  opt.reduced === "1" || matchMedia("(prefers-reduced-motion: reduce)").matches;
 const speed = () => Number(opt.speed) || 1;
 
-/** The held readout is on while the model has a held state to report: the drum's speed-up or fold, the cascade's ramp. */
+/**
+ * The held readout is on while the model has a held state to report: the drum's speed-up or fold, the cascade's
+ * ramp. Under reduced motion a held key moves one card and never starts the hold, so there is nothing to report.
+ */
 const showsHeld = () =>
   !!sim.lam &&
+  !reduced() &&
   (opt.v === "drum"
     ? cfg.fold || cfg.ramp || cfg.loose
     : opt.v === "cascade" && ccfg.ramp);
@@ -474,17 +485,19 @@ function paintBezier(views: View[]) {
   svg.toggleAttribute("hidden", !show);
   if (!show) return;
   const { ring, pile } = sim.overlay();
-  const cubics = ringCubics(ring, STAGE_X);
+  const cubics = ringCubics(ring, STAGE_X, vcfg.inner);
   // The drum's ring splits at the turn into the drop in front of the pile and the rise behind it.
   const half = ring.kind === "drum" ? cubics.length / 2 : cubics.length;
   const front = cubics.slice(0, half);
   const behind = cubics.slice(half);
   const parts: string[] = [];
   // Control-point handles at the knots the sliders move: each leg's widest point, and the turn. The other
-  // knots only keep the fit close, and their handles would crowd the curve.
-  const knots = ringKnots(ring);
-  const named = [...ringPeaks(ring), ...(ring.kind === "drum" ? [1] : [])];
-  for (const u of named) {
+  // knots only keep the fit close, so their handles show only when `handles at every knot` asks for them.
+  const knots = ringKnots(ring, vcfg.inner);
+  const named = vcfg.allKnots
+    ? knots
+    : [...ringPeaks(ring), ...(ring.kind === "drum" ? [1] : [])];
+  for (const u of vcfg.handles ? named : []) {
     const k = knots.indexOf(u);
     if (k <= 0 || k >= knots.length - 1) continue;
     const at = cubics[k]![0];
@@ -495,7 +508,7 @@ function paintBezier(views: View[]) {
       );
   }
   // Pile spine above the front card
-  if (pile.length >= 3) {
+  if (vcfg.spine && pile.length >= 3) {
     parts.push(
       `<line class="bz-pile" x1="${STAGE_X}" y1="${f1(pile[2]!)}" x2="${STAGE_X}" y2="${f1(pile[0]!)}"/>`,
       `<circle class="bz-slot" cx="${STAGE_X}" cy="${f1(pile[1]!)}" r="2.5"/>`,
@@ -509,32 +522,46 @@ function paintBezier(views: View[]) {
   }
   parts.push(`<path class="bz-out" data-curve="front" d="${cubicD(front)}"/>`);
   // Which way each leg is travelled: ↓ runs the ring forwards, ↑ backwards.
-  parts.push(
-    chevron(ring, 0.32, 1, "bz-arrow-out"),
-    chevron(ring, 0.68, -1, "bz-arrow-in"),
-  );
+  if (vcfg.arrows)
+    parts.push(
+      chevron(ring, 0.32, 1, "bz-arrow-out"),
+      chevron(ring, 0.68, -1, "bz-arrow-in"),
+    );
   const lobe = ringPoint(ring, ring.sway.peak);
+  const label = (text: string) => (vcfg.labels ? text : "");
   parts.push(
-    `<text class="bz-label bz-label-out" ${beside(lobe.x)} y="${f1(lobe.y - 2)}">out ↓</text>`,
-    `<text class="bz-label bz-label-in" ${beside(lobe.x)} y="${f1(lobe.y + 11)}">↑ in</text>`,
+    label(
+      `<text class="bz-label bz-label-out" ${beside(lobe.x)} y="${f1(lobe.y - 2)}">out ↓</text>`,
+    ),
+    label(
+      `<text class="bz-label bz-label-in" ${beside(lobe.x)} y="${f1(lobe.y + 11)}">↑ in</text>`,
+    ),
   );
   // Anchors: the front, the turn or the clip line, and the tuck
   const end = ringPoint(ring, 1);
   parts.push(
     `<circle class="bz-anchor" cx="${STAGE_X}" cy="${LEAD}" r="4.2"/>`,
-    `<text class="bz-label bz-label-node" x="${STAGE_X + 10}" y="${LEAD - 6}" text-anchor="start">front</text>`,
+    label(
+      `<text class="bz-label bz-label-node" x="${STAGE_X + 10}" y="${LEAD - 6}" text-anchor="start">front</text>`,
+    ),
     `<circle class="bz-anchor" cx="${f1(STAGE_X + end.x)}" cy="${f1(end.y)}" r="4.2"/>`,
-    `<text class="bz-label bz-label-node" x="${STAGE_X + 10}" y="${f1(end.y + 15)}" text-anchor="start">${ring.kind === "drum" ? "turn" : "park"}</text>`,
+    label(
+      `<text class="bz-label bz-label-node" x="${STAGE_X + 10}" y="${f1(end.y + 15)}" text-anchor="start">${ring.kind === "drum" ? "turn" : "park"}</text>`,
+    ),
   );
   if (ring.kind === "drum") {
     const t = ringPoint(ring, ringSpan(ring));
     parts.push(
       `<circle class="bz-anchor-tuck" cx="${f1(STAGE_X + t.x)}" cy="${f1(t.y)}" r="3.5"/>`,
-      `<text class="bz-label bz-label-tuck" x="${STAGE_X - 10}" y="${f1(Math.max(LEAD + 14, t.y + 3.5))}" text-anchor="end">tuck</text>`,
+      label(
+        `<text class="bz-label bz-label-tuck" x="${STAGE_X - 10}" y="${f1(Math.max(LEAD + 14, t.y + 3.5))}" text-anchor="end">tuck</text>`,
+      ),
     );
     const back = ringPoint(ring, 2 - ring.sway.peak);
     parts.push(
-      `<text class="bz-label bz-label-tuck" ${beside(back.x, back.x === 0 ? -1 : 1)} y="${f1(back.y + 4)}">behind</text>`,
+      label(
+        `<text class="bz-label bz-label-tuck" ${beside(back.x, back.x === 0 ? -1 : 1)} y="${f1(back.y + 4)}">behind</text>`,
+      ),
     );
   }
   // Each leg's widest point
@@ -547,7 +574,7 @@ function paintBezier(views: View[]) {
   // Live markers for painted cards
   const isRed = reduced();
   for (const v of views) {
-    if (!v.painted) continue;
+    if (!v.painted || !vcfg.dots) continue;
     const cx = STAGE_X + (isRed ? 0 : v.x);
     parts.push(
       `<circle class="bz-dot bz-dot-${v.role}" data-dot="${v.key}" cx="${f1(cx)}" cy="${f1(v.top)}" r="${v.role === "pile" ? "3.8" : "5"}"/>`,
@@ -590,9 +617,15 @@ function paint() {
     if (!held.has(i)) e.el.style.visibility = "hidden";
   });
   paintBezier(views);
-  const text = showsHeld() ? `held ${sim.lam!().toFixed(2)}` : "";
-  const readout = $("#lam");
-  if (readout.textContent !== text) readout.textContent = text;
+  if (showsHeld()) {
+    const lam = sim.lam!();
+    const text = lam.toFixed(2);
+    const out = $("#lam output");
+    if (out.textContent !== text) {
+      out.textContent = text;
+      $("#lam .meter i").style.width = `${(lam * 100).toFixed(1)}%`;
+    }
+  }
 }
 
 function showHead(n: number, animate: boolean) {
@@ -600,9 +633,9 @@ function showHead(n: number, animate: boolean) {
   $("#pos").textContent = `${n + 1} of ${N}`;
   const h = $("#head");
   h.innerHTML = `<div><div class="path">${it.p}</div><h1>${it.t}</h1></div>`;
-  if (animate && !reduced())
+  if (animate && !reduced() && vcfg.headMs > 0)
     h.firstElementChild!.animate([{ opacity: 0.2 }, { opacity: 1 }], {
-      duration: 160,
+      duration: vcfg.headMs,
       easing: "ease-out",
     });
 }
@@ -633,15 +666,16 @@ function wake() {
 
 function press(dir: 1 | -1) {
   if (reduced()) {
-    // No motion: the new front fades in over FADE_MS.
+    // No motion: the new front fades in over `reduced fade ms`.
     const n = sim.cur + dir;
     if (n < 0 || n >= N) return;
     sim.jump(n);
     showHead(n, true);
-    els[n]!.el.animate?.([{ opacity: 0 }, { opacity: 1 }], {
-      duration: FADE_MS,
-      easing: "ease-out",
-    });
+    if (vcfg.fadeMs > 0)
+      els[n]!.el.animate?.([{ opacity: 0 }, { opacity: 1 }], {
+        duration: vcfg.fadeMs,
+        easing: "ease-out",
+      });
     paint();
     return;
   }
@@ -667,52 +701,99 @@ function build(mode: Mode, cur = sim ? sim.cur : 0) {
   syncAll();
 }
 
-// ---- controls ----------------------------------------------------------------------
-// The bars are drawn once from the lists in controls.ts and updated in place, so a control that is hovered or
-// focused is never replaced under the pointer. Every control carries `data-help`, the id of its tooltip.
+// ---- the inspector ------------------------------------------------------------------------------
+// The inspector is drawn once from the lists in controls.ts and updated in place, so a control that is hovered
+// or focused is never replaced under the pointer. Every control carries `data-help`, the id of its tooltip.
+// Each module is a <details>; a module with nothing to show under the current configuration is hidden whole.
 const round = (v: number) => Math.round(v * 1000) / 1000;
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 const labelOf = (id: string) => CONTROLS.find((c) => c.id === id)!.label;
-const group = (label: string, body: string, attrs = "") =>
-  `<div class="grp" ${attrs}>${label ? `<span>${esc(label)}</span>` : ""}${body}</div>`;
 const button = (help: string, act: string, text: string, mode = "") =>
-  `<button data-help="${help}" data-act="${act}"${mode ? ` data-mode="${mode}"` : ""}>${esc(text)}</button>`;
+  `<button type="button" data-help="${help}" data-act="${act}"${mode ? ` data-mode="${mode}"` : ""}>${esc(text)}</button>`;
+/** A toggle button drawn as a switch: the label, then a track whose knob shows `aria-pressed`. */
+const switchButton = (help: string, act: string) =>
+  `<button type="button" class="switch" data-help="${help}" data-act="${act}"><span>${esc(labelOf(help))}</span><i aria-hidden="true"></i></button>`;
+const row = (label: string, body: string, attrs = "") =>
+  `<div class="ins-row" ${attrs}><span class="row-label">${esc(label)}</span>${body}</div>`;
 
-function renderBar() {
-  $("#bar").innerHTML =
-    group(
-      "Model",
-      MODES.map((m) => button(`model.${m.id}`, `v:${m.id}`, m.label)).join(""),
-    ) +
-    group(
-      "Preset",
-      PRESET_NAMES.map((p) => button(`preset.${p}`, `p:${p}`, p, "drum")).join(
-        "",
-      ) +
-        CASCADE_PRESET_NAMES.map((p) =>
-          button(`preset.${p}`, `p:${p}`, p, "cascade"),
-        ).join(""),
-      'id="presets"',
-    ) +
-    group(
+const ALL_SETTINGS: readonly Setting<any, unknown>[] = [
+  ...SETTINGS,
+  ...CASCADE_SETTINGS,
+  ...PATH_SETTINGS,
+  ...VIEW_SETTINGS,
+];
+
+const settingHtml = (s: Setting<any, unknown>) => {
+  const host = `data-help="setting.${s.key}" data-key="${s.key}"`;
+  // A limit that depends on another setting is set when the settings are synced.
+  if (s.kind === "range")
+    return `<label class="set set-range" ${host}><span class="set-name">${esc(s.label)}</span><output></output><input type="range" data-k="${s.key}" min="${s.min}"${typeof s.max === "number" ? ` max="${s.max}"` : ""} step="${s.step}"></label>`;
+  if (s.kind === "toggle")
+    return `<label class="set set-toggle" ${host}><input type="checkbox" data-k="${s.key}"><span class="set-name">${esc(s.label)}</span></label>`;
+  return `<label class="set set-select" ${host}><span class="set-name">${esc(s.label)}</span><select data-k="${s.key}">${s.options.map((o) => `<option>${o}</option>`).join("")}</select></label>`;
+};
+const settingsOf = (group: ModuleId) =>
+  ALL_SETTINGS.filter((s) => s.group === group)
+    .map(settingHtml)
+    .join("");
+
+/** The body of each module: its buttons, then its settings. */
+const BODIES: Record<ModuleId, () => string> = {
+  model: () =>
+    `<div class="seg seg-3" role="group" aria-label="Model">${MODES.map((m) => button(`model.${m.id}`, `v:${m.id}`, m.label)).join("")}</div>` +
+    `<div class="field" id="presets"><span class="row-label">Preset</span><div class="chips">${PRESET_NAMES.map(
+      (p) => button(`preset.${p}`, `p:${p}`, p, "drum"),
+    ).join("")}${CASCADE_PRESET_NAMES.map((p) =>
+      button(`preset.${p}`, `p:${p}`, p, "cascade"),
+    ).join("")}</div></div>` +
+    `<p class="caption" id="note"></p>`,
+  playback: () =>
+    row(
       "Speed",
-      SPEEDS.map((s) => button("speed", `s:${s.id}`, s.label)).join(""),
+      `<div class="seg" role="group" aria-label="Speed">${SPEEDS.map((s) => button("speed", `s:${s.id}`, s.label)).join("")}</div>`,
     ) +
-    group(
+    row(
       "Clock",
-      button("clock.pause", "pause", labelOf("clock.pause")) +
-        button("clock.step", "step", labelOf("clock.step")),
+      `<div class="pair">${button("clock.pause", "pause", labelOf("clock.pause"))}${button("clock.step", "step", labelOf("clock.step"))}</div>`,
     ) +
-    group(
-      "",
-      button("reduced", "reduced", labelOf("reduced")) +
-        button("path", "path", labelOf("path")),
-    ) +
-    `<span id="lam" class="lam" data-help="held" tabindex="0" hidden></span>`;
+    switchButton("reduced", "reduced") +
+    settingsOf("playback") +
+    `<div id="lam" class="readout" data-help="held" tabindex="0" hidden><span class="row-label">held</span><span class="meter"><i></i></span><output>0.00</output></div>`,
+  taps: () => settingsOf("taps"),
+  pace: () => settingsOf("pace"),
+  held: () => settingsOf("held"),
+  stage: () => settingsOf("stage"),
+  path: () => settingsOf("path"),
+  overlay: () => switchButton("path", "path") + settingsOf("overlay"),
+  about: () =>
+    `<div class="panel" id="about"></div><div class="panel" id="about-cascade" hidden></div>`,
+};
+
+/** Which modules the reader has collapsed or opened, kept across visits; the hash holds only the motion's state. */
+const FOLDS_KEY = "queue-motion-lab.modules";
+const folds: Record<string, boolean> = (() => {
+  try {
+    return JSON.parse(localStorage.getItem(FOLDS_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+})();
+/** Every module starts open but the About panel, which is long. */
+const startsOpen = (id: ModuleId) => folds[id] ?? id !== "about";
+
+function renderInspector() {
+  $("#modules").innerHTML = MODULES.map((m) => {
+    // The About module's heading is its control: it names the panel the running model shows.
+    const summary =
+      m.id === "about"
+        ? `<summary data-help="about">${esc(labelOf("about"))}</summary>`
+        : `<summary>${esc(m.label)}</summary>`;
+    return `<details class="mod" data-module="${m.id}"${startsOpen(m.id) ? " open" : ""}>${summary}<div class="mod-body">${BODIES[m.id]()}</div></details>`;
+  }).join("");
 }
 
-function syncBar() {
-  for (const b of $$("#bar button")) {
+function syncButtons() {
+  for (const b of $$("#inspector button[data-act]")) {
     const [k, v] = (b.dataset.act ?? "").split(":");
     const on =
       k === "v"
@@ -734,50 +815,21 @@ function syncBar() {
   // Each model shows its own preset buttons; the product has none.
   $("#presets").hidden = opt.v === "product";
   for (const b of $$("#presets button")) b.hidden = b.dataset.mode !== opt.v;
-  $('#bar [data-act="pause"]').textContent = paused
+  $('#inspector [data-act="pause"]').textContent = paused
     ? "Paused"
     : labelOf("clock.pause");
   $("#lam").hidden = !showsHeld();
 }
 
-const settingHtml = (s: Setting<any, unknown>) => {
-  const host = `data-help="setting.${s.key}" data-key="${s.key}"`;
-  // A limit that depends on another setting is set when the settings are synced.
-  if (s.kind === "range")
-    return `<label ${host}>${esc(s.label)} <input type="range" data-k="${s.key}" min="${s.min}"${typeof s.max === "number" ? ` max="${s.max}"` : ""} step="${s.step}"><output></output></label>`;
-  if (s.kind === "toggle")
-    return `<label ${host}><input type="checkbox" data-k="${s.key}"> ${esc(s.label)}</label>`;
-  return `<label ${host}>${esc(s.label)} <select data-k="${s.key}">${s.options.map((o) => `<option>${o}</option>`).join("")}</select></label>`;
-};
-
-/** The settings bar holds both models' settings and the path's; a model's are hidden while another model runs. */
-function renderSettings() {
-  const all: readonly Setting<any, unknown>[] = [
-    ...SETTINGS,
-    ...CASCADE_SETTINGS,
-    ...PATH_SETTINGS,
-  ];
-  $("#sbar").innerHTML = GROUPS.map((g) =>
-    group(
-      g.label,
-      all
-        .filter((s) => s.group === g.id)
-        .map(settingHtml)
-        .join(""),
-      `data-group="${g.id}"`,
-    ),
-  ).join("");
-}
-
-/** Shows one model's settings that change something under its configuration `c`, with their current values. */
+/** Shows one list's settings that change something under configuration `c`, with their current values. */
 function syncList<C>(
   list: readonly Setting<C, unknown>[],
   c: C,
   active: boolean,
 ) {
-  const sbar = $("#sbar");
+  const root = $("#inspector");
   for (const s of list) {
-    const host = sbar.querySelector<HTMLElement>(`[data-key="${s.key}"]`)!;
+    const host = root.querySelector<HTMLElement>(`[data-key="${s.key}"]`)!;
     host.hidden = !active || !s.shown(c);
     const input = host.querySelector<HTMLInputElement | HTMLSelectElement>(
       "[data-k]",
@@ -785,28 +837,45 @@ function syncList<C>(
     if (s.kind === "toggle") (input as HTMLInputElement).checked = s.read(c);
     else if (s.kind === "select") input.value = s.read(c);
     else {
-      (input as HTMLInputElement).max = String(maxOf(s, c));
+      const max = maxOf(s, c);
+      (input as HTMLInputElement).max = String(max);
       const v = round(s.read(c));
       if (Number(input.value) !== v) input.value = String(v);
       host.querySelector("output")!.textContent = String(v);
+      // The track fills to the value, so a column of sliders reads at a glance.
+      host.style.setProperty(
+        "--fill",
+        `${(((v - s.min) / (max - s.min || 1)) * 100).toFixed(1)}%`,
+      );
     }
   }
 }
 
 /**
- * Shows the settings of the running model that change something under its configuration, and, while `Bezier
- * path` draws the path they shape, the Path settings every model shares. The product has only those.
+ * Shows the running model's settings, the Path settings while the path shows on screen, and the page's own,
+ * each only while it changes something; then hides every settings module left with nothing to show. The
+ * product has no model settings of its own. Under reduced motion no card moves, so the settings that shape
+ * motion change nothing and hide; the cascade's Stage settings still cut and fade the stage, so they stay.
  */
 function syncSettings() {
-  const showPath = opt.path === "1";
-  $("#sbar").hidden = opt.v === "product" && !showPath;
-  syncList(SETTINGS, cfg, opt.v === "drum");
-  syncList(CASCADE_SETTINGS, ccfg, opt.v === "cascade");
-  syncList(PATH_SETTINGS, pcfg, showPath);
-  for (const g of $$("#sbar .grp"))
-    g.hidden = $$(`#sbar [data-group="${g.dataset.group}"] label`).every(
-      (l) => l.hidden,
-    );
+  const moving = !reduced();
+  syncList(SETTINGS, cfg, opt.v === "drum" && moving);
+  syncList(
+    CASCADE_SETTINGS.filter((s) => s.group !== "stage"),
+    ccfg,
+    opt.v === "cascade" && moving,
+  );
+  syncList(
+    CASCADE_SETTINGS.filter((s) => s.group === "stage"),
+    ccfg,
+    opt.v === "cascade",
+  );
+  syncList(PATH_SETTINGS, pcfg, true);
+  syncList(VIEW_SETTINGS, vcfg, true);
+  for (const id of ["taps", "pace", "held", "stage", "path"] as const) {
+    const mod = $(`[data-module="${id}"]`);
+    mod.hidden = $$(`[data-module="${id}"] [data-key]`).every((l) => l.hidden);
+  }
 }
 
 /** The cascade cuts its stage at the clip line, `park` px below the front pose, and fades the last `fade` px. */
@@ -821,18 +890,14 @@ function syncStage() {
   clip.style.maskImage = clip.style.webkitMaskImage = mask;
 }
 
-/** The caption under the stack: the active model and preset, in the words of their tooltips. */
+/** The caption under the Model buttons: the active model and preset, in the words of their tooltips. */
 function syncNote() {
   const name = MODES.find((m) => m.id === opt.v)!.label;
   const lead = document.createElement("b");
   lead.textContent = `${name}${opt.v !== "product" ? ` · ${opt.preset}` : ""}.`;
   const text = document.createElement("span");
   inline(text, captionFor(opt.v!, opt.preset!));
-  const hint = document.createElement("span");
-  hint.className = "hint";
-  hint.textContent =
-    "Hold ↑ or ↓ (or J/K), with the OS key repeat. Hover a control, or Tab to it, for its help.";
-  $("#note").replaceChildren(lead, " ", text, hint);
+  $("#note").replaceChildren(lead, " ", text);
 }
 
 function renderAbout(panel: HTMLElement, about: typeof ABOUT) {
@@ -859,34 +924,52 @@ function renderAbout(panel: HTMLElement, about: typeof ABOUT) {
   }
 }
 
-/** The panel at the bottom left explains the model that runs: the cascade's, or the drum's (also for the product). */
+/** The About module explains the model that runs: the cascade's, or the drum's (also for the product). */
 function syncAbout() {
   const cascade = opt.v === "cascade";
   const id = cascade ? "about.cascade" : "about";
-  const summary = $("details.model summary");
+  const summary = $('[data-module="about"] summary');
   summary.dataset.help = id;
   summary.textContent = labelOf(id);
   $("#about").hidden = cascade;
   $("#about-cascade").hidden = !cascade;
 }
 
-renderBar();
-renderSettings();
+/**
+ * The stack is drawn at the product's width, 680 px. When the stage beside the inspector is narrower, the
+ * column scales down to fit, so the whole card stays in view; the models measure the cards' layout size,
+ * which a transform does not change.
+ */
+const COLUMN = 680;
+const STAGE_PAD = 40;
+function fitStage() {
+  const room = $("#stage-area").clientWidth - STAGE_PAD;
+  const s = Math.min(1, room / COLUMN);
+  $("#col").style.transform = s < 1 ? `scale(${s.toFixed(4)})` : "";
+}
+new ResizeObserver(fitStage).observe($("#stage-area"));
+
+renderInspector();
 renderAbout($("#about"), ABOUT);
 renderAbout($("#about-cascade"), ABOUT_CASCADE);
-const tips = installTooltips();
+const tips = installTooltips($("#inspector"));
 
-function syncAll() {
-  syncBar();
+/** Brings every part of the page in line with `opt`, without writing the hash. */
+function syncView() {
+  syncButtons();
   syncSettings();
   syncStage();
   syncAbout();
   syncNote();
-  writeHash();
   tips.sync();
 }
+function syncAll() {
+  syncView();
+  writeHash();
+}
 
-$("#sbar").addEventListener("input", (e) => {
+const inspector = $("#inspector");
+inspector.addEventListener("input", (e) => {
   const t = e.target as HTMLInputElement | HTMLSelectElement;
   const k = t.dataset.k;
   if (!k) return;
@@ -898,12 +981,12 @@ $("#sbar").addEventListener("input", (e) => {
       : t.value;
   refreshCfg();
   sim.setCfg?.();
-  // The path is read as the cards are drawn, so a paused page redraws to show a path slider's change.
-  if (PATH_KEYS.includes(k)) paint();
+  // The path and the overlay are read as the cards are drawn, so a paused page redraws to show the change.
+  if (PATH_KEYS.includes(k) || VIEW_KEYS.includes(k)) paint();
   syncAll();
 });
-$("#bar").addEventListener("click", (e) => {
-  const b = (e.target as HTMLElement).closest("button");
+inspector.addEventListener("click", (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>("button[data-act]");
   if (!b) return;
   const [k, v] = (b.dataset.act ?? "").split(":");
   if (k === "v") build(v as Mode);
@@ -933,16 +1016,44 @@ $("#bar").addEventListener("click", (e) => {
   }
   if (k === "reduced") {
     opt.reduced = opt.reduced === "1" ? "0" : "1";
+    refreshCfg();
     sim.jump(sim.cur);
     paint();
     syncAll();
   }
   if (k === "path") {
     opt.path = opt.path === "1" ? "0" : "1";
+    refreshCfg();
     paint();
     syncAll();
   }
-  (b as HTMLElement).blur();
+  b.blur();
+});
+/** Records which modules are open. */
+function saveFolds() {
+  for (const mod of $$("[data-module]") as HTMLDetailsElement[])
+    folds[mod.dataset.module!] = mod.open;
+  try {
+    localStorage.setItem(FOLDS_KEY, JSON.stringify(folds));
+  } catch {}
+}
+// `toggle` does not bubble, so the inspector listens in the capture phase for every module's. It fires a task
+// after the change, so leaving the page saves too, in case a module was folded just before.
+inspector.addEventListener(
+  "toggle",
+  () => {
+    saveFolds();
+    tips.sync();
+  },
+  true,
+);
+addEventListener("pagehide", saveFolds);
+// The system's reduced-motion setting can change while the page is open.
+systemReduced.addEventListener("change", () => {
+  refreshCfg();
+  sim.jump(sim.cur);
+  paint();
+  syncView();
 });
 
 // ---- keys -------------------------------------------------------------------------------
@@ -990,18 +1101,9 @@ addEventListener("hashchange", () => {
   else {
     sim.setCfg?.();
     paint();
-    syncBar();
-    syncSettings();
-    syncStage();
-    syncAbout();
-    syncNote();
-    tips.sync();
+    syncView();
   }
 });
-const fitBars = () => {
-  $(".page").style.inset = $("#bars").offsetHeight + "px 0 0";
-};
-new ResizeObserver(fitBars).observe($("#bars"));
 
 // ---- hooks for the capture scripts: a stepped clock and per-frame samples --------------------
 (window as any).__sim = {

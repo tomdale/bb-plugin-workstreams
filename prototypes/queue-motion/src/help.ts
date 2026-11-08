@@ -9,9 +9,7 @@
  * `f.expect` rejects a claim the sweeps no longer support, so a change to the model fails the build instead of
  * leaving a stale tooltip. Each entry's footer names the commands that print its numbers.
  */
-import { DEFAULT_CFG } from "./cascade.ts";
 import {
-  FADE_MS,
   PATH_SETTINGS,
   PILE_CLEARANCE,
   SPEEDS,
@@ -46,11 +44,8 @@ const up = (r: RowView) => r.raw.upLand as number;
 const dn = (r: RowView) => r.raw.dnLand as number;
 const speed = (r: RowView) => r.raw.landSpeed as number;
 const rate = (r: RowView) => (r.raw.heldUp + r.raw.heldDn) / 2;
-/** The cascade's held spring and held edge budget: model values with no slider, so a tooltip reads them here. */
-const HELD = {
-  hz: String(Math.round((DEFAULT_CFG.omega1 / TAU) * 10) / 10),
-  budget: String(DEFAULT_CFG.vcap1 / 60),
-};
+/** The cascade's held spring and held edge budget at their defaults, as the inspector shows them. */
+const HELD = (f: Facts) => ({ hz: f.def("cw1"), budget: f.def("ccap1") });
 
 const ENTRIES: Record<string, (f: Facts) => Draft> = {
   // ---- models ------------------------------------------------------------------------------------
@@ -59,7 +54,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     effect: [
       [
         "Click",
-        "Shows the motion the queue ships. ↓ drops the front card clear of the pile and tucks it behind; ↑ runs the same ring backwards. Every card takes the same time, and a held key speeds up after a short hold. The preset row and the model's settings disappear; with `Bezier path` on, the Path settings stay.",
+        "Shows the motion the queue ships. ↓ drops the front card clear of the pile and tucks it behind; ↑ runs the same ring backwards. Every card takes the same time, and a held key speeds up after a short hold. The preset buttons and the model's modules disappear; Playback, Path and `Bezier path` stay.",
       ],
     ],
     needs:
@@ -71,11 +66,11 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     effect: [
       [
         "Click",
-        "↓ drops the front card clear of the pile and tucks it behind. ↑ brings a card up from just below the pile and slows it into the front. The preset row and the drum's settings appear.",
+        "↓ drops the front card clear of the pile and tucks it behind. ↑ brings a card up from just below the pile and slows it into the front. The drum's preset buttons and its modules, Taps, Pace and Held keys, appear in the inspector.",
       ],
     ],
     needs:
-      "A preset sets a bundle of settings; the rows under the preset buttons adjust it. Speed, clock and reduced motion apply as in `Product now`.",
+      "A preset sets a bundle of settings; the modules below it in the inspector adjust it. Speed, clock and reduced motion apply as in `Product now`.",
     tune: "Start with `natural`: hold ↑ and ↓, then try the other presets one at a time before you move a setting. `How the drum works` explains the path.",
   }),
 
@@ -94,7 +89,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       effect: [
         [
           "Click",
-          "↓ slides the front card down in front of the pile and out through the clip line. ↑ brings a card back up from the clip line and slows it into the front. No card tucks behind the pile or changes draw order. The cascade's presets and settings appear, and the stage is cut at the clip line.",
+          "↓ slides the front card down in front of the pile and out through the clip line. ↑ brings a card back up from the clip line and slows it into the front. No card tucks behind the pile or changes draw order. The cascade's presets and its modules, Taps, Pace and Stage, appear in the inspector, and the stage is cut at the clip line.",
         ],
       ],
       needs: t`Speed, clock and reduced motion work as in the other models. The page cuts the stage at the clip line, \`park\` px (${f.def("park")} by default) below the front pose, so the stack takes that much page below the front card. The drum's presets and settings hide.`,
@@ -358,17 +353,17 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       tune: t`Press ↓ once, then click Step to count the frames from the press to the landing: on \`natural\` a tap ↓ settles in ${p.tapDn} ms, about ${frames} frames.`,
     };
   },
-  reduced: () => ({
+  reduced: (f) => ({
     what: "Replaces card motion with a cut and a fade, as the page does when the system asks for reduced motion.",
     effect: [
       [
         "On",
-        t`No card moves. The heading changes at once and the new front card fades in over ${FADE_MS} ms. A held key moves one card: its repeat is ignored, so press again for the next.`,
+        t`No card moves. The heading changes at once and the new front card fades in over \`reduced fade ms\` (${f.def("rfade")} ms by default). A held key moves one card: its repeat is ignored, so press again for the next.`,
       ],
       ["Off", "Cards move as the active model draws them."],
     ],
     needs:
-      "The page also turns it on when the system setting `prefers-reduced-motion` is set. It applies to every model and overrides every preset and setting, which have no effect while it is on.",
+      "The page also turns it on when the system setting `prefers-reduced-motion` is set. It applies to every model and overrides every preset and setting, which have no effect while it is on. While it is on, the inspector hides what it overrides: Playback shows `reduced fade ms` in place of `heading fade ms` and drops the held readout, the model's Taps, Pace and Held keys modules hide (the cascade's Stage stays, since it still cuts the stage), and the Path module hides unless `Bezier path` is on.",
     tune: "Use it to check the fallback: press ↓ and ↑ and look for a calm cut with nothing sliding. Turn it off to compare with the motion.",
   }),
   path: (f) => ({
@@ -376,12 +371,12 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     effect: [
       [
         "On",
-        t`Shows the drum's ring as one rounded loop: down in front of the pile, across the column at the \`turn\`, and up behind the pile to the \`tuck\`, with a ring at each leg's widest point. With the default Path settings it bows ${f.def("sway")} px to the right in front and ${Math.abs(Number(f.def("swayb")))} px to the left behind. ↓ runs it forwards and ↑ backwards. The cascade shows one bow down the exit channel to \`park\`. The pile spine and a dot for each painted card are drawn too.`,
+        t`Shows the drum's ring as one rounded loop: down in front of the pile, across the column at the \`turn\`, and up behind the pile to the \`tuck\`, with a ring at each leg's widest point. With the default Path settings it bows ${f.def("sway")} px to the right in front and ${Math.abs(Number(f.def("swayb")))} px to the left behind. ↓ runs it forwards and ↑ backwards. The cascade shows one bow down the exit channel to \`park\`. The pile spine and a dot for each painted card are drawn too; the module's toggles turn each part off.`,
       ],
       ["Off", "Hides the overlay; cards still follow the same path."],
     ],
     needs:
-      "Works in every model. While it is on, the settings bar shows the Path settings, which shape the curve (the product shows only those); a value set there stays in force when the overlay is off. the vertical motion is each model's own, so springs, budgets and the frame checker are unchanged. The loop drawn is the one for the moving card nearest the front, or the front card at rest. Reduced motion removes the sway.",
+      "Works in every model. While it is on, the `Bezier path` module shows what the overlay draws: control handles, knots, direction arrows, labels, the pile spine and card markers. The Path module's settings shape the curve whether or not it is drawn. The vertical motion is each model's own, so springs, budgets and the frame checker are unchanged. The loop drawn is the one for the moving card nearest the front, or the front card at rest. Reduced motion removes the sway, but the overlay still draws the path a card would follow.",
     tune: "Turn it on with `¼×` speed, or click Pause and Step during a press, then move the Path sliders and watch each card's marker ride the loop.",
   }),
   held: (f) => ({
@@ -402,16 +397,26 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
   }),
   about: () => ({
     what: "A short account of the ring the drum is built on, and which settings act on which part of it.",
-    effect: [["Click", "Opens the panel below it. Nothing on the page moves."]],
+    effect: [
+      [
+        "Click",
+        "Opens the panel below it, at the foot of the inspector. Nothing on the page moves.",
+      ],
+    ],
     needs:
-      "The groups in the settings bar map to parts of the model: Taps to how one card travels, Pace to when the next press may start, Held keys to what changes once a key has been held.",
+      "The inspector's modules map to parts of the model: Taps to how one card travels, Pace to when the next press may start, Held keys to what changes once a key has been held. The product runs the drum too, with the settings it ships.",
     tune: "Read it once before you move a setting, and again when two settings seem to fight. Its last paragraph defines the four problems the frame checker counts and what `clean` means here. Every tooltip reads in four steps: what the control is, what raising or lowering it does, what it works with, and how to tune it.",
   }),
   "about.cascade": () => ({
     what: "A short account of the exit channel the cascade is built on, and which settings act on which part of it.",
-    effect: [["Click", "Opens the panel below it. Nothing on the page moves."]],
+    effect: [
+      [
+        "Click",
+        "Opens the panel below it, at the foot of the inspector. Nothing on the page moves.",
+      ],
+    ],
     needs:
-      "The groups in the settings bar map to parts of the model: Taps to how one card travels, Pace to how far apart cards leave and when the pace builds, Stage to where cards park and how they leave the page.",
+      "The inspector's modules map to parts of the model: Taps to how one card travels, Pace to how far apart cards leave and when the pace builds, Stage to where cards park and how they leave the page.",
     tune: "Read it once before you move a setting, and again when two settings seem to fight. Its last paragraph defines the four problems the frame checker counts and what `clean` means here.",
   }),
 
@@ -1031,7 +1036,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`Cards drift in. At ${slow.value} Hz a tap ↑ takes ${slow.upLand} ms and a tap ↓ ${slow.dnLand} ms, and the landing speed falls to ${slow.landSpeed} px/frame.`,
         ],
       ],
-      needs: t`The held pace stays at ${base.onePace} cards/s for every value swept, because the spacing and the edge budget set it. With the ramp on, a held key's spring rises from this value to ${HELD.hz} Hz after \`hold delay\`. \`edge budget, tap\` limits how far an edge moves in a frame.`,
+      needs: t`The held pace stays at ${base.onePace} cards/s for every value swept, because the spacing and the edge budget set it. With the ramp on, a held key's spring rises from this value to ${HELD(f).hz} Hz after \`hold delay\`. \`edge budget, tap\` limits how far an edge moves in a frame.`,
       tune: t`Start at ${base.value}. Press ↑ after each change: it is the slowest trip, so a lag or a hard landing shows there first. All four values swept, ${slow.value} to ${hard.value} Hz, pass the frame checker, so the limit is how the landing feels: the cards stop at ${snappy.landSpeed} px/frame at ${snappy.value} Hz and ${hard.landSpeed} at ${hard.value} Hz.`,
     };
   },
@@ -1073,7 +1078,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`Trips flatten into a steady slide: at ${lo.value} a tap ↑ takes ${lo.upLand} ms, and held pace falls to ${lo.onePace} cards/s with intervals of ${lo.range} ms.`,
         ],
       ],
-      needs: t`Once the ramp starts, a held key's budget rises to ${HELD.budget} px/frame, which has no slider, so this setting moves the held pace only a little. The spring decides how hard a card tries to move and the budget limits it where the spring asks for more, so tap ↓ does not change.`,
+      needs: t`Once the ramp starts, a held key's budget rises to ${HELD(f).budget} px/frame, set by \`edge budget, held\`, so this setting moves the held pace only a little. The spring decides how hard a card tries to move and the budget limits it where the spring asks for more, so tap ↓ does not change.`,
       tune: t`Start at ${base.value}. ${high.value} is clean (${high.onePace} cards/s). At ${over.value} the checker reports ${over.verdict}: a tap moves an edge as far as the budget, and that is over ${f.limit.jump} px in a frame. For a faster held key, lower \`spacing held\` instead.`,
     };
   },
@@ -1148,7 +1153,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "the tightest held spacing moves an edge to within a pixel of the jump limit, and the next one stays further below it",
     );
     return {
-      what: t`How far apart cards leave the front once the held state is fully up, in px. The held pace is the edge budget's speed (fixed at ${HELD.budget} px/frame) divided by it, so this is the held pace control.`,
+      what: t`How far apart cards leave the front once the held state is fully up, in px. The held pace is the held edge budget's speed (${HELD(f).budget} px/frame by default, \`edge budget, held\`) divided by it, so this is the held pace control.`,
       effect: [
         [
           "Raise",
@@ -1306,7 +1311,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       ],
     ],
     needs:
-      "A look setting: it moves cards sideways only, so the frame checker's numbers, the springs and the edge budgets are the same at every value. The sway is a function of where the card is on its ring, so it reverses with a card that changes direction mid-flight. `widest point` places the bow, `sway behind px` shapes the drum's other leg, and `Bezier path` draws it.",
+      "A look setting: it moves cards sideways only, so the frame checker's numbers, the springs and the edge budgets are the same at every value. The sway is a function of where the card is on its ring, so it reverses with a card that changes direction mid-flight. `widest point` places the bow, `sway behind px` shapes the drum's other leg, and `Bezier path` draws it. The Path module shows while cards sway or the overlay draws the path; under reduced motion with `Bezier path` off it hides.",
     tune: t`Start at ${f.def("sway")} px with \`Bezier path\` on and \`¼×\` speed. Raise it until the turn stops looking like a bounce, and lower it if the card seems to slide off the column.`,
   }),
   "setting.swayb": (f) => ({
@@ -1339,6 +1344,357 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     ],
     needs: t`A look setting with the same numbers at every value, like \`sway in front px\`. The leg behind the pile mirrors it, so the loop stays symmetric about the turn. Default ${f.def("peak")}.`,
     tune: "Leave it at the default for an even bow. Raise it if the card seems to swing out too early, lower it for a softer start.",
+  }),
+
+  // ---- the drum's tuck, wash and planner estimate ----------------------------------------------------
+  "setting.tuck": (f) => {
+    const s = f.sweep("tuck");
+    const lo = s.at(1),
+      base = s.at(1.4),
+      mid = s.at(1.8),
+      hi = s.at(2.5);
+    f.expect(
+      [lo, base, mid, hi].every(
+        (r) => r.clean && r.upLand === base.upLand && r.dnLand === base.dnLand,
+      ),
+      "the tuck spring is clean and moves no tap number",
+    );
+    return {
+      what: "How much stiffer than the main spring a card's spring is on the tuck, the last stretch behind the pile from the turn to its hidden slot.",
+      effect: [
+        [
+          "Raise",
+          t`A leaving card rises behind the pile and settles into its slot sooner. Most of the tuck is hidden, so the numbers barely move: at ${hi.value}× a tap ↓ still settles in ${hi.dnLand} ms and a hold runs at ${hi.pace} cards/s, against ${base.pace} at the default ${base.value}×.`,
+        ],
+        [
+          "Lower",
+          t`At ${lo.value}× the tuck runs on the main spring, so a card lingers longer behind the pile. The worst step-to-step change moves from ${base.step}× to ${lo.step}× and the checker still reports ${lo.verdict}.`,
+        ],
+      ],
+      needs: t`Drum only. It acts only behind the pile, after the turn, so \`sway behind px\` and the \`tuck\` anchor of \`Bezier path\` show where. The main spring is \`spring Hz, tap\`, or \`spring Hz, held\` once the held state rises; this multiplies it.`,
+      tune: t`Leave it at ${base.value}× unless a card visibly hangs behind the pile: watch the purple behind leg with \`Bezier path\` on at \`¼×\`. Every value swept, ${lo.value}× to ${hi.value}×, is clean.`,
+    };
+  },
+  "setting.hide": (f) => {
+    const s = f.sweep("hide");
+    const lo = s.at(0),
+      base = s.at(3),
+      hi = s.at(12);
+    f.expect(
+      [lo, base, s.at(6), hi].every((r) => r.clean),
+      "every tuck depth swept is clean",
+    );
+    f.expect(up(hi) >= up(base), "a deeper tuck lands ↑ no sooner");
+    return {
+      what: "How far inside the pile's lower edge a tucked card's bottom ends, in px: where the tuck stops behind the pile.",
+      effect: [
+        [
+          "Raise",
+          t`The tuck ends higher behind the pile, so a returning card starts further up and has further to drop: at ${hi.value} px a tap ↑ lands in ${hi.upLand} ms, against ${base.upLand} ms at the default ${base.value} px.`,
+        ],
+        [
+          "Lower",
+          t`The tuck ends lower: at ${lo.value} px a tucked card's bottom sits level with the lower edge of the card in front, with no margin to hide it, and the landing speed is ${lo.landSpeed} px/frame against ${base.landSpeed}.`,
+        ],
+      ],
+      needs: t`Drum only. A card too tall to hide this way washes out instead (\`tall-card wash rise ms\`), and the same depth decides which cards count as too tall. The \`tuck\` anchor of \`Bezier path\` marks the end of the tuck.`,
+      tune: t`Leave it at ${base.value} px. Raise it if a tucked card's lower edge shows under the front card; every value swept, ${lo.value} to ${hi.value} px, is clean.`,
+    };
+  },
+  "setting.wrise": (f) => {
+    const s = f.sweep("wrise");
+    const fast = s.at(10),
+      quick = s.at(40),
+      base = s.at(120),
+      slow = s.at(400);
+    f.expect(
+      !fast.clean && quick.clean && base.clean && slow.clean,
+      "the wash rise is clean from 40 ms up and flickers at 10 ms",
+    );
+    return {
+      what: "How quickly a card too tall to hide behind the pile washes out toward the page colour as it tucks, as a time constant in ms.",
+      effect: [
+        [
+          "Raise",
+          t`The wash follows the card's path more lazily, so a tall card stays visible longer as it rises behind the pile. ${slow.value} ms is clean.`,
+        ],
+        [
+          "Lower",
+          t`The tall card fades out almost as soon as its path asks: ${quick.value} ms is clean, and at ${fast.value} ms the checker reports ${fast.verdict}.`,
+        ],
+      ],
+      needs: t`Drum only, and only for a card taller than the room the tuck leaves (\`tuck depth px\`); the tallest sample cards, ${f.cards.max} px, are. \`tall-card wash clear ms\` sets the way back, when a returning card regains its colour. Pace and landing times are the same at every value swept.`,
+      tune: t`Start at ${base.value} ms. Hold ↓ through the tallest cards at \`¼×\` and watch them fade behind the pile; stay at ${quick.value} ms or above.`,
+    };
+  },
+  "setting.wclear": (f) => {
+    const s = f.sweep("wclear");
+    const fast = s.at(10),
+      base = s.at(40),
+      mid = s.at(120),
+      slow = s.at(400);
+    f.expect(
+      !fast.clean && base.clean && mid.clean && !slow.clean,
+      "the wash clear is clean between 40 and 120 ms and flickers outside",
+    );
+    return {
+      what: "How quickly a washed-out tall card regains its colour when its path stops asking for the wash, as a time constant in ms.",
+      effect: [
+        [
+          "Raise",
+          t`A returning tall card stays pale for longer. ${mid.value} ms is clean; at ${slow.value} ms the wash lags so far that it has to catch up in a jump: ${slow.verdict}.`,
+        ],
+        [
+          "Lower",
+          t`The colour comes back almost at once: at ${fast.value} ms the checker reports ${fast.verdict}.`,
+        ],
+      ],
+      needs: t`Drum only, for cards too tall to hide behind the pile. \`incoming fade-in per s\` restores a card coming back with ↑ on its own clock, so this shows mostly on a card that reverses mid-tuck. Pace and landing times are the same at every value swept.`,
+      tune: t`Keep it between ${base.value} and ${mid.value} ms, the clean range swept.`,
+    };
+  },
+  "setting.ta": (f) => {
+    const s = f.sweep("ta");
+    const lo = s.at(0),
+      base = s.at(60),
+      hi = s.at(120),
+      top = s.at(200);
+    f.expect(
+      rate(lo) > rate(base) &&
+        rate(base) > rate(hi) &&
+        rate(hi) > rate(top) &&
+        lo.raw.step > base.raw.step &&
+        base.raw.step > hi.raw.step,
+      "a larger base estimate is slower and steadier",
+    );
+    f.expect(
+      s.sweep.rows.every((r) => r.problems === 0),
+      "every base estimate is clean",
+    );
+    return {
+      what: "The part of the planner's estimated clear time that every card takes whatever its height, in ms: the `a` in `scale × (a + b · height)`.",
+      effect: [
+        [
+          "Raise",
+          t`Every interval grows by the same amount, so short cards slow most and the pace evens out. At ${hi.value} ms a hold runs at ${hi.pace} cards/s with intervals of ${hi.range} ms and a worst step-to-step change of ${hi.step}×.`,
+        ],
+        [
+          "Lower",
+          t`Short cards go through faster and the pace follows heights more: at ${lo.value} ms the hold runs at ${lo.pace} cards/s, intervals ${lo.range} ms, ${lo.step}× from one step to the next.`,
+        ],
+      ],
+      needs: t`Shows only with tempo \`lookahead\`. \`estimate ms per px\` is the height term and \`tempo scale\` multiplies both. The flip gate still applies, so an estimate shorter than a real trip changes nothing. Default ${base.value} ms gives ${base.pace} cards/s on \`even\`.`,
+      tune: t`Move \`tempo scale\` first. Raise this for steadier pacing among short cards; every value swept, ${lo.value} to ${top.value} ms, is clean.`,
+    };
+  },
+  "setting.tb": (f) => {
+    const s = f.sweep("tb");
+    const lo = s.at(0),
+      small = s.at(0.3),
+      base = s.at(0.62),
+      hi = s.at(1),
+      top = s.at(1.5);
+    f.expect(
+      rate(small) > rate(base) &&
+        rate(base) > rate(hi) &&
+        rate(hi) > rate(top) &&
+        small.raw.step > base.raw.step &&
+        base.raw.step > hi.raw.step,
+      "a larger per-px estimate is slower and steadier",
+    );
+    f.expect(
+      s.sweep.rows.every((r) => r.problems === 0),
+      "every per-px estimate is clean",
+    );
+    return {
+      what: "How much longer the planner expects a trip to take per px of card height, in ms per px: the `b` in `scale × (a + b · height)`.",
+      effect: [
+        [
+          "Raise",
+          t`Tall cards get more time and the planner eases toward them sooner, so the pace drops and evens out: at ${hi.value} ms/px a hold runs at ${hi.pace} cards/s with intervals of ${hi.range} ms and ${hi.step}× from one step to the next.`,
+        ],
+        [
+          "Lower",
+          t`The plan stops reading heights. At ${lo.value} the flip gate alone sets the pace, ${lo.pace} cards/s with ${lo.range} ms intervals and ${lo.step}× from one step to the next, as with tempo \`none\`.`,
+        ],
+      ],
+      needs: t`Shows only with tempo \`lookahead\`. \`estimate base ms\` is the constant term and \`tempo scale\` multiplies both. Default ${base.value} ms/px gives ${base.pace} cards/s on \`even\`.`,
+      tune: t`Raise it until the slowest tall card in a hold no longer bunches up behind the gate. Every value swept, ${lo.value} to ${top.value} ms/px, is clean.`,
+    };
+  },
+
+  // ---- the cascade's held spring and budget ----------------------------------------------------------
+  "setting.cw1": (f) => {
+    const s = f.sweep("cw1");
+    const lo = s.at(3),
+      base = s.at(4.5),
+      mid = s.at(6),
+      hi = s.at(8);
+    f.expect(
+      lo.clean && base.clean && mid.clean && !hi.clean,
+      "the held spring is clean to 6 Hz and fails at 8",
+    );
+    f.expect(
+      [lo, mid, hi].every((r) => r.onePace === base.onePace),
+      "the held spring leaves the held pace alone",
+    );
+    return {
+      what: "How stiff each card's spring becomes once the held state is fully up, in Hz.",
+      effect: [
+        [
+          "Raise",
+          t`Cards in a held train speed up and stop harder. The pace stays at ${base.onePace} cards/s, but the largest edge move grows from ${base.jump} px/frame to ${mid.jump} at ${mid.value} Hz; at ${hi.value} Hz the checker reports ${hi.verdict}.`,
+        ],
+        [
+          "Lower",
+          t`Cards in a held train drift more between places: at ${lo.value} Hz the largest edge move is ${lo.jump} px/frame and the hold is still clean.`,
+        ],
+      ],
+      needs: t`Shows only while the ramp is on. The spring rises from \`spring Hz, tap\` to this value as the held state rises after \`hold delay\`. The spacing and the held edge budget set the pace, so this changes how cards travel, not how many pass.`,
+      tune: t`Start at ${base.value} Hz and stay at ${mid.value} or below; past that the budget clamps the spring every frame and edges jump.`,
+    };
+  },
+  "setting.ccap1": (f) => {
+    const s = f.sweep("ccap1");
+    const lo = s.at(24),
+      base = s.at(30),
+      mid = s.at(36),
+      top = s.at(44);
+    f.expect(
+      rate(lo) < rate(base) && rate(base) < rate(mid) && rate(mid) < rate(top),
+      "a higher held budget is faster",
+    );
+    f.expect(
+      lo.clean && base.clean && !mid.clean,
+      "the held budget is clean to 30 and fails at 36",
+    );
+    return {
+      what: "The most any card edge may move in one frame once the held state is fully up, in px per frame. The held pace is this speed divided by `spacing held`.",
+      effect: [
+        [
+          "Raise",
+          t`A held train runs faster: ${mid.onePace} cards/s at ${mid.value} against ${base.onePace} at ${base.value}. Past the default the checker finds jumps: ${mid.verdict} at ${mid.value} and ${top.verdict} at ${top.value}.`,
+        ],
+        [
+          "Lower",
+          t`A held train runs slower and calmer: ${lo.onePace} cards/s at ${lo.value}, with intervals of ${lo.range} ms, clean.`,
+        ],
+      ],
+      needs: t`Shows only while the ramp is on. The budget rises from \`edge budget, tap\` to this value with the held state. \`spacing held\` is the other half of the held pace.`,
+      tune: t`Keep it at ${base.value} or below and move the pace with \`spacing held\`, which stays clean over a wider range.`,
+    };
+  },
+
+  // ---- playback fades --------------------------------------------------------------------------------
+  "setting.rfade": (f) => ({
+    what: "How long the new front card fades in under reduced motion, in ms.",
+    effect: [
+      [
+        "Raise",
+        t`A softer cut: the card comes in over a longer fade. Far past the default ${f.def("rfade")} ms the page feels slow to answer a key.`,
+      ],
+      ["Lower", "A harder cut. At zero the new card appears at once."],
+    ],
+    needs:
+      "Shows only while reduced motion is in force, from the button or the system setting. The heading always changes at once under reduced motion. It belongs to the page, so a preset button keeps it.",
+    tune: "Press ↓ and ↑ a few times: pick the shortest fade that still reads as a change of card rather than a flash.",
+  }),
+  "setting.hfade": (f) => ({
+    what: "How long the heading above the stack fades in when the front card changes, in ms.",
+    effect: [
+      [
+        "Raise",
+        t`The new title eases in more slowly, from the default ${f.def("hfade")} ms upward; on a held key it may still be fading when the next card arrives.`,
+      ],
+      ["Lower", "The title settles sooner. At zero it swaps at once."],
+    ],
+    needs:
+      "Every model uses it while cards move; under reduced motion the heading changes at once and this hides. It belongs to the page, so a preset button keeps it.",
+    tune: "Hold ↓: the heading should keep up with the cards without blinking. Shorten it if it lags behind a fast hold.",
+  }),
+
+  // ---- what the Bezier path overlay draws ------------------------------------------------------------
+  "setting.handles": () => ({
+    what: "Draws the Bezier control handles on the overlay: a dashed line from a knot to each of its control points.",
+    effect: [
+      [
+        "On",
+        "Handles at the knots the Path settings move: each leg's widest point, and the drum's turn. Move `widest point` or `sway in front px` to watch them swing.",
+      ],
+      ["Off", "Only the curve, its knots and anchors; the overlay is quieter."],
+    ],
+    needs:
+      "Shows while `Bezier path` is on. `handles at every knot` adds the handles at the knots that only keep the fit close.",
+    tune: "Leave it on while you shape the path, and turn it off to judge the curve itself.",
+  }),
+  "setting.knots": () => ({
+    what: "Draws control handles at every knot of the overlay, not only at the widest points and the turn.",
+    effect: [
+      [
+        "On",
+        "Every segment's handles show, so you can see how the cubic segments meet and how `knots per stretch` divides the path.",
+      ],
+      ["Off", "Handles only at the knots the Path settings move."],
+    ],
+    needs:
+      "Shows while `Bezier path` and `control handles` are both on. It draws only; cards move the same.",
+    tune: "Turn it on with `knots per stretch` lowered to see a coarse fit's handles stretch, then turn it off again.",
+  }),
+  "setting.inner": (f) => ({
+    what: "How many knots the overlay puts inside each stretch of the path, between the front, each leg's widest point, the turn and the tuck.",
+    effect: [
+      [
+        "Raise",
+        t`More, shorter cubic segments. The default ${f.def("inner")} keeps the curve within a pixel of the path the cards follow at any Path setting; more adds nothing visible.`,
+      ],
+      [
+        "Lower",
+        "Fewer, longer segments. At zero each stretch is one cubic, and the curve can stray from the card markers, most at a wide sway.",
+      ],
+    ],
+    needs:
+      "Shows while `Bezier path` is on. It changes only the drawing: cards follow the exact path at every value. `handles at every knot` shows where the knots fall.",
+    tune: "Set it to zero with a large `sway in front px` and watch the markers leave the curve, then return it to the default.",
+  }),
+  "setting.arrows": () => ({
+    what: "Draws an arrowhead on each leg of the overlay: the way ↓ runs the path, and the way ↑ runs it back.",
+    effect: [
+      ["On", "An orange arrow down the front leg and a blue one back up it."],
+      ["Off", "The curve has no direction marks."],
+    ],
+    needs: "Shows while `Bezier path` is on. It draws only.",
+    tune: "Turn it off for a cleaner screenshot once the direction is clear.",
+  }),
+  "setting.labels": () => ({
+    what: "Writes the overlay's names beside the path: `front`, `turn` or `park`, `tuck`, `behind`, and `out ↓` and `↑ in`.",
+    effect: [
+      ["On", "Each anchor and leg is named, in the words the tooltips use."],
+      ["Off", "Anchors and legs stay drawn, without text."],
+    ],
+    needs: "Shows while `Bezier path` is on. It draws only.",
+    tune: "Leave it on while learning the path; turn it off when the labels cover a card you are watching.",
+  }),
+  "setting.spine": () => ({
+    what: "Draws the pile's spine on the overlay: a line through the pile slots above the front card, with a dot at each.",
+    effect: [
+      ["On", "Shows where the two cards peeking above the front sit."],
+      ["Off", "Only the moving card's path is drawn."],
+    ],
+    needs: "Shows while `Bezier path` is on. It draws only.",
+    tune: "Turn it on to check that a returning card lands on the front slot, below the spine.",
+  }),
+  "setting.dots": () => ({
+    what: "Draws a live marker at the top centre of every painted card: dark on the pile, orange leaving, blue coming back.",
+    effect: [
+      [
+        "On",
+        "The markers ride the curve, so you can see each card's place on the path frame by frame.",
+      ],
+      ["Off", "The curve stays still; only the cards move."],
+    ],
+    needs:
+      "Shows while `Bezier path` is on. Under reduced motion the markers stay on the column, as the cards do.",
+    tune: "Pair it with Pause and Step to read a card's position on the path one frame at a time.",
   }),
 };
 
@@ -1404,7 +1760,7 @@ function buildAboutCascade(): About {
     paragraphs: [
       t`Every card has one coordinate. At zero or above it is a pile slot, as in the drum: the front, two cards peeking above it, one hidden behind. Below zero it is in the exit channel, in front of the pile at full size, and its top sits lower on the stage as the coordinate falls: at minus one it is \`park\` px (${f.def("park")} by default) below the front pose, parked out of sight below the clip line. Each coordinate follows its own critically damped spring toward a target that depends only on which card is in front.`,
       "A leaving card's spring aims past the clip line, so it slows out of sight, and a returning card runs the channel the other way, which is what ↑ shows. Nothing tucks behind the pile, turns or changes draw order, so no card passes through another. Each card is drawn no taller than the card in front of it, so the stack never shows more than the cards it covers.",
-      t`A press in the direction of the last waits until the edge budget's speed has covered \`spacing\` px since the last press, the same time for ↑ and ↓ and for every card height. A held key raises the held state after \`hold delay\`; with the ramp on, that tightens the spacing from ${f.def("sp0")} to ${f.def("sp1")} px, stiffens the spring from ${f.def("cw0")} to ${HELD.hz} Hz and raises the edge budget from ${f.def("ccap")} to ${HELD.budget} px/frame. A hold at either end of the queue moves nothing.`,
+      t`A press in the direction of the last waits until the edge budget's speed has covered \`spacing\` px since the last press, the same time for ↑ and ↓ and for every card height. A held key raises the held state after \`hold delay\`; with the ramp on, that tightens the spacing from ${f.def("sp0")} to ${f.def("sp1")} px, stiffens the spring from ${f.def("cw0")} to ${HELD(f).hz} Hz and raises the edge budget from ${f.def("ccap")} to ${HELD(f).budget} px/frame. A hold at either end of the queue moves nothing.`,
       checkerParagraph(
         f,
         "`src/cascade.ts`",

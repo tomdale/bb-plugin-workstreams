@@ -30,41 +30,58 @@ open dist/queue-motion.html
 
 Press ↓ and ↑ (or `j` and `k`). A held key repeats at the OS rate; the first
 press also starts the hold that the drum's fold and speed-up settings and the
-cascade's ramp react to. The Model buttons switch between the shipped engine,
-the drum and the cascade. The controls:
+cascade's ramp react to. The stack fills the window left of the inspector, a
+pane anchored to the right edge at full height that scrolls on its own; on a
+window too narrow for the 680 px card, the stack scales down to fit. The
+inspector is a column of modules, each folded or opened from its heading. The
+page remembers which modules are folded (in `localStorage`, not the URL hash),
+and a module with nothing to show under the running model and its settings is
+hidden whole. The modules:
 
-| Control               | What it does                                                                                                                                                                                                                                                                                                                                               |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Model                 | `Product now` imports `src/app/page/queue/stackEngine.ts` as it is and hides the preset row and the model settings; with `Bezier path` on it shows the Path settings. `Elastic drum` runs `drum.ts` with the lab's settings, and `Cascade` runs `src/cascade.ts` with its own.                                                                             |
-| Preset                | A named set of one model's settings (`PRESETS` in `drum.ts` or in `src/cascade.ts`). Each model shows its own buttons, built from its list. A click clears every slider change.                                                                                                                                                                            |
-| Settings bar          | The running model's settings as sliders, toggles and one choice, then, while `Bezier path` is on, the Path settings every model shares. The drum's are in the groups Taps, Pace and Held keys, the cascade's in Taps, Pace and Stage. Moving a model setting overrides the preset.                                                                         |
-| Speed, Clock          | ¼×, ½×, 1×; pause and step one 1/60 s frame. The clock is the page's own, so a paused page is a frame you can read.                                                                                                                                                                                                                                        |
-| Reduced motion        | No card moves; the new front fades in over 160 ms. The system's reduced-motion setting turns it on too.                                                                                                                                                                                                                                                    |
-| Bezier path           | Draws the rounded loop a moving card follows as cubic Bezier segments: down in front of the pile, across the column at `turn`, and up behind it to `tuck` (the cascade: one bow down to `park`), with handles, a ring at each leg's widest point, anchors and live card markers. The settings bar shows the Path settings, which shape it, while it is on. |
-| Held readout          | `held 0.00` to `held 1.00` beside the buttons while the drum's held speed-up, fold or loose clearing is on, or the cascade's ramp is: how far the held state has risen.                                                                                                                                                                                    |
-| How the drum works    | A panel at the bottom left: the ring path the cards follow, the four problems the frame checker counts, and which settings group acts on which part. The product shows it too.                                                                                                                                                                             |
-| How the cascade works | The same panel while the cascade runs: the exit channel and the clip line, what sets the pace of a held key, the four problems, and which settings group acts on which part.                                                                                                                                                                               |
-| Tooltips              | Every control has one. Hover shows it after a short pause, keyboard focus at once, and Escape dismisses it.                                                                                                                                                                                                                                                |
+| Module                | What it holds                                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Model                 | The Model buttons: `Product now` imports `src/app/page/queue/stackEngine.ts` as it is and has no presets or model modules; `Elastic drum` runs `drum.ts` with the lab's settings, and `Cascade` runs `src/cascade.ts` with its own. Then the running model's preset buttons (`PRESETS` in `drum.ts` or in `src/cascade.ts`), and the preset's caption. A preset click clears every model setting change. |
+| Playback              | Speed (¼×, ½×, 1×), Pause and Step (one 1/60 s frame; the clock is the page's own, so a paused page is a frame you can read), `Reduced motion` (no card moves and the new front fades in; the system's reduced-motion setting turns it on too), the page's fades, and the held readout.                                                                                                                  |
+| Taps, Pace, Held keys | The drum's settings, while the drum runs.                                                                                                                                                                                                                                                                                                                                                                |
+| Taps, Pace, Stage     | The cascade's settings, while the cascade runs. Each model's Taps and Pace modules hold only its own settings.                                                                                                                                                                                                                                                                                           |
+| Path                  | The Path settings, which shape the path a moving card follows in every model.                                                                                                                                                                                                                                                                                                                            |
+| Overlay               | `Bezier path` draws the rounded loop a moving card follows as cubic Bezier segments: down in front of the pile, across the column at `turn`, and up behind it to `tuck` (the cascade: one bow down to `park`), with handles, a ring at each leg's widest point, anchors and live card markers. While it is on, the module shows what it draws.                                                           |
+| How the drum works    | The About module, folded at first: the ring path the cards follow, the four problems the frame checker counts, and which module acts on which part. The product shows it too. While the cascade runs its heading is How the cascade works: the exit channel and the clip line, what sets the pace of a held key, and the same problems.                                                                  |
 
-A tooltip says what its control is, what you see when you change it, what it
-works with, and how to tune it. It lists the sweep commands behind its numbers.
+The held readout, `held` with a bar from 0.00 to 1.00, shows in Playback while
+the drum's held speed-up, fold or loose clearing is on, or the cascade's ramp
+is: how far the held state has risen. Every control has a tooltip, which says
+what the control is, what you see when you change it, what it works with, and
+how to tune it, and lists the sweep commands behind its numbers. Hover shows it
+after a short pause, keyboard focus at once, and Escape dismisses it. It opens
+to the left of the inspector, over the stage, and scrolls when it is taller than
+the window.
 
-The settings bar shows the running model's settings in groups. A setting shows
-only while it changes something under the current configuration (last column of
-its table), and a hidden setting keeps its value. Each slider's range and
-default are in `SETTINGS` or `CASCADE_SETTINGS` in `src/controls.ts` and at the
-top of its tooltip. The key is the setting's name in the URL hash. The drum's
-settings are in three groups, Taps, Pace and Held keys:
+A setting shows only while it changes something under the current configuration
+(last column of its table), and a hidden setting keeps its value. Under reduced
+motion no card moves, so the model settings that shape motion hide with their
+modules, and so do the held readout and, unless `Bezier path` is on, the Path
+settings; the cascade's Stage settings stay, since they still cut and fade the
+stage. Each slider's range and default are in `SETTINGS`, `CASCADE_SETTINGS`,
+`PATH_SETTINGS` or `VIEW_SETTINGS` in `src/controls.ts` and at the top of its
+tooltip. The key is the setting's name in the URL hash. The drum's settings are
+in three modules, Taps, Pace and Held keys:
 
-| Group     | Setting                    | Key      | Shown when             |
+| Module    | Setting                    | Key      | Shown when             |
 | --------- | -------------------------- | -------- | ---------------------- |
 | Taps      | spring Hz, tap             | `w0`     | always                 |
 |           | edge budget, tap px/frame  | `cap`    | always                 |
 |           | incoming fade-in per s     | `fadein` | always                 |
 |           | covered card fade          | `cover`  | always                 |
+|           | tuck spring ×              | `tuck`   | always                 |
+|           | tuck depth px              | `hide`   | always                 |
+|           | tall-card wash rise ms     | `wrise`  | always                 |
+|           | tall-card wash clear ms    | `wclear` | always                 |
 | Pace      | tempo                      | `tk`     | always                 |
 |           | tempo window               | `tw`     | tempo is `lookahead`   |
 |           | tempo scale                | `ts`     | tempo is `lookahead`   |
+|           | estimate base ms           | `ta`     | tempo is `lookahead`   |
+|           | estimate ms per px         | `tb`     | tempo is `lookahead`   |
 |           | constant interval ms       | `tms`    | tempo is `constant`    |
 |           | gate slack                 | `slack`  | tempo is `none`        |
 | Held keys | held speed-up              | `ramp`   | fold and loose are off |
@@ -75,35 +92,48 @@ settings are in three groups, Taps, Pace and Held keys:
 |           | edge budget, held px/frame | `cap1`   | a held setting is on   |
 |           | held height px             | `h0`     | fold or loose is on    |
 
-The cascade's settings are in three groups too: Taps, Pace and Stage. The ramp
-shapes `sp0` and `cdelay`, so the `no held ramp` preset hides them. The largest
-`fade` is `park` minus 346 px: the fade starts no higher than the bottom of the
-tallest card (330 px) and its 16 px shadow, so no pile card fades.
+`tuck` multiplies the spring on the last stretch behind the pile (`tuckRate` in
+`drum.ts`), and `hide` is how far inside the pile's lower edge a tucked card
+ends (`hidePx`); a card too tall to hide that way washes out instead, rising
+with the `wrise` time constant (`washTauOut`) and clearing with `wclear`
+(`washTauIn`). `ta` and `tb` are the lookahead planner's estimate of a trip,
+`scale × (ta + tb · height)` ms (`tempo.a` and `tempo.b`). All six are fields of
+the drum's configuration with the product's defaults, so the product is
+unchanged.
 
-| Group | Setting                   | Key      | Shown when     |
-| ----- | ------------------------- | -------- | -------------- |
-| Taps  | spring Hz, tap            | `cw0`    | always         |
-|       | edge budget, tap px/frame | `ccap`   | always         |
-| Pace  | spacing at rest px        | `sp0`    | the ramp is on |
-|       | spacing held px           | `sp1`    | always         |
-|       | hold delay ms             | `cdelay` | the ramp is on |
-| Stage | park px                   | `park`   | always         |
-|       | edge fade px              | `fade`   | always         |
-|       | leave shade               | `shade`  | always         |
+The cascade's settings are in three modules too: Taps, Pace and Stage. The ramp
+shapes `sp0`, `cdelay`, `cw1` and `ccap1`, so the `no held ramp` preset hides
+them. The largest `fade` is `park` minus 346 px: the fade starts no higher than
+the bottom of the tallest card (330 px) and its 16 px shadow, so no pile card
+fades.
+
+| Module | Setting                    | Key      | Shown when     |
+| ------ | -------------------------- | -------- | -------------- |
+| Taps   | spring Hz, tap             | `cw0`    | always         |
+|        | edge budget, tap px/frame  | `ccap`   | always         |
+| Pace   | spacing at rest px         | `sp0`    | the ramp is on |
+|        | spacing held px            | `sp1`    | always         |
+|        | hold delay ms              | `cdelay` | the ramp is on |
+|        | spring Hz, held            | `cw1`    | the ramp is on |
+|        | edge budget, held px/frame | `ccap1`  | the ramp is on |
+| Stage  | park px                    | `park`   | always         |
+|        | edge fade px               | `fade`   | always         |
+|        | leave shade                | `shade`  | always         |
 
 The Path settings shape the path a moving card follows in every model, the
-product included, and the settings bar shows them while `Bezier path` is on (in
-the product, nothing else). They move cards sideways only: each model's vertical
+product included, and the Path module shows them while the path shows on screen:
+while cards sway, which is whenever reduced motion is off, or while
+`Bezier path` draws it. They move cards sideways only: each model's vertical
 motion, springs and edge budgets, and so every number the frame checker reports,
 are the same at any value. A preset button keeps them. The sway is a function of
 where the card is on its ring, so a card that changes direction mid-flight
 retraces it; `src/ring.ts` holds the curve.
 
-| Group | Setting          | Key     | Shown when                                            |
-| ----- | ---------------- | ------- | ----------------------------------------------------- |
-| Path  | sway in front px | `sway`  | `Bezier path` is on                                   |
-|       | sway behind px   | `swayb` | `Bezier path` is on, and the drum or the product runs |
-|       | widest point     | `peak`  | `Bezier path` is on                                   |
+| Module | Setting          | Key     | Shown when                                    |
+| ------ | ---------------- | ------- | --------------------------------------------- |
+| Path   | sway in front px | `sway`  | reduced motion is off, or `Bezier path` is on |
+|        | sway behind px   | `swayb` | the same, and the drum or the product runs    |
+|        | widest point     | `peak`  | reduced motion is off, or `Bezier path` is on |
 
 `sway` is the widest sideways offset, in px, on the way down in front of the
 pile (positive is right), `swayb` the same on the drum's leg behind the pile,
@@ -112,6 +142,29 @@ The defaults, `sway` 24, `swayb` −24 and `peak` 0.5, make a symmetric loop. Wi
 `sway` and `swayb` at 0 cards move as the models draw them, straight down and
 back up the column.
 
+The page's own settings belong to no model, every model shows them, and a preset
+button keeps them:
+
+| Module   | Setting               | Key       | Shown when                                 |
+| -------- | --------------------- | --------- | ------------------------------------------ |
+| Playback | reduced fade ms       | `rfade`   | reduced motion is on                       |
+|          | heading fade ms       | `hfade`   | reduced motion is off                      |
+| Overlay  | control handles       | `handles` | `Bezier path` is on                        |
+|          | handles at every knot | `knots`   | `Bezier path` and `control handles` are on |
+|          | knots per stretch     | `inner`   | `Bezier path` is on                        |
+|          | direction arrows      | `arrows`  | `Bezier path` is on                        |
+|          | labels                | `labels`  | `Bezier path` is on                        |
+|          | pile spine            | `spine`   | `Bezier path` is on                        |
+|          | card markers          | `dots`    | `Bezier path` is on                        |
+
+`rfade` is how long the new front card fades in under reduced motion (160 ms by
+default, 0 to 600), and `hfade` how long the heading fades in when the front
+card changes (160 ms, 0 to 600; 0 swaps it at once). The overlay's toggles are
+all on by default except `knots`. `inner` is how many knots the overlay puts
+inside each stretch of the path (2 by default, 0 to 6): two keep the drawn curve
+within a pixel of the path the cards follow, and fewer show how far a coarse fit
+strays. It changes only the drawing.
+
 The URL hash holds the state, for example `#v=drum&preset=fold&cap1=34` (`fold`
 with a held edge budget of 34 px/frame) or `#v=cascade&sp1=125&fade=0` (the
 cascade's `default` with a held spacing of 125 px and no edge fade). `v` is
@@ -119,14 +172,16 @@ cascade's `default` with a held spacing of 125 px and no edge fade). `v` is
 name the model lacks gives its first preset (`natural` for the drum, `default`
 for the cascade); the product has no presets. `speed` is `0.25`, `0.5` or `1`,
 and `reduced` and `path` are `1` or `0`. Every other key is a setting's key from
-the tables above: the drum's `w0`, `cap`, `fadein`, `cover`, `tk`, `tw`, `ts`,
-`tms`, `slack`, `ramp`, `fold`, `loose`, `delay`, `w1`, `cap1` and `h0`, the
-cascade's `cw0`, `ccap`, `sp0`, `sp1`, `cdelay`, `park`, `fade` and `shade`, and
-the path's `sway`, `swayb` and `peak`, which every model reads. The two models'
-keys differ, so one hash can hold both models' settings, and the model that `v`
-names reads only its own. A toggle is `1` or `0`, `tk` is one of its three
-choices, and a slider's value is clamped to its range. The page ignores a key or
-value it does not recognise.
+the tables above: the drum's `w0`, `cap`, `fadein`, `cover`, `tuck`, `hide`,
+`wrise`, `wclear`, `tk`, `tw`, `ts`, `ta`, `tb`, `tms`, `slack`, `ramp`, `fold`,
+`loose`, `delay`, `w1`, `cap1` and `h0`, the cascade's `cw0`, `ccap`, `sp0`,
+`sp1`, `cdelay`, `cw1`, `ccap1`, `park`, `fade` and `shade`, the path's `sway`,
+`swayb` and `peak`, which every model reads, and the page's `rfade`, `hfade`,
+`handles`, `knots`, `inner`, `arrows`, `labels`, `spine` and `dots`. The two
+models' keys differ, so one hash can hold both models' settings, and the model
+that `v` names reads only its own. A toggle is `1` or `0`, `tk` is one of its
+three choices, and a slider's value is clamped to its range. The page ignores a
+key or value it does not recognise.
 
 The drum's presets:
 
@@ -195,12 +250,15 @@ numbers, and a build reuses them until `drum.ts`, `src/cascade.ts` or a file in
 `npm run smoke` covers what the sims cannot: three cards drawn, and only those,
 in every model when the page loads and when a hidden page is shown, that every
 control has a tooltip and that hovering one shows it, and the preset buttons,
-sliders and held keys driving the page. For the cascade it also checks which of
-its settings show under each preset, that its stage is cut at `LEAD + park`, and
-that `fade` is capped at `park` minus 346 px. It checks that this README names
-every preset and setting key in backticks. `QUEUE_MOTION_PAGE` points it, and
-the capture scripts, at a copy of the built page, so a rebuild cannot change the
-page under a running script.
+sliders and held keys driving the page. It checks that the inspector is anchored
+to the right edge at full height with the stack fitting beside it, that each
+model shows its own modules and hides the empty ones, and that a folded module
+stays folded. For the cascade it also checks which of its settings show under
+each preset, that its stage is cut at `LEAD + park`, and that `fade` is capped
+at `park` minus 346 px. It checks that this README names every preset and
+setting key in backticks. `QUEUE_MOTION_PAGE` points it, and the capture
+scripts, at a copy of the built page, so a rebuild cannot change the page under
+a running script.
 
 ## Capture frames and recordings
 
@@ -232,15 +290,16 @@ display's.
   `npm run suite -- cascade` at 60 and 120 Hz, and the goals table has a column
   for the cascade's numbers.
 - A new drum setting is a `DEFAULT_CFG` entry in `drum.ts`, a `SETTINGS` entry
-  in `src/controls.ts` (its key, group, range, and when it shows), a tooltip
+  in `src/controls.ts` (its key, module, range, and when it shows), a tooltip
   entry in `src/help.ts` under `setting.<key>`, and a sweep in `PARAMS` in
   `sim/sweep.mjs`. A new cascade setting is a `DEFAULT_CFG` entry in
   `src/cascade.ts`, a `CASCADE_SETTINGS` entry in `src/controls.ts`, a tooltip
   entry, and a sweep in `CASCADE_PARAMS` in `sim/sweep.mjs`; a setting that only
-  the page draws, like `fade`, has no `DEFAULT_CFG` entry and no sweep. Every
-  control has a tooltip, and the build fails when one has none. Delete all of a
-  setting's entries when it is dropped, so the lab holds only the options still
-  in play.
+  the page draws, like `fade`, has no `DEFAULT_CFG` entry and no sweep, and one
+  that belongs to the page itself, like `rfade` or an overlay toggle, is a
+  `VIEW_SETTINGS` entry that the page reads where it draws. Every control has a
+  tooltip, and the build fails when one has none. Delete all of a setting's
+  entries when it is dropped, so the lab holds only the options still in play.
 - A new preset is a `PRESETS` entry in `drum.ts` or in `src/cascade.ts` and a
   tooltip entry under `preset.<name>`; the page picks the button up and the
   presets sweep measures it.
@@ -260,8 +319,8 @@ display's.
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `../../src/app/page/queue/drum.ts`                 | The drum model and its settings. The product, the page and the sims all import it.                                                             |
 | `src/cascade.ts`                                   | The cascade model, its settings and its presets. The page and the sims import it; the product does not.                                        |
-| `src/main.ts`, `page.html`, `page.css`, `items.js` | The page, its styles, and the sample cards.                                                                                                    |
-| `src/controls.ts`                                  | Every control as data: the modes, presets, settings (key, group, range, when it shows), and the URL state.                                     |
+| `src/main.ts`, `page.html`, `page.css`, `items.js` | The page and its inspector, its styles, and the sample cards.                                                                                  |
+| `src/controls.ts`                                  | Every control as data: the modes, presets, inspector modules, settings (key, module, range, when it shows), and the URL state.                 |
 | `src/help.ts`, `src/facts.ts`                      | The text of every tooltip and of the two panels, "How the drum works" and "How the cascade works", and the view of the sweeps they quote from. |
 | `src/tooltip.ts`                                   | How a tooltip shows, places and dismisses itself.                                                                                              |
 | `src/verify.ts`                                    | The build-time check that every control has a tooltip and every tooltip a control.                                                             |

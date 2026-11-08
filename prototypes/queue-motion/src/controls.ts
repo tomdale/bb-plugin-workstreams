@@ -1,10 +1,11 @@
 /**
- * Every control on the lab page, as data with no DOM. The page draws its bars from these lists, `help.ts` must
+ * Every control on the lab page, as data with no DOM. The page draws its inspector from these lists, `help.ts` must
  * hold one entry for each id in `CONTROLS` and no other (`verify.ts` and `npm run smoke` check it), and
  * `drumCfg` and `cascadeCfg` turn the page's state into a configuration for each model.
  */
 // The drum is the product's own (`drum.ts`); the headless sims import both models too.
 import { Drum, PRESETS } from "../../../src/app/page/queue/drum.ts";
+import { INNER_KNOTS } from "./ring.ts";
 import {
   Cascade,
   PRESETS as CASCADE_PRESETS,
@@ -13,8 +14,6 @@ import {
 } from "./cascade.ts";
 
 export const TAU = 2 * Math.PI;
-/** How long the new front card fades in under reduced motion, ms. */
-export const FADE_MS = 160;
 
 export type Mode = "product" | "drum" | "cascade";
 export const MODES: readonly { id: Mode; label: string }[] = [
@@ -47,11 +46,22 @@ export type Cfg = {
   gateSlack: number;
   coverFade: number;
   incomingFade: number;
+  washTauIn: number;
+  washTauOut: number;
+  hidePx: number;
+  tuckRate: number;
   fold: boolean;
   loose: boolean;
   ramp: boolean;
   H0: number;
-  tempo: { kind: string; window: number; scale: number; ms: number };
+  tempo: {
+    kind: string;
+    window: number;
+    scale: number;
+    ms: number;
+    a: number;
+    b: number;
+  };
 };
 type Patch = Partial<Omit<Cfg, "tempo">> & { tempo?: Partial<Cfg["tempo"]> };
 
@@ -59,14 +69,24 @@ type Patch = Partial<Omit<Cfg, "tempo">> & { tempo?: Partial<Cfg["tempo"]> };
 export type CascadeCfg = CascadeConfig & { fade: number };
 type CascadePagePatch = CascadePatch & { fade?: number };
 
-export const GROUPS = [
+/**
+ * The inspector's modules, top to bottom. A setting names the module it sits in as its `group`; `model`,
+ * `playback` and `about` also hold the page's buttons, the held readout and the panel. A module with nothing to
+ * show under the current model and configuration is hidden whole.
+ */
+export const MODULES = [
+  { id: "model", label: "Model" },
+  { id: "playback", label: "Playback" },
   { id: "taps", label: "Taps" },
   { id: "pace", label: "Pace" },
   { id: "held", label: "Held keys" },
   { id: "stage", label: "Stage" },
   { id: "path", label: "Path" },
+  { id: "overlay", label: "Overlay" },
+  { id: "about", label: "About" },
 ] as const;
-export type GroupId = (typeof GROUPS)[number]["id"];
+export type ModuleId = (typeof MODULES)[number]["id"];
+export type GroupId = Exclude<ModuleId, "model" | "about">;
 
 type Base<C> = {
   /** The setting's short name: its key in the URL hash and in `sim/sweep.mjs`. */
@@ -162,6 +182,58 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     shown: always,
   },
   {
+    kind: "range",
+    key: "tuck",
+    group: "taps",
+    label: "tuck spring ×",
+    unit: "×",
+    min: 1,
+    max: 2.5,
+    step: 0.05,
+    read: (c) => c.tuckRate,
+    write: (tuckRate) => ({ tuckRate }),
+    shown: always,
+  },
+  {
+    kind: "range",
+    key: "hide",
+    group: "taps",
+    label: "tuck depth px",
+    unit: "px",
+    min: 0,
+    max: 12,
+    step: 1,
+    read: (c) => c.hidePx,
+    write: (hidePx) => ({ hidePx }),
+    shown: always,
+  },
+  {
+    kind: "range",
+    key: "wrise",
+    group: "taps",
+    label: "tall-card wash rise ms",
+    unit: "ms",
+    min: 10,
+    max: 400,
+    step: 10,
+    read: (c) => c.washTauOut,
+    write: (washTauOut) => ({ washTauOut }),
+    shown: always,
+  },
+  {
+    kind: "range",
+    key: "wclear",
+    group: "taps",
+    label: "tall-card wash clear ms",
+    unit: "ms",
+    min: 10,
+    max: 400,
+    step: 10,
+    read: (c) => c.washTauIn,
+    write: (washTauIn) => ({ washTauIn }),
+    shown: always,
+  },
+  {
     kind: "select",
     key: "tk",
     group: "pace",
@@ -195,6 +267,32 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     step: 0.05,
     read: (c) => c.tempo.scale,
     write: (scale) => ({ tempo: { scale } }),
+    shown: (c) => c.tempo.kind === "lookahead",
+  },
+  {
+    kind: "range",
+    key: "ta",
+    group: "pace",
+    label: "estimate base ms",
+    unit: "ms",
+    min: 0,
+    max: 200,
+    step: 5,
+    read: (c) => c.tempo.a,
+    write: (a) => ({ tempo: { a } }),
+    shown: (c) => c.tempo.kind === "lookahead",
+  },
+  {
+    kind: "range",
+    key: "tb",
+    group: "pace",
+    label: "estimate ms per px",
+    unit: "ms/px",
+    min: 0,
+    max: 1.5,
+    step: 0.02,
+    read: (c) => c.tempo.b,
+    write: (b) => ({ tempo: { b } }),
     shown: (c) => c.tempo.kind === "lookahead",
   },
   {
@@ -395,6 +493,32 @@ export const CASCADE_SETTINGS: readonly Setting<
   },
   {
     kind: "range",
+    key: "cw1",
+    group: "pace",
+    label: "spring Hz, held",
+    unit: "Hz",
+    min: 2,
+    max: 8,
+    step: 0.1,
+    read: (c) => c.omega1 / TAU,
+    write: (v) => ({ omega1: TAU * v }),
+    shown: ramps,
+  },
+  {
+    kind: "range",
+    key: "ccap1",
+    group: "pace",
+    label: "edge budget, held px/frame",
+    unit: "px/frame",
+    min: 12,
+    max: 44,
+    step: 1,
+    read: (c) => c.vcap1 / 60,
+    write: (v) => ({ vcap1: 60 * v }),
+    shown: ramps,
+  },
+  {
+    kind: "range",
     key: "park",
     group: "stage",
     label: "park px",
@@ -439,20 +563,27 @@ export const CASCADE_SETTINGS: readonly Setting<
 /**
  * The sideways shape of the path a moving card follows (`ring.ts`). It belongs to no model: every model, the
  * product included, shows these settings, and a preset button leaves them as they are. `loop` says whether
- * the running model has a leg behind the pile (the drum and the product do, the cascade does not).
+ * the running model has a leg behind the pile (the drum and the product do, the cascade does not). The path
+ * shows on screen while cards sway (`moving`: reduced motion is off) or while `Bezier path` draws it
+ * (`overlay`); with neither, its settings change nothing and hide.
  */
 export type PathCfg = {
   sway: number;
   swayBehind: number;
   peak: number;
   loop: boolean;
+  moving: boolean;
+  overlay: boolean;
 };
 export const PATH_DEFAULT: PathCfg = {
   sway: 24,
   swayBehind: -24,
   peak: 0.5,
   loop: true,
+  moving: true,
+  overlay: false,
 };
+const pathShows = (c: PathCfg) => c.moving || c.overlay;
 
 export const PATH_SETTINGS: readonly Setting<PathCfg, Partial<PathCfg>>[] = [
   {
@@ -466,7 +597,7 @@ export const PATH_SETTINGS: readonly Setting<PathCfg, Partial<PathCfg>>[] = [
     step: 1,
     read: (c) => c.sway,
     write: (sway) => ({ sway }),
-    shown: always,
+    shown: pathShows,
   },
   {
     kind: "range",
@@ -479,7 +610,7 @@ export const PATH_SETTINGS: readonly Setting<PathCfg, Partial<PathCfg>>[] = [
     step: 1,
     read: (c) => c.swayBehind,
     write: (swayBehind) => ({ swayBehind }),
-    shown: (c) => c.loop,
+    shown: (c) => pathShows(c) && c.loop,
   },
   {
     kind: "range",
@@ -492,7 +623,141 @@ export const PATH_SETTINGS: readonly Setting<PathCfg, Partial<PathCfg>>[] = [
     step: 0.05,
     read: (c) => c.peak,
     write: (peak) => ({ peak }),
-    shown: always,
+    shown: pathShows,
+  },
+];
+
+// ---- what the page draws: playback fades and the Bezier path overlay -------------------------------
+
+/**
+ * Settings of the page itself, which no model reads and a preset button keeps. `reduced` is whether reduced
+ * motion is in force (the button or the system setting) and `overlay` whether `Bezier path` is on; the
+ * inspector shows each setting only while it changes what is drawn.
+ */
+export type ViewCfg = {
+  reduced: boolean;
+  overlay: boolean;
+  /** How long the new front card fades in under reduced motion, ms. */
+  fadeMs: number;
+  /** How long the heading fades in when the front card changes, ms; 0 swaps it at once. */
+  headMs: number;
+  handles: boolean;
+  allKnots: boolean;
+  inner: number;
+  spine: boolean;
+  arrows: boolean;
+  labels: boolean;
+  dots: boolean;
+};
+export const VIEW_DEFAULT: ViewCfg = {
+  reduced: false,
+  overlay: false,
+  fadeMs: 160,
+  headMs: 160,
+  handles: true,
+  allKnots: false,
+  inner: INNER_KNOTS,
+  spine: true,
+  arrows: true,
+  labels: true,
+  dots: true,
+};
+const drawn = (c: ViewCfg) => c.overlay;
+
+export const VIEW_SETTINGS: readonly Setting<ViewCfg, Partial<ViewCfg>>[] = [
+  {
+    kind: "range",
+    key: "rfade",
+    group: "playback",
+    label: "reduced fade ms",
+    unit: "ms",
+    min: 0,
+    max: 600,
+    step: 10,
+    read: (c) => c.fadeMs,
+    write: (fadeMs) => ({ fadeMs }),
+    shown: (c) => c.reduced,
+  },
+  {
+    kind: "range",
+    key: "hfade",
+    group: "playback",
+    label: "heading fade ms",
+    unit: "ms",
+    min: 0,
+    max: 600,
+    step: 10,
+    read: (c) => c.headMs,
+    write: (headMs) => ({ headMs }),
+    // Under reduced motion the heading changes at once, so the fade has nothing to draw.
+    shown: (c) => !c.reduced,
+  },
+  {
+    kind: "toggle",
+    key: "handles",
+    group: "overlay",
+    label: "control handles",
+    read: (c) => c.handles,
+    write: (handles) => ({ handles }),
+    shown: drawn,
+  },
+  {
+    kind: "toggle",
+    key: "knots",
+    group: "overlay",
+    label: "handles at every knot",
+    read: (c) => c.allKnots,
+    write: (allKnots) => ({ allKnots }),
+    shown: (c) => c.overlay && c.handles,
+  },
+  {
+    kind: "range",
+    key: "inner",
+    group: "overlay",
+    label: "knots per stretch",
+    unit: "knots",
+    min: 0,
+    max: 6,
+    step: 1,
+    read: (c) => c.inner,
+    write: (inner) => ({ inner }),
+    shown: drawn,
+  },
+  {
+    kind: "toggle",
+    key: "arrows",
+    group: "overlay",
+    label: "direction arrows",
+    read: (c) => c.arrows,
+    write: (arrows) => ({ arrows }),
+    shown: drawn,
+  },
+  {
+    kind: "toggle",
+    key: "labels",
+    group: "overlay",
+    label: "labels",
+    read: (c) => c.labels,
+    write: (labels) => ({ labels }),
+    shown: drawn,
+  },
+  {
+    kind: "toggle",
+    key: "spine",
+    group: "overlay",
+    label: "pile spine",
+    read: (c) => c.spine,
+    write: (spine) => ({ spine }),
+    shown: drawn,
+  },
+  {
+    kind: "toggle",
+    key: "dots",
+    group: "overlay",
+    label: "card markers",
+    read: (c) => c.dots,
+    write: (dots) => ({ dots }),
+    shown: drawn,
   },
 ];
 
@@ -516,6 +781,8 @@ export function defaultOf(key: string): number {
   if (cascade?.kind === "range") return cascade.read(cascadeBase());
   const path = PATH_SETTINGS.find((x) => x.key === key);
   if (path?.kind === "range") return path.read(PATH_DEFAULT);
+  const view = VIEW_SETTINGS.find((x) => x.key === key);
+  if (view?.kind === "range") return view.read(VIEW_DEFAULT);
   throw new Error(`${key} is not a slider, so it has no numeric default`);
 }
 
@@ -598,14 +865,15 @@ export const CONTROLS: readonly Control[] = [
   ...SETTINGS.map((s) => describeSetting(s, Drum.config())),
   ...CASCADE_SETTINGS.map((s) => describeSetting(s, cascadeBase())),
   ...PATH_SETTINGS.map((s) => describeSetting(s, PATH_DEFAULT)),
+  ...VIEW_SETTINGS.map((s) => describeSetting(s, VIEW_DEFAULT)),
 ];
 
 // ---- page state ------------------------------------------------------------------------------------
 
 /**
  * The page's state, as the URL hash holds it: `v`, `preset`, `speed`, `reduced`, `path`, one entry per model
- * setting key (`SETTING_KEYS`, which a preset button clears) and one per path setting key (`PATH_KEYS`, which
- * it keeps).
+ * setting key (`SETTING_KEYS`, which a preset button clears), and one per path and page setting key
+ * (`PATH_KEYS` and `VIEW_KEYS`, which it keeps).
  */
 export type Opt = Record<string, string>;
 export const SETTING_KEYS: readonly string[] = [
@@ -613,6 +881,7 @@ export const SETTING_KEYS: readonly string[] = [
   ...CASCADE_SETTINGS.map((s) => s.key),
 ];
 export const PATH_KEYS: readonly string[] = PATH_SETTINGS.map((s) => s.key);
+export const VIEW_KEYS: readonly string[] = VIEW_SETTINGS.map((s) => s.key);
 const OPT_KEYS = new Set([
   "v",
   "preset",
@@ -621,6 +890,7 @@ const OPT_KEYS = new Set([
   "path",
   ...SETTING_KEYS,
   ...PATH_KEYS,
+  ...VIEW_KEYS,
 ]);
 
 /** The known keys of a URL hash; anything else is dropped. */
@@ -678,11 +948,14 @@ export function cascadeCfg(opt: Opt): CascadeCfg {
   return { ...cfg, fade: Math.min(cfg.fade, fadeCap(cfg.park)) };
 }
 
-/** The path settings the state overrides, for the model `opt.v` names. */
-export function pathCfg(opt: Opt): PathCfg {
-  const base = { ...PATH_DEFAULT, loop: opt.v !== "cascade" };
-  const over: Partial<PathCfg> = {};
-  for (const s of PATH_SETTINGS) {
+/** A list's settings that the state overrides, on top of `base`. */
+function overlay<C>(
+  list: readonly Setting<C, Partial<C>>[],
+  opt: Opt,
+  base: C,
+) {
+  const over: Partial<C> = {};
+  for (const s of list) {
     const raw = opt[s.key];
     if (raw === undefined) continue;
     const p = patchFor(s, raw, base);
@@ -690,6 +963,23 @@ export function pathCfg(opt: Opt): PathCfg {
   }
   return { ...base, ...over };
 }
+
+/** The path settings the state overrides, for the model `opt.v` names; `reduced` is whether reduced motion is in force. */
+export const pathCfg = (opt: Opt, reduced = opt.reduced === "1"): PathCfg =>
+  overlay(PATH_SETTINGS, opt, {
+    ...PATH_DEFAULT,
+    loop: opt.v !== "cascade",
+    moving: !reduced,
+    overlay: opt.path === "1",
+  });
+
+/** The page settings the state overrides; `reduced` is whether reduced motion is in force. */
+export const viewCfg = (opt: Opt, reduced = opt.reduced === "1"): ViewCfg =>
+  overlay(VIEW_SETTINGS, opt, {
+    ...VIEW_DEFAULT,
+    reduced,
+    overlay: opt.path === "1",
+  });
 
 /** The part of a page configuration the cascade model reads. */
 export function modelCfg({ fade, ...model }: CascadeCfg): CascadeConfig {

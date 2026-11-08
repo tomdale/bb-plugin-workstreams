@@ -117,12 +117,64 @@ export const PARAMS = [
     true,
   ),
   sweep(
+    "tuck",
+    "tuck spring, ×",
+    "natural",
+    (v) => ({ tuckRate: v }),
+    [1, 1.4, 1.8, 2.5],
+    1.4,
+    true,
+  ),
+  sweep(
+    "hide",
+    "tuck depth, px",
+    "natural",
+    (v) => ({ hidePx: v }),
+    [0, 3, 6, 12],
+    3,
+    true,
+  ),
+  sweep(
+    "wrise",
+    "tall-card wash rise, ms",
+    "natural",
+    (v) => ({ washTauOut: v }),
+    [10, 40, 120, 250, 400],
+    120,
+    true,
+  ),
+  sweep(
+    "wclear",
+    "tall-card wash clear, ms",
+    "natural",
+    (v) => ({ washTauIn: v }),
+    [10, 40, 120, 400],
+    40,
+    true,
+  ),
+  sweep(
     "tw",
     "tempo window",
     "even",
     (v) => ({ tempo: { window: v } }),
     [1, 2, 3, 4, 6],
     2,
+  ),
+  sweep(
+    "ta",
+    "estimate base, ms",
+    "even",
+    (v) => ({ tempo: { a: v } }),
+    [0, 30, 60, 120, 200],
+    60,
+  ),
+  sweep(
+    "tb",
+    "estimate per px, ms",
+    "even",
+    (v) => ({ tempo: { b: v } }),
+    [0, 0.3, 0.62, 1, 1.5],
+    0.62,
   ),
   ...heldSweeps("ts", "tempo scale", (v) => ({ tempo: { scale: v } }), {
     even: [[0.5, 0.7, 0.85, 1, 1.2, 1.4], 1],
@@ -291,9 +343,8 @@ const CASCADE_CONTEXTS = {
   "no held ramp": preset("no held ramp", CASCADE.PRESETS),
 };
 /**
- * The cascade's sweeps, one per slider on the page, under the key the page uses for it. `sp0` and `sp1` act
- * only while a key is held, so their tap numbers are skipped. The held spring and the held edge budget are
- * fixed model values with no slider, so they have no sweep.
+ * The cascade's sweeps, one per model slider on the page, under the key the page uses for it. `sp0`, `sp1`, the
+ * hold delay and the held spring and budget act only while a key is held, so their tap numbers are skipped.
  */
 export const CASCADE_PARAMS = [
   sweep(
@@ -342,6 +393,22 @@ export const CASCADE_PARAMS = [
     (v) => ({ holdDelay: v }),
     [0, 250, 600],
     250,
+  ),
+  sweep(
+    "cw1",
+    "spring Hz, held",
+    "default",
+    (v) => ({ omega1: TAU * v }),
+    [3, 4.5, 6, 8],
+    4.5,
+  ),
+  sweep(
+    "ccap1",
+    "edge budget, held, px/frame",
+    "default",
+    (v) => ({ vcap1: v * HZ }),
+    [24, 30, 36, 40, 44],
+    30,
   ),
   sweep(
     "shade",
