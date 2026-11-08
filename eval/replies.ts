@@ -129,28 +129,25 @@ if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 5)
  * The recap a tool call carries, in one JSON answer instead of a call. The
  * reply is authored as plain text in its own call: nesting it in this string
  * made models confuse the two evals' JSON with their own fences, which says
- * nothing about the contract being measured.
+ * nothing about the contract being measured. The tool's parameter schema is
+ * given as prompt text, not as a constrained output format: under constrained
+ * decoding some models leave out optional fields that a real tool call, which
+ * shows the model the schema and its descriptions, would include.
  */
-const recapJson = z.toJSONSchema(recapToolSchema) as Record<string, unknown>;
-const strictObject = (schema: Record<string, unknown>) => {
-  const { $schema: _schema, ...rest } = schema;
-  return rest;
-};
+const { $schema: _schema, ...recapJson } = z.toJSONSchema(
+  recapToolSchema,
+) as Record<string, unknown>;
 const replyEnvelope = {
   type: "object",
   additionalProperties: false,
   properties: { reply: { type: "string" } },
   required: ["reply"],
 } as Record<string, unknown>;
-const recapEnvelope = {
-  type: "object",
-  additionalProperties: false,
-  properties: { recap: strictObject(recapJson) },
-  required: ["recap"],
-} as Record<string, unknown>;
 /** Reading is lenient so a rejected recap is scored instead of thrown. */
 const readRecap = (text: string) =>
-  z.object({ recap: z.unknown() }).parse(JSON.parse(text)).recap;
+  z
+    .object({ recap: z.unknown() })
+    .parse(JSON.parse(/\{[\s\S]*\}/.exec(text)?.[0] ?? text)).recap;
 const results = [];
 /** A response the gateway cut off mid-answer says nothing about the instructions. */
 const cutOff = (stopReason: string | null) =>
@@ -194,9 +191,9 @@ for (const task of cases) {
             reasoningLevel,
             maxTokens: 4096,
             signal: AbortSignal.timeout(90_000),
-            outputSchema: recapEnvelope,
             systemPrompt: [
-              `You are ending a turn in BB by calling the ${RECAP_TOOL} tool. Return JSON whose recap field holds exactly the arguments for that call.`,
+              `You are ending a turn in BB by calling the ${RECAP_TOOL} tool. Return only a JSON object whose recap field holds exactly the arguments for that call, as the tool's parameter schema describes them.`,
+              `Tool parameter schema:\n${JSON.stringify(recapJson)}`,
               RECAP_INSTRUCTIONS,
             ].join("\n\n"),
             prompt,
