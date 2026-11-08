@@ -702,6 +702,7 @@ const SHOWN = {
   w0: () => true,
   cap: () => true,
   cover: () => true,
+  fadein: () => true,
   tk: () => true,
   fold: () => true,
   loose: (s) => !s.fold,

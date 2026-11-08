@@ -139,6 +139,15 @@ both read λ.
   understood well enough to detect a target, with about 300 ms more of
   processing needed to keep it. That result is about pictures; applied to cards,
   a body cannot be read in 100 ms and a header line can be recognised.
+- **`incomingFade`** is how fast, in shade per second, a card coming back (a ↑)
+  regains its colour, counted from the moment it starts to move and not from its
+  position: its wash goes to nothing at once and its shade falls at that rate.
+  At 8 per second a returning card that starts at a shade of 0.66 is whole in
+  about 80 ms, where before it followed its path and took about 200 ms. The rate
+  is the limit: at 8.5 the checker is clean and at 9 a fade changes by more than
+  0.2 in a frame (16 flickers in taps), so the default keeps a margin. Other
+  cards' shade changes are limited to 10.5 per second so a card that turns
+  around mid-flight cannot jump.
 - **`coverFade`** fades the card a returning card is about to cover. The pile
   card after a card that is rising (a ↑) takes a fade of up to 0.7 that begins
   as the card leaves its tuck, reaches its target when the card has risen a

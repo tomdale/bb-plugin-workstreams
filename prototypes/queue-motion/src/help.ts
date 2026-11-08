@@ -486,6 +486,37 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
   },
 
   // ---- pace ---------------------------------------------------------------------------------------
+  "setting.fadein": (f) => {
+    const s = f.sweep("fadein");
+    const off = s.at(0),
+      slow = s.at(4),
+      base = s.at(8),
+      over = s.at(9),
+      top = s.at(12);
+    f.expect(
+      [off, slow, base].every((r) => r.clean) && !over.clean && !top.clean,
+      "the incoming fade-in is clean through its default and fails above it",
+    );
+    f.expect(
+      up(off) === up(base) && dn(off) === dn(base),
+      "the incoming fade-in does not change the landing times",
+    );
+    return {
+      what: "How fast a card coming back (a ↑) regains its colour, in shade per second, counted from the moment it starts to move. 0 lets it regain its colour along its path instead.",
+      effect: [
+        [
+          "Raise",
+          t`The returning card is opaque sooner: at ${base.value} per second a card that starts washed out is whole in about a tenth of a second, and at ${slow.value} it takes about a sixth.`,
+        ],
+        [
+          "Lower",
+          t`The card stays hazy for longer, until it has moved. At ${off.value} it regains its colour only as it travels, so it is hazy until it is nearly in front.`,
+        ],
+      ],
+      needs: t`It acts only on a card coming back, and takes its wash with it. No position or timing changes: a tap ↑ lands in ${base.upLand} ms at every value. The fade is limited to ${f.limit.shade} in a frame by the checker: ${base.value} per second is ${base.verdict} and ${over.value} gives ${over.verdict}.`,
+      tune: t`Start at ${base.value}. Above it the checker reports a fade flicker, ${top.value} gives ${top.problems}; below it the returning card looks hazier for longer.`,
+    };
+  },
   "setting.cover": (f) => {
     const s = f.sweep("cover");
     const off = s.at(0),

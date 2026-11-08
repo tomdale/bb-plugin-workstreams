@@ -46,6 +46,7 @@ export type Cfg = {
   holdDelay: number;
   gateSlack: number;
   coverFade: number;
+  incomingFade: number;
   fold: boolean;
   loose: boolean;
   ramp: boolean;
@@ -131,6 +132,19 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     step: 1,
     read: (c) => c.vcap / 60,
     write: (v) => ({ vcap: 60 * v }),
+    shown: always,
+  },
+  {
+    kind: "range",
+    key: "fadein",
+    group: "taps",
+    label: "incoming fade-in per s",
+    unit: "/s",
+    min: 0,
+    max: 12,
+    step: 0.5,
+    read: (c) => c.incomingFade,
+    write: (incomingFade) => ({ incomingFade }),
     shown: always,
   },
   {
