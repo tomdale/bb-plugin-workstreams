@@ -293,7 +293,7 @@ describe("configure", () => {
         await w.harness.behavior.callRpc("reportClient", {
           messageBlocks: true,
         });
-      const { agentConfigurationProvider, instructionProvider, agentTools } =
+      const { agentConfigurationProvider, agentTools } =
         w.harness.inspection.registrations;
       // The plugin's own output, before bb would cut anything.
       const configured = agentConfigurationProvider!(
@@ -316,7 +316,6 @@ describe("configure", () => {
       );
       const contributions = [
         configured.instructions ?? null,
-        instructionProvider?.({ threadId: "task", projectId: "p" }) ?? null,
         ...agentTools
           .filter((tool) => selected.includes(tool.name))
           .map((tool) => tool.instructions),
@@ -335,7 +334,7 @@ describe("configure", () => {
       ).toBe(composed ? 1 : 0);
       if (composed && !options.noRecap)
         expect(text).toContain(
-          "and you end the turn with the WorkstreamsRecap tool call",
+          "call WorkstreamsRecap — the card comes from that call — and then write the block",
         );
 
       const recap = !options.sideChat && !options.noRecap;

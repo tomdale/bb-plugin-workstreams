@@ -24,8 +24,10 @@ export function registerAgentInstructions(
     const questions = questionConfig(
       context.provider.capabilities.supportsNativeUserQuestion,
     );
-    // The recap instructions travel with the recap tool, so `configure`'s
-    // instruction budget holds only the question instructions.
+    // The recap instructions travel with the recap tool. This text holds the
+    // question guidance and, in a session that draws reply blocks, the reply
+    // contract last: bb appends it after every tool section, and a rule about
+    // where the reply goes is followed when it sits closest to the reply.
     return {
       tools: [
         ...questions.tools,
@@ -33,10 +35,9 @@ export function registerAgentInstructions(
         ...(mode.structuredReplies ? [REPLY_EXAMPLES_TOOL] : []),
       ],
       skills: [],
-      instructions: questions.instructions,
+      instructions: [questions.instructions, mode.replyInstructions]
+        .filter((text): text is string => text !== null)
+        .join("\n\n"),
     };
   });
-  bb.agents.contributeInstructions(({ threadId }) =>
-    recaps.replyInstructions(threadId),
-  );
 }

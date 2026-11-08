@@ -8,6 +8,7 @@ import { RECAP_TOOL, type RecapFiles } from "../../src/domain/recap.ts";
 import { fakeWorld } from "./fake-bb.ts";
 import plugin from "../../src/server/index.ts";
 import { replyInstructions } from "../../src/domain/replyInstructions.ts";
+import { QUESTION_INSTRUCTIONS } from "../../src/server/questions/tool-definition.ts";
 import { COMPOSED_SAMPLES } from "../domain/replySamples.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
@@ -889,24 +890,18 @@ describe("structured replies", () => {
   const replyText = async (
     s: Awaited<ReturnType<typeof world>>,
     origin?: { kind: "fork"; pluginId: string },
-  ) => {
-    await s.configure(origin);
-    return s.w.harness.inspection.registrations.instructionProvider!({
-      threadId: "t1",
-      projectId: "p1",
-    });
-  };
+  ) => (await s.configure(origin)).instructions;
 
-  it("contributes no reply instruction while the setting is off", async () => {
-    expect(await replyText(await world())).toBeNull();
+  it("gives no reply contract while the setting is off", async () => {
+    expect(await replyText(await world())).not.toContain(":::reply");
   });
 
-  it("gives the body instruction and keeps the recap tool when recaps are on", async () => {
+  it("delivers the reply contract in configure's instructions, after the question guidance", async () => {
     const s = await world({ replies: true });
-    const text = await replyText(s);
-    expect(text).toBe(replyInstructions(true));
+    const text = (await replyText(s)) ?? "";
+    expect(text).toContain(QUESTION_INSTRUCTIONS);
+    expect(text.endsWith(replyInstructions(true))).toBe(true);
     const resolved = await s.configure();
-    expect(resolved.instructions).not.toContain(":::reply");
     expect(resolved.tools.map((tool) => tool.name)).toContain(RECAP_TOOL);
   });
 
@@ -914,7 +909,7 @@ describe("structured replies", () => {
     const s = await world({ replies: true, messageBlocks: false });
     const resolved = await s.configure();
     expect(resolved.tools.map((tool) => tool.name)).toContain(RECAP_TOOL);
-    expect(await replyText(s)).toBeNull();
+    expect(resolved.instructions).not.toContain(":::reply");
     s.w.turn("t1");
     await s.report();
     expect((await s.card()).recap?.state).toBe("complete");
@@ -928,10 +923,9 @@ describe("structured replies", () => {
     await s.w.harness.behavior.callRpc("reportClient", {
       messageBlocks: false,
     });
-    expect((await s.configure()).tools.map((tool) => tool.name)).toContain(
-      RECAP_TOOL,
-    );
-    expect(await replyText(s)).toBeNull();
+    const resolved = await s.configure();
+    expect(resolved.tools.map((tool) => tool.name)).toContain(RECAP_TOOL);
+    expect(resolved.instructions).not.toContain(":::reply");
   });
 
   it("forgets the report on reload, so a setting turned on under the fork waits for a new report", async () => {
@@ -944,28 +938,23 @@ describe("structured replies", () => {
         }),
       );
     expect(resolved.tools.map((tool) => tool.name)).toContain(RECAP_TOOL);
-    expect(
-      replacement.harness.inspection.registrations.instructionProvider!({
-        threadId: "t1",
-        projectId: "p1",
-      }),
-    ).toBeNull();
+    expect(resolved.instructions).not.toContain(":::reply");
   });
 
   it("keeps the recap tool and its instructions while the setting is off", async () => {
     const s = await world();
     const resolved = await s.configure();
     expect(resolved.tools.map((tool) => tool.name)).toContain(RECAP_TOOL);
-    expect(await replyText(s)).toBeNull();
+    expect(await replyText(s)).not.toContain(":::reply");
   });
 
-  it("provides a composed body without a recap, and no reply instruction in side chats", async () => {
+  it("provides a body-only contract without a recap, and none in side chats", async () => {
     const off = await world({ required: false, replies: true });
-    expect(await replyText(off)).toBe(replyInstructions(false));
+    expect(await replyText(off)).toContain(replyInstructions(false));
     const s = await world({ replies: true });
     expect(
       await replyText(s, { kind: "fork", pluginId: "side-chat" }),
-    ).toBeNull();
+    ).not.toContain(":::reply");
   });
 });
 
@@ -1014,15 +1003,15 @@ describe("turn endings with reply blocks", () => {
     const message = (correction!.input as { text: string }[])[0]!.text;
     expect(message).toContain("Your turn ended without a recap.");
     expect(message).toContain(
-      `call ${RECAP_TOOL} without writing another reply block`,
+      `then call ${RECAP_TOOL}: if the answer is complete, write no second reply`,
     );
     expect(message).toContain(
       "Any answer you already gave is visible to the user",
     );
     expect(message).toContain("do not repeat it");
-    expect(message).toContain("without writing another reply block");
+    expect(message).toContain("write no second reply");
     expect(message).toContain(
-      "give the missing information before the tool call",
+      "give the missing information in the reply that follows the call",
     );
     expect(message).toContain("Finish any remaining authorized work");
     expect(message).toContain("ask through the available question-card tool");

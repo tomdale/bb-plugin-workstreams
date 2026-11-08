@@ -557,9 +557,9 @@ the docked recap card, the question card, the sidebar, Up Next, and the
 Workstreams page. With the [tomdale/bb](https://github.com/tomdale/bb) fork,
 which adds a message-block slot, you also get **Structured replies**:
 
-- Agents write the reply's prose and typed components in one `:::reply` block,
-  then end the turn by calling `WorkstreamsRecap`. The block carries no recap
-  fields: the card comes from the tool call, so the two never disagree.
+- Agents call `WorkstreamsRecap` first, then write the reply's prose and typed
+  components in one `:::reply` block that ends the turn. The block carries no
+  recap fields: the card comes from the tool call, so the two never disagree.
 - Standalone message directives such as
   `::inline-vis{source="thread-storage" file="report.html"}` render through BB's
   installed directive plugins in body order, including after card sections or
@@ -847,7 +847,7 @@ Open **Settings → Workstreams** to configure:
 | **Threads**           | **Show archive button**                            | `On`                                        | Shows an Archive button in thread headers.                                                                                                                                                              |
 | **Recap**             | **End turns with a recap**                         | `On`                                        | Gives agents `WorkstreamsRecap` and displays the recap card above the composer.                                                                                                                         |
 | **Recap**             | **Reminders**                                      | `3` (`0–10`)                                | Maximum turn-end reminders sent when an enrolled agent omits a recap (`0` disables reminders).                                                                                                          |
-| **Recap**             | **Structured replies**                             | `Off`                                       | Agents end each turn with a `:::reply` block whose card fields become the recap, instead of calling the recap tool. Shown only with the tomdale/bb fork.                                                |
+| **Recap**             | **Structured replies**                             | `Off`                                       | Agents report each turn with the recap tool, then write the reply as one `:::reply` block that ends the turn. Shown only with the tomdale/bb fork.                                                      |
 | **Recap**             | **Layout**                                         | `Full` (`Full` / `Compact`)                 | Card layout on desktop (`Compact` is always used on phones), with a live preview carousel.                                                                                                              |
 | **Recap**             | **Commit hash colors**                             | Theme default                               | Custom `#rrggbb` colors for commit-hash digits and letters, with **Reset**.                                                                                                                             |
 | **Snooze**            | **Presets**                                        | `4` presets, **Tomorrow morning** default   | `1–6` presets every snooze menu lists before **Custom…**: add, edit, delete, drag to reorder, and choose the **Default** a click uses.                                                                  |

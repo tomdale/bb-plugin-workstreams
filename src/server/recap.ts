@@ -99,11 +99,6 @@ export class AgentRecaps {
   >();
   private readonly waitingChecks = new Set<Promise<void>>();
   /**
-   * Per thread, from the latest `configure`: whether the reply block ends with
-   * a recap tool call (the recap is on) or is the final message alone.
-   */
-  private readonly replyModes = new Map<string, boolean>();
-  /**
    * Whether the latest client report said this bb draws reply blocks. Only
    * the tomdale/bb fork does; on upstream bb no client reports it, so
    * Structured replies stays off and agents keep the recap tool. Kept in
@@ -185,7 +180,9 @@ export class AgentRecaps {
 
   /**
    * Called from `configure` at every session start and turn submit: whether
-   * the session gets the tool. Enrollment follows the latest answer.
+   * the session gets the tool, and the reply contract for a session that
+   * draws reply blocks (see `replyInstructions`). Enrollment follows the
+   * latest answer.
    */
   configure(threadId: string, enabled: boolean) {
     const prefs = this.deps.prefs();
@@ -196,25 +193,16 @@ export class AgentRecaps {
       .run(Number(on), threadId);
     // Body-only replies and the recap tool share the Structured replies gate.
     const replies = enabled && prefs.replies && this.messageBlocks;
-    if (replies) this.replyModes.set(threadId, on);
-    else this.replyModes.delete(threadId);
-    return { tools: on ? [RECAP_TOOL] : [], structuredReplies: replies };
+    return {
+      tools: on ? [RECAP_TOOL] : [],
+      structuredReplies: replies,
+      replyInstructions: replies ? replyInstructions(on) : null,
+    };
   }
 
   /** A client's report of what its bb draws; the latest report wins. */
   reportClient(report: { messageBlocks: boolean }) {
     this.messageBlocks = report.messageBlocks;
-  }
-
-  /**
-   * The reply block instruction for the resolution `configure` just decided,
-   * or null. bb calls `contributeInstructions` after `configure` in each
-   * resolution and gives it a 4,096-character budget of its own. Null while no
-   * client has reported that it draws reply blocks (see `reportClient`).
-   */
-  replyInstructions(threadId: string): string | null {
-    const recapTool = this.replyModes.get(threadId);
-    return recapTool === undefined ? null : replyInstructions(recapTool);
   }
 
   /**

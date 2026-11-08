@@ -66,8 +66,8 @@ it.each([
 it("distinguishes recap selection from required user input", () => {
   expect(RECAP_TOOL_DESCRIPTION).toMatch(/finished result|async task/i);
   expect(RECAP_TOOL_DESCRIPTION).toMatch(/input[^.]*question-card tool/i);
-  expect(RECAP_TOOL_DESCRIPTION).toMatch(/explanations before calling/i);
-  expect(RECAP_TOOL_DESCRIPTION).toMatch(/ends the turn/i);
+  expect(RECAP_TOOL_DESCRIPTION).toMatch(/before you write the reply/i);
+  expect(RECAP_TOOL_DESCRIPTION).toMatch(/card comes from this call/i);
 });
 
 it("scopes the attached recap policy to owned work and real completion", () => {

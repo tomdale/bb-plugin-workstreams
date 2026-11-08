@@ -12,7 +12,7 @@ import type { AgentReport, StoredAnalysis, WorkState } from "./analysis.ts";
 
 export const RECAP_TOOL = "WorkstreamsRecap";
 
-export const RECAP_CORRECTION = `Your turn ended without a recap. Any answer you already gave is visible to the user; do not repeat it. If the answer is complete, call ${RECAP_TOOL} without writing another reply block. Otherwise, give the missing information before the tool call. Finish any remaining authorized work. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
+export const RECAP_CORRECTION = `Your turn ended without a recap. Any answer you already gave is visible to the user; do not repeat it. Finish any remaining authorized work, then call ${RECAP_TOOL}: if the answer is complete, write no second reply; otherwise give the missing information in the reply that follows the call. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
 
 /**
  * How a turn's result stands: complete, awaiting review, or waiting on an async task.
@@ -476,7 +476,7 @@ export function recapMarkdown(recap: Recap): string {
 
 /** The tool's description, as the agent sees it in its tool list. */
 export const RECAP_TOOL_DESCRIPTION =
-  "Report a finished result or an async task this thread must resume; this sets the visible card and sidebar state. Required user input belongs in the available question-card tool, not a recap or next action. Give all explanations before calling: this tool ends the turn.";
+  "Report a finished result or an async task this thread must resume; this sets the visible card and sidebar state. Required user input belongs in the available question-card tool, not a recap or next action. Call it before you write the reply: the card comes from this call.";
 
 /**
  * Instructions for every thread that has the recap tool. They state the
@@ -485,7 +485,7 @@ export const RECAP_TOOL_DESCRIPTION =
  * rejects at registration above 4,096 characters, so the tool fails to
  * register rather than reaching agents cut short.
  */
-export const RECAP_INSTRUCTIONS = `Finish authorized work, then end the turn with ${RECAP_TOOL}; put every explanation, result, and caveat before the call, with no text or tool call after it or its result. When required input or approval is missing, use the available question-card tool and wait instead. Keep collaborating while requested work remains; an intermediate step is not completion.
+export const RECAP_INSTRUCTIONS = `Finish authorized work, then report it with ${RECAP_TOOL} before you write the reply: the card comes from that call, so make it the turn's last tool call. The reply follows as the turn's last text, with nothing written after it. When required input or approval is missing, use the available question-card tool and wait instead, with the explanation in the reply before that card. Keep collaborating while requested work remains; an intermediate step is not completion.
 State describes the responsibilities this thread owns under the user's request. Work continuing elsewhere affects this recap only while this thread owns follow-up; a route that leaves the destination owning the follow-up is complete, and its next names how the destination reports back. Use complete when all work this thread owns is finished; review for a finished result awaiting inspection, testing, merging, or shipping; waiting only for an async task whose result this thread needs to resume owned work.
 Write terse sentence-case inline Markdown without closing periods. Limits count visible text, not link targets. @thread:<id> mentions render as chips; lowercase commit hashes render shortened with copy support when bare or alone in backticks, not links.
 goal: purpose in past tense for complete/review, -ing for waiting, at most 80 characters; a short factual answer states the answer itself and omits latest, review, links, and next.

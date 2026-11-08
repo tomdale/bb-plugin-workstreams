@@ -144,9 +144,10 @@ name their own edit's topics, and checks renames on moves.
 `node eval/replies.ts` makes paid, tool-free Gateway calls against synthetic
 investigation, change, shipped-change, recommendation, handoff, routing,
 waiting, body-only, and short-answer tasks. Each run makes the two authorings a
-turn makes: the reply block as plain assistant text, then the `WorkstreamsRecap`
+turn makes, in the order the reply contract puts them: the `WorkstreamsRecap`
 arguments against the production tool schema and the schema the server accepts
-at execution.
+at execution, then the reply block as plain assistant text, written with the
+recap it already reported in hand.
 
 The reply call scores one closed whole-message block, no recap fields inside it,
 malformed components, and reported test counts. Preferred component selections

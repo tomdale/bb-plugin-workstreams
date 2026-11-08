@@ -485,15 +485,21 @@ describe("delivered instructions", () => {
   );
   it("gives the component guide its own bounded instruction", () =>
     expect(REPLY_COMPONENT_INSTRUCTIONS.length).toBeLessThanOrEqual(4096));
-  it("leaves the card to the recap tool call that ends the turn", () => {
+  it("puts the recap call first and the block last", () => {
     const text = replyInstructions(true);
     expect(text).toContain(
-      "and you end the turn with the WorkstreamsRecap tool call",
+      "When the work is done, call WorkstreamsRecap — the card comes from that call — and then write the block",
     );
+    // The block carries the substance the card only summarizes.
     expect(text).toContain(
-      "the block sets no state and carries no headline, results, or Next",
+      "which carries the substance the card only summarizes",
     );
-    // The whole reply is one block, with no second block or stray text after it.
+    // One block, written as the turn's last text, with nothing after it.
+    expect(text).toContain("Write it as the turn's last text");
+    expect(text).toContain("no closing sentence or second summary after it");
+    // A question-card turn has no recap call, so the block is the last text.
+    expect(text).toContain("When required input is missing, skip the recap:");
+    expect(text).toContain("a block is the turn's reply, not a progress note");
     expect(text).toContain(
       "Put `:::reply` and its attributes on their own line",
     );
@@ -512,7 +518,10 @@ describe("delivered instructions", () => {
   });
   it("keeps the reply block as the final message when the session has no recap tool", () => {
     const text = replyInstructions(false);
-    expect(text).toContain("put the entire final answer");
+    expect(text).toContain("Write it as the turn's last text");
+    expect(text).toContain(
+      "When required input is missing, put the explanation",
+    );
     expect(text).not.toContain("WorkstreamsRecap");
   });
 });

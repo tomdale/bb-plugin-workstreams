@@ -166,56 +166,22 @@ for (const task of cases) {
         .map((type) => componentFence(COMPONENT_EXAMPLES[type]))
         .join("\n\n");
       const reasoningLevel = process.env.EVAL_REASONING_LEVEL ?? "medium";
-      completion = await gatewayComplete({
-        apiKey,
-        model,
-        reasoningLevel,
-        maxTokens: 8192,
-        signal: AbortSignal.timeout(90_000),
-        outputSchema: replyEnvelope,
-        systemPrompt: [
-          "You are answering a person in BB. Return JSON with one field, reply, whose string holds the full human-facing reply following the instructions below. The examples tool has already returned the examples supplied with the task; proceed to the final reply.",
-          REPLY_COMPONENT_INSTRUCTIONS,
-          replyInstructions(withRecap),
-        ].join("\n\n"),
-        prompt: `The examples tool returned these illustrative component examples:\n${examples}\n\nTask:\n${task.request}`,
-      });
-      if (cutOff(completion.stopReason)) {
-        results.push({
-          id: task.id,
-          run,
-          skipped: true,
-          reason: `The answer was cut off at the token limit (${completion.stopReason}); rerun this case.`,
-          rawCompletion: completion.text,
-          stopReason: completion.stopReason,
-          usage: completion.usage,
-          durationMs: Math.round(performance.now() - start),
-        });
-        continue;
-      }
-      const answer = z
-        .object({ reply: z.string() })
-        .parse(JSON.parse(completion.text)).reply;
-      let recapResponse: Completion | undefined;
-      const usage = { ...completion.usage };
+      const usage = { input: 0, output: 0, cost: 0 };
       const addUsage = (next: Completion) => {
         usage.input += next.usage.input;
         usage.output += next.usage.output;
         usage.cost += next.usage.cost;
       };
-      const block = onlyReplyBlock(answer);
-      const read =
-        block?.status === "closed"
-          ? parse(block, { status: block.status })
-          : null;
       const problems: string[] = [];
       const selectionNotes: string[] = [];
-      // The card comes from the call that ends this turn. A rejected call is
-      // answered once, as the tool answers it in the turn that made it.
+      // The card comes from the call the turn makes before its reply, so the
+      // recap arguments are authored first. A rejected call is answered once,
+      // as the tool answers it in the turn that made it.
       let accepted: ReturnType<typeof recapInputSchema.safeParse> | null = null;
+      let recapResponse: Completion | undefined;
       const rejections: string[] = [];
-      if (withRecap && read?.ok) {
-        let prompt = `Task:\n${task.request}\n\nThe reply you already wrote to the person:\n${answer}`;
+      if (withRecap) {
+        let prompt = `You are ending a turn in BB. Task:\n${task.request}`;
         for (let attempt = 1; attempt <= 2; attempt++) {
           const response = await gatewayComplete({
             apiKey,
@@ -248,6 +214,50 @@ for (const task of cases) {
           prompt = `${prompt}\n\nThe ${RECAP_TOOL} call you sent was rejected: ${rejection}\nSend the corrected arguments only.`;
         }
       }
+      completion = await gatewayComplete({
+        apiKey,
+        model,
+        reasoningLevel,
+        maxTokens: 8192,
+        signal: AbortSignal.timeout(90_000),
+        outputSchema: replyEnvelope,
+        systemPrompt: [
+          "You are answering a person in BB. Return JSON with one field, reply, whose string holds the full human-facing reply following the instructions below. The examples tool has already returned the examples supplied with the task; proceed to the final reply.",
+          REPLY_COMPONENT_INSTRUCTIONS,
+          replyInstructions(withRecap),
+        ].join("\n\n"),
+        prompt: [
+          `The examples tool returned these illustrative component examples:\n${examples}`,
+          `Task:\n${task.request}`,
+          withRecap && accepted?.success
+            ? `The ${RECAP_TOOL} call you already made carries:\n${JSON.stringify(accepted.data)}`
+            : null,
+        ]
+          .filter((part): part is string => part !== null)
+          .join("\n\n"),
+      });
+      addUsage(completion);
+      if (cutOff(completion.stopReason)) {
+        results.push({
+          id: task.id,
+          run,
+          skipped: true,
+          reason: `The answer was cut off at the token limit (${completion.stopReason}); rerun this case.`,
+          rawCompletion: completion.text,
+          stopReason: completion.stopReason,
+          usage,
+          durationMs: Math.round(performance.now() - start),
+        });
+        continue;
+      }
+      const answer = z
+        .object({ reply: z.string() })
+        .parse(JSON.parse(completion.text)).reply;
+      const block = onlyReplyBlock(answer);
+      const read =
+        block?.status === "closed"
+          ? parse(block, { status: block.status })
+          : null;
       if (!read?.ok) problems.push("No single closed reply block");
       else {
         const data = read.data,

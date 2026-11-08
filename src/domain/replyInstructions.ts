@@ -1,33 +1,38 @@
 /*
- * The reply contract travels separately from question instructions. Component
- * examples ride on their own optional tool, so each delivered instruction
- * remains within BB's per-text budget.
+ * The reply contract for sessions whose replies a person reads. It travels in
+ * `configure`'s instructions, which bb appends after every tool section and
+ * closest to the conversation, where models follow it; the component syntax
+ * and signatures ride on their own optional tool so neither text passes bb's
+ * per-text budget.
  */
 import { signatureLines } from "./replyCatalog.ts";
 import { RECAP_TOOL } from "./recap.ts";
 import { REPLY_BLOCK } from "./reply.ts";
 export const REPLY_EXAMPLES_TOOL = "WorkstreamsReplyExamples";
 const MARKERS = `Put \`:::${REPLY_BLOCK}\` and its attributes on their own line, with no space after the colons or before \`{\`. Use a top-level block, closed with \`:::\` alone on a line. Fenced code works inside; a line that must be only \`:::\` goes inside \`::::reply\` and \`::::\`.`;
+const TURN_POSITION = `Write it as the turn's last text, with no closing sentence or second summary after it. Write plain text while work is still in progress; a block is the turn's reply, not a progress note.`;
+/** A question-card turn ends at the card, so the block precedes that call. */
+const ASK_EXCEPTION = `put the explanation in the block and then call the available question-card tool, whose card ends the turn.`;
 
 /**
  * The reply contract for a session that draws reply blocks. `recapTool` says
- * the session also has the recap tool, which alone sets the card: the block
- * then carries the body and nothing the tool fills.
+ * the session also has the recap tool, whose call comes first because it alone
+ * sets the card: the block then carries the body and nothing the tool fills.
  */
 export function replyInstructions(recapTool: boolean): string {
   return recapTool ? withRecapTool() : alone();
 }
 
 function alone(): string {
-  return `When required input is missing, put the explanation in a reply block before calling the available question-card tool; the card ends the turn. Otherwise put the entire final answer, explanation, completion details, and relevant commit or PR links in one reply block, even a one-sentence answer. ${MARKERS}`;
+  return `Every turn's reply is one \`:::${REPLY_BLOCK}\` block, which the app draws as the reply itself: the whole answer, even a one-sentence answer, then the explanation, completion details, and any relevant commit or PR links. ${TURN_POSITION} When required input is missing, ${ASK_EXCEPTION} ${MARKERS}`;
 }
 
 /**
- * With the recap tool in the session, the card is the tool call that ends the
- * turn: the block carries the body, so no state, headline, results, or Next.
+ * With the recap tool in the session, the card comes from the call the turn
+ * starts its reply with, so the block that follows carries the body alone.
  */
 function withRecapTool(): string {
-  return `When required input is missing, put the explanation in a reply block before calling the available question-card tool; the card ends the turn. Otherwise the whole reply is one reply block, even a one-sentence answer — the answer first, then the explanation, completion details, and relevant commit or PR links — and you end the turn with the ${RECAP_TOOL} tool call. The recap card comes from that call, so the block sets no state and carries no headline, results, or Next. ${MARKERS}
+  return `Every turn's reply is one \`:::${REPLY_BLOCK}\` block, which the app draws as the reply itself: the whole answer, even a one-sentence answer, then the explanation, completion details, and any relevant commit or PR links. When the work is done, call ${RECAP_TOOL} — the card comes from that call — and then write the block, which carries the substance the card only summarizes. ${TURN_POSITION} When required input is missing, skip the recap: ${ASK_EXCEPTION} ${MARKERS}
 Example, with two components in one fence:
 :::reply
 # Arrow keys follow the card order

@@ -128,7 +128,7 @@ export function RecapSettings() {
           label="Structured replies"
           description={
             prefs.replies
-              ? "Agents write each reply as one block with typed components, then end the turn with the recap tool; the card comes from that call. Applies to each thread's next session."
+              ? "Agents write each reply as one block with typed components, after the recap call that makes the card. Applies to each thread's next session."
               : "Off: agents report each turn through the recap tool."
           }
           control={
