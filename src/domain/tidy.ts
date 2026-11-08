@@ -340,7 +340,7 @@ Edits:
 - rename {topic, name}
 - create {name, description, parent, children}: a new topic, adopting existing topics as its children
 - move {thread, topic}: refile one thread
-Refer to topics and threads by their IDs in square brackets. A topic created earlier in the same list can be referenced as "new:<name>".`;
+Refer to topics and threads by the IDs inside the square brackets, without the brackets: [settings] is "settings" and [r12] is "r12". A topic created earlier in the same list can be referenced as "new:<name>".`;
 
 /** The displayed evidence bounds which threads an answer may move. */
 function tidyThreadGroups(input: Pick<TidyInput, "topics" | "threads">) {
@@ -465,15 +465,15 @@ const rawEdit = z.object({
 
 export type ProposedEdit = { edit: TidyEdit; reason: string };
 
-export function normalizeTidyTopicId(
+function resolveTidyId(
   value: string,
-  known: ReadonlySet<string>,
-): string {
-  if (value.startsWith("[") && value.endsWith("]")) {
-    const inner = value.slice(1, -1);
-    if (known.has(inner)) return inner;
-  }
-  return value;
+  known: ReadonlyMap<string, string>,
+): string | undefined {
+  const exact = known.get(value);
+  if (exact !== undefined) return exact;
+  if (value.startsWith("[") && value.endsWith("]"))
+    return known.get(value.slice(1, -1));
+  return undefined;
 }
 
 /**
@@ -487,7 +487,6 @@ export function parseTidy(text: string, input: TidyInput): ProposedEdit[] {
   const topicOf = new Map(
     [...placementIds(input.topics)].map(([id, short]) => [short, id]),
   );
-  const knownTopics = new Set(topicOf.keys());
   const shown = new Set(
     [...tidyThreadGroups(input).values()].flatMap((group) =>
       group.shown.map((thread) => thread.id),
@@ -506,7 +505,7 @@ export function parseTidy(text: string, input: TidyInput): ProposedEdit[] {
       return created.has(value.slice(4).trim().toLowerCase())
         ? `new:${value.slice(4).trim()}`
         : undefined;
-    return topicOf.get(normalizeTidyTopicId(value, knownTopics));
+    return resolveTidyId(value, topicOf);
   };
   const out: ProposedEdit[] = [];
   for (const item of parsed.edits) {
@@ -560,7 +559,7 @@ export function parseTidy(text: string, input: TidyInput): ProposedEdit[] {
         };
       }
     } else {
-      const thread = e.thread ? threadOf.get(e.thread) : undefined;
+      const thread = e.thread ? resolveTidyId(e.thread, threadOf) : undefined;
       const topic = ref(e.topic);
       if (thread && topic) edit = { op: "move", thread, topic };
     }

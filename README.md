@@ -319,8 +319,8 @@ organizing suggestions does not disable automatic categories.
   assessed. **Ask now** runs splits and a pass right away, replacing pending
   tidy edits. A tidy pass sees at most `12` threads per topic and `12` Unfiled
   threads; it can propose thread moves only for the threads shown in that call.
-  Topic IDs in its answer can include the brackets shown in the prompt; unknown
-  IDs are still rejected.
+  Topic and thread IDs in its answer can include the brackets shown in the
+  prompt; unknown topics and threads not shown in the pass are still rejected.
 - **Names:** A top-level topic whose name begins with the whole name of a topic
   with subtopics ("Vercel Agent Code Review" beside "Vercel Agent") gets a
   suggestion to move under it, renamed without the shared words ("Code Review");

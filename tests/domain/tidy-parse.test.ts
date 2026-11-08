@@ -120,7 +120,18 @@ describe("parseTidy", () => {
     expect(prompt).toContain("[r25] Unfiled 12");
     expect(prompt).not.toMatch(/\[r(?:13|26|27)\]/);
     const answer = {
-      edits: ["r12", "r13", "r25", "r26", "r27"].map((thread) =>
+      edits: [
+        "r12",
+        "[r12]",
+        "r13",
+        "[r13]",
+        "r25",
+        "[r25]",
+        "[r26]",
+        "[r27]",
+        "[r100]",
+        "[[r12]]",
+      ].map((thread) =>
         edit({ op: "move", thread, topic: "[beacon-code-review]" }),
       ),
     };
@@ -128,6 +139,8 @@ describe("parseTidy", () => {
       parseTidy(JSON.stringify(answer), many).map((entry) => entry.edit),
     ).toEqual([
       { op: "move", thread: "filed-12", topic: "review" },
+      { op: "move", thread: "filed-12", topic: "review" },
+      { op: "move", thread: "unfiled-12", topic: "review" },
       { op: "move", thread: "unfiled-12", topic: "review" },
     ]);
   });
@@ -224,6 +237,14 @@ describe("tidyPrompt", () => {
     );
     expect(prompt).toContain("retain distinctions between topics");
     expect(prompt).toContain("without changing the topic's scope or parent");
+  });
+
+  it("asks for bare topic and thread IDs", () => {
+    const prompt = tidyPrompt(input);
+    expect(prompt).toContain(
+      'the IDs inside the square brackets, without the brackets: [settings] is "settings" and [r12] is "r12"',
+    );
+    expect(prompt).toContain('"new:<name>"');
   });
 
   it("asks for the edit before its reason", () => {
