@@ -27,16 +27,36 @@ export const legacyStateWord = (state: string): string =>
 
 type Md = (content: string | undefined) => ReactNode;
 
-/** A row of the card's own: a mark, then the text it reports. */
-function MarkedRow({ path, text }: { path?: string; text: ReactNode }) {
+/**
+ * A row of the card's own: a mark or a number in the mark column, then the text
+ * it reports. Without either, the text takes the full width.
+ */
+function MarkedRow({
+  mark,
+  number,
+  text,
+}: {
+  mark?: string;
+  number?: number;
+  text: ReactNode;
+}) {
+  const drawn =
+    number !== undefined ? (
+      <span
+        aria-hidden="true"
+        className="mt-[0.2em] text-[11px] font-medium leading-[20px] tabular-nums text-muted-foreground"
+      >
+        {number}.
+      </span>
+    ) : mark ? (
+      <Glyph
+        path={mark}
+        className="mt-[0.2em] h-3.5 w-3.5 text-muted-foreground"
+      />
+    ) : null;
   return (
-    <div className={`${MARK_ROW_CLASS} min-w-0`}>
-      {path ? (
-        <Glyph
-          path={path}
-          className="mt-[0.2em] h-3.5 w-3.5 text-muted-foreground"
-        />
-      ) : null}
+    <div className={drawn ? `${MARK_ROW_CLASS} min-w-0` : "min-w-0"}>
+      {drawn}
       <div className={`min-w-0 ${ROW_NAME_CLASS} [&_p]:m-0`}>{text}</div>
     </div>
   );
@@ -45,11 +65,11 @@ function MarkedRow({ path, text }: { path?: string; text: ReactNode }) {
 export function LegacyCard({ card, md }: { card: ReplyCard; md: Md }) {
   const done = card.results.filter((item) => item.checked !== false);
   const notDone = card.results.filter((item) => item.checked === false);
-  const list = (items: string[], path?: string) =>
+  const list = (items: string[], mark: string) =>
     items.length ? (
       <div className="min-w-0 space-y-0.5">
         {items.map((item, i) => (
-          <MarkedRow key={i} path={path} text={md(item)} />
+          <MarkedRow key={i} mark={mark} text={md(item)} />
         ))}
       </div>
     ) : null;
@@ -73,20 +93,7 @@ export function LegacyCard({ card, md }: { card: ReplyCard; md: Md }) {
       card.review.length ? (
         <div className="min-w-0 space-y-0.5">
           {card.review.map((item, i) => (
-            <MarkedRow
-              key={i}
-              text={
-                <span className="flex min-w-0 gap-x-1.5">
-                  <span
-                    aria-hidden="true"
-                    className="text-[11px] font-medium leading-[20px] tabular-nums text-muted-foreground"
-                  >
-                    {i + 1}.
-                  </span>
-                  <span className="min-w-0">{md(item)}</span>
-                </span>
-              }
-            />
+            <MarkedRow key={i} number={i + 1} text={md(item)} />
           ))}
         </div>
       ) : null,
