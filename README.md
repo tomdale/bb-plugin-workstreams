@@ -1115,7 +1115,8 @@ Client views share preference loads and pending-question polling. Equal server
 and sidebar snapshots retain their unchanged values, so unrelated updates do not
 redraw every thread row or reparse stable reply text. Timeline observers check
 mutation records before scanning for delivered questions, subagent results, or a
-replacement message scroller.
+replacement message scroller. The thread heading follows the active pane without
+measuring intermediate pane replacements during navigation.
 
 Run the render-count regressions with:
 

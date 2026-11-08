@@ -522,6 +522,71 @@ it("does not scan for a scroller after unrelated DOM updates", async () => {
   }
 });
 
+it("coalesces pane replacements before measuring the message scroller", async () => {
+  paneFixture({ recap: false });
+  const frames = new Map<number, FrameRequestCallback>();
+  let nextFrame = 0;
+  const request = vi.fn((callback: FrameRequestCallback) => {
+    frames.set(++nextFrame, callback);
+    return nextFrame;
+  });
+  vi.stubGlobal("requestAnimationFrame", request);
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
+  const queries = vi.spyOn(document, "querySelectorAll");
+  const slot = await mountHeading();
+  try {
+    expect(root()).toBeNull();
+    expect(request).toHaveBeenCalledTimes(1);
+    const scroller = document.querySelector('[data-test="messages"]')!;
+    await act(async () => {
+      scroller.innerHTML = "<div><div data-scroll-attached>Loading</div></div>";
+      await Promise.resolve();
+      scroller.innerHTML =
+        "<div><div data-scroll-attached data-test='final-column'>Ready</div></div>";
+      await Promise.resolve();
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(
+      queries.mock.calls.filter(
+        ([selector]) => selector === "[data-thread-window] .thread-scrollbar",
+      ),
+    ).toHaveLength(0);
+    await act(async () => {
+      const callback = frames.get(1)!;
+      frames.delete(1);
+      callback(16);
+    });
+    expect(root()?.parentElement?.dataset.test).toBe("final-column");
+    expect(
+      queries.mock.calls.filter(
+        ([selector]) => selector === "[data-thread-window] .thread-scrollbar",
+      ),
+    ).toHaveLength(1);
+  } finally {
+    queries.mockRestore();
+    slot.lifecycle.unmount();
+  }
+});
+
+it("cancels pending heading attachment when its overlay unmounts", async () => {
+  paneFixture({ recap: false });
+  const request = vi.fn(() => 42);
+  const cancel = vi.fn();
+  vi.stubGlobal("requestAnimationFrame", request);
+  vi.stubGlobal("cancelAnimationFrame", cancel);
+  const slot = await mountHeading();
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(root()).toBeNull();
+  slot.lifecycle.unmount();
+  expect(cancel).toHaveBeenCalledWith(42);
+  await act(async () => {
+    document.querySelector('[data-test="column"]')!.remove();
+    await Promise.resolve();
+  });
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(overlay()).toBeNull();
+});
+
 it("reattaches after scroller replacement and split-pane changes", async () => {
   paneFixture({ recap: false });
   const slot = await mountHeading();

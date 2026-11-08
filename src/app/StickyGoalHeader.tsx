@@ -108,6 +108,7 @@ function useMessageScroller(threadId: string | null): Mount | null {
     }
 
     let current: Mount | null = null;
+    let frame = 0;
     const attach = () => {
       // The composer's banners (the recap card, question cards) scroll their
       // own text with the same class; they are never the message scroller.
@@ -135,6 +136,7 @@ function useMessageScroller(threadId: string | null): Mount | null {
       setMount(null);
       const root = document.createElement("div");
       root.dataset.workstreamsStickyGoal = "";
+      root.className = "ws-sticky-goal-root";
       const columnStyle = getComputedStyle(column);
       const baseFontSize = Number.parseFloat(columnStyle.fontSize) || 14;
       // The root cancels the column's top padding so it sits exactly at the
@@ -148,6 +150,7 @@ function useMessageScroller(threadId: string | null): Mount | null {
       root.style.marginBottom = `${initialHeight}px`;
       const overlay = document.createElement("div");
       overlay.dataset.workstreamsGoalOverlay = "";
+      overlay.className = "ws-goal-overlay";
       // Inside the sliding surface rather than the body, so the heading moves
       // with the pane. BB translates that surface to open the mobile sidebar
       // and right panel, frame by frame while a swipe is in progress, with no
@@ -175,7 +178,17 @@ function useMessageScroller(threadId: string | null): Mount | null {
       setMount(current);
     };
 
-    attach();
+    // The host replaces the pane in several commits. Coalesce attachment and
+    // geometry reads into a frame so mutation delivery does not force layout
+    // between those commits.
+    const scheduleAttach = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        attach();
+      });
+    };
+    scheduleAttach();
     const observer = new MutationObserver((records) => {
       const detached =
         current !== null &&
@@ -190,11 +203,12 @@ function useMessageScroller(threadId: string | null): Mount | null {
         if (!scroller) return false;
         return target === scroller || target === scroller.firstElementChild;
       });
-      if (detached || lifecycleChanged) attach();
+      if (detached || lifecycleChanged) scheduleAttach();
     });
     observer.observe(document.body, { childList: true, subtree: true });
     return () => {
       observer.disconnect();
+      cancelAnimationFrame(frame);
       detach(current);
       current = null;
       setMount(null);
@@ -522,24 +536,22 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const fadeAnchor = plateHeight;
   useLayoutEffect(() => {
     if (!mount) return;
-    mount.root.className = "ws-sticky-goal-root";
-    mount.root.dataset.collapsed = String(collapsed);
+    if (mount.root.dataset.collapsed !== String(collapsed))
+      mount.root.dataset.collapsed = String(collapsed);
     // Wrapped text changes the reserved space, but must not detach a reader
     // who is following the newest message.
     const gapChanged = mount.root.style.marginBottom !== `${height}px`;
-    const wasAtBottom =
-      mount.scroller.scrollHeight -
-        mount.scroller.clientHeight -
-        mount.scroller.scrollTop <
-      24;
-    mount.root.style.marginBottom = `${height}px`;
-    mount.scroller.style.scrollPaddingTop = `${scrollPadding}px`;
-    if (gapChanged && wasAtBottom)
-      mount.scroller.scrollTop = mount.scroller.scrollHeight;
-    return () => {
-      mount.root.className = "";
-      delete mount.root.dataset.collapsed;
-    };
+    if (gapChanged) {
+      const wasAtBottom =
+        mount.scroller.scrollHeight -
+          mount.scroller.clientHeight -
+          mount.scroller.scrollTop <
+        24;
+      mount.root.style.marginBottom = `${height}px`;
+      if (wasAtBottom) mount.scroller.scrollTop = mount.scroller.scrollHeight;
+    }
+    if (mount.scroller.style.scrollPaddingTop !== `${scrollPadding}px`)
+      mount.scroller.style.scrollPaddingTop = `${scrollPadding}px`;
   }, [mount, collapsed, height, scrollPadding]);
 
   // The heading replaces BB's own thread title in the title bar, but only
@@ -553,14 +565,6 @@ export function StickyGoalHeader(): React.ReactElement | null {
     header?.setAttribute("data-ws-hide-title", "");
     return () => header?.removeAttribute("data-ws-hide-title");
   }, [mount, showing]);
-
-  useLayoutEffect(() => {
-    if (!mount) return;
-    mount.overlay.className = "ws-goal-overlay";
-    return () => {
-      mount.overlay.className = "";
-    };
-  }, [mount]);
 
   if (!mount || !context || !placement) return null;
 
