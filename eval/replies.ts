@@ -258,7 +258,27 @@ for (const task of cases) {
         block?.status === "closed"
           ? parse(block, { status: block.status })
           : null;
-      if (!read?.ok) problems.push("No single closed reply block");
+      if ("short" in task && task.short) {
+        // The request fixes the output, so the reply is that fact alone,
+        // without a block, and the recap carries nothing beyond its state.
+        const recap = accepted?.success ? accepted.data : null;
+        if (answer.includes(":::"))
+          problems.push("Fixed-output answer is wrapped in a block");
+        if (!/\b4\b/.test(answer) || answer.length > 200)
+          problems.push("Fixed-output answer is not the requested fact alone");
+        if (!recap)
+          problems.push(
+            `Recap rejected: ${accepted?.error?.issues[0]?.message ?? "missing recap"}`,
+          );
+        else if (
+          recap.latest.length ||
+          recap.next.length ||
+          recap.links.length ||
+          (Array.isArray(recap.review) ? recap.review.length : recap.review) ||
+          recap.waitingAgents?.length
+        )
+          problems.push("Short answer has unnecessary parts or results");
+      } else if (!read?.ok) problems.push("No single closed reply block");
       else {
         const data = read.data,
           parts = flatten(data.body),
@@ -319,20 +339,6 @@ for (const task of cases) {
             selectionNotes.push(
               `Preferred ${expected} component was not selected`,
             );
-        const short = "short" in task && task.short;
-        if (
-          short &&
-          (!recap ||
-            parts.some((part) => part.type !== "text") ||
-            recap.latest.length ||
-            recap.next.length ||
-            recap.links.length ||
-            (Array.isArray(recap.review)
-              ? recap.review.length
-              : recap.review) ||
-            recap.waitingAgents?.length)
-        )
-          problems.push("Short answer has unnecessary parts or results");
         if ("totals" in task)
           problems.push(...testCountProblems(parts, toText(data), task.totals));
       }

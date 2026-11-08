@@ -159,6 +159,10 @@ zero-through-ten word counts beside passed/failed/skipped, including a count
 written as an adjective ("one skipped integration test"). Inspect other wording
 in recorded responses before treating a count failure as a factual error.
 
+The short-answer task asks for a fact only, so it expects that fact as plain
+text with no reply block, matching the exact-output rule in the reply
+instructions.
+
 The recap call scores the accepted arguments: the expected state, required Next
 items after completed work including a handoff and a shipped change, a route to
 a running thread reported as complete, waiting-agent details and polling
