@@ -7,7 +7,6 @@
  * Recap, snooze, and working-indicator preferences keep their own stores.
  */
 import { z } from "zod";
-import { DEFAULT_LINE, lineSchema, parseLine } from "./lines.ts";
 import {
   colorChoiceSchema,
   colorSchemeSchema,
@@ -123,12 +122,6 @@ const GROUPS = {
     /** When workstream headers show their waiting-on-you count. */
     waitingCount: [countVisibility, "collapsed"],
   },
-  lines: {
-    children: [lineSchema, DEFAULT_LINE],
-    workstreams: [lineSchema, DEFAULT_LINE],
-    categories: [lineSchema, DEFAULT_LINE],
-    sections: [lineSchema, DEFAULT_LINE],
-  },
   threads: {
     /** Title untitled threads with their goal and retitle them as work moves on. */
     autoTitle: [z.boolean(), true],
@@ -242,13 +235,6 @@ export function parsePrefs(raw: unknown): Prefs {
       fullModel: field("organize", "model"),
     };
   }
-  const lines =
-    groups.lines && typeof groups.lines === "object"
-      ? (groups.lines as Record<string, unknown>)
-      : {};
-  groups.lines = Object.fromEntries(
-    Object.keys(GROUPS.lines).map((key) => [key, parseLine(lines[key])]),
-  );
   const parsed = prefsSchema.parse(
     Object.fromEntries(
       groupNames.map((g) => {

@@ -114,11 +114,6 @@ const ALLOWED: { file: string; text: string; reason: string }[] = [
     reason: "a color input's starting value must be #rrggbb",
   },
   {
-    file: "src/app/settings/FeatureSettings.tsx",
-    text: '"#777777"',
-    reason: "a color input's starting value must be #rrggbb",
-  },
-  {
     file: "src/app/settings/ColorSettings.tsx",
     text: '"#808080"',
     reason: "a color input's starting value must be #rrggbb",

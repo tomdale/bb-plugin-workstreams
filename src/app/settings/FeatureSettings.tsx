@@ -1,12 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { experimental_useSidebarThreads, useRpc } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../../server/contract.ts";
-import {
-  RECENT_LIMIT,
-  type Prefs,
-  type PrefsPatch,
-} from "../../domain/prefs.ts";
-import type { LinePrefs } from "../../domain/lines.ts";
+import { RECENT_LIMIT, type PrefsPatch } from "../../domain/prefs.ts";
 import { usePrefs } from "../prefs.ts";
 import { ModelField } from "./ModelField.tsx";
 import { SpinnerSettings } from "./SpinnerSettings.tsx";
@@ -109,25 +104,6 @@ export function SidebarSettings() {
           )}
         </SectionRows>
       </SettingsGroup>
-      <SettingsGroup title="Connecting lines">
-        <SectionRows compact>
-          {(
-            [
-              ["children", "Child threads"],
-              ["workstreams", "Workstreams"],
-              ["categories", "Categories"],
-              ["sections", "Section groups"],
-            ] as const
-          ).map(([key, label]) => (
-            <LineSettings
-              key={key}
-              label={label}
-              line={prefs.lines[key]}
-              onChange={(line) => update({ lines: { [key]: line } })}
-            />
-          ))}
-        </SectionRows>
-      </SettingsGroup>
       <SettingsGroup title="Home screen">
         <SectionRows compact>
           <SettingRow
@@ -170,85 +146,6 @@ export function SidebarSettings() {
           )}
         </SectionRows>
       </SettingsGroup>
-    </div>
-  );
-}
-
-function LineSettings({
-  label,
-  line,
-  onChange,
-}: {
-  label: string;
-  line: Prefs["lines"][keyof Prefs["lines"]];
-  onChange: (line: LinePrefs) => void;
-}) {
-  const change = (patch: Partial<LinePrefs>) => onChange({ ...line, ...patch });
-  return (
-    <div className="space-y-2">
-      <CompactSettingRow
-        label={label}
-        control={
-          <SettingSwitch
-            size="sm"
-            label={`${label} connecting line`}
-            checked={line.show}
-            onChange={(show) => change({ show })}
-          />
-        }
-      />
-      {line.show ? (
-        <div className="space-y-2 pl-3">
-          {(
-            [
-              ["width", "Width", 1, 6],
-              ["indent", "Indent", 0, 32],
-              ["spacing", "Spacing", 0, 32],
-            ] as const
-          ).map(([key, name, min, max]) => (
-            <CompactSettingRow
-              key={key}
-              label={`${name} (px)`}
-              control={
-                <Stepper
-                  size="sm"
-                  label={`${label} line ${name.toLowerCase()}`}
-                  value={line[key]}
-                  min={min}
-                  max={max}
-                  onChange={(value) => change({ [key]: value })}
-                />
-              }
-            />
-          ))}
-          <CompactSettingRow
-            label="Color"
-            control={
-              <div className="flex items-center gap-2">
-                {line.color ? (
-                  <button
-                    type="button"
-                    aria-label={`Use theme for ${label} line`}
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => change({ color: "" })}
-                  >
-                    Use theme
-                  </button>
-                ) : (
-                  <span className="text-xs text-muted-foreground">Theme</span>
-                )}
-                <input
-                  type="color"
-                  aria-label={`${label} line color`}
-                  value={line.color || "#777777"}
-                  onChange={(event) => change({ color: event.target.value })}
-                  className="h-7 w-8 cursor-pointer rounded border border-border bg-transparent p-0.5"
-                />
-              </div>
-            }
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

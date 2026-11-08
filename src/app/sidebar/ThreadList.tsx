@@ -8,7 +8,7 @@
  * Workstreams nest by topic (see `nestGroups`): a group lists its own
  * threads, then the threads of subgroups too small for headers, each
  * labeled with its subgroup, then its other subgroups. Each group's contents
- * can show a configurable guide beneath their headings.
+ * sit one step (`INDENT_PX`) in, with a guide below its disclosure chevron.
  * Top-level workstreams always keep their own headers (see `arrangeGroups`).
  *
  * Up Next's rows come from `selectUpNext`, including its focus on the
@@ -66,8 +66,6 @@ import {
 } from "./useBandOptions.ts";
 import { NameDialog, type NameRequest } from "./NameDialog.tsx";
 import { Row } from "./Row.tsx";
-import { GuideList, guideColor, guideStep } from "./GuideList.tsx";
-import { MAX_INDENT, rowGeometry } from "./rowGeometry.ts";
 import { hasStatusMark, headerCounts } from "./presentation.ts";
 import {
   descendantsOf,
@@ -477,33 +475,7 @@ export function WorkstreamsThreadList({
       snoozePrefs={snoozePrefs}
       showArchive={placement !== "archived"}
     >
-      <li
-        ref={handle?.ref}
-        {...handle?.listeners}
-        className="relative list-none"
-      >
-        {prefs?.lines.children.show && depth > 0
-          ? Array.from({ length: Math.min(depth, MAX_INDENT) }, (_, level) => (
-              <span
-                key={level}
-                aria-hidden="true"
-                data-ws-guide="children"
-                className="pointer-events-none absolute bottom-0 top-0 z-10"
-                style={{
-                  left:
-                    rowGeometry({
-                      depth: 0,
-                      inGroup: placement === "group",
-                      categorized,
-                    }).paddingLeft +
-                    level * guideStep(prefs.lines.children) +
-                    prefs.lines.children.indent,
-                  width: prefs.lines.children.width,
-                  backgroundColor: guideColor(prefs.lines.children),
-                }}
-              />
-            ))
-          : null}
+      <li ref={handle?.ref} {...handle?.listeners} className="list-none">
         <Row
           thread={row.thread}
           depth={depth}
@@ -565,13 +537,7 @@ export function WorkstreamsThreadList({
             <h3 className="px-1.5 py-0.5 text-[12px] font-medium text-muted-foreground">
               {name}
             </h3>
-            <GuideList
-              line={prefs?.lines.sections}
-              kind="sections"
-              className="mt-0.5"
-            >
-              {renderTrees(groupTrees)}
-            </GuideList>
+            <ul className="mt-0.5">{renderTrees(groupTrees)}</ul>
           </section>
         </li>
       );
@@ -667,42 +633,36 @@ export function WorkstreamsThreadList({
   const colorOf = (group: ThreadNode) =>
     colorForWorkstream(group.id, ws.server.catalog, group.topicId);
   const renderCategorizedTrees = (group: ThreadNode, label?: string) =>
-    categoryRows(group.rows, group.categories).map((category, index) => {
-      const trees = renderTrees(
-        { ...group, rows: category.rows },
-        label,
-        Boolean(category.name),
-      );
-      if (!category.name) return <Fragment key="unplaced">{trees}</Fragment>;
-      return (
-        <li key={category.id} className="list-none">
-          <h4
-            className="ws-text-category ws-category-label m-0 truncate"
-            style={
-              {
-                ...workstreamColorStyle(colorOf(group)),
-                marginTop:
-                  index === 0
-                    ? SIDEBAR_GEOMETRY.category.firstTopGap
-                    : SIDEBAR_GEOMETRY.category.betweenGap,
-                marginBottom: SIDEBAR_GEOMETRY.category.afterGap,
-                height: SIDEBAR_GEOMETRY.category.height,
-                paddingLeft: SIDEBAR_GEOMETRY.category.indent,
-              } as CSSProperties
-            }
+    categoryRows(group.rows, group.categories).map((category, index) => (
+      <Fragment key={category.id ?? "unplaced"}>
+        {category.name ? (
+          <li
+            className="list-none"
+            style={{
+              marginTop:
+                index === 0
+                  ? SIDEBAR_GEOMETRY.category.firstTopGap
+                  : SIDEBAR_GEOMETRY.category.betweenGap,
+              marginBottom: SIDEBAR_GEOMETRY.category.afterGap,
+              height: SIDEBAR_GEOMETRY.category.height,
+              paddingLeft: SIDEBAR_GEOMETRY.category.indent,
+            }}
           >
-            {label ? `${label} · ${category.name}` : category.name}
-          </h4>
-          <GuideList
-            line={prefs?.lines.categories}
-            kind="categories"
-            baseOffset={SIDEBAR_GEOMETRY.category.indent}
-          >
-            {trees}
-          </GuideList>
-        </li>
-      );
-    });
+            <h4
+              className="ws-text-category ws-category-label m-0 truncate"
+              style={workstreamColorStyle(colorOf(group)) as CSSProperties}
+            >
+              {label ? `${label} · ${category.name}` : category.name}
+            </h4>
+          </li>
+        ) : null}
+        {renderTrees(
+          { ...group, rows: category.rows },
+          label,
+          Boolean(category.name),
+        )}
+      </Fragment>
+    ));
   const renderGroupBody = (group: ThreadNode): ReactNode => [
     <Fragment key="trees">{renderCategorizedTrees(group)}</Fragment>,
     ...inlineGroups(group).map((sub) => (
@@ -1290,11 +1250,7 @@ export function WorkstreamsThreadList({
                           </span>
                         </button>
                         {collapsed ? null : (
-                          <GuideList
-                            line={prefs?.lines.sections}
-                            kind="sections"
-                            className="mt-0.5"
-                          >
+                          <ul className="mt-0.5">
                             {sortedBandRows(
                               group.threads.map((thread) => ({
                                 thread,
@@ -1308,7 +1264,7 @@ export function WorkstreamsThreadList({
                             ).map((row) =>
                               renderRow(row, "archived", undefined, false),
                             )}
-                          </GuideList>
+                          </ul>
                         )}
                       </section>
                     </li>
@@ -1835,11 +1791,7 @@ function WorkstreamGroup({
           </span>
         </div>
       </HeaderMenu>
-      {collapsed ? null : (
-        <GuideList line={prefs?.lines.workstreams} kind="workstreams">
-          {children}
-        </GuideList>
-      )}
+      {collapsed ? null : <ul className="list-none">{children}</ul>}
     </section>
   );
 }

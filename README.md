@@ -821,12 +821,6 @@ when you snooze never wakes it.
 
 Open **Settings → Workstreams** to configure:
 
-Under **Sidebar → Connecting lines**, turn lines on separately for child
-threads, workstreams, categories, and groups in Recent, Snoozed, and Archived.
-Each line has its own width, theme or custom color, indent from the group edge,
-and spacing between the line and its contents, in pixels. Lines are off by
-default.
-
 | Section               | Setting                                            | Default                                     | Details                                                                                                                                                                                                 |
 | --------------------- | -------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Sidebar**           | **Up Next**, **Recent**, **Snoozed**, **Archived** | All `On`                                    | Show or hide each band in the Workstreams sidebar.                                                                                                                                                      |

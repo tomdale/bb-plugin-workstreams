@@ -59,7 +59,6 @@ export async function mount(
     activeThreadId?: string | null;
     settings?: Record<string, boolean | string>;
     spinner?: unknown;
-    lines?: unknown;
     onNavigate?: () => void;
     analysis?: Record<string, unknown>;
     recaps?: Record<string, unknown>;
@@ -157,7 +156,6 @@ export async function mount(
             threadCount: options.settings?.threadCount ?? "collapsed",
             waitingCount: options.settings?.waitingCount ?? "collapsed",
           },
-          ...(options.lines === undefined ? {} : { lines: options.lines }),
           threads: {
             autoTitle: true,
             analysisModel: {
