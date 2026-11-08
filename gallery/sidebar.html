@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sidebar treatment playground</title>
+  </head>
+  <body>
+    <div class="playground">
+      <div id="previewColumn" class="preview-column">
+        <div class="preview-toolbar">
+          <a class="share-link" href="./">Design system</a>
+          <span>Preview</span>
+          <div class="preview-modes" role="group" aria-label="Preview panels">
+            <button type="button" data-preview="trial" aria-pressed="false">
+              Trial</button
+            ><button type="button" data-preview="current" aria-pressed="false">
+              Current</button
+            ><button type="button" data-preview="both" aria-pressed="true">
+              Both
+            </button>
+          </div>
+        </div>
+        <p class="preview-hint">
+          Scroll each sidebar · drag the divider to resize
+        </p>
+        <div class="compare">
+          <div id="trialPanel" class="panel">
+            <p class="caption">Trial</p>
+            <div
+              id="after"
+              class="sidebar"
+              aria-label="Trial sidebar example"
+              tabindex="0"
+            ></div>
+          </div>
+          <div id="currentPanel" class="panel">
+            <p class="caption">Current</p>
+            <div
+              id="before"
+              class="sidebar"
+              aria-label="Current sidebar example"
+              tabindex="0"
+            ></div>
+          </div>
+        </div>
+      </div>
+      <div
+        id="previewSplitter"
+        class="splitter"
+        role="separator"
+        tabindex="0"
+        aria-label="Resize preview"
+        aria-orientation="vertical"
+        aria-controls="previewColumn"
+        title="Drag or use arrow keys to resize preview"
+      ></div>
+      <div
+        class="control-panel"
+        tabindex="0"
+        aria-label="Sidebar mock controls"
+      >
+        <div class="top">
+          <p>Adjust the trial · simulated workstreams</p>
+          <div class="actions">
+            <button type="button" id="dark" aria-pressed="true">Dark</button
+            ><button type="button" id="light" aria-pressed="false">Light</button
+            ><button
+              type="button"
+              id="resetTheme"
+              class="property-reset"
+              aria-label="Reset theme to dark"
+              title="Reset theme"
+            >
+              ↺</button
+            ><button type="button" id="reset">Reset all</button>
+          </div>
+        </div>
+        <p id="urlNotice" class="url-notice" hidden>
+          The inline preview cannot update BB’s address.
+          <a
+            id="openSettings"
+            class="share-link"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Open current settings</a
+          >
+          to keep changes on reload.
+        </p>
+        <nav class="category-nav" aria-label="Control categories">
+          <button type="button" data-section="view-section">View</button
+          ><button type="button" data-section="sidebar-section">Sidebar</button
+          ><button type="button" data-section="parent-section">Parents</button
+          ><button type="button" data-section="workstreams-section">
+            Workstreams</button
+          ><button type="button" data-section="category-section">
+            Categories</button
+          ><button type="button" data-section="threads-section">Threads</button
+          ><button type="button" data-section="focus-section">Focus</button
+          ><button type="button" data-section="lines-section">
+            Connecting lines</button
+          ><button type="button" data-section="share-section">Share</button>
+        </nav>
+        <p id="linkLegend" class="link-legend" hidden>
+          ↳ Linked value · select to override
+        </p>
+        <section class="control-section" id="view-section">
+          <h2>View</h2>
+          <div class="controls" id="view-staging" aria-label="View controls">
+            <div class="control">
+              <label for="grouping">Parent treatment</label
+              ><select id="grouping">
+                <option value="family">Shared parent</option>
+                <option value="two-prefix">Prefix for two siblings</option>
+                <option value="runs">Shared, preserve order</option>
+                <option value="prefix">Repeated prefix</option>
+              </select>
+              <div class="hint" id="groupingHint">
+                Siblings stay together within each tier
+              </div>
+            </div>
+            <div class="control">
+              <label for="sort">Example order</label
+              ><select id="sort">
+                <option value="name">Name A–Z</option>
+                <option value="activity">Recent activity</option>
+              </select>
+              <div class="hint">Recent activity interleaves families</div>
+            </div>
+            <div class="control">
+              <label for="focus">Focus</label
+              ><select id="focus">
+                <option value="off">No focused workstreams</option>
+                <option value="on">Focused and other</option>
+              </select>
+              <div class="hint">Other workstreams start hidden</div>
+            </div>
+            <div class="control">
+              <label for="disclosureWorkstream">Workstream disclosure</label
+              ><select id="disclosureWorkstream">
+                <option value="always">Always</option>
+                <option value="hover">On hover</option>
+              </select>
+            </div>
+            <div class="control">
+              <label for="disclosureThread">Thread disclosure</label
+              ><select id="disclosureThread">
+                <option value="current">Current behavior</option>
+                <option value="always">Always</option>
+                <option value="hover">On hover</option>
+              </select>
+              <div class="hint" id="disclosureThreadHint">
+                Current: status swaps to a chevron on hover
+              </div>
+            </div>
+            <div class="control">
+              <label for="disclosureCategoryThread"
+                >Categorized thread disclosure</label
+              ><select id="disclosureCategoryThread">
+                <option value="current">Current behavior</option>
+                <option value="always">Always</option>
+                <option value="hover">On hover</option>
+              </select>
+            </div>
+            <div class="control">
+              <label for="familyGap"
+                >Extra between parents
+                <output
+                  class="value"
+                  for="familyGap"
+                  id="familyGapValue"
+                ></output></label
+              ><input
+                id="familyGap"
+                type="range"
+                min="0"
+                max="40"
+                step="1"
+                value="4"
+              />
+              <div class="hint">
+                Added where neither side has an inline parent.
+              </div>
+            </div>
+            <div class="control">
+              <label for="itemGap"
+                >Between workstreams
+                <output
+                  class="value"
+                  for="itemGap"
+                  id="itemGapValue"
+                ></output></label
+              ><input
+                id="itemGap"
+                type="range"
+                min="0"
+                max="40"
+                step="1"
+                value="12"
+              />
+              <div class="hint">Applies to every boundary in a tier</div>
+            </div>
+            <div class="control">
+              <label for="catGap"
+                >Before category headings
+                <output
+                  class="value"
+                  for="catGap"
+                  id="catGapValue"
+                ></output></label
+              ><input
+                id="catGap"
+                type="range"
+                min="0"
+                max="40"
+                step="1"
+                value="12"
+              />
+            </div>
+            <div class="control">
+              <label for="indent"
+                >Grouped workstream indent
+                <output
+                  class="value"
+                  for="indent"
+                  id="indentValue"
+                ></output></label
+              ><input
+                id="indent"
+                type="range"
+                min="-32"
+                max="64"
+                step="1"
+                value="6"
+              />
+              <div class="hint" id="indentHint">
+                Workstreams under a shared parent
+              </div>
+            </div>
+            <div class="control">
+              <label for="statusGap"
+                >Status icon to title
+                <output
+                  class="value"
+                  for="statusGap"
+                  id="statusGapValue"
+                ></output></label
+              ><input
+                id="statusGap"
+                type="range"
+                min="0"
+                max="40"
+                step="1"
+                value="6"
+              />
+              <div class="hint">From the status slot to the title</div>
+            </div>
+            <div class="control">
+              <label for="mix"
+                >Category accent mix
+                <output class="value" for="mix" id="mixValue"></output></label
+              ><input
+                id="mix"
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value="45"
+              />
+              <div class="hint">The rest is muted text color</div>
+            </div>
+            <div class="control">
+              <label for="width"
+                >Sidebar width
+                <output
+                  class="value"
+                  for="width"
+                  id="widthValue"
+                ></output></label
+              ><input
+                id="width"
+                type="range"
+                min="210"
+                max="340"
+                step="5"
+                value="280"
+              />
+              <div class="hint">Limited by available preview width</div>
+            </div>
+          </div>
+          <div id="view-groups"></div>
+          <button type="button" id="showBounds" aria-pressed="false">
+            Element bounds
+          </button>
+          <p class="hint">
+            Outline rows, text and icon slots in both examples without changing
+            spacing.
+          </p>
+          <p class="order-note" id="orderNote" aria-live="polite"></p>
+          <p class="hint">
+            Row heights and text sizes are independent; large text can clip.
+          </p>
+        </section>
+        <section class="control-section" id="spacing-section">
+          <h2>Spacing</h2>
+          <div class="presets">
+            <span class="label">Presets</span>
+            <div class="actions" role="group" aria-label="Spacing presets">
+              <button type="button" data-preset="compact" aria-pressed="false">
+                Compact · 3px</button
+              ><button
+                type="button"
+                data-preset="balanced"
+                aria-pressed="false"
+              >
+                Balanced · 4px</button
+              ><button type="button" data-preset="airy" aria-pressed="false">
+                Airy · 5px
+              </button>
+            </div>
+            <div class="hint">
+              Gaps and insets use multiples of the unit. Rows and workstream
+              headers stay 28px, parent headings 24px, and icon slots 14px.
+              Other settings are unchanged.
+            </div>
+          </div>
+          <div
+            class="controls"
+            id="spacing-staging"
+            aria-label="Spacing controls"
+          >
+            <div class="control">
+              <label for="rowHeight"
+                >Thread row height
+                <output
+                  class="value"
+                  for="rowHeight"
+                  id="rowHeightValue"
+                ></output></label
+              ><input
+                id="rowHeight"
+                type="range"
+                min="20"
+                max="80"
+                value="28"
+              />
+            </div>
+            <div class="control">
+              <label for="headerHeight"
+                >Workstream header height
+                <output
+                  class="value"
+                  for="headerHeight"
+                  id="headerHeightValue"
+                ></output></label
+              ><input
+                id="headerHeight"
+                type="range"
+                min="20"
+                max="80"
+                value="28"
+              />
+            </div>
+            <div class="control">
+              <label for="parentHeight"
+                >Parent heading height
+                <output
+                  class="value"
+                  for="parentHeight"
+                  id="parentHeightValue"
+                ></output></label
+              ><input
+                id="parentHeight"
+                type="range"
+                min="16"
+                max="80"
+                value="22"
+              />
+            </div>
+            <div class="control">
+              <label for="catAfter"
+                >After category heading
+                <output
+                  class="value"
+                  for="catAfter"
+                  id="catAfterValue"
+                ></output></label
+              ><input id="catAfter" type="range" min="0" max="40" value="2" />
+            </div>
+            <div class="control">
+              <label for="rowInset"
+                >Uncategorized thread indent
+                <output
+                  class="value"
+                  for="rowInset"
+                  id="rowInsetValue"
+                ></output></label
+              ><input id="rowInset" type="range" min="0" max="24" value="0" />
+            </div>
+            <div class="control">
+              <label for="categoryIndent"
+                >Category heading inset
+                <output
+                  class="value"
+                  for="categoryIndent"
+                  id="categoryIndentValue"
+                ></output></label
+              ><input
+                id="categoryIndent"
+                type="range"
+                min="0"
+                max="24"
+                value="8"
+              />
+            </div>
+            <div class="control">
+              <label for="categoryRowIndent"
+                >Categorized thread indent
+                <output
+                  class="value"
+                  for="categoryRowIndent"
+                  id="categoryRowIndentValue"
+                ></output></label
+              ><input
+                id="categoryRowIndent"
+                type="range"
+                min="-32"
+                max="64"
+                value="4"
+              />
+            </div>
+            <div class="control">
+              <label for="childIndent"
+                >Uncategorized child thread indent
+                <output
+                  class="value"
+                  for="childIndent"
+                  id="childIndentValue"
+                ></output></label
+              ><input
+                id="childIndent"
+                type="range"
+                min="0"
+                max="32"
+                value="20"
+              />
+            </div>
+            <div class="control">
+              <label for="categoryChildIndent"
+                >Categorized child thread indent
+                <output
+                  class="value"
+                  for="categoryChildIndent"
+                  id="categoryChildIndentValue"
+                ></output></label
+              ><input
+                id="categoryChildIndent"
+                type="range"
+                min="0"
+                max="32"
+                value="20"
+              />
+            </div>
+            <div class="control">
+              <label for="statusWidth"
+                >Status slot width
+                <output
+                  class="value"
+                  for="statusWidth"
+                  id="statusWidthValue"
+                ></output></label
+              ><input
+                id="statusWidth"
+                type="range"
+                min="8"
+                max="40"
+                value="14"
+              />
+            </div>
+            <div class="control">
+              <label for="headerGap"
+                >Chevron to workstream name
+                <output
+                  class="value"
+                  for="headerGap"
+                  id="headerGapValue"
+                ></output></label
+              ><input id="headerGap" type="range" min="0" max="20" value="6" />
+            </div>
+            <div class="control">
+              <label for="chevronWidth"
+                >Chevron slot width
+                <output
+                  class="value"
+                  for="chevronWidth"
+                  id="chevronWidthValue"
+                ></output></label
+              ><input
+                id="chevronWidth"
+                type="range"
+                min="8"
+                max="24"
+                value="14"
+              />
+            </div>
+            <div class="control">
+              <label for="parentInset"
+                >Parent heading inset
+                <output
+                  class="value"
+                  for="parentInset"
+                  id="parentInsetValue"
+                ></output></label
+              ><input
+                id="parentInset"
+                type="range"
+                min="0"
+                max="24"
+                value="6"
+              />
+            </div>
+            <div class="control">
+              <label for="sectionGap"
+                >After Workstreams heading
+                <output
+                  class="value"
+                  for="sectionGap"
+                  id="sectionGapValue"
+                ></output></label
+              ><input id="sectionGap" type="range" min="0" max="40" value="8" />
+            </div>
+            <div class="control">
+              <label for="sectionTop"
+                >Before Workstreams heading
+                <output
+                  class="value"
+                  for="sectionTop"
+                  id="sectionTopValue"
+                ></output></label
+              ><input id="sectionTop" type="range" min="0" max="40" value="2" />
+            </div>
+            <div class="control">
+              <label for="sectionInset"
+                >Workstreams heading inset
+                <output
+                  class="value"
+                  for="sectionInset"
+                  id="sectionInsetValue"
+                ></output></label
+              ><input
+                id="sectionInset"
+                type="range"
+                min="0"
+                max="24"
+                value="6"
+              />
+            </div>
+            <div class="control">
+              <label for="sideX"
+                >Sidebar horizontal padding
+                <output
+                  class="value"
+                  for="sideX"
+                  id="sideXValue"
+                ></output></label
+              ><input id="sideX" type="range" min="0" max="24" value="8" />
+            </div>
+            <div class="control">
+              <label for="sideY"
+                >Sidebar vertical padding
+                <output
+                  class="value"
+                  for="sideY"
+                  id="sideYValue"
+                ></output></label
+              ><input id="sideY" type="range" min="0" max="24" value="12" />
+            </div>
+            <div class="control">
+              <label for="tierGap"
+                >Between focus tiers
+                <output
+                  class="value"
+                  for="tierGap"
+                  id="tierGapValue"
+                ></output></label
+              ><input id="tierGap" type="range" min="0" max="40" value="16" />
+            </div>
+            <div class="control">
+              <label for="tierLabelTop"
+                >Before Show other workstreams
+                <output
+                  class="value"
+                  for="tierLabelTop"
+                  id="tierLabelTopValue"
+                ></output></label
+              ><input
+                id="tierLabelTop"
+                type="range"
+                min="0"
+                max="40"
+                value="16"
+              />
+            </div>
+            <div class="control">
+              <label for="tierLabelInset"
+                >Show other workstreams inset
+                <output
+                  class="value"
+                  for="tierLabelInset"
+                  id="tierLabelInsetValue"
+                ></output></label
+              ><input
+                id="tierLabelInset"
+                type="range"
+                min="0"
+                max="24"
+                value="6"
+              />
+            </div>
+            <div class="control">
+              <label for="tierLabelBottom"
+                >After Show other workstreams
+                <output
+                  class="value"
+                  for="tierLabelBottom"
+                  id="tierLabelBottomValue"
+                ></output></label
+              ><input
+                id="tierLabelBottom"
+                type="range"
+                min="0"
+                max="40"
+                value="10"
+              />
+            </div>
+          </div>
+          <div id="spacing-groups"></div>
+        </section>
+        <section class="control-section" id="fonts-section">
+          <h2>Fonts</h2>
+          <div class="hint">
+            Row heights are separate spacing controls; large text may not fit.
+          </div>
+          <div id="font-controls"></div>
+        </section>
+        <section class="control-section" id="share-section">
+          <h2>Share</h2>
+          <label for="shareUrl" class="copy-note">URL for these settings</label
+          ><input
+            id="shareUrl"
+            class="share-input"
+            readonly
+            spellcheck="false"
+          />
+          <p class="copy-note">
+            The URL contains changed settings. Other workstreams start hidden
+            again on reload.
+          </p>
+          <button
+            id="showSettings"
+            class="settings-button"
+            type="button"
+            aria-expanded="false"
+            aria-controls="settingsValues"
+          >
+            Show current values
+          </button>
+          <div id="settingsValues" hidden>
+            <label for="values" class="hint"
+              >Spacing, font sizes, and letter spacing are in pixels; the accent
+              mix and line heights are percentages.</label
+            ><textarea
+              id="values"
+              readonly
+              spellcheck="false"
+              aria-label="Current mock values"
+            ></textarea>
+          </div>
+        </section>
+        <p class="note">
+          Sample names and ordering are invented. Click a parent or workstream
+          heading to collapse it. Drag a stepper up or down to adjust its value.
+          Trial rows start at 25px; Current uses 21px root rows and 28px child
+          rows. The current and trial panels share the theme, sidebar width,
+          focus and example order; other controls affect the trial. Category
+          contrast depends on hue and theme.
+        </p>
+      </div>
+    </div>
+    <script type="module" src="./sidebar-playground/main.js"></script>
+  </body>
+</html>

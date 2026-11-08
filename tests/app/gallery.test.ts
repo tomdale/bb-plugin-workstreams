@@ -110,6 +110,140 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
   );
 
   browserTest(
+    "offers a local sidebar playground with independent connecting lines",
+    async ({ page }) => {
+      const errors: string[] = [];
+      const writes: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      page.on("request", (request) => {
+        if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method()))
+          writes.push(request.url());
+      });
+      await page.goto(url);
+      await page
+        .getByRole("navigation", { name: "Design system" })
+        .getByRole("link", { name: "Sidebar playground" })
+        .click();
+      expect(new URL(page.url()).pathname).toBe("/sidebar.html");
+      await page.locator("#after .ws-row").first().waitFor();
+      expect(
+        await page.locator("#after .ws-text-thread").count(),
+      ).toBeGreaterThan(0);
+      expect(
+        await page.locator("#after .ws-workstream-name").count(),
+      ).toBeGreaterThan(0);
+      await page.getByRole("button", { name: "Connecting lines" }).click();
+      await page
+        .getByLabel("View: Parent treatment", { exact: true })
+        .selectOption("family");
+      for (const type of [
+        "Workstreams section",
+        "Shared parent",
+        "Workstream",
+        "Category",
+        "Child threads",
+      ]) {
+        await page
+          .getByLabel(`${type}: Show line`, { exact: true })
+          .selectOption("on");
+      }
+      await page.getByLabel("Child threads: Width", { exact: true }).fill("3");
+      await page.getByLabel("Child threads: Indent", { exact: true }).fill("4");
+      await page
+        .getByLabel("Child threads: Color", { exact: true })
+        .fill("#336699");
+      await page
+        .getByLabel("Child threads: Spacing", { exact: true })
+        .fill("7");
+      for (const kind of [
+        "section",
+        "parent",
+        "workstream",
+        "category",
+        "children",
+      ]) {
+        expect(
+          await page.locator(`#after [data-guide="${kind}"]`).count(),
+        ).toBeGreaterThan(0);
+        expect(
+          await page.locator(`#before [data-guide="${kind}"]`).count(),
+        ).toBe(0);
+      }
+      expect(
+        await page
+          .locator('#after [data-guide="children"]')
+          .first()
+          .evaluate((el) => (el as HTMLElement).style.backgroundSize),
+      ).toBe("3px 100%");
+      expect(
+        await page
+          .locator('#after [data-guide="children"]')
+          .first()
+          .evaluate((el) => getComputedStyle(el).backgroundImage),
+      ).toContain("rgb(51, 102, 153)");
+      const childrenBefore = await page.locator("#after .row.child").count();
+      await page
+        .locator("#after .ws-disclosure")
+        .first()
+        .click({ force: true });
+      await page.waitForFunction(
+        (count) =>
+          document.querySelectorAll("#after .row.child").length < count,
+        childrenBefore,
+      );
+      const firstParent = page.locator("#after .family.has-parent").first();
+      expect(await firstParent.locator('[data-guide="parent"]').count()).toBe(
+        1,
+      );
+      await firstParent.locator(".parent").click();
+      expect(
+        await page
+          .locator("#after .family.has-parent")
+          .first()
+          .locator('[data-guide="parent"]')
+          .count(),
+      ).toBe(0);
+      const saved = page.url();
+      await page.reload();
+      expect(page.url()).toBe(saved);
+      await page.getByRole("button", { name: "Connecting lines" }).click();
+      expect(
+        await page
+          .getByLabel("Child threads: Width", { exact: true })
+          .inputValue(),
+      ).toBe("3");
+      expect(
+        await page.locator('#after [data-guide="children"]').count(),
+      ).toBeGreaterThan(0);
+      await page.goto(`${url}sidebar.html#iv=7&rowHeight=25&grouping=family`);
+      await page.locator("#after .ws-row").first().waitFor();
+      expect(
+        await page
+          .getByLabel("View: Parent treatment", { exact: true })
+          .inputValue(),
+      ).toBe("family");
+      expect(await page.locator("#after [data-guide]").count()).toBe(0);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.getByRole("button", { name: "Trial", exact: true }).click();
+      expect(await page.locator("#currentPanel").isVisible()).toBe(false);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      expect(
+        await page
+          .locator("#after .row:not(.categorized):not(.child)")
+          .first()
+          .evaluate((el) => el.getBoundingClientRect().height),
+      ).toBe(25);
+      expect(errors).toEqual([]);
+      expect(writes).toEqual([]);
+    },
+    60_000,
+  );
+
+  browserTest(
     "renders every specimen with real tokens and bounded controls",
     async ({ page }) => {
       const errors: string[] = [];

@@ -131,6 +131,7 @@ export default function App() {
       .includes(search),
   );
   const showIntroduction = "introduction".includes(search);
+  const showSidebarPlayground = "sidebar playground".includes(search);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -233,6 +234,11 @@ export default function App() {
           onChange={(event) => setQuery(event.target.value)}
         />
         <nav aria-label="Design system">
+          {showSidebarPlayground && (
+            <a className="gallery-nav-link" href="./sidebar.html">
+              Sidebar playground
+            </a>
+          )}
           {showIntroduction && (
             <a
               className="gallery-nav-link gallery-nav-introduction"

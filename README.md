@@ -1048,13 +1048,24 @@ from the plugin's Gallery view and is not registered or shipped in the plugin.
 Build a static copy with `npm run gallery:build`.
 
 The gallery includes foundations, work identity, settings compositions, actions
-and overlays, recap and question playgrounds, and reply examples. Settings and
-overlay actions update local state and an action log. Question presets cover
-freeform and multi-question forms, submission states, and retained answers;
-recap presets add artifacts, hashes, long content, and awaited-agent states.
-Color choices use the production token generator and reset when you leave the
-example. The standalone theme supplies neutral registry aliases and a Purple
-fixture from Workstreams' default suggestion color; it is not a live BB theme.
+and overlays, recap and question playgrounds, and reply examples. Its **Sidebar
+playground** opens a separate development-only page with side-by-side Trial and
+Current examples, configurable row treatments, and independent connecting lines
+for the Workstreams section, shared parents, workstreams, categories, and child
+threads. Line controls set visibility, width, color, indent, and spacing.
+Changes and expandable state can be shared in the URL; fragments from older
+playground settings URLs can be applied to this page. The examples use the
+plugin's thread rows and workstream names with local fixtures, while the
+alternative grouping and layout treatments are simulated. Nothing writes to BB
+or ships in the plugin.
+
+Settings and overlay actions update local state and an action log. Question
+presets cover freeform and multi-question forms, submission states, and retained
+answers; recap presets add artifacts, hashes, long content, and awaited-agent
+states. Color choices use the production token generator and reset when you
+leave the example. The standalone theme supplies neutral registry aliases and a
+Purple fixture from Workstreams' default suggestion color; it is not a live BB
+theme.
 
 Gallery configuration sits in panels labeled **Gallery controls**. Frames
 labeled **Live example** identify the demonstrated components and link to their
