@@ -43,6 +43,7 @@ import {
   NextUpCommandBridge,
   openNextUpThread,
 } from "./upNext/NextUpCommand.tsx";
+import { DebugCommandBridge, toggleDebugMode } from "./debug/DebugCommand.tsx";
 import { WORKSTREAM_ICON } from "./workstream-icon.ts";
 import "./theme/tokens.css";
 import "./styles.css";
@@ -79,6 +80,10 @@ export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({
     id: "next-up-command",
     component: NextUpCommandBridge,
+  });
+  app.slots.experimental_appOverlay({
+    id: "debug-command",
+    component: DebugCommandBridge,
   });
   registerReplyBlock(app);
   app.slots.experimental_appOverlay({
@@ -143,6 +148,11 @@ export default definePluginApp((app) => {
     title: "Workstreams: next Up Next thread",
     defaultShortcut: { key: "j", mod: true, alt: true },
     run: ({ threadId }) => openNextUpThread(threadId),
+  });
+  app.commands.register({
+    id: "toggle-debug-mode",
+    title: "Workstreams: toggle debug mode",
+    run: () => toggleDebugMode(),
   });
   app.commands.register({
     id: "wake-thread",

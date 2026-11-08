@@ -44,6 +44,8 @@ it("binds UI surfaces to the components exercised by the SDK harness", async () 
     await import("../../src/app/recap/RecapSettings.tsx");
   const { SnoozeSettings } =
     await import("../../src/app/snooze/SnoozeSettings.tsx");
+  const { DebugCommandBridge } =
+    await import("../../src/app/debug/DebugCommand.tsx");
   expect(
     app.threadLists.find((entry) => entry.id === "sidebar")?.component,
   ).toBe(WorkstreamsThreadList);
@@ -93,6 +95,7 @@ it("binds UI surfaces to the components exercised by the SDK harness", async () 
     ["assistant-reply-debug", AssistantReplyDebug],
     ["sticky-thread-goal", StickyGoalHeader],
     ["color-tokens", ColorTokenStyle],
+    ["debug-command", DebugCommandBridge],
   ] as const) {
     expect(app.appOverlays.find((entry) => entry.id === id)?.component).toBe(
       component,
@@ -115,6 +118,28 @@ it("registers an Archive action in the thread header", async () => {
   expect(
     app.threadHeaderActions.find((action) => action.id === "archive")?.title,
   ).toBe("Archive");
+});
+
+it("registers a Debug mode command with no default shortcut", async () => {
+  const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
+  // CapturedPluginApp's declared type lags the harness, which collects
+  // commands.register registrations (bb-plugins docs/bb-sdk-wishlist.md).
+  const commands = (
+    app as unknown as {
+      commandPaletteActions: {
+        id: string;
+        title: string;
+        defaultShortcut: unknown;
+        run: unknown;
+      }[];
+    }
+  ).commandPaletteActions;
+  expect(commands).toContainEqual({
+    id: "toggle-debug-mode",
+    title: "Workstreams: toggle debug mode",
+    defaultShortcut: null,
+    run: expect.any(Function),
+  });
 });
 
 it("registers settings in feature order", async () => {
