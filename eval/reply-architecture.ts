@@ -4,13 +4,25 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parse, toText } from "../src/domain/reply.ts";
-import { componentFence } from "../src/domain/replyExamples.ts";
+import { z } from "zod";
+import {
+  COMPONENT_EXAMPLES,
+  componentFence,
+} from "../src/domain/replyExamples.ts";
+import {
+  componentUse,
+  corruptionProblems,
+  FIDELITY_INSTRUCTIONS,
+  fidelitySchema,
+  inspectReply,
+  readFidelity,
+  type Comparison,
+  type Fidelity,
+} from "./reply-architecture-checks.ts";
 import {
   REPLY_COMPONENT_INSTRUCTIONS,
   replyInstructions,
 } from "../src/domain/replyInstructions.ts";
-import { onlyReplyBlock } from "../src/domain/replyText.ts";
 import {
   gatewayComplete,
   gatewayKey,
@@ -28,10 +40,17 @@ Give the replacement expression, explain the defect, and give the corrected offs
 
 export const SEMANTIC_INSTRUCTIONS = `Answer the supplied task in readable Markdown. Use descriptive headings where helpful. Keep conclusions, reasoning, qualifications, and supporting calculations together. State what the supplied material establishes and what remains unverified.`;
 
+export const UI_EXAMPLES = ["context", "finding", "recommendation", "details"]
+  .map((type) =>
+    componentFence(COMPONENT_EXAMPLES[type as keyof typeof COMPONENT_EXAMPLES]),
+  )
+  .join("\n\n");
+
 export const UI_INSTRUCTIONS = [
   replyInstructions(false),
   REPLY_COMPONENT_INSTRUCTIONS,
-  "This tool-free evaluation supplies the component signatures above as the complete reference. Author the answer directly. The reply contains its body without recap fields.",
+  "The read-only component guide has supplied the following worked examples for this tool-free evaluation. Use them as syntax references; their content is illustrative, not evidence about the task. Author the reply body without recap fields.",
+  UI_EXAMPLES,
 ].join("\n\n");
 
 export const PRESENTATION_INSTRUCTIONS = [
@@ -43,49 +62,11 @@ export function deterministicReply(source: string): string {
   return `:::reply\n${componentFence({ type: "text", body: source })}\n:::`;
 }
 
-export function inspectReply(source: string) {
-  const block = onlyReplyBlock(source);
-  if (!block || block.status !== "closed")
-    return {
-      valid: false,
-      errors: ["Expected one closed whole-message reply"],
-      text: source,
-      components: null,
-    };
-  const result = parse(block);
-  if (!result.ok)
-    return {
-      valid: false,
-      errors: [result.error],
-      text: source,
-      components: null,
-    };
-  const errors = result.data.body.flatMap((part) =>
-    part.type === "unparsed"
-      ? [part.error]
-      : part.type === "pending"
-        ? ["Incomplete component"]
-        : part.type === "text" &&
-            /(?:^|\n)workstreams[ \t]*\r?\n\w+\([a-zA-Z]+:/.test(part.body)
-          ? ["Possible unfenced component source rendered as prose"]
-          : [],
-  );
-  if (result.data.card || result.data.headline)
-    errors.push("Unexpected recap fields");
-  if (!result.data.body.length) errors.push("Empty reply body");
-  return {
-    valid: errors.length === 0,
-    errors,
-    text: toText(result.data),
-    components: result.data.body,
-  };
-}
-
-export function correctionMentioned(text: string): boolean {
-  return /\(page-1\)\*pageSize/.test(text.replace(/\s/g, ""));
-}
-
-type Call = { systemPrompt: string; prompt: string };
+type Call = {
+  systemPrompt: string;
+  prompt: string;
+  outputSchema?: Record<string, unknown>;
+};
 type CallResult = Call & {
   durationMs: number;
   completion: Completion | null;
@@ -151,17 +132,41 @@ export async function runSlice(complete: Complete) {
       })
     : null;
 
-  function path(source: string | null, callError: string | null) {
-    const inspected = source === null ? null : inspectReply(source);
+  function path(output: string | null, callError: string | null) {
+    const inspected = output === null ? null : inspectReply(output);
+    const errors = [
+      ...(callError ? [callError] : []),
+      ...(inspected?.errors ?? []),
+    ];
+    const corruption =
+      output === null
+        ? []
+        : corruptionProblems(inspected?.components ?? null, output);
     return {
-      source,
-      valid: !callError && inspected?.valid === true,
-      errors: [...(callError ? [callError] : []), ...(inspected?.errors ?? [])],
+      source: output,
       text: inspected?.text ?? "",
       components: inspected?.components ?? null,
-      correctionMentioned: inspected
-        ? correctionMentioned(inspected.text)
-        : false,
+      checks: {
+        format: {
+          status: output === null ? "blocked" : errors.length ? "fail" : "pass",
+          errors,
+        },
+        componentUse:
+          output === null
+            ? { status: "blocked", count: 0, types: [] }
+            : componentUse(inspected?.components ?? null),
+        corruption: {
+          status:
+            output === null ? "blocked" : corruption.length ? "fail" : "pass",
+          errors: corruption,
+        },
+        fidelity: {
+          status: "blocked",
+          method: "model",
+          reason: "No usable response to judge",
+          issues: [],
+        } as Fidelity,
+      },
     };
   }
   const paths = {
@@ -172,11 +177,78 @@ export async function runSlice(complete: Complete) {
       presented?.error ?? semantic.error,
     ),
   };
+  if (deterministic !== null) {
+    const parts = paths.deterministic.components;
+    const preserved =
+      parts?.length === 1 &&
+      parts[0]?.type === "text" &&
+      parts[0].body === source;
+    paths.deterministic.checks.fidelity = {
+      status: preserved ? "pass" : "fail",
+      method: "exact-preservation",
+      reason: preserved
+        ? "Semantic Markdown preserved verbatim; source correctness is scored separately"
+        : "Text wrapper changed the semantic source",
+      issues: [],
+    };
+  }
+  const comparisons: Comparison[] = [];
+  if (!direct.error && direct.completion)
+    comparisons.push({
+      id: "direct",
+      source: TASK,
+      answer: direct.completion.text,
+    });
+  if (!semantic.error && semantic.completion)
+    comparisons.push({ id: "semantic", source: TASK, answer: source });
+  if (presented && !presented.error && presented.completion)
+    comparisons.push({
+      id: "presentation",
+      source,
+      answer: presented.completion.text,
+    });
+  let semanticFidelity: Fidelity = {
+    status: "blocked",
+    method: "model",
+    reason: "No usable semantic response",
+    issues: [],
+  };
+  if (comparisons.length) {
+    const judged = await call("fidelity", {
+      systemPrompt: FIDELITY_INSTRUCTIONS,
+      prompt: JSON.stringify({ comparisons }),
+      outputSchema: z.toJSONSchema(fidelitySchema),
+    });
+    let verdicts: Map<Comparison["id"], Fidelity>;
+    try {
+      if (judged.error || !judged.completion)
+        throw Error(judged.error ?? "Missing fidelity response");
+      verdicts = readFidelity(judged.completion.text, comparisons);
+    } catch (failure) {
+      verdicts = new Map(
+        comparisons.map(({ id }) => [
+          id,
+          {
+            status: "error",
+            method: "model",
+            reason:
+              failure instanceof Error ? failure.message : String(failure),
+            issues: [],
+          },
+        ]),
+      );
+    }
+    paths.direct.checks.fidelity =
+      verdicts.get("direct") ?? paths.direct.checks.fidelity;
+    paths.presentation.checks.fidelity =
+      verdicts.get("presentation") ?? paths.presentation.checks.fidelity;
+    semanticFidelity = verdicts.get("semantic") ?? semanticFidelity;
+  }
   return {
     task: TASK,
     calls,
     paths,
-    semanticCorrectionMentioned: correctionMentioned(source),
+    semanticFidelity,
     totalCost: Object.values(calls).reduce(
       (sum, item) => sum + (item.completion?.usage.cost ?? 0),
       0,
@@ -188,6 +260,23 @@ export async function runSlice(complete: Complete) {
       "Did presentation add, drop, or strengthen any claim from the exact semantic source?",
     ],
   };
+}
+
+export function sliceNeedsReview(
+  result: Pick<
+    Awaited<ReturnType<typeof runSlice>>,
+    "paths" | "semanticFidelity"
+  >,
+): boolean {
+  return (
+    result.semanticFidelity.status !== "pass" ||
+    Object.values(result.paths).some(
+      ({ checks }) =>
+        checks.format.status !== "pass" ||
+        checks.corruption.status !== "pass" ||
+        checks.fidelity.status !== "pass",
+    )
+  );
 }
 
 async function main() {
@@ -204,7 +293,7 @@ async function main() {
           usage:
             "node --experimental-transform-types eval/reply-architecture.ts --run",
           model,
-          calls: 3,
+          calls: 4,
           maxTokensPerCall: 2048,
           timeoutMsPerCall: 30_000,
           reportedCostStop: 0.75,
@@ -213,8 +302,9 @@ async function main() {
             direct: UI_INSTRUCTIONS,
             semantic: SEMANTIC_INSTRUCTIONS,
             presentation: PRESENTATION_INSTRUCTIONS,
+            fidelity: FIDELITY_INSTRUCTIONS,
           },
-          note: "Preview only; --run makes paid calls. No tools, retries, browser rendering, or factual judge. Correction matching is lexical, not a correctness verdict.",
+          note: "Preview only; --run makes paid calls. Format, component-use, corruption, and model-judged fidelity are separate. Fidelity verdicts require human inspection; corruption detection is heuristic. No tools, retries, or browser rendering.",
         },
         null,
         2,
@@ -272,14 +362,14 @@ async function main() {
   for (const [name, path] of Object.entries(result.paths)) {
     await writeFile(join(directory, `${name}.md`), path.source ?? "");
     console.log(
-      `${name}: format=${path.valid ? "valid" : "failed"}, correction-mentioned=${path.correctionMentioned}, errors=${path.errors.join("; ") || "none"}`,
+      `${name}: format=${path.checks.format.status}, component-use=${path.checks.componentUse.status}(${path.checks.componentUse.count}), corruption=${path.checks.corruption.status}, fidelity=${path.checks.fidelity.status}`,
     );
   }
   console.log(
     `Reported cost: $${result.totalCost.toFixed(6)}; inspect report.json and all Markdown outputs before judging quality`,
   );
-  if (Object.values(result.paths).some((path) => !path.valid))
-    process.exitCode = 1;
+  console.log(`Semantic source fidelity: ${result.semanticFidelity.status}`);
+  if (sliceNeedsReview(result)) process.exitCode = 1;
 }
 
 if (

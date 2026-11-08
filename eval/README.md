@@ -191,13 +191,15 @@ rendering, or reader comprehension. Those need separate checks.
 `node --experimental-transform-types eval/reply-architecture.ts` previews a
 one-case, tool-free experiment without credentials or paid calls. The Node flag
 supports the component parser's TypeScript parameter property. Add `--run` to
-make at most three paid calls: a pagination diagnosis with the production
+make at most four paid calls: a pagination diagnosis with the production
 reply/component instructions, the same diagnosis with Markdown instructions,
-then presentation of that exact Markdown response using the production component
-contract. The deterministic path preserves the Markdown verbatim as a text
-component. Both task authorings receive the same code and question; the
-presentation call receives its source response, not the original task or
-reference answers.
+presentation of that exact Markdown response, then a separate fidelity review.
+Direct UI authoring and the presenter receive identical worked context, finding,
+recommendation, and details examples from the production guide. The semantic
+author receives Markdown instructions without the component guide. Both task
+authorings receive the same code and question; the presenter receives its source
+response, not the original task or reference answers. The deterministic path
+preserves the Markdown verbatim as a text component.
 
 `EVAL_MODEL` selects the same model for all calls (default `openai/gpt-6-luna`).
 Reasoning is `none`; each call has a 2,048-token output limit and 30-second
@@ -210,14 +212,37 @@ The runner prints a fresh temporary artifact directory containing `report.json`,
 responses, parsed components, timings, reported usage/cost, and failures. It
 records the Git revision, a working-tree dirty flag, and the runner's SHA-256;
 the hash identifies the runner, not uncommitted changes to its dependencies.
-Unusable semantic output blocks both downstream paths. Invalid, empty, or
-truncated output fails the run, including a truncated response whose reply block
-happens to parse. A bare `workstreams` line followed by a component call is
-flagged as possible unfenced source; other misplaced source still needs manual
-inspection. The correction-expression match is a lexical cue, not a correctness
-score; a negated correction also matches. Use the report's manual questions to
-inspect the diagnosis, corrected offsets, unverified execution, and fidelity to
-the semantic source.
+Each path's `checks` separates four dimensions:
+
+- `format`: one closed whole-message reply with valid components and no recap
+  fields. Transport errors, empty output, and token limits fail or block this
+  check even if a partial reply parses.
+- `componentUse`: counts and types of information components, excluding text
+  wrappers. `none` is allowed; readable Markdown does not fail format because it
+  uses no information components.
+- `corruption`: heuristic detection of unfenced component calls, including
+  multiline calls without a `workstreams` marker, and reply-delimiter residue or
+  nested reply containers. Literal code examples are excluded. These checks
+  catch suspected source leakage, not every possible duplicated or garbled
+  answer.
+- `fidelity`: a separate model call compares direct and semantic answers with
+  the task and the presented answer with its exact semantic source. It returns
+  `pass`, `fail`, or `review` with reasons and verbatim issue quotes; quotes and
+  comparison coverage are validated. Unavailable, truncated, malformed, or
+  contradictory judge output becomes `error` or `blocked`, not a pass. The
+  deterministic path checks exact source preservation; the semantic source's own
+  task fidelity is reported separately as `semanticFidelity`.
+
+The report retains the fidelity request, raw verdicts, latency, and cost as the
+`fidelity` call. Total run cost and duration include that evaluation overhead;
+it is not a presentation-path cost. The judge uses the selected model in a
+separate call and can be wrong or miss an issue. It does not establish factual
+truth or replace human inspection. A zero exit requires format and corruption
+passes, fidelity passes for all available paths, and a semantic-source fidelity
+pass; component use is advisory. `review`, judge errors, and blocked results
+exit nonzero. Unusable semantic output blocks both downstream paths. Use the
+report's manual questions to inspect the diagnosis, corrected offsets,
+unverified execution, and fidelity to the source.
 
 This slice checks task authoring through presentation syntax. It does not run
 workspace tools, render a browser comparison, measure reader preference, or
