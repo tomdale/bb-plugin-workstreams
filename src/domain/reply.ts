@@ -6,6 +6,7 @@
 import type { Heading, List, ListItem, Nodes, Root, RootContent } from "mdast";
 import { z } from "zod";
 import { compileComponents } from "./replyCompile.ts";
+import { arrangeBody } from "./replyPanel.ts";
 import {
   componentText,
   isComponentFence,
@@ -293,7 +294,7 @@ export function parse(
   };
 }
 
-/** The readable text view includes folded evidence and every component field. */
+/** The readable text view follows the panel's order and includes folded evidence and every component field. */
 export function toText(data: unknown): string {
   const parsed = replySchema.safeParse(data);
   if (!parsed.success) return "";
@@ -304,7 +305,7 @@ export function toText(data: unknown): string {
       (item) =>
         `- ${item.checked === null ? "" : item.checked ? "[x] " : "[ ] "}${item.markdown}`,
     ) ?? []),
-    ...body.map(componentText),
+    ...arrangeBody(body).map(componentText),
     ...(card
       ? (Object.keys(CARD_LABELS) as (keyof typeof CARD_LABELS)[])
           .filter((key) => card[key].length)

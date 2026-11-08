@@ -154,122 +154,146 @@ it("registers version 1 and the existing readable text view", () => {
   expect(block.toText({ body: [{ type: "text", body: "PASS" }] })).toBe("PASS");
 });
 
-it("renders every component as readable Markdown and native links in one reply", () => {
-  const examples = Object.entries(COMPONENT_EXAMPLES);
-  const marker = (name: string) => "Component example: " + name;
-  const source = examples
-    .map(
-      ([name, component]) => marker(name) + "\n\n" + componentFence(component),
-    )
+it("renders every component, in panel order, with no control but copy buttons and folds", () => {
+  const source = Object.values(COMPONENT_EXAMPLES)
+    .map((component) => componentFence(component))
     .join("\n\n");
   const view = draw(":::reply\n" + source + "\n:::\n");
   const block = view.container.querySelector("[data-reply-block]")!;
-  const nodes = [...block.children];
-  for (const [index, [name]] of examples.entries()) {
-    const start = nodes.findIndex(
-      (node) => node.getAttribute("data-markdown") === marker(name),
-    );
-    const nextName = examples[index + 1]?.[0];
-    const end = nextName
-      ? nodes.findIndex(
-          (node) => node.getAttribute("data-markdown") === marker(nextName),
-        )
-      : nodes.length;
-    expect(start, name).toBeGreaterThanOrEqual(0);
-    const content = nodes.slice(start + 1, end);
-    expect(
-      content.some(
-        (node) =>
-          node.matches("[data-markdown]") ||
-          node.querySelector("[data-markdown]"),
-      ),
-      name,
-    ).toBe(true);
-    expect(
-      content
-        .map((node) => node.textContent)
-        .join("")
-        .trim().length,
-      name,
-    ).toBeGreaterThan(0);
-  }
   expect(view.container.textContent).not.toContain("\x60\x60\x60workstreams");
-  expect(
-    view.container.querySelector(
-      "[data-reply-component], aside, article, button, footer",
+  // The lead text, then actions, then the rest as written, then the fold.
+  const order = [
+    ...block.querySelectorAll(
+      ":scope > [data-markdown], :scope > [data-reply-actions], :scope > [data-reply-checks], :scope > [data-reply-delivery], :scope > [data-reply-change], :scope > [data-reply-facts], :scope > [data-reply-table], :scope > [data-reply-details]",
     ),
-  ).toBeNull();
-  expect(block.className).toBe("ws-reply-accent min-w-0 space-y-4");
+  ].map((node) =>
+    node.hasAttribute("data-markdown")
+      ? "text"
+      : [...node.attributes]
+          .find((a) => a.name.startsWith("data-reply-"))!
+          .name.slice("data-reply-".length),
+  );
+  expect(order).toEqual([
+    "text",
+    "actions",
+    "checks",
+    "delivery",
+    "change",
+    "facts",
+    "table",
+    "details",
+  ]);
+  for (const example of Object.values(COMPONENT_EXAMPLES))
+    expect(view.container.textContent).toContain(
+      "title" in example && example.title ? example.title : "",
+    );
+  // Every button copies a literal value; every disclosure starts closed.
+  for (const button of block.querySelectorAll("button"))
+    expect(button.getAttribute("aria-label")).toMatch(/^Copy /);
+  for (const fold of block.querySelectorAll("details"))
+    expect((fold as HTMLDetailsElement).open).toBe(false);
+  expect(block.className).toBe("ws-reply-accent min-w-0 space-y-4 text-sm");
 });
 
-it("preserves source order rather than moving context above prose", () => {
-  const view = draw(
-    `:::reply\nOpening explanation.\n\n${componentFence({ type: "context", topic: "Reported task", where: "Reported location" })}\n\nClosing explanation.\n:::\n`,
+it("copies an action's command and a fact's value", async () => {
+  const writeText = vi.fn(async () => {});
+  Object.assign(navigator, { clipboard: { writeText } });
+  draw(
+    `:::reply\n${componentFence(COMPONENT_EXAMPLES.actions)}\n\n${componentFence(COMPONENT_EXAMPLES.facts)}\n:::\n`,
   );
-  const paragraphs = [...view.container.querySelectorAll("p")].map(
-    (p) => p.textContent,
-  );
-  expect(paragraphs).toEqual([
-    "Opening explanation.",
-    "Reported task",
-    "Reported location",
-    "Closing explanation.",
-  ]);
-  expect(
-    screen.queryByRole("button", { name: "Show current workspace" }),
-  ).toBeNull();
-});
-it("keeps supporting detail, all checks, and comparison details visible", () => {
-  const source = [
-    COMPONENT_EXAMPLES.details,
-    COMPONENT_EXAMPLES.checks,
-    COMPONENT_EXAMPLES.comparison,
-  ]
-    .map(componentFence)
-    .join("\n\n");
-  const view = draw(`:::reply\n${source}\n:::\n`);
-  expect(view.container.querySelector("pre code")?.textContent).toContain(
-    "1000 * (10 / 100)",
-  );
-  expect(screen.getByText("Unit tests")).toBeDefined();
-  expect(
-    view.container.querySelector('[data-reply-check-status="passed"]')
-      ?.textContent,
-  ).toBe("Passed");
-  expect(screen.getByText("Payment integration")).toBeDefined();
-  expect(
-    view.container.querySelector('[data-reply-check-status="skipped"]')
-      ?.textContent,
-  ).toBe("Skipped");
-  expect(view.container.textContent).toContain("connection remains unverified");
-  expect(view.container.textContent).toContain("100-cent discount");
-  expect(view.container.querySelector("button, [hidden]")).toBeNull();
-});
-it("renders grouped component lists without losing their narrative or sources", () => {
-  const view = draw(
-    body({
-      type: "group",
-      relationship: "supporting",
-      children: [
-        [
-          { type: "text", body: "Primary explanation." },
-          COMPONENT_EXAMPLES.sequence as Extract<
-            typeof COMPONENT_EXAMPLES.sequence,
-            { type: "sequence" }
-          >,
-        ],
-        COMPONENT_EXAMPLES.checks as Extract<
-          typeof COMPONENT_EXAMPLES.checks,
-          { type: "checks" }
-        >,
-      ],
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Copy git merge --ff-only feature/percent",
     }),
   );
-  expect(view.container.textContent).toContain("Primary explanation.");
-  expect(view.container.textContent).toContain("Unit tests");
-  expect(view.container.textContent).toContain("Test report");
-  expect(view.container.querySelector("aside, [data-relationship]")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Copy 3f9c2ab" }));
+  expect(writeText.mock.calls).toEqual([
+    ["git merge --ff-only feature/percent"],
+    ["3f9c2ab"],
+  ]);
+  await screen.findByRole("button", { name: "Copied 3f9c2ab" });
 });
+
+it("counts actions and marks decisions and cautions", () => {
+  const view = draw(body(COMPONENT_EXAMPLES.actions));
+  const panel = view.container.querySelector("[data-reply-actions]")!;
+  expect(panel.querySelector("h3")?.textContent).toBe("Needs you");
+  expect(panel.querySelector("[data-reply-actions-count]")?.textContent).toBe(
+    "2 steps, 1 decision",
+  );
+  expect(
+    [...panel.querySelectorAll("[data-reply-action]")].map((row) =>
+      row.getAttribute("data-reply-action"),
+    ),
+  ).toEqual(["do", "do", "decide"]);
+  expect(
+    panel.querySelector('[data-reply-action="decide"]')?.textContent,
+  ).toContain("Decide");
+  expect(panel.querySelector("[data-reply-caution]")?.textContent).toContain(
+    "Caution: Runs a migration",
+  );
+});
+
+it("keeps failed checks open and folds a list where every check passed", () => {
+  const failing = draw(body(COMPONENT_EXAMPLES.checks));
+  // One check skipped: the list stays open beneath the tiles.
+  expect(
+    failing.container.querySelector("[data-reply-checks-fold]"),
+  ).toBeNull();
+  expect(
+    [...failing.container.querySelectorAll("[data-reply-tile]")].map((tile) =>
+      tile.getAttribute("data-reply-tile"),
+    ),
+  ).toEqual(["neutral", "good"]);
+  expect(failing.container.textContent).toContain("checks passed, 1 skipped");
+  failing.lifecycle.unmount();
+  const passing = draw(
+    body(
+      checksWithEvidence([
+        { name: "Unit tests", status: "passed" },
+        { name: "Typecheck", status: "passed" },
+      ]),
+    ),
+  );
+  const fold = passing.container.querySelector<HTMLDetailsElement>(
+    "[data-reply-checks-fold]",
+  )!;
+  expect(fold.open).toBe(false);
+  expect(fold.querySelector("summary")?.textContent).toContain(
+    "CI has not run",
+  );
+  expect(fold.textContent).toContain("Typecheck");
+});
+
+it("folds details with a computed summary and keeps their content", () => {
+  const view = draw(body(COMPONENT_EXAMPLES.details));
+  const fold = view.container.querySelector<HTMLDetailsElement>(
+    "[data-reply-details]",
+  )!;
+  expect(fold.open).toBe(false);
+  expect(fold.querySelector("summary")?.textContent).toBe(
+    "Why the calculation converts1 code block",
+  );
+  expect(fold.querySelector("pre code")?.textContent).toContain(
+    "percent / 100",
+  );
+});
+
+it("counts table states and colors only toned rows", () => {
+  const view = draw(body(COMPONENT_EXAMPLES.table));
+  expect(
+    view.container.querySelector("[data-reply-table-count]")?.textContent,
+  ).toBe("2 Updated, 1 Check");
+  expect(
+    [...view.container.querySelectorAll("th")].map((th) => th.textContent),
+  ).toEqual(["Caller", "Where", "State"]);
+  expect(
+    [...view.container.querySelectorAll("[data-reply-table-state]")].map(
+      (cell) => cell.getAttribute("data-reply-table-state"),
+    ),
+  ).toEqual(["good", "good", "attention"]);
+});
+
 it.each(["    ", "        ", "\t", "  \t"])(
   "preserves indented code after prose (%j)",
   (indent) => {
@@ -393,7 +417,7 @@ it.each(["/tmp/Plan#draft.md", "/tmp/Plan#L2", "/tmp/Question?.md"])(
   },
 );
 
-it("keeps block Markdown intact within change, sequence, and evidence fields", () => {
+it("keeps block Markdown intact within change, action, and evidence fields", () => {
   const source = [
     componentFence({
       type: "change",
@@ -402,18 +426,17 @@ it("keeps block Markdown intact within change, sequence, and evidence fields", (
       after: "> A quoted explanation.\n\n- A list item",
     }),
     componentFence({
-      type: "sequence",
-      title: "The steps",
-      steps: [
-        { title: "First", detail: "```sh\nnpm test\n```" },
-        { title: "Second", detail: "The second explanation." },
+      type: "actions",
+      items: [
+        { action: "First", detail: "```sh\nnpm test\n```" },
+        { action: "Second", detail: "The second explanation." },
       ],
     }),
     componentFence(
       checksWithEvidence([
         {
           name: "Unit tests",
-          status: "passed",
+          status: "skipped",
           evidence: [
             {
               label: "Evidence excerpt",
@@ -429,8 +452,8 @@ it("keeps block Markdown intact within change, sequence, and evidence fields", (
     (e) => e.textContent,
   );
   expect(code).toEqual([
-    "git show abc1234\n",
     "npm test\n",
+    "git show abc1234\n",
     "A source excerpt\n",
   ]);
   expect(view.container.querySelector("blockquote")?.textContent).toContain(
@@ -503,22 +526,15 @@ it("normalizes a relative prose link and supplies its workspace context", async 
   });
 });
 
-it("keeps sequence markers and leads check rows with status marks", () => {
-  const view = draw(body(COMPONENT_EXAMPLES.sequence));
-  const steps = view.container.querySelectorAll("ol > li");
-  expect(steps).toHaveLength(3);
-  // Each step leads with its number in the mark column.
-  expect(
-    [...steps].map(
-      (step) =>
-        step.querySelector("[data-reply-step-number]")?.textContent ?? "",
-    ),
-  ).toEqual(["1", "2", "3"]);
+it("numbers actions and leads check rows with status marks", () => {
+  const view = draw(body(COMPONENT_EXAMPLES.actions));
+  const steps = view.container.querySelectorAll("[data-reply-action]");
+  expect([...steps].map((step) => step.firstElementChild?.textContent)).toEqual(
+    ["1", "2", "3"],
+  );
   view.lifecycle.unmount();
   const checks = draw(body(COMPONENT_EXAMPLES.checks));
-  expect(
-    checks.container.querySelector('[aria-label="Reported test totals"]'),
-  ).not.toBeNull();
+  expect(checks.container.querySelector("[data-reply-tiles]")).not.toBeNull();
   // Each row leads with its status mark, as recap card results do.
   for (const item of checks.container.querySelectorAll(
     "[data-reply-check-item]",
@@ -684,7 +700,7 @@ it("withholds recap fields while server ownership is unknown", async () => {
 });
 
 it("shows the raw agent output before parsing only in Debug mode", async () => {
-  const source = `:::reply\n# Parsed heading\n\n${componentFence(COMPONENT_EXAMPLES.context)}\n:::\n`;
+  const source = `:::reply\n# Parsed heading\n\n${componentFence(COMPONENT_EXAMPLES.facts)}\n:::\n`;
   const off = draw(source, { debug: false });
   expect(off.container.querySelector("[data-reply-raw]")).toBeNull();
   expect(off.queryByLabelText("Raw agent output")).toBeNull();
@@ -712,7 +728,7 @@ it("shows syntax issues and raw output on an unclosed reply in Debug mode", asyn
     ":::reply",
     "**Make approval a capability tied to a displayed draft.**",
     "",
-    componentFence(COMPONENT_EXAMPLES.comparison),
+    componentFence(COMPONENT_EXAMPLES.table),
     "",
     "Final paragraph.",
     ":::reply",
@@ -733,7 +749,7 @@ it("shows syntax issues and raw output on an unclosed reply in Debug mode", asyn
 });
 
 it("attaches raw output and syntax diagnostics to assistant rows without a ReplyBlock in Debug mode", async () => {
-  const broken = `::: reply\n${componentFence(COMPONENT_EXAMPLES.context)}\n:::`;
+  const broken = `::: reply\n${componentFence(COMPONENT_EXAMPLES.facts)}\n:::`;
   const row = render(
     <div data-timeline-row-id="t1:assistant:kind:assistant|turn:turn1|parent:root|item:item1">
       <div data-message-column="">
@@ -805,9 +821,7 @@ it("leads delivery stages with status marks in their order", () => {
     const mark = stage.querySelector("[data-reply-stage-status]");
     expect(mark?.querySelector("svg")).not.toBeNull();
     // Only statuses other than done repeat their label beside the name.
-    const shown = stage.querySelector(
-      '[data-reply-stage-status] ~ div [aria-hidden="true"]',
-    );
+    const shown = stage.querySelector('span[aria-hidden="true"]:not(:empty)');
     if (stage.getAttribute("data-reply-delivery-stage") === "done")
       expect(shown).toBeNull();
     else expect(shown?.textContent).not.toBe("");

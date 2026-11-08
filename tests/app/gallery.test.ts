@@ -1179,7 +1179,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         false,
       ]);
 
-      const statuses = await variant("Checks")
+      const statuses = await variant("Checks with a failure")
         .locator("[data-reply-check-status]")
         .evaluateAll((elements) =>
           elements.map((element) =>

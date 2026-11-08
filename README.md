@@ -565,40 +565,68 @@ which adds a message-block slot, you also get **Structured replies**:
   `::inline-vis{source="thread-storage" file="report.html"}` render through BB's
   installed directive plugins in body order, including after card sections or
   Details. Missing or disabled directive plugins leave the source readable.
-- The body renders as plain Markdown through BB's renderer. Full explanations,
-  qualifications, checks, delivery records, and supporting details stay visible.
-  Information components render in source order, including grouped components;
-  peers in a group share a row in equal columns when the message column is wide
-  enough, and supporting components sit indented beneath the point they qualify.
-  There are no component panels, custom article headings, lead treatment,
-  disclosures, or reply-specific animations.
-- Parsing and validation retain the structured information: comparisons,
-  sequences, behavior changes, checks, delivery records, recommendations, and
-  bounded groups. Checks and delivery stages can include evidence links. A
-  reply's kind remains separate from whether its work is complete, ready for
-  review, or waiting.
+- The body puts what you must act on first. The headline states the answer, a
+  sentence or two of lead follows, and then the reply's pieces, drawn in a fixed
+  order whatever order the agent wrote them in: the steps that need you first,
+  then the rest as written, then the folds. The plain-text view used in
+  transcripts and notifications follows the same order.
+- The pieces:
+  - **Actions** (`actions`): what the work leaves you to do or decide, in one
+    amber **Needs you** panel with a computed count ("2 steps, 1 decision").
+    Each step is numbered; a choice you own shows **Decide**, an irreversible or
+    risky step a warning line, and a command a copy button.
+  - **Checks** (`checks`): counted tiles ("3 of 3 checks passed", "1,077 tests
+    passed, 1 skipped"), then the list. When every check passed, the list folds
+    behind its title and scope; a failed, skipped, blocked, or untested check
+    keeps it open, and a failure turns its tile red.
+  - **Delivery** (`delivery`): one row of stage marks (done, pending, blocked,
+    unknown) with "2 of 4 done" beside the title. Notes on unfinished stages
+    stay open; notes on done stages fold.
+  - **Change** (`change`): Before, After, Unchanged, and Limitation rows,
+    labeled in the thread's workstream color.
+  - **Facts** (`facts`): commits, branches, paths, URLs, and flags as aligned
+    label and value rows, each value in monospace with a copy button.
+  - **Table** (`table`): rows with a state column and a computed count of each
+    state ("5 Reuse, 2 Add"). A state can be good (green), attention (amber), or
+    bad (red); an untoned state stays muted. Narrow replies stack each row.
+  - **Details** (`details`): reasoning, evidence, background, and code, folded.
+    The closed line counts what the fold holds ("2 code blocks, 4 links"),
+    computed from its content, never written by the agent. A `### Details`
+    section in prose folds the same way.
+  - **Text** (`text`): ordinary Markdown between pieces.
+- Color means one thing each: amber for something you owe or a risk, green for
+  verified, red for broken, always beside a word or a mark. Every number on a
+  tile or count is computed from the reply's own rows. The only controls in a
+  reply are copy buttons and folds, so nothing in an old reply goes stale.
+- Parsing and validation keep the structured information, and a reply's kind
+  stays separate from whether its work is complete, ready for review, or
+  waiting. The agent instructions ask for actions that come from the work
+  itself, at most two sentences before the first piece, and nothing the reader
+  must act on inside a fold; see [ISSUES.md](ISSUES.md) for what the format
+  cannot check.
 - Components are written as `name(field: value, …)` statements inside
   `workstreams` fences; one fence holds one or more of them. Every argument is
   named, and values are static: `"text"`, numbers, `true`, `false`, `null`,
-  `[lists]`, `{key: value}` objects, bare enum words such as check `status`,
-  and, inside `group`, nested components. `"""…"""` holds multi-line text; text
-  containing a triple-backtick fence needs a four-backtick `workstreams` fence.
-  Operators, templates, variables, and bindings are rejected. Field names,
-  required fields, enums, and limits come from the same schemas that validate a
-  component, and the signature lines in the agent instructions are generated
-  from them.
+  `[lists]`, `{key: value}` objects, and bare enum words such as check `status`.
+  `"""…"""` holds multi-line text; text containing a triple-backtick fence needs
+  a four-backtick `workstreams` fence. Operators, templates, variables, and
+  bindings are rejected. Field names, required fields, enums, and limits come
+  from the same schemas that validate a component, and the signature lines in
+  the agent instructions are generated from them.
 - The instructions teach that strict form, but a component still renders when
   its writer's intent is clear: single, curly, or backtick quotes; unquoted
   text; missing or extra commas; `=` for `:`; positional arguments; names in
   another case, a common synonym, or a small misspelling that points at one
-  field; enum words such as `Passed`, `ok`, or `not tested`; numbers and
-  booleans written as text; a single value where a list belongs; a string for a
-  step or evidence entry; unknown fields, which are dropped; indented `"""`
-  text; nested groups, which flatten; and a `Workstreams` or `workstream` fence.
-  A statement that still fails shows its source with a one-line reason that
-  carries a line and column and, for a near-miss name or enum word, a "did you
-  mean"; the other statements in the fence still render. Replies stored with a
-  JSON object in the fence keep rendering.
+  field; enum words such as `Passed`, `ok`, `amber`, or `not tested`; numbers
+  and booleans written as text; a single value where a list belongs; a string
+  for a step or evidence entry; unknown fields, which are dropped; indented
+  `"""` text; and a `Workstreams` or `workstream` fence. A component the format
+  does not know, such as one in a reply from a session started with an earlier
+  set, shows its text as ordinary Markdown. A statement that still fails shows
+  its source with a one-line reason that carries a line and column and, for a
+  near-miss name or enum word, a "did you mean"; the other statements in the
+  fence still render. Replies stored with a JSON object in the fence keep
+  rendering.
 - Checks and delivery stages can include evidence links. Relative evidence paths
   stay inside the message's workspace; external files use explicit absolute
   paths. Native file previews preserve literal filename characters and separate
@@ -1126,9 +1154,8 @@ page. Navigation links preserve the selected page in the URL hash.
 Examples use synthetic data and local state. The standalone host cannot send
 messages, change threads, upload attachments, or call the Workstreams server. It
 supplies a development theme and Markdown renderer; BB-specific host behavior
-still needs verification inside BB. Reply examples show the current renderer,
-not the target presentation described in
-[docs/design-system.md](docs/design-system.md).
+still needs verification inside BB. Reply examples draw the plugin's own reply
+pieces and whole sample replies through the same panel code a thread uses.
 
 ### Tests and verification
 

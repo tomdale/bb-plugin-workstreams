@@ -40,7 +40,7 @@ export function inspectReply(source: string) {
 }
 
 const callPattern = new RegExp(
-  `^\\s*(?:${[...Object.keys(leafSchemas), "group"].join("|")})\\(\\s*[a-zA-Z_]\\w*\\s*:`,
+  `^\\s*(?:${Object.keys(leafSchemas).join("|")})\\(\\s*[a-zA-Z_]\\w*\\s*:`,
   "m",
 );
 
@@ -87,11 +87,7 @@ export function componentUse(parts: ReplyPart[] | null) {
   if (parts === null)
     return { status: "blocked" as const, count: 0, types: [] };
   const types = parts
-    .flatMap((part) =>
-      part.type === "group"
-        ? [part.type, ...part.children.flat().map((child) => child.type)]
-        : [part.type],
-    )
+    .map((part) => part.type)
     .filter(
       (type) => !["text", "unparsed", "pending", "directive"].includes(type),
     );

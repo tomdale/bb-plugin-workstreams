@@ -58,6 +58,18 @@ Workstream colors are allocated from a finite palette; a large family or many
 workstreams can produce similar colors. Labels and status text remain necessary;
 color is not an identity or status guarantee.
 
+### Structured reply judgement
+
+**Evidence:** `src/domain/replyInstructions.ts`, `src/domain/replyPanel.ts`.
+
+The reply format checks shape, not truth. Nothing can tell an action the agent
+invented from one the work left for the reader, so the rule that actions come
+from the work is an instruction only. Whether a choice belongs in actions as a
+decision or in a table as a call already made, and whether a step deserves a
+caution, are also the agent's judgement. Counts on screen are computed from the
+reply's own rows, so they are only as accurate as the statuses the agent wrote.
+No one has yet read a long thread of panel replies one after another.
+
 ### Best-effort redaction
 
 **Evidence:** `src/domain/redact.ts`.

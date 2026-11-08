@@ -40,7 +40,7 @@ Give the replacement expression, explain the defect, and give the corrected offs
 
 export const SEMANTIC_INSTRUCTIONS = `Answer the supplied task in readable Markdown. Use descriptive headings where helpful. Keep conclusions, reasoning, qualifications, and supporting calculations together. State what the supplied material establishes and what remains unverified.`;
 
-export const UI_EXAMPLES = ["context", "change", "recommendation", "details"]
+export const UI_EXAMPLES = ["actions", "change", "table", "details"]
   .map((type) =>
     componentFence(COMPONENT_EXAMPLES[type as keyof typeof COMPONENT_EXAMPLES]),
   )

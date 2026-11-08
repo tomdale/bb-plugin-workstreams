@@ -69,50 +69,60 @@ export const evidenceSchema = z
   );
 export type ReplyEvidence = z.infer<typeof evidenceSchema>;
 
-const context = z
-  .object({
-    type: z.literal("context"),
-    topic: text,
-    where: text.optional(),
-    background: text.optional(),
-  })
-  .strict();
 const prose = z.object({ type: z.literal("text"), body: text }).strict();
-const comparison = z
+const actions = z
   .object({
-    type: z.literal("comparison"),
-    title: text,
+    type: z.literal("actions"),
+    title: text.optional(),
     items: z
       .array(
         z
           .object({
-            name: text,
-            summary: text,
+            action: text,
             detail: text.optional(),
-            qualification: text.optional(),
-            recommended: z.boolean().optional(),
+            decide: z.boolean().optional(),
+            caution: text.optional(),
+            copy: text.optional(),
           })
           .strict(),
       )
-      .min(2)
+      .min(1)
       .max(8),
   })
   .strict();
-const sequence = z
+const facts = z
   .object({
-    type: z.literal("sequence"),
+    type: z.literal("facts"),
+    items: z
+      .array(
+        z.object({ label: text, value: text, note: text.optional() }).strict(),
+      )
+      .min(1)
+      .max(12),
+  })
+  .strict();
+export const TABLE_TONES = ["good", "attention", "bad"] as const;
+const table = z
+  .object({
+    type: z.literal("table"),
     title: text,
-    steps: list(
+    columns: z.array(text).min(1).max(5),
+    rows: list(
       z
         .object({
-          title: text,
-          detail: text.optional(),
-          attention: z.boolean().optional(),
+          cells: z.array(z.string()).min(1).max(5),
+          state: text.optional(),
+          tone: z.enum(TABLE_TONES).optional(),
         })
         .strict(),
     ),
   })
-  .strict();
+  .strict()
+  .refine(
+    (part) =>
+      part.rows.every((row) => row.cells.length === part.columns.length),
+    { message: "Every row has one cell per column.", path: ["rows"] },
+  );
 const change = z
   .object({
     type: z.literal("change"),
@@ -171,57 +181,34 @@ const delivery = z
     ),
   })
   .strict();
-const recommendation = z
-  .object({
-    type: z.literal("recommendation"),
-    choice: text,
-    reason: text,
-    qualification: text.optional(),
-  })
-  .strict();
 const details = z
   .object({ type: z.literal("details"), title: text, body: text })
   .strict();
 
-/** Each component's schema by call name; the catalog, parser, and examples read this table. */
+/**
+ * Each component's schema by call name, in the order the agent guide lists
+ * them; the catalog, parser, and examples read this table.
+ */
 export const leafSchemas = {
-  context,
   text: prose,
-  comparison,
-  sequence,
-  change,
+  actions,
   checks,
   delivery,
-  recommendation,
+  change,
+  facts,
+  table,
   details,
 } as const;
-const replyLeafSchema = z.discriminatedUnion("type", [
-  context,
+export const replyComponentSchema = z.discriminatedUnion("type", [
   prose,
-  comparison,
-  sequence,
-  change,
+  actions,
   checks,
   delivery,
-  recommendation,
+  change,
+  facts,
+  table,
   details,
 ]);
-export const groupSchema = z
-  .object({
-    type: z.literal("group"),
-    relationship: z.enum(["peers", "supporting"]),
-    children: z
-      .array(z.union([replyLeafSchema, z.array(replyLeafSchema).min(1).max(8)]))
-      .min(2)
-      .max(8),
-  })
-  .strict()
-  .refine(
-    (group) => group.children.flat().length <= 8,
-    "A group contains at most eight components.",
-  );
-export const replyComponentSchema = z.union([replyLeafSchema, groupSchema]);
-export type ReplyLeaf = z.infer<typeof replyLeafSchema>;
 export type ReplyComponent = z.infer<typeof replyComponentSchema>;
 export const replyPartSchema = z.union([
   replyComponentSchema,
@@ -300,6 +287,17 @@ function evidenceText(items: ReplyEvidence[] | undefined): string {
     .join("\n");
 }
 
+const cell = (value: string) =>
+  value.replace(/\|/g, "\\|").replace(/\n+/g, " ") || " ";
+const code = (value: string) => {
+  const longest = Math.max(
+    0,
+    ...[...value.matchAll(/`+/g)].map((run) => run[0].length),
+  );
+  const fence = "`".repeat(longest + 1);
+  return longest ? `${fence} ${value} ${fence}` : `${fence}${value}${fence}`;
+};
+
 /** Every claim, qualification, and piece of evidence survives the text view. */
 export function componentText(part: ReplyPart): string {
   switch (part.type) {
@@ -311,26 +309,43 @@ export function componentText(part: ReplyPart): string {
       return "";
     case "unparsed":
       return `${part.error}\n\n${part.source}`;
-    case "context":
-      return [part.topic, part.where, part.background]
-        .filter(Boolean)
-        .join(" · ");
-    case "comparison":
+    case "actions":
+      return [
+        `### ${part.title ?? "Needs you"}`,
+        part.items
+          .map((item, i) =>
+            [
+              `${i + 1}. ${item.decide ? "Decide: " : ""}**${item.action}**${item.detail ? ` — ${item.detail}` : ""}`,
+              item.caution && `   ⚠ ${item.caution}`,
+              item.copy && `   ${code(item.copy)}`,
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          )
+          .join("\n"),
+      ].join("\n\n");
+    case "facts":
+      return part.items
+        .map(
+          (item) =>
+            `- ${item.label}: ${code(item.value)}${item.note ? ` — ${item.note}` : ""}`,
+        )
+        .join("\n");
+    case "table": {
+      const states = part.rows.some((row) => row.state);
+      const columns = states ? [...part.columns, "State"] : part.columns;
       return [
         `### ${part.title}`,
-        ...part.items.map((item) =>
-          [
-            `**${item.name}${item.recommended ? " (recommended)" : ""}**`,
-            item.summary,
-            item.qualification,
-            item.detail,
-          ]
-            .filter(Boolean)
-            .join("\n\n"),
-        ),
+        [
+          `| ${columns.map(cell).join(" | ")} |`,
+          `| ${columns.map(() => "---").join(" | ")} |`,
+          ...part.rows.map(
+            (row) =>
+              `| ${[...row.cells, ...(states ? [row.state ?? ""] : [])].map(cell).join(" | ")} |`,
+          ),
+        ].join("\n"),
       ].join("\n\n");
-    case "sequence":
-      return `### ${part.title}\n\n${part.steps.map((step, i) => `${i + 1}. ${step.title}${step.detail ? ` — ${step.detail}` : ""}`).join("\n")}`;
+    }
     case "change":
       return [
         `### ${part.title}`,
@@ -350,27 +365,25 @@ export function componentText(part: ReplyPart): string {
               `${part.testTotals.passed} tests passed; ${part.testTotals.failed} failed; ${part.testTotals.skipped} skipped`,
             ]
           : []),
-        ...part.items.map(
-          (item) =>
-            `- ${item.name}: ${item.status}${item.detail ? ` — ${item.detail}` : ""}${item.evidence ? `\n${evidenceText(item.evidence)}` : ""}`,
-        ),
+        part.items
+          .map(
+            (item) =>
+              `- ${item.name}: ${item.status}${item.detail ? ` — ${item.detail}` : ""}${item.evidence ? `\n${evidenceText(item.evidence)}` : ""}`,
+          )
+          .join("\n"),
       ].join("\n\n");
     case "delivery":
       return [
         `### ${part.title}`,
         part.scope,
-        ...part.stages.map(
-          (stage) =>
-            `- ${stage.name}: ${stage.status}${stage.detail ? ` — ${stage.detail}` : ""}${stage.evidence ? `\n${evidenceText(stage.evidence)}` : ""}`,
-        ),
+        part.stages
+          .map(
+            (stage) =>
+              `- ${stage.name}: ${stage.status}${stage.detail ? ` — ${stage.detail}` : ""}${stage.evidence ? `\n${evidenceText(stage.evidence)}` : ""}`,
+          )
+          .join("\n"),
       ].join("\n\n");
-    case "recommendation":
-      return [part.choice, part.reason, part.qualification]
-        .filter(Boolean)
-        .join("\n\n");
     case "details":
       return `### ${part.title}\n\n${part.body}`;
-    case "group":
-      return part.children.flat().map(componentText).join("\n\n");
   }
 }

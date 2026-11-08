@@ -7,10 +7,7 @@ semantic cues appear.
 
 This guide records the design contract for new and revised UI.
 `src/app/theme/tokens.css`, the vendored BB components, and current component
-code remain the source for exact values and behavior. The reply-component
-section defines the intended presentation language for the reply vocabulary; it
-does not describe the current plain-Markdown renderer as if it already followed
-that language.
+code remain the source for exact values and behavior.
 
 ## Three layers
 
@@ -77,14 +74,14 @@ identity; categories do not get their own hue or become another workstream.
 State colors use the six configurable tokens in `src/domain/colors.ts` and
 `src/app/theme/tokens.css`:
 
-| Token        | Meaning                                       | Typical use                           |
-| ------------ | --------------------------------------------- | ------------------------------------- |
-| `complete`   | Work reported complete                        | Completion marks and recap state      |
-| `review`     | Work ready for review                         | Review marks and recap state          |
-| `waiting`    | Work is still in progress or waiting          | Working indicators and waiting recaps |
-| `needsYou`   | The person has a decision or response to make | Up Next and question cards            |
-| `failure`    | A failed or invalid operation                 | Errors and failure marks              |
-| `suggestion` | A model-suggested value                       | Suggested topic identity and previews |
+| Token        | Meaning                                       | Typical use                            |
+| ------------ | --------------------------------------------- | -------------------------------------- |
+| `complete`   | Work reported complete                        | Completion marks and recap state       |
+| `review`     | Work ready for review                         | Review marks and recap state           |
+| `waiting`    | Work is still in progress or waiting          | Working indicators and waiting recaps  |
+| `needsYou`   | The person has a decision or response to make | Up Next, question cards, reply actions |
+| `failure`    | A failed or invalid operation                 | Errors and failure marks               |
+| `suggestion` | A model-suggested value                       | Suggested topic identity and previews  |
 
 Each token has mode-aware steps for solid marks, readable text, strong fills,
 text on fills, quiet marks, bands, borders, surfaces, footers, and rules. Use
@@ -155,73 +152,87 @@ compact typography. Settings use BB registry controls and group related rows in
 neutral bordered surfaces. A preview shows the result of a choice in context.
 Keep its controls in the same vocabulary as the rest of BB.
 
-## Reply component vocabulary
+## Reply panel
 
-Reply components express different kinds of information. Their presentation
-should make those differences visible while keeping the reply part of BB's
-message timeline. The reply body is not a stack of generic cards. Use shared
-Markdown and text behavior, then add structure where the component's data calls
-for it.
+A structured reply puts what the reader must act on at its top, as counts,
+marks, and copyable values, and folds the reasoning. A reader with thirty
+seconds should be able to act correctly from the top of the reply; a reader who
+wants the reasoning is one click from it. It stays a message: the only controls
+are copy buttons on literal values and folds that open, because anything that
+acted would go stale as the thread moves on, and the recap and question cards
+already own the buttons a person presses.
 
-- **Context:** A compact orientation line: the topic as a small medium-weight
-  label in the reply accent, the way the sticky goal header shows its workstream
-  above the goal, with the reported location muted beneath it. Any background
-  follows as ordinary prose.
-- **Text:** Ordinary Markdown prose, unboxed. Preserve the author's paragraphs,
-  lists, and inline formatting.
-- **Sequence:** Recap card steps in order: each step number sits in the mark
-  column as a small muted tabular figure, sized and placed like a stroked mark,
-  with a thin rail joining the numbers so the steps read as one path. The step
-  title comes first, with any detail muted beneath it. An attention step shows
-  the word Attention beside its title in the reply accent, the thread's
-  workstream identity color (muted when unfiled), never a state color.
-- **Comparison:** Each option reads in one order: its name, the summary, any
-  qualification, then any detail, muted and smaller. Options sit in columns only
-  when all of them fit in one row at about 13rem each (two, three, or four
-  options); otherwise, and always for five or more, they stack. In columns every
-  field shares a row across the options, so summaries, qualifications, and
-  details start at the same height. A hairline rule sits above each option; the
-  recommended option's rule is heavier and in the reply accent, and a small
-  accent "Recommended" label sits beside its name, so the recommendation never
-  rests on color alone.
-- **Change:** Recap card rows: Before, After, Unchanged, and Limitation each
-  take a small label in the card's label gutter beside the value, stacked above
-  it when narrow. The gutter is at least the card's 3.25rem and widens to fit
-  the longest label so every value starts at the same edge. Labels take the
-  reply block's accent, the thread's workstream identity color, so a reply reads
-  as part of its workstream rather than as a work state; an unfiled thread's
-  labels stay muted.
-- **Checks:** Scope, then the actual totals on one compact line, then the checks
-  as recap card results: a stroked status mark before each name, with any detail
-  muted beneath it. Each status has its own mark shape; every status but passed
-  also shows its label beside the name, so skipped, failed, blocked, and
-  untested stay explicit.
-- **Delivery:** Scope muted under the title, then the stages in order as recap
-  card results: a stroked status mark before each name, with any detail and
-  evidence beneath it, and a thin rail joining the marks so the order reads as
-  one path. Done is a check, pending a clock, blocked a struck circle, and
-  unknown a question mark; every status but done also shows its label beside the
-  name. Do not imply that a reported stage was independently verified.
-- **Recommendation:** The choice leads in semibold text. The reason and any
-  qualification follow as recap card rows, labeled "Reason" and "Qualification"
-  in the card's label gutter beside each value and stacked above it when narrow.
-  Labels take the reply accent, like Change; do not borrow `review` or
-  `complete` color to make advice appear like a work state.
-- **Details:** The title as a component heading, then the body as ordinary
-  Markdown at full contrast, unboxed and never collapsed, because the answer or
-  essential caveats may land there. A `### Details` heading in prose renders the
-  same way.
-- **Group:** Peers share one row in equal columns when the message column fits
-  every peer at its minimum width, and otherwise each takes the full width; they
-  never wrap into a ragged second row. Supporting children sit beneath the first
-  child, the point they qualify, indented under one thin rule in the reply
-  accent. A child that is a list of components stays together in one cell. No
-  child gets a card.
+### Order
 
-A reply headline is the answer's first reading stop. Keep component headings
-below it. Make evidence, status, qualifications, and recommendation easy to
-scan, but do not let decoration imply truth, test results, or delivery that the
-report does not claim.
+The headline states the answer. The lead, the text before the first piece, is at
+most two sentences. Then the renderer draws, whatever order the agent wrote:
+
+1. Every actions piece, so what the reader owes is the first thing under the
+   lead.
+2. Checks, delivery, change, facts, tables, and text glue in written order.
+3. Every details fold, at the end, so a run of folds reads as one list.
+
+`arrangeBody` in `src/domain/replyPanel.ts` owns this order, and the plain-text
+view follows it too, so a reply read without the renderer still leads with the
+action.
+
+### Pieces
+
+- **Actions:** the one tinted panel in a reply: `needsYou` border, surface, and
+  rules, a **Needs you** heading (or the agent's title) in `needsYou` text, and
+  the computed count on the right. Rows are numbered in a muted tabular column;
+  the action is medium weight and its detail muted beneath. A decision shows a
+  small **Decide** label in `needsYou` text before the action. A caution is a
+  stroked warning triangle and its text in `needsYou` text. A command is a copy
+  value.
+- **Checks:** counted tiles first: one row of cells on a hairline border, each a
+  semibold tabular value over a muted label. A tile whose rows all passed takes
+  a `complete` check mark; a failure takes a `failure` cross and failure text on
+  its value; anything else stays neutral. The list beneath uses the recap card's
+  stroked status marks, one shape per status, with every status but passed
+  labeled beside the name. When every check passed, the list folds behind the
+  title and scope; otherwise it stays open.
+- **Delivery:** title and scope on one line with the computed count on the
+  right, then the stages as one wrapping row of marks joined by short rules.
+  Done is a check, pending a clock, blocked a struck circle, unknown a question
+  mark; every status but done is labeled. Notes on unfinished stages sit open
+  beneath; notes on done stages fold. Do not imply a reported stage was
+  independently verified.
+- **Change:** Before, After, Unchanged, and Limitation rows on hairline rules,
+  labels in a shared gutter in the reply accent (the thread's workstream color,
+  muted when unfiled), stacked above values when narrow.
+- **Facts:** a muted label column sized to the longest label, every value
+  starting at the same edge as a copy value; a note follows the value, muted.
+- **Table:** semibold title with the computed state count on the right, a muted
+  header row, rows on hairline rules, the first cell medium weight, the state
+  last. A toned state takes a `StatusDot` and colored word (`complete`,
+  `needsYou`, or `failure`); an untoned one stays muted. Under 30rem each row
+  stacks: its first cell as the row's name, the other cells as label and value
+  pairs, the state last.
+- **Details:** a native disclosure, closed: a chevron that turns when open, the
+  title in medium weight, and a muted summary computed from the body (code
+  blocks, table rows, links, list items, or paragraphs, two kinds at most).
+  Consecutive folds share their rules.
+- **Text:** ordinary Markdown, unboxed.
+
+A copy value is the value in monospace on a `state-hover` chip, breaking at any
+character so a long path never overflows, with an icon button beside it that
+names what it copies and confirms with a check. An HTTPS value is also a link.
+
+### Rules that keep it honest
+
+- Color means one thing: `needsYou` for something the reader owes or a risk,
+  `complete` for verified, `failure` for broken. Nothing else in a reply is
+  colored except change labels in the reply accent. Every color sits beside a
+  word or a mark.
+- Numbers on tiles and counts are computed from the reply's rows; an agent never
+  authors a count the renderer shows, and fold summaries are computed, never
+  written.
+- A fold never hides a failure, an action, or a caution: failed and unfinished
+  rows stay open by rule, and the agent instructions keep actions and cautions
+  out of details.
+- Monospace is for identifiers and code only. Piece titles are body size and
+  semibold, below the headline.
 
 ## Interaction and motion
 
@@ -276,5 +287,6 @@ surface (the reply accent chips, empty-state messages) stays local.
 
 Useful source references: `src/app/theme/tokens.css`, `src/domain/colors.ts`,
 `src/app/styles.css`, `src/app/sidebar/tokens.ts`, `components/ui/`,
-`src/app/composer/RecapCard.tsx`, `src/app/question/question-presentation.tsx`,
-`src/app/sidebar/Row.tsx`, and `src/app/page/Page.tsx`.
+`src/app/composer/RecapCard.tsx`, `src/app/reply/`, `src/domain/replyPanel.ts`,
+`src/app/question/question-presentation.tsx`, `src/app/sidebar/Row.tsx`, and
+`src/app/page/Page.tsx`.

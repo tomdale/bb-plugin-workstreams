@@ -12,9 +12,10 @@
  * as `ok` for `passed`; text, numbers, and booleans convert where the meaning
  * is plain; a single value stands for a one-item list; a string stands for an
  * object with one required text field; null, empty optional text, `type`, and
- * unknown fields are dropped; nested groups flatten; and a group of one is
- * that component. A repair that would have to guess fails instead, and the
- * reply shows the statement's source with a locatable reason.
+ * and unknown fields are dropped. A repair that would have to guess fails
+ * instead, and the reply shows the statement's source with a locatable
+ * reason. A component the catalog does not know at all, such as one from a
+ * reply written before the current set, shows its text as Markdown.
  *
  * Statements are independent: a malformed one yields an error entry and its
  * neighbors still compile.
@@ -30,7 +31,6 @@ import {
 import {
   evidenceSchema,
   leafSchemas,
-  replyComponentSchema,
   type ReplyComponent,
 } from "./replyComponents.ts";
 import {
@@ -78,13 +78,22 @@ const COMPONENT_ALIASES: Record<string, string> = {
   prose: "text",
   markdown: "text",
   paragraph: "text",
-  steps: "sequence",
+  action: "actions",
+  todo: "actions",
+  todos: "actions",
+  tasks: "actions",
+  nextsteps: "actions",
+  needsyou: "actions",
   tests: "checks",
   verification: "checks",
-  compare: "comparison",
-  recommend: "recommendation",
   rollout: "delivery",
   release: "delivery",
+  fact: "facts",
+  keyvalue: "facts",
+  keyvalues: "facts",
+  identifiers: "facts",
+  fold: "details",
+  more: "details",
 };
 
 /** Other names a writer may use for a field, keyed by the field they mean. */
@@ -92,14 +101,8 @@ const FIELD_ALIASES: Record<string, string[]> = {
   title: ["heading", "header", "name", "label"],
   name: ["title", "label"],
   label: ["title", "name", "text"],
-  topic: ["subject", "title"],
-  background: ["context", "description"],
   body: ["content", "text", "markdown", "value", "description"],
   detail: ["description", "desc", "note", "notes", "details", "explanation"],
-  summary: ["description"],
-  qualification: ["caveat", "caveats", "tradeoff", "tradeoffs"],
-  reason: ["why", "because", "rationale"],
-  choice: ["recommendation", "option", "decision"],
   before: ["old", "previous", "from"],
   after: ["new", "now", "to"],
   unchanged: ["same", "kept"],
@@ -112,13 +115,19 @@ const FIELD_ALIASES: Record<string, string[]> = {
   passed: ["pass", "passes", "passing", "ok", "succeeded"],
   failed: ["fail", "fails", "failing", "failures", "errors"],
   skipped: ["skip", "skips", "ignored", "todo"],
-  attention: ["important", "warning", "highlight"],
-  recommended: ["preferred", "best"],
-  steps: ["items"],
   stages: ["items", "steps"],
   items: ["options", "results", "checks", "entries"],
-  children: ["items", "components", "parts"],
-  relationship: ["relation", "layout"],
+  action: ["step", "task", "todo", "do", "title", "name"],
+  decide: ["decision", "choice", "question"],
+  caution: ["warning", "risk", "flag", "danger"],
+  copy: ["command", "cmd", "snippet", "clipboard"],
+  value: ["id", "identifier"],
+  note: ["detail", "description", "comment"],
+  columns: ["headers", "header", "cols"],
+  rows: ["items", "entries"],
+  cells: ["values", "row", "columns"],
+  tone: ["color", "colour", "severity", "level"],
+  state: ["status", "result", "outcome"],
 };
 
 /** Words a writer may use for an enum option; the first option the field offers wins. */
@@ -209,8 +218,9 @@ const ENUM_SYNONYMS: Record<string, string[]> = {
     "next",
   ],
   unknown: ["unclear", "unsure", "notsure", "unverified", "na", "?"],
-  peers: ["peer", "sidebyside", "parallel", "siblings"],
-  supporting: ["support", "supports", "explanation", "stacked"],
+  good: ["ok", "okay", "green", "success", "done", "verified", "settled"],
+  attention: ["warn", "warning", "amber", "caution", "owed", "risk"],
+  bad: ["red", "error", "failed", "failure", "broken", "danger"],
 };
 
 function enumWord(word: string, options: string[]): string | null {
@@ -334,38 +344,7 @@ function convert(
       }
       return mismatch("an object { name: value }");
     }
-    case "children": {
-      if (node.kind !== "list") return [child(node, out)];
-      // Lists nested deeper than one level flatten into one kept-together list.
-      const leaves = (n: Node): unknown[] =>
-        n.kind === "list" ? n.items.flatMap(leaves) : [child(n, out)].flat();
-      return node.items.map((item) => {
-        if (item.kind !== "list") return child(item, out);
-        const inner = leaves(item);
-        return inner.length === 1 ? inner[0] : inner;
-      });
-    }
   }
-}
-
-/**
- * A group's child. A nested group contributes its components, kept together,
- * since a group cannot hold another group.
- */
-function child(node: Node, out: Collector): unknown {
-  if (node.kind !== "call") {
-    out.add(
-      node.start,
-      `group children must be components, found ${label(node)}.`,
-    );
-    return undefined;
-  }
-  if (resolveComponent(node.name) === "group") {
-    const value = convertFields(node.args, CATALOG.group!, "group", out);
-    const leaves = ((value.children as unknown[] | undefined) ?? []).flat();
-    return leaves.length === 1 ? leaves[0] : leaves;
-  }
-  return build(node, out);
 }
 
 function resolveComponent(name: string): string | null {
@@ -418,8 +397,6 @@ function fits(node: Node, shape: Shape): boolean {
       );
     case "list":
       return node.kind === "list";
-    case "children":
-      return node.kind === "list" || node.kind === "call";
     case "object":
       return node.kind === "object";
   }
@@ -584,10 +561,56 @@ function repairEvidence(
   return next;
 }
 
+/** A value's text inline: scalars as written, an object's values joined. */
+function inlineText(node: Node): string {
+  switch (node.kind) {
+    case "string":
+    case "word":
+    case "number":
+      return String(node.value).trim();
+    case "list":
+      return node.items.map(inlineText).filter(Boolean).join("; ");
+    case "object":
+      return node.fields
+        .filter((field) => field.key !== "type")
+        .map((field) => inlineText(field.value))
+        .filter(Boolean)
+        .join(" — ");
+    case "call":
+      return unknownText(node);
+    default:
+      return "";
+  }
+}
+
+/**
+ * The text of a component the catalog does not know, as Markdown: each text
+ * argument a paragraph, each list a bulleted list, nested components in
+ * turn. Booleans and other flags carry no reader-facing text and drop out.
+ */
+function unknownText(call: CallNode): string {
+  return call.args
+    .filter((field) => field.key !== "type")
+    .map(({ value }) => {
+      if (value.kind === "list")
+        return value.items
+          .map((item) =>
+            item.kind === "call" ? unknownText(item) : `- ${inlineText(item)}`,
+          )
+          .filter((line) => line && line !== "- ")
+          .join("\n");
+      return inlineText(value);
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 function build(call: CallNode, out: Collector): unknown {
   const name = resolveComponent(call.name);
   const shape = name ? CATALOG[name] : undefined;
   if (!name || !shape) {
+    const body = unknownText(call);
+    if (body) return { type: "text", body };
     const near = nearest(call.name, Object.keys(CATALOG));
     out.add(
       call.nameSpan.start,
@@ -598,18 +621,9 @@ function build(call: CallNode, out: Collector): unknown {
   const before = out.issues.length;
   const value = convertFields(call.args, shape, name, out);
   if (out.issues.length > before) return undefined;
-  if (name === "group") {
-    const children = (value.children as unknown[] | undefined) ?? [];
-    // A group of one component is that component.
-    if (children.flat().length === 1) return children.flat()[0];
-    value.relationship ??= "supporting";
-  }
   const full = { type: name, ...value };
   origins.set(full, origins.get(value) ?? {});
-  const schema: z.ZodType =
-    name in leafSchemas
-      ? leafSchemas[name as keyof typeof leafSchemas]
-      : replyComponentSchema;
+  const schema: z.ZodType = leafSchemas[name as keyof typeof leafSchemas];
   const parsed = schema.safeParse(full);
   if (parsed.success) return parsed.data;
   for (const issue of parsed.error.issues)

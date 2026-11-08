@@ -6,18 +6,14 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
 import { normalizeReplyMarkdown } from "./markdown.ts";
-import { SequenceBody } from "./SequenceBody.tsx";
-import { ComparisonBody, RecommendationBody } from "./AdviceBody.tsx";
-import { ContextBody } from "./ContextBody.tsx";
+import { ActionsBody } from "./ActionsBody.tsx";
 import { DetailsBody } from "./DetailsBody.tsx";
-import { GroupBody } from "./GroupBody.tsx";
-import {
-  CHECK,
-  Glyph,
-  LABEL_CLASS,
-  MARK_CLASS,
-  MARK_ROW_CLASS,
-} from "../recap/marks.tsx";
+import { FactsBody } from "./FactsBody.tsx";
+import { ChecksBody, DeliveryBody } from "./StateBody.tsx";
+import { TableBody } from "./TableBody.tsx";
+import { arrangeBody } from "../../domain/replyPanel.ts";
+import { LABEL_CLASS } from "../recap/marks.tsx";
+import { PIECE_TITLE_CLASS } from "./TableBody.tsx";
 import {
   evidenceFilePath,
   type ReplyEvidence,
@@ -26,74 +22,6 @@ import {
 
 type Document = ComponentProps<typeof Markdown>["experimental_document"];
 type Context = { document: Document; files: RecapFiles | null };
-type CheckStatus = Extract<
-  ReplyPart,
-  { type: "checks" }
->["items"][number]["status"];
-
-const CHECK_STATUS_LABEL: Record<CheckStatus, string> = {
-  passed: "Passed",
-  failed: "Failed",
-  skipped: "Skipped",
-  blocked: "Blocked",
-  untested: "Not tested",
-};
-// Stroked marks in the recap card's glyph style; each status has its own
-// shape so the list reads without color.
-const CHECK_STATUS_PATH: Record<CheckStatus, string> = {
-  passed: CHECK,
-  failed: "M4.5 4.5 11.5 11.5 M11.5 4.5 4.5 11.5",
-  skipped: "M4.5 8H11.5",
-  blocked: "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9Z M4.8 11.2 11.2 4.8",
-  untested: "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9Z",
-};
-const CHECK_STATUS_TONE: Record<CheckStatus, string> = {
-  passed: "text-(--ws-complete-text)",
-  failed: "text-(--ws-failure-text)",
-  skipped: "text-muted-foreground",
-  blocked: "text-muted-foreground",
-  untested: "text-muted-foreground",
-};
-
-/** The leading mark; its label is announced but shown only beside the name. */
-function CheckStatusMark({ status }: { status: CheckStatus }) {
-  return (
-    <span
-      data-reply-check-status={status}
-      className={`flex ${CHECK_STATUS_TONE[status]}`}
-    >
-      <Glyph path={CHECK_STATUS_PATH[status]} className={MARK_CLASS} />
-      <span className="sr-only">{CHECK_STATUS_LABEL[status]}</span>
-    </span>
-  );
-}
-
-type StageStatus = Extract<
-  ReplyPart,
-  { type: "delivery" }
->["stages"][number]["status"];
-
-const STAGE_STATUS_LABEL: Record<StageStatus, string> = {
-  done: "Done",
-  pending: "Pending",
-  blocked: "Blocked",
-  unknown: "Unknown",
-};
-// The same glyph family as the check marks: done and blocked share their
-// check counterparts' shapes; pending is a clock and unknown a question mark.
-const STAGE_STATUS_PATH: Record<StageStatus, string> = {
-  done: CHECK,
-  pending: "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9Z M8 5.75V8l1.5 1",
-  blocked: CHECK_STATUS_PATH.blocked,
-  unknown:
-    "M5.3 5.8a2.7 2.7 0 1 1 3.85 2.45c-.75.4-1.15.95-1.15 1.75v.2 M8 12.9v.01",
-};
-const STAGE_STATUS_TONE: Record<StageStatus, string> = {
-  done: CHECK_STATUS_TONE.passed,
-  pending: "text-muted-foreground",
-  blocked: "text-muted-foreground",
-  unknown: "text-muted-foreground",
-};
 
 export const PLAIN_LIST_CLASS = "mb-2 pl-5 text-foreground [&>li]:mb-1";
 
@@ -167,8 +95,6 @@ export function PlainBody({
   const evidence = (items: ReplyEvidence[] | undefined) => (
     <Evidence items={items} document={document} files={files} />
   );
-  const title = (value: string) =>
-    md(value.includes("\n") ? value : `### ${value}`);
   switch (part.type) {
     case "text":
       return md(part.body);
@@ -184,12 +110,12 @@ export function PlainBody({
           {md(part.source)}
         </>
       );
-    case "context":
-      return <ContextBody part={part} md={md} />;
-    case "comparison":
-      return <ComparisonBody part={part} md={md} title={title} />;
-    case "sequence":
-      return <SequenceBody part={part} md={md} title={title} />;
+    case "actions":
+      return <ActionsBody part={part} md={md} />;
+    case "facts":
+      return <FactsBody part={part} md={md} />;
+    case "table":
+      return <TableBody part={part} md={md} />;
     case "change": {
       const notes: [string, string][] = [];
       if (part.unchanged) notes.push(["Unchanged", part.unchanged]);
@@ -212,7 +138,7 @@ export function PlainBody({
       );
       return (
         <div data-reply-change="" className="@container/change min-w-0">
-          {title(part.title)}
+          <h3 className={`${PIECE_TITLE_CLASS} mb-1`}>{md(part.title)}</h3>
           {/* The recap card's label gutter, widened to fit its longest label
               and shared by every row; labels stack above values when narrow. */}
           <dl className="m-0 grid grid-cols-[minmax(3.25rem,max-content)_minmax(0,1fr)] gap-x-3 divide-y divide-border @max-[24rem]/change:grid-cols-1">
@@ -228,149 +154,34 @@ export function PlainBody({
         </div>
       );
     }
-    case "checks": {
-      const totals = part.testTotals
-        ? ([
-            ["passed", part.testTotals.passed],
-            ["failed", part.testTotals.failed],
-            ["skipped", part.testTotals.skipped],
-          ] as const)
-        : [];
-      return (
-        <div data-reply-checks="" className="min-w-0">
-          {title(part.title)}
-          <div className="text-[0.85em] text-muted-foreground [&_p]:my-0">
-            {md(part.scope)}
-          </div>
-          {totals.length ? (
-            <ul
-              aria-label="Reported test totals"
-              className="m-0 mt-1 flex list-none flex-wrap gap-x-3 p-0 text-[0.85em] text-muted-foreground"
-            >
-              {totals.map(([status, count]) => (
-                <li key={status} data-reply-test-total={status}>
-                  <span
-                    className={`font-medium tabular-nums ${
-                      count > 0 && status === "passed"
-                        ? "text-(--ws-complete-text)"
-                        : count > 0 && status === "failed"
-                          ? "text-(--ws-failure-text)"
-                          : "text-foreground"
-                    }`}
-                  >
-                    {count.toLocaleString()}
-                  </span>{" "}
-                  {status}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <ul
-            data-reply-check-items=""
-            className="m-0 mt-3 list-none space-y-1.5 p-0"
-          >
-            {part.items.map((item, i) => (
-              <li
-                key={i}
-                data-reply-check-item={item.status}
-                className={MARK_ROW_CLASS}
-              >
-                <CheckStatusMark status={item.status} />
-                <div className="min-w-0">
-                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 [&_p]:m-0">
-                    {md(item.name)}
-                    {item.status === "passed" ? null : (
-                      <span
-                        aria-hidden="true"
-                        className={`${LABEL_CLASS} pt-0 ${CHECK_STATUS_TONE[item.status]}`}
-                      >
-                        {CHECK_STATUS_LABEL[item.status]}
-                      </span>
-                    )}
-                  </div>
-                  {item.detail ? (
-                    <div className="mt-0.5 text-muted-foreground [&_p]:my-0">
-                      {md(item.detail)}
-                    </div>
-                  ) : null}
-                  {item.evidence?.length ? evidence(item.evidence) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      );
-    }
+    case "checks":
+      return <ChecksBody part={part} md={md} evidence={evidence} />;
     case "delivery":
-      return (
-        <div data-reply-delivery="" className="min-w-0">
-          {title(part.title)}
-          <div className="text-[0.85em] text-muted-foreground [&_p]:my-0">
-            {md(part.scope)}
-          </div>
-          {/* An ordered list whose marks a thin rail joins, so the stages
-              read as one path in order. */}
-          <ol data-reply-delivery-stages="" className="m-0 mt-3 list-none p-0">
-            {part.stages.map((stage, i) => (
-              <li
-                key={i}
-                data-reply-delivery-stage={stage.status}
-                className={`relative ${MARK_ROW_CLASS} ${i < part.stages.length - 1 ? "pb-2" : ""}`}
-              >
-                {i < part.stages.length - 1 ? (
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-[calc(0.2em+17px)] bottom-[calc(3px-0.2em)] left-[6.5px] w-px bg-border max-md:pointer-coarse:top-[calc(0.2em+19px)] max-md:pointer-coarse:left-[8.5px]"
-                  />
-                ) : null}
-                <span
-                  data-reply-stage-status={stage.status}
-                  className={`flex ${STAGE_STATUS_TONE[stage.status]}`}
-                >
-                  <Glyph
-                    path={STAGE_STATUS_PATH[stage.status]}
-                    className={MARK_CLASS}
-                  />
-                  <span className="sr-only">
-                    {STAGE_STATUS_LABEL[stage.status]}
-                  </span>
-                </span>
-                <div className="min-w-0">
-                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 [&_p]:m-0">
-                    {md(stage.name)}
-                    {stage.status === "done" ? null : (
-                      <span
-                        aria-hidden="true"
-                        className={`${LABEL_CLASS} pt-0 ${STAGE_STATUS_TONE[stage.status]}`}
-                      >
-                        {STAGE_STATUS_LABEL[stage.status]}
-                      </span>
-                    )}
-                  </div>
-                  {stage.detail ? (
-                    <div className="mt-0.5 text-muted-foreground [&_p]:my-0">
-                      {md(stage.detail)}
-                    </div>
-                  ) : null}
-                  {stage.evidence?.length ? evidence(stage.evidence) : null}
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-      );
-    case "recommendation":
-      return <RecommendationBody part={part} md={md} />;
+      return <DeliveryBody part={part} md={md} evidence={evidence} />;
     case "details":
-      return <DetailsBody part={part} md={md} title={title} />;
-    case "group":
-      return (
-        <GroupBody
-          part={part}
-          renderChild={(child) => (
-            <PlainBody part={child} document={document} files={files} />
-          )}
-        />
-      );
+      return <DetailsBody part={part} md={md} />;
   }
+}
+
+/**
+ * A reply's headline and body in panel order: the lead, then what needs the
+ * reader, then the rest as written, then the folds. The message block and
+ * the galleries both draw replies through it.
+ */
+export function ReplyPanel({
+  headline,
+  body,
+  document,
+  files,
+}: Context & { headline: string | undefined; body: readonly ReplyPart[] }) {
+  return (
+    <>
+      {headline ? (
+        <PlainMarkdown content={`# ${headline}`} document={document} />
+      ) : null}
+      {arrangeBody(body).map((part, i) => (
+        <PlainBody key={i} part={part} document={document} files={files} />
+      ))}
+    </>
+  );
 }

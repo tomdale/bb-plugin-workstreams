@@ -14,7 +14,7 @@ describe("diagnoseReply", () => {
       ":::reply",
       "# Answered",
       "",
-      componentFence(COMPONENT_EXAMPLES.context),
+      componentFence(COMPONENT_EXAMPLES.facts),
       "",
       "Prose explanation.",
       ":::",
@@ -30,7 +30,7 @@ describe("diagnoseReply", () => {
       ":::reply",
       "**Make approval a capability tied to a displayed draft.**",
       "",
-      componentFence(COMPONENT_EXAMPLES.comparison),
+      componentFence(COMPONENT_EXAMPLES.table),
       "",
       "Final paragraph.",
       ":::reply",
@@ -156,7 +156,7 @@ describe("diagnoseReply", () => {
   );
 
   it("reports workstreams fences outside :::reply or nested in lists", () => {
-    const outside = `Explanation.\n\n${componentFence(COMPONENT_EXAMPLES.context)}`;
+    const outside = `Explanation.\n\n${componentFence(COMPONENT_EXAMPLES.facts)}`;
     const outsideResult = diagnoseReply(outside);
     expect(outsideResult.status).toBe("missing");
     expect(outsideResult.issues).toEqual([
@@ -171,7 +171,7 @@ describe("diagnoseReply", () => {
       ":::reply",
       "- Item:",
       "  ```workstreams",
-      '  {"type":"context","topic":"Nested"}',
+      '  {"type":"text","body":"Nested"}',
       "  ```",
       ":::",
     ].join("\n");

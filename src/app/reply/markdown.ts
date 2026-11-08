@@ -43,3 +43,9 @@ export function normalizeReplyMarkdown(source: string): string {
   }
   return output + source.slice(copied);
 }
+
+/**
+ * BB's Markdown sets the foreground color on every block, so a muted or
+ * tinted line around it adds this to pass its own color through.
+ */
+export const INHERIT_CLASS = "[&_.text-foreground]:text-inherit!";

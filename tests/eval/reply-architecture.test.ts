@@ -50,7 +50,7 @@ describe("reply architecture checks", () => {
 
   it("rejects malformed components, extra text, and unclosed blocks as format errors", () => {
     for (const source of [
-      ':::reply\n```workstreams\nretiredComponent(value: "x")\n```\n:::',
+      ':::reply\n```workstreams\nchecks(title: "x")\n```\n:::',
       `Outside\n\n${reply}`,
       ":::reply\nUnclosed",
       ":::reply\n:::",
@@ -59,9 +59,9 @@ describe("reply architecture checks", () => {
   });
 
   it.each([
-    'workstreams\nrecommendation(choice: "Use X", reason: "Y")',
-    'recommendation(choice: "Use X", reason: "Y")',
-    'workstreams\nrecommendation(\n  choice: "Use X",\n  reason: "Y"\n)',
+    'workstreams\ndetails(title: "Use X", body: "Y")',
+    'details(title: "Use X", body: "Y")',
+    'workstreams\ndetails(\n  title: "Use X",\n  body: "Y"\n)',
   ])(
     "separates parseable Markdown from suspected source leakage: %s",
     (body) => {
@@ -88,32 +88,20 @@ describe("reply architecture checks", () => {
         .length,
     ).toBeGreaterThan(0);
     const source =
-      ':::reply\n```text\nrecommendation(choice: "Example", reason: "Example")\n:::reply\n```\n:::';
+      ':::reply\n```text\ndetails(title: "Example", body: "Example")\n:::reply\n```\n:::';
     expect(checkCorruption(source)).toEqual([]);
   });
 
-  it("inspects prose fields inside typed and grouped components, preserving fenced examples", () => {
+  it("inspects prose fields inside typed components, preserving fenced examples", () => {
     const change = {
       type: "change" as const,
       title: "Diagnosis",
-      before: 'recommendation(choice: "X", reason: "Y")',
+      before: 'details(title: "X", body: "Y")',
       after: "The prose remains ordinary text.",
     };
     expect(corruptionProblems([change], "")).toContain(
       "Possible unfenced component call in prose",
     );
-    expect(
-      corruptionProblems(
-        [
-          {
-            type: "group",
-            relationship: "supporting",
-            children: [change, { type: "text", body: "Support" }],
-          },
-        ],
-        "",
-      ),
-    ).toContain("Possible unfenced component call in prose");
     expect(
       corruptionProblems(
         [
@@ -134,11 +122,11 @@ describe("reply architecture checks", () => {
       types: [],
     });
     const source =
-      ':::reply\n```workstreams\nrecommendation(choice: "X", reason: "Y")\n```\n:::';
+      ':::reply\n```workstreams\ndetails(title: "X", body: "Y")\n```\n:::';
     expect(componentUse(inspectReply(source).components)).toEqual({
       status: "used",
       count: 1,
-      types: ["recommendation"],
+      types: ["details"],
     });
     expect(checkCorruption(source)).toEqual([]);
   });
@@ -261,8 +249,7 @@ describe("reply comparison", () => {
   });
 
   it("keeps format, corruption, and fidelity failures independent", async () => {
-    const leaked =
-      ':::reply\nrecommendation(choice: "Use X", reason: "Y")\n:::';
+    const leaked = ':::reply\ndetails(title: "Use X", body: "Y")\n:::';
     const complete = vi
       .fn()
       .mockResolvedValueOnce(completion(leaked))

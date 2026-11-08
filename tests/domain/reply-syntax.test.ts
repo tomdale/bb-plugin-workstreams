@@ -41,14 +41,14 @@ describe("compact component syntax", () => {
   it("reads several statements in one fence and recovers per statement", () => {
     const parts = compileComponents(
       [
-        'context(topic: "A")',
-        'retiredComponent(value: "x")',
-        'recommendation(choice: "C", reason: "R")',
+        'text(body: "A")',
+        'checks(title: "T")',
+        'facts(items: [{label: "Commit", value: "abc1234"}])',
       ].join("\n"),
     );
     expect(parts.map((p) => p.ok)).toEqual([true, false, true]);
     expect(parts[1]).toMatchObject({
-      error: expect.stringContaining('Unknown component "retiredComponent"'),
+      error: expect.stringContaining('missing required field "scope"'),
     });
   });
 
@@ -107,9 +107,7 @@ describe("compact component syntax", () => {
         'checks(title: "T", scope: "S", items: [{name: "N", status: sideways}])',
       ),
     ).toContain("must be one of passed|failed|skipped|blocked|untested");
-    expect(error('comparison(title: "T", items: [])')).toContain(
-      "needs at least",
-    );
+    expect(error("actions(items: [])")).toContain("needs at least");
     expect(error('details(title: "T", body: {a: "b"})')).toContain(
       'must be text in "quotes", found an object',
     );
@@ -118,14 +116,6 @@ describe("compact component syntax", () => {
   it("reports unclosed and unterminated input at the failing token", () => {
     expect(error('text(body: "a"')).toContain("end of the component");
     expect(error('text(body: "a')).toContain("Unterminated string");
-  });
-
-  it("validates group children individually", () => {
-    expect(
-      error(
-        'group(relationship: peers, children: [text(body: "a"), retiredComponent(value: "x")])',
-      ),
-    ).toContain('Unknown component "retiredComponent"');
   });
 
   it("keeps the source, a reason, and the surrounding prose for a bad fence", () => {

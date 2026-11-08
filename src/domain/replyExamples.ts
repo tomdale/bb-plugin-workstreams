@@ -3,65 +3,72 @@ import type { ReplyComponent } from "./replyComponents.ts";
 import { formatComponent } from "./replyFormat.ts";
 
 export const COMPONENT_NAMES = [
-  "context",
   "text",
-  "comparison",
-  "sequence",
-  "change",
+  "actions",
   "checks",
   "delivery",
-  "recommendation",
+  "change",
+  "facts",
+  "table",
   "details",
-  "group",
 ] as const;
 export const COMPONENT_EXAMPLES: Record<
   (typeof COMPONENT_NAMES)[number],
   ReplyComponent
 > = {
-  context: {
-    type: "context",
-    topic: "Coupon calculation",
-    where: "shop · feature/percent",
-    background: "The coupon subtracts cents when it should apply a percentage.",
-  },
   text: {
     type: "text",
-    body: "The caller supplies a whole percentage, so divide it by 100 before multiplying the amount.\n\nThis keeps the calculation in the caller’s units.",
+    body: "The coupon now applies a percentage. Saved orders keep their old totals.",
   },
-  comparison: {
-    type: "comparison",
-    title: "Compare the remedies",
+  actions: {
+    type: "actions",
     items: [
       {
-        name: "Convert in the calculation",
-        summary: "Keep callers in percentage units",
-        qualification:
-          "Recommended for the current caller contract: callers already supply whole percentages, so one calculation can own the conversion.",
-        recommended: true,
+        action: "Merge `feature/percent` into `main`",
+        copy: "git merge --ff-only feature/percent",
       },
       {
-        name: "Change the caller contract",
-        summary: "Pass a monetary discount",
-        qualification:
-          "Requires checking and updating every caller. Choose this only if callers already know the monetary discount.",
-        detail:
-          "For an amount of 1000 cents, the caller would pass a 100-cent discount rather than a whole percentage of 10.",
+        action: "Deploy the shop",
+        caution:
+          "Runs a migration that rewrites `coupon.kind`; it cannot be rolled back.",
+      },
+      {
+        action: "Keep or drop the cents coupon type?",
+        decide: true,
+        detail: "No caller uses it; dropping it removes one migration step.",
       },
     ],
   },
-  sequence: {
-    type: "sequence",
-    title: "How the discount is calculated",
-    steps: [
-      { title: "Read the percentage", detail: "The caller passes `10`." },
+  checks: {
+    type: "checks",
+    title: "Local checks",
+    scope: "Run on `feature/percent` at `3f9c2ab`; CI has not run.",
+    testTotals: { passed: 212, failed: 0, skipped: 1 },
+    items: [
       {
-        title: "Convert to a fraction",
-        detail: "Divide by 100.",
-        attention: true,
+        name: "Unit tests",
+        status: "passed",
+        detail: "Includes the percentage regression.",
+        evidence: [{ label: "Test report", location: "reports/tests.json" }],
       },
       {
-        title: "Apply to the amount",
-        detail: "Subtract that fraction of the original amount.",
+        name: "Payment integration",
+        status: "skipped",
+        detail: "The sandbox credential was unavailable.",
+      },
+    ],
+  },
+  delivery: {
+    type: "delivery",
+    title: "Delivery",
+    scope: "As of the end of this turn.",
+    stages: [
+      { name: "Committed", status: "done" },
+      { name: "Pushed", status: "done" },
+      {
+        name: "Merged",
+        status: "pending",
+        detail: "Waiting for your merge.",
       },
     ],
   },
@@ -71,84 +78,42 @@ export const COMPONENT_EXAMPLES: Record<
     before: "A value of `10` subtracted ten cents.",
     after: "A value of `10` subtracts ten percent.",
     unchanged: "Callers still pass whole percentages.",
-    limitation: "Existing saved orders are unchanged.",
+    limitation: "Saved orders keep their old totals.",
   },
-  checks: {
-    type: "checks",
-    title: "Local checks",
-    scope: "Recorded for the coupon change; CI has not run.",
-    testTotals: { passed: 22, failed: 0, skipped: 1 },
+  facts: {
+    type: "facts",
     items: [
-      {
-        name: "Unit tests",
-        status: "passed",
-        detail: "22 passed, including the percentage regression.",
-        evidence: [{ label: "Test report", location: "reports/tests.json" }],
-      },
-      {
-        name: "Payment integration",
-        status: "skipped",
-        detail:
-          "The credential was unavailable; that connection remains unverified.",
-      },
+      { label: "Branch", value: "feature/percent", note: "based on `main`" },
+      { label: "Commit", value: "3f9c2ab" },
+      { label: "Migration", value: "db/migrations/0042_coupon_kind.sql" },
     ],
   },
-  delivery: {
-    type: "delivery",
-    title: "Delivery record",
-    scope: "Reported at the end of this turn.",
-    stages: [
+  table: {
+    type: "table",
+    title: "Coupon callers",
+    columns: ["Caller", "Where"],
+    rows: [
       {
-        name: "Committed",
-        status: "done",
-        detail: "The coupon change is committed on the feature branch.",
+        cells: ["Checkout", "`src/checkout/total.ts`"],
+        state: "Updated",
+        tone: "good",
       },
-      { name: "Pushed", status: "pending", detail: "No push was requested." },
+      {
+        cells: ["Admin preview", "`src/admin/preview.ts`"],
+        state: "Updated",
+        tone: "good",
+      },
+      {
+        cells: ["Partner API", "`src/partner/discount.ts`"],
+        state: "Check",
+        tone: "attention",
+      },
     ],
-  },
-  recommendation: {
-    type: "recommendation",
-    choice: "Convert the percentage in the calculation",
-    reason:
-      "The caller already supplies whole percentages. Keeping that contract avoids changing each caller.",
-    qualification:
-      "Confirm the caller units before applying the same change elsewhere.",
   },
   details: {
     type: "details",
-    title: "Supporting calculation",
-    body: "For an amount of 1000 cents:\n\n```ts\nconst discount = 1000 * (10 / 100);\n```\n\nThe discount is 100 cents.",
-  },
-  group: {
-    type: "group",
-    relationship: "supporting",
-    children: [
-      [
-        {
-          type: "text",
-          body: "The caller passes a whole percentage. The calculation must convert that value to a fraction before applying it.",
-        },
-        {
-          type: "sequence",
-          title: "The conversion boundary",
-          steps: [
-            {
-              title: "Read a whole percentage",
-              detail: "The caller passes `10`.",
-            },
-            {
-              title: "Apply a fraction",
-              detail: "The calculation uses `0.10`.",
-              attention: true,
-            },
-          ],
-        },
-      ],
-      {
-        type: "text",
-        body: "The test fixtures use `10` for a ten-percent coupon.",
-      },
-    ],
+    title: "Why the calculation converts",
+    body: "Callers already pass whole percentages, so one calculation owns the conversion and no caller changes.\n\n```ts\nconst discount = amount * (percent / 100);\n```",
   },
 };
 

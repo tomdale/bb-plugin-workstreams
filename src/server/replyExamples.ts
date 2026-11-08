@@ -21,18 +21,25 @@ export function registerReplyExamples(bb: BbPluginApi): void {
       label: { pending: "Reading reply examples", completed: "Reply examples" },
       suppress: true,
     },
+    // Sessions keep the tool schema they started with, so a name outside the
+    // current set reads as a request for every example rather than an error.
     parameters: z
       .object({
         types: z
-          .array(z.enum(COMPONENT_NAMES))
+          .array(z.string())
           .min(1)
-          .max(COMPONENT_NAMES.length)
+          .max(16)
+          .describe(`Component names: ${COMPONENT_NAMES.join(", ")}`)
           .optional(),
       })
       .strict(),
-    execute: async (input) =>
-      (input.types ?? [...COMPONENT_NAMES])
+    execute: async (input) => {
+      const known = COMPONENT_NAMES.filter((name) =>
+        input.types?.includes(name),
+      );
+      return (known.length ? known : COMPONENT_NAMES)
         .map((type) => componentFence(COMPONENT_EXAMPLES[type]))
-        .join("\n\n"),
+        .join("\n\n");
+    },
   });
 }

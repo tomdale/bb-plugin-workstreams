@@ -38,17 +38,7 @@ function flat(value: unknown, shape: Shape): string | null {
       const parts = fieldParts(value as Record<string, unknown>, shape, flat);
       return parts.some((p) => p === null) ? null : `{${parts.join(", ")}}`;
     }
-    case "children": {
-      const parts = (value as unknown[]).map((item) =>
-        Array.isArray(item) ? flatList(item) : flatCall(item as ReplyComponent),
-      );
-      return parts.includes(null) ? null : `[${parts.join(", ")}]`;
-    }
   }
-}
-function flatList(items: ReplyComponent[]): string | null {
-  const parts = items.map(flatCall);
-  return parts.includes(null) ? null : `[${parts.join(", ")}]`;
 }
 function flatCall(component: ReplyComponent): string | null {
   const shape = CATALOG[component.type]!;
@@ -94,21 +84,6 @@ function expand(value: unknown, shape: Shape, indent: string): string {
         fieldParts(value as Record<string, unknown>, shape, (v, s) =>
           expand(v, s, inner),
         ) as string[],
-      );
-    case "children":
-      return block(
-        "[",
-        "]",
-        (value as unknown[]).map((item) =>
-          Array.isArray(item)
-            ? `[\n${item
-                .map(
-                  (c) =>
-                    `${inner}  ${expandCall(c as ReplyComponent, `${inner}  `)},`,
-                )
-                .join("\n")}\n${inner}]`
-            : expandCall(item as ReplyComponent, inner),
-        ),
       );
     default:
       return flat(value, shape)!;

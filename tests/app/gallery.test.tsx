@@ -65,55 +65,126 @@ async function mount(subPath = "gallery") {
 it("renders every specimen with its component", async () => {
   const slot = await mount();
   expect(slot.getByRole("heading", { level: 1 }).textContent).toBe("Gallery");
-  const change = slot.container.querySelector("[data-reply-change]");
-  expect(change?.querySelector("[data-reply-change-pair]")).not.toBeNull();
-  expect(change?.textContent).toContain("Before");
-  expect(change?.textContent).toContain("After");
-  const checks = slot.container.querySelector("[data-reply-checks]");
-  expect(checks?.querySelectorAll("[data-reply-check-status]")).toHaveLength(3);
-  const totals = checks?.querySelector('[aria-label="Reported test totals"]');
+  const replies = [
+    ...slot.container.querySelectorAll<HTMLElement>("[data-gallery-reply]"),
+  ];
+  const reply = (title: string) =>
+    replies[
+      SPECIMENS.filter((specimen) =>
+        specimen.messages.some((message) => message.from === "agent"),
+      ).findIndex((specimen) => specimen.title === title)
+    ]!;
+
+  // A short answer is its headline and lead alone.
+  const short = reply("A short answer");
   expect(
-    totals?.querySelector('[data-reply-test-total="passed"]')?.textContent,
-  ).toContain("8");
-  expect(
-    totals?.querySelector('[data-reply-test-total="failed"]')?.textContent,
-  ).toContain("0");
-  expect(
-    totals?.querySelector('[data-reply-test-total="skipped"]')?.textContent,
-  ).toContain("1");
-  const delivery = slot.container.querySelector("[data-reply-delivery]");
-  expect(
-    [...(delivery?.querySelectorAll("[data-reply-stage-status]") ?? [])].map(
-      (mark) => mark.getAttribute("data-reply-stage-status"),
+    short.querySelector(
+      "[data-reply-actions], [data-reply-checks], [data-reply-details]",
     ),
-  ).toEqual(["done", "pending", "blocked", "unknown"]);
+  ).toBeNull();
+  expect(short.textContent).toContain("A single press always moves one card.");
+
+  // Written with actions in the middle, drawn with them first and the fold last.
+  const delivered = reply("A change ready to merge");
+  const pieces = [
+    ...delivered.querySelectorAll(
+      "[data-reply-actions], [data-reply-change], [data-reply-checks], [data-reply-facts], [data-reply-delivery], [data-reply-details]",
+    ),
+  ].map((element) =>
+    [...element.attributes]
+      .map((attribute) => attribute.name)
+      .find((name) => name.startsWith("data-reply-")),
+  );
+  expect(pieces).toEqual([
+    "data-reply-actions",
+    "data-reply-change",
+    "data-reply-checks",
+    "data-reply-facts",
+    "data-reply-delivery",
+    "data-reply-details",
+  ]);
+  const actions = delivered.querySelector("[data-reply-actions]")!;
+  expect(actions.textContent).toContain("Needs you");
+  expect(actions.querySelector("[data-reply-actions-count]")?.textContent).toBe(
+    "2 steps",
+  );
+  expect(actions.querySelector("[data-reply-caution]")).not.toBeNull();
+  expect(
+    slot.getAllByRole("button", {
+      name: "Copy git merge --ff-only fix/queue-held-key",
+    }).length,
+  ).toBe(1);
+
+  // Every check passed: counted tiles, and the list folded behind its scope.
+  const checks = delivered.querySelector("[data-reply-checks]")!;
+  expect(
+    [...checks.querySelectorAll("[data-reply-tile]")].map((tile) => [
+      tile.getAttribute("data-reply-tile"),
+      tile.textContent,
+    ]),
+  ).toEqual([
+    ["good", "checks passed3 of 3"],
+    ["good", "tests passed, 1 skipped1,077"],
+  ]);
+  const fold = checks.querySelector<HTMLDetailsElement>(
+    "[data-reply-checks-fold]",
+  )!;
+  expect(fold.open).toBe(false);
+  expect(fold.querySelector("summary")?.textContent).toContain(
+    "CI has not run",
+  );
+  expect(checks.querySelectorAll("[data-reply-check-status]")).toHaveLength(3);
+
+  const delivery = delivered.querySelector("[data-reply-delivery]")!;
+  expect(
+    [...delivery.querySelectorAll("[data-reply-stage-status]")].map((mark) =>
+      mark.getAttribute("data-reply-stage-status"),
+    ),
+  ).toEqual(["done", "done", "pending", "pending"]);
+  expect(
+    delivery.querySelector("[data-reply-delivery-count]")?.textContent,
+  ).toBe("2 of 4 done");
+  expect(
+    delivery.querySelector('[data-reply-delivery-note="pending"]')?.textContent,
+  ).toContain("Waiting for your merge");
+
+  // A failed check turns its tile red and keeps the list open.
+  const failure = reply("A failure report");
+  expect(
+    failure.querySelector("[data-reply-tile]")?.getAttribute("data-reply-tile"),
+  ).toBe("bad");
+  expect(failure.querySelector("[data-reply-checks-fold]")).toBeNull();
+  expect(
+    failure.querySelector('[data-reply-check-item="failed"]')?.textContent,
+  ).toContain("Failed");
+  expect(failure.querySelector('[data-reply-action="decide"]')).not.toBeNull();
+
+  const explanation = reply("An explanation");
+  expect(
+    explanation.querySelector("[data-reply-table-count]")?.textContent,
+  ).toBe("2 Stale, 2 Current");
+  const folds = [
+    ...explanation.querySelectorAll<HTMLDetailsElement>("[data-reply-details]"),
+  ];
+  expect(folds.map((item) => item.open)).toEqual([false, false]);
+  expect(
+    folds.map((item) => item.querySelector("summary")?.textContent),
+  ).toEqual([
+    "Reproduce it2 list items",
+    "Why the closure goes stale1 code block",
+  ]);
+
   const shows = (text: string) =>
     expect(slot.getAllByText(text, { exact: false }).length).toBeGreaterThan(0);
   for (const text of [
-    // context, prose, sequence, comparison, group
-    "Queue card keyboard handling",
-    "A held key is one gesture",
-    "Replay fixture",
-    "Reproduce it",
-    "Passed",
-    "Two ways to read the position",
-    "Recommended",
-    "Read the index from a ref",
-    // the folded Details section
-    "Details",
-    // change, checks, delivery, recommendation, details component
-    "Before",
-    "After",
     "A held key re-read a stale index and skipped several cards",
-    "Local suite",
-    "Where the fix stands",
-    "The plugin reloads after merge",
-    "Merge after one pass on a real queue",
-    "Why a ref and not state",
+    "Replay fixture",
     // the bare directive, rendered by bb
     "::inline-vis",
     // the part the schema rejects stays readable
     "Component not displayed",
+    // a component outside the set shows its text
+    "It keeps one listener per burst.",
     // an older block's own card fields
     "Ready for review",
     "Hold ↓ on a queue of four and confirm the card stops two ahead",

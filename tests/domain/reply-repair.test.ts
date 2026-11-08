@@ -146,8 +146,8 @@ describe("liberal component input", () => {
     it("accepts trailing, doubled, and leading commas", () => {
       expect(one('text(, body: "a",,)')).toMatchObject({ body: "a" });
       expect(
-        one('sequence(title: "T", steps: [{title: "a"},, {title: "b"},])'),
-      ).toMatchObject({ steps: [{ title: "a" }, { title: "b" }] });
+        one('actions(items: [{action: "a"},, {action: "b"},])'),
+      ).toMatchObject({ items: [{ action: "a" }, { action: "b" }] });
     });
 
     it("accepts missing commas between fields and list entries", () => {
@@ -157,8 +157,8 @@ describe("liberal component input", () => {
         after: "A",
       });
       expect(
-        one('sequence(title: "T", steps: [{title: "a"} {title: "b"}])'),
-      ).toMatchObject({ steps: [{ title: "a" }, { title: "b" }] });
+        one('actions(items: [{action: "a"} {action: "b"}])'),
+      ).toMatchObject({ items: [{ action: "a" }, { action: "b" }] });
     });
 
     it("accepts = for : and semicolons for commas", () => {
@@ -225,8 +225,16 @@ describe("liberal component input", () => {
         before: "B",
       });
       expect(
-        one('sequence(title: "T", steps: [{name: "a", description: "d"}])'),
-      ).toMatchObject({ steps: [{ title: "a", detail: "d" }] });
+        one('actions(items: [{task: "a", description: "d", warning: "w"}])'),
+      ).toMatchObject({ items: [{ action: "a", detail: "d", caution: "w" }] });
+      expect(
+        one(
+          'table(title: "T", headers: ["A"], rows: [{values: ["x"], status: "Done", color: ok}])',
+        ),
+      ).toMatchObject({
+        columns: ["A"],
+        rows: [{ cells: ["x"], state: "Done", tone: "good" }],
+      });
       expect(
         checks(
           '{title: "N", state: ok, evidence: [{text: "log", url: "https://x.dev/log"}]}',
@@ -245,9 +253,9 @@ describe("liberal component input", () => {
     });
 
     it("does not let a synonym take a field the writer named outright", () => {
-      expect(
-        one('sequence(title: "T", steps: [{name: "x", title: "a"}])'),
-      ).toMatchObject({ steps: [{ title: "a" }] });
+      expect(one('actions(items: [{step: "x", action: "a"}])')).toMatchObject({
+        items: [{ action: "a" }],
+      });
     });
 
     it("drops unknown fields and a type field", () => {
@@ -284,10 +292,9 @@ describe("liberal component input", () => {
         after: "A",
         unchanged: "U",
       });
-      expect(one('recommendation("Ship it", "It works")')).toMatchObject({
-        choice: "Ship it",
-        reason: "It works",
-      });
+      expect(one('facts([{label: "Commit", value: "abc1234"}])')).toMatchObject(
+        { items: [{ label: "Commit", value: "abc1234" }] },
+      );
     });
 
     it("places each positional value in the first field it fits", () => {
@@ -342,12 +349,16 @@ describe("liberal component input", () => {
       expect(stage("unclear")).toBe("unknown");
     });
 
-    it("matches group relationships", () => {
-      expect(
-        one(
-          'group(relationship: Peer, children: [text(body: "a"), text(body: "b")])',
-        ),
-      ).toMatchObject({ relationship: "peers" });
+    it("matches table tones", () => {
+      const tone = (word: string) =>
+        (
+          one(
+            `table(title: "T", columns: ["A"], rows: [{cells: ["x"], tone: ${word}}])`,
+          ) as { rows: { tone: string }[] }
+        ).rows[0]!.tone;
+      expect(tone("Amber")).toBe("attention");
+      expect(tone("broken")).toBe("bad");
+      expect(tone("verified")).toBe("good");
     });
   });
 
@@ -361,12 +372,12 @@ describe("liberal component input", () => {
       ).toMatchObject({ testTotals: { passed: 1901, failed: 0, skipped: 1 } });
       expect(
         one(
-          'sequence(title: "T", steps: [{title: "a", attention: "yes"}, {title: "b", attention: no}])',
+          'actions(items: [{action: "a", decide: "yes"}, {action: "b", decide: no}])',
         ),
       ).toMatchObject({
-        steps: [
-          { title: "a", attention: true },
-          { title: "b", attention: false },
+        items: [
+          { action: "a", decide: true },
+          { action: "b", decide: false },
         ],
       });
     });
@@ -378,14 +389,13 @@ describe("liberal component input", () => {
     });
 
     it("reads a string as an object with one required text field", () => {
-      expect(one('sequence(title: "T", steps: ["Read", "Write"])')).toEqual({
-        type: "sequence",
-        title: "T",
-        steps: [{ title: "Read" }, { title: "Write" }],
+      expect(one('actions(items: ["Read", "Write"])')).toEqual({
+        type: "actions",
+        items: [{ action: "Read" }, { action: "Write" }],
       });
-      expect(one('sequence(title: "T", steps: {title: "Only"})')).toMatchObject(
-        { steps: [{ title: "Only" }] },
-      );
+      expect(one('actions(items: {action: "Only"})')).toMatchObject({
+        items: [{ action: "Only" }],
+      });
     });
 
     it("drops null and empty optional values", () => {
@@ -438,45 +448,21 @@ describe("liberal component input", () => {
     });
   });
 
-  describe("groups", () => {
-    it("flattens a nested group into its parent, kept together", () => {
+  describe("components outside the set", () => {
+    it("shows their text, nested components included", () => {
       expect(
         one(
-          'group(relationship: supporting, children: [text(body: "a"), group(relationship: peers, children: [text(body: "b"), text(body: "c")])])',
+          'group(relationship: peers, children: [text(body: "a"), context(topic: "b", where: "c")])',
         ),
-      ).toEqual({
-        type: "group",
-        relationship: "supporting",
-        children: [
-          { type: "text", body: "a" },
-          [
-            { type: "text", body: "b" },
-            { type: "text", body: "c" },
-          ],
-        ],
+      ).toEqual({ type: "text", body: "peers\n\na\nb\n\nc" });
+    });
+
+    it("reports one with no text as unknown", () => {
+      const [item] = compileComponents("divider()");
+      expect(item).toMatchObject({
+        ok: false,
+        error: expect.stringContaining('Unknown component "divider"'),
       });
-    });
-
-    it("flattens lists nested more than one level", () => {
-      expect(
-        one(
-          'group(relationship: peers, children: [text(body: "a"), [text(body: "b"), [text(body: "c")]]])',
-        ),
-      ).toMatchObject({
-        children: [{ body: "a" }, [{ body: "b" }, { body: "c" }]],
-      });
-    });
-
-    it("reads a group of one as that component", () => {
-      expect(
-        one('group(relationship: peers, children: [text(body: "a")])'),
-      ).toEqual({ type: "text", body: "a" });
-    });
-
-    it("defaults a missing relationship", () => {
-      expect(
-        one('group(children: [text(body: "a"), text(body: "b")])'),
-      ).toMatchObject({ relationship: "supporting" });
     });
   });
 
@@ -487,9 +473,9 @@ describe("liberal component input", () => {
       ).toEqual({ type: "change", title: "T", before: "B", after: "A" });
     });
 
-    it("reads a JSON list of components and typed children", () => {
+    it("reads a JSON list of components", () => {
       const items = compileComponents(
-        '[{"type": "text", "body": "a"}, {"type": "group", "relationship": "peers", "children": [{"type": "text", "body": "b"}, {"type": "text", "body": "c"}]}]',
+        '[{"type": "text", "body": "a"}, {"type": "facts", "items": [{"label": "Commit", "value": "abc1234"}]}]',
       );
       expect(items.map((i) => i.ok)).toEqual([true, true]);
     });

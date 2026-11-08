@@ -18,8 +18,12 @@ import { primitiveExamples } from "./examples/primitives";
 import { WorkstreamIcon } from "../src/app/WorkstreamIcon";
 import { WorkstreamName } from "../src/app/WorkstreamName";
 import { PROMPT_CLASS } from "../src/app/question/question-presentation";
-import { PlainBody } from "../src/app/reply/PlainBody";
+import { PlainBody, ReplyPanel } from "../src/app/reply/PlainBody";
+import { SPECIMENS } from "../src/app/page/gallery";
+import { parse } from "../src/domain/reply";
 import type { ReplyComponent } from "../src/domain/replyComponents";
+import { COMPONENT_EXAMPLES } from "../src/domain/replyExamples";
+import { onlyReplyBlock } from "../src/domain/replyText";
 import {
   allocateFamilyColor,
   workstreamColorStyle,
@@ -143,196 +147,38 @@ function IdentityExample() {
   );
 }
 
-const replyParts = [
-  {
-    type: "context",
-    topic: "Release summary for the **checkout** service",
-    where:
-      "`~/Code/shop/_tasks/main/release-summary` on `tomdale/release-summary`",
-    background:
-      "The release adds the discount path and the receipt redesign. Both changes ship together because the receipt reads the new discount total.",
-  },
-  {
-    type: "text",
-    body: "The release adds **percentage discounts** and a revised receipt. The checkout service calculates the discount before tax.\n\nReview `services/checkout/discount.ts` alongside the receipt changes before approving the release.",
-  },
-  {
-    type: "sequence",
-    title: "Review the summary",
-    steps: [
-      {
-        title: "Review the release scope",
-        detail: "Confirm that the receipt and discount changes ship together.",
-      },
-      {
-        title: "Approve the migration instructions",
-        detail: "Each renamed option needs its replacement and an example.",
-        attention: true,
-      },
-      { title: "Read the **checkout** package changes" },
-      {
-        title:
-          "Compare the discount calculation and receipt totals across every package included in the release",
-        detail:
-          "Review `packages/checkout/src/discounts/percentage-discount.ts` alongside the shared receipt components. Both packages must use the same rounding rule.",
-        attention: true,
-      },
-      {
-        title: "Publish the release notes",
-        detail: "Wait for approval of the payment integration.",
-      },
-    ],
-  },
-  {
-    type: "comparison",
-    title: "Choose the release scope",
-    items: [
-      {
-        name: "Receipt and discounts",
-        summary: "Ship the calculation and receipt changes together.",
-        recommended: true,
-        qualification: "Requires approval of the payment integration.",
-        detail: "Both packages use the same rounding rule.",
-      },
-      {
-        name: "Receipt only",
-        summary: "Publish the receipt redesign first.",
-        qualification: "The discount line needs the new checkout response.",
-      },
-      {
-        name: "Discounts only",
-        summary: "Publish the checkout calculation first.",
-        detail: "The existing receipt will omit the discount breakdown.",
-      },
-    ],
-  },
-  {
-    type: "change",
-    title: "Summary layout",
-    before: "The results and review steps use the same emphasis.",
-    after: "Review steps follow the goal and results.",
-    unchanged: "The source content.",
-    limitation: "Payment integration awaits review.",
-  },
-  {
-    type: "checks",
-    title: "Release checks",
-    scope: "Checkout summary and receipt layout",
-    testTotals: { passed: 2, failed: 1, skipped: 1 },
-    items: [
-      { name: "Keyboard selection", status: "passed" },
-      { name: "Long path wrapping", status: "passed" },
-      {
-        name: "Theme fallback",
-        status: "failed",
-        detail: "The receipt loses its selected theme after reload.",
-      },
-      {
-        name: "Phone layout",
-        status: "skipped",
-        detail: "Needs a coarse-pointer viewport.",
-      },
-      {
-        name: "BB interaction",
-        status: "blocked",
-        detail: "Awaiting access to the staging server.",
-      },
-      {
-        name: "Physical-device behavior",
-        status: "untested",
-        detail: "Device testing is scheduled after staging review.",
-      },
-    ],
-  },
-  {
-    type: "delivery",
-    title: "Release delivery",
-    scope: "Checkout summary and receipt layout",
-    stages: [
-      {
-        name: "Build",
-        status: "done",
-        detail: "Plugin and Gallery bundles built.",
-        evidence: [{ label: "Build scripts", location: "package.json" }],
-      },
-      {
-        name: "Live installation",
-        status: "pending",
-        detail: "Awaiting deployment approval.",
-      },
-      {
-        name: "Pushed",
-        status: "blocked",
-        detail: "Waits for the installation to finish.",
-      },
-      { name: "Release notes", status: "unknown" },
-    ],
-  },
-  {
-    type: "recommendation",
-    choice: "Use the compact layout in a narrow pane.",
-    reason:
-      "It keeps the goal and the essential next step visible without scrolling, even when the card reports several results.",
-    qualification: "Use Full when the result details matter during review.",
-  },
-  {
-    type: "details",
-    title: "Release details",
-    body: "The checkout service applies the percentage discount before calculating tax. The receipt reads the resulting discount total from the checkout response.\n\n- `src/checkout/discount.ts` owns the rounding rule\n- Receipt tests cover zero, partial, and full discounts\n- Deployment awaits payment integration approval\n\n```sh\nnpm run test -- checkout\n```",
-  },
-  {
-    type: "group",
-    relationship: "peers",
-    children: [
-      {
-        type: "details",
-        title: "Discount path",
-        body: "Applies a percentage discount before tax and rounds each line to the cent.",
-      },
-      {
-        type: "details",
-        title: "Receipt redesign",
-        body: "Shows the discount as its own line under the subtotal, with the code that produced it.",
-      },
-      [
-        {
-          type: "context",
-          topic: "Checkout API",
-          where: "`services/checkout`",
-        },
-        {
-          type: "text",
-          body: "Returns the discount total beside the subtotal so the receipt can show each amount separately.",
-        },
+const failingChecks: ReplyComponent = {
+  type: "checks",
+  title: "Display checks",
+  scope: "Run on a 120 Hz display; CI has no display",
+  testTotals: { passed: 41, failed: 1, skipped: 0 },
+  items: [
+    { name: "Held key moves one card at a time", status: "passed" },
+    { name: "Burst longer than two cards is dropped", status: "passed" },
+    {
+      name: "Card settles within one frame of release",
+      status: "failed",
+      detail: "Settles after two frames.",
+    },
+    { name: "Reduced motion", status: "skipped" },
+    {
+      name: "Payment preview",
+      status: "blocked",
+      detail: "Needs the sandbox credential.",
+    },
+    { name: "60 Hz display", status: "untested" },
+  ],
+};
+const replyParts: readonly [string, ReplyComponent][] = [
+  ...Object.entries(COMPONENT_EXAMPLES).map(
+    ([name, part]) =>
+      [name[0]!.toUpperCase() + name.slice(1), part] as [
+        string,
+        ReplyComponent,
       ],
-    ],
-  },
-  {
-    type: "group",
-    relationship: "supporting",
-    children: [
-      {
-        type: "text",
-        body: "Ship the discount path and the receipt redesign in the same release.",
-      },
-      {
-        type: "details",
-        title: "Why they ship together",
-        body: "The receipt reads the new discount total. Shipping it alone would show an empty discount line on every order.",
-      },
-      [
-        {
-          type: "text",
-          body: "The release has two remaining constraints:",
-        },
-        {
-          type: "text",
-          body: "- Payment integration remains unverified\n- Rollback restores both changes together",
-        },
-      ],
-    ],
-  },
-] satisfies ReplyComponent[];
+  ),
+  ["Checks with a failure", failingChecks],
+];
 
 const replyAccents = (() => {
   const colors = [allocateFamilyColor([])];
@@ -340,20 +186,46 @@ const replyAccents = (() => {
   return colors;
 })();
 
-/** A sample's label; the two group samples differ by relationship. */
-function replyLabel(part: ReplyComponent) {
-  const name = part.type[0]!.toUpperCase() + part.type.slice(1);
-  return part.type === "group" ? `${name} (${part.relationship})` : name;
+/** A specimen block read the way a thread reads it, drawn without bb's services. */
+function Specimen({ block }: { block: string }) {
+  const read = onlyReplyBlock(block);
+  const parsed = read ? parse(read, { status: read.status }) : null;
+  if (!parsed?.ok) return null;
+  return (
+    <div className="ws-reply-accent min-w-0 space-y-4 text-sm break-words [&_pre]:overflow-x-auto">
+      <ReplyPanel
+        headline={parsed.data.headline ?? parsed.data.card?.headline}
+        body={parsed.data.body}
+        document={undefined}
+        files={null}
+      />
+    </div>
+  );
 }
 
 function ReplyExample() {
-  const context = replyParts.find((item) => item.type === "context")!;
+  const change = COMPONENT_EXAMPLES.change;
   return (
     <div className="space-y-5">
+      <LiveExample name="ReplyPanel" sources={["src/app/reply/PlainBody.tsx"]}>
+        <Variants minWidth="34rem">
+          {SPECIMENS.flatMap((specimen) =>
+            specimen.messages.flatMap((message) =>
+              message.from === "agent" ? (
+                <Variant key={specimen.title} label={specimen.title} wide>
+                  <Specimen block={message.block} />
+                </Variant>
+              ) : (
+                []
+              ),
+            ),
+          )}
+        </Variants>
+      </LiveExample>
       <LiveExample name="PlainBody" sources={["src/app/reply/PlainBody.tsx"]}>
         <Variants minWidth="26rem">
-          {replyParts.map((part) => (
-            <Variant key={replyLabel(part)} label={replyLabel(part)}>
+          {replyParts.map(([label, part]) => (
+            <Variant key={label} label={label}>
               <div
                 className="ws-reply-accent min-w-0 break-words"
                 style={workstreamColorStyle(replyAccents[0]!)}
@@ -378,7 +250,7 @@ function ReplyExample() {
                 className="ws-reply-accent min-w-0 break-words"
                 style={accent ? workstreamColorStyle(accent) : undefined}
               >
-                <PlainBody part={context} document={undefined} files={null} />
+                <PlainBody part={change} document={undefined} files={null} />
               </div>
             </Variant>
           ))}
@@ -544,9 +416,10 @@ export const examples: GalleryExample[] = [
     id: "reply-vocabulary",
     title: "Reply vocabulary",
     group: "Components",
-    description: "The ten reply components.",
+    description:
+      "Whole replies drawn as panels, then the eight reply components.",
     source: `import { PlainBody } from "../src/app/reply/PlainBody";\nimport type { ReplyComponent } from "../src/domain/replyComponents";\n\nconst part: ReplyComponent = ${JSON.stringify(
-      replyParts.find((item) => item.type === "change"),
+      COMPONENT_EXAMPLES.actions,
       null,
       2,
     )};\n\n<PlainBody part={part} document={undefined} files={null} />`,

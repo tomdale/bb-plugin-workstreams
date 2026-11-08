@@ -30,188 +30,271 @@ const block = (parts: readonly string[]): string =>
 const DIRECTIVE =
   '::inline-vis{source="thread-storage" file="queue-replay.html"}';
 
-const investigation = block([
+const fence = (component: ReplyComponent) => componentFence(component);
+
+const shortAnswer = block([
+  "# Yes: the queue skips cards only while a key is held",
+  "A single press always moves one card.",
+]);
+
+const explanation = block([
   "# The held key reads the card's position from the render that started the burst",
-  "Key auto-repeat fires about thirty times a second, and every repeat runs the same handler, captured when the card was where the burst began. The card moves once, and each later repeat asks for the same move again — so the queue appears to skip ahead by however many repeats arrived before the next render.",
-  componentFence({
-    type: "context",
-    topic: "Queue card keyboard handling",
-    where: "src/app/page/queue/Queue.tsx",
-    background:
-      "The queue listens on the window, and the handler's position comes from the render that registered it.",
-  } satisfies ReplyComponent),
-  componentFence({
-    type: "text",
-    body: "A held key is one gesture, so it should move the card one place per step and no more than two ahead. The bug is in when the handler learns where the card is, not in how many moves it asks for.",
-  } satisfies ReplyComponent),
-  componentFence({
-    type: "sequence",
+  "Every key repeat runs the handler captured when the burst began, so each one asks to move from the same card.",
+  fence({
+    type: "table",
+    title: "Where the position is read",
+    columns: ["Reader", "Source"],
+    rows: [
+      {
+        cells: ["Arrow keys", "`Queue.tsx` effect closure"],
+        state: "Stale",
+        tone: "bad",
+      },
+      {
+        cells: ["Card buttons", "`Queue.tsx` effect closure"],
+        state: "Stale",
+        tone: "bad",
+      },
+      { cells: ["Sidebar", "props"], state: "Current", tone: "good" },
+      { cells: ["Composer", "props"], state: "Current", tone: "good" },
+    ],
+  }),
+  fence({
+    type: "details",
     title: "Reproduce it",
-    steps: [
-      {
-        title: "Hold ↓ for two seconds",
-        detail: "About sixty keydown events arrive at the window.",
-        attention: true,
-      },
-      {
-        title: "Count the cards the queue passed",
-        detail: "More than sixty with the stale handler; sixty with a ref.",
-      },
-    ],
-  } satisfies ReplyComponent),
-  componentFence({
-    type: "comparison",
+    body: "1. Hold ↓ for two seconds; about sixty keydown events arrive at the window.\n2. Count the cards the queue passed: more than sixty with the stale handler, sixty with a ref.",
+  }),
+  fence({
+    type: "details",
+    title: "Why the closure goes stale",
+    body: 'The handler is registered in an effect whose dependency list includes the focused index, so it is rebuilt after each render. A keydown that arrives before React commits the new index runs the previous closure.\n\n```ts\nuseEffect(() => {\n  window.addEventListener("keydown", onKey);\n  return () => window.removeEventListener("keydown", onKey);\n}, [index]);\n```',
+  }),
+]);
+
+const advice = block([
+  "# Read the index from a ref",
+  "It removes the stale read without changing when the handler is registered.",
+  fence({
+    type: "table",
     title: "Two ways to read the position",
-    items: [
+    columns: ["Option", "Cost"],
+    rows: [
       {
-        name: "Read the latest index from a ref",
-        summary:
-          "The handler stays registered and asks the ref where the card is.",
-        qualification:
-          "Keeps one listener for the whole burst and needs no re-subscription.",
-        recommended: true,
+        cells: ["Read the latest index from a ref", "One listener per burst"],
+        state: "Recommended",
+        tone: "good",
       },
       {
-        name: "Re-subscribe on every render",
-        summary:
-          "Tear the handler down and rebuild it whenever the index changes.",
-        detail:
-          "Correct, but it adds a listener removal and addition for every card the user steps through.",
-        qualification: "Noisier under a release build that batches updates.",
+        cells: [
+          "Re-subscribe on every render",
+          "A listener removal and addition per card",
+        ],
       },
     ],
-  } satisfies ReplyComponent),
-  componentFence({
-    type: "group",
-    relationship: "peers",
-    children: [
-      [
-        {
-          type: "text",
-          body: "The queue's arrow keys and the card's own buttons move by the same offset, so both paths need the same fix.",
-        },
-        {
-          type: "text",
-          body: "Nothing else reads the closed-over index; the sidebar and the composer take their position from props.",
-        },
-      ],
-      {
-        type: "recommendation",
-        choice: "Read the index from a ref",
-        reason:
-          "It removes the stale read without changing when the handler is registered, so the burst stays one listener.",
-        qualification: "Revert if a future card can move without a keystroke.",
-      },
-    ],
-  } satisfies ReplyComponent),
-  "### Details",
-  "The handler is registered in an effect whose dependency list includes the focused index, so it is rebuilt after each render. A keydown that arrives before React commits the new index runs the previous closure. Wrapping the index in a ref keeps the closure stable and lets every event read the value the last commit wrote.",
+  }),
+  fence({
+    type: "details",
+    title: "Trade-offs",
+    body: "Re-subscribing is correct, but noisier under a release build that batches updates. Revert the ref if a future card can move without a keystroke.",
+  }),
 ]);
 
 const delivered = block([
-  "# The held key moves the card one place per press",
-  "The handler now reads the card's position from a ref, so a burst of repeats all see the position the last commit wrote. Held keys are capped at two cards ahead, and a burst longer than that is dropped rather than queued.",
-  DIRECTIVE,
-  componentFence({
+  "# The held key moves one card per press, ready for your merge",
+  "The handler reads the position from a ref, so every repeat sees the latest card.",
+  fence({
     type: "change",
     title: "Queue card keys",
     before: "A held key re-read a stale index and skipped several cards",
     after: "Each press moves one card, and a release settles the card at once",
-    unchanged: "Clicking a card, and the keyboard shortcuts for send and edit",
+    unchanged: "Clicking a card, and the shortcuts for send and edit",
     limitation:
       "A burst that starts while the thread list reloads still waits for that render.",
-  } satisfies ReplyComponent),
-  componentFence({
+  }),
+  fence({
     type: "checks",
     title: "Local suite",
-    scope: "vitest, run in the task worktree",
-    testTotals: { passed: 8, failed: 0, skipped: 1 },
+    scope: "vitest in the task worktree; CI has not run",
+    testTotals: { passed: 1077, failed: 0, skipped: 1 },
     items: [
       {
         name: "Held key moves one card at a time",
         status: "passed",
         evidence: [
-          {
-            label: "Replay fixture",
-            location: "tests/app/motion.test.ts",
-          },
+          { label: "Replay fixture", location: "tests/app/motion.test.ts" },
         ],
       },
+      { name: "Burst longer than two cards is dropped", status: "passed" },
+      { name: "Typecheck", status: "passed" },
+    ],
+  }),
+  fence({
+    type: "actions",
+    items: [
       {
-        name: "Burst longer than two cards is dropped",
-        status: "passed",
+        action: "Merge `fix/queue-held-key` into `main`",
+        copy: "git merge --ff-only fix/queue-held-key",
       },
       {
-        name: "Card settles within one frame of release",
-        status: "skipped",
-        detail: "Needs a real display; jsdom reports no frame timing.",
+        action: "Reload the plugin from the canonical checkout",
+        caution: "The live app loads it at once; the reload cannot be staged.",
       },
     ],
-  } satisfies ReplyComponent),
-  componentFence({
+  }),
+  fence({
+    type: "facts",
+    items: [
+      {
+        label: "Branch",
+        value: "fix/queue-held-key",
+        note: "based on `main`",
+      },
+      { label: "Commit", value: "abc1234" },
+      { label: "Fixture", value: "tests/app/motion.test.ts" },
+    ],
+  }),
+  fence({
     type: "delivery",
-    title: "Where the fix stands",
-    scope: "branch fix/queue-held-key",
+    title: "Delivery",
+    scope: "As of the end of this turn",
     stages: [
-      {
-        name: "Committed",
-        status: "done",
-        detail: "abc1234 on the task branch",
-      },
-      { name: "Pushed", status: "pending", detail: "Waiting on your review" },
-      {
-        name: "Deployed",
-        status: "blocked",
-        detail: "The plugin reloads after merge",
-      },
-      {
-        name: "Released",
-        status: "unknown",
-        detail: "No release check was run",
-      },
+      { name: "Committed", status: "done", detail: "abc1234 on the branch" },
+      { name: "Pushed", status: "done" },
+      { name: "Merged", status: "pending", detail: "Waiting for your merge" },
+      { name: "Deployed", status: "pending" },
     ],
-  } satisfies ReplyComponent),
-  componentFence({
-    type: "group",
-    relationship: "supporting",
-    children: [
-      {
-        type: "change",
-        title: "The ref replaces the effect dependency",
-        before: "useEffect re-registered the handler for each index",
-        after: "One handler reads a ref the commit writes",
-      },
-      {
-        type: "text",
-        body: "The handler no longer depends on the index, so a burst of repeats runs the same function with the latest position.",
-      },
-    ],
-  } satisfies ReplyComponent),
-  componentFence({
-    type: "recommendation",
-    choice: "Merge after one pass on a real queue",
-    reason:
-      "The replay fixture covers the ordering, but only a real display shows whether the card settles before the next frame.",
-    qualification:
-      "Keep the cap at two cards; it reads as deliberate rather than laggy.",
-  } satisfies ReplyComponent),
-  componentFence({
+  }),
+  DIRECTIVE,
+  fence({
     type: "details",
     title: "Why a ref and not state",
-    body: "State would re-render for every key event, which is the work the cap exists to avoid. The ref holds the same value the last commit rendered, so the visible order and the handler's idea of it cannot drift apart.",
-  } satisfies ReplyComponent),
+    body: "State would re-render for every key event, which is the work the cap exists to avoid. The ref holds the value the last commit rendered, so the visible order and the handler's idea of it cannot drift apart.",
+  }),
+]);
+
+const failure = block([
+  "# The settle test fails on a real display",
+  "Held keys move one card at a time, but a release overshoots by one card at 120 Hz.",
+  fence({
+    type: "actions",
+    items: [
+      {
+        action: "Choose whether to ship with the overshoot",
+        decide: true,
+        detail:
+          "Shipping fixes the skipping for most people; holding it waits for a frame-timing fix.",
+      },
+    ],
+  }),
+  fence({
+    type: "checks",
+    title: "Display checks",
+    scope: "Run on a 120 Hz display; CI has no display",
+    items: [
+      { name: "Held key moves one card at a time", status: "passed" },
+      {
+        name: "Card settles within one frame of release",
+        status: "failed",
+        detail: "Settles after two frames and one card past the release.",
+      },
+      {
+        name: "60 Hz display",
+        status: "untested",
+        detail: "No 60 Hz display was available.",
+      },
+    ],
+  }),
+  fence({
+    type: "details",
+    title: "Frame log",
+    body: "```text\nrelease  t=0.0ms  card=14\nframe 1  t=8.3ms  card=15\nframe 2  t=16.6ms card=15\n```",
+  }),
+]);
+
+const design = block([
+  "# Extend the queue, not a second list",
+  "The queue already ranks, snoozes, and archives; a second list would copy all three.",
+  fence({
+    type: "actions",
+    title: "Before anyone builds",
+    items: [
+      {
+        action: "Should snoozed threads keep their place when they wake?",
+        decide: true,
+        detail: "Keeping it is a schema change to the snooze record.",
+      },
+      {
+        action: "Send the design doc as Markdown",
+        detail: "The linked page could not be read, so this follows the code.",
+      },
+    ],
+  }),
+  fence({
+    type: "table",
+    title: "Calls made for you to confirm",
+    columns: ["Chosen", "Instead of", "Because"],
+    rows: [
+      {
+        cells: [
+          "Extend `Queue.tsx`",
+          "A new list",
+          "Ranking stays in one place",
+        ],
+        state: "Decided",
+        tone: "good",
+      },
+      {
+        cells: [
+          "Rank on the server",
+          "Rank in the app",
+          "Phone Home shares the order",
+        ],
+        state: "Decided",
+        tone: "good",
+      },
+    ],
+  }),
+  fence({
+    type: "table",
+    title: "What exists",
+    columns: ["Part", "Where"],
+    rows: [
+      {
+        cells: ["Ranking", "`src/domain/upNext.ts`"],
+        state: "Reuse",
+        tone: "good",
+      },
+      {
+        cells: ["Snooze", "`src/server/snooze.ts`"],
+        state: "Reuse",
+        tone: "good",
+      },
+      { cells: ["Wake order", "nothing yet"], state: "Add" },
+    ],
+  }),
+  fence({
+    type: "details",
+    title: "Build order",
+    body: "1. Add the wake position to the snooze record.\n2. Rank woken threads by it.\n3. Show the position in the queue row.",
+  }),
+  fence({
+    type: "details",
+    title: "Where the code is",
+    body: "- [upNext.ts](src/domain/upNext.ts)\n- [snooze.ts](src/server/snooze.ts)\n- [Queue.tsx](src/app/page/queue/Queue.tsx)",
+  }),
 ]);
 
 const fallbacks = block([
   "# Two parts that cannot be displayed as written",
-  "A fence that is still arriving shows a placeholder until its closing line lands. A fence that closes with something the component schema rejects keeps its source readable, with the reason above it.",
-  componentFence({
-    type: "text",
-    body: "This paragraph is a component like any other; it needs nothing but text.",
-  } satisfies ReplyComponent),
+  "A fence still arriving shows a placeholder; a fence the schema rejects keeps its source readable.",
   ["```workstreams", '{"type":"checks","title":"Replay results"}', "```"].join(
     "\n",
   ),
+  [
+    "```workstreams",
+    'recommendation(choice: "Read the index from a ref", reason: "It keeps one listener per burst.")',
+    "```",
+  ].join("\n"),
 ]);
 
 const older = [
@@ -234,58 +317,92 @@ const older = [
 
 export const SPECIMENS: readonly Specimen[] = [
   {
-    title: "An investigation",
+    title: "A short answer",
+    intro: "A headline and one sentence, with no other parts.",
+    messages: [
+      { from: "user", text: "Does a single press ever skip a card?" },
+      { from: "agent", block: shortAnswer, features: ["headline", "lead"] },
+    ],
+  },
+  {
+    title: "An explanation",
     intro:
-      "One reply carrying the reading half of the vocabulary: prose, a Details section, and five components, including a peer group.",
+      "Critical state as a table with a state column; the reasoning and the reproduction fold beneath, each closed line counting what it holds.",
     messages: [
       { from: "user", text: "Holding ↓ on the queue skips ahead. Why?" },
       {
         from: "agent",
-        block: investigation,
-        features: [
-          "headline",
-          "prose",
-          "context",
-          "text",
-          "sequence",
-          "comparison",
-          "group (peers)",
-          "Details section",
-        ],
+        block: explanation,
+        features: ["table", "details"],
       },
     ],
   },
   {
-    title: "A change delivered",
+    title: "Advice",
     intro:
-      "The follow-up reply: what changed, what was run, where it stands, and what to do next. The bare directive on its own line renders through bb's installed directive plugins; without one, its source stays readable, as here.",
+      "The headline is the recommendation; the options sit in a table and the trade-offs fold.",
+    messages: [
+      { from: "user", text: "How should the handler read the position?" },
+      { from: "agent", block: advice, features: ["table", "details"] },
+    ],
+  },
+  {
+    title: "A change ready to merge",
+    intro:
+      "Written in any order, drawn as a panel: the steps that need you come first, checks become counted tiles with the passing list folded, values are copyable, and details sink to the end. The bare directive renders through bb's installed directive plugins; without one, its source stays readable, as here.",
     messages: [
       { from: "user", text: "Fix it, and show me what you ran." },
       {
         from: "agent",
         block: delivered,
         features: [
+          "actions",
           "change",
           "checks",
+          "facts",
           "delivery",
-          "group (supporting)",
-          "recommendation",
-          "details component",
           "directive",
+          "details",
         ],
+      },
+    ],
+  },
+  {
+    title: "A failure report",
+    intro:
+      "A failed check turns its tile red and keeps the list open; the decision it leaves is the first thing in the reply.",
+    messages: [
+      { from: "user", text: "Check it on the 120 Hz display too." },
+      {
+        from: "agent",
+        block: failure,
+        features: ["actions (decide)", "checks (failed)", "details"],
+      },
+    ],
+  },
+  {
+    title: "A design with decisions",
+    intro:
+      "Questions the reader owns are decisions in the actions panel; calls the agent made are table rows to confirm or push back on.",
+    messages: [
+      { from: "user", text: "Design the wake order for snoozed threads." },
+      {
+        from: "agent",
+        block: design,
+        features: ["actions (decide)", "table", "details rail"],
       },
     ],
   },
   {
     title: "When a part cannot be displayed",
     intro:
-      "A component the schema rejects stays readable instead of disappearing, and a fence that is still arriving holds a placeholder until its closing line.",
+      "A component the schema rejects stays readable with its reason; one the format does not teach, such as one in an earlier reply, shows its text as Markdown.",
     messages: [
       { from: "user", text: "What happened to the rest of the results?" },
       {
         from: "agent",
         block: fallbacks,
-        features: ["unparsed component"],
+        features: ["unparsed component", "component outside the set"],
       },
     ],
   },

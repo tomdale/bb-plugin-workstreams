@@ -35,36 +35,36 @@ const cases = [
   {
     id: "investigation",
     state: "complete",
-    types: ["comparison", "context"],
+    types: ["table", "details"],
     request:
       "Explain why our retry handler reports five attempts when the setting is four. Facts from inspection: maxRetries=4; the loop performs one initial attempt and then four retries. The UI label says Attempts, although its value is the retry count. This was confirmed in the loop and its test, not a production incident. Explain the cause and compare changing the label with changing the loop. You have finished the investigation; do not change code.",
-    expected: ["comparison"],
+    expected: ["table"],
   },
   {
     id: "change",
     state: "review",
-    types: ["change", "checks", "delivery", "group", "context"],
+    types: ["actions", "change", "checks", "delivery", "facts"],
     request:
       "Report the completed fix to the retry setting label. Facts: the label now says Retries; the loop and saved settings are unchanged. Eight local tests passed and one remote integration test was skipped because no credential was available. The change is committed as abc1234 locally, not pushed or deployed. Explain why retaining the loop preserves the initial attempt and the configured retries. The user needs to inspect the label before shipping. No further work is authorized.",
-    expected: ["change", "checks", "delivery"],
+    expected: ["actions", "change", "checks", "delivery"],
     totals: { passed: 8, failed: 0, skipped: 1 },
   },
   {
     id: "recommendation",
     state: "complete",
-    types: ["recommendation", "comparison", "context"],
+    types: ["table", "details"],
     request:
       "Recommend how to fix the retry setting confusion. The loop correctly performs one attempt plus the configured retries; changing it would alter existing behavior. Renaming the label to Retries matches the stored value and docs. Explain your recommendation and compare the trade-offs. It is advice only; do not ask for approval or implement anything.",
-    expected: ["recommendation", "comparison"],
+    expected: ["table"],
     next: true,
   },
   {
     id: "handoff",
     state: "complete",
-    types: ["context"],
+    types: [],
     request:
       "The user asked for a review of pull request 42 in another repository. That review belongs to @thread:thr_eval_dest, which finished it and posted its findings there; this thread's work is done and the user has not read those findings yet. Report the routing and name the destination. Do not do the review here.",
-    expected: ["context"],
+    expected: [],
     next: true,
   },
   {
@@ -79,10 +79,10 @@ const cases = [
   {
     id: "routing",
     state: "complete",
-    types: ["context"],
+    types: [],
     request:
       "The user asked for a review of pull request 42 in another repository. You opened @thread:thr_eval_dest, which is running that review now, and this thread owns nothing that depends on its result. Report the routing and name the destination thread.",
-    expected: ["context"],
+    expected: [],
     next: true,
   },
   {
@@ -97,10 +97,10 @@ const cases = [
   {
     id: "body-only",
     state: null,
-    types: ["context"],
+    types: [],
     request:
       "Explain this supplied result: the loop performs one initial attempt and four retries, so five total attempts. This answer uses Structured replies with recaps disabled; explain the result without recap state, result checkboxes, or recap sections.",
-    expected: ["context"],
+    expected: [],
     bodyOnly: true,
   },
   {
@@ -150,11 +150,6 @@ const results = [];
 /** A response the gateway cut off mid-answer says nothing about the instructions. */
 const cutOff = (stopReason: string | null) =>
   stopReason === "length" || stopReason === "max_tokens";
-function flatten(parts: ReplyPart[]): ReplyPart[] {
-  return parts.flatMap<ReplyPart>((part) =>
-    part.type === "group" ? [part, ...part.children.flat()] : [part],
-  );
-}
 for (const task of cases) {
   if (process.env.EVAL_CASE && process.env.EVAL_CASE !== task.id) continue;
   const withRecap = !("bodyOnly" in task && task.bodyOnly);
@@ -281,7 +276,7 @@ for (const task of cases) {
       } else if (!read?.ok) problems.push("No single closed reply block");
       else {
         const data = read.data,
-          parts = flatten(data.body),
+          parts = data.body,
           types = parts.map((part) => part.type);
         const recap: RecapInput | null = accepted?.success
           ? accepted.data

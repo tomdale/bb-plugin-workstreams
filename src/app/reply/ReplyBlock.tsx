@@ -7,7 +7,7 @@ import { CARD_LABELS, replySchema, type Reply } from "../../domain/reply.ts";
 import { useDebugMode } from "../debug/debug.ts";
 import { useGoalContext } from "../goalContext.ts";
 import { workstreamColorStyle } from "../../domain/workstreamColor.ts";
-import { PLAIN_LIST_CLASS, PlainBody, PlainMarkdown } from "./PlainBody.tsx";
+import { PLAIN_LIST_CLASS, PlainMarkdown, ReplyPanel } from "./PlainBody.tsx";
 import { ReplyDebug, useAssistantMessageText } from "./ReplyDebug.tsx";
 import { useDockedTurn } from "./useDockedTurn.ts";
 
@@ -110,7 +110,7 @@ export function ReplyBlock({
       data-reply-docked={
         reply.card && docked !== false ? (docked ? "" : "pending") : undefined
       }
-      className="ws-reply-accent min-w-0 space-y-4"
+      className="ws-reply-accent min-w-0 space-y-4 text-sm"
       style={workstream ? workstreamColorStyle(workstream.color) : undefined}
       onClickCapture={(event) => {
         if (
@@ -144,15 +144,12 @@ export function ReplyBlock({
         }
       }}
     >
-      {title ? md(`# ${title}`) : null}
-      {body.map((part, i) => (
-        <PlainBody
-          key={i}
-          part={part}
-          document={workspace?.document}
-          files={workspace?.files ?? null}
-        />
-      ))}
+      <ReplyPanel
+        headline={title}
+        body={body}
+        document={workspace?.document}
+        files={workspace?.files ?? null}
+      />
       {showCard && card ? (
         <>
           <p>

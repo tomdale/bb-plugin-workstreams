@@ -219,15 +219,22 @@ describe("configure", () => {
     ).toContain(REPLY_EXAMPLES_TOOL);
     const output = await w.harness.behavior.callAgentTool(
       REPLY_EXAMPLES_TOOL,
-      { types: ["checks", "group"] },
+      { types: ["actions", "checks"] },
       { threadId: "task" },
     );
     expect(output).toBe(
       [
+        componentFence(COMPONENT_EXAMPLES.actions),
         componentFence(COMPONENT_EXAMPLES.checks),
-        componentFence(COMPONENT_EXAMPLES.group),
       ].join("\n\n"),
     );
+    // A session that started with an earlier set asks for names outside it.
+    const retired = await w.harness.behavior.callAgentTool(
+      REPLY_EXAMPLES_TOOL,
+      { types: ["context", "facts"] },
+      { threadId: "task" },
+    );
+    expect(retired).toBe(componentFence(COMPONENT_EXAMPLES.facts));
     await w.harness.behavior.callRpc("setRecapPrefs", {
       patch: { required: false },
     });
@@ -330,7 +337,8 @@ describe("configure", () => {
         composed ? 1 : 0,
       );
       expect(
-        (text.match(/Write the answer and causal reasoning/g) ?? []).length,
+        (text.match(/The reply is a small panel the reader acts from/g) ?? [])
+          .length,
       ).toBe(composed ? 1 : 0);
       if (composed && !options.noRecap)
         expect(text).toContain(

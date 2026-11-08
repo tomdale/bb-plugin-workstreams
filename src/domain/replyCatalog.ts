@@ -5,7 +5,7 @@
  * this one description, so none can drift from what the schemas accept.
  */
 import type { z } from "zod";
-import { evidenceSchema, groupSchema, leafSchemas } from "./replyComponents.ts";
+import { evidenceSchema, leafSchemas } from "./replyComponents.ts";
 
 export type Shape =
   | { kind: "text" }
@@ -13,9 +13,7 @@ export type Shape =
   | { kind: "boolean" }
   | { kind: "enum"; options: string[] }
   | { kind: "list"; item: Shape; min?: number; max?: number }
-  | { kind: "object"; name?: string; fields: FieldShape[] }
-  /** A group's children: a component, or a list of components kept together. */
-  | { kind: "children"; min: number; max: number };
+  | { kind: "object"; name?: string; fields: FieldShape[] };
 export type FieldShape = { name: string; shape: Shape; optional: boolean };
 export type ObjectShape = Extract<Shape, { kind: "object" }>;
 
@@ -59,12 +57,6 @@ function describe(schema: z.ZodType): { shape: Shape; optional: boolean } {
         def.checks?.find((c) => c._zod.def.check === check)?._zod.def[key];
       const min = bound("min_length", "minimum"),
         max = bound("max_length", "maximum");
-      // A union of component and list-of-components is a group's children.
-      if (defOf(def.element!).type === "union")
-        return {
-          shape: { kind: "children", min: min ?? 1, max: max ?? 32 },
-          optional,
-        };
       return {
         shape: { kind: "list", item: describe(def.element!).shape, min, max },
         optional,
@@ -88,15 +80,13 @@ function objectShape(schema: z.ZodType, name?: string): ObjectShape {
 }
 
 /** Every component, keyed by the name its call uses. */
-export const CATALOG: Readonly<Record<string, ObjectShape>> = {
-  ...Object.fromEntries(
+export const CATALOG: Readonly<Record<string, ObjectShape>> =
+  Object.fromEntries(
     Object.entries(leafSchemas).map(([name, schema]) => [
       name,
       objectShape(schema),
     ]),
-  ),
-  group: objectShape(groupSchema),
-};
+  );
 export const EVIDENCE_SHAPE = objectShape(evidenceSchema, "Evidence");
 
 function limits(min?: number, max?: number): string {
@@ -118,8 +108,6 @@ function typeText(shape: Shape, expandNamed = false): string {
       return shape.options.join("|");
     case "list":
       return `[${typeText(shape.item)}, …]${limits(shape.min, shape.max)}`;
-    case "children":
-      return `[component or [component, …], …]${limits(shape.min, shape.max)}`;
     case "object":
       return shape.name && !expandNamed ? shape.name : `{${fieldsText(shape)}}`;
   }

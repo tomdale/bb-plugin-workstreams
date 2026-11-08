@@ -57,12 +57,12 @@ describe("composed replies", () => {
   it("keeps prose in place on both sides of a component", () => {
     const data = read(
       block(
-        `The caller supplies a percentage.\n\n${componentFence(COMPONENT_EXAMPLES.context)}\n\nConvert it before applying the discount.`,
+        `The caller supplies a percentage.\n\n${componentFence(COMPONENT_EXAMPLES.change)}\n\nConvert it before applying the discount.`,
       ),
     );
     expect(data.body.map((part) => part.type)).toEqual([
       "text",
-      "context",
+      "change",
       "text",
     ]);
     expect(data.body[0]).toEqual({
@@ -244,7 +244,7 @@ describe("composed replies", () => {
 
   it("keeps malformed component source without losing surrounding prose or the recap", () => {
     const source =
-      ':::reply{state="complete"}\n# Investigated the failure\n- [x] The source was preserved\n\nBefore.\n\n```workstreams\nnotAComponent(value: "source")\n```\n\nAfter.\n:::\n';
+      ':::reply{state="complete"}\n# Investigated the failure\n- [x] The source was preserved\n\nBefore.\n\n```workstreams\nchecks(title: "source")\n```\n\nAfter.\n:::\n';
     const data = read(source);
     expect(data.body.map((part) => part.type)).toEqual([
       "text",
@@ -257,6 +257,20 @@ describe("composed replies", () => {
     });
     expect(toText(data)).toContain("Before.");
     expect(toText(data)).toContain("After.");
+  });
+
+  it("shows the text of a component outside the current set as Markdown", () => {
+    const data = read(
+      block(
+        '```workstreams\nrecommendation(choice: "Read the index from a ref", reason: "It keeps one listener.", recommended: true, steps: [{title: "Add the ref"}, "Read it"])\n```',
+      ),
+    );
+    expect(data.body).toEqual([
+      {
+        type: "text",
+        body: "Read the index from a ref\n\nIt keeps one listener.\n\n- Add the ref\n- Read it",
+      },
+    ]);
   });
 
   it("shows a pending component until its code fence closes", () => {
@@ -336,11 +350,12 @@ describe("composed replies", () => {
     const data = read(COMPOSED_SAMPLES.change);
     const output = toText(data);
     for (const phrase of [
-      "Existing saved orders are unchanged",
-      "22 tests passed; 0 failed; 1 skipped",
-      "credential was unavailable",
+      "Saved orders keep their old totals",
+      "212 tests passed; 0 failed; 1 skipped",
+      "sandbox credential was unavailable",
       "reports/tests.json",
-      "No push was requested",
+      "Waiting for your merge",
+      "git merge --ff-only feature/percent",
       "Check callers",
     ])
       expect(output).toContain(phrase);
@@ -446,18 +461,19 @@ describe("component boundary", () => {
       }).success,
     ).toBe(false);
   });
-  it("rejects executable or styling fields and nested groups", () => {
+  it("rejects executable or styling fields", () => {
     expect(
       replyComponentSchema.safeParse({
         ...COMPONENT_EXAMPLES.change,
         color: "red",
       }).success,
     ).toBe(false);
+  });
+  it("rejects a table row whose cells do not match its columns", () => {
     expect(
       replyComponentSchema.safeParse({
-        type: "group",
-        relationship: "peers",
-        children: [COMPONENT_EXAMPLES.group, COMPONENT_EXAMPLES.change],
+        ...COMPONENT_EXAMPLES.table,
+        rows: [{ cells: ["Only one"] }],
       }).success,
     ).toBe(false);
   });
@@ -550,7 +566,7 @@ describe("delivered instructions", () => {
     if (!data.ok) return;
     // The card belongs to the tool call, so the block carries none of it.
     expect(data.data.card).toBeUndefined();
-    expect(data.data.body.some((part) => part.type === "change")).toBe(true);
+    expect(data.data.body.some((part) => part.type === "actions")).toBe(true);
   });
   it("keeps the reply block as the final message when the session has no recap tool", () => {
     const text = replyInstructions(false);
