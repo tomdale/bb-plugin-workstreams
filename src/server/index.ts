@@ -960,15 +960,6 @@ export default async function plugin(bb: BbPluginApi) {
     running?.abort(new UserError("Canceled: the draft changed."));
     return running !== undefined;
   };
-  // TEMPORARY diagnosis for the composer-inference-debug task; remove after.
-  const previewLog = (
-    event: string,
-    draftKey: string | null | undefined,
-    detail: string,
-  ) =>
-    bb.log.info(
-      `[preview-debug] ${event} draft=${draftKey ?? "-"} inflight=${previews.size} ${detail}`,
-    );
 
   /**
    * Hands a thread's topic back to Workstreams ("Automatic") and settles it
@@ -1020,45 +1011,19 @@ export default async function plugin(bb: BbPluginApi) {
             : decision;
         };
         if (!draftKey) return routed();
-        const canceledPrior = cancelPreview(draftKey);
-        previewLog(
-          "start",
-          draftKey,
-          `canceledPrior=${canceledPrior} len=${prompt.trim().length} text=${JSON.stringify(prompt.trim().slice(0, 60))}`,
-        );
+        cancelPreview(draftKey);
         const controller = new AbortController();
         previews.set(draftKey, controller);
-        const startedAt = Date.now();
         try {
-          const result = await routed(controller.signal);
-          previewLog(
-            "done",
-            draftKey,
-            `ms=${Date.now() - startedAt} subject=${JSON.stringify(result.subject)} subjectId=${result.subjectId ?? "-"}`,
-          );
-          return result;
-        } catch (error) {
-          previewLog(
-            "fail",
-            draftKey,
-            `ms=${Date.now() - startedAt} error=${error instanceof Error ? error.message : String(error)}`,
-          );
-          throw error;
+          return await routed(controller.signal);
         } finally {
           if (previews.get(draftKey) === controller) previews.delete(draftKey);
         }
       }),
-    previewCancel: async ({ draftKey }) => {
-      const canceled = cancelPreview(draftKey);
-      previewLog("cancel-rpc", draftKey, `canceled=${canceled}`);
-      return { canceled };
-    },
+    previewCancel: async ({ draftKey }) => ({
+      canceled: cancelPreview(draftKey),
+    }),
     draftIdentity: async ({ draftKey, text, identity, projectChoice }) => {
-      previewLog(
-        "identity",
-        draftKey,
-        `len=${text.trim().length} identity=${identity ? `${identity.provenance}:${identity.entityId ?? identity.proposal?.name ?? "none"}` : "null"}`,
-      );
       const choice = projectAssociations.draftChoice(draftKey, projectChoice);
       const started = drafts.report(draftKey, text, identity, choice);
       if (!started) return { filed: false };
