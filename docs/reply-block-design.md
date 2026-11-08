@@ -18,7 +18,7 @@ has not taken.
 ## Read this first: the code has moved
 
 This document describes the reply renderer as it stood on 1 November 2026. Main has changed under it
-since: most of what that section describes no longer exists, and the product has settled two of the
+since: most of what that section describes no longer exists, and the product has settled the
 decisions differently:
 
 - **`4dc40ca feat(replies): retire finding component` deleted the `finding` component**, and with it
@@ -32,8 +32,10 @@ decisions differently:
   asked for.
 - **`details` draws unboxed and always open**, on the ground that "essential caveats can land here
   too". That overturns decision 3, and its reasoning is better than mine was.
-- **No part draws a panel.** The product has not taken the bordered box, the failure tint on its
-  header, or the `not-started` status.
+- **The panels shipped afterwards.** A part whose data is a list of parallel rows draws in the
+  subagent delivery's recessed frame, with the failure tone on its border, header and title; a part
+  with one subject draws a label and no frame. `src/app/reply/Panel.tsx` holds the frame and
+  `src/app/reply/status.ts` the vocabulary, and delivery accepts `not-started`.
 
 A re-baseline means dropping the finding section and restating what the renderer does now.
 Until then the tenses are the 1 November renderer's.

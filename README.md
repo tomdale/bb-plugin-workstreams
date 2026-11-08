@@ -565,18 +565,28 @@ which adds a message-block slot, you also get **Structured replies**:
   `::inline-vis{source="thread-storage" file="report.html"}` render through BB's
   installed directive plugins in body order, including after card sections or
   Details. Missing or disabled directive plugins leave the source readable.
-- The body renders as plain Markdown through BB's renderer. Full explanations,
-  qualifications, checks, delivery records, and supporting details stay visible.
-  Information components render in source order, including grouped components;
-  peers in a group share a row in equal columns when the message column is wide
-  enough, and supporting components sit indented beneath the point they qualify.
-  There are no component panels, custom article headings, lead treatment,
-  disclosures, or reply-specific animations.
+- The body renders through BB's renderer. Prose stays plain Markdown, and a part
+  is drawn by its shape: a part whose data is a list of parallel rows — checks,
+  a delivery, a sequence, a comparison, a change, a supporting group — sits in a
+  bordered, recessed panel holding its title, its scope and its rows, and a part
+  with one subject (context, a recommendation, supporting detail) draws a label
+  and no frame. Peers in a group share a row in equal columns when the message
+  column is wide enough, with no frame; supporting components sit indented
+  beneath the point they qualify inside the group's one panel. Prose is never
+  framed.
+- A panel holding a failed or blocked row takes the failure tone at its border,
+  in its header and on its title, so a failure is findable before a row is read.
+  Passing panels stay neutral, which keeps the recap card that ends the turn the
+  loudest object on screen. Every row prints its status word beside its mark, so
+  no status depends on colour alone.
 - Parsing and validation retain the structured information: comparisons,
   sequences, behavior changes, checks, delivery records, recommendations, and
-  bounded groups. Checks and delivery stages can include evidence links. A
-  reply's kind remains separate from whether its work is complete, ready for
-  review, or waiting.
+  bounded groups. Checks and delivery stages can include evidence links. A check
+  reports `passed`, `failed`, `skipped`, `blocked` or `untested`; a delivery
+  stage reports `done`, `pending`, `blocked`, `not-started` or `unknown`, where
+  `blocked` is a stage that cannot proceed and `not-started` one nobody has
+  reached. A reply's kind remains separate from whether its work is complete,
+  ready for review, or waiting.
 - Components are written as `name(field: value, …)` statements inside
   `workstreams` fences; one fence holds one or more of them. Every argument is
   named, and values are static: `"text"`, numbers, `true`, `false`, `null`,
@@ -609,10 +619,12 @@ which adds a message-block slot, you also get **Structured replies**:
   executes work. Existing agent sessions may need a fresh start to receive a
   newly registered tool and its guidance.
 - The docked recap owns its headline, results, and actions. Historical and
-  dismissed recaps show their headline, results, and review references as plain
-  Markdown, without duplicate send actions. A malformed component shows its
-  original source and a diagnostic without discarding the explanation or the
-  recap. Streaming and upstream rendering fallbacks remain available.
+  dismissed recaps keep the card's fields inside the block and draw them
+  plainly: the state as a small muted line, then Done, Not done, Review, Waiting
+  on, Links and Next as labelled rows with their marks, and no frame, tint or
+  actions. A malformed component shows its original source and a diagnostic
+  without discarding the explanation or the recap. Streaming and upstream
+  rendering fallbacks remain available.
 - Completion messages from the Subagents plugin show their reply blocks inline,
   in a bordered panel labeled Subagent, with the worker's name and BB's standard
   thread chip for the full transcript. They use the thread's message type size,
