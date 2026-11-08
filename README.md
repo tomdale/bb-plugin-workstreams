@@ -1077,6 +1077,12 @@ are simulated. Topic and status colors use the playground's light and dark
 fixtures, not your live BB settings. Nothing writes to BB or ships in the
 plugin.
 
+The playground batches real thread rows and workstream names into one React
+update per affected preview. Trial-only settings leave Current untouched; focus
+and sort update both previews, while width, theme, and bounds update their
+styling without rebuilding rows. Each preview keeps its own collapse and
+lower-tier state.
+
 Settings and overlay actions show their latest outcome after interaction, with
 earlier actions in an optional disclosure. Question presets cover freeform and
 multi-question forms, submission states, and retained answers; recap presets add

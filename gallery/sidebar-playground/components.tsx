@@ -1,9 +1,11 @@
 import {
   createContext,
   createElement,
+  Fragment,
   useContext,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
@@ -75,10 +77,30 @@ Object.assign(runtime, {
   experimental_useSidebarThreadPullRequest: () => ({ pullRequest: null }),
 });
 
-const roots = new Map<string, Root[]>();
+const roots = new Map<string, Root>();
+const immediateRoots = new Map<string, Root[]>();
+const batching = new Set<string>();
+const portals = new Map<string, ReactNode[]>();
+const afterMount = new Map<string, Array<() => void>>();
+const rootContainers = new Map<string, HTMLElement>();
 export function clearComponents(panel: string) {
-  for (const root of roots.get(panel) ?? []) root.unmount();
-  roots.set(panel, []);
+  batching.delete(panel);
+  portals.delete(panel);
+  afterMount.delete(panel);
+  const root = roots.get(panel);
+  if (root) {
+    flushSync(() => root.unmount());
+    roots.delete(panel);
+    rootContainers.delete(panel);
+  }
+  for (const immediateRoot of immediateRoots.get(panel) ?? [])
+    flushSync(() => immediateRoot.unmount());
+  immediateRoots.delete(panel);
+}
+export function beginComponents(panel: string) {
+  batching.add(panel);
+  portals.set(panel, []);
+  afterMount.set(panel, []);
 }
 function mount(
   panel: string,
@@ -86,16 +108,63 @@ function mount(
   node: ReactNode,
   legacy = false,
 ) {
-  const root = createRoot(target);
-  let panelRoots = roots.get(panel);
-  if (!panelRoots) {
-    panelRoots = [];
-    roots.set(panel, panelRoots);
-  }
-  panelRoots.push(root);
-  flushSync(() =>
-    root.render(createElement(LegacyPreview.Provider, { value: legacy }, node)),
+  const element = createElement(
+    LegacyPreview.Provider,
+    { value: legacy },
+    node,
   );
+  if (!batching.has(panel)) {
+    const root = createRoot(target);
+    const panelRoots = immediateRoots.get(panel) ?? [];
+    panelRoots.push(root);
+    immediateRoots.set(panel, panelRoots);
+    flushSync(() => root.render(element));
+    return;
+  }
+  const panelPortals = portals.get(panel) ?? [];
+  panelPortals.push(createPortal(element, target, String(panelPortals.length)));
+  portals.set(panel, panelPortals);
+}
+export function afterComponentsMounted(panel: string, callback: () => void) {
+  const callbacks = afterMount.get(panel) ?? [];
+  callbacks.push(callback);
+  afterMount.set(panel, callbacks);
+}
+export function flushComponents(panel: string) {
+  let root = roots.get(panel);
+  if (!root) {
+    let container = rootContainers.get(panel);
+    if (!container) {
+      container = document.createElement("div");
+      rootContainers.set(panel, container);
+    }
+    root = createRoot(container);
+    roots.set(panel, root);
+  }
+  const panelPortals = portals.get(panel) ?? [];
+  flushSync(() => root?.render(createElement(Fragment, null, ...panelPortals)));
+  portals.set(panel, []);
+  const callbacks = afterMount.get(panel) ?? [];
+  afterMount.set(panel, []);
+  batching.delete(panel);
+  for (const callback of callbacks) callback();
+}
+
+const hot = (
+  import.meta as ImportMeta & { hot?: { dispose(fn: () => void): void } }
+).hot;
+if (hot) {
+  hot.dispose(() => {
+    for (const root of roots.values()) flushSync(() => root.unmount());
+    for (const panelRoots of immediateRoots.values())
+      for (const root of panelRoots) flushSync(() => root.unmount());
+    roots.clear();
+    immediateRoots.clear();
+    portals.clear();
+    afterMount.clear();
+    rootContainers.clear();
+    batching.clear();
+  });
 }
 
 export function mountThread(

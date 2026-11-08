@@ -261,6 +261,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method()))
           writes.push(request.url());
       });
+      await page.setViewportSize({ width: 1440, height: 500 });
       await page.goto(`${url}sidebar.html`);
       await page
         .locator(`#after .ws-spin-${DEFAULT_SPINNER.shape}`)
@@ -461,12 +462,192 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         await page.locator(`#${id} .heading`).first().click();
       await compare();
       await checkGaps();
+
+      await page.locator("#focus").selectOption("on");
+      for (const panel of ["#after", "#before"])
+        expect(
+          await page.locator(`${panel} .focus-icon`).count(),
+        ).toBeGreaterThan(0);
+      await page.locator("#after .tier-toggle").click();
+      expect(
+        await page.locator("#after .tier-toggle").getAttribute("aria-expanded"),
+      ).toBe("true");
+      expect(
+        await page
+          .locator("#before .tier-toggle")
+          .getAttribute("aria-expanded"),
+      ).toBe("false");
+      const trialLowerWorkstream = page.locator(
+        '#after .heading[aria-label="Studio: Workstreams"]',
+      );
+      await trialLowerWorkstream.click();
+      expect(await trialLowerWorkstream.getAttribute("aria-expanded")).toBe(
+        "true",
+      );
+      const currentApp = page.locator(
+        '#before .heading[aria-label="Studio: App"]',
+      );
+      const trialApp = page.locator(
+        '#after .heading[aria-label="Studio: App"]',
+      );
+      const currentExpanded = await currentApp.getAttribute("aria-expanded");
+      const trialExpanded = await trialApp.getAttribute("aria-expanded");
+      await trialApp.click();
+      expect(await trialApp.getAttribute("aria-expanded")).not.toBe(
+        trialExpanded,
+      );
+      expect(await currentApp.getAttribute("aria-expanded")).toBe(
+        currentExpanded,
+      );
+      expect(
+        await page.evaluate(() =>
+          document.activeElement?.getAttribute("aria-label"),
+        ),
+      ).toBe("Studio: App");
+      expect(await trialLowerWorkstream.getAttribute("aria-expanded")).toBe(
+        "true",
+      );
+      if ((await trialApp.getAttribute("aria-expanded")) === "false")
+        await trialApp.click();
+      await page.locator("#focus").selectOption("off");
+
+      await page.getByRole("button", { name: "Threads", exact: true }).click();
+      const collapsedCases = [
+        {
+          variant: "Uncategorized",
+          textLabel: "Collapsed uncategorized thread: Size",
+          size: "19",
+          parentTitle: "Planning shortcuts",
+          childTitle: "Reviewing shortcuts",
+          rowSelector: ".row.has-disclosure:not(.categorized)",
+          heightProperty: "--row-height",
+        },
+        {
+          variant: "Categorized",
+          textLabel: "Collapsed categorized thread: Size",
+          size: "18",
+          parentTitle: "Refining sidebar grouping",
+          childTitle: "Checking layout",
+          rowSelector: ".row.has-disclosure.categorized",
+          heightProperty: "--cat-row-height",
+        },
+      ];
+      for (const [index, scenario] of collapsedCases.entries()) {
+        if (index > 0)
+          await page
+            .getByRole("button", { name: scenario.variant, exact: true })
+            .click();
+        await page
+          .getByRole("button", {
+            name: new RegExp(`Activate to override ${scenario.textLabel}`),
+          })
+          .click();
+        await page
+          .getByLabel(scenario.textLabel, { exact: true })
+          .fill(scenario.size);
+        const parent = page
+          .locator(`#after ${scenario.rowSelector}`)
+          .filter({ hasText: scenario.parentTitle })
+          .first();
+        expect(await parent.count(), scenario.variant).toBe(1);
+        await parent.hover();
+        await parent
+          .getByRole("button", { name: "Hide child threads", exact: true })
+          .click();
+        const result = await parent.evaluate((element, heightProperty) => {
+          const sidebar = element.closest(".sidebar")!;
+          const title = element.querySelector(".ws-text-thread")!;
+          return {
+            fontSize: getComputedStyle(title).fontSize,
+            height: element.getBoundingClientRect().height,
+            expectedHeight: parseFloat(
+              getComputedStyle(sidebar).getPropertyValue(heightProperty),
+            ),
+            expanded: element
+              .querySelector(".thread-disclosure")
+              ?.getAttribute("aria-expanded"),
+          };
+        }, scenario.heightProperty);
+        expect(result.fontSize).toBe(`${scenario.size}px`);
+        expect(result.height).toBe(result.expectedHeight);
+        expect(result.expanded).toBe("false");
+        expect(
+          await page.locator("#after .ws-text-thread").allTextContents(),
+        ).not.toContain(scenario.childTitle);
+        expect(
+          await page.evaluate(() => ({
+            label: document.activeElement?.getAttribute("aria-label"),
+            expanded: document.activeElement?.getAttribute("aria-expanded"),
+          })),
+        ).toEqual({ label: "Show child threads", expanded: "false" });
+      }
+
+      const currentRow = await page
+        .locator("#before .ws-row")
+        .first()
+        .elementHandle();
+      const currentGap = await page
+        .locator("#before")
+        .evaluate((element) =>
+          (element as HTMLElement).style.getPropertyValue("--item-gap"),
+        );
+      const panelScroll = async (panel: string) =>
+        page.locator(panel).evaluate((element) => {
+          const sidebar = element as HTMLElement;
+          sidebar.scrollTop = Math.min(100, sidebar.scrollHeight);
+          return {
+            top: sidebar.scrollTop,
+            max: sidebar.scrollHeight - sidebar.clientHeight,
+          };
+        });
+      const scrollTop = (panel: string) =>
+        page
+          .locator(panel)
+          .evaluate((element) => (element as HTMLElement).scrollTop);
+      const currentScroll = await panelScroll("#before");
+      const trialScroll = await panelScroll("#after");
+      for (const [panel, scroll] of [
+        ["#before", currentScroll],
+        ["#after", trialScroll],
+      ] as const) {
+        expect(
+          scroll.max,
+          `${panel} has independently scrollable content`,
+        ).toBeGreaterThan(0);
+        expect(scroll.top).toBeGreaterThan(0);
+      }
       await page
         .getByRole("button", { name: "Workstreams", exact: true })
         .click();
       await page.getByText("Group spacing · shared", { exact: true }).click();
       await page.locator("#itemGap").fill("16");
       expect(await page.locator("#itemGap").inputValue()).toBe("16");
+      expect(
+        await page
+          .locator("#before")
+          .evaluate((element) =>
+            (element as HTMLElement).style.getPropertyValue("--item-gap"),
+          ),
+      ).toBe(currentGap);
+      expect(
+        await page
+          .locator("#after")
+          .evaluate((element) =>
+            (element as HTMLElement).style.getPropertyValue("--item-gap"),
+          ),
+      ).toBe("16px");
+      expect(
+        await currentRow!.evaluate(
+          (original) =>
+            original.isConnected &&
+            document.querySelector("#before .ws-row") === original,
+        ),
+      ).toBe(true);
+      expect(await scrollTop("#before")).toBe(currentScroll.top);
+      expect(await scrollTop("#after")).toBe(trialScroll.top);
+      expect(await page.evaluate(() => document.activeElement?.id)).toBe(
+        "itemGap",
+      );
       await page.getByRole("button", { name: "Reset all" }).click();
       expect(await page.locator("#itemGap").inputValue()).toBe(
         String(SIDEBAR_GEOMETRY.gaps.item),
@@ -481,6 +662,24 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
           .first()
           .getAttribute("aria-label"),
       ).toBe("Studio: App");
+      const manualOrder = [
+        "Studio: App",
+        "Studio: Workstreams",
+        "Agent: Automations",
+        "Agent: Code review",
+        "Agent: Research",
+        "Tools: CLI",
+        "Prompting",
+        "Quality",
+      ];
+      for (const panel of ["#before", "#after"])
+        expect(
+          await page
+            .locator(`${panel} .unit .heading`)
+            .evaluateAll((elements) =>
+              elements.map((element) => element.getAttribute("aria-label")),
+            ),
+        ).toEqual(manualOrder);
       await compare();
       expect(errors).toEqual([]);
       expect(writes).toEqual([]);
@@ -621,6 +820,10 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(`${url}sidebar.html`);
       await page.locator("#after .ws-workstream-name").first().waitFor();
+      const themeRows = {
+        current: await page.locator("#before .ws-row").first().elementHandle(),
+        trial: await page.locator("#after .ws-row").first().elementHandle(),
+      };
       const colorsByTheme: Record<string, string> = {};
       for (const theme of ["Dark", "Light"] as const) {
         await page.getByRole("button", { name: theme, exact: true }).click();
@@ -726,6 +929,18 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         colorsByTheme[theme] = panels.trial.names[0]!.actual;
       }
       expect(colorsByTheme.Dark).not.toBe(colorsByTheme.Light);
+      for (const [panel, row] of [
+        ["#before", themeRows.current],
+        ["#after", themeRows.trial],
+      ] as const)
+        expect(
+          await row!.evaluate(
+            (original, selector) =>
+              original.isConnected &&
+              document.querySelector(`${selector} .ws-row`) === original,
+            panel,
+          ),
+        ).toBe(true);
 
       await page
         .getByRole("button", { name: "Categories", exact: true })
@@ -748,6 +963,35 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       ).toBe(
         await currentCategory.evaluate((el) => getComputedStyle(el).color),
       );
+
+      await page.getByRole("button", { name: "Sidebar", exact: true }).click();
+      const widthRows = {
+        current: await page.locator("#before .ws-row").first().elementHandle(),
+        trial: await page.locator("#after .ws-row").first().elementHandle(),
+      };
+      await page.locator("#width").fill("320");
+      for (const [panel, row] of [
+        ["#before", widthRows.current],
+        ["#after", widthRows.trial],
+      ] as const) {
+        expect(
+          await page
+            .locator(panel)
+            .evaluate((element) =>
+              (element as HTMLElement).style.getPropertyValue(
+                "--sidebar-width",
+              ),
+            ),
+        ).toBe("320px");
+        expect(
+          await row!.evaluate(
+            (original, selector) =>
+              original.isConnected &&
+              document.querySelector(`${selector} .ws-row`) === original,
+            panel,
+          ),
+        ).toBe(true);
+      }
 
       await page
         .getByRole("button", { name: "Workstreams", exact: true })
@@ -1143,8 +1387,17 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         .getByRole("link", { name: "Actions, hints, and overlays" })
         .click();
       await page
+        .getByRole("heading", {
+          name: "Actions, hints, and overlays",
+          exact: true,
+        })
+        .waitFor();
+      await page
         .locator("style[data-gallery-color-tokens]")
         .waitFor({ state: "detached" });
+      expect(
+        await page.locator("style[data-gallery-color-tokens]").count(),
+      ).toBe(0);
       const options = page
         .getByRole("group", { name: "Follow viewport", exact: true })
         .getByRole("button", { name: "Open options" });

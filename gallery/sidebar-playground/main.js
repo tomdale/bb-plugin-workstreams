@@ -1,5 +1,7 @@
 import {
-  clearComponents,
+  afterComponentsMounted,
+  beginComponents,
+  flushComponents,
   mountThread,
   mountWorkstreamName,
 } from "./components.tsx";
@@ -1691,7 +1693,7 @@ for (const id of Object.keys(defaults)) {
     input.removeAttribute("aria-invalid");
     lastValid[id] = input.value;
     propertyChanged(id);
-    render();
+    render(panelsForSetting(id));
   });
   row.append(reset);
   lastValid[id] = input.value;
@@ -2155,7 +2157,7 @@ function makeBulkLink(ids, label) {
     const keys = button.dataset.linkIds.split(","),
       link = !keys.every(isLinked);
     for (const id of keys) setLink(id, link);
-    render();
+    render(["after"]);
   });
   return button;
 }
@@ -2181,7 +2183,7 @@ function setLink(id, linked) {
 }
 function switchLink(id) {
   setLink(id, !isLinked(id));
-  render();
+  render(["after"]);
 }
 const validNumber = (input) => {
   const value = Number(input.value),
@@ -2801,20 +2803,26 @@ function addRows(root, item, panel) {
                 childCollapsed[panel].delete(key);
               else childCollapsed[panel].add(key);
               queueMicrotask(() => {
-                render();
+                render([panel]);
                 $(panel).querySelector(`[data-child-key="${key}"]`)?.focus();
               });
             }
           : undefined,
       });
-      const text = row.querySelector(".ws-text-thread");
-      text.classList.add("title");
-      const disclosure = row.querySelector(".ws-disclosure");
-      if (disclosure) {
-        disclosure.dataset.childKey = key;
-        disclosure.classList.add("thread-disclosure");
-      }
-      applyFontColor(text, textRole, panel);
+      const role = categorized ? "collapsedCatThread" : "collapsedThread",
+        collapsedStyle =
+          panel === "after" && hasChildren && hidden && collapsedActive(role);
+      afterComponentsMounted(panel, () => {
+        const text = row.querySelector(".ws-text-thread");
+        text.classList.add("title");
+        const disclosure = row.querySelector(".ws-disclosure");
+        if (disclosure) {
+          disclosure.dataset.childKey = key;
+          disclosure.classList.add("thread-disclosure");
+        }
+        applyFontColor(text, textRole, panel);
+        if (collapsedStyle) applyCollapsedText(text, role);
+      });
       const wrap = document.createElement("div");
       wrap.className =
         "row-wrap" +
@@ -2834,12 +2842,10 @@ function addRows(root, item, panel) {
           : "var(--child-offset)";
         row.style.marginLeft = `calc(${offset} + ${valueOf("guidechildrenSpacing")}px)`;
       }
-      const role = categorized ? "collapsedCatThread" : "collapsedThread";
-      if (panel === "after" && hasChildren && hidden && collapsedActive(role)) {
+      if (collapsedStyle) {
         wrap.style.paddingTop = effectiveValue(role + "Before") + "px";
         wrap.style.paddingBottom = effectiveValue(role + "After") + "px";
         row.style.height = effectiveValue(role + "Height") + "px";
-        applyCollapsedText(text, role);
       }
       container.append(wrap);
     });
@@ -2950,22 +2956,25 @@ function renderUnit(item, mode, panel, lower, hasParent) {
       ? `${item.parent}: ${item.name}`
       : item.name,
   );
-  const prefix = name.querySelector(".ws-text-prefix");
-  if (prefix) {
-    prefix.classList.add("prefix");
-    const fixedGap = panel === "after" && valueOf("prefixGapMode") === "fixed";
-    if (fixedGap) prefix.style.marginRight = valueOf("prefixGap") + "px";
-    applyFontColor(prefix, "prefix", panel);
-  }
-  const accent = name.querySelector(".ws-workstream-name");
-  const separate =
-    mode === "prefix" &&
-    item.parent &&
-    (panel === "before" || inlineWorkstreamActive());
-  accent.classList.add("accent");
-  if (separate) accent.classList.add("inline-workstream");
-  applyFontColor(accent, separate ? "inlineWorkstream" : "workstream", panel);
-  if (panel === "after") applyCollapsedText(accent, treatment.text);
+  afterComponentsMounted(panel, () => {
+    const prefix = name.querySelector(".ws-text-prefix");
+    if (prefix) {
+      prefix.classList.add("prefix");
+      const fixedGap =
+        panel === "after" && valueOf("prefixGapMode") === "fixed";
+      if (fixedGap) prefix.style.marginRight = valueOf("prefixGap") + "px";
+      applyFontColor(prefix, "prefix", panel);
+    }
+    const accent = name.querySelector(".ws-workstream-name");
+    const separate =
+      mode === "prefix" &&
+      item.parent &&
+      (panel === "before" || inlineWorkstreamActive());
+    accent.classList.add("accent");
+    if (separate) accent.classList.add("inline-workstream");
+    applyFontColor(accent, separate ? "inlineWorkstream" : "workstream", panel);
+    if (panel === "after") applyCollapsedText(accent, treatment.text);
+  });
   const rightChevron = get("placement") === "right";
   if (!rightChevron) heading.append(chev);
   heading.append(name);
@@ -2975,7 +2984,7 @@ function renderUnit(item, mode, panel, lower, hasParent) {
     const set = lower ? lowerExpanded[panel] : collapsed[panel];
     if (set.has(item.id)) set.delete(item.id);
     else set.add(item.id);
-    render();
+    render([panel]);
     [...$(panel).querySelectorAll(".heading")]
       .find(
         (button) =>
@@ -2998,7 +3007,7 @@ function renderUnit(item, mode, panel, lower, hasParent) {
   return unit;
 }
 function renderPanel(id, mode) {
-  clearComponents(id);
+  beginComponents(id);
   const el = $(id),
     scrollTop = el.scrollTop;
   el.replaceChildren();
@@ -3261,7 +3270,7 @@ function renderPanel(id, mode) {
         parent.addEventListener("click", () => {
           if (parentCollapsed.after.has(key)) parentCollapsed.after.delete(key);
           else parentCollapsed.after.add(key);
-          render();
+          render([id]);
           [...$(id).querySelectorAll(".parent")]
             .find((button) => button.dataset.parentKey === key)
             ?.focus();
@@ -3359,15 +3368,22 @@ function renderPanel(id, mode) {
             if (key.includes(":other:")) parentCollapsed.after.delete(key);
       }
       showLower[id] = !showLower[id];
-      render();
+      render([id]);
       $(id).querySelector(".tier-toggle")?.focus();
     });
     sectionContent.append(toggle);
     if (showLower[id]) drawGroups(other, true);
   } else drawGroups(data, false);
+  flushComponents(id);
   el.scrollTop = scrollTop;
 }
-function render() {
+const panelsForSetting = (id) =>
+  id === "width"
+    ? []
+    : id === "focus" || id === "sort"
+      ? ["before", "after"]
+      : ["after"];
+function render(panels = ["before", "after"]) {
   document.body.dataset.theme = theme;
   document.documentElement.classList.toggle("dark", theme === "dark");
   document.documentElement.classList.toggle("light", theme === "light");
@@ -3379,6 +3395,12 @@ function render() {
     .querySelector(".playground")
     .style.setProperty("--requested-width", valueOf("width") + "px");
   layoutPreview();
+  for (const id of ["before", "after"]) {
+    const panel = $(id);
+    panel.classList.toggle("light", theme === "light");
+    panel.dataset.showBounds = String(showBounds);
+    panel.style.setProperty("--sidebar-width", valueOf("width") + "px");
+  }
   $("resetTheme").disabled = theme === "dark";
   for (const t of ["dark", "light"])
     $(t).setAttribute("aria-pressed", String(theme === t));
@@ -3621,8 +3643,8 @@ function render() {
         : mode === "runs"
           ? "Preserves the chosen workstream order; a parent label repeats if another family interrupts it."
           : "Preserves the chosen workstream order and repeats the parent prefix on each header.";
-  renderPanel("before", "prefix");
-  renderPanel("after", mode);
+  if (panels.includes("before")) renderPanel("before", "prefix");
+  if (panels.includes("after")) renderPanel("after", mode);
   const preset = Object.entries(presets).find(([, u]) =>
     Object.entries(presetValues(u)).every(
       ([id, value]) => effectiveValue(id) === String(value),
@@ -3772,13 +3794,13 @@ for (const id of Object.keys(defaults)) {
     input.removeAttribute("aria-invalid");
     lastValid[id] = input.value;
     propertyChanged(id);
-    render();
+    render(panelsForSetting(id));
   });
   input.addEventListener("blur", () => {
     if (input.type === "number" && !validNumber(input)) {
       input.value = lastValid[id];
       input.removeAttribute("aria-invalid");
-      render();
+      render(panelsForSetting(id));
     }
   });
 }
@@ -3792,20 +3814,20 @@ for (const button of document.querySelectorAll("[data-preset]"))
       $(id).removeAttribute("aria-invalid");
       lastValid[id] = $(id).value;
     }
-    render();
+    render(["after"]);
   });
 $("showBounds").addEventListener("click", () => {
   showBounds = !showBounds;
-  render();
+  render([]);
 });
 for (const t of ["dark", "light"])
   $(t).addEventListener("click", () => {
     theme = t;
-    render();
+    render([]);
   });
 $("resetTheme").addEventListener("click", () => {
   theme = "dark";
-  render();
+  render([]);
 });
 $("reset").addEventListener("click", () => {
   for (const [id, value] of Object.entries(defaults)) {
