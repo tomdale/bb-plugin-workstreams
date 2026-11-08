@@ -13,6 +13,7 @@ import { GroupBody } from "./GroupBody.tsx";
 import { PANEL_ROW_CLASS, Panel } from "./Panel.tsx";
 import { PartTitle, titleMarkdown } from "./PartTitle.tsx";
 import { SequenceBody } from "./SequenceBody.tsx";
+import { partReportsFailure } from "./status.ts";
 import { BODY_CLASS, SECONDARY_CLASS } from "./type.ts";
 
 export { PlainMarkdown };
@@ -130,6 +131,7 @@ export function PlainBody({
       return panelled ? (
         <Panel
           part="checks"
+          failed={partReportsFailure(part)}
           title={title(part.title)}
           scope={md(part.scope)}
           summary={
@@ -160,7 +162,12 @@ export function PlainBody({
         />
       );
       return panelled ? (
-        <Panel part="delivery" title={title(part.title)} scope={md(part.scope)}>
+        <Panel
+          part="delivery"
+          failed={partReportsFailure(part)}
+          title={title(part.title)}
+          scope={md(part.scope)}
+        >
           {rows}
         </Panel>
       ) : (

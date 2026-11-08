@@ -23,7 +23,7 @@ const draw = (part: ReplyPart) =>
   render(<PlainBody part={part} document={undefined} files={null} />).container;
 
 const checks = (
-  statuses: ("passed" | "failed" | "blocked")[] = ["passed"],
+  statuses: ("passed" | "failed" | "blocked")[],
 ): ReplyComponent => ({
   type: "checks",
   title: "The branch's checks",
@@ -104,6 +104,36 @@ it("keeps prose unframed even beside a panel", () => {
   const view = draw({ type: "text", body: "A paragraph." });
   expect(view.querySelector("[data-reply-panel]")).toBeNull();
   expect(view.querySelector("p")?.textContent).toBe("A paragraph.");
+});
+
+it("tones a panel that holds a failure at its frame, its header and its title", () => {
+  const failing = draw(checks(["passed", "failed"]));
+  const panel = failing.querySelector("[data-reply-panel]")!;
+  expect(panel.hasAttribute("data-reply-panel-failure")).toBe(true);
+  expect(panel.className).toContain("border-(--ws-failure-border)");
+  const header = panel.querySelector("[data-reply-panel-header]")!;
+  expect(header.className).toContain("bg-(--ws-failure-surface)");
+  expect(header.className).toContain("border-(--ws-failure-border)");
+  expect(panel.querySelector("[data-reply-panel-title]")?.className).toContain(
+    "text-(--ws-failure-text)",
+  );
+});
+
+it("tones a panel holding a blocked row, and leaves a passing one neutral", () => {
+  const blocked = draw(checks(["passed", "blocked"]));
+  expect(
+    blocked
+      .querySelector("[data-reply-panel]")!
+      .hasAttribute("data-reply-panel-failure"),
+  ).toBe(true);
+  const passing = draw(checks(["passed", "passed"]));
+  const panel = passing.querySelector("[data-reply-panel]")!;
+  expect(panel.hasAttribute("data-reply-panel-failure")).toBe(false);
+  expect(panel.className).toContain("border-border");
+  expect(panel.className).not.toContain("--ws-failure");
+  expect(panel.querySelector("[data-reply-panel-title]")?.className).toContain(
+    "text-foreground",
+  );
 });
 
 it("prints every row's status word at the row's edge, in its tone", () => {

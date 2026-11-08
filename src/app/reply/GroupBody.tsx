@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { ReplyLeaf, ReplyPart } from "../../domain/replyComponents.ts";
 import { Panel } from "./Panel.tsx";
+import { partReportsFailure } from "./status.ts";
 
 type Group = Extract<ReplyPart, { type: "group" }>;
 
@@ -70,7 +71,7 @@ export function GroupBody({
   }
   const [point, ...support] = part.children;
   return (
-    <Panel part="group">
+    <Panel part="group" failed={partReportsFailure(part)}>
       <div
         data-reply-group="supporting"
         className="min-w-0 space-y-3 px-3.5 py-2.5"
