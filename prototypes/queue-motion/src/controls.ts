@@ -46,6 +46,7 @@ export type Cfg = {
   holdDelay: number;
   gateSlack: number;
   fold: boolean;
+  loose: boolean;
   ramp: boolean;
   H0: number;
   tempo: { kind: string; window: number; scale: number; ms: number };
@@ -102,7 +103,7 @@ export const maxOf = <C>(
 ) => (typeof s.max === "number" ? s.max : s.max(c));
 
 const always = () => true;
-const heldState = (c: Cfg) => c.fold || c.ramp;
+const heldState = (c: Cfg) => c.fold || c.ramp || c.loose;
 
 export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
   {
@@ -200,8 +201,8 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     label: "held speed-up",
     read: (c) => c.ramp,
     write: (ramp) => ({ ramp }),
-    // Fold already includes the speed-up, so with fold on this toggle changes nothing.
-    shown: (c) => !c.fold,
+    // Fold and loose clearing already include the speed-up, so with either on this toggle changes nothing.
+    shown: (c) => !c.fold && !c.loose,
   },
   {
     kind: "toggle",
@@ -211,6 +212,16 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     read: (c) => c.fold,
     write: (fold) => ({ fold }),
     shown: always,
+  },
+  {
+    kind: "toggle",
+    key: "loose",
+    group: "held",
+    label: "loosen clearing while held",
+    read: (c) => c.loose,
+    write: (loose) => ({ loose }),
+    // Fold already shrinks the heights that clearing uses, so with fold on this toggle changes nothing.
+    shown: (c) => !c.fold,
   },
   {
     kind: "range",
@@ -255,14 +266,14 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     kind: "range",
     key: "h0",
     group: "held",
-    label: "folded height px",
+    label: "held height px",
     unit: "px",
     min: 40,
     max: 200,
     step: 1,
     read: (c) => c.H0,
     write: (H0) => ({ H0 }),
-    shown: (c) => c.fold,
+    shown: (c) => c.fold || c.loose,
   },
 ];
 

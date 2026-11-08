@@ -697,21 +697,22 @@ async function edges(browser) {
 
 // ---- which settings the bar shows --------------------------------------------------------------------------
 
-/** `shown` in src/controls.ts, per setting key, for a tempo kind and the held speed-up and fold toggles. */
+/** `shown` in src/controls.ts, per setting key, for a tempo kind and the held speed-up, fold and loose toggles. */
 const SHOWN = {
   w0: () => true,
   cap: () => true,
   tk: () => true,
   fold: () => true,
+  loose: (s) => !s.fold,
   tw: (s) => s.tk === "lookahead",
   ts: (s) => s.tk === "lookahead",
   tms: (s) => s.tk === "constant",
   slack: (s) => s.tk === "none",
-  ramp: (s) => !s.fold,
-  delay: (s) => s.fold || s.ramp,
-  w1: (s) => s.fold || s.ramp,
-  cap1: (s) => s.fold || s.ramp,
-  h0: (s) => s.fold,
+  ramp: (s) => !s.fold && !s.loose,
+  delay: (s) => s.fold || s.ramp || s.loose,
+  w1: (s) => s.fold || s.ramp || s.loose,
+  cap1: (s) => s.fold || s.ramp || s.loose,
+  h0: (s) => s.fold || s.loose,
 };
 
 /** The same for the cascade, whose only condition is the ramp. */
@@ -793,29 +794,38 @@ async function settingsVisibility(browser) {
       "fold off: the held settings and folded height",
     );
 
-    // Every combination of tempo, held speed-up and fold, driven through the controls.
+    // Every combination of tempo, held speed-up, fold and loose clearing, driven through the controls. Loose
+    // clearing hides while fold is on, so the two are never on together.
     const wrong = [];
+    let states = 0;
     for (const tk of ["none", "constant", "lookahead"])
       for (const ramp of [false, true])
-        for (const fold of [false, true]) {
+        for (const [fold, loose] of [
+          [false, false],
+          [true, false],
+          [false, true],
+        ]) {
+          states++;
           await page.setChecked('input[data-k="fold"]', false);
+          await page.setChecked('input[data-k="loose"]', false);
           await page.setChecked('input[data-k="ramp"]', ramp);
           await page.selectOption('select[data-k="tk"]', tk);
           await page.setChecked('input[data-k="fold"]', fold);
+          if (loose) await page.setChecked('input[data-k="loose"]', true);
           const want = Object.keys(SHOWN).filter((k) =>
-            SHOWN[k]({ tk, ramp, fold }),
+            SHOWN[k]({ tk, ramp, fold, loose }),
           );
           const now = await shownKeys(page);
           const off = want.filter((k) => !now.includes(k));
           const extra = now.filter((k) => !want.includes(k));
           if (off.length || extra.length)
             wrong.push(
-              `tempo ${tk}, ramp ${ramp}, fold ${fold}: ${[off.length && `missing ${off}`, extra.length && `extra ${extra}`].filter(Boolean).join(", ")}`,
+              `tempo ${tk}, ramp ${ramp}, fold ${fold}, loose ${loose}: ${[off.length && `missing ${off}`, extra.length && `extra ${extra}`].filter(Boolean).join(", ")}`,
             );
         }
     expect(
       wrong.length === 0,
-      `the settings bar shows what src/controls.ts says in all 12 tempo, ramp and fold states${wrong.length ? `: ${wrong.join("; ")}` : ""}`,
+      `the settings bar shows what src/controls.ts says in all ${states} tempo, ramp, fold and loose states${wrong.length ? `: ${wrong.join("; ")}` : ""}`,
     );
 
     // A preset button clears every override.

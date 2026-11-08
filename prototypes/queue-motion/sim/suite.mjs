@@ -226,7 +226,8 @@ const fmt = (v) =>
     : String(v);
 
 /**
- * What `--check` asserts for every preset: no draw-order, jump, shade, or clip-band problem (corrected rule),
+ * What `--check` asserts for every preset: no draw-order, jump, shade, or clip-band problem (corrected rule;
+ * a loose preset may have them in holds),
  * first response within a frame, no edge moving more than 40 px in a frame, a hold that never moves a card at
  * an end and unfolds when it reaches one, and a release that rests on a card with at most one waiting press.
  * The ramped presets raise the edge budget to 30 px/frame while held, which is close to where problems start;
@@ -239,8 +240,11 @@ function invariants(name, hz, R, S) {
   const probs = S["problems (corrected rule): taps / holds / reversals"]
     .split(" / ")
     .map(Number);
+  // A loose preset passes cards over one another while held, so its holds show draw-order swaps and edge
+  // flashes by design; its taps and reversals, which never loosen anything, must stay clean.
+  const passes = PRESETS[name]?.loose === true;
   expect(
-    probs.every((p) => p === 0),
+    probs.every((p, i) => p === 0 || (passes && i === 1)),
     `checker problems ${probs.join("/")}`,
   );
   expect(

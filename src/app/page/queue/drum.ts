@@ -24,6 +24,9 @@
  *   step. `gateSlack` lets a press start while the card before it is still short of its flip.
  * - `ramp` stiffens the springs and raises the edge budget while a key is held. `fold` does the same and also
  *   shrinks every card's drawn height toward `H0` (a level of detail), which removes the height term.
+ * - `loose` leaves every card drawn whole but measures the clearing geometry with heights that shrink toward `H0`
+ *   as a key is held, as `fold` does. A leaving card then drops only as far as it would clear a folded card, so
+ *   it passes over the card it uncovers instead of around it, and washes out as it does. The speed-up comes with it.
  * - A hold only starts, and only folds, while another card lies ahead in its direction.
  * - One press may wait for the gate; any further press before it is taken is dropped, so a release rests on a
  *   whole card with at most one more card after it.
@@ -49,6 +52,8 @@ const LAMBDA_OMEGA = TAU * 1.6;
 /** Extra travel below the clear line, px: the visible dip of a returning card. It shrinks to `DIP_HELD` as λ → 1. */
 const DIP_TAP = 20;
 const DIP_HELD = 6;
+/** How far a leaving card washes out at the turn when `loose` lets it pass over the card it uncovers, at λ = 1. */
+const LOOSE_WASH = 0.6;
 
 /** The interval planner's settings; see `DEFAULT_CFG`. */
 export type Tempo = {
@@ -67,6 +72,7 @@ export type DrumConfig = {
   vcap: number;
   vcap1: number;
   fold: boolean;
+  loose: boolean;
   ramp: boolean;
   H0: number;
   holdDelay: number;
@@ -116,8 +122,9 @@ export const DEFAULT_CFG: DrumConfig = {
   vcap: 1440, // edge-speed budget at λ = 0, px/s (24 px/frame at 60 Hz); 0 = off
   vcap1: 1800, // at λ = 1 (30 px/frame)
   fold: false, // while held, fold every card toward H0 (level of detail)
+  loose: false, // while held, clear a virtual height that shrinks toward H0, with every card still drawn whole
   ramp: false, // while held, ramp the spring rate and edge budget toward their λ = 1 values without folding
-  H0: 73, // folded (header) height, px
+  H0: 73, // folded (header) height, or the virtual height `loose` clears, px
   holdDelay: 250, // ms a key is held before λ heads to 1
   washTauIn: 40, // ms: the drawn wash of a too-tall card follows its path value, falling
   washTauOut: 120, // and rising
@@ -143,6 +150,8 @@ export const PRESETS: Record<string, DrumPatch> = {
   },
   /** Every card folds toward its header line while a key is held. */
   fold: { fold: true },
+  /** Cards stay whole, but a held key clears a virtual height, so cards pass over one another. */
+  loose: { loose: true, tempo: { kind: "constant", ms: 100 } },
 };
 
 /**
@@ -246,6 +255,12 @@ export class Drum {
     return this.cfg.fold
       ? this.cfg.H0 + (this.h[i]! - this.cfg.H0) * (1 - this.lam)
       : this.h[i]!;
+  }
+  /** The height the clearing geometry uses: with `loose`, a card's height shrinks toward H0 as the held state rises, though it is drawn whole. */
+  hg(i: number) {
+    return this.cfg.loose
+      ? this.cfg.H0 + (this.h[i]! - this.cfg.H0) * (1 - this.lam)
+      : this.hd(i);
   }
   target(i: number) {
     return i >= this.front ? i - this.front : i - this.front - 1;
@@ -361,7 +376,7 @@ export class Drum {
     // fold
     // The fold ends as soon as the hold has nowhere left to go, so the last card unfolds on arrival, not on release.
     const lamT =
-      (this.cfg.fold || this.cfg.ramp) &&
+      (this.cfg.fold || this.cfg.ramp || this.cfg.loose) &&
       this.hold &&
       this.hold.t >= this.cfg.holdDelay &&
       this.canAdvance(this.hold.dir)
@@ -420,6 +435,9 @@ export class Drum {
   /** The wash a too-tall card's path asks for: nothing until 60 % of the way in, then slowly, then faster (quadratic), gone at the tuck. */
   washTarget(i: number) {
     const c = this.c[i]!;
+    // A loosened clearing lets a leaving card pass over the card it uncovers, so it washes out on the way.
+    if (this.cfg.loose && c > -1 && c < 0)
+      return LOOSE_WASH * this.lam * smooth(clamp((-c - 0.3) / 0.7, 0, 1));
     if (c > -1) return 0;
     const h = this.hd(i),
       hn = i + 1 < this.N ? this.hd(i + 1) : h;
@@ -437,7 +455,10 @@ export class Drum {
       if (!vj.painted) continue;
       // cards it swaps with: everything not behind the pile (pile and front-segment cards)
       if (this.c[j]! < -1) continue;
-      if (vj.bottom > top) return false;
+      const bottom = this.cfg.loose
+        ? vj.top + (vj.bottom - vj.top) * (this.hg(j) / Math.max(1, this.hd(j)))
+        : vj.bottom;
+      if (bottom > top) return false;
     }
     return true;
   }
@@ -455,7 +476,7 @@ export class Drum {
   // ---- pose map ----------------------------------------------------------
   /** Screen y of the top edge of the card's turn pose: clear below the card it covers/uncovers (its ring neighbour i+1). */
   turnTop(i: number) {
-    const hn = i + 1 < this.N ? this.hd(i + 1) : this.hd(i);
+    const hn = i + 1 < this.N ? this.hg(i + 1) : this.hg(i);
     return LEAD + hn + GAP + this.dip();
   }
   slot(q: number) {
@@ -486,8 +507,8 @@ export class Drum {
       // band), and recedes only past that point, as the product does.
       const u = -c;
       const T = LEAD + (turnTop - LEAD) * Math.sin((Math.PI / 2) * u);
-      const hn = i + 1 < this.N ? this.hd(i + 1) : h;
-      const Tpass = LEAD + Math.max(0, hn - h);
+      const hn = i + 1 < this.N ? this.hg(i + 1) : this.hg(i);
+      const Tpass = LEAD + Math.max(0, hn - this.hg(i));
       const z = -ZDROP * smooth((T - Tpass) / Math.max(1, turnTop - Tpass));
       const leave = 0.35 * smooth(u);
       const g = this.g[i]!;
@@ -541,7 +562,9 @@ export class Drum {
       let bottom = nat;
       if (p.group !== 2) {
         if (p.painted && cover < nat) bottom = Math.max(top, cover - 1.5);
-        if (p.painted) cover = Math.min(cover, bottom);
+        // A loose leaver passes over the card behind it, so it does not clip that card to its own lower edge.
+        const passing = this.cfg.loose && this.lam > 0.02 && p.group === 0;
+        if (p.painted && !passing) cover = Math.min(cover, bottom);
       }
       const vis = (bottom - top) / s;
       out[i] = {

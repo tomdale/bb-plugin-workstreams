@@ -139,6 +139,17 @@ both read λ.
   understood well enough to detect a target, with about 300 ms more of
   processing needed to keep it. That result is about pictures; applied to cards,
   a body cannot be read in 100 ms and a header line can be recognised.
+- **`loose`** includes `ramp`'s speed-up and shrinks only the heights the
+  clearing geometry uses, toward `H0` with λ, while every card is drawn whole. A
+  leaving card drops just far enough to clear a card of that virtual height, so
+  it passes over the card it uncovers instead of around it, and washes out by up
+  to 60 % at the turn. The leaver no longer clips the card behind it to its own
+  lower edge. With a constant 100 ms beat the `loose` preset holds 9.3 / 9.4
+  cards/s with intervals of 100–167 ms and no problem in taps or reversals. The
+  checker counts 110 problems in the holds over its three height sets,
+  draw-order swaps and clip bands: passing over a card changes the draw order
+  while the cards overlap. `npm run check` allows them in the holds of a loose
+  preset and nowhere else.
 - **`gateSlack`** lets a press start while the card before it is short of its
   flip by that many ring units. At 0.1 the held pace rises from 5.5 to 5.9
   cards/s with no problems. At 0.15 two draw-order swaps appear, and at 0.5 a

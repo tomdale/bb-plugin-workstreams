@@ -51,6 +51,7 @@ export const CONTEXTS = {
   constant: { tempo: { kind: "constant" } },
   "constant with held speed-up": { ramp: true, tempo: { kind: "constant" } },
   "fold with constant": { fold: true, tempo: { kind: "constant" } },
+  loose: preset("loose"),
 };
 const withTempo = (base, patch) => ({
   ...base,
@@ -113,6 +114,7 @@ export const PARAMS = [
     constant: [[150, 200, 250, 285, 350, 400], 285],
     "constant with held speed-up": [[200, 225, 250, 285], 285],
     "fold with constant": [[80, 100, 150, 200, 250], 285],
+    loose: [[60, 80, 100, 150, 200], 100],
   }),
   ...heldSweeps("slack", "gate slack", (v) => ({ gateSlack: v }), {
     even: [[0, 0.1, 0.3], 0],

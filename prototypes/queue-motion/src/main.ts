@@ -318,7 +318,9 @@ const speed = () => Number(opt.speed) || 1;
 /** The held readout is on while the model has a held state to report: the drum's speed-up or fold, the cascade's ramp. */
 const showsHeld = () =>
   !!sim.lam &&
-  (opt.v === "drum" ? cfg.fold || cfg.ramp : opt.v === "cascade" && ccfg.ramp);
+  (opt.v === "drum"
+    ? cfg.fold || cfg.ramp || cfg.loose
+    : opt.v === "cascade" && ccfg.ramp);
 
 function paint() {
   // The product engine holds only the pile and the cards still leaving it; every other card stays hidden.

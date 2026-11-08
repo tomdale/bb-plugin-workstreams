@@ -214,6 +214,39 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     };
   },
 
+  "preset.loose": (f) => {
+    const p = f.preset("loose");
+    const nat = f.preset("natural");
+    const fold = f.preset("fold");
+    const s = f.sweep("tms", "loose");
+    const fast = s.at(60),
+      slow = s.at(150);
+    f.expect(
+      rate(p) > 1.4 * nat.raw.heldUp &&
+        rate(fast) > rate(p) &&
+        rate(p) > rate(slow),
+      "loose is much faster than natural, and a shorter interval is faster",
+    );
+    return {
+      what: t`Cards stay whole, but a held key clears a virtual height that shrinks like a fold, so the pace reaches ${p.pace} cards/s with a constant ${f.def("tms")} ms beat.`,
+      effect: [
+        [
+          "Feels",
+          "After the hold delay a leaving card drops only as far as it would clear a folded card, so it passes over the card it uncovers instead of around it, washing out as it goes. Every card is still drawn at full height.",
+        ],
+        [
+          "Measured",
+          t`Intervals ${p.range} ms, worst step-to-step change ${p.step}×, largest edge move ${p.jump} px/frame, ${p.clean ? "no checker problems" : p.problems}. \`fold\` reaches ${fold.pace} cards/s on the same sets.`,
+        ],
+        [
+          "Good for",
+          "Holding a key at a fast, even pace while every card stays readable.",
+        ],
+      ],
+      needs: t`Sets \`loosen clearing while held\`, which includes the held speed-up, and \`tempo\` to constant at ${f.def("tms")} ms. The checker counts the draw-order swaps and edge flashes that passing over a card causes, so this preset is not clean.`,
+      tune: t`Move the beat with \`constant interval\`: ${fast.value} ms gives ${fast.pace} cards/s and ${slow.value} ms gives ${slow.pace}. \`held height\` sets how far a leaving card drops: lower is faster and passes over more of the card behind.`,
+    };
+  },
   "preset.default": (f) => {
     const p = f.preset("default");
     const nat = f.preset("natural");
@@ -683,6 +716,32 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       tune: t`Start from the \`fold\` preset (${p.clean ? "clean" : p.problems}). Move the pace with \`hold delay\`, then \`folded height\`, then \`spring Hz, held\`: ${w.value} Hz is clean (${w.pace} cards/s) and ${over.value} Hz gives ${over.verdict}. For an even pace while folded, set \`tempo\` to constant: ${c.value} ms gives ${c.pace} cards/s.`,
     };
   },
+  "setting.loose": (f) => {
+    const p = f.preset("loose");
+    const nat = f.preset("natural");
+    const s = f.sweep("tms", "loose");
+    const slow = s.at(150),
+      fast = s.at(60);
+    f.expect(
+      rate(p) > nat.raw.heldUp && rate(fast) > rate(slow),
+      "loose clearing is faster than natural, and a shorter interval is faster",
+    );
+    return {
+      what: "While a key is held, clear a virtual height that shrinks toward the held height, so a leaving card no longer has to drop below the full height of the card it uncovers. Cards are still drawn whole.",
+      effect: [
+        [
+          "On",
+          t`After the hold delay a leaving card drops only as far as a card of ${f.def("h0")} px would need, ${f.rise.level} of the way in about ${f.rise.seconds} s. It passes over the card it uncovers, washing out, and goes behind it. With a constant beat the \`loose\` preset reaches ${p.pace} cards/s (${nat.pace} in \`natural\`).`,
+        ],
+        [
+          "Off",
+          "A leaving card clears the full height of the card it uncovers.",
+        ],
+      ],
+      needs: t`Includes the held speed-up, so \`held speed-up\` hides while it is on. Shows \`hold delay\`, \`spring Hz, held\`, \`edge budget, held\` and \`held height\`. Fold already shrinks the heights, so this toggle hides while fold is on. Draw-order swaps and edge flashes are expected: ${p.clean ? "none" : p.problems} here.`,
+      tune: t`Start from the \`loose\` preset. Use \`tempo\` constant to set the beat (${fast.value} ms gives ${fast.pace} cards/s, ${slow.value} ms gives ${slow.pace}), \`held height\` for how far cards drop, and \`hold delay\` for when it begins.`,
+    };
+  },
   "setting.delay": (f) => {
     const fo = f.sweep("delay", "fold");
     const f0 = fo.at(0),
@@ -854,7 +913,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`A thinner strip and a faster hold: ${h60.value} gives ${h60.pace} cards/s. Below ${h60.value} the fade flickers: ${h50.value} gives ${h50.verdict} (a card's fade changes by more than ${f.limit.shade} in a frame).`,
         ],
       ],
-      needs: t`Needs \`fold while held\`. A taller fold keeps more text but slows the hold, and past ${h130.value} cards swap draw order: ${h160.value} gives ${h160.verdict}.`,
+      needs: t`Needs \`fold while held\` or \`loosen clearing while held\`. A taller fold keeps more text but slows the hold, and past ${h130.value} cards swap draw order: ${h160.value} gives ${h160.verdict}.`,
       tune: t`Start at ${f.def("h0")}, one line of status and goal. Pick the height by what you want to read while scanning, and note the sweep is clean at ${h60.value}, ${h73.value}, ${h110.value} and ${h130.value} and fails at ${h50.value} and ${h160.value}. To change the pace without changing the look, use \`hold delay\`.`,
     };
   },
