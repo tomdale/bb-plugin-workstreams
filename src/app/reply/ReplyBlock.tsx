@@ -10,6 +10,7 @@ import { workstreamColorStyle } from "../../domain/workstreamColor.ts";
 import { PLAIN_LIST_CLASS, PlainBody, PlainMarkdown } from "./PlainBody.tsx";
 import { ReplyDebug, useAssistantMessageText } from "./ReplyDebug.tsx";
 import { useDockedTurn } from "./useDockedTurn.ts";
+import { BODY_CLASS } from "./type.ts";
 
 type Document = ComponentProps<typeof Markdown>["experimental_document"];
 
@@ -79,7 +80,7 @@ export function ReplyBlock({
   if (parsed.success) lastGood.current = parsed.data;
   if (status === "unclosed") {
     return debug ? (
-      <div data-reply-unclosed="" className="min-w-0 space-y-4">
+      <div data-reply-unclosed="" className={`min-w-0 space-y-4 ${BODY_CLASS}`}>
         <Original />
         <ReplyDebug source={rawSource} status={status} error={error} />
       </div>
@@ -104,13 +105,15 @@ export function ReplyBlock({
   const md = (content: string | undefined) => (
     <PlainMarkdown content={content} document={workspace?.document} />
   );
+  // `BODY_CLASS` on the container is what keeps an unsized label at the size of
+  // the prose it labels, rather than at the browser default.
   return (
     <div
       data-reply-block=""
       data-reply-docked={
         reply.card && docked !== false ? (docked ? "" : "pending") : undefined
       }
-      className="ws-reply-accent min-w-0 space-y-4"
+      className={`ws-reply-accent min-w-0 space-y-4 ${BODY_CLASS}`}
       style={workstream ? workstreamColorStyle(workstream.color) : undefined}
       onClickCapture={(event) => {
         if (

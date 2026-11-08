@@ -25,7 +25,7 @@ export function SequenceBody({
   return (
     <div data-reply-sequence="" className="min-w-0">
       {title(part.title)}
-      <ol data-reply-sequence-steps="" className="m-0 mt-3 list-none p-0">
+      <ol data-reply-sequence-steps="" className="m-0 mt-2 list-none p-0">
         {part.steps.map((step, i) => (
           <li
             key={i}

@@ -199,7 +199,39 @@ it("renders every component as readable Markdown and native links in one reply",
       "[data-reply-component], aside, article, button, footer",
     ),
   ).toBeNull();
-  expect(block.className).toBe("ws-reply-accent min-w-0 space-y-4");
+  expect(block.className).toContain("ws-reply-accent min-w-0 space-y-4");
+  // The body size on the container is what keeps an unsized label from
+  // rendering at the browser default, larger than the prose it labels.
+  expect(block.className).toContain("text-[13px]");
+  expect(block.className).toContain("leading-[21px]");
+});
+
+it("sets no reply text larger than its own body size", () => {
+  const source = Object.values(COMPONENT_EXAMPLES)
+    .map(componentFence)
+    .join("\n\n");
+  const view = draw(`:::reply\n# A headline\n\nProse.\n\n${source}\n:::\n`);
+  const sized = [
+    ...view.container.querySelectorAll<HTMLElement>("[data-reply-block] *"),
+  ].flatMap((node) => {
+    const match = /\btext-\[(\d*\.?\d+)px\]/.exec(node.className);
+    return match ? [{ size: Number(match[1]), node }] : [];
+  });
+  expect(sized.length).toBeGreaterThan(10);
+  for (const { size, node } of sized)
+    expect(size, node.outerHTML.slice(0, 120)).toBeLessThanOrEqual(13);
+});
+
+it("draws a waiting part's placeholder as small muted text", () => {
+  const view = draw(
+    ':::reply\nAn explanation.\n\n```workstreams\n{"type":"x"',
+    {
+      streaming: true,
+    },
+  );
+  const placeholder = screen.getByRole("status");
+  expect(placeholder.className).toContain("text-[12px]");
+  expect(placeholder.className).toContain("text-muted-foreground");
 });
 
 it("preserves source order rather than moving context above prose", () => {

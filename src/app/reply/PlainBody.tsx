@@ -6,6 +6,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
 import { normalizeReplyMarkdown } from "./markdown.ts";
+import { BODY_CLASS, SECONDARY_CLASS } from "./type.ts";
 import { SequenceBody } from "./SequenceBody.tsx";
 import { ComparisonBody, RecommendationBody } from "./AdviceBody.tsx";
 import { ContextBody } from "./ContextBody.tsx";
@@ -95,7 +96,7 @@ const STAGE_STATUS_TONE: Record<StageStatus, string> = {
   unknown: "text-muted-foreground",
 };
 
-export const PLAIN_LIST_CLASS = "mb-2 pl-5 text-foreground [&>li]:mb-1";
+export const PLAIN_LIST_CLASS = `mb-2 pl-5 text-foreground [&>li]:mb-1 ${BODY_CLASS}`;
 
 export function PlainMarkdown({
   content,
@@ -176,7 +177,14 @@ export function PlainBody({
       // A document context disables BB's inherited message directive renderers.
       return <Markdown content={part.source} />;
     case "pending":
-      return <p role="status">Receiving information…</p>;
+      return (
+        <p
+          role="status"
+          className={`m-0 ${SECONDARY_CLASS} text-muted-foreground`}
+        >
+          Receiving information…
+        </p>
+      );
     case "unparsed":
       return (
         <>
@@ -239,13 +247,15 @@ export function PlainBody({
       return (
         <div data-reply-checks="" className="min-w-0">
           {title(part.title)}
-          <div className="text-[0.85em] text-muted-foreground [&_p]:my-0">
+          <div
+            className={`${SECONDARY_CLASS} text-muted-foreground [&_p]:my-0`}
+          >
             {md(part.scope)}
           </div>
           {totals.length ? (
             <ul
               aria-label="Reported test totals"
-              className="m-0 mt-1 flex list-none flex-wrap gap-x-3 p-0 text-[0.85em] text-muted-foreground"
+              className={`m-0 mt-1 flex list-none flex-wrap gap-x-3 p-0 ${SECONDARY_CLASS} text-muted-foreground`}
             >
               {totals.map(([status, count]) => (
                 <li key={status} data-reply-test-total={status}>
@@ -267,7 +277,7 @@ export function PlainBody({
           ) : null}
           <ul
             data-reply-check-items=""
-            className="m-0 mt-3 list-none space-y-1.5 p-0"
+            className="m-0 mt-2 list-none space-y-1.5 p-0"
           >
             {part.items.map((item, i) => (
               <li
@@ -305,12 +315,14 @@ export function PlainBody({
       return (
         <div data-reply-delivery="" className="min-w-0">
           {title(part.title)}
-          <div className="text-[0.85em] text-muted-foreground [&_p]:my-0">
+          <div
+            className={`${SECONDARY_CLASS} text-muted-foreground [&_p]:my-0`}
+          >
             {md(part.scope)}
           </div>
           {/* An ordered list whose marks a thin rail joins, so the stages
               read as one path in order. */}
-          <ol data-reply-delivery-stages="" className="m-0 mt-3 list-none p-0">
+          <ol data-reply-delivery-stages="" className="m-0 mt-2 list-none p-0">
             {part.stages.map((stage, i) => (
               <li
                 key={i}

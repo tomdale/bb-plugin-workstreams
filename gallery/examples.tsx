@@ -19,6 +19,7 @@ import { WorkstreamIcon } from "../src/app/WorkstreamIcon";
 import { WorkstreamName } from "../src/app/WorkstreamName";
 import { PROMPT_CLASS } from "../src/app/question/question-presentation";
 import { PlainBody } from "../src/app/reply/PlainBody";
+import { BODY_CLASS } from "../src/app/reply/type";
 import type { ReplyComponent } from "../src/domain/replyComponents";
 import {
   allocateFamilyColor,
@@ -355,7 +356,7 @@ function ReplyExample() {
           {replyParts.map((part) => (
             <Variant key={replyLabel(part)} label={replyLabel(part)}>
               <div
-                className="ws-reply-accent min-w-0 break-words"
+                className={`ws-reply-accent min-w-0 break-words ${BODY_CLASS}`}
                 style={workstreamColorStyle(replyAccents[0]!)}
               >
                 <PlainBody part={part} document={undefined} files={null} />
@@ -375,7 +376,7 @@ function ReplyExample() {
               label={accent ? `Topic color ${index + 1}` : "Unfiled"}
             >
               <div
-                className="ws-reply-accent min-w-0 break-words"
+                className={`ws-reply-accent min-w-0 break-words ${BODY_CLASS}`}
                 style={accent ? workstreamColorStyle(accent) : undefined}
               >
                 <PlainBody part={context} document={undefined} files={null} />
@@ -545,11 +546,13 @@ export const examples: GalleryExample[] = [
     title: "Reply vocabulary",
     group: "Components",
     description: "The ten reply components.",
-    source: `import { PlainBody } from "../src/app/reply/PlainBody";\nimport type { ReplyComponent } from "../src/domain/replyComponents";\n\nconst part: ReplyComponent = ${JSON.stringify(
+    source: `import { PlainBody } from "../src/app/reply/PlainBody";
+import { BODY_CLASS } from "../src/app/reply/type";
+import type { ReplyComponent } from "../src/domain/replyComponents";\n\nconst part: ReplyComponent = ${JSON.stringify(
       replyParts.find((item) => item.type === "change"),
       null,
       2,
-    )};\n\n<PlainBody part={part} document={undefined} files={null} />`,
+    )};\n\n<div className={\`ws-reply-accent min-w-0 break-words \${BODY_CLASS}\`}>\n  <PlainBody part={part} document={undefined} files={null} />\n</div>`,
     render: () => <ReplyExample />,
   },
   {

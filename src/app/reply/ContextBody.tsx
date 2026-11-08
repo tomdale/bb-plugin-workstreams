@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ReplyPart } from "../../domain/replyComponents.ts";
+import { SECONDARY_CLASS, TITLE_CLASS } from "./type.ts";
 
 type Render = (content: string | undefined) => ReactNode;
 
@@ -19,14 +20,14 @@ export function ContextBody({
     <div data-reply-context="" className="min-w-0">
       <div
         data-reply-context-topic=""
-        className="text-[0.85em] font-medium leading-snug text-(--ws-reply-accent,var(--muted-foreground)) [&_p]:my-0"
+        className={`${TITLE_CLASS} text-(--ws-reply-accent,var(--muted-foreground)) [&_p]:my-0`}
       >
         {md(part.topic)}
       </div>
       {part.where ? (
         <div
           data-reply-context-where=""
-          className="mt-0.5 text-[0.85em] leading-snug text-muted-foreground [&_p]:my-0"
+          className={`mt-1 ${SECONDARY_CLASS} text-muted-foreground [&_p]:my-0`}
         >
           {md(part.where)}
         </div>

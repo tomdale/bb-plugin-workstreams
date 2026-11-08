@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { LABEL_CLASS } from "../recap/marks.tsx";
+import { SECONDARY_CLASS } from "./type.ts";
 import type { ReplyPart } from "../../domain/replyComponents.ts";
 
 type Md = (content: string | undefined) => ReactNode;
@@ -75,7 +76,7 @@ export function ComparisonBody({
             {item.detail ? (
               <div
                 data-reply-comparison-detail=""
-                className={`row-start-4 mt-1.5 min-w-0 text-[0.85em] text-muted-foreground ${FLUSH}`}
+                className={`row-start-4 mt-1.5 min-w-0 ${SECONDARY_CLASS} text-muted-foreground ${FLUSH}`}
               >
                 {md(item.detail)}
               </div>
