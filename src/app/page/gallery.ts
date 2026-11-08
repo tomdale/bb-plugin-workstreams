@@ -385,7 +385,7 @@ export const SPECIMENS: readonly Specimen[] = [
   {
     title: "Blocks written before the recap tool",
     intro:
-      "Older messages carried the card's own fields. They still render inline — state, result checkboxes, and the Review, Links, and Next sections — though new replies leave the card to the recap tool.",
+      "Older messages carried the card's own fields. They draw plainly: the state as a small muted line, then the done and not-done items, the review steps, and the waiting-on, link and next rows as labelled rows with their marks, with no frame and no actions. New replies leave the card to the recap tool.",
     messages: [
       {
         from: "agent",
