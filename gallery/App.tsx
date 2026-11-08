@@ -125,6 +125,8 @@ export default function App() {
   const heading = useRef<HTMLHeadingElement>(null);
   const main = useRef<HTMLElement>(null);
   const example = examples.find((entry) => entry.id === page);
+  // The playground is its own page; its old gallery address forwards to it.
+  if (page === "sidebar-playground") window.location.replace("./sidebar.html");
   const isIntroduction = page === "introduction";
   const search = query.trim().toLocaleLowerCase();
   const visibleExamples = examples.filter((entry) =>
@@ -237,6 +239,7 @@ export default function App() {
               {
                 "Sidebar playground" /* slop-ok: 2 Existing destination name, outside this cleanup */
               }
+              <span className="gallery-nav-note">Opens separately</span>
             </a>
           )}
           {showIntroduction && (
@@ -354,33 +357,6 @@ export default function App() {
             </>
           )}
 
-          {isIntroduction && (
-            <>
-              <section
-                className="gallery-reading-section"
-                aria-labelledby="gallery-index-heading"
-              >
-                <h2 id="gallery-index-heading">Explore the system</h2>
-                <div className="gallery-index">
-                  {groups.map((group) => (
-                    <section className="gallery-index-group" key={group}>
-                      <h3>{group}</h3>
-                      <ul>
-                        {examples
-                          .filter((entry) => entry.group === group)
-                          .map((entry) => (
-                            <li key={entry.id}>
-                              <a href={pageHref(entry.id)}>{entry.title}</a>
-                              <p>{entry.description}</p>
-                            </li>
-                          ))}
-                      </ul>
-                    </section>
-                  ))}
-                </div>
-              </section>
-            </>
-          )}
           {!isIntroduction && !example && (
             <Button asChild variant="outline" className="gallery-return">
               <a href={pageHref("introduction")}>Back to introduction</a>

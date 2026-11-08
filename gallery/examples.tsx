@@ -401,71 +401,111 @@ function ControlsExample() {
           "components/ui/select.tsx",
         ]}
       >
-        <div className="space-y-5">
-          <div className="grid gap-4 @sm:grid-cols-2">
-            <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-              Example name
-              <Input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                className="text-foreground"
-              />
-            </label>
-            <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-              Example layout
-              <Select
-                value={density}
-                onValueChange={(next) => setDensity(next as typeof density)}
+        <Variants minWidth="14rem">
+          <Variant label="Button, default">
+            <div>
+              <Button
+                type="button"
+                onClick={() =>
+                  setStatus(
+                    `Previewing ${name || "Untitled"} in ${density} layout`,
+                  )
+                }
               >
-                <SelectTrigger
-                  aria-label="Example layout"
-                  className="w-full text-xs text-foreground"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="compact">Compact</SelectItem>
-                  <SelectItem value="full">Full</SelectItem>
-                </SelectContent>
-              </Select>
+                Preview
+              </Button>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              onClick={() =>
-                setStatus(
-                  `Previewing ${name || "Untitled"} in ${density} layout`,
-                )
-              }
+          </Variant>
+          <Variant label="Button, outline">
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setName("Release summary");
+                  setDensity("compact");
+                  setStatus("Controls reset");
+                }}
+              >
+                Reset
+              </Button>
+            </div>
+          </Variant>
+          <Variant label="Button, ghost">
+            <div>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setStatus("Draft discarded")}
+              >
+                Discard
+              </Button>
+            </div>
+          </Variant>
+          <Variant label="Button, disabled">
+            <div>
+              <Button type="button" variant="outline" disabled>
+                Unavailable
+              </Button>
+            </div>
+          </Variant>
+          <Variant label="Input" note="Edit the name used by Preview.">
+            <Input
+              aria-label="Example name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </Variant>
+          <Variant
+            label="Input, invalid"
+            note="Marked aria-invalid; the red border is added by the caller."
+          >
+            <Input
+              aria-label="Invalid example"
+              aria-invalid
+              className="border-destructive"
+              value=""
+              readOnly
+            />
+          </Variant>
+          <Variant label="Input, disabled">
+            <Input
+              aria-label="Disabled example"
+              value="Release summary"
+              disabled
+            />
+          </Variant>
+          <Variant label="Select" note="Choose the layout used by Preview.">
+            <Select
+              value={density}
+              onValueChange={(next) => setDensity(next as typeof density)}
             >
-              Preview
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setName("Release summary");
-                setDensity("compact");
-                setStatus("Controls reset");
-              }}
-            >
-              Reset
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setStatus("Draft discarded")}
-            >
-              Discard
-            </Button>
-            <Button type="button" variant="outline" disabled>
-              {" "}
-              {/* slop-ok: 1 Legible text: preserve the demonstrated BB control’s disabled styling */}
-              Unavailable
-            </Button>
-          </div>
-        </div>
+              <SelectTrigger
+                aria-label="Example layout"
+                className="w-full text-xs"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="compact">Compact</SelectItem>
+                <SelectItem value="full">Full</SelectItem>
+              </SelectContent>
+            </Select>
+          </Variant>
+          <Variant label="Select, disabled">
+            <Select value="compact" disabled>
+              <SelectTrigger
+                aria-label="Disabled layout"
+                className="w-full text-xs"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="compact">Compact</SelectItem>
+              </SelectContent>
+            </Select>
+          </Variant>
+        </Variants>
       </LiveExample>
       {status && (
         <GalleryNotes>

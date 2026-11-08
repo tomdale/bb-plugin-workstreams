@@ -118,6 +118,16 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
   );
 
   browserTest.concurrent(
+    "forwards the sidebar playground's gallery address to its page",
+    async ({ page }) => {
+      await page.goto(`${url}#sidebar-playground`);
+      await page.waitForURL("**/sidebar.html");
+      await page.locator("#after .ws-row").first().waitFor();
+    },
+    60_000,
+  );
+
+  browserTest.concurrent(
     "offers a local sidebar playground with independent connecting lines",
     async ({ page }) => {
       const errors: string[] = [];
