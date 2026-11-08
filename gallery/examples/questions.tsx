@@ -179,6 +179,7 @@ type FormVariant = {
   multiple?: boolean;
   state?: FormState;
   wide?: boolean;
+  note?: string;
 };
 
 const formVariants: readonly FormVariant[] = [
@@ -188,10 +189,30 @@ const formVariants: readonly FormVariant[] = [
   { label: "Options and freeform", preset: "mixed" },
   { label: "Multiple questions", preset: "questions", wide: true },
   { label: "Long details and previews", preset: "long", wide: true },
-  { label: "All actions disabled", preset: "options", state: "disabled" },
-  { label: "Submitting", preset: "options", state: "submitting" },
-  { label: "Cancel disabled", preset: "options", state: "cancel-disabled" },
-  { label: "Submit error", preset: "options", state: "error" },
+  {
+    label: "All actions disabled",
+    preset: "options",
+    state: "disabled",
+    note: "Cancel and Submit are both disabled.",
+  },
+  {
+    label: "Submitting",
+    preset: "options",
+    state: "submitting",
+    note: "Submit shows Submitting…; Cancel stays available.",
+  },
+  {
+    label: "Cancel disabled",
+    preset: "options",
+    state: "cancel-disabled",
+    note: "Only Cancel is disabled; Submit stays available.",
+  },
+  {
+    label: "Submit error",
+    preset: "options",
+    state: "error",
+    note: "An error message sits beside Cancel.",
+  },
 ];
 
 const historyVariants: readonly {
@@ -225,7 +246,7 @@ function QuestionExample() {
   };
   return (
     <div className="space-y-5">
-      <GalleryControls>
+      <GalleryControls label="Question forms">
         <Button
           type="button"
           variant="outline"
@@ -256,6 +277,7 @@ function QuestionExample() {
                 key={variant.label}
                 label={variant.label}
                 wide={variant.wide}
+                note={variant.note}
               >
                 <div className={QUESTION_CARD_CLASS}>
                   <QuestionForm

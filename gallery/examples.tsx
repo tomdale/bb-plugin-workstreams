@@ -59,23 +59,49 @@ const typeRoles = [
 
 function TypographyExample() {
   return (
-    <div className="space-y-5">
-      {typeRoles.map((item) => (
-        <LiveExample
-          key={item.role}
-          name={item.role}
-          sources={[
-            item.role === "Question prompt"
-              ? "src/app/question/question-presentation.tsx"
-              : "src/app/styles.css",
-          ]}
-        >
-          <div className={`min-w-0 break-words ${item.className}`}>
-            {item.text}
-          </div>
-        </LiveExample>
-      ))}
-    </div>
+    <LiveExample
+      name="Type roles"
+      sources={[
+        "src/app/styles.css",
+        "src/app/question/question-presentation.tsx",
+      ]}
+    >
+      <table className="w-full min-w-0 border-collapse text-left">
+        <thead className="text-xs text-muted-foreground">
+          <tr>
+            <th scope="col" className="pb-2 pr-4 font-medium">
+              Role
+            </th>
+            <th scope="col" className="pb-2 pr-4 font-medium">
+              Sample
+            </th>
+            <th scope="col" className="pb-2 font-medium">
+              Class
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {typeRoles.map((item) => (
+            <tr
+              key={item.role}
+              className="border-t border-border align-baseline"
+            >
+              <th scope="row" className="py-3 pr-4 text-xs font-medium">
+                {item.role}
+              </th>
+              <td className="min-w-0 break-words py-3 pr-4">
+                <span className={item.className}>{item.text}</span>
+              </td>
+              <td className="py-3 font-mono text-[11px] text-muted-foreground">
+                {item.className.startsWith("ws-")
+                  ? item.className
+                  : "PROMPT_CLASS"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </LiveExample>
   );
 }
 
@@ -83,12 +109,11 @@ const firstTopicColor = allocateFamilyColor([]);
 const topicColors = [firstTopicColor, allocateFamilyColor([firstTopicColor])];
 const identityNames = ["Release tools", "Workstreams: Recaps"] as const;
 
-const identityTones = [
-  { tone: "accent", label: "Topic hue" },
-  { tone: "neutral", label: "Neutral" },
-  { tone: "muted", label: "Muted" },
+const identitySamples = [
+  { label: "Topic hue, first topic", tone: "accent", hue: 0 },
+  { label: "Topic hue, second topic", tone: "accent", hue: 1 },
+  { label: "Neutral", tone: "neutral", hue: 0 },
 ] as const;
-const identityHues = ["First topic", "Second topic"] as const;
 
 function IdentityExample() {
   return (
@@ -97,29 +122,21 @@ function IdentityExample() {
       sources={["src/app/WorkstreamIcon.tsx", "src/app/WorkstreamName.tsx"]}
     >
       <Variants>
-        {identityTones.flatMap(({ tone, label }) =>
-          identityHues.map((hue, index) => (
-            <Variant key={`${tone}-${hue}`} label={`${label}, ${hue}`}>
-              <div
-                className="min-w-0 space-y-3 py-2"
-                style={
-                  workstreamColorStyle(topicColors[index]!) as CSSProperties
-                }
-              >
-                {identityNames.map((name) => (
-                  <div key={name} className="flex min-w-0 items-center gap-2">
-                    <WorkstreamIcon />
-                    <WorkstreamName
-                      name={name}
-                      accent={tone === "accent"}
-                      muted={tone === "muted"}
-                    />
-                  </div>
-                ))}
-              </div>
-            </Variant>
-          )),
-        )}
+        {identitySamples.map(({ label, tone, hue }) => (
+          <Variant key={label} label={label}>
+            <div
+              className="min-w-0 space-y-3 py-2"
+              style={workstreamColorStyle(topicColors[hue]!) as CSSProperties}
+            >
+              {identityNames.map((name) => (
+                <div key={name} className="flex min-w-0 items-center gap-2">
+                  <WorkstreamIcon />
+                  <WorkstreamName name={name} accent={tone === "accent"} />
+                </div>
+              ))}
+            </div>
+          </Variant>
+        ))}
       </Variants>
     </LiveExample>
   );
@@ -329,7 +346,7 @@ function replyLabel(part: ReplyComponent) {
 }
 
 function ReplyExample() {
-  const change = replyParts.find((item) => item.type === "change")!;
+  const context = replyParts.find((item) => item.type === "context")!;
   return (
     <div className="space-y-5">
       <LiveExample name="PlainBody" sources={["src/app/reply/PlainBody.tsx"]}>
@@ -360,7 +377,7 @@ function ReplyExample() {
                 className="ws-reply-accent min-w-0 break-words"
                 style={accent ? workstreamColorStyle(accent) : undefined}
               >
-                <PlainBody part={change} document={undefined} files={null} />
+                <PlainBody part={context} document={undefined} files={null} />
               </div>
             </Variant>
           ))}

@@ -15,16 +15,24 @@ export function PreviewWidthProvider({
   );
 }
 
-export function GalleryControls({ children }: { children: ReactNode }) {
+/**
+ * An example's own controls. The page toolbar already carries the
+ * "Gallery controls" title, so `label` names what these change.
+ */
+export function GalleryControls({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <section
       className="gallery-example-controls"
       aria-label="Example controls"
       data-gallery-controls=""
     >
-      <h2 className="gallery-example-controls-heading">
-        {"Gallery controls" /* slop-ok: 1 User-requested boundary label */}
-      </h2>
+      <h2 className="gallery-example-controls-heading">{label}</h2>
       <div className="gallery-example-controls-content">{children}</div>
     </section>
   );
@@ -137,9 +145,12 @@ export function Variants({
 export function Variant({
   label,
   wide = false,
+  note,
   children,
 }: {
   label: string;
+  /** What to look for, when the difference is easy to miss. */
+  note?: string;
   /** Spans the whole row, for specimens that need the room. */
   wide?: boolean;
   children: ReactNode;
@@ -151,7 +162,10 @@ export function Variant({
       className="flex min-w-0 flex-col gap-2"
       style={wide ? { gridColumn: "1 / -1" } : undefined}
     >
-      <h3 className="text-xs font-medium text-muted-foreground">{label}</h3>
+      <div className="space-y-0.5">
+        <h3 className="text-xs font-medium text-muted-foreground">{label}</h3>
+        {note && <p className="text-xs text-muted-foreground/80">{note}</p>}
+      </div>
       {children}
     </div>
   );

@@ -208,8 +208,7 @@ export function ColorsExample({
   return (
     <div className="space-y-6">
       <style data-gallery-color-tokens="">{css}</style>
-      <GalleryControls // slop-ok: 1 Keep the requested Gallery controls boundary
-      >
+      <GalleryControls label="Color editor">
         <div
           className="grid gap-3"
           style={{

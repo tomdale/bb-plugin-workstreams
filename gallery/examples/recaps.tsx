@@ -229,6 +229,7 @@ const variants: readonly {
   preset: Preset;
   state: Recap["state"];
   hashColor?: "theme" | "semantic";
+  note?: string;
 }[] = [
   { label: "Release summary, review", preset: "summary", state: "review" },
   { label: "Release summary, complete", preset: "summary", state: "complete" },
@@ -245,12 +246,14 @@ const variants: readonly {
     preset: "hashes",
     state: "review",
     hashColor: "theme",
+    note: "Hashes use the card's own color.",
   },
   {
     label: "Commit hashes, custom theme colors",
     preset: "hashes",
     state: "review",
     hashColor: "semantic",
+    note: "Digits take one theme color and letters another.",
   },
   { label: "Multiple next actions", preset: "next", state: "review" },
   { label: "Awaited agent states", preset: "agents", state: "waiting" },
@@ -263,8 +266,7 @@ function RecapExample() {
   const fixtures = agentFixtures("all");
   return (
     <div className="space-y-5">
-      <GalleryControls // slop-ok: 1 Keep the requested Gallery controls boundary
-      >
+      <GalleryControls label="Recap card options">
         <div
           className="grid gap-3"
           style={{
@@ -305,7 +307,11 @@ function RecapExample() {
       >
         <Variants>
           {variants.map((variant) => (
-            <Variant key={variant.label} label={variant.label}>
+            <Variant
+              key={variant.label}
+              label={variant.label}
+              note={variant.note}
+            >
               <div
                 className="min-w-0 overflow-clip"
                 style={{ maxWidth: width === "narrow" ? 320 : undefined }}
@@ -321,8 +327,8 @@ function RecapExample() {
                   hashColors={
                     variant.hashColor === "semantic"
                       ? {
-                          digits: "var(--ws-review-text)",
-                          letters: "var(--ws-needs-you-text)",
+                          digits: "var(--ws-needs-you-text)",
+                          letters: "var(--ws-complete-text)",
                         }
                       : undefined
                   }
@@ -357,7 +363,7 @@ import type { Recap } from "../../src/domain/recap";
 const recap: Recap = ${JSON.stringify(recapFor("hashes", "review", []), null, 2)};
 
 <RecapCardPreview recap={recap} layout="full" showArchive={false}
-  hashColors={{ digits: "var(--ws-review-text)", letters: "var(--ws-needs-you-text)" }} />
+  hashColors={{ digits: "var(--ws-needs-you-text)", letters: "var(--ws-complete-text)" }} />
 
 <RecapCardPreview layout="full"
   recap={{ ...recap, state: "waiting", waitingAgents: [

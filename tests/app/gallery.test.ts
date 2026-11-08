@@ -1348,20 +1348,24 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       await trigger.click();
       expect(await name.inputValue()).toBe("Review checkout changes");
       await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-      const pendingTrigger = page
-        .getByRole("group", { name: "Dialog holds pending", exact: true })
-        .getByRole("button", { name: "Rename thread…" });
-      await pendingTrigger.click();
-      await dialog.getByRole("button", { name: "Save", exact: true }).click();
-      await dialog
+      const saving = page.getByRole("group", {
+        name: "Dialog, saving",
+        exact: true,
+      });
+      await saving
         .getByRole("status")
         .filter({ hasText: "Saving thread name…" })
         .waitFor();
       expect(
-        await dialog
+        await saving
           .getByRole("button", { name: "Save", exact: true })
           .isDisabled(),
       ).toBe(true);
+      await page
+        .getByRole("group", { name: "Dialog, save rejected", exact: true })
+        .getByRole("alert")
+        .waitFor();
+      await trigger.click();
       await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
       await page
         .getByRole("status")

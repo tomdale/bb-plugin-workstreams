@@ -199,7 +199,7 @@ function SettingsExample() {
   };
   return (
     <div className="min-w-0 space-y-4">
-      <GalleryControls>
+      <GalleryControls label="Stepper bounds">
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "../../components/ui/button";
 import {
   Dialog,
@@ -32,7 +32,6 @@ import {
 import type { GalleryExample } from "../examples";
 
 type Presentation = "viewport" | "floating" | "drawer";
-type Submission = "save" | "reject" | "pending";
 const {
   Item: MenuItem,
   Label: MenuLabel,
@@ -41,9 +40,12 @@ const {
 
 function ActionRow({
   compact,
+  revealed = false,
   record,
 }: {
   compact: boolean;
+  /** Shows the actions as hover does, so the state is visible at rest. */
+  revealed?: boolean;
   record: (message: string) => void;
 }) {
   const name = "Check the release notes";
@@ -61,12 +63,15 @@ function ActionRow({
         >
           {name}
         </button>
-        <span className="pointer-events-none shrink-0 text-[11px] tabular-nums text-muted-foreground group-hover/row:hidden group-has-[:focus-visible]/row:hidden group-has-[[data-state=open]]/row:hidden">
+        <span
+          className={`pointer-events-none shrink-0 text-[11px] tabular-nums text-muted-foreground ${revealed ? "hidden" : ""} group-hover/row:hidden group-has-[:focus-visible]/row:hidden group-has-[[data-state=open]]/row:hidden`}
+        >
           2m
         </span>
         <RowActions>
           <HoverAction
             compact={compact}
+            revealed={revealed}
             label="Archive thread"
             hint="Archive"
             onClick={() => record("Archive requested")}
@@ -75,6 +80,7 @@ function ActionRow({
           </HoverAction>
           <HoverMenuButton
             compact={compact}
+            revealed={revealed}
             label="Copy thread"
             onClick={copy}
             menu={
@@ -101,19 +107,94 @@ function ActionRow({
   );
 }
 
-function OverlayButtons({
-  submission,
-  record,
+/**
+ * The rename dialog's body. It is shared by the live dialog and by the
+ * static specimens, which show the open, rejected, and saving states without
+ * a click.
+ */
+function RenameForm({
+  heading,
+  value,
+  busy,
+  error,
+  autoFocus = false,
+  onChange,
+  onSubmit,
+  onCancel,
 }: {
-  submission: Submission;
-  record: (message: string) => void;
+  heading: ReactNode;
+  value: string;
+  busy: boolean;
+  error: string | null;
+  autoFocus?: boolean;
+  onChange: (value: string) => void;
+  onSubmit: (event: FormEvent) => void;
+  onCancel: () => void;
 }) {
+  return (
+    <form onSubmit={onSubmit} className="min-w-0 space-y-3">
+      <DialogHeader>{heading}</DialogHeader>
+      <label className="block space-y-1 text-xs">
+        <span>Thread name</span>
+        <Input
+          autoFocus={autoFocus}
+          value={value}
+          disabled={busy}
+          onChange={(event) => onChange(event.currentTarget.value)}
+        />
+      </label>
+      {error ? (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      ) : null}
+      {busy ? (
+        <div className="space-y-2">
+          <p role="status" className="text-xs text-muted-foreground">
+            Saving thread name…
+          </p>
+        </div>
+      ) : null}
+      <DialogFooter>
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" size="sm" disabled={busy || !value.trim()}>
+          Save
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+/** A dialog's frame at rest in the page, since the real one is portaled. */
+function StaticDialog({
+  error = null,
+  busy = false,
+}: {
+  error?: string | null;
+  busy?: boolean;
+}) {
+  return (
+    <div className="max-w-sm rounded-lg border bg-background p-6 shadow-lg">
+      <RenameForm
+        heading={<h2 className="text-lg font-semibold">Rename thread</h2>}
+        value="Check the release notes"
+        busy={busy}
+        error={error}
+        onChange={() => {}}
+        onSubmit={(event) => event.preventDefault()}
+        onCancel={() => {}}
+      />
+    </div>
+  );
+}
+
+function OverlayButtons({ record }: { record: (message: string) => void }) {
   const [name, setName] = useState("Check the release notes");
   const [value, setValue] = useState(name);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const finishSave = () => {
     setName(value.trim());
     setDialogOpen(false);
@@ -121,16 +202,7 @@ function OverlayButtons({
   };
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (busy || !value.trim()) return;
-    if (submission === "reject") {
-      setError("Couldn’t save the name. Try again.");
-      record("Save rejected");
-    } else if (submission === "pending") {
-      setBusy(true);
-      record("Saving name…");
-    } else {
-      finishSave();
-    }
+    if (value.trim()) finishSave();
   };
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -179,8 +251,6 @@ function OverlayButtons({
         onOpenChange={(next) => {
           if (next) {
             setValue(name);
-            setError(null);
-            setBusy(false);
           }
           setDialogOpen(next);
           record(`Rename ${next ? "opened" : "closed"}`);
@@ -192,48 +262,19 @@ function OverlayButtons({
           </Button>
         </DialogTrigger>
         <DialogContent className="max-w-sm" aria-describedby={undefined}>
-          <form onSubmit={submit} className="min-w-0 space-y-3">
-            <DialogHeader>
-              <DialogTitle>Rename thread</DialogTitle>
-            </DialogHeader>
-            <label className="block space-y-1 text-xs">
-              <span>Thread name</span>
-              <Input
-                autoFocus
-                value={value}
-                disabled={busy}
-                onChange={(event) => setValue(event.currentTarget.value)}
-              />
-            </label>
-            {error ? (
-              <p role="alert" className="text-xs text-destructive">
-                {error}
-              </p>
-            ) : null}
-            {busy ? (
-              <div className="space-y-2">
-                <p role="status" className="text-xs text-muted-foreground">
-                  Saving thread name…
-                </p>
-              </div>
-            ) : null}
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setDialogOpen(false);
-                  record("Rename cancelled");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={busy || !value.trim()}>
-                Save
-              </Button>
-            </DialogFooter>
-          </form>
+          <RenameForm
+            heading={<DialogTitle>Rename thread</DialogTitle>}
+            value={value}
+            busy={false}
+            error={null}
+            autoFocus
+            onChange={setValue}
+            onSubmit={submit}
+            onCancel={() => {
+              setDialogOpen(false);
+              record("Rename cancelled");
+            }}
+          />
         </DialogContent>
       </Dialog>
     </div>
@@ -243,21 +284,10 @@ function OverlayButtons({
 const presentations: readonly {
   label: string;
   presentation: Presentation;
-  submission: Submission;
 }[] = [
-  { label: "Follow viewport", presentation: "viewport", submission: "save" },
-  { label: "Desktop overlays", presentation: "floating", submission: "save" },
-  { label: "Compact drawers", presentation: "drawer", submission: "save" },
-  {
-    label: "Dialog rejects the save",
-    presentation: "viewport",
-    submission: "reject",
-  },
-  {
-    label: "Dialog holds pending",
-    presentation: "viewport",
-    submission: "pending",
-  },
+  { label: "Follow viewport", presentation: "viewport" },
+  { label: "Desktop overlays", presentation: "floating" },
+  { label: "Compact drawers", presentation: "drawer" },
 ];
 
 function OverlaysExample() {
@@ -274,11 +304,20 @@ function OverlaysExample() {
         ]}
       >
         <Variants>
-          <Variant label="Normal actions">
+          <Variant label="At rest" note="Only the age shows.">
             <ActionRow compact={false} record={record} />
           </Variant>
-          <Variant label="Compact actions">
-            <ActionRow compact record={record} />
+          <Variant
+            label="Actions revealed"
+            note="Hover or focus swaps the age for Archive and Copy."
+          >
+            <ActionRow compact={false} revealed record={record} />
+          </Variant>
+          <Variant
+            label="Compact, actions revealed"
+            note="Smaller buttons for a workstream header."
+          >
+            <ActionRow compact revealed record={record} />
           </Variant>
         </Variants>
       </LiveExample>
@@ -292,19 +331,40 @@ function OverlaysExample() {
         ]}
       >
         <Variants>
-          {presentations.map(({ label, presentation, submission }) => (
-            <Variant key={label} label={label}>
+          {presentations.map(({ label, presentation }) => (
+            <Variant
+              key={label}
+              label={label}
+              note="Open each button to try it."
+            >
               {presentation === "viewport" ? (
-                <OverlayButtons submission={submission} record={record} />
+                <OverlayButtons record={record} />
               ) : (
                 <CompactViewportOverrideProvider
                   isCompactViewport={presentation === "drawer"}
                 >
-                  <OverlayButtons submission={submission} record={record} />
+                  <OverlayButtons record={record} />
                 </CompactViewportOverrideProvider>
               )}
             </Variant>
           ))}
+          <Variant label="Dialog, open">
+            <StaticDialog />
+          </Variant>
+          <Variant label="Dialog, save rejected">
+            <StaticDialog error="Couldn’t save the name. Try again." />
+          </Variant>
+          <Variant label="Dialog, saving">
+            <StaticDialog busy />
+          </Variant>
+          <Variant label="Popover, open">
+            <div className="w-64 max-w-full space-y-3 rounded-md border bg-popover p-3 text-popover-foreground shadow-md">
+              <p className="text-sm font-medium">Options</p>
+              <Button type="button" size="sm" variant="outline">
+                Review release notes
+              </Button>
+            </div>
+          </Variant>
         </Variants>
       </LiveExample>
       <GalleryActivity entries={log} />
