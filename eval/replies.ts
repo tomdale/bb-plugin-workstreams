@@ -29,16 +29,16 @@ import {
 import { onlyReplyBlock } from "../src/domain/replyText.ts";
 import { parse, toText } from "../src/domain/reply.ts";
 import type { ReplyPart } from "../src/domain/replyComponents.ts";
-import { testCountProblems, unresolvedCauseQualified } from "./reply-facts.ts";
+import { testCountProblems } from "./reply-counts.ts";
 
 const cases = [
   {
     id: "investigation",
     state: "complete",
-    types: ["finding", "comparison", "context"],
+    types: ["comparison", "context"],
     request:
       "Explain why our retry handler reports five attempts when the setting is four. Facts from inspection: maxRetries=4; the loop performs one initial attempt and then four retries. The UI label says Attempts, although its value is the retry count. This was confirmed in the loop and its test, not a production incident. Explain the cause and compare changing the label with changing the loop. You have finished the investigation; do not change code.",
-    expected: ["finding", "comparison"],
+    expected: ["comparison"],
   },
   {
     id: "change",
@@ -57,15 +57,6 @@ const cases = [
       "Recommend how to fix the retry setting confusion. The loop correctly performs one attempt plus the configured retries; changing it would alter existing behavior. Renaming the label to Retries matches the stored value and docs. Explain your recommendation and compare the trade-offs. It is advice only; do not ask for approval or implement anything.",
     expected: ["recommendation", "comparison"],
     next: true,
-  },
-  {
-    id: "uncertain",
-    state: "complete",
-    types: ["finding", "context"],
-    request:
-      "Investigate a report that the retry loop sometimes runs forever. The only evidence available is a configuration file with maxRetries=4. You have no runtime logs, could not reproduce the behavior, and have finished the authorized inspection. Explain what the configuration establishes, what it does not establish, and what evidence would be needed. Do not assert that you found a root cause.",
-    expected: ["finding"],
-    uncertain: true,
   },
   {
     id: "handoff",
@@ -106,10 +97,10 @@ const cases = [
   {
     id: "body-only",
     state: null,
-    types: ["context", "finding"],
+    types: ["context"],
     request:
       "Explain this supplied result: the loop performs one initial attempt and four retries, so five total attempts. This answer uses Structured replies with recaps disabled; explain the result without recap state, result checkboxes, or recap sections.",
-    expected: ["finding"],
+    expected: ["context"],
     bodyOnly: true,
   },
   {
@@ -332,12 +323,6 @@ for (const task of cases) {
             recap.waitingAgents?.length)
         )
           problems.push("Short answer has unnecessary parts or results");
-        if (
-          "uncertain" in task &&
-          task.uncertain &&
-          !unresolvedCauseQualified(parts, toText(data))
-        )
-          problems.push("No explicit qualification of the unresolved cause");
         if ("totals" in task)
           problems.push(...testCountProblems(parts, toText(data), task.totals));
       }

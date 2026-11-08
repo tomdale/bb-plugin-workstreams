@@ -1,20 +1,5 @@
 import type { ReplyPart } from "../src/domain/replyComponents.ts";
 
-/** Explicit uncertainty cues for the synthetic unresolved-cause case, not a factual verifier. */
-export function unresolvedCauseQualified(
-  parts: readonly ReplyPart[],
-  text: string,
-): boolean {
-  return (
-    parts.some(
-      (part) => part.type === "finding" && part.certainty !== "observed",
-    ) ||
-    /no root cause|cause.{0,50}(unknown|unresolved|not established)|cannot.{0,30}(determine|establish)|unverified|not reproduced|did not reproduce|does not.{0,100}(establish|identify).{0,80}(root cause|behavior)|no.{0,80}(identif\w*|establish\w*|confirm\w*).{0,25}root cause|(neither|nor).{0,60}cause/i.test(
-      text,
-    )
-  );
-}
-
 type TestTotals = { passed: number; failed: number; skipped: number };
 const words = [
   "zero",
@@ -33,7 +18,7 @@ const number = `\\d+|${words.join("|")}`;
 const count = (text: string) =>
   /^\d+$/.test(text) ? Number(text) : words.indexOf(text.toLowerCase());
 
-/** Synthetic factual-count checks accept prose or components; they do not grade component selection. */
+/** Synthetic test-count checks accept prose or components, not component selection. */
 export function testCountProblems(
   parts: readonly ReplyPart[],
   text: string,

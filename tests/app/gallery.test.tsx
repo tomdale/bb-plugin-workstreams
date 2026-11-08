@@ -68,12 +68,10 @@ it("renders every specimen with its component", async () => {
   const shows = (text: string) =>
     expect(slot.getAllByText(text, { exact: false }).length).toBeGreaterThan(0);
   for (const text of [
-    // context, finding with evidence, prose, sequence, comparison, group
+    // context, prose, sequence, comparison, group
     "Queue card keyboard handling",
-    "Auto-repeat reads a stale position",
-    "Evidence: observed",
-    "src/app/page/queue/Queue.tsx",
     "A held key is one gesture",
+    "Replay fixture",
     "Reproduce it",
     "Status: passed",
     "Two ways to read the position",

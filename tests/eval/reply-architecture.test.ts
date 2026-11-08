@@ -32,7 +32,7 @@ describe("reply architecture slice", () => {
 
   it("rejects malformed components, extra text, and unclosed blocks", () => {
     for (const source of [
-      ':::reply\n```workstreams\nfinding(title: "Missing fields")\n```\n:::',
+      ':::reply\n```workstreams\nretiredComponent(value: "x")\n```\n:::',
       `Outside\n\n${reply}`,
       ":::reply\nUnclosed",
       ":::reply\n:::",

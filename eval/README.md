@@ -143,21 +143,19 @@ name their own edit's topics, and checks renames on moves.
 
 `node eval/replies.ts` makes paid, tool-free Gateway calls against synthetic
 investigation, change, shipped-change, recommendation, handoff, routing,
-uncertainty, waiting, body-only, and short-answer tasks. Each run makes the two
-authorings a turn makes: the reply block as plain assistant text, then the
-`WorkstreamsRecap` arguments against the production tool schema and the schema
-the server accepts at execution.
+waiting, body-only, and short-answer tasks. Each run makes the two authorings a
+turn makes: the reply block as plain assistant text, then the `WorkstreamsRecap`
+arguments against the production tool schema and the schema the server accepts
+at execution.
 
 The reply call scores one closed whole-message block, no recap fields inside it,
-malformed components, reported test counts, and explicit uncertainty cues.
-Preferred component selections are recorded as advisory notes, not failures: a
-valid composition can explain a fact in prose or use another suitable component.
-Test counts may appear in prose or optional structured totals, and prose scoring
-recognizes explicit numeric or zero-through-ten word counts beside
-passed/failed/skipped, including a count written as an adjective ("one skipped
-integration test"). Inspect other wording in recorded responses before treating
-a count failure as a factual error. The uncertainty check is a phrase/status
-heuristic; inspect the recorded replies to judge whether their claims are true.
+malformed components, and reported test counts. Preferred component selections
+are recorded as advisory notes, not failures: a valid composition can explain a
+fact in prose or use another suitable component. Test counts may appear in prose
+or optional structured totals, and prose scoring recognizes explicit numeric or
+zero-through-ten word counts beside passed/failed/skipped, including a count
+written as an adjective ("one skipped integration test"). Inspect other wording
+in recorded responses before treating a count failure as a factual error.
 
 The recap call scores the accepted arguments: the expected state, required Next
 items after completed work including a handoff and a shipped change, a route to

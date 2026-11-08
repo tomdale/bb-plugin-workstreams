@@ -153,9 +153,7 @@ ${componentFence(COMPONENT_EXAMPLES.context)}
 
 The caller passes a whole percentage. The calculation subtracts that number from an amount stored in cents, so the two values have different units.
 
-For a ten-percent coupon on 1000 cents, the current calculation removes ten cents. Converting the percentage to a fraction removes 100 cents instead. The evidence establishes the current calculation; other callers still need checking before changing their contracts.
-
-${componentFence(COMPONENT_EXAMPLES.finding)}
+For a ten-percent coupon on 1000 cents, the current calculation removes ten cents. Converting the percentage to a fraction removes 100 cents instead. Inspection confirmed the current calculation; other callers still need checking before changing their contracts.
 
 ${componentFence(COMPONENT_EXAMPLES.comparison)}
 

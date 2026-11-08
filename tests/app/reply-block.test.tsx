@@ -20,6 +20,7 @@ import {
   COMPONENT_EXAMPLES,
   componentFence,
 } from "../../src/domain/replyExamples.ts";
+import type { ReplyComponent } from "../../src/domain/replyComponents.ts";
 import { blockInput } from "../domain/replyFixtures.ts";
 
 vi.mock("@get-bb/plugin-sdk/app", async (importActual) => {
@@ -111,11 +112,9 @@ function draw(
 const body = (
   component: (typeof COMPONENT_EXAMPLES)[keyof typeof COMPONENT_EXAMPLES],
 ) => `:::reply\n${componentFence(component)}\n:::\n`;
-
-const finding = COMPONENT_EXAMPLES.finding as Extract<
-  typeof COMPONENT_EXAMPLES.finding,
-  { type: "finding" }
->;
+type Checks = Extract<ReplyComponent, { type: "checks" }>;
+const checksWithEvidence = (items: Checks["items"]): Checks =>
+  ({ ...COMPONENT_EXAMPLES.checks, type: "checks", items }) as Checks;
 
 it("renders directives with message context while prose keeps workspace routing", async () => {
   const directive =
@@ -242,18 +241,16 @@ it("flattens grouped component lists without losing their narrative or sources",
             { type: "sequence" }
           >,
         ],
-        COMPONENT_EXAMPLES.finding as Extract<
-          typeof COMPONENT_EXAMPLES.finding,
-          { type: "finding" }
+        COMPONENT_EXAMPLES.checks as Extract<
+          typeof COMPONENT_EXAMPLES.checks,
+          { type: "checks" }
         >,
       ],
     }),
   );
   expect(view.container.textContent).toContain("Primary explanation.");
-  expect(view.container.textContent).toContain(
-    "The calculation subtracts cents",
-  );
-  expect(view.container.textContent).toContain("Calculation");
+  expect(view.container.textContent).toContain("Unit tests");
+  expect(view.container.textContent).toContain("Test report");
   expect(view.container.querySelector("aside, [data-relationship]")).toBeNull();
 });
 it.each(["    ", "        ", "\t", "  \t"])(
@@ -280,8 +277,25 @@ it("keeps a Markdown reference definition in the same document as its use", () =
   expect(view.container.querySelectorAll("[data-markdown]")).toHaveLength(1);
 });
 it("routes workspace evidence through native file previews", async () => {
-  const view = draw(body(COMPONENT_EXAMPLES.finding));
-  const link = await screen.findByRole("link", { name: "Calculation" });
+  const view = draw(
+    body(
+      checksWithEvidence([
+        {
+          name: "Unit tests",
+          status: "passed",
+          evidence: [
+            {
+              label: "Test source",
+              location: "src/coupon.ts",
+              line: 12,
+              endLine: 16,
+            },
+          ],
+        },
+      ]),
+    ),
+  );
+  const link = await screen.findByRole("link", { name: "Test source" });
   expect(link.getAttribute("href")).toContain("coupon.ts");
   fireEvent.click(link);
   expect(view.inspection.navigateCalls).toContainEqual({
@@ -305,12 +319,17 @@ it.each(["/tmp/Rendered Notes.md", "/tmp/Review #draft? 100%.md"])(
   "preserves literal external evidence paths: %s",
   async (path) => {
     const view = draw(
-      body({
-        ...finding,
-        evidence: [
-          { label: "Literal file", location: path, line: 2, endLine: 4 },
-        ],
-      }),
+      body(
+        checksWithEvidence([
+          {
+            name: "Unit tests",
+            status: "passed",
+            evidence: [
+              { label: "Literal file", location: path, line: 2, endLine: 4 },
+            ],
+          },
+        ]),
+      ),
     );
     const link = await screen.findByRole("link", { name: "Literal file" });
     expect(link.getAttribute("href")).toContain(
@@ -330,10 +349,15 @@ it.each(["/tmp/Plan#draft.md", "/tmp/Plan#L2", "/tmp/Question?.md"])(
   "preserves literal evidence without an explicit range: %s",
   async (path) => {
     const view = draw(
-      body({
-        ...finding,
-        evidence: [{ label: "Literal without range", location: path }],
-      }),
+      body(
+        checksWithEvidence([
+          {
+            name: "Unit tests",
+            status: "passed",
+            evidence: [{ label: "Literal without range", location: path }],
+          },
+        ]),
+      ),
     );
     const link = await screen.findByRole("link", {
       name: "Literal without range",
@@ -368,12 +392,20 @@ it("keeps block Markdown intact within change, sequence, and evidence fields", (
         { title: "Second", detail: "The second explanation." },
       ],
     }),
-    componentFence({
-      ...finding,
-      evidence: [
-        { label: "Evidence excerpt", detail: "```text\nA source excerpt\n```" },
-      ],
-    }),
+    componentFence(
+      checksWithEvidence([
+        {
+          name: "Unit tests",
+          status: "passed",
+          evidence: [
+            {
+              label: "Evidence excerpt",
+              detail: "```text\nA source excerpt\n```",
+            },
+          ],
+        },
+      ]),
+    ),
   ].join("\n\n");
   const view = draw(`:::reply\n${source}\n:::\n`);
   const code = [...view.container.querySelectorAll("pre code")].map(
@@ -403,10 +435,17 @@ it("isolates unterminated Markdown in a field from subsequent content", () => {
 
 it("keeps an escaping relative evidence path inert", async () => {
   const view = draw(
-    body({
-      ...finding,
-      evidence: [{ label: "Outside relative path", location: "../private.md" }],
-    }),
+    body(
+      checksWithEvidence([
+        {
+          name: "Unit tests",
+          status: "passed",
+          evidence: [
+            { label: "Outside relative path", location: "../private.md" },
+          ],
+        },
+      ]),
+    ),
   );
   await waitFor(() =>
     expect(
@@ -454,8 +493,8 @@ it("keeps visible ordinary list markers despite host CSS preflight", () => {
   );
   expect(view.container.querySelector("ol")?.className).toContain("pl-5");
   view.lifecycle.unmount();
-  const evidence = draw(body(COMPONENT_EXAMPLES.finding));
-  expect(evidence.container.querySelector("ul")?.className).toContain(
+  const checks = draw(body(COMPONENT_EXAMPLES.checks));
+  expect(checks.container.querySelector("ul")?.className).toContain(
     "list-disc",
   );
 });
@@ -491,12 +530,12 @@ it("preserves malformed component source and the surrounding explanation", () =>
 });
 it("isolates an unterminated component from historical recap fields", async () => {
   const view = draw(
-    ':::reply{state="review"}\n# Saved work\n- [x] The work is saved\n\n### Review\n- [Review target](https://example.com/review)\n\n### Explanation\nAn explanation.\n\n```workstreams\n{"type":"finding"}\n:::\n',
+    ':::reply{state="review"}\n# Saved work\n- [x] The work is saved\n\n### Review\n- [Review target](https://example.com/review)\n\n### Explanation\nAn explanation.\n\n```workstreams\n{"type":"retiredComponent"}\n:::\n',
   );
   await screen.findByRole("link", { name: "Review target" });
   expect(screen.getByText("The work is saved")).toBeDefined();
   expect(view.container.querySelector("pre")?.textContent).toContain(
-    '"finding"',
+    '"retiredComponent"',
   );
   expect(view.container.querySelector("pre")?.textContent).not.toContain(
     "Review target",
@@ -505,7 +544,7 @@ it("isolates an unterminated component from historical recap fields", async () =
 
 it("defers partial JSON without hiding the explanation", () => {
   const view = draw(
-    ':::reply\nExplanation.\n\n```workstreams\n{"type":"finding"',
+    ':::reply\nExplanation.\n\n```workstreams\n{"type":"retiredComponent"',
     { streaming: true },
   );
   expect(view.container.textContent).toContain("Explanation.");

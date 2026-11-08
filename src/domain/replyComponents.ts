@@ -1,7 +1,8 @@
 /*
  * Information the agent can place among a reply's Markdown paragraphs. These
- * values describe findings and results, not executable UI or verified host
- * facts. The same schemas govern rendering, examples, and plain-text output.
+ * values describe reported information and results, not executable UI or
+ * verified host facts. The same schemas govern rendering, examples, and
+ * plain-text output.
  */
 import { z } from "zod";
 
@@ -74,16 +75,6 @@ const context = z
   })
   .strict();
 const prose = z.object({ type: z.literal("text"), body: text }).strict();
-const finding = z
-  .object({
-    type: z.literal("finding"),
-    title: text,
-    explanation: text,
-    certainty: z.enum(["observed", "inferred", "unknown"]),
-    consequence: text.optional(),
-    evidence: list(evidenceSchema).optional(),
-  })
-  .strict();
 const comparison = z
   .object({
     type: z.literal("comparison"),
@@ -193,7 +184,6 @@ const details = z
 export const leafSchemas = {
   context,
   text: prose,
-  finding,
   comparison,
   sequence,
   change,
@@ -205,7 +195,6 @@ export const leafSchemas = {
 const replyLeafSchema = z.discriminatedUnion("type", [
   context,
   prose,
-  finding,
   comparison,
   sequence,
   change,
@@ -323,16 +312,6 @@ export function componentText(part: ReplyPart): string {
       return [part.topic, part.where, part.background]
         .filter(Boolean)
         .join(" · ");
-    case "finding":
-      return [
-        `### ${part.title}`,
-        `Evidence: ${part.certainty}`,
-        part.explanation,
-        part.consequence,
-        evidenceText(part.evidence),
-      ]
-        .filter(Boolean)
-        .join("\n\n");
     case "comparison":
       return [
         `### ${part.title}`,

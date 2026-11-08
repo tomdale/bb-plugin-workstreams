@@ -5,7 +5,6 @@ import { formatComponent } from "./replyFormat.ts";
 export const COMPONENT_NAMES = [
   "context",
   "text",
-  "finding",
   "comparison",
   "sequence",
   "change",
@@ -28,24 +27,6 @@ export const COMPONENT_EXAMPLES: Record<
   text: {
     type: "text",
     body: "The caller supplies a whole percentage, so divide it by 100 before multiplying the amount.\n\nThis keeps the calculation in the caller’s units.",
-  },
-  finding: {
-    type: "finding",
-    title: "The calculation subtracts cents",
-    explanation:
-      "Subtracting `10` from `1000` removes ten cents, rather than ten percent of the amount.",
-    certainty: "observed",
-    consequence:
-      "The caller passes a percentage; convert it before subtracting.",
-    evidence: [
-      {
-        label: "Calculation",
-        location: "src/coupon.ts",
-        line: 12,
-        endLine: 16,
-        detail: "The subtraction uses the supplied percentage directly.",
-      },
-    ],
   },
   comparison: {
     type: "comparison",
@@ -164,11 +145,8 @@ export const COMPONENT_EXAMPLES: Record<
         },
       ],
       {
-        type: "finding",
-        title: "Caller units",
-        certainty: "inferred",
-        explanation: "The test fixtures use `10` for a ten-percent coupon.",
-        evidence: [{ label: "Fixture", location: "tests/coupon.test.ts" }],
+        type: "text",
+        body: "The test fixtures use `10` for a ten-percent coupon.",
       },
     ],
   },
