@@ -311,15 +311,14 @@ organizing suggestions does not disable automatic categories.
 - **Tidy passes:** At most `8` edits (merge, move under, possibly renamed,
   rename, create a parent for related topics, refile a thread), each with a
   one-line reason. A move under a parent drops the words the names share:
-  "Vercel Agent Code Review" moves under "Vercel Agent" as "Code Review". A pass
-  runs at most once a day, after `3` new topics or `5` new roots since the last
-  one, or when Unfiled roots plus one-thread groups reach `4` and that set
-  changed. It doesn't run on its own while earlier tidy edits wait for review.
-  Once you've decided every waiting suggestion and accepted at least one, a
-  follow-up pass runs even within the day, because accepted changes can make new
-  edits possible. **Ask now** runs splits and a pass right away. A tidy pass
-  sees at most `12` threads per topic and `12` Unfiled threads; it can propose
-  thread moves only for the threads shown in that call.
+  "Vercel Agent Code Review" moves under "Vercel Agent" as "Code Review". With
+  organizing suggestions on, a pass runs after changes to topic definitions or
+  visible root membership and filing settle. Checks are debounced by two
+  seconds; titles and statuses alone do not start a pass. Applicable tidy edits
+  waiting for review pause automatic passes; after a decision, changed work is
+  assessed. **Ask now** runs splits and a pass right away, replacing pending
+  tidy edits. A tidy pass sees at most `12` threads per topic and `12` Unfiled
+  threads; it can propose thread moves only for the threads shown in that call.
 - **Names:** A top-level topic whose name begins with the whole name of a topic
   with subtopics ("Vercel Agent Code Review" beside "Vercel Agent") gets a
   suggestion to move under it, renamed without the shared words ("Code Review");

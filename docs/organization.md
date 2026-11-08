@@ -144,15 +144,16 @@ categories update independently even when automatic organizing suggestions are
 off.
 
 Tidy proposes at most eight edits: merge, reparent, rename, create a parent, or
-refile a thread. It keeps its daily cadence: three new topics, five new roots,
-or a changed set of at least four Unfiled roots plus one-thread groups can
-trigger a pass. Pending tidy edits block another automatic pass. After all
-waiting edits are decided and at least one was accepted, a follow-up may run
-within the day. Asking for suggestions runs a pass explicitly. Tidy sees at most
-twelve current threads per topic and twelve Unfiled threads, plus accepted and
-declined decisions. Tidy favors concise, meaningful names in context without
-losing recognizable identities or distinctions between topics. Matching
-top-level prefix names can also produce deterministic reparent suggestions.
+refile a thread. Automatic checks debounce changes for two seconds. A changed
+topic definition or visible root membership and filing starts a pass, unless an
+applicable tidy edit awaits review. Titles and statuses alone do not trigger a
+pass. Once pending edits are decided, a changed tree or filing starts a pass.
+Asking for suggestions runs a pass explicitly and replaces pending tidy edits.
+Tidy sees at most twelve current threads per topic and twelve Unfiled threads,
+plus accepted and declined decisions. Tidy favors concise, meaningful names in
+context without losing recognizable identities or distinctions between topics.
+Matching top-level prefix names can also produce deterministic reparent
+suggestions.
 
 Every proposed and accepted edit passes leaf-only and depth guards. Accepted
 suggestions are recorded in Activity with a guarded snapshot for Undo. Undo

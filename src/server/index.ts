@@ -594,7 +594,6 @@ export default async function plugin(bb: BbPluginApi) {
       topicDivisionEvidence(bb.sdk, topics, topicId, (id) =>
         placement.checkoutOf(id),
       ),
-    layout: () => organizerInstance.layout(),
     onChange: (topicsChanged) => {
       notify();
       if (topicsChanged) triggerOrganizer(10);

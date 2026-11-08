@@ -5,12 +5,11 @@
  * Asking for suggestions also considers divisions explicitly. Volume-based
  * categories have their own lifecycle and never change this tree.
  *
- * Tidy keeps its daily cadence, change thresholds, and accepted/declined
- * memory. Every accepted edit passes the topic store's two-level and leaf-only
- * guards and is recorded with a guarded topic snapshot for Undo.
+ * Tidy tracks changes to the topic tree and root filing, and remembers
+ * accepted and declined suggestions. Every accepted edit passes the topic
+ * store's two-level and leaf-only guards and records a guarded snapshot for Undo.
  */
 import { randomUUID } from "node:crypto";
-import type { LayoutNode } from "../domain/layout.ts";
 import type { ModelChoice } from "../domain/prefs.ts";
 import type { Topic } from "../domain/topics.ts";
 import {
@@ -44,10 +43,6 @@ import {
   type TopicStore,
 } from "./topics.ts";
 
-export const DAY_MS = 24 * 60 * 60_000;
-const TIDY_NEW_TOPICS = 3;
-const TIDY_NEW_ROOTS = 5;
-const MESSY_AT = 4;
 /** How long an automatic check waits for changes to settle. */
 const CHECK_DEBOUNCE_MS = 2_000;
 
@@ -102,9 +97,7 @@ type Row = {
 /** What the last tidy pass saw, for its triggers. */
 type TidyMemo = {
   at: number | null;
-  topics: string[];
-  roots: string[];
-  mess: string | null;
+  fingerprint?: string;
 };
 
 /** A visible root as suggestions read it. */
@@ -136,6 +129,7 @@ export class Suggestions {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
   private error: string | null = null;
+  private failedFingerprint: string | null = null;
 
   constructor(
     private readonly deps: {
@@ -151,7 +145,6 @@ export class Suggestions {
       splitThreads?: (topicId: string) => Promise<SuggestThread[]>;
       checkout: (threadId: string) => string | null;
       coordination: () => string[];
-      layout: () => readonly LayoutNode[];
       /** Suggestions or the topic tree changed. */
       onChange: (topicsChanged: boolean) => void;
       log: (message: string) => void;
@@ -238,11 +231,12 @@ export class Suggestions {
   check(): void {
     if (this.disposed) return;
     this.retire();
-    if (!this.deps.enabled()) return;
     if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    if (!this.deps.enabled()) return;
     this.timer = setTimeout(() => {
       this.timer = null;
-      void this.run({ manual: false }).catch(() => {});
+      if (this.deps.enabled()) void this.run({ manual: false }).catch(() => {});
     }, CHECK_DEBOUNCE_MS);
   }
 
@@ -318,6 +312,7 @@ export class Suggestions {
       // An edit needing a topic a declined one would create is moot now.
       this.retire();
       this.deps.onChange(false);
+      this.check();
       return { applied: rows.map((row) => row.id), failed, entries };
     }
     for (const row of rows) {
@@ -448,52 +443,46 @@ export class Suggestions {
     } catch {
       // A damaged record starts the triggers over.
     }
-    return { at: null, topics: [], roots: [], mess: null };
+    return { at: null };
   }
 
-  /** Unfiled roots and one-thread groups: what a messy sidebar shows. */
-  private mess(): { count: number; key: string } {
+  /** Topic definitions and visible root filing, excluding titles and status. */
+  private fingerprint(): string {
+    const topics = this.deps.topics.list();
     const assignments = this.deps.topics.assignments();
-    const unfiled = this.deps
-      .roots()
-      .filter((root) => !assignments[root.id]?.entityId)
-      .map((root) => root.id);
-    const singles = this.deps
-      .layout()
-      .filter((node) => node.total === 1)
-      .map((node) => node.topicId);
-    return {
-      count: unfiled.length + singles.length,
-      key: JSON.stringify([unfiled.sort(), singles.sort()]),
-    };
+    return JSON.stringify([
+      topics
+        .map((t) => [
+          t.id,
+          t.name,
+          t.description,
+          t.parentId,
+          [...t.aliases].sort(),
+        ])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+      this.deps
+        .roots()
+        .map((root) => [root.id, assignments[root.id]?.entityId ?? null])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    ]);
   }
 
   private async tidy(manual: boolean): Promise<void> {
     const memo = this.memo();
     const topics = this.deps.topics.list();
     const roots = this.deps.roots();
-    const mess = this.mess();
+    const fingerprint = this.fingerprint();
     if (!manual) {
-      const known = new Set(memo.topics);
-      const seen = new Set(memo.roots);
-      const newTopics = topics.filter((t) => !known.has(t.id)).length;
-      const newRoots = roots.filter((r) => !seen.has(r.id)).length;
-      const due =
-        newTopics >= TIDY_NEW_TOPICS ||
-        newRoots >= TIDY_NEW_ROOTS ||
-        (mess.count >= MESSY_AT && mess.key !== memo.mess);
-      // Accepted suggestions change the tree, and can make edits possible
-      // that the last pass couldn't propose, such as a move under a topic
-      // that held threads then. Once you've decided every waiting
-      // suggestion, one follow-up pass runs, even within the day.
-      const followUp =
-        memo.at !== null &&
-        this.pendingCount() === 0 &&
-        this.deps.db
-          .prepare(
-            "SELECT 1 FROM ws_suggestion WHERE status = 'accepted' AND decided_at > ? LIMIT 1",
-          )
-          .get(memo.at) !== undefined;
+      // Older installations have no fingerprint. Adopt the current snapshot
+      // as the baseline instead of turning an upgrade into a model call.
+      if (memo.fingerprint === undefined) {
+        setMeta(
+          this.deps.db,
+          TIDY_KEY,
+          JSON.stringify({ ...memo, fingerprint }),
+        );
+        return;
+      }
       // Edits that stopped fitting the tree don't hold up a new pass.
       const tree = this.tree();
       const waiting = (
@@ -502,9 +491,13 @@ export class Suggestions {
             "SELECT * FROM ws_suggestion WHERE status = 'pending' AND kind = 'edit'",
           )
           .all() as Row[]
-      ).filter((row) => !this.problem(row, tree)).length;
-      const capped = memo.at !== null && this.now() - memo.at < DAY_MS;
-      if (!followUp && (!due || waiting > 0 || capped)) return;
+      ).some((row) => !this.problem(row, tree));
+      if (
+        waiting ||
+        fingerprint === memo.fingerprint ||
+        fingerprint === this.failedFingerprint
+      )
+        return;
     } else
       // A fresh pass replaces the edits still waiting from an older one.
       for (const row of this.deps.db
@@ -518,9 +511,7 @@ export class Suggestions {
       TIDY_KEY,
       JSON.stringify({
         at: this.now(),
-        topics: topics.map((t) => t.id),
-        roots: roots.map((r) => r.id),
-        mess: mess.key,
+        fingerprint: memo.fingerprint ?? fingerprint,
       } satisfies TidyMemo),
     );
     const input = {
@@ -531,14 +522,32 @@ export class Suggestions {
       decisions: this.decisions(),
       declined: this.declined(),
     };
-    const { value } = await this.deps.inference.run("tidy", input, {
-      model: await this.deps.model(),
-      label: `${roots.length} threads, ${topics.length} topics`,
-    });
-    const pass = randomUUID();
-    const tree = this.tree();
-    for (const { edit, reason } of value)
-      if (!refusal(edit, tree)) this.propose(pass, "edit", edit, reason);
+    let value: Awaited<ReturnType<Inference["run"]>>["value"];
+    try {
+      ({ value } = await this.deps.inference.run("tidy", input, {
+        model: await this.deps.model(),
+        label: `${roots.length} threads, ${topics.length} topics`,
+      }));
+    } catch (error) {
+      this.failedFingerprint = fingerprint;
+      throw error;
+    }
+    if (this.fingerprint() !== fingerprint) {
+      this.again = true;
+      return;
+    }
+    this.deps.db.transaction(() => {
+      const pass = randomUUID();
+      const tree = this.tree();
+      for (const { edit, reason } of value)
+        if (!refusal(edit, tree)) this.propose(pass, "edit", edit, reason);
+      setMeta(
+        this.deps.db,
+        TIDY_KEY,
+        JSON.stringify({ at: this.now(), fingerprint } satisfies TidyMemo),
+      );
+    })();
+    this.failedFingerprint = null;
   }
 
   /** Proposes the moves topic names imply (see `prefixMoves`). */

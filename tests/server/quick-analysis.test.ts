@@ -77,6 +77,8 @@ function models(answers: {
 }): FakeCompletion {
   const calls = { opening: 0, analysis: 0 };
   return ({ prompt }) => {
+    if (prompt.includes("You maintain the topic tree"))
+      return JSON.stringify({ edits: [] });
     const kind = isOpening(prompt) ? "opening" : "analysis";
     const list = answers[kind] ?? [null];
     const goal = list[Math.min(calls[kind]++, list.length - 1)] ?? null;

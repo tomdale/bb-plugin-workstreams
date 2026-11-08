@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakeWorld } from "./fake-bb.ts";
 import { TopicStore } from "../../src/server/topics.ts";
-import { openDatabase } from "../../src/server/db.ts";
+import { getMeta, openDatabase, setMeta } from "../../src/server/db.ts";
 import type { SuggestionsStateWire } from "../../src/server/contract.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
@@ -19,12 +19,12 @@ const TIDY = "You maintain the topic tree";
 /** A world whose model answers split and tidy prompts with these. */
 async function setup(answers: {
   split?: (prompt: string) => object;
-  tidy?: (prompt: string) => object;
+  tidy?: (prompt: string) => object | Promise<object>;
 }) {
   world = await fakeWorld({
-    complete: ({ prompt }) =>
+    complete: async ({ prompt }) =>
       JSON.stringify(
-        prompt.includes(SPLIT) || prompt.includes(REPAIR)
+        await (prompt.includes(SPLIT) || prompt.includes(REPAIR)
           ? (answers.split?.(prompt) ?? {
               reason: "",
               subgroups: [],
@@ -32,7 +32,7 @@ async function setup(answers: {
             })
           : prompt.includes(TIDY)
             ? (answers.tidy?.(prompt) ?? { edits: [] })
-            : { recap: "r", state: "in_progress" },
+            : { recap: "r", state: "in_progress" }),
       ),
   });
   const w = world;
@@ -522,6 +522,219 @@ describe("moves topic names imply", () => {
     expect(moved).toMatchObject({ name: "Code Review", parentId: agent.id });
     expect(moved.aliases).toContain("Vercel Agent Code Review");
     expect(topics.assignment("t2").entityId).toBe(review.id);
+  });
+});
+
+describe("automatic tidy after changes", () => {
+  it("runs for topic and root filing changes, but not repeated checks or title changes", async () => {
+    let calls = 0;
+    const { w, topics, run, rpc } = await setup({
+      tidy: () => {
+        calls++;
+        return { edits: [] };
+      },
+    });
+    const alpha = topics.create("Alpha", "");
+    w.addThread("t1", { title: "First" });
+    topics.assign("t1", alpha.id);
+    await rpc("refresh");
+    await run();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const check = async () => {
+      await rpc("organization", { action: "rebuild" });
+      await vi.advanceTimersByTimeAsync(2_500);
+    };
+    await check();
+    expect(calls).toBe(1);
+    w.threads.get("t1")!.title = "Renamed title";
+    await rpc("refresh");
+    await check();
+    expect(calls).toBe(1);
+
+    const beta = topics.create("Beta", "");
+    await check();
+    expect(calls).toBe(2);
+    topics.assign("t1", beta.id);
+    await check();
+    expect(calls).toBe(3);
+    topics.edit(beta.id, { description: "New scope" });
+    await check();
+    expect(calls).toBe(4);
+    w.addThread("t2", { title: "New root" });
+    await rpc("refresh");
+    await check();
+    expect(calls).toBe(5);
+    w.threads.get("t2")!.archivedAt = Date.now();
+    await rpc("refresh");
+    await check();
+    expect(calls).toBe(6);
+    await check();
+    expect(calls).toBe(6);
+  });
+
+  it("responds to ordinary topic creation and thread lifecycle events", async () => {
+    let calls = 0;
+    const { w, run, rpc } = await setup({
+      tidy: () => {
+        calls++;
+        return { edits: [] };
+      },
+    });
+    await run();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await rpc("catalogCreate", {
+      name: "Alpha",
+      description: "",
+      parentId: null,
+      aliases: [],
+    });
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(calls).toBe(2);
+    const thread = w.addThread("new-root", { title: "New root" });
+    await w.harness.behavior.emitThreadEvent("thread.created", { thread });
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(calls).toBe(3);
+  });
+
+  it("discards an in-flight answer after the input changes and runs again", async () => {
+    let calls = 0;
+    let release!: (value: object) => void;
+    let started!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const { topics, run, rpc } = await setup({
+      tidy: () => {
+        calls++;
+        if (calls > 1) return { edits: [] };
+        started();
+        return new Promise<object>((resolve) => {
+          release = resolve;
+        });
+      },
+    });
+    topics.create("Alpha", "");
+    await rpc("refresh");
+    const pending = run();
+    await entered;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    topics.create("Beta", "");
+    release({
+      edits: [tidyEdit({ op: "rename", topic: "alpha", name: "Alpha Two" })],
+    });
+    const state = await pending;
+    expect(state.suggestions.filter((s) => s.status === "pending")).toEqual([]);
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(calls).toBe(2);
+  });
+
+  it("baselines an older memo without making a call on upgrade", async () => {
+    let calls = 0;
+    const { w, topics, run, rpc } = await setup({
+      tidy: () => {
+        calls++;
+        return { edits: [] };
+      },
+    });
+    topics.create("Alpha", "");
+    await rpc("refresh");
+    await run();
+    const db = openDatabase(w.bb);
+    setMeta(
+      db,
+      "suggestions_tidy",
+      JSON.stringify({ at: 1, topics: [], roots: [], mess: null }),
+    );
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await rpc("organization", { action: "rebuild" });
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(calls).toBe(1);
+    topics.create("Beta", "");
+    await rpc("organization", { action: "rebuild" });
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(calls).toBe(2);
+  });
+
+  it("retains the last successful fingerprint when inference fails", async () => {
+    let calls = 0;
+    let fail = false;
+    const { w, topics, run, rpc } = await setup({
+      tidy: () => {
+        calls++;
+        if (fail) throw new Error("model offline");
+        return { edits: [] };
+      },
+    });
+    topics.create("Alpha", "");
+    await rpc("refresh");
+    await run();
+    const db = openDatabase(w.bb);
+    const before = JSON.parse(getMeta(db, "suggestions_tidy")!);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    topics.create("Beta", "");
+    fail = true;
+    await rpc("organization", { action: "rebuild" });
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(calls).toBe(2);
+    expect(JSON.parse(getMeta(db, "suggestions_tidy")!).fingerprint).toBe(
+      before.fingerprint,
+    );
+    await rpc("organization", { action: "rebuild" });
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(calls).toBe(2);
+    fail = false;
+    await run();
+    expect(calls).toBe(3);
+  });
+
+  it("does not run a scheduled pass after suggestions are disabled", async () => {
+    let calls = 0;
+    const { topics, run, rpc } = await setup({
+      tidy: () => {
+        calls++;
+        return { edits: [] };
+      },
+    });
+    topics.create("Alpha", "");
+    await rpc("refresh");
+    await run();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    topics.create("Beta", "");
+    await rpc("organization", { action: "rebuild" });
+    await rpc("setPrefs", { patch: { organize: { suggestions: false } } });
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(calls).toBe(1);
+  });
+
+  it("waits for pending edits, then catches up after a decline", async () => {
+    let calls = 0;
+    const { topics, run, decide, rpc } = await setup({
+      tidy: () => {
+        calls++;
+        return {
+          edits:
+            calls === 1
+              ? [tidyEdit({ op: "rename", topic: "alpha", name: "Alpha Two" })]
+              : [],
+        };
+      },
+    });
+    topics.create("Alpha", "");
+    await rpc("refresh");
+    const [rename] = (await run()).suggestions;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    topics.create("Beta", "");
+    await rpc("organization", { action: "rebuild" });
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(calls).toBe(1);
+    await decide([rename!.id], "decline");
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(calls).toBe(2);
+    expect(
+      (
+        await rpc<{ state: SuggestionsStateWire }>("suggestions")
+      ).state.suggestions.find((s) => s.id === rename!.id)?.status,
+    ).toBe("declined");
   });
 });
 
