@@ -565,20 +565,24 @@ which adds a message-block slot, you also get **Structured replies**:
   `::inline-vis{source="thread-storage" file="report.html"}` render through BB's
   installed directive plugins in body order, including after card sections or
   Details. Missing or disabled directive plugins leave the source readable.
-- The body renders through BB's renderer. Prose stays plain Markdown, and a part
-  is drawn by its shape: a part whose data is a list of parallel rows — checks,
-  a delivery, a sequence, a comparison, a change, a supporting group — sits in a
-  bordered, recessed panel holding its title, its scope and its rows, and a part
-  with one subject (context, a recommendation, supporting detail) draws a label
-  and no frame. Peers in a group share a row in equal columns when the message
-  column is wide enough, with no frame; supporting components sit indented
-  beneath the point they qualify inside the group's one panel. Prose is never
-  framed.
-- A panel holding a failed or blocked row takes the failure tone at its border,
-  in its header and on its title, so a failure is findable before a row is read.
-  Passing panels stay neutral, which keeps the recap card that ends the turn the
-  loudest object on screen. Every row prints its status word beside its mark, so
-  no status depends on colour alone.
+- The body renders through BB's renderer. Prose stays plain Markdown. Checks and
+  a delivery report results, so each sits in a bordered, recessed panel holding
+  its title, its scope, any reported test totals, and its rows. Every other part
+  draws in the message flow with the recap card's labels, marks and rules: a
+  sequence, a comparison and a change under their title, a change and a
+  recommendation as labelled rows with a hairline above each, and context and
+  supporting detail as a heading over prose. Peers in a group share a row in
+  equal columns when the message column is wide enough; supporting components
+  sit indented beneath the point they qualify. Neither kind of group adds a
+  frame, so a child draws as it would on its own.
+- A panel takes the tone of its worst row at its border and in its header: the
+  failure tone when a row failed, and the Needs you tone when a row is blocked
+  and none failed. The title stays neutral. Panels with nothing failed or
+  blocked stay neutral, which keeps the recap card that ends the turn the
+  loudest object on screen. Every row shows a status mark, each status with its
+  own shape, and every status but passed or done also prints its word, so the
+  words at the panel's right edge list only the rows worth reading. A row's
+  detail, a scope and evidence links sit beneath it in smaller, muted text.
 - Parsing and validation retain the structured information: comparisons,
   sequences, behavior changes, checks, delivery records, recommendations, and
   bounded groups. Checks and delivery stages can include evidence links. A check
@@ -1138,9 +1142,9 @@ page. Navigation links preserve the selected page in the URL hash.
 Examples use synthetic data and local state. The standalone host cannot send
 messages, change threads, upload attachments, or call the Workstreams server. It
 supplies a development theme and Markdown renderer; BB-specific host behavior
-still needs verification inside BB. Reply examples show the current renderer,
-not the target presentation described in
-[docs/design-system.md](docs/design-system.md).
+still needs verification inside BB. Reply examples use the plugin's reply
+renderer, but the standalone Markdown does not set the sizes and colours BB's
+does, so check reply type in BB.
 
 ### Tests and verification
 

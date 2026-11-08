@@ -32,10 +32,12 @@ decisions differently:
   asked for.
 - **`details` draws unboxed and always open**, on the ground that "essential caveats can land here
   too". That overturns decision 3, and its reasoning is better than mine was.
-- **The panels shipped afterwards.** A part whose data is a list of parallel rows draws in the
-  subagent delivery's recessed frame, with the failure tone on its border, header and title; a part
-  with one subject draws a label and no frame. `src/app/reply/Panel.tsx` holds the frame and
-  `src/app/reply/status.ts` the vocabulary, and delivery accepts `not-started`.
+- **The panels shipped afterwards, then narrowed.** Only checks and a delivery, the parts that
+  report results, draw in the subagent delivery's recessed frame, which takes the tone of the worst
+  row at its border and header: failure for a failed row, Needs you for a blocked one. A sequence,
+  a comparison, a change and a supporting group draw in the message flow with the recap card's
+  rules and gutters, as `docs/design-system.md` describes. `src/app/reply/Panel.tsx` holds the
+  frame and `src/app/reply/status.ts` the vocabulary, and delivery accepts `not-started`.
 
 A re-baseline means dropping the finding section and restating what the renderer does now.
 Until then the tenses are the 1 November renderer's.

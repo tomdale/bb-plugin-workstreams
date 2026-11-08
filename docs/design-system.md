@@ -8,9 +8,7 @@ semantic cues appear.
 This guide records the design contract for new and revised UI.
 `src/app/theme/tokens.css`, the vendored BB components, and current component
 code remain the source for exact values and behavior. The reply-component
-section defines the intended presentation language for the reply vocabulary; it
-does not describe the current plain-Markdown renderer as if it already followed
-that language.
+section describes how the reply renderer draws each part.
 
 ## Three layers
 
@@ -159,54 +157,76 @@ Keep its controls in the same vocabulary as the rest of BB.
 
 Reply components express different kinds of information. Their presentation
 should make those differences visible while keeping the reply part of BB's
-message timeline. The reply body is not a stack of generic cards. Use shared
-Markdown and text behavior, then add structure where the component's data calls
-for it.
+message timeline. The reply body is not a stack of generic cards: one frame, the
+recessed panel subagent deliveries use, is reserved for the parts that report
+results, so the edge of a frame in a reply always means a result is reported
+inside it. Every other part uses the recap card's inner idioms in the message
+flow: the label gutter, the mark column, hairline rules, and accent labels.
 
-- **Context:** A compact orientation line: the topic as a small medium-weight
-  label in the reply accent, the way the sticky goal header shows its workstream
-  above the goal, with the reported location muted beneath it. Any background
+The reply's type scale is in `src/app/reply/type.ts`: body 13/21, a part's title
+13/19/600, secondary text 12/18 muted, labels 11/17.6/500. BB's Markdown sets
+its own size and foreground colour on its root and every paragraph, so a wrapper
+that makes Markdown smaller or muted must hand its values down
+(`INHERIT_MARKDOWN`, or `SECONDARY_TEXT` for secondary Markdown); without that,
+the wrapper's classes never reach the text.
+
+- **Context:** An orientation line: the topic in medium weight in the reply
+  accent, the way the sticky goal header shows its workstream above the goal,
+  with the reported location smaller and muted beneath it. Any background
   follows as ordinary prose.
 - **Text:** Ordinary Markdown prose, unboxed. Preserve the author's paragraphs,
   lists, and inline formatting.
-- **Sequence:** Recap card steps in order: each step number sits in the mark
-  column as a small muted tabular figure, sized and placed like a stroked mark,
-  with a thin rail joining the numbers so the steps read as one path. The step
-  title comes first, with any detail muted beneath it. An attention step shows
-  the word Attention beside its title in the reply accent, the thread's
-  workstream identity color (muted when unfiled), never a state color.
-- **Comparison:** Each option reads in one order: its name, the summary, any
-  qualification, then any detail, muted and smaller. Options sit in columns only
-  when all of them fit in one row at about 13rem each (two, three, or four
-  options); otherwise, and always for five or more, they stack. In columns every
-  field shares a row across the options, so summaries, qualifications, and
-  details start at the same height. A hairline rule sits above each option; the
-  recommended option's rule is heavier and in the reply accent, and a small
-  accent "Recommended" label sits beside its name, so the recommendation never
-  rests on color alone.
-- **Change:** Recap card rows: Before, After, Unchanged, and Limitation each
-  take a small label in the card's label gutter beside the value, stacked above
-  it when narrow. The gutter is at least the card's 3.25rem and widens to fit
-  the longest label so every value starts at the same edge. Labels take the
-  reply block's accent, the thread's workstream identity color, so a reply reads
-  as part of its workstream rather than as a work state; an unfiled thread's
-  labels stay muted.
-- **Checks:** Scope, then the actual totals on one compact line, then the checks
-  as recap card results: a stroked status mark before each name, with any detail
-  muted beneath it. Each status has its own mark shape; every status but passed
-  also shows its label beside the name, so skipped, failed, blocked, and
-  untested stay explicit.
-- **Delivery:** Scope muted under the title, then the stages in order as recap
-  card results: a stroked status mark before each name, with any detail and
-  evidence beneath it, and a thin rail joining the marks so the order reads as
-  one path. Done is a check, pending a clock, blocked a struck circle, and
-  unknown a question mark; every status but done also shows its label beside the
-  name. Do not imply that a reported stage was independently verified.
-- **Recommendation:** The choice leads in semibold text. The reason and any
-  qualification follow as recap card rows, labeled "Reason" and "Qualification"
-  in the card's label gutter beside each value and stacked above it when narrow.
-  Labels take the reply accent, like Change; do not borrow `review` or
-  `complete` color to make advice appear like a work state.
+- **Sequence:** The title, then recap card steps in order: each step number sits
+  in the mark column as a small muted tabular figure, sized and placed like a
+  stroked mark, with a thin rail joining the numbers so the steps read as one
+  path. The step title comes first, with any detail smaller and muted beneath
+  it. An attention step takes a medium-weight title and shows the word Attention
+  beside it in the reply accent, the thread's workstream identity color (muted
+  when unfiled), never a state color. No frame.
+- **Comparison:** The title, then each option in one order: its name, the
+  summary, any qualification, then any detail, muted and smaller. Options sit in
+  columns only when all of them fit in one row at about 13rem each (two, three,
+  or four options); otherwise, and always for five or more, they stack. In
+  columns every field shares a row across the options, so summaries,
+  qualifications, and details start at the same height. A hairline rule sits
+  above each option; the recommended option's rule is heavier and in the reply
+  accent, and a small accent "Recommended" label sits beside its name, so the
+  recommendation never rests on color alone. No frame.
+- **Change:** The title, then labelled rows: Before, After, Unchanged, and
+  Limitation each take a small label in the card's label gutter beside the
+  value, stacked above it below 24rem, with a hairline above every row so the
+  part has an edge where it starts. The gutter is at least the card's 3.25rem
+  and widens to fit the longest label so every value starts at the same edge.
+  Labels take the reply accent, the thread's workstream identity color, so a
+  reply reads as part of its workstream rather than as a work state; an unfiled
+  thread's labels stay muted. No frame.
+- **Checks:** The recessed panel. Its header holds the title, the scope muted
+  beneath it, and the reported test totals at the right as one short sentence
+  ("8 tests passed, 0 failed, 1 skipped"), where a count above zero takes its
+  status's tone. Each check is a row: a stroked status mark, the name, any
+  detail and evidence muted beneath it, and the status word at the right edge.
+  Each status has its own mark shape; every status but passed prints its word,
+  so the right-edge column lists only the rows worth reading, and a pass's word
+  is read only by assistive technology. A failed or blocked row's name takes
+  medium weight. Rows are not tinted.
+- **Delivery:** The same panel and header, then the stages in order on a thin
+  rail joining their marks. Done is a check, pending a ring, blocked a struck
+  ring, not-started and unknown a broken ring; every status but done prints its
+  word at the right edge. Do not imply that a reported stage was independently
+  verified.
+- **Panel tone:** A checks or delivery panel takes the tone of its worst row at
+  its border and in its header strip, the way a recap card takes its state's:
+  `failure` when a row failed, `needsYou` when a row is blocked and none failed.
+  The title stays neutral, like the card's goal. A panel with nothing failed or
+  blocked stays neutral, which keeps the recap card the loudest object.
+- **Evidence:** A quiet list beneath the row it supports, at the secondary size:
+  the recap card's file or web glyph, then the label as a link, then any detail.
+  No bullets.
+- **Recommendation:** Labelled rows like Change: "Recommended" beside the choice
+  in semibold, then "Reason" and any "Qualification". The labels take the reply
+  accent and reuse the recommended option's word, so a recommendation reads the
+  same wherever it appears. Do not borrow `review` or `complete` color to make
+  advice appear like a work state.
 - **Details:** The title as a component heading, then the body as ordinary
   Markdown at full contrast, unboxed and never collapsed, because the answer or
   essential caveats may land there. A `### Details` heading in prose renders the
@@ -215,8 +235,12 @@ for it.
   every peer at its minimum width, and otherwise each takes the full width; they
   never wrap into a ragged second row. Supporting children sit beneath the first
   child, the point they qualify, indented under one thin rule in the reply
-  accent. A child that is a list of components stays together in one cell. No
-  child gets a card.
+  accent. A child that is a list of components stays together in one cell. The
+  group adds no frame, so each child draws as it would on its own: a checks
+  child keeps its panel and its tone.
+- **Rejected component:** The reason sits above the component's source with a
+  failure mark, in the failure text step at the secondary size, which marks it
+  as a diagnostic about the reply, not part of its answer.
 
 A reply headline is the answer's first reading stop. Keep component headings
 below it. Make evidence, status, qualifications, and recommendation easy to
