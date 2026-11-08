@@ -879,7 +879,7 @@ export function WorkstreamsThreadList({
   const workstreamsHeading = hasWorkstreams ? (
     <div
       key="workstreams-heading"
-      className="flex items-center gap-1.5"
+      className="flex items-center gap-3"
       style={{
         height: SIDEBAR_GEOMETRY.sectionHeading.height,
         marginTop: SIDEBAR_GEOMETRY.sectionHeading.topMargin,
@@ -903,9 +903,16 @@ export function WorkstreamsThreadList({
             onClick={() =>
               navigate.toPluginPanel("home", { subPath: "organization" })
             }
-            className="ws-needs-you-text ws-suggestions-action flex shrink-0 cursor-pointer items-center gap-0.5 rounded-md px-1.5 py-[1.5px] text-[11px] leading-[1.2] font-medium transition-colors"
+            // A transparent border is the chip: the border-box (what the
+            // hover background paints and the pointer hits) grows 3px up,
+            // 2px down and 8px sideways around the text, and the matching
+            // negative margin keeps the layout box on the heading's line,
+            // so the row never moves and the rest-state text stays on the
+            // label's baseline. The 1px top-bottom split nudges the chip
+            // onto the caps label's optical center.
+            className="ws-suggestions-action ws-needs-you-text -mx-2 -mb-[2px] -mt-[3px] flex shrink-0 cursor-pointer items-center gap-[3px] rounded-full border-transparent border-x-8 border-b-2 border-t-[3px] text-[12px] leading-[1.2] font-medium transition-colors"
           >
-            <Icon name={SPARKLES_ICON} className="size-3" aria-hidden />
+            <Icon name={SPARKLES_ICON} className="size-[13.5px]" aria-hidden />
             Reorganize
           </button>
         </Hint>
