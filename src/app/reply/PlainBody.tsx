@@ -63,6 +63,33 @@ function CheckStatusMark({ status }: { status: CheckStatus }) {
   );
 }
 
+type StageStatus = Extract<
+  ReplyPart,
+  { type: "delivery" }
+>["stages"][number]["status"];
+
+const STAGE_STATUS_LABEL: Record<StageStatus, string> = {
+  done: "Done",
+  pending: "Pending",
+  blocked: "Blocked",
+  unknown: "Unknown",
+};
+// The same glyph family as the check marks: done and blocked share their
+// check counterparts' shapes; pending is a clock and unknown a question mark.
+const STAGE_STATUS_PATH: Record<StageStatus, string> = {
+  done: CHECK,
+  pending: "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9Z M8 5.75V8l1.5 1",
+  blocked: CHECK_STATUS_PATH.blocked,
+  unknown:
+    "M5.3 5.8a2.7 2.7 0 1 1 3.85 2.45c-.75.4-1.15.95-1.15 1.75v.2 M8 12.9v.01",
+};
+const STAGE_STATUS_TONE: Record<StageStatus, string> = {
+  done: CHECK_STATUS_TONE.passed,
+  pending: "text-muted-foreground",
+  blocked: "text-muted-foreground",
+  unknown: "text-muted-foreground",
+};
+
 export const PLAIN_LIST_CLASS = "mb-2 pl-5 text-foreground [&>li]:mb-1";
 
 export function PlainMarkdown({
@@ -303,20 +330,61 @@ export function PlainBody({
     }
     case "delivery":
       return (
-        <>
+        <div data-reply-delivery="" className="min-w-0">
           {title(part.title)}
-          {md(part.scope)}
-          <ul className={`${PLAIN_LIST_CLASS} list-disc`}>
+          <div className="text-[0.85em] text-muted-foreground [&_p]:my-0">
+            {md(part.scope)}
+          </div>
+          {/* An ordered list whose marks a thin rail joins, so the stages
+              read as one path in order. */}
+          <ol data-reply-delivery-stages="" className="m-0 mt-3 list-none p-0">
             {part.stages.map((stage, i) => (
-              <li key={i}>
-                {md(stage.name)}
-                <p>Status: {stage.status}</p>
-                {md(stage.detail)}
-                {evidence(stage.evidence)}
+              <li
+                key={i}
+                data-reply-delivery-stage={stage.status}
+                className={`relative ${MARK_ROW_CLASS} ${i < part.stages.length - 1 ? "pb-2" : ""}`}
+              >
+                {i < part.stages.length - 1 ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-[calc(0.2em+17px)] bottom-[calc(3px-0.2em)] left-[6.5px] w-px bg-border max-md:pointer-coarse:top-[calc(0.2em+19px)] max-md:pointer-coarse:left-[8.5px]"
+                  />
+                ) : null}
+                <span
+                  data-reply-stage-status={stage.status}
+                  className={`flex ${STAGE_STATUS_TONE[stage.status]}`}
+                >
+                  <Glyph
+                    path={STAGE_STATUS_PATH[stage.status]}
+                    className={MARK_CLASS}
+                  />
+                  <span className="sr-only">
+                    {STAGE_STATUS_LABEL[stage.status]}
+                  </span>
+                </span>
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 [&_p]:m-0">
+                    {md(stage.name)}
+                    {stage.status === "done" ? null : (
+                      <span
+                        aria-hidden="true"
+                        className={`${LABEL_CLASS} pt-0 ${STAGE_STATUS_TONE[stage.status]}`}
+                      >
+                        {STAGE_STATUS_LABEL[stage.status]}
+                      </span>
+                    )}
+                  </div>
+                  {stage.detail ? (
+                    <div className="mt-0.5 text-muted-foreground [&_p]:my-0">
+                      {md(stage.detail)}
+                    </div>
+                  ) : null}
+                  {stage.evidence?.length ? evidence(stage.evidence) : null}
+                </div>
               </li>
             ))}
-          </ul>
-        </>
+          </ol>
+        </div>
       );
     case "recommendation":
       return (

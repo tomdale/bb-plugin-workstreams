@@ -583,10 +583,19 @@ which adds a message-block slot, you also get **Structured replies**:
   Operators, templates, variables, and bindings are rejected. Field names,
   required fields, enums, and limits come from the same schemas that validate a
   component, and the signature lines in the agent instructions are generated
-  from them. A statement that fails shows its source with a one-line reason that
-  carries a line and column and, for a near-miss field, enum word, or component
-  name, a "did you mean"; the other statements in the fence still render.
-  Replies stored with a JSON object in the fence keep rendering.
+  from them.
+- The instructions teach that strict form, but a component still renders when
+  its writer's intent is clear: single, curly, or backtick quotes; unquoted
+  text; missing or extra commas; `=` for `:`; positional arguments; names in
+  another case, a common synonym, or a small misspelling that points at one
+  field; enum words such as `Passed`, `ok`, or `not tested`; numbers and
+  booleans written as text; a single value where a list belongs; a string for a
+  step or evidence entry; unknown fields, which are dropped; indented `"""`
+  text; nested groups, which flatten; and a `Workstreams` or `workstream` fence.
+  A statement that still fails shows its source with a one-line reason that
+  carries a line and column and, for a near-miss name or enum word, a "did you
+  mean"; the other statements in the fence still render. Replies stored with a
+  JSON object in the fence keep rendering.
 - Checks and delivery stages can include evidence links. Relative evidence paths
   stay inside the message's workspace; external files use explicit absolute
   paths. Native file previews preserve literal filename characters and separate

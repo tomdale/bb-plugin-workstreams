@@ -6,6 +6,7 @@
  */
 import { CATALOG, type ObjectShape, type Shape } from "./replyCatalog.ts";
 import type { ReplyComponent } from "./replyComponents.ts";
+import { dedent } from "./replySyntax.ts";
 
 const WIDTH = 100;
 
@@ -15,7 +16,8 @@ function rawString(text: string): boolean {
     !text.includes('"""') &&
     !text.includes("\r") &&
     !/^[ \t]*\n/.test(text) &&
-    !/\n[ \t]*$/.test(text)
+    !/\n[ \t]*$/.test(text) &&
+    dedent(text) === text
   );
 }
 

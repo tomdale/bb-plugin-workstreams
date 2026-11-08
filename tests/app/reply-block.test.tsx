@@ -776,3 +776,24 @@ it("attaches raw output and syntax diagnostics to assistant rows without a Reply
   overlay.lifecycle.unmount();
   row.unmount();
 });
+
+it("leads delivery stages with status marks in their order", () => {
+  const view = draw(body(COMPONENT_EXAMPLES.delivery));
+  const list = view.container.querySelector("[data-reply-delivery-stages]");
+  expect(list?.tagName).toBe("OL");
+  const stages = [
+    ...view.container.querySelectorAll("[data-reply-delivery-stage]"),
+  ];
+  expect(stages.length).toBeGreaterThan(0);
+  for (const stage of stages) {
+    const mark = stage.querySelector("[data-reply-stage-status]");
+    expect(mark?.querySelector("svg")).not.toBeNull();
+    // Only statuses other than done repeat their label beside the name.
+    const shown = stage.querySelector(
+      '[data-reply-stage-status] ~ div [aria-hidden="true"]',
+    );
+    if (stage.getAttribute("data-reply-delivery-stage") === "done")
+      expect(shown).toBeNull();
+    else expect(shown?.textContent).not.toBe("");
+  }
+});

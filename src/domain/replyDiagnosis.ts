@@ -12,7 +12,7 @@ import {
   type ReplyStatus,
 } from "./reply.ts";
 import { compileFence } from "./reply.ts";
-import { COMPONENT_FENCE } from "./replyComponents.ts";
+import { COMPONENT_FENCE, isComponentFence } from "./replyComponents.ts";
 import { parseReplyMarkdown, readBlock } from "./replyText.ts";
 
 export type ReplyIssue = {
@@ -145,7 +145,7 @@ export function diagnoseReply(
           line: node.position?.start.line,
           message: `":::${REPLY_BLOCK}" is inside a list or quote — place it at the top level of the message.`,
         });
-      } else if (node.type === "code" && node.lang === COMPONENT_FENCE) {
+      } else if (node.type === "code" && isComponentFence(node.lang)) {
         issues.push({
           line: node.position?.start.line,
           message: `"${COMPONENT_FENCE}" code fence is outside a ":::${REPLY_BLOCK}" block, so it renders as raw source.`,
@@ -192,14 +192,14 @@ export function diagnoseReply(
     for (let i = 0; i < root.children.length; i++) {
       if (i === lastIndex) continue;
       const outside = root.children[i]!;
-      if (outside.type === "code" && outside.lang === COMPONENT_FENCE) {
+      if (outside.type === "code" && isComponentFence(outside.lang)) {
         issues.push({
           line: outside.position?.start.line,
           message: `"${COMPONENT_FENCE}" code fence is outside ":::${REPLY_BLOCK}", so it renders as raw source.`,
         });
       }
       walkChildren(outside, (child) => {
-        if (child.type === "code" && child.lang === COMPONENT_FENCE) {
+        if (child.type === "code" && isComponentFence(child.lang)) {
           issues.push({
             line: child.position?.start.line,
             message: `"${COMPONENT_FENCE}" code fence is outside ":::${REPLY_BLOCK}", so it renders as raw source.`,
@@ -303,7 +303,7 @@ export function diagnoseReply(
 
   const innerSource = blockInput?.source ?? "";
   for (const child of contentChildren) {
-    if (child.type === "code" && child.lang === COMPONENT_FENCE) {
+    if (child.type === "code" && isComponentFence(child.lang)) {
       for (const message of validateComponentNode(child, innerSource))
         issues.push({ line: child.position?.start.line, message });
     } else if (
@@ -317,7 +317,7 @@ export function diagnoseReply(
       });
     }
     walkChildren(child, (nested) => {
-      if (nested.type === "code" && nested.lang === COMPONENT_FENCE) {
+      if (nested.type === "code" && isComponentFence(nested.lang)) {
         issues.push({
           line: nested.position?.start.line,
           message: `"${COMPONENT_FENCE}" code fence is inside a list or quote — place it at the top level of ":::${REPLY_BLOCK}".`,

@@ -175,14 +175,20 @@ for it.
 - **Change:** Recap card rows: Before, After, Unchanged, and Limitation each
   take a small label in the card's label gutter beside the value, stacked above
   it when narrow. The gutter is at least the card's 3.25rem and widens to fit
-  the longest label so every value starts at the same edge.
+  the longest label so every value starts at the same edge. Labels stay muted:
+  Change has no work state, and every accent color available already names one
+  (complete, review, waiting, needs you, failure).
 - **Checks:** Scope, then the actual totals on one compact line, then the checks
   as recap card results: a stroked status mark before each name, with any detail
   muted beneath it. Each status has its own mark shape; every status but passed
   also shows its label beside the name, so skipped, failed, blocked, and
   untested stay explicit.
-- **Delivery:** Show stages in order, with each stage's name, status, and detail
-  together. Do not imply that a reported stage was independently verified.
+- **Delivery:** Scope muted under the title, then the stages in order as recap
+  card results: a stroked status mark before each name, with any detail and
+  evidence beneath it, and a thin rail joining the marks so the order reads as
+  one path. Done is a check, pending a clock, blocked a struck circle, and
+  unknown a question mark; every status but done also shows its label beside the
+  name. Do not imply that a reported stage was independently verified.
 - **Recommendation:** Give the choice a clear typographic lead, then the reason
   and any qualification. Do not borrow `review` or `complete` color to make
   advice appear like a work state.

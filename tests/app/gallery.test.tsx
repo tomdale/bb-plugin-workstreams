@@ -81,6 +81,12 @@ it("renders every specimen with its component", async () => {
   expect(
     totals?.querySelector('[data-reply-test-total="skipped"]')?.textContent,
   ).toContain("1");
+  const delivery = slot.container.querySelector("[data-reply-delivery]");
+  expect(
+    [...(delivery?.querySelectorAll("[data-reply-stage-status]") ?? [])].map(
+      (mark) => mark.getAttribute("data-reply-stage-status"),
+    ),
+  ).toEqual(["done", "pending", "blocked", "unknown"]);
   const shows = (text: string) =>
     expect(slot.getAllByText(text, { exact: false }).length).toBeGreaterThan(0);
   for (const text of [
@@ -101,7 +107,7 @@ it("renders every specimen with its component", async () => {
     "A held key re-read a stale index and skipped several cards",
     "Local suite",
     "Where the fix stands",
-    "Status: blocked",
+    "The plugin reloads after merge",
     "Merge after one pass on a real queue",
     "Why a ref and not state",
     // the bare directive, rendered by bb

@@ -7,6 +7,9 @@
 import { z } from "zod";
 
 export const COMPONENT_FENCE = "workstreams";
+/** A fence's info string names components regardless of case or a missing plural "s". */
+export const isComponentFence = (lang: string | null | undefined): boolean =>
+  /^workstreams?$/i.test(lang ?? "");
 const text = z
   .string()
   .min(1)

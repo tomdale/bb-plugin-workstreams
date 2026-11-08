@@ -164,6 +164,11 @@ const delivered = block([
         status: "blocked",
         detail: "The plugin reloads after merge",
       },
+      {
+        name: "Released",
+        status: "unknown",
+        detail: "No release check was run",
+      },
     ],
   } satisfies ReplyComponent),
   componentFence({

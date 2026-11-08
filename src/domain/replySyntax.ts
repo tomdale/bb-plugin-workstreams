@@ -1,10 +1,20 @@
 /*
  * The compact component syntax: `name(key: value, …)` calls over static
- * values. Every argument is named; values are strings, numbers, booleans,
- * null, lists, objects, bare words, and nested calls. Nothing is evaluated, so
- * operators, templates, variables, and bindings are lexical errors rather than
- * ignored text. This module knows grammar only; field names, types, and
- * limits belong to the schemas that `replyCompile.ts` applies.
+ * values. Values are strings, numbers, booleans, null, lists, objects, bare
+ * words, and nested calls. Nothing is evaluated, so operators, templates, and
+ * bindings are lexical errors rather than ignored text. This module knows
+ * grammar only; field names, types, and limits belong to the schemas that
+ * `replyCompile.ts` applies.
+ *
+ * The documented form is strict, but the reader is forgiving wherever the
+ * writer's intent is unambiguous, because a model's near miss should still
+ * render: single, curly, and backtick quotes; a double-quoted string that
+ * spans lines or holds unescaped quotes; unknown escapes kept literally;
+ * `"""` text dedented; `=` for `:`; missing, doubled, and trailing commas or
+ * semicolons; positional arguments (a field with a null key, resolved against
+ * the schema later); unquoted text, read as raw source up to the next field;
+ * several components on one line; `//` comments; and a JSON object or list of
+ * objects whose `type` names the component.
  *
  * Each top-level statement parses independently: an error ends that statement
  * and parsing resumes at the next line that begins, in column one, with
@@ -26,17 +36,19 @@ export type Node = Span &
     | { kind: "object"; fields: Field[] }
     | { kind: "call"; name: string; nameSpan: Span; args: Field[] }
   );
-export type Field = { key: string; keySpan: Span; value: Node };
+/** A named or, with a null key, positional argument or object entry. */
+export type Field = { key: string | null; keySpan: Span; value: Node };
 export type CallNode = Extract<Node, { kind: "call" }>;
 
 export type Statement =
   | { ok: true; call: CallNode; start: number; end: number }
   | { ok: false; error: SyntaxIssue; start: number; end: number };
 
+type PunctText = "(" | ")" | "[" | "]" | "{" | "}" | "," | ":" | "=" | ";";
 type Token = Span &
   (
     | { t: "ident" | "string" | "number" | "eof"; text: string }
-    | { t: "punct"; text: "(" | ")" | "[" | "]" | "{" | "}" | "," | ":" }
+    | { t: "punct"; text: PunctText }
   );
 
 class Fail extends Error {
@@ -50,12 +62,23 @@ const fail = (message: string, start: number, end = start + 1): never => {
   throw new Fail({ message, start, end });
 };
 
-const OPERATORS = "+*/%=<>!?&|^~;";
+const OPERATORS = "+*/%<>!?&|^~";
 const IDENT_START = /[A-Za-z_]/;
 const IDENT_PART = /[A-Za-z0-9_]/;
 const NUMBER = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
-const ESCAPE_ERROR =
-  'Invalid string escape; use JSON escapes such as \\n or \\".';
+/** Characters that can begin unquoted text: letters, digits, Markdown marks, and symbols such as ✓. */
+const LOOSE_START = /[\p{L}\p{N}\p{So}\p{Sk}_*#>@!~&-]/u;
+/** Opening quote → closing quote for the single-line quote styles. */
+const QUOTES: Record<string, string> = {
+  "'": "'",
+  "`": "`",
+  "\u201c": "\u201d",
+  "\u2018": "\u2019",
+};
+/** What may follow a closing quote: the end of the value, an operator, or a new field. */
+const AFTER_STRING =
+  /^[ \t]*(?:$|[\r\n,;:=)\]}+]|\/\/)|^[ \t]+[A-Za-z_]\w*[ \t]*[:=]/;
+const STATEMENT_LINE = /\n[A-Za-z_]\w*[ \t]*\(/;
 
 /** Position of an offset within `source`, 1-based. */
 export function position(source: string, offset: number): Pos {
@@ -69,43 +92,103 @@ export function position(source: string, offset: number): Pos {
   return { line, col: offset - last };
 }
 
-function lexString(source: string, at: number): [Token, number] {
-  if (source.startsWith('"""', at)) {
-    const close = source.indexOf('"""', at + 3);
-    if (close === -1)
-      return fail('Unterminated """ string; close it with """.', at, at + 3);
-    const raw = source
+/** JSON escapes; an unknown escape such as `\d` or `\*` keeps its backslash. */
+function unescape(raw: string): string {
+  return raw.replace(/\\(u[0-9a-fA-F]{4}|[\s\S])/g, (whole, c: string) =>
+    c.length === 5
+      ? String.fromCharCode(parseInt(c.slice(1), 16))
+      : (({ n: "\n", t: "\t", r: "\r", b: "\b", f: "\f" } as const)[c as "n"] ??
+        ("\"'`\\/".includes(c) ? c : whole)),
+  );
+}
+
+/**
+ * Remove the indentation every content line shares, so a `"""` block indented
+ * with its call reads as written. A first line that starts right after the
+ * opening quotes does not count toward the shared indentation.
+ */
+export function dedent(raw: string): string {
+  const lines = raw.split("\n");
+  const counted = lines.filter(
+    (line, i) => line.trim() && !(i === 0 && !/^[ \t]/.test(line)),
+  );
+  if (!counted.length) return raw;
+  let prefix = /^[ \t]*/.exec(counted[0]!)![0];
+  for (const line of counted)
+    while (prefix && !line.startsWith(prefix)) prefix = prefix.slice(0, -1);
+  if (!prefix) return raw;
+  return lines
+    .map((line, i) =>
+      line.startsWith(prefix)
+        ? line.slice(prefix.length)
+        : i > 0 && !line.trim()
+          ? ""
+          : line,
+    )
+    .join("\n");
+}
+
+function lexTriple(source: string, at: number, quote: string): [Token, number] {
+  const close = source.indexOf(quote, at + 3);
+  if (close === -1)
+    return fail(
+      `Unterminated ${quote} string; close it with ${quote}.`,
+      at,
+      at + 3,
+    );
+  const raw = dedent(
+    source
       .slice(at + 3, close)
       .replace(/^[ \t]*\r?\n/, "")
-      .replace(/\r?\n[ \t]*$/, "");
-    return [{ t: "string", text: raw, start: at, end: close + 3 }, close + 3];
+      .replace(/\r?\n[ \t]*$/, ""),
+  );
+  return [{ t: "string", text: raw, start: at, end: close + 3 }, close + 3];
+}
+
+/**
+ * The closing quote of a string opened at `at`: the first unescaped `close`
+ * that a value boundary follows, so quotes inside the text stay text. The
+ * string may span lines but not run into a line that starts a new component.
+ * When no quote qualifies, the first one on the opening line closes it.
+ */
+function closingQuote(source: string, at: number, close: string): number {
+  let first = -1;
+  for (let i = at + 1; i < source.length; i++) {
+    const c = source[i]!;
+    if (c === "\\") {
+      i++;
+      continue;
+    }
+    if (c === "\n" && STATEMENT_LINE.test(source.slice(i, i + 200))) break;
+    if (c !== close) continue;
+    if (first === -1 && !source.slice(at, i).includes("\n")) first = i;
+    if (AFTER_STRING.test(source.slice(i + 1, i + 200))) return i;
   }
-  let i = at + 1;
-  while (i < source.length && source[i] !== '"') {
-    if (source[i] === "\n")
-      return fail(
-        'Unterminated string; strings stay on one line, so use \\n or a """ string for line breaks.',
-        at,
-        i,
-      );
-    i += source[i] === "\\" ? 2 : 1;
-  }
-  if (i >= source.length)
-    return fail("Unterminated string.", at, source.length);
-  let text: string;
-  try {
-    text = JSON.parse(source.slice(at, i + 1)) as string;
-  } catch {
-    return fail(ESCAPE_ERROR, at, i + 1);
-  }
-  return [{ t: "string", text, start: at, end: i + 1 }, i + 1];
+  return first;
+}
+
+function lexString(source: string, at: number): [Token, number] {
+  if (source.startsWith('"""', at)) return lexTriple(source, at, '"""');
+  if (source.startsWith("'''", at)) return lexTriple(source, at, "'''");
+  const open = source[at]!;
+  const end = closingQuote(source, at, open === '"' ? '"' : QUOTES[open]!);
+  if (end === -1)
+    return fail(
+      'Unterminated string; close it, or use a """ string for several lines.',
+      at,
+      source.indexOf("\n", at) === -1
+        ? source.length
+        : source.indexOf("\n", at),
+    );
+  const text = unescape(source.slice(at + 1, end).replace(/\r\n/g, "\n"));
+  return [{ t: "string", text, start: at, end: end + 1 }, end + 1];
 }
 
 /** Pull-based lexer: a lexical error surfaces only when the parser reaches that token. */
 class Lexer {
   private buffer: Token[] = [];
   private pos: number;
-  private readonly source: string;
+  readonly source: string;
   constructor(source: string, from: number) {
     this.source = source;
     this.pos = from;
@@ -114,19 +197,42 @@ class Lexer {
     while (this.buffer.length <= ahead) this.buffer.push(this.read());
     return this.buffer[ahead]!;
   }
+  /** Like peek, but a lexical error reads as null. */
+  look(ahead = 0): Token | null {
+    try {
+      return this.peek(ahead);
+    } catch (error) {
+      if (error instanceof Fail) return null;
+      throw error;
+    }
+  }
   next(): Token {
     const token = this.peek();
     if (token.t !== "eof") this.buffer.shift();
     return token;
   }
+  /** Discard buffered tokens and continue lexing at `offset`. */
+  seek(offset: number) {
+    this.buffer = [];
+    this.pos = offset;
+  }
+  private skipSpace() {
+    const { source } = this;
+    for (;;) {
+      while (/\s/.test(source[this.pos] ?? "x")) this.pos++;
+      if (!source.startsWith("//", this.pos)) return;
+      const eol = source.indexOf("\n", this.pos);
+      this.pos = eol === -1 ? source.length : eol;
+    }
+  }
   private read(): Token {
     const { source } = this;
-    while (/\s/.test(source[this.pos] ?? "x")) this.pos++;
+    this.skipSpace();
     const i = this.pos;
     if (i >= source.length)
       return { t: "eof", text: "", start: source.length, end: source.length };
     const c = source[i]!;
-    if (c === '"') {
+    if (c === '"' || c in QUOTES) {
       const [token, next] = lexString(source, i);
       this.pos = next;
       return token;
@@ -143,17 +249,15 @@ class Lexer {
       this.pos = i + text.length;
       return { t: "number", text, start: i, end: this.pos };
     }
-    if ("()[]{},:".includes(c)) {
+    if ("()[]{},:=;".includes(c)) {
       this.pos = i + 1;
-      return { t: "punct", text: c as "(", start: i, end: i + 1 };
+      return { t: "punct", text: c as PunctText, start: i, end: i + 1 };
     }
     if (c === "$")
       return fail(
         "Bindings ($name) are not supported; write a literal value.",
         i,
       );
-    if (c === "`" || c === "'")
-      return fail("Write strings with double quotes.", i);
     if (c === "-" || OPERATORS.includes(c))
       return fail(
         `Expressions are not supported ("${c}"); write a literal value.`,
@@ -161,6 +265,28 @@ class Lexer {
       );
     return fail(`Unexpected character "${c}".`, i);
   }
+}
+
+/**
+ * Unquoted text starting at `from`: raw source up to the unmatched bracket
+ * that closes its container, or a comma or line break that a new field or the
+ * closer follows. Commas inside the text therefore stay text.
+ */
+function looseEnd(source: string, from: number): number {
+  let depth = 0;
+  for (let i = from; i < source.length; i++) {
+    const c = source[i]!;
+    if ("([{".includes(c)) depth++;
+    else if (")]}".includes(c)) {
+      if (depth === 0) return i;
+      depth--;
+    } else if (depth === 0 && (c === "," || c === ";" || c === "\n")) {
+      const rest = source.slice(i + 1, i + 200);
+      if (/^\s*(?:[A-Za-z_]\w*\s*[:=]|[)\]}]|$)/.test(rest)) return i;
+      if (c === "\n" && /^[A-Za-z_]\w*[ \t]*\(/.test(rest)) return i;
+    }
+  }
+  return source.length;
 }
 
 /**
@@ -174,27 +300,18 @@ export function parseStatements(source: string): Statement[] {
   const callLine = /^[A-Za-z_]\w*[ \t]*\(/gm;
   let from = 0;
   for (;;) {
-    while (from < source.length && /\s/.test(source[from]!)) from++;
+    while (from < source.length && /[\s,;]/.test(source[from]!)) from++;
+    if (source.startsWith("//", from)) {
+      const eol = source.indexOf("\n", from);
+      from = eol === -1 ? source.length : eol;
+      continue;
+    }
     if (from >= source.length) return out;
     const lexer = new Lexer(source, from);
     const parser = new Parser(lexer);
     try {
-      const call = parser.statement();
-      const end = call.end;
-      let after: Token | null = null;
-      try {
-        after = lexer.peek();
-      } catch (error) {
-        // A lexical error in the next statement is reported with that statement.
-        if (!(error instanceof Fail)) throw error;
-      }
-      if (
-        after &&
-        after.t !== "eof" &&
-        !source.slice(end, after.start).includes("\n")
-      )
-        fail("Start each component on its own line.", after.start, after.end);
-      out.push({ ok: true, call, start: from, end });
+      const { calls, end } = parser.statement();
+      for (const call of calls) out.push({ ok: true, call, start: from, end });
       from = end;
     } catch (error) {
       if (!(error instanceof Fail)) throw error;
@@ -205,6 +322,14 @@ export function parseStatements(source: string): Statement[] {
     }
   }
 }
+
+const isTerminator = (t: Token | null, closer: string) =>
+  t !== null &&
+  (t.t === "eof" ||
+    (t.t === "punct" &&
+      (t.text === "," || t.text === ";" || t.text === closer)));
+const isSeparator = (t: Token | null) =>
+  t?.t === "punct" && (t.text === ":" || t.text === "=");
 
 class Parser {
   private readonly lexer: Lexer;
@@ -220,6 +345,9 @@ class Parser {
   private isPunct(text: string): boolean {
     return this.peek.t === "punct" && this.peek.text === text;
   }
+  private skipCommas() {
+    while (this.isPunct(",") || this.isPunct(";")) this.next();
+  }
   private expect(text: string, after: string): Token {
     if (!this.isPunct(text)) {
       const t = this.peek;
@@ -233,20 +361,30 @@ class Parser {
     }
     return this.next();
   }
-  statement(): CallNode {
+  /** A call, or a JSON-style object or list of objects whose `type` names each component. */
+  statement(): { calls: CallNode[]; end: number } {
     const t = this.peek;
+    if (t.t === "punct" && (t.text === "{" || t.text === "[")) {
+      const value = this.value(t.text === "{" ? "}" : "]");
+      const items = value.kind === "list" ? value.items : [value];
+      return {
+        calls: items.map((item) => typedObjectCall(item) ?? notComponent(item)),
+        end: value.end,
+      };
+    }
     if (t.t !== "ident")
       return fail(
         "Start a component with its name, as in name(key: value).",
         t.start,
         Math.max(t.end, t.start + 1),
       );
-    return this.call();
+    const call = this.call();
+    return { calls: [call], end: call.end };
   }
   private call(): CallNode {
     const name = this.next();
     this.expect("(", `after "${name.text}"`);
-    const args = this.fields(")", "an argument", name.text);
+    const args = this.fields(")", name.text);
     const close = this.expect(")", `to close ${name.text}(`);
     return {
       kind: "call",
@@ -257,9 +395,14 @@ class Parser {
       end: close.end,
     };
   }
-  /** `key: value, …` up to the closer; used by calls (named args) and objects. */
-  private fields(closer: ")" | "}", what: string, owner?: string): Field[] {
+  /**
+   * `key: value` entries up to the closer, for calls and objects. A value with
+   * no key before it is positional; a key that directly follows a value is
+   * read as if a comma separated them.
+   */
+  private fields(closer: ")" | "}", owner?: string): Field[] {
     const fields: Field[] = [];
+    this.skipCommas();
     while (!this.isPunct(closer)) {
       const key = this.peek;
       if (key.t === "eof")
@@ -267,38 +410,33 @@ class Parser {
           `Expected "${closer}" ${owner ? `to close ${owner}(` : "to close the object"}, found the end of the component.`,
           key.start,
         );
-      const isKey = key.t === "ident" || (closer === "}" && key.t === "string");
-      if (!isKey)
-        return fail(
-          closer === ")"
-            ? `Arguments must be named: write ${owner ?? "name"}(field: value). Found ${describe(key)} where ${what} should begin.`
-            : `Object keys are names, as in {name: value}; found ${describe(key)}.`,
-          key.start,
-          Math.max(key.end, key.start + 1),
-        );
-      this.next();
-      if (!this.isPunct(":"))
-        return fail(
-          closer === ")"
-            ? `Arguments must be named: write "${key.text}: value"; "${key.text}" has no ":" after it.`
-            : `Expected ":" after the key "${key.text}".`,
-          this.peek.start,
-          Math.max(this.peek.end, this.peek.start + 1),
-        );
-      this.next();
-      const value = this.value();
-      fields.push({
-        key: key.text,
-        keySpan: { start: key.start, end: key.end },
-        value,
-      });
-      if (this.isPunct(",")) this.next();
-      else if (!this.isPunct(closer)) {
+      const named =
+        (key.t === "ident" || key.t === "string") &&
+        isSeparator(this.lexer.look(1));
+      if (named) {
+        this.next();
+        this.next();
+        const value = this.value(closer);
+        fields.push({
+          key: key.text,
+          keySpan: { start: key.start, end: key.end },
+          value,
+        });
+      } else {
+        const value = this.value(closer);
+        fields.push({
+          key: null,
+          keySpan: { start: value.start, end: value.end },
+          value,
+        });
+      }
+      if (this.isPunct(",") || this.isPunct(";")) this.skipCommas();
+      else if (!this.isPunct(closer) && !this.startsValue()) {
         const t = this.peek;
         return fail(
           t.t === "eof"
             ? `Expected "," or "${closer}", found the end of the component.`
-            : `Expected "," or "${closer}" after the value of "${key.text}".`,
+            : `Expected "," or "${closer}" after the value${named ? ` of "${key.text}"` : ""}.`,
           t.start,
           Math.max(t.end, t.start + 1),
         );
@@ -306,19 +444,69 @@ class Parser {
     }
     return fields;
   }
-  private value(): Node {
+  /** Whether the next token can begin another entry, for a missing comma. */
+  private startsValue(): boolean {
     const t = this.peek;
+    return (
+      t.t === "ident" ||
+      t.t === "string" ||
+      t.t === "number" ||
+      (t.t === "punct" && (t.text === "[" || t.text === "{"))
+    );
+  }
+  /** Unquoted text from `start`, read as raw source. */
+  private loose(start: number): Node {
+    const { source } = this.lexer;
+    const end = looseEnd(source, start);
+    const value = source.slice(start, end).trim();
+    const stop = start + source.slice(start, end).trimEnd().length;
+    this.lexer.seek(stop);
+    return { kind: "word", value, start, end: stop };
+  }
+  /**
+   * Whether the token after a word or number continues the same unquoted
+   * text rather than ending the value or starting the next field.
+   */
+  private continuesText(closer: string): boolean {
+    const after = this.lexer.look(1);
+    if (isTerminator(after, closer)) return false;
+    if (after && (after.t === "ident" || after.t === "string")) {
+      const then = this.lexer.look(2);
+      if (isSeparator(then)) return false;
+    }
+    return true;
+  }
+  private value(closer: string): Node {
+    let t: Token;
+    try {
+      t = this.peek;
+    } catch (error) {
+      if (!(error instanceof Fail)) throw error;
+      const at = error.info.start;
+      if (LOOSE_START.test(this.lexer.source[at] ?? "")) return this.loose(at);
+      throw error;
+    }
     const span = { start: t.start, end: t.end };
     switch (t.t) {
       case "string":
         this.next();
         return { kind: "string", value: t.text, ...span };
       case "number":
+        if (this.continuesText(closer)) return this.loose(t.start);
         this.next();
         return { kind: "number", value: Number(t.text), ...span };
       case "ident": {
-        const ahead = this.lexer.peek(1);
-        if (ahead.t === "punct" && ahead.text === "(") return this.call();
+        const ahead = this.lexer.look(1);
+        if (ahead?.t === "punct" && ahead.text === "(" && ahead.start === t.end)
+          return this.call();
+        if (ahead?.t === "punct" && ahead.text === "(") {
+          // `name (` is a call only when the name could be one; otherwise text.
+          const lexer = this.lexer;
+          const after = lexer.source.slice(ahead.end).trimStart();
+          if (/^(?:[A-Za-z_]\w*\s*[:=]|\)|[[{"])/.test(after))
+            return this.call();
+        }
+        if (this.continuesText(closer)) return this.loose(t.start);
         this.next();
         if (t.text === "true" || t.text === "false")
           return { kind: "boolean", value: t.text === "true", ...span };
@@ -339,15 +527,16 @@ class Parser {
   private list(): Node {
     const open = this.next();
     const items: Node[] = [];
+    this.skipCommas();
     while (!this.isPunct("]")) {
       if (this.peek.t === "eof")
         return fail(
           'Expected "]" to close the list, found the end of the component.',
           this.peek.start,
         );
-      items.push(this.value());
-      if (this.isPunct(",")) this.next();
-      else if (!this.isPunct("]"))
+      items.push(this.value("]"));
+      if (this.isPunct(",") || this.isPunct(";")) this.skipCommas();
+      else if (!this.isPunct("]") && !this.startsValue())
         return fail(
           'Expected "," or "]" in the list.',
           this.peek.start,
@@ -359,18 +548,46 @@ class Parser {
   }
   private object(): Node {
     const open = this.next();
-    const fields = this.fields("}", "a key");
+    const fields = this.fields("}");
     const close = this.expect("}", "to close the object");
     return { kind: "object", fields, start: open.start, end: close.end };
   }
 }
 
-function describe(t: Token): string {
-  return t.t === "string"
-    ? "a string"
-    : t.t === "number"
-      ? "a number"
-      : t.t === "punct"
-        ? `"${t.text}"`
-        : "something else";
+/**
+ * A JSON-style component, `{"type": "name", …}`, as the call it stands for;
+ * nested values that are typed objects become calls too, so a group's
+ * children read the same way.
+ */
+function typedObjectCall(node: Node): CallNode | null {
+  if (node.kind !== "object") return null;
+  const type = node.fields.find(
+    (f) =>
+      f.key === "type" &&
+      (f.value.kind === "string" || f.value.kind === "word"),
+  );
+  if (!type) return null;
+  const name = (type.value as { value: string }).value;
+  return {
+    kind: "call",
+    name,
+    nameSpan: { start: type.value.start, end: type.value.end },
+    args: node.fields
+      .filter((f) => f !== type)
+      .map((f) => ({ ...f, value: typedValue(f.value) })),
+    start: node.start,
+    end: node.end,
+  };
+}
+function typedValue(node: Node): Node {
+  if (node.kind === "list")
+    return { ...node, items: node.items.map(typedValue) };
+  return typedObjectCall(node) ?? node;
+}
+function notComponent(node: Node): never {
+  return fail(
+    'A JSON component needs a "type" naming the component.',
+    node.start,
+    node.end,
+  );
 }

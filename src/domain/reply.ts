@@ -7,9 +7,8 @@ import type { Heading, List, ListItem, Nodes, Root, RootContent } from "mdast";
 import { z } from "zod";
 import { compileComponents } from "./replyCompile.ts";
 import {
-  COMPONENT_FENCE,
   componentText,
-  replyComponentSchema,
+  isComponentFence,
   replyPartSchema,
   type ReplyPart,
 } from "./replyComponents.ts";
@@ -125,32 +124,11 @@ function codeClosed(source: string): boolean {
 }
 
 /**
- * One fence holds one or more compact-syntax statements. A fence whose content
- * is a JSON object is read as one JSON component, the form earlier replies
- * were stored in.
+ * One fence holds one or more compact-syntax statements, or a JSON component
+ * object, the form earlier replies were stored in; both read through the same
+ * forgiving compiler.
  */
 export function compileFence(content: string, raw: string): ReplyPart[] {
-  if (/^\s*\{/.test(content)) {
-    try {
-      const parsed = replyComponentSchema.safeParse(JSON.parse(content));
-      if (parsed.success) return [parsed.data];
-      return [
-        {
-          type: "unparsed",
-          source: raw,
-          error: `Component not displayed: ${parsed.error.issues[0]?.message ?? "invalid fields"}`,
-        },
-      ];
-    } catch {
-      return [
-        {
-          type: "unparsed",
-          source: raw,
-          error: "Component not displayed: the JSON object is malformed.",
-        },
-      ];
-    }
-  }
   const compiled = compileComponents(content);
   if (!compiled.length)
     return [
@@ -252,7 +230,7 @@ export function parse(
         const next = tree.children[i + 1]!;
         if (
           next.type === "leafDirective" ||
-          (next.type === "code" && next.lang === COMPONENT_FENCE)
+          (next.type === "code" && isComponentFence(next.lang))
         )
           break;
         nodes.push(tree.children[++i]!);
@@ -267,7 +245,7 @@ export function parse(
         const next = tree.children[i + 1]!;
         if (
           next.type === "leafDirective" ||
-          (next.type === "code" && next.lang === COMPONENT_FENCE)
+          (next.type === "code" && isComponentFence(next.lang))
         )
           break;
         nodes.push(tree.children[++i]!);
@@ -282,7 +260,7 @@ export function parse(
       body.push({ type: "directive", source: slice([node], source) });
       continue;
     }
-    if (node.type === "code" && node.lang === COMPONENT_FENCE) {
+    if (node.type === "code" && isComponentFence(node.lang)) {
       flush();
       const raw = slice([node], source);
       if (!codeClosed(raw)) {

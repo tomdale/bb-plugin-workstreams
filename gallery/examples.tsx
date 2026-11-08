@@ -234,12 +234,25 @@ const replyParts = [
     title: "Example delivery",
     scope: "Synthetic stages, not the status of this repository.",
     stages: [
-      { name: "Local build", status: "done" },
+      {
+        name: "Local build",
+        status: "done",
+        detail: "Plugin and Gallery bundles built.",
+        evidence: [
+          { label: "Build log", location: "https://example.com/build" },
+        ],
+      },
       {
         name: "Live installation",
         status: "pending",
         detail: "No plugin is installed by this playground.",
       },
+      {
+        name: "Pushed",
+        status: "blocked",
+        detail: "Waits for the installation to finish.",
+      },
+      { name: "Release notes", status: "unknown" },
     ],
   },
   {
@@ -402,7 +415,7 @@ export const examples: GalleryExample[] = [
     title: "Reply vocabulary",
     group: "Components",
     description:
-      "All ten information components through PlainBody; Change and Checks follow the recap card, with synthetic totals and statuses.",
+      "All ten information components through PlainBody; Change, Checks, and Delivery follow the recap card, with synthetic totals and statuses.",
     source: `import { PlainBody } from "../src/app/reply/PlainBody";\nimport type { ReplyComponent } from "../src/domain/replyComponents";\n\n// The selector changes this part; PlainBody renders the selected vocabulary.\nconst part: ReplyComponent = ${JSON.stringify(
       replyParts.find((item) => item.type === "change"),
       null,

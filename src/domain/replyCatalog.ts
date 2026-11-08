@@ -143,8 +143,16 @@ export function signatureLines(): string[] {
   ];
 }
 
-/** The closest known name within a small edit distance, for "did you mean". */
-export function nearest(word: string, candidates: string[]): string | null {
+/**
+ * The closest known name within a small edit distance, for "did you mean".
+ * With `unique`, a tie between two equally close names yields null, so a
+ * repair never guesses between them.
+ */
+export function nearest(
+  word: string,
+  candidates: string[],
+  unique = false,
+): string | null {
   const distance = (a: string, b: string) => {
     const row = Array.from({ length: b.length + 1 }, (_, i) => i);
     for (let i = 1; i <= a.length; i++) {
@@ -162,14 +170,16 @@ export function nearest(word: string, candidates: string[]): string | null {
     }
     return row[b.length]!;
   };
-  let best: [string, number] | null = null;
+  let best: [string, number] | null = null,
+    tied = false;
   for (const candidate of candidates) {
     const d = distance(word, candidate);
-    if (
-      d <= Math.max(2, Math.floor(candidate.length / 3)) &&
-      (!best || d < best[1])
-    )
+    if (d > Math.max(2, Math.floor(candidate.length / 3))) continue;
+    if (best && d === best[1]) tied = true;
+    else if (!best || d < best[1]) {
       best = [candidate, d];
+      tied = false;
+    }
   }
-  return best?.[0] ?? null;
+  return unique && tied ? null : (best?.[0] ?? null);
 }

@@ -72,47 +72,47 @@ describe("compact component syntax", () => {
   });
 
   it("locates errors by line and column", () => {
-    expect(error('change(\n  titel: "T",\n)')).toBe(
-      'Component not displayed (line 2, col 3): change has no field "titel"; did you mean "title"?',
+    expect(
+      error('change(\n  title: "T",\n  before: "B",\n  after: "A" + "B"\n)'),
+    ).toBe(
+      'Component not displayed (line 4, col 14): Expressions are not supported ("+"); write a literal value.',
     );
-    expect(error('chnge(title: "T")')).toContain('did you mean "change"?');
+    expect(error('chnge(title: "T")')).toContain(
+      'change is missing required field "before"',
+    );
     expect(
       error(
-        'checks(title: "T", scope: "S", items: [{name: "N", status: pasd}])',
+        'checks(title: "T", scope: "S", items: [{name: "N", status: zzz}])',
       ),
-    ).toContain("did you mean passed?");
-    expect(
-      error(
-        'checks(title: "T", scope: "S", items: [{name: "N", staus: passed}])',
-      ),
-    ).toContain('has no field "staus"; did you mean "status"?');
+    ).toContain("line 1, col 60");
   });
 
-  it("requires named arguments", () => {
-    expect(error('text("hello")')).toContain("Arguments must be named");
+  it("names the argument a bare field name stands for", () => {
     expect(error("text(body)")).toContain('write "body: value"');
+    expect(error('text(body: "a", "extra")')).toContain(
+      "no field of text is left",
+    );
   });
 
-  it("rejects expressions, templates, and bindings as unsupported", () => {
+  it("rejects expressions and bindings as unsupported", () => {
     expect(error('text(body: "a" + "b")')).toContain(
       "Expressions are not supported",
     );
     expect(error("text(body: $x)")).toContain("Bindings");
-    expect(error("text(body: `x`)")).toContain("double quotes");
   });
 
-  it("names type and value mismatches", () => {
-    expect(error("text(body: hello)")).toContain('quote it as "hello"');
-    expect(error("text(body: 3)")).toContain("must be text");
+  it("names type and value mismatches that no repair can resolve", () => {
     expect(
       error(
-        'checks(title: "T", scope: "S", items: [{name: "N", status: done}])',
+        'checks(title: "T", scope: "S", items: [{name: "N", status: sideways}])',
       ),
     ).toContain("must be one of passed|failed|skipped|blocked|untested");
     expect(error('comparison(title: "T", items: [])')).toContain(
       "needs at least",
     );
-    expect(error('text(type: "x", body: "b")')).toContain('takes no "type"');
+    expect(error('details(title: "T", body: {a: "b"})')).toContain(
+      'must be text in "quotes", found an object',
+    );
   });
 
   it("reports unclosed and unterminated input at the failing token", () => {
@@ -120,26 +120,21 @@ describe("compact component syntax", () => {
     expect(error('text(body: "a')).toContain("Unterminated string");
   });
 
-  it("validates group children individually and forbids nested groups", () => {
+  it("validates group children individually", () => {
     expect(
       error(
         'group(relationship: peers, children: [text(body: "a"), retiredComponent(value: "x")])',
       ),
     ).toContain('Unknown component "retiredComponent"');
-    expect(
-      error(
-        'group(relationship: peers, children: [text(body: "a"), group(relationship: peers, children: [])])',
-      ),
-    ).toContain("cannot contain another group");
   });
 
   it("keeps the source, a reason, and the surrounding prose for a bad fence", () => {
     const data = read(
-      ":::reply\nBefore.\n\n```workstreams\ntext(oops)\n```\n\nAfter.\n:::\n",
+      ":::reply\nBefore.\n\n```workstreams\ntext(body: $oops)\n```\n\nAfter.\n:::\n",
     );
     expect(data.body.map((p) => p.type)).toEqual(["text", "unparsed", "text"]);
     expect(data.body[1]).toMatchObject({
-      source: "```workstreams\ntext(oops)\n```",
+      source: "```workstreams\ntext(body: $oops)\n```",
       error: expect.stringContaining("line 1, col"),
     });
   });
