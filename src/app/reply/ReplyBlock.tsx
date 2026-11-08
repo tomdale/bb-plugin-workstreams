@@ -3,13 +3,14 @@ import { Markdown, useSdk, useBbNavigate } from "@get-bb/plugin-sdk/app";
 import type { ExperimentalMessageBlockProps } from "@get-bb/plugin-sdk/app";
 import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
 import { recapHostFileLink } from "../../domain/recapFileLinks.ts";
-import { CARD_LABELS, replySchema, type Reply } from "../../domain/reply.ts";
+import { replySchema, type Reply } from "../../domain/reply.ts";
 import { useDebugMode } from "../debug/debug.ts";
 import { useGoalContext } from "../goalContext.ts";
 import { workstreamColorStyle } from "../../domain/workstreamColor.ts";
-import { PLAIN_LIST_CLASS, PlainBody, PlainMarkdown } from "./PlainBody.tsx";
+import { PlainBody, PlainMarkdown } from "./PlainBody.tsx";
 import { ReplyDebug, useAssistantMessageText } from "./ReplyDebug.tsx";
 import { useDockedTurn } from "./useDockedTurn.ts";
+import { LegacyCard, legacyStateWord } from "./LegacyCard.tsx";
 import { BODY_CLASS } from "./type.ts";
 
 type Document = ComponentProps<typeof Markdown>["experimental_document"];
@@ -147,6 +148,16 @@ export function ReplyBlock({
         }
       }}
     >
+      {/* An old reply keeps the card's state as a small muted line above what
+          it reports, rather than as a second card in the transcript. */}
+      {showCard && card ? (
+        <p
+          data-reply-legacy-state={card.state}
+          className="m-0 text-[11px] font-medium leading-[17.6px] text-muted-foreground"
+        >
+          {legacyStateWord(card.state)}
+        </p>
+      ) : null}
       {title ? md(`# ${title}`) : null}
       {body.map((part, i) => (
         <PlainBody
@@ -156,41 +167,7 @@ export function ReplyBlock({
           files={workspace?.files ?? null}
         />
       ))}
-      {showCard && card ? (
-        <>
-          <p>
-            {card.state === "complete"
-              ? "Complete"
-              : card.state === "review"
-                ? "Ready for review"
-                : card.state === "waiting"
-                  ? "Waiting"
-                  : card.state}
-          </p>
-          {card.results.length ? (
-            <ul className={`${PLAIN_LIST_CLASS} list-disc`}>
-              {card.results.map((item, i) => (
-                <li key={i}>
-                  {item.checked === false ? <p>Not done:</p> : null}
-                  {md(item.markdown)}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {(["review", "waitingOn", "links"] as const)
-            .filter((key) => card[key].length)
-            .map((key) => (
-              <div key={key}>
-                {md(`### ${CARD_LABELS[key]}`)}
-                <ul className={`${PLAIN_LIST_CLASS} list-disc`}>
-                  {card[key].map((line, i) => (
-                    <li key={i}>{md(line)}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-        </>
-      ) : null}
+      {showCard && card ? <LegacyCard card={card} md={md} /> : null}
       {debug ? (
         <ReplyDebug source={rawSource} status={status} error={error} />
       ) : null}

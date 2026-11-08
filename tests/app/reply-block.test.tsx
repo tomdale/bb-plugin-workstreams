@@ -657,7 +657,10 @@ it.each([
       shown,
     );
     expect(view.container.textContent).toContain("A full explanation.");
-    expect(view.container.textContent).not.toContain("Do the next thing");
+    // The card's own Next row is drawn with the rest of its fields, not dropped.
+    expect(view.container.textContent?.includes("Do the next thing")).toBe(
+      shown,
+    );
     expect(view.container.querySelector("footer, button, article")).toBeNull();
   },
 );
@@ -676,6 +679,47 @@ it.each([
     await screen.findByText(label);
   },
 );
+
+const legacy =
+  ':::reply{state="review"}\n# The queue cap holds at two cards\n- [x] Held keys move one card per press\n- [ ] Check the settle timing on a display\n\nAn explanation of the change.\n\n### Review\n- Hold ↓ on a queue of four\n\n### Waiting on\n- The staging server\n\n### Links\n- [Motion fixture](https://example.com/motion.test.ts)\n\n### Next\n- Try it on your display\n:::\n';
+
+it("draws an old reply's card fields as labelled rows, with no card", async () => {
+  const view = draw(legacy);
+  await screen.findByText("Ready for review");
+  // The state is a small muted line, above everything the reply says.
+  const state = view.container.querySelector("[data-reply-legacy-state]")!;
+  expect(state.className).toContain("text-[11px]");
+  expect(state.className).toContain("text-muted-foreground");
+  const block = view.container.querySelector("[data-reply-block]")!;
+  expect(block.firstElementChild).toBe(state);
+  // The card's own rows are labels beside their values, and Next is restored.
+  expect(
+    [...view.container.querySelectorAll("[data-reply-legacy-row]")].map((row) =>
+      row.getAttribute("data-reply-legacy-row"),
+    ),
+  ).toEqual(["done", "review", "waiting-on", "links", "next"]);
+  expect(view.container.textContent).toContain("Held keys move one card");
+  expect(view.container.textContent).toContain("Hold ↓ on a queue of four");
+  expect(view.container.textContent).toContain("The staging server");
+  expect(view.container.textContent).toContain("Try it on your display");
+  // No box, no tint, no actions: a second card in the transcript would look
+  // like the live one and would not be clickable.
+  expect(
+    view.container.querySelector(
+      "[data-reply-panel], footer, button, [class*='--ws-review']",
+    ),
+  ).toBeNull();
+});
+
+it.each([
+  ["complete", "Complete"],
+  ["review", "Ready for review"],
+  ["waiting", "Waiting"],
+  ["ready", "ready"],
+] as const)("reads a %s card state as its own words", async (state, word) => {
+  draw(`:::reply{state="${state}"}\n# A headline\n\nAn explanation.\n:::\n`);
+  expect(await screen.findByText(word)).toBeDefined();
+});
 
 it("does not duplicate a headline-only answer while its card is docked", async () => {
   const view = draw(
