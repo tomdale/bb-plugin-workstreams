@@ -228,6 +228,15 @@ describe("composed replies", () => {
     expect(lastReplyBlock(`Lead.\n\n${message}`)?.status).toBe("closed");
   });
 
+  it("reads a block whose closing line ends in punctuation", () => {
+    for (const closer of [":::.", ":::!", "::::."])
+      expect(
+        onlyReplyBlock(
+          `${closer.length > 4 ? "::::" : ":::"}reply\nAn answer.\n${closer}`,
+        )?.status,
+      ).toBe("closed");
+  });
+
   it("keeps a literal ::: line with a longer outer marker", () => {
     const data = read("::::reply\n```md\n:::\n```\n::::\n");
     expect(data.body).toEqual([{ type: "text", body: "```md\n:::\n```" }]);

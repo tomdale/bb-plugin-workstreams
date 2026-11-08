@@ -88,18 +88,20 @@ export function readBlock(
 }
 
 /**
- * Models occasionally append zero-width characters after a marker line, which
- * leaves `:::` unclosed for the Markdown parser. The server reads messages
- * with them removed from line ends; bb's own renderer is not affected by this.
+ * Models occasionally end a marker line with a zero-width character or a
+ * sentence's closing punctuation (`:::.`), which leaves the block unclosed for
+ * the Markdown parser. The server reads messages with those removed; bb's own
+ * renderer is not affected by this.
  */
 const LINE_END_INVISIBLES =
   /[\u200b-\u200d\u2060\ufeff]+(?=[ \t]*(?:\r?\n|$))/g;
-const withoutLineEndInvisibles = (message: string) =>
-  message.replace(LINE_END_INVISIBLES, "");
+const MARKER_PUNCTUATION = /^([ \t]*:{3,})[.,;!?]+[ \t]*$/gm;
+const normalizeMarkers = (message: string) =>
+  message.replace(LINE_END_INVISIBLES, "").replace(MARKER_PUNCTUATION, "$1");
 
 /** The server can recover the last top-level reply despite stray text around it. */
 export function lastReplyBlock(raw: string): ReplyBlockInput | null {
-  const message = withoutLineEndInvisibles(raw);
+  const message = normalizeMarkers(raw);
   const root = parseReplyMarkdown(message);
   for (const node of [...root.children].reverse()) {
     const block = readBlock(node, message);
@@ -110,7 +112,7 @@ export function lastReplyBlock(raw: string): ReplyBlockInput | null {
 
 /** Authored output is one top-level reply, with no other Markdown outside it. */
 export function onlyReplyBlock(raw: string): ReplyBlockInput | null {
-  const message = withoutLineEndInvisibles(raw);
+  const message = normalizeMarkers(raw);
   const root = parseReplyMarkdown(message);
   return root.children.length === 1
     ? readBlock(root.children[0], message)
