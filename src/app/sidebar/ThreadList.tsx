@@ -40,7 +40,6 @@ import {
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
-import { WORKSTREAM_ICON } from "../workstream-icon.ts";
 import { cn } from "@/lib/utils";
 import {
   MENU_ITEM_CLASS,
@@ -861,9 +860,11 @@ export function WorkstreamsThreadList({
       dormantGroups.length +
       projection.unsorted.total >
     0;
+  const suggestionCount = ws.server.pendingSuggestions ?? 0;
   /**
-   * The heading over the workstreams, holding their sort. Not a region:
-   * each workstream below is one.
+   * The heading over the workstreams, holding their sort and, while
+   * organizing suggestions wait for review, the action that opens them.
+   * Not a region: each workstream below is one.
    */
   const workstreamsHeading = hasWorkstreams ? (
     <div
@@ -876,9 +877,30 @@ export function WorkstreamsThreadList({
         paddingLeft: SIDEBAR_GEOMETRY.sectionHeading.leftInset,
       }}
     >
-      <h2 className="ws-text-section flex min-w-0 flex-1 items-center text-muted-foreground">
+      <h2 className="ws-text-section flex min-w-0 items-center text-muted-foreground">
         Workstreams
       </h2>
+      {suggestionCount > 0 ? (
+        <Hint
+          label={
+            suggestionCount === 1
+              ? "1 organizing suggestion"
+              : `${suggestionCount} organizing suggestions`
+          }
+        >
+          <button
+            type="button"
+            onClick={() =>
+              navigate.toPluginPanel("home", { subPath: "organization" })
+            }
+            className="ws-needs-you-text flex shrink-0 cursor-pointer items-center gap-1 rounded-sm px-1 text-[11px] leading-[1.2] font-medium hover:bg-sidebar-accent/60"
+          >
+            <Icon name="MagicWand01" className="size-3" aria-hidden />
+            Reorganize
+          </button>
+        </Hint>
+      ) : null}
+      <div className="flex-1" />
       <SidebarViewOptionsMenu
         sort={groupSort}
         onChange={(groupSort) =>
@@ -1013,24 +1035,6 @@ export function WorkstreamsThreadList({
               })}
             </SortableContext>
           </Band>
-        ) : null}
-        {(ws.server.pendingSuggestions ?? 0) > 0 ? (
-          <button
-            type="button"
-            onClick={() =>
-              navigate.toPluginPanel("home", { subPath: "organization" })
-            }
-            className="mx-1 flex h-7 items-center gap-1.5 rounded-md px-2 text-left text-xs text-muted-foreground hover:bg-state-hover hover:text-foreground"
-          >
-            <Icon
-              name={WORKSTREAM_ICON}
-              className="size-3.5 shrink-0"
-              aria-hidden
-            />
-            {ws.server.pendingSuggestions === 1
-              ? "1 organizing suggestion"
-              : `${ws.server.pendingSuggestions} organizing suggestions`}
-          </button>
         ) : null}
       </div>
     </div>

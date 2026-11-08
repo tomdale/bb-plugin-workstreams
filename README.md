@@ -296,7 +296,8 @@ recurring category names do not create child topics.
 ### 5. Organizing suggestions
 
 Workstreams proposes changes to the topic tree and applies them only when you
-accept them, on **Organization** (a sidebar notice links there) or with
+accept them, on **Organization** (the **Reorganize** action on the Workstreams
+heading links there while suggestions wait) or with
 `bb workstreams suggestions`. Suggestions and categories use the **Organization
 model** (default `anthropic/claude-sonnet-5.5`, reasoning `medium`). Turning off
 organizing suggestions does not disable automatic categories.
@@ -420,6 +421,8 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      only while the header lists threads.
    - Use the **Sort workstreams** menu to order workstreams by **Name A–Z**,
      **Recent activity**, or **Manual order** (drag headers within their tier).
+   - While organizing suggestions wait for review, **Reorganize** appears on the
+     **Workstreams** heading and opens them.
    - Drag a root thread to another workstream to set its **Topic** to that
      workstream's topic; its delegates follow it. Drop on a row to place it
      before or after that root, or on a header to place it first, including a
@@ -435,8 +438,7 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    - Drag root threads within a workstream to set manual thread order (newly
      created roots appear at the top of their workstream; newly created
      workstreams appear at the bottom).
-3. **Unfiled:** Roots with no topic assignment. Below the groups, a notice
-   counts organizing suggestions waiting for you and opens them.
+3. **Unfiled:** Roots with no topic assignment.
 4. **Dormant:** Unfocused workstreams with no activity in the last `30` days and
    nothing waiting on you.
 5. **Recent, Snoozed, and Archived bands:**
