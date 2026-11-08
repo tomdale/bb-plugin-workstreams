@@ -17,16 +17,16 @@ natural preset's.
 
 | #   | Goal                                                                                                                                  | Checked by (`npm run suite`)                                             | Natural preset, 60 Hz                                   | Cascade `default`, 60 Hz                                                         |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| G1  | No card visibly passes through another: draw order changes only while two cards are apart, or a third card covers where they overlap. | `problems`, swap kind                                                    | 0 in every scenario                                     | 0 in every scenario, and no draw-order change among painted cards (natural: 813) |
+| G1  | No card visibly passes through another: draw order changes only while two cards are apart, or a third card covers where they overlap. | `problems`, swap kind                                                    | 0 in every scenario                                     | 0 in every scenario, and no draw-order change among painted cards (natural: 791) |
 | G2  | Every landing slows into rest.                                                                                                        | landing speed, px/frame over the last 5 frames                           | 1.8                                                     | same                                                                             |
 | G3  | Position and velocity stay continuous when a press reverses a move in flight.                                                         | reversal ↑↓↑ max jump and problems                                       | 24.1 px, 0 problems                                     | 24.0 px, 0 problems                                                              |
-| G4  | ↑ and ↓ run at the same pace and with the same quality.                                                                               | held ↑ and ↓ cards/s                                                     | 5.5 and 5.5                                             | 10.8 and 10.8                                                                    |
+| G4  | ↑ and ↓ run at the same pace and with the same quality.                                                                               | held ↑ and ↓ cards/s                                                     | 5.0 and 5.2                                             | 10.8 and 10.8                                                                    |
 | G5  | The first visible change comes within a frame of a press.                                                                             | first visible change                                                     | 16.7 ms                                                 | same                                                                             |
 | G6  | A held key can speed up, with every card still reaching the front.                                                                    | held cards/s per preset                                                  | up to 10.1 and 10.8 (`fold`)                            | 10.8 and 10.8, with no fold                                                      |
 | G7  | A single tap is a full, readable move.                                                                                                | tap ↑ lands, tap ↓ settles                                               | 483 ms and 217 ms                                       | 550 ms and 217 ms                                                                |
 | G8  | Tall and short cards in any order show no ghost, no half-covered text, and no two cards' text in the same pixels.                     | `problems` over three height sets, one of them alternating 330 and 73 px | 0                                                       | 0 problems; a held ↓ covers part of the next card's text (Costs)                 |
 | G9  | Releasing the key rests on a whole card, with at most one more card after the release.                                                | release: rests on a card / extra cards                                   | all / 1                                                 | same                                                                             |
-| G10 | One mechanism, small enough to test with invariants.                                                                                  | line count                                                               | `drum.ts` 566 lines with comments; `stackEngine.ts` 401 | `cascade.ts` 406 lines with comments                                             |
+| G10 | One mechanism, small enough to test with invariants.                                                                                  | line count                                                               | `drum.ts` 696 lines with comments; `stackEngine.ts` 404 | `cascade.ts` 406 lines with comments                                             |
 | G11 | The heading and counter stay outside the motion.                                                                                      | by construction                                                          | the page swaps their text                               | same                                                                             |
 | G12 | Reduced motion is calm.                                                                                                               | by construction                                                          | no card moves; the new front fades in over 160 ms       | same                                                                             |
 
@@ -76,7 +76,7 @@ A press is taken once every card in transit has passed its flip. The leaving
 card has to drop until it clears the card it uncovers, so a step takes as long
 as that card is tall: single ↓ presses reach the flip in 117 ms over a 92 px
 card and 267 ms over a 330 px card (`singles` in `sim/lib.mjs`). A held key
-therefore runs at 100 to 300 ms per card on the mixed height sets, and one step
+therefore runs at 100 to 367 ms per card on the three height sets, and one step
 can take three times as long as the one before it. One press may wait for the
 gate. A press that arrives while another waits is dropped, so a release rests on
 a whole card with at most one more card after it (G9).
@@ -121,9 +121,9 @@ both read λ.
   `scale × (60 + 0.62·h)` ms, which is 105 ms for the 73 px card and 265 ms for
   the 330 px card at scale 1 (`npm run sweep -- limits`). The estimate is a fit
   to single ↓ presses that `↑` shares without a separate measurement. At scale
-  0.5, `even` runs at 5.5 / 5.3 cards/s, within 0.2 of `natural`, and a smaller
+  0.5, `even` runs at 5.0 / 5.1 cards/s, within 0.1 of `natural`, and a smaller
   scale gives `natural`'s pace because the trips outlast the plan. The even pace
-  costs speed: `even` runs 28% below `natural`.
+  costs speed: `even` runs 23 % below `natural`.
 - **`ramp`** stiffens the springs (3 to 4.5 Hz) and raises the edge budget (24
   to 30 px/frame) with λ. Alone it raises the pace to 5.9 / 6.5 cards/s with no
   checker problems, but the intervals run 83–350 ms and the worst step-to-step
@@ -142,8 +142,8 @@ both read λ.
   position: its wash goes to nothing at once and its shade falls at that rate.
   At 8 per second a returning card that starts at a shade of 0.66 is whole in
   about 80 ms, where before it followed its path and took about 200 ms. The rate
-  is the limit: at 8.5 the checker is clean and at 9 a fade changes by more than
-  0.2 in a frame (16 flickers in taps), so the default keeps a margin. Other
+  is the limit: at 8 the checker is clean and at 9 a fade changes by more than
+  0.2 in a frame (32 flickers), so the default sits at the edge of it. Other
   cards' shade changes are limited to 10.5 per second so a card that turns
   around mid-flight cannot jump.
 - **`coverFade`** fades the content, not the card, of the card a returning card
@@ -173,36 +173,37 @@ both read λ.
   leaving card drops just far enough to clear a card of that virtual height, so
   it passes over the card it uncovers instead of around it, and washes out by up
   to 60 % at the turn. The leaver no longer clips the card behind it to its own
-  lower edge. With a constant 100 ms beat the `loose` preset holds 9.3 / 9.4
-  cards/s with intervals of 100–167 ms and no problem in taps or reversals. The
-  checker counts 110 problems in the holds over its three height sets,
-  draw-order swaps and clip bands: passing over a card changes the draw order
-  while the cards overlap. `npm run check` allows them in the holds of a loose
-  preset and nowhere else. Each setting's effect on its own is in
-  `npm run sweep -- params`. The ones that matter most:
+  lower edge. With a constant 100 ms beat the `loose` preset holds 9.1 / 9.4
+  cards/s with intervals of 100–200 ms and no problem in taps or reversals. The
+  checker counts 94 problems in the holds over its three height sets, all
+  draw-order swaps: passing over a card changes the draw order while the cards
+  overlap. `npm run check` allows them in the holds of a loose preset and
+  nowhere else.
 
-- Folding on or off moves held pace from 5.5 / 5.5 to 10.1 / 10.8 cards/s.
+Each setting's effect on its own is in `npm run sweep -- params`. The ones that
+matter most:
+
+- Folding on or off moves held pace from 5.0 / 5.2 to 10.1 / 10.8 cards/s.
 - The tap spring moves tap ↑ landing between 683 ms (2 Hz) and 383 ms (4.5 Hz);
   at 4.5 Hz the landing speed rises from 1.8 to 4.6 px/frame and the held pace
-  from 5.5 / 5.5 to 6.3 / 6.0 cards/s.
-- The tap edge budget moves held pace from 5.5 / 5.5 cards/s at 24 px/frame to
-  7.0 / 7.3 at 39. At 40 px/frame it gives 394 checker problems, all jumps.
-- A held edge budget of 39 px/frame is clean on `even + held speed` and `fold`.
-  At 40 px/frame they give 131 and 5 jumps, and held speed-up alone gives 122
-  problems.
+  from 5.0 / 5.2 to 5.6 / 5.8 cards/s, with 9 edge flashes.
+- The tap edge budget moves held pace from 5.0 / 5.2 cards/s at 24 px/frame to
+  5.9 / 6.4 at 39. At 40 px/frame it gives 391 checker problems, all jumps.
+- A held edge budget of 39 px/frame is clean on `even + held speed`, `fold` and
+  held speed-up alone. At 40 px/frame they give 126, 5 and 119 jumps.
 - The held state's rate is fixed. The hold delay moves when it starts: on
-  `fold`, 0 ms gives 10.9 / 11.9 cards/s and 800 ms gives 8.0 / 8.3.
+  `fold`, 0 ms gives 10.9 / 11.9 cards/s and 800 ms gives 7.8 / 8.3.
 
 ## The edge budgets and the frame checker
 
 The 24 and 30 px/frame budgets come from the shipped engine, whose held ↓ moves
 edges up to about 30 px per frame. No perceptual threshold sets them. The
 checker's jump rule, 40 px in a frame, stops a higher budget: taps on `natural`,
-and held keys on `even + held speed` and `fold`, are clean at 39 px/frame and
-fail at 40. The budget is per frame, so a 120 Hz display allows twice the px/s:
-the suite scales `vcap` with the refresh rate. The page gives the budgets as top
-speeds in px/s, the models' own unit, with px/frame at 60 and 120 Hz beside
-each.
+and held keys on `even + held speed`, `fold` and held speed-up alone, are clean
+at 39 px/frame and fail at 40. The budget is per frame, so a 120 Hz display
+allows twice the px/s: the suite scales `vcap` with the refresh rate. The page
+gives the budgets as top speeds in px/s, the models' own unit, with px/frame at
+60 and 120 Hz beside each.
 
 `sim/check.mjs` has two rules for a drawn bottom edge that changes by more than
 16 px in a frame:
@@ -216,9 +217,10 @@ each.
 The two differ where a card rises over a taller card behind it. The rising
 card's bottom edge removes the lower part of the card behind, and no pixel of
 that card is drawn in the band. The original rule counts the band and reports
-169 hits (all of the clip-band kind) across the natural preset's suite
-scenarios, and 148 across the cascade's `default` (`npm run suite -- cascade`).
-The corrected rule reports 0 for both.
+148 hits, all of the clip-band kind, across the cascade's `default` suite
+scenarios (`npm run suite -- cascade`); the corrected rule reports 0. On the
+drum's `natural` both rules report 0, because a covered card's drawn bottom
+shrinks at a limited rate before the rising card reaches it (above).
 
 The corrected rule also counts a draw-order swap only when the two cards overlap
 in both frames. Cards that meet in the frame their order changes show only the
@@ -306,7 +308,7 @@ repeat.
 
 A card's height does not enter. A tall card and a short one leave the front the
 same time apart, so the held pace is the same on all three height sets, 10.8
-cards/s, where `natural` varies by 12.4 % and `even` by 16.3 %. Held ↑ and ↓
+cards/s, where `natural` varies by 31.7 % and `even` by 16.3 %. Held ↑ and ↓
 take the same time per card: over five phases of the 33 ms key repeat they
 differ by 0.0 % at 60 and 120 Hz, and `npm run check` fails past 5 %.
 
@@ -332,38 +334,38 @@ At 60 Hz:
 
 | Suite row                                             | cascade `default`  | cascade `no held ramp` | drum `natural`  | drum `even`     |
 | ----------------------------------------------------- | ------------------ | ---------------------- | --------------- | --------------- |
-| held ↑ cards/s per set (w1 / w2 / alt)                | 10.8 / 10.8 / 10.8 | 9.6 / 9.6 / 9.6        | 5.8 / 5.5 / 5.3 | 4.3 / 3.9 / 3.8 |
-| held ↓ cards/s per set (w1 / w2 / alt)                | 10.8 / 10.8 / 10.8 | 9.6 / 9.6 / 9.6        | 5.8 / 5.3 / 5.2 | 4.3 / 3.8 / 3.7 |
-| pace spread between height sets, worst of ↑ and ↓     | 0.0 %              | 0.0 %                  | 12.4 %          | 16.3 %          |
-| ↑ and ↓ apart over the phases, worst set              | 0.0 %              | 0.0 %                  | 3.4 %           | 1.5 %           |
-| held interval range, ms                               | 83–117             | 100–117                | 100–300         | 217–283         |
+| held ↑ cards/s per set (w1 / w2 / alt)                | 10.8 / 10.8 / 10.8 | 9.6 / 9.6 / 9.6        | 5.5 / 5.3 / 4.2 | 4.3 / 3.9 / 3.8 |
+| held ↓ cards/s per set (w1 / w2 / alt)                | 10.8 / 10.8 / 10.8 | 9.6 / 9.6 / 9.6        | 5.8 / 4.6 / 5.2 | 4.3 / 3.8 / 3.7 |
+| pace spread between height sets, worst of ↑ and ↓     | 0.0 %              | 0.0 %                  | 31.7 %          | 16.3 %          |
+| ↑ and ↓ apart over the phases, worst set              | 0.0 %              | 0.0 %                  | 24.4 %          | 1.5 %           |
+| held interval range, ms                               | 83–117             | 100–117                | 100–367         | 217–283         |
 | worst step-to-step interval change                    | 1.2                | 1.2                    | 3.0             | 1.2             |
 | tap ↑ lands, ms (median)                              | 550                | 550                    | 483             | 483             |
 | tap ↓ settles, ms (median)                            | 217                | 217                    | 217             | 217             |
 | first visible change, ms (max)                        | 16.7               | 16.7                   | 16.7            | 16.7            |
 | landing speed, px/frame (max, last 5 frames)          | 1.8                | 1.8                    | 1.8             | 1.8             |
 | tap max jump, px/frame                                | 24.0               | 24.0                   | 24.1            | 24.1            |
-| held max jump, px/frame                               | 32.8               | 26.6                   | 24.2            | 24.8            |
+| held max jump, px/frame                               | 32.8               | 26.6                   | 24.2            | 24.2            |
 | problems (corrected rule): taps / holds / reversals   | 0 / 0 / 0          | 0 / 0 / 0              | 0 / 0 / 0       | 0 / 0 / 0       |
 | cards in front of the pile at once (max in holds)     | 4                  | 4                      | 1               | 1               |
-| cards still moving after release, ms (max)            | 617                | 700                    | 783             | 800             |
+| cards still moving after release, ms (max)            | 617                | 700                    | 917             | 800             |
 | page area the train uses: park, px                    | 480                | 480                    | –               | –               |
 | lowest drawn edge below the front pose, px (max)      | 480                | 480                    | 511             | 511             |
-| visible px: least a card shows at its best / median   | 73 / 156           | 73 / 150               | 73 / 162        | 73 / 162        |
-| frames visible: fewest at min(height, 100) px         | 10                 | 13                     | 2               | 1               |
-| cards that fail "every card visible" (need 10 frames) | 0                  | 0                      | 20              | 19              |
-| draw-order changes among painted cards, all scenarios | 0                  | 0                      | 813             | 738             |
+| visible px: least a card shows at its best / median   | 73 / 156           | 73 / 150               | 73 / 161        | 73 / 162        |
+| frames visible: fewest at min(height, 100) px         | 10                 | 13                     | 1               | 2               |
+| cards that fail "every card visible" (need 10 frames) | 0                  | 0                      | 21              | 19              |
+| draw-order changes among painted cards, all scenarios | 0                  | 0                      | 791             | 738             |
 
 At 120 Hz:
 
 | Suite row                                             | cascade `default`  | cascade `no held ramp` | drum `natural`  | drum `even`     |
 | ----------------------------------------------------- | ------------------ | ---------------------- | --------------- | --------------- |
-| held ↑ cards/s per set (w1 / w2 / alt)                | 19.4 / 19.4 / 19.4 | 18.6 / 18.6 / 18.6     | 7.6 / 7.5 / 7.3 | 4.3 / 3.8 / 3.8 |
-| held ↓ cards/s per set (w1 / w2 / alt)                | 19.4 / 19.4 / 19.4 | 18.6 / 18.6 / 18.6     | 8.5 / 7.9 / 7.6 | 4.3 / 3.9 / 3.8 |
-| pace spread between height sets, worst of ↑ and ↓     | 0.0 %              | 0.0 %                  | 10.9 %          | 15.8 %          |
-| ↑ and ↓ apart over the phases, worst set              | 0.0 %              | 0.0 %                  | 11.1 %          | 0.1 %           |
-| held interval range, ms                               | 42–67              | 50–58                  | 83–183          | 225–267         |
-| worst step-to-step interval change                    | 1.2                | 1.2                    | 2.2             | 1.1             |
+| held ↑ cards/s per set (w1 / w2 / alt)                | 19.4 / 19.4 / 19.4 | 18.6 / 18.6 / 18.6     | 6.8 / 6.8 / 4.7 | 4.3 / 3.8 / 3.8 |
+| held ↓ cards/s per set (w1 / w2 / alt)                | 19.4 / 19.4 / 19.4 | 18.6 / 18.6 / 18.6     | 8.0 / 6.0 / 6.1 | 4.3 / 3.9 / 3.8 |
+| pace spread between height sets, worst of ↑ and ↓     | 0.0 %              | 0.0 %                  | 44.6 %          | 15.8 %          |
+| ↑ and ↓ apart over the phases, worst set              | 0.0 %              | 0.0 %                  | 31.3 %          | 0.1 %           |
+| held interval range, ms                               | 42–67              | 50–58                  | 83–317          | 225–267         |
+| worst step-to-step interval change                    | 1.2                | 1.2                    | 2.8             | 1.1             |
 | tap ↑ lands, ms (median)                              | 442                | 442                    | 450             | 450             |
 | tap ↓ settles, ms (median)                            | 208                | 208                    | 208             | 208             |
 | first visible change, ms (max)                        | 8.3                | 8.3                    | 8.3             | 8.3             |
@@ -372,19 +374,19 @@ At 120 Hz:
 | held max jump, px/frame                               | 32.4               | 25.0                   | 24.1            | 24.4            |
 | problems (corrected rule): taps / holds / reversals   | 0 / 0 / 0          | 0 / 0 / 0              | 0 / 0 / 0       | 0 / 0 / 0       |
 | cards in front of the pile at once (max in holds)     | 4                  | 4                      | 1               | 1               |
-| cards still moving after release, ms (max)            | 542                | 633                    | 667             | 758             |
+| cards still moving after release, ms (max)            | 542                | 633                    | 792             | 758             |
 | page area the train uses: park, px                    | 480                | 480                    | –               | –               |
 | lowest drawn edge below the front pose, px (max)      | 480                | 480                    | 511             | 511             |
 | visible px: least a card shows at its best / median   | 73 / 160           | 73 / 150               | 73 / 162        | 73 / 162        |
-| frames visible: fewest at min(height, 100) px         | 10                 | 11                     | 2               | 2               |
-| cards that fail "every card visible" (need 10 frames) | 0                  | 0                      | 16              | 11              |
-| draw-order changes among painted cards, all scenarios | 0                  | 0                      | 858             | 738             |
+| frames visible: fewest at min(height, 100) px         | 10                 | 11                     | 2               | 3               |
+| cards that fail "every card visible" (need 10 frames) | 0                  | 0                      | 19              | 11              |
+| draw-order changes among painted cards, all scenarios | 0                  | 0                      | 831             | 738             |
 
 For `default` at 60 Hz:
 
 - **Pace.** The cascade holds 10.8 cards/s on every set, ↑ and ↓ alike, with
   intervals of 83–117 ms and no step between consecutive intervals over 1.2×.
-  `natural` runs 5.2–5.8 cards/s with intervals of 100–300 ms and a 3.0× step,
+  `natural` runs 4.2–5.8 cards/s with intervals of 100–367 ms and a 3.0× step,
   and `even` 3.7–4.3.
 - **Taps.** ↓ settles in 217 ms, as on the drum. ↑ lands in 550 ms against the
   drum's 483, because the card rises from the clip line, 480 px below.
@@ -396,12 +398,12 @@ For `default` at 60 Hz:
 - **Visibility.** A card counts as shown when a frame holds at least
   min(height, 100) px of it that no nearer card covers, and the suite asks for
   10 such frames per card (`npm run sweep -- limits cascade` prints the rule).
-  The cascade's fewest is 10, so no card fails; `natural` fails on 20 cards and
+  The cascade's fewest is 10, so no card fails; `natural` fails on 21 cards and
   `even` on 19. A card's best frame shows a median of 156 px of it.
-- **Draw order.** No painted pair changes order; `natural` has 813 changes and
+- **Draw order.** No painted pair changes order; `natural` has 791 changes and
   `even` 738, where the checker finds no swap that can be seen.
 - **Release.** Cards keep moving for 617 ms after the key is up; `natural` takes
-  783 ms.
+  917 ms.
 - **`no held ramp`.** It holds 9.6 cards/s at 100–117 ms, with a largest held
   edge move of 26.6 px/frame and 13 frames for the card shown fewest; its taps
   are the same.
