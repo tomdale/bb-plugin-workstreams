@@ -21,6 +21,7 @@ import { usePrefs } from "../prefs.ts";
 import { useWorkstreams } from "../useWorkstreams.ts";
 import { WorkstreamGroups, type HomeEnv } from "./Groups.tsx";
 import { UpNextBlock } from "./UpNextBlock.tsx";
+import { HIDDEN_NOW } from "./HomeRow.tsx";
 import { detectPlacement, homeMode, type Placement } from "./layout.ts";
 import { planHome, prioritizedSet } from "./model.ts";
 import { useHomeState } from "./useHomeState.ts";
@@ -172,7 +173,7 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
                     }
                   : null;
               }}
-              now={ws.displayNow}
+              now={env.showAge ? ws.displayNow : HIDDEN_NOW}
               showAge={env.showAge}
             />
           ) : null}

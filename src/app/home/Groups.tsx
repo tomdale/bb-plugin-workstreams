@@ -15,7 +15,7 @@ import { hasStatusMark } from "../sidebar/presentation.ts";
 import { FocusIcon } from "../sidebar/FocusIcon.tsx";
 import { CountPill } from "../primitives/CountPill.tsx";
 import { StatusDot } from "../primitives/StatusDot.tsx";
-import { HomeThreadRow } from "./HomeRow.tsx";
+import { HIDDEN_NOW, HomeThreadRow } from "./HomeRow.tsx";
 import {
   descendantCounts,
   startsOpen,
@@ -94,9 +94,10 @@ export function WorkstreamGroups({
     env.waitingCount !== "never" && plan.lowerCounts.needsYou > 0;
   const lowerTotal = env.threadCount !== "never" && plan.lowerCounts.total > 0;
   const hasGroups = visibleGroups.length > 0 || plan.hasLower;
-  const snoozedMarks = plan.snoozed.some((row) =>
-    hasStatusMark(row.thread, env.work(row.thread)),
-  );
+  const snoozedOpen = plan.snoozed.length > 0 && env.isOpen(SNOOZED_KEY, false);
+  const snoozedMarks =
+    snoozedOpen &&
+    plan.snoozed.some((row) => hasStatusMark(row.thread, env.work(row.thread)));
   return (
     <>
       {hasGroups ? (
@@ -199,27 +200,29 @@ export function WorkstreamGroups({
           env={env}
           standalone
         >
-          <ul className="ws-home-rows" role="list">
-            {plan.snoozed.map((row) => {
-              const snooze = env.snoozeOf(row.thread);
-              return (
-                <HomeThreadRow
-                  key={row.thread.id}
-                  thread={row.thread}
-                  analysis={env.analysis[row.thread.id]}
-                  recap={env.recaps[row.thread.id]}
-                  now={env.now}
-                  variant="snoozed"
-                  depth={row.depth}
-                  showMarkSlot={snoozedMarks}
-                  showAge={env.showAge}
-                  trailing={
-                    snooze ? shortWake(snooze.until, env.now) : undefined
-                  }
-                />
-              );
-            })}
-          </ul>
+          {snoozedOpen ? (
+            <ul className="ws-home-rows" role="list">
+              {plan.snoozed.map((row) => {
+                const snooze = env.snoozeOf(row.thread);
+                return (
+                  <HomeThreadRow
+                    key={row.thread.id}
+                    thread={row.thread}
+                    analysis={env.analysis[row.thread.id]}
+                    recap={env.recaps[row.thread.id]}
+                    now={snooze || env.showAge ? env.now : HIDDEN_NOW}
+                    variant="snoozed"
+                    depth={row.depth}
+                    showMarkSlot={snoozedMarks}
+                    showAge={env.showAge}
+                    trailing={
+                      snooze ? shortWake(snooze.until, env.now) : undefined
+                    }
+                  />
+                );
+              })}
+            </ul>
+          ) : null}
         </Fold>
       ) : null}
     </>
@@ -393,7 +396,7 @@ function GroupSection({
                   thread={row.thread}
                   analysis={env.analysis[row.thread.id]}
                   recap={env.recaps[row.thread.id]}
-                  now={env.now}
+                  now={env.showAge ? env.now : HIDDEN_NOW}
                   variant="group"
                   depth={row.depth}
                   showMarkSlot

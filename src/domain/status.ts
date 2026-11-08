@@ -27,6 +27,14 @@ type StatusThread = {
   readonly latestAttentionAt: number;
 };
 
+const NO_ANALYSIS = {};
+const NO_RECAP = {};
+/** Identity snapshots keep their own entries when other threads change. */
+const workViews = new WeakMap<
+  StatusThread,
+  WeakMap<object, WeakMap<object, WorkView>>
+>();
+
 /**
  * The agent's recap of an idle thread's latest turn outranks analysis for
  * the work state and the one-line summary; a current analysis still supplies
@@ -34,6 +42,31 @@ type StatusThread = {
  * input clears it.
  */
 export function workView(
+  thread: StatusThread,
+  analysis: StoredAnalysis | undefined,
+  recap?: Recap,
+): WorkView {
+  let analyses = workViews.get(thread);
+  if (!analyses) {
+    analyses = new WeakMap();
+    workViews.set(thread, analyses);
+  }
+  const analysisKey = analysis ?? NO_ANALYSIS;
+  let recaps = analyses.get(analysisKey);
+  if (!recaps) {
+    recaps = new WeakMap();
+    analyses.set(analysisKey, recaps);
+  }
+  const recapKey = recap ?? NO_RECAP;
+  const cached = recaps.get(recapKey);
+  if (cached) return cached;
+
+  const view = deriveWorkView(thread, analysis, recap);
+  recaps.set(recapKey, view);
+  return view;
+}
+
+function deriveWorkView(
   thread: StatusThread,
   analysis: StoredAnalysis | undefined,
   recap?: Recap,

@@ -20,6 +20,9 @@ import { workView } from "../../domain/status.ts";
 import { hasNativeStatus, shownWorkState } from "../sidebar/presentation.ts";
 import { StatusMark } from "../sidebar/StatusMark.tsx";
 
+/** Stable clock prop for memoized rows that show neither age nor wake time. */
+export const HIDDEN_NOW = 0;
+
 /**
  * A Home row with stable action identities. The memo compares every prop,
  * including the disclosure callback, so unrelated thread updates do not rerun

@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import * as presentation from "../../src/app/sidebar/presentation.ts";
 import * as model from "../../src/app/home/model.ts";
 import * as domainPresentation from "../../src/domain/presentation.ts";
+import * as snooze from "../../src/domain/snooze.ts";
 import { mountHome, section, sidebarThread } from "./home-mount.tsx";
 
 beforeEach(() => {
@@ -145,6 +152,62 @@ it("profiles Home parent updates and preserves group folding", async () => {
   );
   slot.lifecycle.unmount();
 }, 30_000);
+
+it("skips row presentation on minute ticks when ages are hidden", async () => {
+  vi.useFakeTimers();
+  const rowRenders = vi.spyOn(presentation, "shownWorkState");
+  const threads = Array.from({ length: 12 }, (_, index) =>
+    sidebarThread(`thread-${index}`, {
+      sectionId: "sec_a",
+      title: `Thread ${index}`,
+      latestAttentionAt: Date.now() - index * 1_000,
+    }),
+  );
+  const slot = await mountHome({
+    threads,
+    prefs: { timestamps: "hide", showForYou: false, showSnoozed: false },
+  });
+  await act(async () => vi.advanceTimersByTimeAsync(0));
+  expect(slot.getAllByRole("link")).toHaveLength(12);
+
+  rowRenders.mockClear();
+  act(() => vi.advanceTimersByTime(60_000));
+
+  expect(rowRenders).not.toHaveBeenCalled();
+  expect(slot.getAllByRole("link")).toHaveLength(12);
+  slot.lifecycle.unmount();
+});
+
+it("defers Snoozed row derivations until its fold opens", async () => {
+  const rowRenders = vi.spyOn(presentation, "shownWorkState");
+  const wakes = vi.spyOn(snooze, "shortWake");
+  const threads = Array.from({ length: 12 }, (_, index) =>
+    sidebarThread(`thread-${index}`, {
+      sectionId: "sec_a",
+      title: `Thread ${index}`,
+      latestAttentionAt: Date.now() - index * 1_000,
+    }),
+  );
+  const slot = await mountHome({
+    threads,
+    prefs: { showForYou: false },
+    snoozes: Object.fromEntries(
+      threads.map((thread) => [
+        thread.id,
+        { until: Date.now() + 3_600_000, attentionAt: 0, at: 0 },
+      ]),
+    ),
+  });
+  const fold = await slot.findByRole("region", { name: "Snoozed" });
+  expect(rowRenders).not.toHaveBeenCalled();
+  expect(wakes).not.toHaveBeenCalled();
+
+  fireEvent.click(within(fold).getByRole("button", { name: /^Snoozed/ }));
+  expect(within(fold).getAllByRole("link")).toHaveLength(12);
+  expect(rowRenders).toHaveBeenCalledTimes(12);
+  expect(wakes).toHaveBeenCalled();
+  slot.lifecycle.unmount();
+});
 
 it("skips unchanged Up Next rows with generated workstream colors", async () => {
   const ages = vi.spyOn(domainPresentation, "relativeAge");

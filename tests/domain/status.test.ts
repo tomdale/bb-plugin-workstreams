@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StoredAnalysis } from "../../src/domain/analysis.ts";
+import * as recapModule from "../../src/domain/recap.ts";
 import { recapInputSchema, toRecap } from "../../src/domain/recap.ts";
 import {
   isDone,
@@ -36,6 +37,8 @@ const recap = (state: "complete" | "review" | "waiting") =>
 
 const idle = { status: "idle", latestAttentionAt: 100 };
 
+afterEach(() => vi.restoreAllMocks());
+
 describe("workView", () => {
   it("prefers the agent's recap over analysis for an idle thread", () => {
     const view = workView(idle, analysis("in_progress"), recap("complete"));
@@ -69,6 +72,23 @@ describe("workView", () => {
     expect(workView(failed, analysis("done"), recap("complete"))).toEqual({
       kind: "none",
     });
+  });
+
+  it("reuses reported analysis for identical thread, analysis, and recap identities", () => {
+    const reported = vi.spyOn(recapModule, "reportedAnalysis");
+    const thread = { ...idle };
+    const stored = analysis("in_progress");
+    const agent = recap("complete");
+    const first = workView(thread, stored, agent);
+
+    expect(workView(thread, stored, agent)).toBe(first);
+    workView({ ...idle }, analysis("done"));
+    expect(workView(thread, stored, agent)).toBe(first);
+    expect(reported).toHaveBeenCalledTimes(1);
+
+    expect(workView(thread, stored, recap("review"))).not.toBe(first);
+    expect(workView(thread, analysis("in_progress"), agent)).not.toBe(first);
+    expect(reported).toHaveBeenCalledTimes(3);
   });
 });
 

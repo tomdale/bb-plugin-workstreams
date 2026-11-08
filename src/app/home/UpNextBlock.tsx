@@ -5,7 +5,7 @@ import type { TopicColor } from "../../domain/workstreamColor.ts";
 import type { ServerState, WorkView } from "../useWorkstreams.ts";
 import { hasStatusMark } from "../sidebar/presentation.ts";
 import { FocusIcon } from "../sidebar/FocusIcon.tsx";
-import { HomeThreadRow } from "./HomeRow.tsx";
+import { HIDDEN_NOW, HomeThreadRow } from "./HomeRow.tsx";
 
 /**
  * Up Next on Home: the rows `selectUpNext` chose, in the sidebar's Up
@@ -75,7 +75,7 @@ export function UpNextBlock({
               thread={row.thread}
               analysis={analysis[row.thread.id]}
               recap={recaps[row.thread.id]}
-              now={now}
+              now={showAge ? now : HIDDEN_NOW}
               variant="attention"
               showMarkSlot={marks}
               showAge={showAge}

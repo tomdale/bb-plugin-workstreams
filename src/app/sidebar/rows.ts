@@ -32,9 +32,10 @@ export function descendantsOf(
   for (const rows of lists)
     rows.forEach((row, index) => {
       const below: ThreadRow[] = [];
-      for (const next of rows.slice(index + 1)) {
-        if (next.depth <= row.depth) break;
-        below.push(next);
+      for (let next = index + 1; next < rows.length; next++) {
+        const child = rows[next]!;
+        if (child.depth <= row.depth) break;
+        below.push(child);
       }
       if (below.length) out.set(row.thread.id, below);
     });
@@ -120,7 +121,8 @@ export function planArchived(
     ? threads.filter((t) => t.isArchived && !t.isHidden)
     : [];
   const byId = new Map(visible.map((t) => [t.id, t]));
-  const workstreamOf = (thread: PluginSidebarThread) => {
+  const workstreams = new Map<string, string | null>();
+  for (const thread of visible) {
     let root = thread;
     const seen = new Set([thread.id]);
     while (root.parentThreadId && !seen.has(root.parentThreadId)) {
@@ -129,16 +131,28 @@ export function planArchived(
       seen.add(parent.id);
       root = parent;
     }
-    return root.sectionId;
-  };
-  const rows: ThreadRow[] = visible.map((thread) => ({
-    thread,
-    depth: 0,
-    hasChildren: false,
-    workstreamId: workstreamOf(thread),
-    needsYou: false,
-  }));
-  const names = new Set(sections.map((s) => s.id));
+    workstreams.set(thread.id, root.sectionId);
+  }
+  const workstreamOf = (thread: PluginSidebarThread) =>
+    workstreams.get(thread.id) ?? null;
+  const buckets = new Map(
+    sections.map((section) => [section.id, [] as PluginSidebarThread[]]),
+  );
+  const unfiled: PluginSidebarThread[] = [];
+  const rows: ThreadRow[] = visible.map((thread) => {
+    const workstreamId = workstreamOf(thread);
+    const bucket =
+      workstreamId === null ? undefined : buckets.get(workstreamId);
+    if (bucket) bucket.push(thread);
+    if (!workstreamId || !bucket) unfiled.push(thread);
+    return {
+      thread,
+      depth: 0,
+      hasChildren: false,
+      workstreamId,
+      needsYou: false,
+    };
+  });
   return {
     threads: visible,
     rows,
@@ -146,12 +160,10 @@ export function planArchived(
     groups: sections
       .map((section) => ({
         ...section,
-        threads: visible.filter((t) => workstreamOf(t) === section.id),
+        threads: buckets.get(section.id)!,
       }))
       .filter((g) => g.threads.length),
-    unfiled: visible.filter(
-      (t) => !workstreamOf(t) || !names.has(workstreamOf(t)!),
-    ),
+    unfiled,
   };
 }
 

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import type { useRpc } from "@get-bb/plugin-sdk/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,16 @@ export function CreateEntityDialog({
   const [aliasesText, setAliasesText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const parentOptions = useMemo(
+    () => [
+      { value: "", label: "None (top level)" },
+      ...entities.map((e) => ({
+        value: e.id,
+        label: topicPath(e.id, entities).replace(/: /g, " › "),
+      })),
+    ],
+    [entities],
+  );
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -113,13 +123,7 @@ export function CreateEntityDialog({
             <SelectField
               label="Parent topic"
               value={parentId ?? ""}
-              options={[
-                { value: "", label: "None (top level)" },
-                ...entities.map((e) => ({
-                  value: e.id,
-                  label: topicPath(e.id, entities).replace(/: /g, " › "),
-                })),
-              ]}
+              options={parentOptions}
               onChange={(next) => setParentId(next || null)}
               className={dialogSelectClass}
             />
@@ -191,18 +195,32 @@ export function MergeEntityDialog({
   const [busy, setBusy] = useState(false);
 
   // Exclude self and any descendants
-  const invalid = new Set<string>([entity.id]);
-  for (const other of entities) {
-    try {
-      const ancestors = topicAncestors(other.id, entities);
-      if (ancestors.includes(entity.id)) {
-        invalid.add(other.id);
+  const invalid = useMemo(() => {
+    const invalid = new Set<string>([entity.id]);
+    for (const other of entities) {
+      try {
+        const ancestors = topicAncestors(other.id, entities);
+        if (ancestors.includes(entity.id)) {
+          invalid.add(other.id);
+        }
+      } catch {
+        // Ignore cycle errors
       }
-    } catch {
-      // Ignore cycle errors
     }
-  }
-  const validTargets = entities.filter((e) => !invalid.has(e.id));
+    return invalid;
+  }, [entity.id, entities]);
+  const validTargets = useMemo(
+    () => entities.filter((e) => !invalid.has(e.id)),
+    [entities, invalid],
+  );
+  const targetOptions = useMemo(
+    () =>
+      validTargets.map((e) => ({
+        value: e.id,
+        label: topicPath(e.id, entities).replace(/: /g, " › "),
+      })),
+    [entities, validTargets],
+  );
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -253,10 +271,7 @@ export function MergeEntityDialog({
               label="Merge into *"
               value={targetId}
               placeholder="Choose a topic…"
-              options={validTargets.map((e) => ({
-                value: e.id,
-                label: topicPath(e.id, entities).replace(/: /g, " › "),
-              }))}
+              options={targetOptions}
               onChange={setTargetId}
               className={dialogSelectClass}
             />
