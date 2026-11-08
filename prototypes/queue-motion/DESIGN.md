@@ -150,12 +150,16 @@ both read λ.
   around mid-flight cannot jump.
 - **`coverFade`** fades the content, not the card, of the card a returning card
   is about to cover. On a ↑ the pile card after the rising card loses its
-  content (up to 1, so none is visible) as the card leaves its tuck, and a pile
-  card's content goes as it recedes (by half a slot back). The content follows
-  its target with a 50 ms time constant. The frame and background are not faded,
-  so the card keeps the colour it has in the pile and nothing brightens when the
-  rising card lands; an earlier version faded the whole card and it jumped back
-  to the pile's colour at the end.
+  content (up to 1, so none is visible) as the card leaves its tuck, and gets it
+  back once the card has landed and the card behind is a strip with no content
+  showing. Only that card fades: a card moving into the front on a ↓, or sitting
+  in the pile, keeps its content, because a pile card whose content was hidden
+  by position showed as an empty tall frame when it moved into the front during
+  a hold. The content follows its target with a 50 ms time constant going out
+  and 20 ms coming back. The frame and background are not faded, so the card
+  keeps the colour it has in the pile and nothing brightens when the rising card
+  lands; an earlier version faded the whole card and it jumped back to the
+  pile's colour at the end.
 - **The covered card shrinks early.** Each card's drawn bottom edge follows the
   bottom it is heading for, at no more than 720 px/s (12 px a frame at 60 Hz,
   under the checker's 16 px). A pile card is clipped to the front card's lower

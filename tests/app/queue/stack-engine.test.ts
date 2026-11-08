@@ -159,7 +159,18 @@ describe("the stack engine", () => {
     expect(q.press("back")).toBe(true);
     q.run(400);
     const rest = q.frames.at(-1)!.cards.find((c) => c.key === "c2")!;
-    expect(rest.content).toBeLessThan(0.05);
+    // Its content goes while the card is covered, and a card moving into the front never loses its own.
+    const least = Math.min(
+      ...q.frames.map((f) => f.cards.find((c) => c.key === "c2")!.content),
+    );
+    expect(least).toBeLessThan(0.05);
+    const forward = queue(2);
+    forward.press("forward");
+    forward.run(400);
+    for (const frame of forward.frames)
+      expect(Math.min(...frame.cards.map((c) => c.content))).toBeGreaterThan(
+        0.99,
+      );
     // The covered card's frame and background are the pile's: never washed out beyond a pile slot's shade.
     for (const frame of q.frames) {
       const covered = frame.cards.find((c) => c.key === "c2")!;

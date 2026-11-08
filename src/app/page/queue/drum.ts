@@ -60,6 +60,8 @@ const PATH_RATE = 10.5;
 /** The fastest the drawn bottom of the cards behind the front card may shrink, px per second: 12 px a frame at 60 Hz, under the checker's 16. */
 const SHRINK_RATE = 720;
 const COVER_TAU = 50;
+/** The content of a card moving into the front comes back faster than it goes, ms: a card that is nearly in front must not be empty. */
+const CONTENT_BACK_TAU = 20;
 /** How much of the rising card's way from the tuck to the front it takes for the covered card's fade to reach its target. */
 const COVER_RISE = 0.35;
 const LOOSE_WASH = 0.6;
@@ -446,8 +448,11 @@ export class Drum {
       this.ps[i] = this.ps[i]! + clamp(want - this.ps[i]!, -step, step);
     }
     const k = 1 - Math.exp((-dt * 1000) / COVER_TAU);
-    for (let i = 0; i < this.N; i++)
-      this.cf[i]! += (this.contentTarget(i) - this.cf[i]!) * k;
+    const kBack = 1 - Math.exp((-dt * 1000) / CONTENT_BACK_TAU);
+    for (let i = 0; i < this.N; i++) {
+      const want = this.contentTarget(i);
+      this.cf[i]! += (want - this.cf[i]!) * (want < this.cf[i]! ? kBack : k);
+    }
     this.trimStep(dt);
     for (let i = 0; i < this.N; i++) {
       const gt = this.washTarget(i);
@@ -546,20 +551,19 @@ export class Drum {
     return 1 - (1 - 0.48 * smooth(clamp(-1 - c, 0, 1))) * (1 - 0.35);
   }
   /**
-   * How far the content of card `i` has faded. A pile card's content goes as it recedes (by the time it is half
-   * a slot back), and the content of the card a rising card is about to cover goes as soon as the rising card
-   * leaves its tuck, well before it overlaps, and stays gone. The frame and background are not faded, so the
-   * card looks the same as the pile it settles into.
+   * How far the content of card `i` has faded: only the card a rising card is about to cover (a ↑) loses its
+   * content, as soon as the rising card leaves its tuck, well before it overlaps. The frame and background are
+   * not faded, so the card looks the same as the pile it settles into. Once the rising card has landed the card
+   * is hidden behind it, down to a strip with no content, so the content comes back; a card moving into the
+   * front (a ↓) never loses its content.
    */
   contentTarget(i: number) {
     const strength = this.cfg.coverFade;
-    if (strength <= 0) return 0;
-    const c = this.c[i]!;
-    const receding = c >= 0 ? strength * smooth(clamp(c / 0.5, 0, 1)) : 0;
     const j = i - 1;
-    if (j < 0 || this.target(j) < 0 || this.c[j]! >= 0) return receding;
+    if (strength <= 0 || j < 0 || this.target(j) < 0 || this.c[j]! >= 0)
+      return 0;
     const p = clamp((this.c[j]! + 2) / 2, 0, 1);
-    return Math.max(receding, strength * easeOut(clamp(p / COVER_RISE, 0, 1)));
+    return strength * easeOut(clamp(p / COVER_RISE, 0, 1));
   }
   /** Moves each card's trim toward what its drawn bottom is heading for, at no more than `SHRINK_RATE`. */
   trimStep(dt: number) {

@@ -540,7 +540,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`The text stays until the rising card is on it. At ${off.value} the content does not fade early; the card still shrinks to its pile height.`,
         ],
       ],
-      needs: t`The content fades as the rising card leaves the tuck and stays gone while the card is in the pile. The drawn bottom edge shrinks at a limited rate, so it never jumps. No position or timing changes: a tap ↑ lands in ${full.upLand} ms and held ↑ / ↓ runs at ${full.pace} cards/s at every value, ${full.verdict} at ${full.value}.`,
+      needs: t`The content fades as the rising card leaves the tuck and comes back once it has landed, when the card is a strip behind it. A card moving into the front on a ↓ never loses its content. The drawn bottom edge shrinks at a limited rate, so it never jumps. No position or timing changes: a tap ↑ lands in ${full.upLand} ms and held ↑ / ↓ runs at ${full.pace} cards/s at every value, ${full.verdict} at ${full.value}.`,
       tune: t`Start at ${full.value}. Lower it to ${half.value} to keep a trace of the text while the card is covered.`,
     };
   },
