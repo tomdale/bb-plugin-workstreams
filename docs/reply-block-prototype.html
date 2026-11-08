@@ -1,0 +1,1865 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How reply blocks could look — prototype</title>
+<style>/* ───────── Page chrome (prototype only; not part of the proposal) ───────── */
+*,*::before,*::after{box-sizing:border-box}
+html{color-scheme:dark light}
+/* One mono stack for every code, path and line range on the page. */
+:root{--mono:"Geist Mono",SFMono-Regular,Consolas,monospace;--measure:52ch}
+body{margin:0;font-family:"Geist","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+b,strong{font-weight:600}
+
+/* ───────── Type scale for the prototype's own furniture ─────────
+   Every furniture rule below takes one of these roles and adds nothing to it.
+   Weights: 400 prose, captions and code; 500 labels and controls; 600 titles
+   and run-in bold. Tracking is set on the section title only; the one
+   uppercase tag (the fence name on a code block) is the only 11px text.
+
+     role           size / line    weight  tracking  used for
+     section title  22 / 28        600     -0.02em   .sec-h h2
+     body           14 / 22        400     0         intro, description values, notes, caveats
+     label          12 / 18        500     0         bar labels, group names, description keys,
+                                                     section aside, tier names, "typed" disclosure
+     control        12 / 16        500     0         segmented buttons, index links
+     caption        12 / 18        400     0         example captions, bar note, source notes
+     code           12 / 18 mono   400     0         inline code, code blocks, literal keys
+     code tag       11 / 15.4 mono 500     +.04em    the uppercase fence name on a code block
+
+   Prose is held to --measure (about 70 characters at 14px). Everything from
+   "Prose, as BB's Markdown renders it" down is the reply layer under review;
+   its sizes were measured from the product and are not part of this scale. */
+body.dark{background:#000;color:#ededed}
+body.light{background:#fff;color:#171717}
+button{font:inherit;color:inherit}
+
+.bar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--canvas);font-size:12px;line-height:16px}
+.bar .grp{display:flex;align-items:center;gap:6px}
+.bar .lbl{color:var(--muted-foreground);font-size:12px;line-height:18px;font-weight:500;white-space:nowrap}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.seg button{all:unset;cursor:pointer;padding:3px 8px;font-size:12px;line-height:16px;font-weight:500;white-space:nowrap;color:var(--muted-foreground)}
+.seg button+button{border-left:1px solid var(--border)}
+.seg button[aria-pressed="true"]{background:var(--foreground);color:var(--canvas)}
+.seg button:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+.bar .note{color:var(--muted-foreground);margin-left:auto;font-size:12px;line-height:18px;text-wrap:balance}
+
+/* The message surface: BB's centered column. --col is the column's outer width;
+   each message pads 8px (px-2), so text is col-16 wide: 712 / 584 / 359. */
+.stage{padding:24px 0 96px}
+.col{width:var(--col);max-width:100%;margin:0 auto}
+.sec{margin-top:36px}
+.msg{padding:0 8px;margin-top:16px}
+.user{margin:16px 8px 0;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:color-mix(in oklab,var(--state-hover) 60%,transparent);font-size:13px;line-height:24px}
+.feat{margin:12px 8px 0;padding-top:8px;border-top:1px solid var(--border);font-size:12px;line-height:18px;color:var(--muted-foreground);text-wrap:pretty}
+.dock{margin-top:28px;padding:0}
+.dock-cap{margin:0 0 6px;padding:0 4px;font-size:12px;line-height:18px;color:var(--muted-foreground);text-wrap:pretty}
+
+/* ───────── prototype chrome: index, section headers, reading notes ─────────
+   None of this is part of the proposal. It labels the proposal: the bar says
+   which rendering is on, the index jumps, and each section states what the
+   component is given and how the proposal draws it. */
+.toc{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:2px;padding-top:6px;border-top:1px solid var(--border);font-size:12px;line-height:16px}
+.toc-g{display:flex;flex-wrap:wrap;align-items:center;gap:2px}
+.toc-l{margin-right:2px;font-size:12px;line-height:18px;font-weight:500;color:var(--muted-foreground)}
+.toc-g+.toc-g{padding-left:10px;border-left:1px solid var(--border)}
+.toc a{padding:1px 5px;border:1px solid transparent;border-radius:5px;font-weight:500;color:color-mix(in oklab,var(--foreground) 78%,transparent);text-decoration:none}
+.toc a:hover{background:var(--state-hover);color:var(--foreground)}
+.toc a:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
+.sec-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:8px;padding:0 8px 6px;border-bottom:1px solid var(--border)}
+.sec-h h2{margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.02em;text-wrap:balance}
+.sec-h .n{margin-left:auto;font-size:12px;line-height:18px;font-weight:500;color:var(--muted-foreground);text-wrap:balance}
+.sec-meta{display:grid;gap:4px;margin:0;padding:0 8px}
+.sec-meta>div{display:grid;grid-template-columns:8rem minmax(0,1fr);column-gap:10px;align-items:baseline}
+@container (max-width:26rem){.sec-meta{gap:10px}.sec-meta>div{grid-template-columns:1fr}}
+.sec-meta dt{font-size:12px;line-height:18px;font-weight:500;color:var(--muted-foreground)}
+.sec-meta dd{max-width:var(--measure);margin:0;font-size:14px;line-height:22px;color:color-mix(in oklab,var(--foreground) 82%,transparent);text-wrap:pretty}
+#syntax .sec-meta dt{font-family:var(--mono);font-weight:400}
+.sec-meta code,.flow code,.ex-i code,.sec-note code{font-family:var(--mono);font-size:12px;line-height:18px;font-weight:400;padding:1px 4px;border:1px solid var(--border);border-radius:4px;background:var(--surface-recessed)}
+.ex{margin-top:16px}
+.ex:first-of-type{margin-top:12px}
+.ex-cap{margin:0 8px 6px;font-size:12px;line-height:18px;color:var(--muted-foreground);text-wrap:pretty}
+.ex-cap b{font-weight:600;color:var(--foreground)}
+.ex-i{max-width:calc(var(--measure) + 16px);margin:4px 0 0;padding:0 8px;font-size:14px;line-height:22px;color:var(--muted-foreground);text-wrap:pretty}
+.ex>.msg:first-of-type{margin-top:8px}
+.flow{padding:0 8px;font-size:14px;line-height:22px;color:color-mix(in oklab,var(--foreground) 82%,transparent);text-wrap:pretty}
+.flow>*{max-width:var(--measure)}
+.flow>.tiers{max-width:calc(8.5rem + 10px + var(--measure))}
+.flow p{margin:0 0 8px}
+.flow p:last-child{margin-bottom:0}
+.flow ol{margin:6px 0 8px;padding-left:20px}
+.flow li::marker{font-variant-numeric:tabular-nums}
+.flow li{margin-top:4px}
+.flow b{font-weight:600;color:var(--foreground)}
+.tiers{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:3px}
+.tiers li{display:grid;grid-template-columns:8.5rem minmax(0,1fr);column-gap:10px;align-items:baseline}
+@container (max-width:26rem){.tiers li{grid-template-columns:1fr}}
+.tiers .t{font-size:12px;line-height:18px;font-weight:500;color:var(--foreground)}
+.sec-note{max-width:calc(var(--measure) + 22px);margin:8px 0 0;padding:8px 10px;border-left:2px solid var(--border);font-size:14px;line-height:22px;color:var(--muted-foreground);text-wrap:pretty}
+.src{margin:10px 8px 0}
+.src>summary{cursor:pointer;font-size:12px;line-height:18px;font-weight:500;color:var(--muted-foreground);list-style-position:inside}
+.src>summary:hover{color:var(--foreground)}
+.src>summary:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:3px}
+.src .bbcode{margin:6px 0 0}
+.src-n{margin:8px 8px 0;font-size:12px;line-height:18px;color:var(--muted-foreground);text-wrap:pretty}
+.src>.bbcode pre{max-height:320px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+/* The page's own code blocks take the furniture code role; the same .bbcode
+   inside a reply (a fenced block in Markdown, a fallback) keeps the product's 13/1.5. */
+.src .bbcode pre,#syntax>.bbcode pre{font:400 12px/18px var(--mono)}
+#syntax .bbcode pre{white-space:pre-wrap;overflow-wrap:anywhere}
+.ex>.src{margin-top:10px}
+.col{container-type:inline-size}
+.x-trouble{border-color:var(--tone-b)}
+.x-trouble>.x-h{background:var(--tone-s)}
+.x-trouble>.x-h .x-t{color:var(--tone)}
+.lg{min-width:0}
+.lg-state{margin:0 0 4px;font-size:11px;line-height:1.6;font-weight:500;color:var(--muted-foreground)}
+.lg-h{margin:0 0 10px;font-size:13px;line-height:19px;font-weight:600;letter-spacing:-.006em}
+.lg-body>*+*{margin-top:10px}
+.lg-sec{display:grid;grid-template-columns:8rem minmax(0,1fr);column-gap:10px;margin-top:10px}
+@media (max-width:52rem){.lg-sec{grid-template-columns:1fr}}
+.lg-lab{font-size:11px;line-height:1.75;font-weight:500;color:var(--muted-foreground)}
+.lg-v{min-width:0}
+.lg-list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px}
+.lg-list li{display:grid;grid-template-columns:14px minmax(0,1fr);column-gap:6px;align-items:start;font-size:13px;line-height:20px}
+.lg-list li>.lg-i{margin-top:3px;color:var(--muted-foreground)}
+.lg-list.num li{grid-template-columns:1.25rem minmax(0,1fr)}
+.lg-list .n{font-size:11.5px;font-weight:500;color:var(--muted-foreground);font-variant-numeric:tabular-nums;line-height:20px}
+.lg-links{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
+.attn-word{display:inline-flex;align-items:center;gap:4px;font-weight:500;color:var(--tone)}
+.sec{scroll-margin-top:72px}
+
+/* ───────── BB tokens, per theme (values measured in the live app) ───────── */
+.ws-root{--radius-lg:.5rem;--radius-md:.375rem}
+.ws-root.dark{color-scheme:dark;--canvas:#000;--background:#000;--foreground:#ededed;--border:#262626;--muted-foreground:#a1a1a1;
+  --surface-recessed:rgba(255,255,255,.04);--primary:#006fee;--muted:#1f1f1f;--state-hover:#ffffff0d;--ring:#006fee}
+.ws-root.light{color-scheme:light;--canvas:#fff;--background:#fff;--foreground:#171717;--border:#e5e5e5;--muted-foreground:#666;
+  --surface-recessed:#17171708;--primary:#006fee;--muted:#f2f2f2;--state-hover:#1717170a;--ring:#006fee}
+
+
+
+
+.ws-root {
+  --ws-complete-original: oklch(69.6% 0.17 162.48);
+  --ws-complete: var(--ws-complete-original);
+  --ws-complete-text: oklch(50.8% 0.118 165.612);
+  --ws-complete-strong: oklch(59.6% 0.145 163.225);
+  --ws-complete-on-strong: var(--canvas);
+  --ws-complete-soft: var(--ws-complete-text);
+  --ws-complete-mark: #30a46c;
+  --ws-complete-band: var(--ws-complete);
+  --ws-complete-border: oklch(76.5% 0.177 163.223);
+  --ws-complete-surface: color-mix(
+    in oklab,
+    oklch(97.9% 0.021 166.113) 40%,
+    transparent
+  );
+  --ws-complete-footer: color-mix(
+    in oklab,
+    oklch(69.6% 0.17 162.48) 5%,
+    transparent
+  );
+  --ws-complete-rule: color-mix(
+    in oklab,
+    oklch(37.8% 0.077 168.94) 10%,
+    transparent
+  );
+
+  --ws-review-original: oklch(68.5% 0.169 237.323);
+  --ws-review: var(--ws-review-original);
+  --ws-review-text: oklch(50% 0.134 242.749);
+  --ws-review-strong: oklch(58.8% 0.158 241.966);
+  --ws-review-on-strong: var(--canvas);
+  --ws-review-soft: var(--ws-review-text);
+  --ws-review-mark: var(--primary);
+  --ws-review-band: var(--ws-review);
+  --ws-review-border: oklch(74.6% 0.16 232.661);
+  --ws-review-surface: color-mix(
+    in oklab,
+    oklch(97.7% 0.013 236.62) 40%,
+    transparent
+  );
+  --ws-review-footer: color-mix(
+    in oklab,
+    oklch(68.5% 0.169 237.323) 5%,
+    transparent
+  );
+  --ws-review-rule: color-mix(
+    in oklab,
+    oklch(39.1% 0.09 240.876) 10%,
+    transparent
+  );
+
+  --ws-waiting-original: oklch(60.6% 0.25 292.717);
+  --ws-waiting: var(--ws-waiting-original);
+  --ws-waiting-text: oklch(49.1% 0.27 292.581);
+  --ws-waiting-strong: oklch(54.1% 0.281 293.009);
+  --ws-waiting-on-strong: var(--canvas);
+  --ws-waiting-soft: var(--ws-waiting-text);
+  --ws-waiting-mark: var(--ws-waiting-text);
+  --ws-waiting-band: var(--ws-waiting);
+  --ws-waiting-border: oklch(70.2% 0.183 293.541);
+  --ws-waiting-surface: color-mix(
+    in oklab,
+    oklch(96.9% 0.016 293.756) 40%,
+    transparent
+  );
+  --ws-waiting-footer: color-mix(
+    in oklab,
+    oklch(60.6% 0.25 292.717) 5%,
+    transparent
+  );
+  --ws-waiting-rule: color-mix(
+    in oklab,
+    oklch(38% 0.189 293.745) 10%,
+    transparent
+  );
+
+  --ws-needs-you-original: oklch(76.9% 0.188 70.08);
+  --ws-needs-you: var(--ws-needs-you-original);
+  --ws-needs-you-text: oklch(55.5% 0.163 48.998);
+  --ws-needs-you-strong: oklch(66.6% 0.179 58.318);
+  --ws-needs-you-on-strong: #fff;
+  --ws-needs-you-soft: color-mix(
+    in oklab,
+    oklch(76.9% 0.188 70.08) 75%,
+    var(--foreground)
+  );
+  --ws-needs-you-mark: var(--warning-text);
+  --ws-needs-you-band: var(--attention);
+  --ws-needs-you-border: oklch(76.9% 0.188 70.08);
+  --ws-needs-you-surface: color-mix(
+    in oklab,
+    oklch(98.7% 0.022 95.277) 40%,
+    transparent
+  );
+  --ws-needs-you-footer: color-mix(
+    in oklab,
+    oklch(76.9% 0.188 70.08) 5%,
+    transparent
+  );
+  --ws-needs-you-rule: color-mix(
+    in oklab,
+    oklch(41.4% 0.112 45.904) 10%,
+    transparent
+  );
+
+  --ws-failure-original: oklch(63.7% 0.237 25.331);
+  --ws-failure: var(--ws-failure-original);
+  --ws-failure-text: oklch(50.5% 0.213 27.518);
+  --ws-failure-strong: oklch(57.7% 0.245 27.325);
+  --ws-failure-on-strong: var(--canvas);
+  --ws-failure-soft: var(--ws-failure-text);
+  --ws-failure-mark: var(--destructive);
+  --ws-failure-band: var(--ws-failure);
+  --ws-failure-border: oklch(70.4% 0.191 22.216);
+  --ws-failure-surface: color-mix(
+    in oklab,
+    oklch(97.1% 0.013 17.38) 40%,
+    transparent
+  );
+  --ws-failure-footer: color-mix(
+    in oklab,
+    oklch(63.7% 0.237 25.331) 5%,
+    transparent
+  );
+  --ws-failure-rule: color-mix(
+    in oklab,
+    oklch(39.6% 0.141 25.723) 10%,
+    transparent
+  );
+
+  --ws-suggestion-original: oklch(60.6% 0.25 292.717);
+  --ws-suggestion: var(--ws-suggestion-original);
+  --ws-suggestion-text: color-mix(
+    in oklab,
+    oklch(60.6% 0.25 292.717) 70%,
+    var(--foreground)
+  );
+  --ws-suggestion-strong: oklch(54.1% 0.281 293.009);
+  --ws-suggestion-on-strong: var(--canvas);
+  --ws-suggestion-soft: var(--ws-suggestion-text);
+  --ws-suggestion-mark: var(--ws-suggestion-text);
+  --ws-suggestion-band: var(--ws-suggestion);
+  --ws-suggestion-border: oklch(70.2% 0.183 293.541);
+  --ws-suggestion-surface: color-mix(
+    in oklab,
+    oklch(96.9% 0.016 293.756) 40%,
+    transparent
+  );
+  --ws-suggestion-footer: color-mix(
+    in oklab,
+    oklch(60.6% 0.25 292.717) 5%,
+    transparent
+  );
+  --ws-suggestion-rule: color-mix(
+    in oklab,
+    oklch(38% 0.189 293.745) 10%,
+    transparent
+  );
+
+  
+  --ws-hash-digits: color-mix(
+    in oklab,
+    oklch(39.1% 0.09 240.876) 75%,
+    transparent
+  );
+  --ws-hash-letters: color-mix(
+    in oklab,
+    oklch(43.2% 0.232 292.759) 70%,
+    transparent
+  );
+  --ws-pr-merged: #8e4ec6;
+}
+
+.ws-root.dark {
+  --ws-complete-original: oklch(76.5% 0.177 163.223);
+  --ws-complete: var(--ws-complete-original);
+  --ws-complete-text: oklch(84.5% 0.143 164.978);
+  --ws-complete-strong: oklch(76.5% 0.177 163.223);
+  --ws-complete-on-strong: var(--canvas);
+  --ws-complete-soft: var(--ws-complete-text);
+  --ws-complete-mark: #30a46c;
+  --ws-complete-band: var(--ws-complete);
+  --ws-complete-border: color-mix(
+    in oklab,
+    oklch(69.6% 0.17 162.48) 70%,
+    transparent
+  );
+  --ws-complete-surface: color-mix(
+    in oklab,
+    oklch(26.2% 0.051 172.552) 15%,
+    transparent
+  );
+  --ws-complete-footer: color-mix(
+    in oklab,
+    oklch(84.5% 0.143 164.978) 4%,
+    transparent
+  );
+  --ws-complete-rule: color-mix(
+    in oklab,
+    oklch(90.5% 0.093 164.15) 15%,
+    transparent
+  );
+
+  --ws-review-original: oklch(74.6% 0.16 232.661);
+  --ws-review: var(--ws-review-original);
+  --ws-review-text: oklch(82.8% 0.111 230.318);
+  --ws-review-strong: oklch(74.6% 0.16 232.661);
+  --ws-review-on-strong: var(--canvas);
+  --ws-review-soft: var(--ws-review-text);
+  --ws-review-mark: var(--primary);
+  --ws-review-band: var(--ws-review);
+  --ws-review-border: color-mix(
+    in oklab,
+    oklch(68.5% 0.169 237.323) 80%,
+    transparent
+  );
+  --ws-review-surface: color-mix(
+    in oklab,
+    oklch(29.3% 0.066 243.157) 15%,
+    transparent
+  );
+  --ws-review-footer: color-mix(
+    in oklab,
+    oklch(82.8% 0.111 230.318) 4%,
+    transparent
+  );
+  --ws-review-rule: color-mix(
+    in oklab,
+    oklch(90.1% 0.058 230.902) 15%,
+    transparent
+  );
+
+  --ws-waiting-original: oklch(70.2% 0.183 293.541);
+  --ws-waiting: var(--ws-waiting-original);
+  --ws-waiting-text: oklch(81.1% 0.111 293.571);
+  --ws-waiting-strong: oklch(70.2% 0.183 293.541);
+  --ws-waiting-on-strong: var(--canvas);
+  --ws-waiting-soft: var(--ws-waiting-text);
+  --ws-waiting-mark: var(--ws-waiting-text);
+  --ws-waiting-band: var(--ws-waiting);
+  --ws-waiting-border: color-mix(
+    in oklab,
+    oklch(60.6% 0.25 292.717) 70%,
+    transparent
+  );
+  --ws-waiting-surface: color-mix(
+    in oklab,
+    oklch(28.3% 0.141 291.089) 20%,
+    transparent
+  );
+  --ws-waiting-footer: color-mix(
+    in oklab,
+    oklch(81.1% 0.111 293.571) 4%,
+    transparent
+  );
+  --ws-waiting-rule: color-mix(
+    in oklab,
+    oklch(89.4% 0.057 293.283) 15%,
+    transparent
+  );
+
+  --ws-needs-you-original: oklch(82.8% 0.189 84.429);
+  --ws-needs-you: var(--ws-needs-you-original);
+  --ws-needs-you-text: oklch(87.9% 0.169 91.605);
+  --ws-needs-you-strong: oklch(82.8% 0.189 84.429);
+  --ws-needs-you-on-strong: oklch(27.9% 0.077 45.635);
+  --ws-needs-you-soft: color-mix(
+    in oklab,
+    oklch(76.9% 0.188 70.08) 75%,
+    var(--foreground)
+  );
+  --ws-needs-you-mark: var(--warning-text);
+  --ws-needs-you-band: var(--attention);
+  --ws-needs-you-border: color-mix(
+    in oklab,
+    oklch(76.9% 0.188 70.08) 70%,
+    transparent
+  );
+  --ws-needs-you-surface: color-mix(
+    in oklab,
+    oklch(27.9% 0.077 45.635) 15%,
+    transparent
+  );
+  --ws-needs-you-footer: color-mix(
+    in oklab,
+    oklch(87.9% 0.169 91.605) 4%,
+    transparent
+  );
+  --ws-needs-you-rule: color-mix(
+    in oklab,
+    oklch(92.4% 0.12 95.746) 15%,
+    transparent
+  );
+
+  --ws-failure-original: oklch(70.4% 0.191 22.216);
+  --ws-failure: var(--ws-failure-original);
+  --ws-failure-text: oklch(80.8% 0.114 19.571);
+  --ws-failure-strong: oklch(70.4% 0.191 22.216);
+  --ws-failure-on-strong: var(--canvas);
+  --ws-failure-soft: var(--ws-failure-text);
+  --ws-failure-mark: var(--destructive);
+  --ws-failure-band: var(--ws-failure);
+  --ws-failure-border: color-mix(
+    in oklab,
+    oklch(63.7% 0.237 25.331) 70%,
+    transparent
+  );
+  --ws-failure-surface: color-mix(
+    in oklab,
+    oklch(25.8% 0.092 26.042) 15%,
+    transparent
+  );
+  --ws-failure-footer: color-mix(
+    in oklab,
+    oklch(80.8% 0.114 19.571) 4%,
+    transparent
+  );
+  --ws-failure-rule: color-mix(
+    in oklab,
+    oklch(88.5% 0.062 18.334) 15%,
+    transparent
+  );
+
+  --ws-suggestion-original: oklch(70.2% 0.183 293.541);
+  --ws-suggestion: var(--ws-suggestion-original);
+  --ws-suggestion-text: color-mix(
+    in oklab,
+    oklch(60.6% 0.25 292.717) 70%,
+    var(--foreground)
+  );
+  --ws-suggestion-strong: oklch(70.2% 0.183 293.541);
+  --ws-suggestion-on-strong: var(--canvas);
+  --ws-suggestion-soft: var(--ws-suggestion-text);
+  --ws-suggestion-mark: var(--ws-suggestion-text);
+  --ws-suggestion-band: var(--ws-suggestion);
+  --ws-suggestion-border: color-mix(
+    in oklab,
+    oklch(60.6% 0.25 292.717) 70%,
+    transparent
+  );
+  --ws-suggestion-surface: color-mix(
+    in oklab,
+    oklch(28.3% 0.141 291.089) 20%,
+    transparent
+  );
+  --ws-suggestion-footer: color-mix(
+    in oklab,
+    oklch(81.1% 0.111 293.571) 4%,
+    transparent
+  );
+  --ws-suggestion-rule: color-mix(
+    in oklab,
+    oklch(89.4% 0.057 293.283) 15%,
+    transparent
+  );
+
+  --ws-hash-digits: color-mix(
+    in oklab,
+    oklch(95.1% 0.026 236.824) 75%,
+    transparent
+  );
+  --ws-hash-letters: color-mix(
+    in oklab,
+    oklch(89.4% 0.057 293.283) 70%,
+    transparent
+  );
+}
+
+
+/* ───────── Prose, as BB's Markdown renders it in a message ───────── */
+.md{max-width:none;overflow-wrap:break-word;font-size:13px;line-height:21.125px;color:var(--foreground)}
+.md p{margin:0 0 8px}.md p:last-child{margin-bottom:0}
+.md h1,.md h2{margin:0;font-size:18px;line-height:28px;font-weight:600}
+.md h3{margin:0;font-size:13px;line-height:18.57px;font-weight:600}
+.md code,.code-i{font-family:var(--mono);font-size:12px;padding:2px 6px;border-radius:4px;background:color-mix(in oklab,var(--muted) 70%,transparent)}
+.md a{color:var(--foreground);text-decoration:underline;text-underline-offset:2px}
+.md ul{margin:0;padding-left:20px}
+.md input[type=checkbox]{margin:0 6px 0 0;vertical-align:-1px}
+.bbcode{margin:8px 0;overflow:hidden;border:1px solid var(--border);border-radius:6px;background:var(--surface-recessed)}
+.bbcode .hd{display:flex;justify-content:space-between;padding:6px 12px 0;font:500 11px/1.4 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--muted-foreground)}
+.bbcode pre{margin:0;padding:4px 12px 12px;overflow-x:auto;font:13px/1.5 var(--mono)}
+
+/* ───────── CURRENT: PlainBody/ReplyBlock as shipped ─────────
+   Measured live: wrapper `min-w-0 space-y-4`; Markdown divs 13px/21.125px;
+   literal <p>/<ul>/<li> inherit the browser's 16px/24px. */
+.plain>*{margin-bottom:16px}.plain>*:last-child{margin-bottom:0}
+.plain .lit,.plain ul,.plain ol,.plain li{font-size:16px;line-height:24px}
+.plain ul,.plain ol{margin-bottom:8px;padding-left:20px}
+.plain li{margin-bottom:4px}
+.plain li>.md{margin:0}
+.plain p.lit{margin:0}
+.plain>p.lit{margin-bottom:16px}
+.plain ul.disc{list-style:disc}.plain ol.dec{list-style:decimal}
+
+/* The cheap alternative to the redesign: today's wording and structure, with the
+   labels brought down to body size, given the muted tone they should have had,
+   and the gaps between fields tightened. No panels, no icons, no colour. */
+.plain.fixed>*{margin-bottom:10px}
+.plain.fixed .lit,.plain.fixed ul,.plain.fixed ol,.plain.fixed li{font-size:13px;line-height:21px}
+.plain.fixed .lit{font-weight:500;color:var(--muted-foreground)}
+.plain.fixed ul,.plain.fixed ol{margin-bottom:6px;padding-left:18px}
+
+/* ───────── PROPOSED ───────── */
+.reply{container:reply/inline-size;min-width:0;font-size:13px;line-height:21.125px;color:var(--foreground)}
+.rich{display:flex;flex-direction:column;gap:16px}
+.rich>.md{margin:0}
+.rich .md p{margin:0 0 8px}
+
+.reply{
+  --gutter:5.5rem;      /* label column; the recap's is 3.25rem for shorter labels */
+  --pad-x:14px;
+  --tone:var(--muted-foreground);--tone-s:transparent;
+}
+.t-complete{--tone:var(--ws-complete-text);--tone-s:var(--ws-complete-surface);--tone-b:var(--ws-complete-border);--tone-m:var(--ws-complete)}
+.t-failure{--tone:var(--ws-failure-text);--tone-s:var(--ws-failure-surface);--tone-b:var(--ws-failure-border);--tone-m:var(--ws-failure)}
+.t-attn{--tone:var(--ws-needs-you-text);--tone-s:var(--ws-needs-you-surface);--tone-b:var(--ws-needs-you-border);--tone-m:var(--ws-needs-you)}
+.t-waiting{--tone:var(--ws-waiting-text);--tone-s:var(--ws-waiting-surface);--tone-b:var(--ws-waiting-border);--tone-m:var(--ws-waiting)}
+.t-review{--tone:var(--ws-review-text);--tone-s:var(--ws-review-surface);--tone-b:var(--ws-review-border);--tone-m:var(--ws-review)}
+.t-muted{--tone:var(--muted-foreground);--tone-s:transparent;--tone-b:var(--border);--tone-m:var(--muted-foreground)}
+
+.g{width:14px;height:14px;flex:none;display:block}
+.g.sm{width:12px;height:12px}
+
+/* Exhibit frame: the same recessed, bordered, 8px-radius object the repo already uses for subagent deliveries */
+.x{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface-recessed);overflow:hidden;color:var(--foreground);font-size:13px;line-height:1.5}
+.x-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 16px;padding:9px var(--pad-x);border-bottom:1px solid var(--border)}
+.x-h .x-hd{flex:1 1 12rem;min-width:0}
+.x-t{margin:0;font-size:13px;line-height:19px;font-weight:600;letter-spacing:-0.006em;overflow-wrap:anywhere}
+.x-m{margin:1px 0 0;font-size:12px;line-height:18px;color:var(--muted-foreground);overflow-wrap:anywhere}
+.x-s{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:11.5px;font-weight:500;line-height:19px;color:var(--muted-foreground)}
+.x-s .cnt{display:inline-flex;align-items:center;gap:4px;color:var(--tone)}
+.x-s .cnt b{font-variant-numeric:tabular-nums}
+.x-s .cnt.zero{color:var(--muted-foreground)}
+.x-s .cl{color:var(--muted-foreground)}
+.x-row{padding:8px var(--pad-x)}
+.x-row+.x-row{border-top:1px solid var(--border)}
+.x-sec{padding:10px var(--pad-x)}
+.x-sec+.x-sec{border-top:1px solid var(--border)}
+
+/* label gutter: the recap card's row grammar */
+.lr{display:grid;grid-template-columns:var(--gutter) minmax(0,1fr);column-gap:12px;row-gap:2px;align-items:baseline}
+.lb{display:inline-flex;align-items:center;gap:5px;padding-top:1px;font-size:11px;line-height:1.6;font-weight:500;color:var(--muted-foreground);white-space:nowrap}
+.lr .v{min-width:0;overflow-wrap:anywhere}
+.sub{font-size:12px;line-height:18px;color:var(--muted-foreground)}
+
+/* status rows: checks */
+.rows{list-style:none;margin:0;padding:0}
+.st{display:grid;grid-template-columns:14px minmax(0,1fr) auto;column-gap:10px;align-items:start;padding:8px var(--pad-x)}
+.st+.st{border-top:1px solid var(--border)}
+.st .sg{color:var(--tone);margin-top:3px}
+.st .sn{font-size:13px;line-height:20px;overflow-wrap:anywhere}
+.st .sd{font-size:12px;line-height:18px;color:var(--muted-foreground);margin-top:1px;overflow-wrap:anywhere}
+.st .sl{font-size:11px;line-height:20px;font-weight:500;color:var(--tone);min-width:3.5rem;text-align:right;white-space:nowrap}
+.st.hot{background:var(--tone-s)}
+.st.hot .sn{font-weight:500}
+
+/* rails: sequence + delivery */
+.rail{list-style:none;margin:0;padding:6px 0}
+.rl{position:relative;display:grid;grid-template-columns:20px minmax(0,1fr) auto;column-gap:10px;align-items:start;padding:8px var(--pad-x)}
+.rl::before{content:"";position:absolute;left:calc(var(--pad-x) + 10px);top:30px;bottom:-8px;border-left:1px solid var(--rail,var(--border))}
+.rl:last-child::before{display:none}
+.rl.dashed{--rail-style:dashed}
+.rl.dashed::before{border-left-style:dashed}
+.rl .nd{display:grid;place-items:center;width:20px;height:20px;border-radius:999px;border:1px solid var(--tone-b,var(--border));color:var(--tone);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;background:var(--canvas)}
+.rl .nd .g{width:12px;height:12px}
+.rl .sn{font-size:13px;line-height:20px;overflow-wrap:anywhere}
+.rl .sd{font-size:12px;line-height:18px;color:var(--muted-foreground);margin-top:1px;overflow-wrap:anywhere}
+.rl .sl{font-size:11px;line-height:20px;font-weight:500;color:var(--tone);display:inline-flex;gap:4px;align-items:center;white-space:nowrap}
+.rl.attn .nd{border-color:var(--ws-needs-you-border)}
+.rl.done{--rail:var(--ws-complete-border)}
+
+/* comparison */
+.opt{position:relative;padding:10px var(--pad-x)}
+.opt+.opt{border-top:1px solid var(--border)}
+.opt.rec{background:var(--ws-review-surface)}
+.opt.rec::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--ws-review)}
+.opt-h{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.opt-n{font-size:13px;line-height:20px;font-weight:600;overflow-wrap:anywhere}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:0 7px;border:1px solid var(--ws-review-border);border-radius:999px;font-size:11px;line-height:18px;font-weight:500;color:var(--ws-review-text);white-space:nowrap}
+.opt-s{margin-top:2px;overflow-wrap:anywhere}
+.opt-q{margin-top:4px;font-size:12px;line-height:18px;color:color-mix(in oklab,var(--foreground) 80%,transparent);overflow-wrap:anywhere}
+.opt-d{margin-top:2px;font-size:12px;line-height:18px;color:var(--muted-foreground);overflow-wrap:anywhere}
+
+/* change */
+.chg{padding:8px var(--pad-x)}
+.chg+.chg{border-top:1px solid var(--border)}
+.chg.minus{background:var(--ws-failure-surface)}.chg.minus .lb{color:var(--ws-failure-text)}
+.chg.plus{background:var(--ws-complete-surface)}.chg.plus .lb{color:var(--ws-complete-text)}
+.chg.same .v{color:var(--muted-foreground)}
+.chg.lim .lb{color:var(--ws-needs-you-text)}
+.chg.minus .v{color:color-mix(in oklab,var(--foreground) 78%,transparent)}
+
+/* finding: unframed, ruled; line style carries certainty */
+.fd{position:relative;padding-left:14px}
+.fd::before{content:"";position:absolute;left:0;top:2px;bottom:2px;width:2px;border-radius:1px;background:var(--rule)}
+.fd{--rule:color-mix(in oklab,var(--foreground) 45%,transparent)}
+.fd-e{display:inline-flex;align-items:center;gap:5px;font-size:11px;line-height:17.6px;font-weight:500;color:var(--tone)}
+.fd.observed .fd-e{color:var(--foreground)}
+.fd.unknown .fd-e{color:var(--muted-foreground)}
+.fd-t{margin:1px 0 0;font-size:13px;line-height:19px;font-weight:600;letter-spacing:-0.006em}
+.fd-x{margin-top:4px}
+.fd .lr{margin-top:8px}
+
+/* recommendation: the mid-reply counterpart of the card's tinted surface */
+.rc{position:relative;padding:10px 14px 10px 16px;border-radius:0 var(--radius-lg) var(--radius-lg) 0;background:var(--ws-review-surface)}
+.rc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--ws-review)}
+.rc-e{display:inline-flex;align-items:center;gap:5px;font-size:11px;line-height:17.6px;font-weight:500;color:var(--ws-review-text)}
+.rc-c{margin-top:1px;font-size:13px;line-height:20px;font-weight:600;overflow-wrap:anywhere}
+.rc-r{margin-top:2px}
+.rc-q{margin-top:6px;font-size:12px;line-height:18px;color:color-mix(in oklab,var(--foreground) 80%,transparent)}
+
+/* context */
+.cx .v>.cx-t{font-size:13px;line-height:20px;font-weight:600;overflow-wrap:anywhere}
+.cx .v>.cx-w{margin-top:3px}
+.cx .v>.cx-b{margin-top:3px;font-size:13px;line-height:21px;color:var(--muted-foreground)}
+
+/* evidence chips: the recap card's link chips */
+.ev{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.ev>li{min-width:0;max-width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px}
+.chip{display:inline-flex;max-width:100%;align-items:center;gap:6px;min-height:24px;padding:1px 9px;border:1px solid var(--border);border-radius:999px;background:color-mix(in oklab,var(--background) 60%,transparent);font-size:11.5px;line-height:18px;font-weight:500;color:color-mix(in oklab,var(--foreground) 85%,transparent);text-decoration:none;cursor:pointer}
+a.chip:hover{border-color:color-mix(in oklab,var(--foreground) 25%,transparent);color:var(--foreground)}
+a.chip:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+.chip .cg{opacity:.7}
+.chip .cl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.chip .rng{font:500 11px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--muted-foreground);white-space:nowrap}
+.ev-d{font-size:12px;line-height:18px;color:var(--muted-foreground);overflow-wrap:anywhere}
+.x-ev{margin-top:6px}
+
+/* path chip (context.where) */
+.path{display:inline-flex;max-width:100%;align-items:center;gap:6px;min-height:24px;padding:1px 9px;border:1px solid var(--border);border-radius:6px;font:500 11.5px/18px var(--mono);color:color-mix(in oklab,var(--foreground) 85%,transparent);overflow-wrap:anywhere}
+
+/* details */
+.dt{border-top:1px solid var(--border);padding-top:6px}
+.dt>summary{display:flex;align-items:center;gap:8px;min-height:28px;cursor:pointer;list-style:none;font-size:13px;font-weight:600}
+.dt>summary::-webkit-details-marker{display:none}
+.dt>summary:focus-visible{outline:2px solid var(--ring);outline-offset:2px;border-radius:4px}
+.dt>summary .g{transition:transform .15s;color:var(--muted-foreground)}
+.dt[open]>summary .g{transform:rotate(90deg)}
+.dt-p{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400;font-size:12px;color:var(--muted-foreground)}
+.dt[open] .dt-p{display:none}
+.dt-b{padding:2px 0 4px 22px}
+
+/* groups */
+.grp.x{background:var(--surface-recessed)}
+.grp .flush .x{border:0;border-radius:0;background:none;overflow:visible}
+.x-sec:has(>.flush>.x){padding:0}
+.grp .flush .x>.x-h:first-child{border-top:0}
+.grp .flush .rc{border-radius:0}
+.peers{display:flex;flex-direction:column;gap:8px}
+.kept{display:flex;flex-direction:column;gap:6px}
+.kept>.md p{margin:0}
+
+/* fallbacks */
+.fb{border:1px dashed var(--ws-needs-you-border);border-radius:var(--radius-lg);padding:9px var(--pad-x) 4px}
+.fb-h{display:flex;align-items:flex-start;gap:7px;font-size:12px;line-height:18px;font-weight:500;color:var(--ws-needs-you-text)}
+.fb-h .g{margin-top:2px}
+.fb .bbcode{margin:8px 0 6px}
+.fb-why{margin:4px 12px 0;font-size:11px;line-height:1.6;color:var(--muted-foreground)}
+.pend{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 var(--pad-x);border:1px dashed var(--border);border-radius:var(--radius-lg);font-size:12px;color:var(--muted-foreground)}
+.pend .dots{display:inline-flex;gap:3px}
+.pend .dots i{width:4px;height:4px;border-radius:50%;background:currentColor;animation:pulse 1.2s infinite ease-in-out}
+.pend .dots i:nth-child(2){animation-delay:.15s}.pend .dots i:nth-child(3){animation-delay:.3s}
+@keyframes pulse{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.pend .dots i{animation:none;opacity:.6}.dt>summary .g{transition:none}}
+.directive{font:12px/1.5 var(--mono);color:var(--muted-foreground);overflow-wrap:anywhere}
+
+/* compact container (<26rem of message text): labels stack, status drops under name, padding tightens */
+@container reply (max-width:26rem){
+  .reply{--pad-x:12px}
+  .lr{grid-template-columns:minmax(0,1fr)}
+  .st{grid-template-columns:14px minmax(0,1fr)}
+  .st .sl{grid-column:2;text-align:left;min-width:0;line-height:16px;margin-top:2px}
+  .rl{grid-template-columns:20px minmax(0,1fr)}
+  .rl .sl{grid-column:2;margin-top:2px}
+  .x-h{gap:2px 8px}
+  .opt-h{gap:2px 8px}
+}
+@media (pointer:coarse) and (max-width:767px){
+  .reply .x,.reply .md{font-size:15px}
+  .chip,.path{min-height:36px}
+}
+@media (forced-colors:active){
+  .fd::before,.rc::before,.opt.rec::before{background:CanvasText}
+  .x,.chip,.pill,.fb,.pend{border-color:CanvasText}
+}
+
+/* ───────── The recap card, reproduced from RecapCard.tsx (benchmark; not restyled) ───────── */
+.recap{container:recap/inline-size;position:relative;width:100%;border:1px solid;border-radius:var(--radius-lg);padding:12px 16px;color:var(--foreground)}
+.recap.review{border-color:var(--ws-review-border);background:var(--ws-review-surface);--a:var(--ws-review-text);--rule:var(--ws-review-rule);--foot:var(--ws-review-footer)}
+.recap.complete{border-color:var(--ws-complete-border);background:var(--ws-complete-surface);--a:var(--ws-complete-text);--rule:var(--ws-complete-rule);--foot:var(--ws-complete-footer)}
+.rc-state{margin:0;padding-right:28px;font-size:11px;line-height:1.6;font-weight:500;color:var(--a)}
+.rc-goal{margin:0;padding-right:28px;font-size:clamp(.8125rem,calc(.5rem + 1.75cqi),1.0625rem);line-height:1.4;font-weight:500;letter-spacing:-.006em}
+.rc-rows{margin-top:6px}
+.rc-sec{display:grid;grid-template-columns:3.25rem minmax(0,1fr);column-gap:12px;row-gap:2px;padding:8px 0;font-size:clamp(.625rem,calc(.4375rem + .9375cqi),.8125rem);line-height:1.5}
+.rc-sec+.rc-sec{border-top:1px solid var(--rule)}
+@container recap (max-width:24rem){.rc-sec{grid-template-columns:1fr}}
+.rc-sec h3{margin:0;padding-top:1px;font-size:11px;line-height:1.6;font-weight:500;color:var(--a)}
+.rc-sec ul,.rc-sec ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.rc-sec li{display:grid;grid-template-columns:14px minmax(0,1fr);column-gap:6px}
+.rc-sec li .g{margin-top:.2em;color:var(--a)}
+.rc-sec li .n{font-size:.85em;font-weight:500;font-variant-numeric:tabular-nums;color:color-mix(in oklab,var(--foreground) 60%,transparent)}
+.rc-links{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0;padding:0;list-style:none}
+.rc-links li{display:block}
+.rc-foot{margin:6px -16px -12px;padding:8px 12px;display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--rule);background:var(--foot);border-radius:0 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px)}
+.rc-btn{height:28px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:none;font-size:11.5px;font-weight:500;color:var(--foreground)}
+.rc-x{position:absolute;top:10px;right:10px;width:24px;height:24px;display:grid;place-items:center;color:var(--muted-foreground)}
+.recap .chip{background:color-mix(in oklab,var(--background) 60%,transparent)}
+.recap-legacy .rc-x{display:none}
+.recap-legacy{margin:0}
+
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.reply,.recap{position:relative}
+</style></head>
+<body class="dark">
+<div id="root" class="ws-root dark">
+<div class="bar" role="toolbar" aria-label="Prototype controls">
+ <div class="grp"><span class="lbl">Rendering</span><span class="seg"><button data-k="mode" data-v="plain" aria-pressed="false">Today</button><button data-k="mode" data-v="fixed" aria-pressed="false">Today, sizes fixed</button><button data-k="mode" data-v="proposed" aria-pressed="true">Proposed</button></span></div>
+ <div class="grp"><span class="lbl">Theme</span><span class="seg"><button data-k="theme" data-v="dark" aria-pressed="true">Dark</button><button data-k="theme" data-v="light" aria-pressed="false">Light</button></span></div>
+ <div class="grp"><span class="lbl">Thread column</span><span class="seg"><button data-k="w" data-v="728" aria-pressed="true">Window 728</button><button data-k="w" data-v="600" aria-pressed="false">Narrow 600</button><button data-k="w" data-v="375" aria-pressed="false">Phone 375</button></span></div>
+ <span class="note">How reply parts could be drawn, instead of flattened to paragraphs</span>
+ <nav id="toc" class="toc" aria-label="Sections of the prototype"></nav>
+</div>
+<main id="stage" class="stage"></main>
+</div>
+<script>const DATA=[
+ {
+  "title": "An investigation",
+  "intro": "One reply carrying the reading half of the vocabulary: prose, a Details section, and six components, including evidence with a file range and a peer group.",
+  "messages": [
+   {
+    "from": "user",
+    "text": "Holding ↓ on the queue skips ahead. Why?"
+   },
+   {
+    "from": "agent",
+    "features": [
+     "headline",
+     "prose",
+     "context",
+     "finding",
+     "evidence",
+     "text",
+     "sequence",
+     "comparison",
+     "group (peers)",
+     "Details section"
+    ],
+    "status": "closed",
+    "reply": {
+     "headline": "The held key reads the card's position from the render that started the burst",
+     "kind": "investigation",
+     "body": [
+      {
+       "type": "text",
+       "body": "Key auto-repeat fires about thirty times a second, and every repeat runs the same handler, captured when the card was where the burst began. The card moves once, and each later repeat asks for the same move again — so the queue appears to skip ahead by however many repeats arrived before the next render."
+      },
+      {
+       "type": "context",
+       "topic": "Queue card keyboard handling",
+       "where": "src/app/page/queue/Queue.tsx",
+       "background": "The queue listens on the window, and the handler's position comes from the render that registered it."
+      },
+      {
+       "type": "finding",
+       "title": "Auto-repeat reads a stale position",
+       "explanation": "The handler is registered once per render with the focused item's index. A repeat event re-runs that handler with the index it closed over, so it applies the same offset again instead of the next one.",
+       "certainty": "observed",
+       "consequence": "Fast repeated presses move the card farther than the number of presses.",
+       "evidence": [
+        {
+         "label": "Key handler",
+         "detail": "The effect depends on the index, so it re-registers.",
+         "line": 308,
+         "endLine": 322,
+         "location": "src/app/page/queue/Queue.tsx"
+        },
+        {
+         "label": "Replay fixture",
+         "location": "https://github.com/tomdale/bb-plugin-workstreams/blob/main/tests/app/motion.test.ts"
+        }
+       ]
+      },
+      {
+       "type": "text",
+       "body": "A held key is one gesture, so it should move the card one place per step and no more than two ahead. The bug is in when the handler learns where the card is, not in how many moves it asks for."
+      },
+      {
+       "type": "sequence",
+       "title": "Reproduce it",
+       "steps": [
+        {
+         "title": "Hold ↓ for two seconds",
+         "detail": "About sixty keydown events arrive at the window.",
+         "attention": true
+        },
+        {
+         "title": "Count the cards the queue passed",
+         "detail": "More than sixty with the stale handler; sixty with a ref."
+        }
+       ]
+      },
+      {
+       "type": "comparison",
+       "title": "Two ways to read the position",
+       "items": [
+        {
+         "name": "Read the latest index from a ref",
+         "summary": "The handler stays registered and asks the ref where the card is.",
+         "qualification": "Keeps one listener for the whole burst and needs no re-subscription.",
+         "recommended": true
+        },
+        {
+         "name": "Re-subscribe on every render",
+         "summary": "Tear the handler down and rebuild it whenever the index changes.",
+         "detail": "Correct, but it adds a listener removal and addition for every card the user steps through.",
+         "qualification": "Noisier under a release build that batches updates."
+        }
+       ]
+      },
+      {
+       "type": "group",
+       "relationship": "peers",
+       "children": [
+        [
+         {
+          "type": "text",
+          "body": "The queue's arrow keys and the card's own buttons move by the same offset, so both paths need the same fix."
+         },
+         {
+          "type": "text",
+          "body": "Nothing else reads the closed-over index; the sidebar and the composer take their position from props."
+         }
+        ],
+        {
+         "type": "recommendation",
+         "choice": "Read the index from a ref",
+         "reason": "It removes the stale read without changing when the handler is registered, so the burst stays one listener.",
+         "qualification": "Revert if a future card can move without a keystroke."
+        }
+       ]
+      },
+      {
+       "type": "details",
+       "title": "Details",
+       "body": "The handler is registered in an effect whose dependency list includes the focused index, so it is rebuilt after each render. A keydown that arrives before React commits the new index runs the previous closure. Wrapping the index in a ref keeps the closure stable and lets every event read the value the last commit wrote."
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "title": "A change delivered",
+  "intro": "The follow-up reply: what changed, what was run, where it stands, and what to do next. The bare directive on its own line renders through bb's installed directive plugins; without one, its source stays readable, as here.",
+  "messages": [
+   {
+    "from": "user",
+    "text": "Fix it, and show me what you ran."
+   },
+   {
+    "from": "agent",
+    "features": [
+     "change",
+     "checks",
+     "delivery",
+     "group (supporting)",
+     "recommendation",
+     "details component",
+     "directive"
+    ],
+    "status": "closed",
+    "reply": {
+     "headline": "The held key moves the card one place per press",
+     "kind": "change",
+     "body": [
+      {
+       "type": "text",
+       "body": "The handler now reads the card's position from a ref, so a burst of repeats all see the position the last commit wrote. Held keys are capped at two cards ahead, and a burst longer than that is dropped rather than queued."
+      },
+      {
+       "type": "directive",
+       "source": "::inline-vis{source=\"thread-storage\" file=\"queue-replay.html\"}"
+      },
+      {
+       "type": "change",
+       "title": "Queue card keys",
+       "before": "A held key re-read a stale index and skipped several cards",
+       "after": "Each press moves one card, and a release settles the card at once",
+       "unchanged": "Clicking a card, and the keyboard shortcuts for send and edit",
+       "limitation": "A burst that starts while the thread list reloads still waits for that render."
+      },
+      {
+       "type": "checks",
+       "title": "Local suite",
+       "scope": "vitest, run in the task worktree",
+       "testTotals": {
+        "passed": 8,
+        "failed": 0,
+        "skipped": 1
+       },
+       "items": [
+        {
+         "name": "Held key moves one card at a time",
+         "status": "passed",
+         "evidence": [
+          {
+           "label": "Replay fixture",
+           "location": "tests/app/motion.test.ts"
+          }
+         ]
+        },
+        {
+         "name": "Burst longer than two cards is dropped",
+         "status": "passed"
+        },
+        {
+         "name": "Card settles within one frame of release",
+         "status": "skipped",
+         "detail": "Needs a real display; jsdom reports no frame timing."
+        }
+       ]
+      },
+      {
+       "type": "delivery",
+       "title": "Where the fix stands",
+       "scope": "branch fix/queue-held-key",
+       "stages": [
+        {
+         "name": "Committed",
+         "status": "done",
+         "detail": "abc1234 on the task branch"
+        },
+        {
+         "name": "Pushed",
+         "status": "pending",
+         "detail": "Waiting on your review"
+        },
+        {
+         "name": "Deployed",
+         "status": "blocked",
+         "detail": "The plugin reloads after merge"
+        }
+       ]
+      },
+      {
+       "type": "group",
+       "relationship": "supporting",
+       "children": [
+        {
+         "type": "change",
+         "title": "The ref replaces the effect dependency",
+         "before": "useEffect re-registered the handler for each index",
+         "after": "One handler reads a ref the commit writes"
+        },
+        {
+         "type": "finding",
+         "title": "One listener serves the whole burst",
+         "explanation": "The handler no longer depends on the index, so a burst of repeats runs the same function with the latest position.",
+         "certainty": "observed"
+        }
+       ]
+      },
+      {
+       "type": "recommendation",
+       "choice": "Merge after one pass on a real queue",
+       "reason": "The replay fixture covers the ordering, but only a real display shows whether the card settles before the next frame.",
+       "qualification": "Keep the cap at two cards; it reads as deliberate rather than laggy."
+      },
+      {
+       "type": "details",
+       "title": "Why a ref and not state",
+       "body": "State would re-render for every key event, which is the work the cap exists to avoid. The ref holds the same value the last commit rendered, so the visible order and the handler's idea of it cannot drift apart."
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "title": "When a part cannot be displayed",
+  "intro": "A component the schema rejects stays readable instead of disappearing, and a fence that is still arriving holds a placeholder until its closing line.",
+  "messages": [
+   {
+    "from": "user",
+    "text": "What happened to the rest of the results?"
+   },
+   {
+    "from": "agent",
+    "features": [
+     "unparsed component"
+    ],
+    "status": "closed",
+    "reply": {
+     "headline": "Two parts that cannot be displayed as written",
+     "kind": "change",
+     "body": [
+      {
+       "type": "text",
+       "body": "A fence that is still arriving shows a placeholder until its closing line lands. A fence that closes with something the component schema rejects keeps its source readable, with the reason above it."
+      },
+      {
+       "type": "text",
+       "body": "This paragraph is a component like any other; it needs nothing but text."
+      },
+      {
+       "type": "unparsed",
+       "source": "```workstreams\n{\"type\":\"checks\",\"title\":\"Replay results\"}\n```",
+       "error": "Component not displayed: Invalid input"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "title": "Blocks written before the recap tool",
+  "intro": "Older messages carried the card's own fields. They still render inline — state, result checkboxes, and the Review, Links, and Next sections — though new replies leave the card to the recap tool.",
+  "messages": [
+   {
+    "from": "agent",
+    "features": [
+     "card state",
+     "result checkboxes",
+     "Review",
+     "Links",
+     "Next"
+    ],
+    "status": "closed",
+    "reply": {
+     "card": {
+      "state": "review",
+      "results": [
+       {
+        "checked": true,
+        "markdown": "Held keys move one card per press"
+       },
+       {
+        "checked": true,
+        "markdown": "A burst longer than two cards is dropped"
+       }
+      ],
+      "review": [
+       "Hold ↓ on a queue of four and confirm the card stops two ahead"
+      ],
+      "next": [
+       "Try it on your display: Hold ↓ and confirm the card settles as you release"
+      ],
+      "waitingOn": [],
+      "links": [
+       "[Motion fixture](https://github.com/tomdale/bb-plugin-workstreams/blob/main/tests/app/motion.test.ts)"
+      ],
+      "headline": "The queue cap holds at two cards"
+     },
+     "kind": "change",
+     "body": [
+      {
+       "type": "text",
+       "body": "### Not done\n\n- [ ] Check the settle timing on a display"
+      }
+     ]
+    }
+   }
+  ]
+ }
+]
+;</script>
+<script>/* Prototype renderer. DATA = the gallery specimens, parsed by the plugin's own
+   parse() from src/app/page/gallery.ts. SYNTHETIC = extra states the gallery
+   cannot show (failures, unknown certainty, long values); labelled as such. */
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const inline = (s) =>
+  esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" data-proto-link>$1</a>');
+function block(s) {
+  const lines = String(s).split("\n");
+  let out = "", list = [], para = [];
+  const flushP = () => { if (para.length) out += `<p>${inline(para.join(" "))}</p>`; para = []; };
+  const flushL = () => { if (list.length) out += `<ul style="list-style:none;padding:0">${list.join("")}</ul>`; list = []; };
+  for (const l of lines) {
+    let m;
+    if ((m = /^### (.*)$/.exec(l))) { flushP(); flushL(); out += `<h3>${inline(m[1])}</h3>`; }
+    else if ((m = /^- \[( |x)\] (.*)$/.exec(l))) { flushP(); list.push(`<li><input type="checkbox" disabled ${m[1] === "x" ? "checked" : ""}>${inline(m[2])}</li>`); }
+    else if (l.trim() === "") { flushP(); flushL(); }
+    else para.push(l);
+  }
+  flushP(); flushL();
+  return out;
+}
+const md = (s) => (s ? `<div class="md">${block(s)}</div>` : "");
+const mdInline = (s) => `<div class="md">${inline(s)}</div>`;
+const sr = (s) => `<span class="sr">${s}</span>`;
+
+/* Glyphs share the recap card's 16-unit, 1.5-stroke, round-cap vocabulary. */
+const G = {
+  check: "M3.5 8.5 6.5 11.5 12.5 4.5",
+  cross: "M4.5 4.5l7 7M11.5 4.5l-7 7",
+  dash: "M4.5 8h7",
+  file: "M9.5 1.5H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5Z M9.5 1.5V5H13",
+  link: "M6.5 9.5a3 3 0 0 0 4.24 0l2-2a3 3 0 0 0-4.24-4.24l-.5.5 M9.5 6.5a3 3 0 0 0-4.24 0l-2 2a3 3 0 0 0 4.24 4.24l.5-.5",
+  chev: "M6 4l4 4-4 4",
+  warn: "M8 2.5 14 13H2Z M8 6.6v3 M8 11.5v.1",
+  arrow: "M3.5 8h9M9 4.5 12.5 8 9 11.5",
+  dot: "M8 5.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 1 0 0-4.5Z",
+  ring: "M8 3.25a4.75 4.75 0 1 0 0 9.5 4.75 4.75 0 1 0 0-9.5Z",
+  half: "M8 3.25a4.75 4.75 0 0 0 0 9.5Z",
+  slash: "M4.6 11.4l6.8-6.8",
+  x: "M4 4l8 8M12 4l-8 8",
+  minus: "M4 8h8",
+  plus: "M4 8h8M8 4v8",
+  equal: "M4 6.2h8M4 9.8h8",
+};
+const svg = (path, cls = "", o = {}) =>
+  `<svg aria-hidden="true" viewBox="0 0 16 16" class="g ${cls}" fill="${o.fill ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"${o.dash ? ' stroke-dasharray="2 2.4"' : ""}>${o.raw || `<path d="${path}"/>`}</svg>`;
+const ringG = (cls) => svg(G.ring, cls);
+const dashedG = (cls) => svg(G.ring, cls, { dash: true });
+const blockedG = (cls) => svg("", cls, { raw: `<path d="${G.ring}"/><path d="${G.slash}"/>` });
+const halfG = (cls) => svg("", cls, { raw: `<path d="${G.ring}"/><path d="${G.half}" fill="currentColor"/>` });
+const dotG = (cls) => svg(G.dot, cls, { fill: true });
+
+/* Status → tone, glyph, visible word. Shape + word carry the meaning; color reinforces. */
+const STATUS = {
+  passed: { word: "Passed", tone: "complete", glyph: (c) => svg(G.check, c) },
+  failed: { word: "Failed", tone: "failure", glyph: (c) => svg(G.cross, c) },
+  skipped: { word: "Skipped", tone: "muted", glyph: (c) => svg(G.dash, c) },
+  blocked: { word: "Blocked", tone: "attn", glyph: blockedG },
+  untested: { word: "Untested", tone: "muted", glyph: dashedG },
+  done: { word: "Done", tone: "complete", glyph: (c) => svg(G.check, c) },
+  pending: { word: "Pending", tone: "waiting", glyph: ringG },
+  unknown: { word: "Unknown", tone: "muted", glyph: dashedG },
+  // Proposed, and not yet in the schema: the honest state of a stage nobody has
+  // reached, which "blocked" was being used for.
+  "not-started": { word: "Not started", tone: "muted", glyph: dashedG },
+};
+const hot = (s) => s === "failed" || s === "blocked";
+
+/* ───────── evidence ───────── */
+function evidence(items, cls = "x-ev") {
+  if (!items || !items.length) return "";
+  return `<ul class="ev ${cls}" role="list" aria-label="Evidence">${items
+    .map((e) => {
+      const web = e.location && e.location.startsWith("https://");
+      const g = e.location ? svg(web ? G.link : G.file, "sm cg") : "";
+      const range = e.line ? `<span class="rng">${e.endLine && e.endLine !== e.line ? `L${e.line}–${e.endLine}` : `L${e.line}`}</span>` : "";
+      const tag = e.location ? "a" : "span";
+      const attrs = e.location ? ` href="#" data-proto-link title="${esc(e.location)}"` : "";
+      return `<li><${tag} class="chip"${attrs}>${g}<span class="cl">${inline(e.label)}</span>${range}</${tag}>${e.detail ? `<span class="ev-d">${inline(e.detail)}</span>` : ""}</li>`;
+    })
+    .join("")}</ul>`;
+}
+
+/* ───────── CURRENT: PlainBody.tsx as shipped ───────── */
+function plainEvidence(items) {
+  if (!items || !items.length) return "";
+  return `<ul class="disc">${items.map((e) => `<li>${esc(e.label)}${md(e.detail)}</li>`).join("")}</ul>`;
+}
+const plainTitle = (t) => md(t.includes("\n") ? t : `### ${t}`);
+const lit = (t) => `<p class="lit">${esc(t)}</p>`;
+function plainCodeSource(src) {
+  const m = /^```(\w+)\n([\s\S]*)\n```$/.exec(src);
+  return m
+    ? `<div class="bbcode"><div class="hd"><span>${m[1]}</span><span>⧉</span></div><pre>${esc(m[2])}</pre></div>`
+    : md(src);
+}
+function plain(part) {
+  switch (part.type) {
+    case "text": return md(part.body);
+    case "directive": return `<div class="md directive">${esc(part.source)}</div>`;
+    case "pending": return `<p class="lit" role="status">Receiving information…</p>`;
+    case "unparsed": return md(part.error) + plainCodeSource(part.source);
+    case "context": return md(part.topic) + md(part.where) + md(part.background);
+    case "finding": return plainTitle(part.title) + lit(`Evidence: ${part.certainty}`) + md(part.explanation) + md(part.consequence) + plainEvidence(part.evidence);
+    case "comparison": return plainTitle(part.title) + part.items.map((i) => md(i.name) + (i.recommended ? lit("Recommended") : "") + md(i.summary) + md(i.qualification) + md(i.detail)).join("");
+    case "sequence": return plainTitle(part.title) + `<ol class="dec">${part.steps.map((s) => `<li>${md(s.title)}${s.attention ? lit("Attention") : ""}${md(s.detail)}</li>`).join("")}</ol>`;
+    case "change": return plainTitle(part.title) + [["Before", part.before], ["After", part.after], ["Unchanged", part.unchanged], ["Limitation", part.limitation]].map(([l, v]) => (v ? lit(l + ":") + md(v) : "")).join("");
+    case "checks": return plainTitle(part.title) + md(part.scope) + (part.testTotals ? lit(`${part.testTotals.passed} tests passed; ${part.testTotals.failed} failed; ${part.testTotals.skipped} skipped`) : "") + `<ul class="disc">${part.items.map((i) => `<li>${md(i.name)}${lit("Status: " + i.status)}${md(i.detail)}${plainEvidence(i.evidence)}</li>`).join("")}</ul>`;
+    case "delivery": return plainTitle(part.title) + md(part.scope) + `<ul class="disc">${part.stages.map((s) => `<li>${md(s.name)}${lit("Status: " + s.status)}${md(s.detail)}${plainEvidence(s.evidence)}</li>`).join("")}</ul>`;
+    case "recommendation": return md(part.choice) + md(part.reason) + md(part.qualification);
+    case "details": return plainTitle(part.title) + md(part.body);
+    case "group": return part.children.flat().map(plain).join("");
+  }
+  return "";
+}
+/* Top-level parts are siblings under `space-y-4`; every md()/lit() above is its own child, as in the app. */
+function plainReply(reply) {
+  const out = [];
+  const title = reply.headline || (reply.card && reply.card.headline);
+  if (title) out.push(`<div class="md"><h2>${inline(title)}</h2></div>`);
+  for (const p of reply.body) out.push(plain(p));
+  if (reply.card) {
+    const c = reply.card;
+    out.push(lit(c.state === "review" ? "Ready for review" : c.state === "complete" ? "Complete" : c.state));
+    if (c.results.length) out.push(`<ul class="disc">${c.results.map((r) => `<li>${md(r.markdown)}</li>`).join("")}</ul>`);
+    for (const [k, label] of [["review", "Review"], ["waitingOn", "Waiting on"], ["links", "Links"]])
+      if (c[k].length) out.push(md(`### ${label}`) + `<ul class="disc">${c[k].map((l) => `<li>${md(l)}</li>`).join("")}</ul>`);
+  }
+  return `<div class="plain reply-root${state.mode === "fixed" ? " fixed" : ""}">${out.join("")}</div>`;
+}
+
+/* ───────── PROPOSED ───────── */
+function head(title, sub, side) {
+  return `<header class="x-h"><div class="x-hd"><h3 class="x-t">${inline(title)}</h3>${sub ? `<p class="x-m">${inline(sub)}</p>` : ""}</div>${side ? `<div class="x-s">${side}</div>` : ""}</header>`;
+}
+const frame = (label, inner, extra = "") => `<div role="group" class="x ${extra}" aria-label="${esc(label)}">${inner}</div>`;
+
+const rich = {
+  text: (p) => md(p.body),
+  directive: (p) => `<div class="directive" title="BB's inline-vis renders this in a thread">${esc(p.source)}</div>`,
+  pending: () => `<div class="pend" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span>Receiving information…</span></div>`,
+  unparsed: (p) =>
+    `<div role="group" class="fb" aria-label="This part could not be read"><div class="fb-h">${svg(G.warn, "sm")}<span>This part could not be read, so it is shown as text</span></div><p class="fb-why">${esc(p.error)}</p>${plainCodeSource(p.source)}</div>`,
+  context: (p) =>
+    `<div role="group" class="lr cx" aria-label="Context"><span class="lb">Context</span><div class="v"><div class="cx-t">${inline(p.topic)}</div>${p.where ? `<div class="cx-w"><span class="path">${svg(G.file, "sm cg")}${esc(p.where)}</span></div>` : ""}${p.background ? `<div class="cx-b">${inline(p.background)}</div>` : ""}</div></div>`,
+  finding(p) {
+    /* Unknown reads as muted here and on a delivery stage: the same word should
+       not be two colours in one reply. The rule's line style carries certainty,
+       so it stays solid; the icon and the word do the distinguishing. */
+    const meta = { observed: ["Observed", (c) => svg(G.ring, c, { fill: true })], inferred: ["Inferred", halfG], unknown: ["Unknown", dashedG] }[p.certainty];
+    const rows = (p.consequence ? `<div class="lr"><span class="lb">Consequence</span><div class="v">${inline(p.consequence)}</div></div>` : "") +
+      (p.evidence ? `<div class="lr"><span class="lb">Evidence</span><div class="v">${evidence(p.evidence, "")}</div></div>` : "");
+    return `<div role="group" class="fd ${p.certainty}" aria-label="Finding: ${esc(p.title)}"><div class="fd-e">${meta[1]("sm")}<span>${meta[0]}</span></div><h3 class="fd-t">${inline(p.title)}</h3><div class="fd-x md">${block(p.explanation)}</div>${rows}</div>`;
+  },
+  comparison: (p) =>
+    frame(p.title, head(p.title) +
+      p.items.map((i) => `<div class="opt ${i.recommended ? "rec" : ""}"><div class="opt-h"><span class="opt-n">${inline(i.name)}</span>${i.recommended ? `<span class="pill">${svg(G.check, "sm")}Recommended</span>` : ""}</div><div class="opt-s md">${block(i.summary)}</div>${i.qualification ? `<div class="opt-q">${inline(i.qualification)}</div>` : ""}${i.detail ? `<div class="opt-d">${inline(i.detail)}</div>` : ""}</div>`).join("")),
+  sequence: (p) =>
+    frame(p.title, head(p.title) +
+      `<ol class="rail" role="list">${p.steps.map((s, i) => `<li class="rl ${s.attention ? "attn" : ""}"><span class="nd" aria-hidden="true">${i + 1}</span><div><div class="sn">${sr(`Step ${i + 1}: `)}${inline(s.title)}</div>${s.attention ? `<div class="sd t-attn attn-word">${svg(G.warn, "sm")}Needs attention</div>` : ""}${s.detail ? `<div class="sd">${inline(s.detail)}</div>` : ""}</div></li>`).join("")}</ol>`),
+  change(p) {
+    const row = (cls, glyph, label, v) => (v ? `<div class="chg ${cls} lr"><span class="lb">${svg(glyph, "sm")}${label}</span><div class="v">${inline(v)}</div></div>` : "");
+    return frame(p.title, head(p.title) + row("minus", G.minus, "Before", p.before) + row("plus", G.plus, "After", p.after) + row("same", G.equal, "Unchanged", p.unchanged) + row("lim", G.warn, "Limitation", p.limitation));
+  },
+  checks(p) {
+    const t = p.testTotals;
+    let side = "";
+    if (t) {
+      const c = (n, st, word) => `<span class="cnt ${n ? "t-" + STATUS[st].tone : "zero"}">${STATUS[st].glyph("sm")}<b>${n}</b> ${word}</span>`;
+      side = `<span class="cl">Tests</span>${c(t.passed, "passed", "passed")}${c(t.failed, "failed", "failed")}${c(t.skipped, "skipped", "skipped")}`;
+    } else {
+      const n = (s) => p.items.filter((i) => i.status === s).length;
+      side = ["passed", "failed", "blocked", "skipped", "untested"].filter(n).map((s) => `<span class="cnt t-${STATUS[s].tone}">${STATUS[s].glyph("sm")}<b>${n(s)}</b> ${STATUS[s].word.toLowerCase()}</span>`).join("");
+    }
+    /* A failure an eye cannot find at a glance is the one thing this panel exists
+       to prevent, so the panel itself takes the tone, header strip and all. */
+    const trouble = p.items.some((i) => hot(i.status));
+    return frame(p.title, head(p.title, p.scope, side) +
+      `<ul class="rows" role="list">${p.items.map((i) => { const s = STATUS[i.status]; return `<li class="st t-${s.tone} ${hot(i.status) ? "hot" : ""}"><span class="sg">${s.glyph()}</span><div><div class="sn">${inline(i.name)}</div>${i.detail ? `<div class="sd">${inline(i.detail)}</div>` : ""}${evidence(i.evidence)}</div><span class="sl">${s.word}</span></li>`; }).join("")}</ul>`, trouble ? "x-trouble t-failure" : "");
+  },
+  delivery(p) {
+    const done = p.stages.filter((s) => s.status === "done").length;
+    const trouble = p.stages.some((s) => hot(s.status));
+    return frame(p.title, head(p.title, p.scope, `<span>${done} of ${p.stages.length} done</span>`) +
+      `<ol class="rail" role="list">${p.stages.map((s, i) => { const st = STATUS[s.status]; return `<li class="rl t-${st.tone} ${s.status === "done" ? "done" : "dashed"}"><span class="nd">${st.glyph()}</span><div><div class="sn">${sr(`Stage ${i + 1}: `)}${inline(s.name)}</div>${s.detail ? `<div class="sd">${inline(s.detail)}</div>` : ""}${evidence(s.evidence)}</div><span class="sl">${st.word}</span></li>`; }).join("")}</ol>`, trouble ? "x-trouble t-attn" : "");
+  },
+  recommendation: (p) =>
+    `<div role="group" class="rc" aria-label="Recommendation"><div class="rc-e">${svg(G.arrow, "sm")}Recommendation</div><div class="rc-c">${inline(p.choice)}</div><div class="rc-r md">${block(p.reason)}</div>${p.qualification ? `<div class="rc-q">${inline(p.qualification)}</div>` : ""}</div>`,
+  details: (p) =>
+    `<details class="dt"><summary>${svg(G.chev, "sm")}<span>${inline(p.title)}</span><span class="dt-p" aria-hidden="true">${esc(p.body)}</span></summary><div class="dt-b md">${block(p.body)}</div></details>`,
+  group(p) {
+    if (p.relationship === "peers")
+      return `<div class="peers">${p.children.map((c) => (Array.isArray(c) ? `<div class="kept">${c.map(renderRich).join("")}</div>` : renderRich(c))).join("")}</div>`;
+    return `<div role="group" class="x grp" aria-label="Supporting detail">${p.children.flat().map((c) => `<div class="x-sec"><div class="flush">${renderRich(c)}</div></div>`).join("")}</div>`;
+  },
+};
+function renderRich(part) { return (rich[part.type] || (() => ""))(part); }
+
+/* A legacy `card` inside an old reply: the inert recap grammar, no footer actions. */
+const LEGACY_STATE = { review: "Ready for review", complete: "Complete", waiting: "Waiting" };
+function legacyPlain(reply) {
+  const c = reply.card;
+  const row = (glyph, text) => `<li>${glyph}<span>${inline(text)}</span></li>`;
+  const done = c.results.filter((r) => r.checked !== false).map((r) => row(svg(G.check, "sm lg-i"), r.markdown));
+  const notDone = c.results.filter((r) => r.checked === false).map((r) => row(svg(G.dash, "sm lg-i"), r.markdown));
+  const links = c.links
+    .map((l) => {
+      const m = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(l);
+      return m ? `<li><a class="chip" href="#" data-proto-link>${svg(G.link, "sm cg")}<span class="cl">${esc(m[1])}</span></a></li>` : "";
+    })
+    .join("");
+  const block = (label, inner) => (inner ? `<div class="lg-sec"><span class="lg-lab">${label}</span><div class="lg-v">${inner}</div></div>` : "");
+  return `<div class="lg" data-legacy="">
+    <p class="lg-state">${esc(LEGACY_STATE[c.state] || c.state)}</p>
+    ${c.headline ? `<h2 class="lg-h">${inline(c.headline)}</h2>` : ""}
+    <div class="lg-body">${reply.body.map(renderRich).join("")}</div>
+    ${block("Done", done.length ? `<ul class="lg-list">${done.join("")}</ul>` : "")}
+    ${block("Not done", notDone.length ? `<ul class="lg-list">${notDone.join("")}</ul>` : "")}
+    ${block("Review", c.review.length ? `<ol class="lg-list num">${c.review.map((r, i) => `<li><span class="n">${i + 1}.</span><span>${inline(r)}</span></li>`).join("")}</ol>` : "")}
+    ${block("Waiting on", c.waitingOn.length ? `<ul class="lg-list">${c.waitingOn.map((w) => `<li>${svg(G.ring, "sm lg-i")}<span>${inline(w)}</span></li>`).join("")}</ul>` : "")}
+    ${block("Links", links ? `<ul class="lg-links">${links}</ul>` : "")}
+    ${block("Next", c.next.length ? `<ul class="lg-list">${c.next.map((n) => `<li>${svg(G.arrow, "sm lg-i")}<span>${inline(n)}</span></li>`).join("")}</ul>` : "")}
+  </div>`;
+}
+function richReply(reply) {
+  if (reply.card) return `<div class="rich reply-root">${legacyPlain(reply)}</div>`;
+  const items = [];
+  if (reply.headline) items.push(`<div class="md"><h2>${inline(reply.headline)}</h2></div>`);
+  for (const p of reply.body) items.push(renderRich(p));
+  return `<div class="rich reply-root">${items.join("")}</div>`;
+}
+
+/* ───────── The real recap card (content copied from thread thr_qi2xdkwg5t) ───────── */
+/* Written for this page, in the card's own format, about the same change the
+   panels describe. A card about a different task would make the comparison
+   meaningless: the point is whether a reply and its recap agree. */
+const REAL_RECAP = {
+  state: "review",
+  goal: "The held key moves the queue one card per press",
+  done: ["The handler reads the card's position from a ref, so a burst of repeats shares one listener", "Hold keys are capped at two cards ahead", "A burst longer than the cap is dropped rather than queued"],
+  review: ["Hold down the arrow on a queue of four and check the card stops two ahead", "Press and hold after a reload and confirm the list does not jump", "Read the replay fixture result under the details"],
+  next: ["Keep it current", "Adjust the copy"],
+};
+function recapCard(r = REAL_RECAP) {
+  return `<div class="recap ${r.state}" aria-label="Recap card">
+    <p class="rc-state">Ready for Review</p>
+    <p class="rc-goal" role="heading" aria-level="2">${esc(r.goal)}</p>
+    <div class="rc-rows">
+      <section class="rc-sec"><h3>Done</h3><ul>${r.done.map((d) => `<li>${svg(G.check)}<span>${sr("Done: ")}${esc(d)}</span></li>`).join("")}</ul></section>
+      <section class="rc-sec"><h3>Review</h3><ol>${r.review.map((d, i) => `<li><span class="n" aria-hidden="true">${i + 1}.</span><span>${esc(d)}</span></li>`).join("")}</ol></section>
+    </div>
+    <div class="rc-foot">${r.next.map((n) => `<button class="rc-btn" type="button" tabindex="-1">${esc(n)}</button>`).join("")}</div>
+    <span class="rc-x" aria-hidden="true">${svg(G.x)}</span></div>`;
+}
+
+/* ───────── Synthetic specimen: states the gallery's content cannot show ───────── */
+const SYNTHETIC = {
+  title: "States the gallery cannot show (synthetic)",
+  intro: "Not from gallery.ts. Written for this prototype to exercise failed, blocked, untested and unknown statuses, inferred and unknown certainty, a failing total, a comparison without a recommendation, long unbroken values, evidence without a location, and the streaming placeholder.",
+  reply: {
+    kind: "status",
+    headline: "One check failed, one is blocked, and the release is waiting on a person",
+    body: [
+      { type: "context", topic: "Release train for the queue fix", where: "packages/workstreams/src/app/composer/very/long/path/that/never/wraps/UnbrokenFileName.tsx", background: "Run against the task branch, not main." },
+      { type: "finding", title: "The settle timing may depend on the display", certainty: "inferred", explanation: "Every passing run used jsdom, which reports no frame timing, so the settle claim rests on the cap and not on a measured frame.", consequence: "A real display could still show a late settle.", evidence: [{ label: "jsdom frame stub", location: "tests/app/motion.test.ts", line: 41 }, { label: "Frame budget notes" }] },
+      { type: "finding", title: "Whether the cap helps on a 120 Hz display is not known", certainty: "unknown", explanation: "Nothing here ran on a high-refresh display." },
+      { type: "checks", title: "CI on the task branch", scope: "GitHub Actions, run 4821 on fix/queue-held-key", items: [
+        { name: "typecheck", status: "passed" },
+        { name: "unit tests", status: "failed", detail: "2 failures in tests/app/queue.test.tsx: the cap test expects 2 and gets 3.", evidence: [{ label: "queue.test.tsx", location: "tests/app/queue.test.tsx", line: 88, endLine: 104 }] },
+        { name: "smoke check against a throwaway server", status: "blocked", detail: "Waits on the unit tests." },
+        { name: "visual diff on a real display", status: "untested", detail: "No display attached to this machine." },
+        { name: "lint", status: "skipped", detail: "Not configured for this package." },
+      ] },
+      { type: "delivery", title: "Release", scope: "fix/queue-held-key → main", stages: [
+        { name: "Committed", status: "done", detail: "abc1234 on the task branch" },
+        { name: "Pushed", status: "done", detail: "origin/fix/queue-held-key" },
+        { name: "Reviewed", status: "pending", detail: "Waiting on one approval" },
+        { name: "Deployed", status: "not-started", detail: "The plugin reloads after merge." },
+      ] },
+      { type: "sequence", title: "To reproduce on a real display", steps: [
+        { title: "Open a queue of four cards" },
+        { title: "Hold ↓ and release after one second", detail: "The card should stop two ahead.", attention: true },
+        { title: "Record the frame on which the card stops" },
+      ] },
+      { type: "comparison", title: "Where to read the position", items: [
+        { name: "A ref written in the commit phase", summary: "One listener for the burst." },
+        { name: "State in a reducer", summary: "Every key event re-renders.", qualification: "Costs a render per event.", detail: "Matches how the sidebar reads its position." },
+        { name: "Props from the parent", summary: "The parent already owns the index." },
+      ] },
+      { type: "recommendation", choice: "Fix the failing cap test before anyone reviews", reason: "The review would otherwise approve a branch whose own test says it moves three cards.", qualification: "Skip this only if the test is wrong; the replay fixture says it is not." },
+      { type: "pending" },
+      { type: "details", title: "Why the visual diff was not run", body: "The machine that produced these results has no display attached, so a screenshot could not be captured. The fixture compares frame counts only." },
+    ],
+  },
+};
+
+/* ───────── page ───────── */
+/* The gallery's own intros are written for someone who knows the vocabulary.
+   These are the same four replies described for someone who does not. */
+const INTROS = {
+  "An investigation": "A reply that explains a bug: prose, a finding with evidence, steps to reproduce it, two options with one recommended, and supporting detail.",
+  "A change delivered": "A reply that reports a fix: what changed, the checks that ran, where the work stands, and a recommendation for what to do next.",
+  "When a part cannot be displayed": "Two replies that cannot be drawn: a part whose JSON was refused, and a reply whose text is still arriving.",
+  "Blocks written before the recap tool": "An old reply from before the recap card existed, carrying the card's fields inside the block.",
+};
+const introOf = (s) => INTROS[s.title] || s.intro;
+
+const state = { mode: "proposed", theme: "dark", w: 728 };
+function readHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get("mode")) state.mode = h.get("mode");
+  if (h.get("theme")) state.theme = h.get("theme");
+  if (h.get("w")) state.w = Number(h.get("w"));
+}
+function writeHash() { history.replaceState(null, "", "#" + new URLSearchParams({ mode: state.mode, theme: state.theme, w: state.w })); }
+const renderReply = (reply) => (state.mode === "proposed" ? richReply(reply) : plainReply(reply));
+const wrapReply = (reply, cls = "") => `<div class="reply ${cls}" data-reply-block data-mode="${state.mode}">${renderReply(reply)}</div>`;
+
+function agent(m, extra = "") {
+  return `<div class="msg">${wrapReply(m.reply)}</div>${extra}<p class="feat"><b>Uses</b> ${m.features.join(" · ")}</p>`;
+}
+
+/* ───────── What the page is made of ─────────
+   The page is a catalogue, not a transcript dump. Each component gets its own
+   section stating what the part is given, how the proposal draws it, and why;
+   the examples under it are captioned with the specimen they came from. Whole
+   replies come after, because a reply is a sequence and some decisions only
+   show once two parts sit next to each other. */
+
+const TIERS = {
+  prose: "Plain prose",
+  annotated: "Labels, no box",
+  exhibit: "Boxed panel",
+  fallback: "Fallback",
+};
+
+const CATALOG = [
+  {
+    id: "context", type: "context", name: "Context", tier: TIERS.annotated,
+    written: "context",
+    given: "a subject, an optional file path, and an optional sentence of background.",
+    drawn: "A small Context label, the subject in bold, the path in a chip, the background as ordinary text. No box.",
+    now: "The subject, the path and the background, each as its own paragraph at the same weight, with nothing tying them together.",
+    why: "It sets the scene before the evidence arrives, so it should not look like the evidence.",
+  },
+  {
+    id: "finding", type: "finding", name: "Finding", tier: TIERS.annotated, max: 3,
+    written: "finding",
+    given: "a title, an explanation, how sure the agent is (observed, inferred or unknown), an optional consequence, and evidence.",
+    drawn: "A rule down the left, an icon and the word for the certainty above the title, and the title in bold. Consequence and Evidence become labelled rows.",
+    now: "The title in bold, then the line 'Evidence: observed' which actually names the certainty, then the explanation and consequence as paragraphs, and the evidence as a bullet list.",
+    why: "Certainty is the most important thing about a finding, so it gets an icon and a word as well as a colour. Today it prints \"Evidence: observed\", which labels the certainty as though it were evidence.",
+  },
+  {
+    id: "evidence", type: "evidence", name: "Evidence", tier: TIERS.annotated,
+    written: "the evidence list inside a finding or a check",
+    given: "a label, a file path or web address, an optional line range, and an optional detail.",
+    drawn: "A rounded chip with a file or link icon, the label, and the line range in monospace. One chip per line, so a detail can never look like it belongs to the chip beside it.",
+    now: "A bullet list of labels, each followed by its detail, with no indication that they point at files.",
+    why: "It is the same chip the recap card uses for links, so the shape is already familiar.",
+    /* Evidence lives inside other parts, so it has no top-level example of its
+       own; the chips are lifted from a finding that does. */
+    render: () => {
+      const f = DATA[0].messages[1].reply.body.find((p) => p.type === "finding");
+      return `<div class="lr"><span class="lb">Evidence</span><div class="v">${evidence(f.evidence)}</div></div>`;
+    },
+  },
+  {
+    id: "comparison", type: "comparison", name: "Comparison", tier: TIERS.exhibit,
+    written: "comparison",
+    given: "a title and two to eight options, each with a name, a summary, an optional caveat, optional detail, and at most one marked recommended.",
+    drawn: "A panel with one row per option, stacked at every width. The recommended option gets a Recommended pill with a tick and a blue rule down its row.",
+    now: "The title, then for every option: the name, the word 'Recommended' on its own line where it applies, and the summary, caveat and detail as separate paragraphs.",
+    why: "The recommended option is the only row here that takes colour, because it is the one place a comparison makes a choice. Columns side by side do not survive a narrow window.",
+  },
+  {
+    id: "sequence", type: "sequence", name: "Sequence", tier: TIERS.exhibit,
+    written: "sequence",
+    given: "a title and ordered steps, each with a title, optional detail, and an optional attention flag.",
+    drawn: "A numbered rail: circles joined by a line. A step that needs attention keeps its number, gains an amber ring, and says Needs attention under its title.",
+    now: "The title, then a numbered list. A step that needs attention gets a bare 'Attention' line under its title.",
+    why: "The order is the point, so the shape is a rail rather than a bullet list.",
+  },
+  {
+    id: "change", type: "change", name: "Change", tier: TIERS.exhibit,
+    written: "change",
+    given: "before, after, and optionally what stayed the same and what the change does not cover.",
+    drawn: "Four labelled rows: a minus Before, a plus After, an equals Unchanged and a warning Limitation, with a faint red and green behind the first two.",
+    now: "Four paragraphs, each introduced by a label on its own line: Before:, After:, Unchanged:, Limitation:.",
+    why: "It is a diff, so it borrows a diff's signs; the tint is only a hint on top of them. It is the one place a reply sets red and green against each other, though a failing check and a finished stage use those colours too.",
+  },
+  {
+    id: "checks", type: "checks", name: "Checks", tier: TIERS.exhibit, max: 3,
+    written: "checks",
+    given: "a title, what was run, one row per check with its status (passed, failed, skipped, blocked or untested), optional detail and evidence, and optional totals.",
+    drawn: "A panel whose header counts the results and whose rows put the status word on the right. Failed and blocked rows are tinted and their names take weight.",
+    now: "The title and scope, the totals as one sentence ('8 tests passed; 0 failed; 1 skipped'), then a bullet per check with 'Status: passed' on a line of its own.",
+    why: "This is the densest part and the one people scan for failures, so the status words sit in one column and a failure is found by reading down one edge.",
+  },
+  {
+    id: "delivery", type: "delivery", name: "Delivery", tier: TIERS.exhibit,
+    written: "delivery",
+    given: "a title, a scope, and named stages that each have a status.",
+    drawn: "A rail of stages with a count of how many are done in the corner. The line under a finished stage is solid; under an unfinished one it is dashed. A stage nobody has reached yet says Not started rather than Blocked.",
+    now: "The title and scope, then a bullet per stage with 'Status: done' on a line of its own.",
+    why: "Stages are a pipeline, so how far the work actually got is shown by the line and not only by a colour. The schema has no not-started value, so agents write Blocked for work that simply has not happened; drawn as a warning, that reads as a problem. Adding the value is part of the proposal.",
+    footnote: "The sample reply from the gallery marks its deploy stage Blocked although nothing blocked it. It is left as the plugin draws it today; the invented reply in this section shows the state it meant.",
+  },
+  {
+    id: "recommendation", type: "recommendation", name: "Recommendation", tier: TIERS.annotated,
+    written: "recommendation",
+    given: "a choice, a reason, and an optional caveat.",
+    drawn: "A callout with a blue rule down the left and a faint tint behind it, with no border around it.",
+    now: "The choice, the reason and the caveat as three paragraphs, with nothing marking them as the point where you decide.",
+    why: "It is where the reader has to decide, and it echoes the recap card. It is deliberately quieter than the card.",
+  },
+  {
+    id: "details", type: "details", name: "Details", tier: TIERS.annotated,
+    written: "details",
+    given: "a title and prose the agent marked as supporting rather than essential.",
+    drawn: "Collapsed until opened, with a one-line preview, so the body is hidden but never without a hint that it is there.",
+    now: "The title in bold, then the whole body. Nothing collapses.",
+    why: "The agent is saying this supports the summary rather than being it. Opening it is the reader's decision.",
+  },
+  {
+    id: "group", type: "group", name: "Group", tier: "Boxed when supporting",
+    written: "group",
+    given: "some children plus one word saying how they relate: peers, or supporting.",
+    drawn: "A supporting group becomes one panel with its children as rows inside it. A group of peers gets no box and no label: the only signal is a slightly wider gap between the parts, which is honestly close to nothing.",
+    now: "The children one after another, so a group of peers and a supporting group look the same.",
+    why: "An explanation and its support are one object, so the panel joins them. Peers genuinely are separate, and the proposal only barely distinguishes them; if telling peers apart matters, it needs a better idea than spacing.",
+  },
+  {
+    id: "text", type: "text", name: "Text", tier: TIERS.prose, max: 1,
+    written: "Markdown, with no type of its own",
+    given: "prose, sometimes with its own headings and checkboxes.",
+    drawn: "Ordinary prose, never boxed, however deep it sits.",
+    now: "Prose at body size, as it is now. This is the one part the proposal leaves alone.",
+    why: "This is where the design stops on purpose: a paragraph is never made into a panel.",
+  },
+  {
+    id: "directive", type: "directive", name: "Directive", tier: TIERS.prose,
+    written: "a plain ::name line",
+    given: "a line such as ::inline-vis{...} that the agent wrote outside the component fences.",
+    drawn: "Left to whichever plugin handles that directive. Shown here as its source text.",
+    now: "Left to whichever plugin handles that directive, as now.",
+    why: "Out of scope: another plugin draws it.",
+  },
+  {
+    id: "pending", type: "pending", name: "A part still arriving", tier: TIERS.fallback,
+    written: "nothing yet: a fence that opened but has not closed",
+    given: "nothing yet.",
+    drawn: "A dashed panel that holds its space, with three dots and the words Receiving information.",
+    now: "The words 'Receiving information…', with nothing holding the space it will take.",
+    why: "Dashed means it is not the real thing yet. It reserves 44px, which stops most of the jump when the real part lands, though a tall part still moves what is below it.",
+  },
+  {
+    id: "unparsed", type: "unparsed", name: "A part that failed validation", tier: TIERS.fallback,
+    written: "whatever the agent wrote, kept as text",
+    given: "the error, and the text that caused it.",
+    drawn: "A dashed amber panel with the error, and the original text underneath in a code block.",
+    now: "The error as a line, then the source in a code block.",
+    why: "The original text stays readable, and the failure is obvious without shouting.",
+  },
+];
+/* Every part a specimen contains, by type, with the specimen it came from and
+   whether it sits inside a group, so an example can never be shown without
+   saying where it came from. */
+function indexParts() {
+  const byType = new Map();
+  const add = (part, place, trail) =>
+    byType.set(part.type, [...(byType.get(part.type) || []), { part, ...place, trail }]);
+  const walk = (part, place, trail) => {
+    add(part, place, trail);
+    if (part.type === "group")
+      for (const c of part.children.flat())
+        walk(c, place, [...trail, part.relationship === "peers" ? "inside a group of peers" : "inside a supporting group"]);
+  };
+  DATA.forEach((spec, i) => {
+    for (const m of spec.messages)
+      if (m.from === "agent")
+        for (const part of m.reply.body) walk(part, { spec: i + 1, from: spec.title, synthetic: false }, []);
+  });
+  for (const part of SYNTHETIC.reply.body) walk(part, { spec: null, from: SYNTHETIC.title, synthetic: true }, []);
+  return byType;
+}
+
+const toc = () => [
+  ["Start here", [["intro", "what this page is"], ["syntax", "what an agent types"]]],
+  ["The comparison", [["parity", "reply next to a recap card"]]],
+  ["Every part", CATALOG.map((c) => [`c-${c.id}`, c.name.toLowerCase()])],
+  ["Whole replies", [["whole", "in order"], ["legacy", "old replies"], ["synthetic-whole", "failures"]]],
+  ["Caveats", [["notes", "what this does not prove"]]],
+]
+  .map(([group, items]) => `<span class="toc-g"><span class="toc-l">${group}</span>${items.map(([id, label]) => `<a href="#${id}">${label}</a>`).join("")}</span>`)
+  .join("");
+
+const sectionHead = (title, aside) =>
+  `<header class="sec-h"><h2>${title}</h2>${aside ? `<span class="n">${aside}</span>` : ""}</header>`;
+
+/* ───────── Source: the block an agent actually writes ─────────
+   A reply is a `:::reply` block: a headline, Markdown prose, and one
+   ```workstreams fence per structured component, whose JSON `type` names which
+   component it is. The JSON below is the parsed component re-serialized, so a
+   defaulted field can appear that the agent left out; the fence, the keys and
+   the shape are what it writes. */
+const FENCE = "```";
+
+function stripFence(source) {
+  const m = /^```(\w*)\n([\s\S]*)\n```$/.exec(source || "");
+  return m ? { lang: m[1] || "text", body: m[2] } : { lang: "text", body: source || "" };
+}
+
+/* What to print for one part: the fence and its contents, or the reason there is
+   nothing to print. `text` is Markdown; a directive is a line, not a fence. */
+function sourceOf(part) {
+  if (!part) return null;
+  if (part.type === "text")
+    return { lang: "markdown", body: part.body, notes: ["Prose is Markdown in the block itself, with no fence around it."] };
+  if (part.type === "directive")
+    return { lang: "plain", body: part.source, notes: ["A directive line, rendered by whichever directive plugin claims it."] };
+  if (part.type === "pending") return null;
+  if (part.type === "unparsed") {
+    const f = stripFence(part.source);
+    return { lang: f.lang, body: f.body, notes: ["This fence failed the component schema. Its source stays readable rather than disappearing."] };
+  }
+  return { lang: "workstreams", body: JSON.stringify(part, null, 2), notes: [] };
+}
+
+function codeBlock(lang, body) {
+  return `<div class="bbcode"><div class="hd" title="the fence's language tag, which never varies"><span>${esc(lang)}</span></div><pre>${esc(body)}</pre></div>`;
+}
+
+function rawSource(label, lang, body, open) {
+  return `<details class="src"${open ? " open" : ""}><summary>${label}</summary>${codeBlock(lang, body)}</details>`;
+}
+
+function sourceDetails(part, label, open) {  const s = sourceOf(part);
+  if (!s)
+    return `<p class="src-n">${label}: a fence that has not closed yet, so the source is still arriving.</p>`;
+  const notes = s.notes.map((n) => `<p class="src-n">${n}</p>`).join("");
+  return `<details class="src"${open ? " open" : ""}><summary>${label}</summary>${notes}${codeBlock(s.lang, s.body)}</details>`;
+}
+
+/* The whole block as written: envelope, headline, prose, one fence per component. */
+function replySource(reply) {  const out = [`:::reply{v="1"}`];
+  if (reply.headline) out.push(`# ${reply.headline}`);
+  for (const p of reply.body) {
+    if (p.type === "text") { out.push(p.body); continue; }
+    if (p.type === "directive") { out.push(p.source); continue; }
+    const s = sourceOf(p);
+    if (!s) continue;
+    out.push(FENCE + s.lang + "\n" + s.body + "\n" + FENCE);
+  }
+  out.push(":::");
+  return out.join("\n\n");
+}
+
+function syntaxSection() {
+  const demo = {
+    headline: "The queue cap holds at two cards",
+    body: [
+      { type: "text", body: "Holding the key moves one card per press, and a burst longer than two cards is dropped rather than queued." },
+      { type: "checks", title: "Local suite", scope: "vitest, run in the task worktree", items: [
+        { name: "Held key moves one card at a time", status: "passed" },
+        { name: "Burst longer than two cards is dropped", status: "passed" },
+      ] },
+    ],
+  };
+  return `<section class="sec" id="syntax">${sectionHead("What an agent types", "one reply, annotated")}
+    <p class="ex-i">This is the whole of it. A reply is one block: a headline, ordinary Markdown, and one fenced piece of JSON for each structured part. Every section below shows the piece for its own part; here is a reply with all of it together.</p>
+    ${codeBlock("reply", replySource(demo))}
+    <dl class="sec-meta" style="margin-top:12px">
+      <div><dt>:::reply{…}</dt><dd>Opens the block. The <code>v</code> is a version number: a version the plugin does not know is refused rather than half-drawn.</dd></div>
+      <div><dt># headline</dt><dd>The reply's one headline, in Markdown.</dd></div>
+      <div><dt>prose</dt><dd>Markdown between the fences. This is the part that never gets a box.</dd></div>
+      <div><dt>\`\`\`workstreams</dt><dd>One fence per structured part. The <code>type</code> inside the JSON says which part it is, so the fence always has the same name. A group puts its children inside its own JSON instead of adding more fences.</dd></div>
+      <div><dt>:::</dt><dd>Closes the block. A fence that never closes shows as a part still arriving; one whose JSON is refused shows the text back instead of losing it.</dd></div>
+    </dl>
+    <p class="sec-note">The JSON is shown indented here; an agent writes each object on one line. The four sample replies are the ones the plugin's own gallery loads, run through its own parser, so every example below is valid input.</p></section>`;
+}
+
+function introSection() {
+  return `<section class="sec" id="intro">${sectionHead("What this page is")}
+    <div class="flow">
+      <p><b>A drawing, not a change.</b> When an agent answers, it can attach structured parts to the message: a panel of test results, a before-and-after, a list of checks, an evidence chip. Today the plugin turns every one of those into ordinary paragraphs. This page shows how they could look instead. No plugin is running here, nothing is wired up, and the content is the plugin's own sample replies.</p>
+      <p><b>The one question.</b> Does a reply read as carefully made as the recap card that ends a turn? That card is the benchmark, and it is the third screen: it has a border, a colour for its state, a label column, ticks and numbers. Everything below asks whether the reply deserves the same care. Each section can be flipped between today's plain output and the proposal, so the answer is yours to judge rather than mine to claim.</p>
+      <p><b>The three switches at the top.</b></p>
+      <ol>
+        <li><b>Rendering</b> flips every section on the page between three drawings: <b>Today</b>, exactly what ships now; <b>Today, sizes fixed</b>, the same wording and structure with the sizing bug corrected and nothing else changed; and <b>Proposed</b>, the redesign. The middle one is the cheap alternative, and it exists so the panels can be judged against the fix rather than against the bug.</li>
+        <li><b>Theme</b> and <b>Thread column</b> apply to everything. 728px is the width of a message column in a normal window, 600px a narrowed one, 375px a phone.</li>
+        <li>The URL keeps all three, so a particular view can be linked to.</li>
+      </ol>
+      <p><b>How each section is laid out.</b> One kind of part at a time, described the same way every time: what it carries, how it is drawn, and why. Then the examples, each saying which sample reply it came from and where inside it, followed by the text an agent writes to produce it — printed back out from the parsed part, so the order of its keys may differ from what was typed. Whole replies come after, because a reply is a sequence and some things only show when two parts sit next to each other.</p>
+      <p><b>How much box each part gets.</b> Four levels. With the switch on <b>Proposed</b> each section's header names the one that applies; with a plain mode on it says which plain drawing you are looking at, and the section describes that drawing rather than this one.</p>
+      <ul class="tiers">
+        <li><span class="t">Plain prose</span><span>The text, the headline, and the Markdown inside any field. No box, ever.</span></li>
+        <li><span class="t">Labels, no box</span><span>Context, finding, recommendation, evidence. A label, a rule or a tinted note, but nothing wrapped around them.</span></li>
+        <li><span class="t">Boxed panel</span><span>Checks, delivery, sequence, comparison, change, a supporting group. A panel with a header and rows.</span></li>
+        <li><span class="t">Fallback</span><span>A part that has not arrived, or one that failed to parse. Dashed, because it is not the real thing.</span></li>
+      </ul>
+      <p class="sec-note">The rule that keeps this from becoming boxes all the way down: a part whose data is a <b>list of parallel rows</b> gets a panel; a part with <b>one subject</b> gets a label and no panel; prose gets neither, however deep it sits. A one-row list still gets a panel, the same way a one-row table is still a table.</p>
+    </div></section>`;
+}
+
+function parityStrip() {
+  const d = DATA[1].messages[1].reply.body;
+  const pick = (t) => d.find((p) => p.type === t);
+  const reply = { body: [pick("change"), pick("checks")] };
+  return `<section class="sec" id="parity">${sectionHead("A reply block next to the recap card", "same width, same colours")}
+    <p class="ex-i">What you see first is a reply's change and its checks, drawn with the rendering you have chosen; what follows is the recap card that summarises the same change, written for this page in the card's own format. That is the comparison the whole page exists for: does the reply look as considered as the card beneath it, and do the two agree about what happened?</p>
+    <div class="msg" style="margin-top:16px">${wrapReply(reply)}</div>
+    <div class="dock"><p class="dock-cap">The recap card for this same change, written for this page in the card's own format</p>${recapCard()}</div></section>`;
+}
+
+function componentSection(entry, examples) {
+  const NOUN = {
+    group: "A group",
+    text: "A paragraph",
+    directive: "A directive line",
+    pending: "A part still arriving",
+    unparsed: "A part that failed validation",
+  };
+  const caption = (e) => {
+    if (e.render) return `Built from the finding in sample reply 1`;
+    const name = e.part.title || e.part.topic || e.part.choice;
+    /* A group has no title of its own; its label is the relationship, which is
+       the one thing the section exists to show. */
+    const relation = e.part.type === "group" ? (e.part.relationship === "peers" ? "A group of peers" : "A supporting group") : null;
+    const head = name ? `&ldquo;${esc(name)}&rdquo;` : relation || NOUN[e.part.type] || "An example";
+    if (e.synthetic) return `<b>${head}</b> &mdash; invented for this page`;
+    return `<b>${head}</b> &mdash; sample reply ${e.spec}, &ldquo;${esc(e.from)}&rdquo;${e.trail.length ? `, ${e.trail.join(", ")}` : ""}`;
+  };
+  const body = examples.length
+    ? examples
+        .map(
+          (e) =>
+            `<div class="ex"><p class="ex-cap">${caption(e)}</p><div class="msg">${entry.render ? entry.render(e.part) : wrapReply({ body: [e.part] })}</div>${e.render ? "" : sourceDetails(e.part, "What the agent typed to produce this", false)}</div>`,
+        )
+        .join("")
+    : `<p class="ex-cap">No sample reply contains this part.</p>`;
+  /* The switch changes the drawing, so it has to change the words about the
+     drawing. With a plain mode on, the section describes the plain drawing and
+     the header stops claiming a treatment that is not on screen. */
+  const proposed = state.mode === "proposed";
+  const aside = proposed ? entry.tier : state.mode === "fixed" ? "Today, sized" : "Today";
+  const looks = proposed
+    ? `<div><dt>How it looks</dt><dd>${inline(entry.drawn)}</dd></div>`
+    : `<div><dt>How it looks today</dt><dd>${inline(entry.now)}${
+        state.mode === "fixed"
+          ? " With the sizes fixed it is the same drawing, with these labels brought down to body size, set in the muted tone, and the gaps between fields tightened."
+          : ""
+      }</dd></div>`;
+  return `<section class="sec" id="c-${entry.id}">${sectionHead(entry.name, aside)}
+    <dl class="sec-meta">
+      <div><dt>Written as</dt><dd><code>${esc(entry.written)}</code></dd></div>
+      <div><dt>What it carries</dt><dd>${inline(entry.given)}</dd></div>
+      ${looks}
+      <div><dt>${proposed ? "Why" : "Why it changes"}</dt><dd>${inline(entry.why)}</dd></div>
+    </dl>${body}${entry.footnote ? `<p class="sec-note">${inline(entry.footnote)}</p>` : ""}</section>`;
+}
+
+function catalogueIntro(real, synthetic) {
+  const missing = CATALOG.filter((c) => !real.has(c.type) && !synthetic.has(c.type)).map((c) => c.id);
+  return `<section class="sec" id="components">${sectionHead("Every part, one section each", `${CATALOG.length} parts`)}
+    <p class="ex-i">In the order a reply tends to use them: the parts that explain, then the ones that present results, then the two fallbacks. Each example is real sample content from the plugin; only the ones marked invented were written for this page.${missing.length ? ` No sample reply contains: <code>${missing.join("</code>, <code>")}</code>.` : ""}</p></section>`;
+}
+
+function legacySection() {
+  const spec = DATA.find((s) => s.messages.some((m) => m.from === "agent" && m.reply.card));
+  if (!spec) return "";
+  const msg = spec.messages.find((m) => m.from === "agent");
+  return `<section class="sec" id="legacy">${sectionHead("Old replies that carry the card inline", "drawn plainly")}
+    <p class="ex-i">Replies written before the recap tool existed carry the card's own fields inside the block: a state, results, a review list, links, and next steps. They are drawn here the way the proposal decides they should be — plainly, at the corrected sizes, with the state kept as a line rather than a card. Rebuilding the card would put a second bordered, state-tinted object into the transcript and look clickable when it is not. This also restores Next, which today's renderer drops because its loop visits review, waitingOn and links but not next.</p>
+    <div class="ex"><p class="ex-cap"><b>An old reply</b> &mdash; sample reply 4, &ldquo;${esc(spec.title)}&rdquo;</p><div class="msg">${wrapReply(msg.reply)}</div><p class="ex-cap" style="margin-top:8px"><b>Uses</b> &mdash; ${esc(msg.features.join(", "))}</p></div></section>`;
+}
+
+function wholeSection() {
+  const specs = DATA.filter((s) => !s.messages.some((m) => m.from === "agent" && m.reply.card));
+  const parts = specs
+    .map((s, i) => {
+      let h = `<div class="ex"><p class="ex-cap"><b>Sample reply ${i + 1}</b> &mdash; &ldquo;${esc(s.title)}&rdquo;</p><p class="ex-i">${esc(introOf(s))}</p>`;
+      for (const m of s.messages)
+        h += m.from === "user"
+          ? `<p class="user">${esc(m.text)}</p>`
+          : agent(m, i === 1 ? `<div class="dock"><p class="dock-cap">The recap card for this same change, written for this page in the card's own format</p>${recapCard()}</div>` : "") +
+            rawSource("What the agent typed, start to finish", "reply", replySource(m.reply), false);
+      return h + "</div>";
+    })
+    .join("");
+  return `<section class="sec" id="whole">${sectionHead("Whole replies, in order", "unbroken")}
+    <p class="ex-i">The same parts, unbroken, so their spacing and order can be judged together: a headline, then the explanation, then the evidence, then what to do about it. Each reply also gives the text an agent would type to produce it.</p>${parts}</section>`;
+}
+
+function syntheticSection() {
+  return `<section class="sec" id="synthetic-whole">${sectionHead("Failures and unknowns", "invented for this page")}
+    <p class="ex-i">Nothing in the plugin's samples actually fails, so this reply was written here to show the states a real one hits: a failing check, a blocked one, one never run, a stage nobody has reached, and a finding the agent could only infer. It is not real content.</p>
+    <div class="ex"><p class="ex-cap"><b>One reply with every state</b> &mdash; invented for this page</p><div class="msg">${wrapReply(SYNTHETIC.reply)}</div>${rawSource("What the agent typed, start to finish", "reply", replySource(SYNTHETIC.reply), false)}</div></section>`;
+}
+
+function notesSection() {
+  return `<section class="sec" id="notes">${sectionHead("What this page does not prove", "caveats")}
+    <div class="flow"><ul style="margin:0;padding-left:16px">
+      <li>It is a drawing. Nothing here is wired into the plugin, and the colours and sizes were copied by hand.</li>
+      <li>Phone and touch layouts are written but were never tried: the browser used to render it reports a mouse.</li>
+      <li>The evidence chips are stubs. Clicking one does nothing; in the product it opens the file.</li>
+      <li>A reply nested inside a subagent delivery needs a variant without a second panel. That is not drawn here.</li>
+      <li>A part that is still arriving shifting the reply below it is not measured.</li>
+      <li>Markdown beyond the samples' own content, such as tables, code blocks or maths, was not tried.</li>
+      <li>Rendered in one browser only: no Safari, no Firefox, no screen reader, and no person watching a real reply arrive.</li>
+      <li>The code shown under each example is the parsed part printed back out, so the order of its keys may differ from what an agent typed.</li>
+      <li>In light mode the tints are faint; the icons and the words carry the meaning there.</li>
+      <li>The recap card at the bottom of the comparison is reproduced from the product, and its own type dips below 11px in a narrow column: about 10.5px at 600 and 10.2px at 375. That is a defect in the card, not in this proposal, and fixing it means raising the floor of its size formula.</li>
+    </ul></div></section>`;
+}
+
+function build() {
+  document.body.className = state.theme;
+  const root = document.getElementById("root");
+  root.className = `ws-root ${state.theme}`;
+  root.style.setProperty("--col", state.w + "px");
+  const idx = indexParts();
+  const real = new Set(idx.keys());
+  const synthetic = new Set(SYNTHETIC.reply.body.map((p) => p.type));
+  const sections = [
+    introSection(),
+    syntaxSection(),
+    parityStrip(),
+    catalogueIntro(real, synthetic),
+    ...CATALOG.map((entry) => componentSection(entry, entry.render ? [{ render: true }] : (idx.get(entry.type) || []).slice(0, entry.max || 2))),
+    legacySection(),
+    wholeSection(),
+    syntheticSection(),
+    notesSection(),
+  ];
+  document.getElementById("stage").innerHTML = `<h1 class="sr">How reply blocks could look: a rendering prototype</h1><div class="col">${sections.join("")}</div>`;
+  document.getElementById("toc").innerHTML = toc();
+  document.querySelectorAll("#toc a").forEach((a) =>
+    a.addEventListener("click", (event) => {
+      const target = document.getElementById(a.getAttribute("href").slice(1));
+      if (!target) return;
+      event.preventDefault();
+      const bar = document.querySelector(".bar").getBoundingClientRect().height;
+      window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - bar - 12 });
+    }),
+  );
+  document.querySelectorAll("[data-proto-link]").forEach((a) => a.addEventListener("click", (e) => e.preventDefault()));
+  document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(state[b.dataset.k] == b.dataset.v)));
+  writeHash();
+}
+function controls() {
+  document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => { state[b.dataset.k] = b.dataset.k === "w" ? Number(b.dataset.v) : b.dataset.v; build(); }));
+}
+window.addEventListener('hashchange',()=>{readHash();build()});
+readHash(); controls(); build();
+</script>
+</body></html>

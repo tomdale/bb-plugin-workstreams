@@ -1,0 +1,26 @@
+{"sentence": "This document was written against the reply renderer as it stood on 1 November 2026.", "label": "violation", "why": "actor-knowable", "rewrite": "This document describes the reply renderer as it stood on 1 November 2026."}
+{"sentence": "The renderer was split into per-part bodies (`AdviceBody`, `ContextBody`, `DetailsBody`, `GroupBody`, `SequenceBody`).", "label": "violation", "why": "actor-knowable", "rewrite": "The renderer now has a body per part (`AdviceBody`, `ContextBody`, …)."}
+{"sentence": "`finding` is gone.", "label": "violation", "why": "actor-knowable", "rewrite": "`4dc40ca feat(replies): retire finding component` deleted the `finding` component."}
+{"sentence": "Before editing anything here, re-baseline it against main.", "label": "violation", "why": "addresses-absent-reader", "rewrite": "A re-baseline means dropping the finding section, restating what the renderer does now, and re-deciding decision 3."}
+{"sentence": "Parts are grouped by how much structure they get.", "label": "violation", "why": "actor-knowable", "rewrite": "This proposal groups the parts by how much structure each one gets."}
+{"sentence": "Colour is spent only on a status, a caveat, or a choice.", "label": "violation", "why": "actor-knowable", "rewrite": "The design spends colour only on a status, a caveat, or a choice."}
+{"sentence": "These are settled too, because they are the ones an implementer hits on the first day.", "label": "violation", "why": "actor-knowable", "rewrite": "I settled these too, because they are the ones an implementer hits on the first day."}
+{"sentence": "Several panels in a row are spaced, not joined.", "label": "violation", "why": "actor-knowable", "rewrite": "The design spaces several panels in a row rather than joining them."}
+{"sentence": "`Next` is restored, which today's renderer drops.", "label": "violation", "why": "actor-knowable", "rewrite": "The new renderer restores `Next`, which today's drops."}
+{"sentence": "Old replies carry the card's fields inside the block.", "label": "violation", "why": "limp-verb", "rewrite": "Old replies keep the card's fields inside the block."}
+{"sentence": "Joining them into one stack was considered and rejected.", "label": "violation", "why": "actor-knowable", "rewrite": "I considered joining them into one stack and rejected it."}
+{"sentence": "A group of peers is barely distinguished.", "label": "violation", "why": "actor-knowable", "rewrite": "The design barely distinguishes a group of peers."}
+{"sentence": "`unknown` is muted wherever it appears.", "label": "violation", "why": "actor-knowable", "rewrite": "The design mutes `unknown` wherever it appears."}
+{"sentence": "A count of the rows was cut as noise.", "label": "violation", "why": "actor-knowable", "rewrite": "I cut the count of the rows as noise."}
+{"sentence": "Old replies are drawn plainly — decided.", "label": "fine", "why": "decision-heading", "rewrite": ""}
+{"sentence": "Two more things have to be settled before anyone builds this.", "label": "fine", "why": "actor-is-the-reader", "rewrite": ""}
+{"sentence": "The component itself was retired later (`4dc40ca`), which settles it.", "label": "fine", "why": "actor-named-in-sentence", "rewrite": ""}
+{"sentence": "The plain-text view is generated separately from the drawing.", "label": "fine", "why": "actor-irrelevant", "rewrite": ""}
+{"sentence": "An old reply's `Next` list is dropped, because the renderer's loop visits `review`, `waitingOn` and `links` but not `next`.", "label": "fine", "why": "actor-named-in-clause", "rewrite": ""}
+{"sentence": "The recommended one was marked with the word \"Recommended\" on its own line.", "label": "fine", "why": "describes-past-behaviour", "rewrite": ""}
+{"sentence": "The order of work, once the decisions below are accepted.", "label": "fine", "why": "conditional", "rewrite": ""}
+{"sentence": "The phone layout is written but untested.", "label": "fine", "why": "status-adjective", "rewrite": ""}
+{"sentence": "It is a contained change.", "label": "fine", "why": "copular", "rewrite": ""}
+{"sentence": "Nothing new is introduced.", "label": "fine", "why": "copular", "rewrite": ""}
+{"sentence": "that is accepted rather than solved.", "label": "fine", "why": "locative-contrast", "rewrite": ""}
+{"sentence": "| Linear's agent interaction guidance | An agent's steps as a rail of marks, not a box |", "label": "fine", "why": "table-row", "rewrite": ""}
