@@ -1018,19 +1018,22 @@ describe("turn endings with reply blocks", () => {
     const [correction] = s.corrections();
     const message = (correction!.input as { text: string }[])[0]!.text;
     expect(message).toContain("Your turn ended without a recap.");
-    expect(message).toContain(`then call ${RECAP_TOOL}.`);
+    expect(message).toContain(`then call ${RECAP_TOOL}, which is the whole`);
     expect(message).toContain(
       "Any answer you already gave is visible to the user",
     );
     expect(message).toContain(
       "in a block or otherwise, and add no closing note",
     );
-    // The recap is the turn's reply, so the turn ends at the call.
+    // The call is the whole correction turn; nothing may follow it.
     expect(message).toContain(
-      "If the recap contains the answer, the turn ends at the call",
+      `then call ${RECAP_TOOL}, which is the whole of this turn's output`,
     );
     expect(message).toContain(
-      "If it leaves information unsaid, one reply follows the call with that information alone, and nothing follows that reply",
+      "Write nothing after it — no note, no reply block",
+    );
+    expect(message).toContain(
+      "put anything the recap leaves unsaid in its own fields",
     );
     expect(message).toContain("Finish any remaining authorized work");
     expect(message).toContain("ask through the available question-card tool");

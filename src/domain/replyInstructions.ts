@@ -34,7 +34,7 @@ function alone(): string {
  * starts its reply with, so the block that follows carries the body alone.
  */
 function withRecapTool(): string {
-  return `Every turn's reply is one \`:::${REPLY_BLOCK}\` block, which the app draws as the reply itself: the whole answer, even a one-sentence answer, then the explanation, completion details, and any relevant commit or PR links. When the work is done, call ${RECAP_TOOL} — the card comes from that call — and then write the block, which carries the substance the card only summarizes. ${EXACT_OUTPUT} ${TURN_POSITION} When required input is missing, skip the recap: ${ASK_EXCEPTION} When a turn only reports a missing recap, and that recap contains the answer already given, the turn ends at that call without a reply block. ${MARKERS}
+  return `Every turn's reply is one \`:::${REPLY_BLOCK}\` block, which the app draws as the reply itself: the whole answer, even a one-sentence answer, then the explanation, completion details, and any relevant commit or PR links. When the work is done, call ${RECAP_TOOL} — the card comes from that call — and then write the block, which carries the substance the card only summarizes. ${EXACT_OUTPUT} ${TURN_POSITION} When required input is missing, skip the recap: ${ASK_EXCEPTION} A turn that only reports a missing recap ends at that call, with nothing after it. ${MARKERS}
 Example, with two components in one fence:
 :::reply
 # Arrow keys follow the card order

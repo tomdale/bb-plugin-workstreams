@@ -523,7 +523,7 @@ describe("delivered instructions", () => {
       // Only a session with the recap tool can be asked for a missing recap.
       expect(
         text.includes(
-          "When a turn only reports a missing recap, and that recap contains the answer already given, the turn ends at that call without a reply block.",
+          "A turn that only reports a missing recap ends at that call, with nothing after it.",
         ),
       ).toBe(recap);
     },
