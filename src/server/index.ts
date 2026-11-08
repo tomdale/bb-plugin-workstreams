@@ -951,13 +951,22 @@ export default async function plugin(bb: BbPluginApi) {
     }
   };
 
-  // One routing preview per composer draft: a newer request or a cancel
-  // aborts the model call of the one before it.
-  const previews = new Map<string, AbortController>();
+  // One routing preview per composer draft: a newer request aborts the one
+  // before it, except an identical one, which shares the in-flight result —
+  // several composer views can show the same draft and ask together.
+  const previews = new Map<
+    string,
+    {
+      prompt: string;
+      pickedProjectId: string | null | undefined;
+      controller: AbortController;
+      result: Promise<Preview>;
+    }
+  >();
   const cancelPreview = (draftKey: string) => {
     const running = previews.get(draftKey);
     previews.delete(draftKey);
-    running?.abort(new UserError("Canceled: the draft changed."));
+    running?.controller.abort(new UserError("Canceled: the draft changed."));
     return running !== undefined;
   };
 
@@ -1011,14 +1020,21 @@ export default async function plugin(bb: BbPluginApi) {
             : decision;
         };
         if (!draftKey) return routed();
+        const running = previews.get(draftKey);
+        if (
+          running &&
+          running.prompt === prompt &&
+          running.pickedProjectId === pickedProjectId
+        )
+          return running.result;
         cancelPreview(draftKey);
         const controller = new AbortController();
-        previews.set(draftKey, controller);
-        try {
-          return await routed(controller.signal);
-        } finally {
-          if (previews.get(draftKey) === controller) previews.delete(draftKey);
-        }
+        const result = routed(controller.signal).finally(() => {
+          if (previews.get(draftKey)?.controller === controller)
+            previews.delete(draftKey);
+        });
+        previews.set(draftKey, { prompt, pickedProjectId, controller, result });
+        return result;
       }),
     previewCancel: async ({ draftKey }) => ({
       canceled: cancelPreview(draftKey),

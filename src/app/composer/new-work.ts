@@ -96,6 +96,10 @@ export function identityDisplay(state: NewWorkState): {
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
+/** How often a preview canceled by another view's model is retried. */
+const MAX_PREVIEW_RETRIES = 3;
+const RETRY_DELAY_MS = 300;
+
 /**
  * One routing model per composer draft. The host can keep several composer
  * views alive for the same draft (a hidden kept-alive view beside the
@@ -347,7 +351,7 @@ export class NewWork {
     this.timer = setTimeout(() => void this.classify(), routeDelay(text));
   }
 
-  private async classify() {
+  private async classify(attempt = 0) {
     this.timer = null;
     const mine = ++this.generation;
     this.pending = true;
@@ -391,8 +395,22 @@ export class NewWork {
       this.set({ decision, identity: nextIdentity });
     } catch (error) {
       finish(mine === this.generation ? "failed" : "superseded", { error });
-      if (mine === this.generation)
+      if (mine === this.generation) {
         console.warn("Workstreams couldn't preview the draft:", error);
+        // The server runs one in-flight preview per draft; another composer
+        // view's model can abort this one's. Retry a canceled preview rather
+        // than leaving the field stale.
+        if (
+          attempt < MAX_PREVIEW_RETRIES &&
+          messageOf(error).includes("Canceled")
+        ) {
+          this.timer = setTimeout(
+            () => void this.classify(attempt + 1),
+            RETRY_DELAY_MS,
+          );
+          return;
+        }
+      }
     } finally {
       if (mine === this.generation) {
         this.pending = false;

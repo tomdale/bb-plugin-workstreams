@@ -74,6 +74,38 @@ describe("NewWork model: the draft's topic preview", () => {
     resolveRoute();
   });
 
+  it("retries a preview canceled by another composer view", async () => {
+    let calls = 0;
+    const { deps, newWork } = setup(async () => {
+      calls++;
+      if (calls === 1) throw new Error("Canceled: the draft changed.");
+      return withFeature;
+    });
+    newWork.observe("Fix invoice billing layout");
+    // The external cancel retries instead of leaving the field stale.
+    await vi.advanceTimersByTimeAsync(SHORT_PAUSE_MS + 5_000);
+    expect(deps.route).toHaveBeenCalledTimes(2);
+    expect(newWork.snapshot().identity).toEqual({
+      entityId: "ent_billing",
+      proposal: null,
+      label: "Billing",
+      provenance: "automatic",
+    });
+  });
+
+  it("stops retrying a preview that keeps failing", async () => {
+    let calls = 0;
+    const { deps, newWork } = setup(async () => {
+      calls++;
+      throw new Error("Canceled: the draft changed.");
+    });
+    newWork.observe("Fix invoice billing layout");
+    await vi.advanceTimersByTimeAsync(SHORT_PAUSE_MS);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(deps.route.mock.calls.length).toBeLessThanOrEqual(6);
+    expect(deps.route.mock.calls.length).toBeGreaterThan(1);
+  });
+
   it("clears automatic identity when draft text is emptied", async () => {
     const { newWork } = setup(async () => withFeature);
     newWork.observe("Invoice bug in billing layout");
