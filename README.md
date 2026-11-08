@@ -1049,8 +1049,10 @@ Build a static copy with `npm run gallery:build`.
 
 The gallery includes foundations, work identity, recap and question playgrounds,
 and reply examples. Use its theme and preview-width controls to inspect the
-components, and open each example's source disclosure to see its imports.
-Navigation links preserve the selected page in the URL hash.
+components, and open each example's source disclosure to see its imports. The
+introduction preview fills the selected width: Wide uses the available space,
+Narrow caps it at 640px, and Phone caps it at 360px. All three fit within the
+page. Navigation links preserve the selected page in the URL hash.
 
 Examples use synthetic data and local state. The standalone host cannot send
 messages, change threads, upload attachments, or call the Workstreams server. It

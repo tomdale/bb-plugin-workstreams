@@ -318,11 +318,6 @@
   line-height: 1.7;
 }
 
-.gallery-intro-preview {
-  max-width: 620px;
-  margin: 0 auto;
-}
-
 .gallery-topic {
   display: flex;
   align-items: center;
