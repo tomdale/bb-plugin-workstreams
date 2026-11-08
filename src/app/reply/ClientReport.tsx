@@ -3,8 +3,8 @@
  * fork has the message-block slot; the server turns on reply-block recaps
  * (no recap tool, the merged instruction) only after a client has reported
  * it, so an agent on upstream bb never writes blocks nobody can draw. The
- * report repeats whenever the realtime link comes back, which is also when
- * a server restart is noticed.
+ * report repeats whenever the realtime link comes back, and the server keeps
+ * the last one, so a reload starts from what the running clients draw.
  */
 import { useEffect } from "react";
 import { useRealtimeConnectionState, useRpc } from "@get-bb/plugin-sdk/app";

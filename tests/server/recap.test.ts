@@ -928,8 +928,24 @@ describe("structured replies", () => {
     expect(resolved.instructions).not.toContain(":::reply");
   });
 
-  it("forgets the report on reload, so a setting turned on under the fork waits for a new report", async () => {
+  it("keeps the report across a reload, so the reply contract survives one", async () => {
     const s = await world({ replies: true });
+    const replacement = await s.w.harness.lifecycle.reload(plugin);
+    const resolved =
+      await replacement.harness.behavior.resolveAgentConfiguration(
+        makePluginAgentConfigurationContext({
+          thread: { id: "t1", parentThreadId: null },
+        }),
+      );
+    expect(resolved.tools.map((tool) => tool.name)).toContain(RECAP_TOOL);
+    expect(resolved.instructions).toContain(":::reply");
+  });
+
+  it("keeps a report that this bb draws no reply blocks", async () => {
+    const s = await world({ replies: true });
+    await s.w.harness.behavior.callRpc("reportClient", {
+      messageBlocks: false,
+    });
     const replacement = await s.w.harness.lifecycle.reload(plugin);
     const resolved =
       await replacement.harness.behavior.resolveAgentConfiguration(

@@ -36,6 +36,7 @@ import {
 } from "../domain/recap.ts";
 import type { RecapPrefs } from "../domain/recapPrefs.ts";
 import { replyInstructions } from "../domain/replyInstructions.ts";
+import { loadClientReport, saveClientReport } from "./clientReport.ts";
 import type { Database } from "./db.ts";
 import { UserError } from "./service.ts";
 import { ASK_USER_QUESTION_RENDERER_ID } from "./questions/contracts.ts";
@@ -99,13 +100,13 @@ export class AgentRecaps {
   >();
   private readonly waitingChecks = new Set<Promise<void>>();
   /**
-   * Whether the latest client report said this bb draws reply blocks. Only
-   * the tomdale/bb fork does; on upstream bb no client reports it, so
-   * Structured replies stays off and agents keep the recap tool. Kept in
-   * memory: a restart, possibly onto another bb build, waits for a new
-   * report.
+   * Whether the client that last connected draws reply blocks. Only the
+   * tomdale/bb fork does; on upstream bb every client reports it doesn't, so
+   * Structured replies stays off and agents keep the recap tool. The report is
+   * stored, so a reload keeps the contract the running clients already
+   * follow; a client on another bb build replaces it when it connects.
    */
-  private messageBlocks = false;
+  private messageBlocks: boolean;
 
   constructor(
     private readonly deps: {
@@ -117,6 +118,7 @@ export class AgentRecaps {
       onChange: () => void;
     },
   ) {
+    this.messageBlocks = loadClientReport(deps.db).messageBlocks;
     this.failureGuard = new ToolFailureGuard({
       bb: deps.bb,
       enabled: (threadId) =>
@@ -203,6 +205,7 @@ export class AgentRecaps {
   /** A client's report of what its bb draws; the latest report wins. */
   reportClient(report: { messageBlocks: boolean }) {
     this.messageBlocks = report.messageBlocks;
+    saveClientReport(this.deps.db, report);
   }
 
   /**

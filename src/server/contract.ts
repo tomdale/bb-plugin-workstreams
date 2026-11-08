@@ -430,7 +430,8 @@ export const rpcContract = defineRpcContract({
    */
   /**
    * What this client's bb can draw. Reply-block recaps start only after a
-   * client reports `messageBlocks` (the tomdale/bb fork's slot).
+   * client reports `messageBlocks` (the tomdale/bb fork's slot); the server
+   * stores the report, so a plugin reload keeps it.
    */
   reportClient: {
     input: z.object({ messageBlocks: z.boolean() }),

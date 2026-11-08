@@ -619,15 +619,15 @@ which adds a message-block slot, you also get **Structured replies**:
   use the worker's workspace. Unsupported, incomplete, or unverified deliveries
   keep BB's original message.
 
-Workstreams detects the slot when its app loads and reports it to the server.
-Without the slot, Settings has no Structured replies row and new provider
-sessions use the recap tool; a setting turned on under the fork stays stored.
-Existing sessions retain their loaded tools and instructions across setting
-changes, client capability changes, and plugin reloads. While **End turns with a
-recap** is enabled, the recap tool supplies every card and reminders ask for
-that call; disabling that setting removes the reporting requirement and
-automatic reminders. Outside Subagents deliveries, reply blocks without a
-renderer show as plain Markdown.
+Workstreams detects the slot when its app loads and reports it to the server,
+which keeps the latest report. Without the slot, Settings has no Structured
+replies row and new provider sessions use the recap tool; a setting turned on
+under the fork stays stored. Existing sessions retain their loaded tools and
+instructions across setting changes, client capability changes, and plugin
+reloads. While **End turns with a recap** is enabled, the recap tool supplies
+every card and reminders ask for that call; disabling that setting removes the
+reporting requirement and automatic reminders. Outside Subagents deliveries,
+reply blocks without a renderer show as plain Markdown.
 
 ### Structured question card (`AskUserQuestion`)
 
