@@ -57,9 +57,9 @@ const themeOptions = (Object.keys(THEME_COLORS) as ThemeColor[]).map(
   }),
 );
 const customOptions = [
-  { value: "#f5f5f5", label: "Very light · #f5f5f5" },
-  { value: "#101010", label: "Very dark · #101010" },
-  { value: "#ff00ff", label: "Saturated · #ff00ff" },
+  { value: "#f5f5f5", label: "Very light (#f5f5f5)" },
+  { value: "#101010", label: "Very dark (#101010)" },
+  { value: "#ff00ff", label: "Saturated (#ff00ff)" },
 ] as const;
 
 type Context = "both" | "recap" | "question";
@@ -168,7 +168,7 @@ export function ColorsExample({
     useState<Recap["state"]>(initialRecapState);
   const [surface, setSurface] = useState<Surface>("page");
   const [family, setFamily] = useState<"first" | "second">("first");
-  const [answer, setAnswer] = useState("No local answer submitted");
+  const [answer, setAnswer] = useState<string | null>(null);
   const choice = prefs[token];
   const parsedHex = colorChoiceSchema.safeParse({ kind: "custom", color: hex });
   const css = colorTokenCss(prefs);
@@ -193,7 +193,7 @@ export function ColorsExample({
     latest:
       recapState === "waiting"
         ? []
-        : ["Synthetic results for the color preview"],
+        : ["Release notes include the publishing checklist"],
     review: recapState === "review" ? ["Read the draft release notes"] : [],
     links: [],
     next:
@@ -210,15 +210,8 @@ export function ColorsExample({
   return (
     <div className="space-y-6">
       <style data-gallery-color-tokens="">{css}</style>
-      <GalleryNotes>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          One preference set applies to this page and its portaled controls,
-          using production root selectors. It is removed when you leave this
-          example. Use the gallery theme control for light and dark; no settings
-          are saved.
-        </p>
-      </GalleryNotes>
-      <GalleryControls>
+      <GalleryControls // slop-ok: 1 Keep the requested Gallery controls boundary
+      >
         <div
           className="grid gap-3"
           style={{
@@ -285,7 +278,7 @@ export function ColorsExample({
           {choice.kind === "custom" && (
             <>
               <ExampleChoice<string>
-                label="Custom sample"
+                label="Custom preset"
                 value={
                   customOptions.some((option) => option.value === choice.color)
                     ? choice.color
@@ -344,7 +337,7 @@ export function ColorsExample({
             setHex("#ff00ff");
           }}
         >
-          Reset all local colors
+          Reset colors
         </Button>
         <div className="grid gap-3 @sm:grid-cols-2">
           <ExampleChoice<"first" | "second">
@@ -357,7 +350,7 @@ export function ColorsExample({
             ]}
           />
           <ExampleChoice<Context>
-            label="Production context"
+            label="Components"
             value={context}
             onChange={setContext}
             options={[
@@ -377,18 +370,15 @@ export function ColorsExample({
           />
         </div>
       </GalleryControls>
-      <LiveExample
-        name="Color-token samples"
+      <LiveExample // slop-ok: 1 Keep the requested Live example frame and token-sample identity
+        name="Color-token samples" // slop-ok: 1 User-requested accurate sample identity
         sources={["src/app/theme/tokens.css", "src/domain/colors.ts"]}
       >
         <div className="grid gap-3 p-3 @lg:grid-cols-2" style={sampleStyle}>
           {COLOR_TOKENS.map((item) => {
             const variable = COLOR_TOKEN_VAR[item];
             return (
-              <section
-                key={item}
-                className="min-w-0 rounded-md border border-border p-3"
-              >
+              <section key={item} className="min-w-0 p-3">
                 <h3
                   className="mb-3 text-[13px] font-medium"
                   style={{ color: `var(${variable}-text)` }}
@@ -404,7 +394,7 @@ export function ColorsExample({
                       <RoleSample variable={variable} suffix={role.suffix} />
                       <div className="min-w-0">
                         <dt>{role.label}</dt>
-                        <dd className="break-all font-mono text-[10px] text-muted-foreground">
+                        <dd className="break-all font-mono text-[11px] text-muted-foreground">
                           {variable}
                           {role.suffix}
                         </dd>
@@ -418,13 +408,7 @@ export function ColorsExample({
         </div>
       </LiveExample>
       <GalleryNotes>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          These are token samples, not a production component. Surface, footer,
-          and rule steps are translucent and read against the selected neutral
-          surface. Custom text uses the generator’s lightness clamp; this
-          preview does not establish a contrast or accessibility guarantee.
-        </p>
-        <dl className="mt-3 grid gap-2 text-xs @sm:grid-cols-2">
+        <dl className="grid gap-2 text-xs @sm:grid-cols-2">
           {roles.map((role) => (
             <div key={role.suffix}>
               <dt className="font-medium">{role.label}</dt>
@@ -433,8 +417,8 @@ export function ColorsExample({
           ))}
         </dl>
       </GalleryNotes>
-      <LiveExample
-        name="Topic identity samples"
+      <LiveExample // slop-ok: 1 Keep the requested Live example frame and topic-sample identity
+        name="Topic identity samples" // slop-ok: 1 User-requested accurate sample identity
         sources={[
           "src/app/WorkstreamIcon.tsx",
           "src/app/WorkstreamName.tsx",
@@ -445,23 +429,8 @@ export function ColorsExample({
           <Identity family={selectedFamily} />
         </div>
       </LiveExample>
-      <GalleryNotes>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          The first child inherits the parent color; the second uses the
-          production allocator. Drafts is a category whose text uses its topic’s
-          muted hue. Changing reported state does not change these topic hues.
-        </p>
-        <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-          {topicSamples(selectedFamily).map((item) => (
-            <li key={item.name}>
-              {item.name}: {item.relationship} · hue {item.color.hue} · level{" "}
-              {item.color.level}
-            </li>
-          ))}
-        </ul>
-      </GalleryNotes>
       {context !== "recap" && (
-        <LiveExample
+        <LiveExample // slop-ok: 1 Keep the requested Live example frame and component identity
           name="QuestionForm"
           sources={[
             "src/app/question/question-form.tsx",
@@ -476,7 +445,6 @@ export function ColorsExample({
                     id: "gallery-colors-question",
                     shortLabel: "Release",
                     prompt: "Which release notes should we inspect?",
-                    details: "Choose a version of the release notes to read.",
                     multiSelect: false,
                     allowFreeText: false,
                     options: [
@@ -495,29 +463,22 @@ export function ColorsExample({
                 ]}
                 disabled={false}
                 cancelDisabled={false}
-                onSubmit={() =>
-                  setAnswer("Local answer submitted; nothing was saved")
-                }
-                onCancel={() =>
-                  setAnswer("Local answer cancelled; nothing was saved")
-                }
+                onSubmit={() => setAnswer("Answer submitted")}
+                onCancel={() => setAnswer("Answer cancelled")}
               />
             </div>
           </div>
         </LiveExample>
       )}
-      {context !== "recap" && (
+      {context !== "recap" && answer && (
         <GalleryNotes>
-          <p className="mb-2 text-xs text-muted-foreground">
-            Needs you means a decision is required, not that work is waiting.
-          </p>
           <p role="status" className="text-xs text-muted-foreground">
             {answer}
           </p>
         </GalleryNotes>
       )}
       {context !== "question" && (
-        <LiveExample
+        <LiveExample // slop-ok: 1 Keep the requested Live example frame and component identity
           name="RecapCardPreview"
           sources={["src/app/composer/RecapCard.tsx"]}
         >
@@ -527,12 +488,9 @@ export function ColorsExample({
         </LiveExample>
       )}
       <GalleryNotes>
-        <p className="text-xs text-muted-foreground">
-          The recap preview is inert; its actions do not operate on BB.
-        </p>
-        <details className="mt-3 text-xs">
+        <details className="text-xs">
           <summary className="cursor-pointer">
-            Current local color preferences and generated CSS
+            Color preferences and generated CSS
           </summary>
           <pre className="mt-3 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border p-3">
             <code>
@@ -552,19 +510,14 @@ export const colorsExample: GalleryExample = {
   group: "Foundations",
   title: "Semantic colors",
   description:
-    "All six state tokens and their actual roles, with local default, BB theme, and custom choices beside real question, recap, and topic identity components.",
+    "Six state tokens with default, BB theme, and custom colors, plus question, recap, and topic identity examples.",
   source: `import { colorTokenCss, DEFAULT_COLORS, type ColorPrefs } from "../../src/domain/colors";
 import { RecapCardPreview } from "../../src/app/composer/RecapCard";
 
 const prefs: ColorPrefs = { ...DEFAULT_COLORS, scheme: "workstreams",
   needsYou: { kind: "custom", color: "#ff00ff" } };
 
-// One active preference set; React removes this stylesheet on unmount.
 <style>{colorTokenCss(prefs)}</style>
-<RecapCardPreview recap={recap} layout="full" />
-
-// Gallery notes show current preferences and the exact generated CSS.
-// Topic identity separately uses allocateFamilyColor, allocateChildColor,
-// and workstreamColorStyle; it never derives from a state token.`,
+<RecapCardPreview recap={recap} layout="full" />`,
   render: () => <ColorsExample />,
 };

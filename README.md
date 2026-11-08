@@ -1075,19 +1075,20 @@ are simulated. Topic and status colors use the playground's light and dark
 fixtures, not your live BB settings. Nothing writes to BB or ships in the
 plugin.
 
-Settings and overlay actions update local state and an action log. Question
-presets cover freeform and multi-question forms, submission states, and retained
-answers; recap presets add artifacts, hashes, long content, and awaited-agent
-states. Color choices use the production token generator and reset when you
-leave the example. The standalone theme supplies neutral registry aliases and a
-Purple fixture from Workstreams' default suggestion color; it is not a live BB
-theme.
+Settings and overlay actions show their latest outcome after interaction, with
+earlier actions in an optional disclosure. Question presets cover freeform and
+multi-question forms, submission states, and retained answers; recap presets add
+artifacts, hashes, long content, and awaited-agent states. Color choices use the
+production token generator and reset when you leave the example. The standalone
+theme supplies neutral registry aliases and a Purple fixture from Workstreams'
+default suggestion color; it is not a live BB theme.
 
 Gallery configuration sits in panels labeled **Gallery controls**. Frames
 labeled **Live example** identify the demonstrated components and link to their
-production sources. Explanations, local action logs, and source disclosures sit
-outside those frames. Controls inside a live frame belong to the demonstrated
-component, such as a settings switch or a question's answer choices.
+production sources. Interaction outcomes, action history, generated CSS, and
+source disclosures sit outside those frames. Controls inside a live frame belong
+to the demonstrated component, such as a settings switch or a question's answer
+choices.
 
 Use the theme and preview-width controls to inspect the components, and open
 each example's source disclosure to see its imports. Preview width resizes the

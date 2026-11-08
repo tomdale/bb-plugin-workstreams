@@ -11,7 +11,7 @@ import {
   type RecapLayout,
 } from "../../src/domain/recapPrefs";
 import { ExampleChoice } from "../ExampleChoice";
-import { GalleryControls, GalleryNotes, LiveExample } from "../ExampleFrame";
+import { GalleryControls, LiveExample } from "../ExampleFrame";
 import type { GalleryExample } from "../examples";
 
 const recapBase = {
@@ -32,8 +32,8 @@ const recaps: Record<Recap["state"], Recap> = {
     latest: [
       "Long filenames wrap inside the available width",
       {
-        text: "Keyboard checks passed locally",
-        detail: "Synthetic example, not a test report",
+        text: "Release notes include keyboard review steps",
+        detail: "Review covers the footer actions",
       },
     ],
     next: [
@@ -44,13 +44,13 @@ const recaps: Record<Recap["state"], Recap> = {
     ...recapBase,
     state: "review",
     goal: "Prepared the release summary for review",
-    latest: ["The summary uses the shared Markdown renderer"],
+    latest: ["The summary covers the receipt and discount changes"],
     review: [
       {
-        text: "Read the summary in a narrow pane",
-        detail: "Expect paths to wrap without horizontal scrolling",
+        text: "Review the package list and migration instructions",
+        detail: "Confirm that each renamed option includes its replacement",
       },
-      "Check keyboard focus on the footer actions",
+      "Approve the release scope before publishing",
     ],
     next: [
       { title: "Inspect the summary", message: "Inspect the release summary" },
@@ -129,36 +129,36 @@ function recapFor(
             : "Prepared the release summary and its supporting review instructions",
         latest: [
           {
-            text: "Release instructions keep each result beside the qualification that limits it",
+            text: "Release instructions include the publishing checklist",
             detail:
-              "Synthetic example: the fixture describes checks, but no build, deployment, or live inspection ran",
+              "The checklist covers version numbers, package publishing, and release notes",
           },
           {
             text: "Long package paths remain part of the report",
             detail:
-              "`packages/release-tools/src/reports/quarterly-release-summary.tsx` identifies the example module",
+              "`packages/release-tools/src/reports/quarterly-release-summary.tsx` contains the summary",
           },
           {
-            text: "Review notes distinguish local preparation from live deployment",
+            text: "Release notes separate package changes from migration instructions",
             detail:
-              "The report describes prepared work; live deployment is not independently verified",
+              "Migration instructions cover renamed options and removed configuration fields",
           },
         ],
         review: [
           {
-            text: "Read the summary and its supporting details at a narrow width",
+            text: "Review the release scope and supporting details",
             detail:
-              "Expect the card to keep the goal above the results, with qualifications on secondary lines",
+              "Confirm that the receipt and discount changes ship together",
           },
           {
-            text: "Compare Full and Compact before choosing the amount of context",
+            text: "Compare the package changes with the migration instructions",
             detail:
-              "Compact keeps review steps for review cards; Full also includes the completed results",
+              "Each renamed option should include its replacement and a configuration example",
           },
           {
-            text: "Check the same content in both light and dark themes",
+            text: "Compare the release notes with the package versions",
             detail:
-              "The text, state label, border, and footer use the loaded theme; this fixture makes no contrast claim",
+              "The package list should include both checkout and shared components",
           },
         ],
       };
@@ -167,18 +167,18 @@ function recapFor(
         ...recap,
         links: [
           {
-            title: "Release summary",
-            location: "https://example.com/gallery/release-summary",
+            title: "Design system",
+            location:
+              "https://github.com/tomdale/bb-plugin-workstreams/blob/main/docs/design-system.md",
           },
           {
             title: "Narrow layout screenshot",
-            location:
-              "/gallery-fixtures/screenshots/release-summary-narrow.png",
+            location: "/reports/screenshots/release-summary-narrow.png",
           },
           {
             title: "Package report with a long filename",
             location:
-              "/gallery-fixtures/reports/packages/release-tools/quarterly-release-summary-review.md",
+              "/reports/packages/release-tools/quarterly-release-summary-review.md",
           },
         ],
       };
@@ -190,15 +190,15 @@ function recapFor(
             ? "Waiting for commit review"
             : "Prepared commits for the release summary",
         latest: [
-          "Summary layout: a1b2c3d4e5f678901234567890abcdef1234567890",
+          "Context and details: c90f6a4be27432c637dffac40e4ea496b5023827",
           {
-            text: "Review notes: 9f8e7d6c5b4a32100123456789abcdef01234567",
+            text: "Comparison and recommendation: 4564b3bb01eea2023ed9301d76a52b24e4569d9c",
             detail:
-              "Synthetic commit identifiers, not changes in this repository",
+              "Notes cover the release checklist and migration instructions",
           },
         ],
         review: [
-          "Read the layout at a1b2c3d4e5f678901234567890abcdef1234567890",
+          "Read the layout at c90f6a4be27432c637dffac40e4ea496b5023827",
           "Compare the supporting notes and their qualifications",
         ],
       };
@@ -240,7 +240,8 @@ function RecapExample() {
   const recap = recapFor(preset, state, fixtures.waitingAgents);
   return (
     <div className="space-y-5">
-      <GalleryControls>
+      <GalleryControls // slop-ok: 1 Keep the requested Gallery controls boundary
+      >
         <div
           className="grid gap-3"
           style={{
@@ -284,7 +285,7 @@ function RecapExample() {
             onChange={setWidth}
             options={[
               { value: "wide", label: "Fill the pane" },
-              { value: "narrow", label: "Narrow · 320px" },
+              { value: "narrow", label: "Narrow (320px)" },
             ]}
           />
           {preset === "hashes" ? (
@@ -294,7 +295,7 @@ function RecapExample() {
               onChange={setHashColor}
               options={[
                 { value: "theme", label: "Theme defaults" },
-                { value: "semantic", label: "Custom · loaded theme colors" },
+                { value: "semantic", label: "Custom theme colors" },
               ]}
             />
           ) : null}
@@ -324,7 +325,7 @@ function RecapExample() {
           </div>
         </div>
       </GalleryControls>
-      <LiveExample
+      <LiveExample // slop-ok: 1 Keep the requested Live example frame and component identity
         name="RecapCardPreview"
         sources={["src/app/composer/RecapCard.tsx"]}
       >
@@ -356,17 +357,6 @@ function RecapExample() {
           />
         </div>
       </LiveExample>
-      <GalleryNotes>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          The production preview is inert: dismiss, Archive, next actions,
-          links, and hash copying cannot act on BB. Waiting uses fixture agents
-          without a scheduled check; “Checking now” is display text. Artifacts
-          are synthetic HTTPS and file locations, not available documents.
-          Artifact chips appear in Review; Compact omits completed results on
-          review cards. Next actions can collapse to a disabled menu at narrow
-          widths, not an interactive action-menu demo.
-        </p>
-      </GalleryNotes>
     </div>
   );
 }
@@ -376,7 +366,7 @@ export const recapExample: GalleryExample = {
   title: "Recap card",
   group: "Components",
   description:
-    "The actual inert preview with reported state, layout, width, goal-only and long content, artifacts, commit colors, next actions, and awaited agent states.",
+    "Work results, review steps, artifacts, next actions, and awaited agents.",
   source: `import { RecapCardPreview } from "../../src/app/composer/RecapCard";
 import type { Recap } from "../../src/domain/recap";
 
@@ -385,7 +375,6 @@ const recap: Recap = ${JSON.stringify(recapFor("hashes", "review", []), null, 2)
 <RecapCardPreview recap={recap} layout="full" showArchive={false}
   hashColors={{ digits: "var(--ws-review-text)", letters: "var(--ws-needs-you-text)" }} />
 
-// Stand-in agent views prevent live thread reads; all previews stay inert.
 <RecapCardPreview layout="full"
   recap={{ ...recap, state: "waiting", waitingAgents: [
     { threadId: "gallery-agent", task: "Check the narrow layout" },

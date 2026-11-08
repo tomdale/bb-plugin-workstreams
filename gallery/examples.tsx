@@ -123,7 +123,7 @@ function IdentityExample() {
         </div>
       </GalleryControls>
       <LiveExample
-        name="WorkstreamIcon · WorkstreamName"
+        name="Work identity composition"
         sources={["src/app/WorkstreamIcon.tsx", "src/app/WorkstreamName.tsx"]}
       >
         <div
@@ -138,10 +138,6 @@ function IdentityExample() {
           />
         </div>
       </LiveExample>
-      <GalleryNotes>
-        The actual name component subdues the owner prefix and preserves the
-        colon for assistive technology. The shared icon stays neutral.
-      </GalleryNotes>
     </div>
   );
 }
@@ -153,62 +149,59 @@ const replyParts = [
     where:
       "`~/Code/shop/_tasks/main/release-summary` on `tomdale/release-summary`",
     background:
-      "The release adds the discount path and the receipt redesign. Both changes ship together because the receipt reads the new discount total.\n\nThe following content is synthetic.",
+      "The release adds the discount path and the receipt redesign. Both changes ship together because the receipt reads the new discount total.",
   },
   {
     type: "text",
-    body: "The summary keeps **the result** first, followed by review steps and `paths/that/wrap.ts`.\n\nOrdinary prose stays in the message flow.",
+    body: "The release adds **percentage discounts** and a revised receipt. The checkout service calculates the discount before tax.\n\nReview `services/checkout/discount.ts` alongside the receipt changes before approving the release.",
   },
   {
     type: "sequence",
     title: "Review the summary",
     steps: [
       {
-        title: "Switch to the narrow width",
-        detail: "Use a pane about 320px wide.",
+        title: "Review the release scope",
+        detail: "Confirm that the receipt and discount changes ship together.",
       },
       {
-        title: "Read the review steps",
-        detail: "Keep each qualification next to its claim.",
+        title: "Approve the migration instructions",
+        detail: "Each renamed option needs its replacement and an example.",
         attention: true,
       },
-      { title: "Collapse the **Activity** panel" },
+      { title: "Read the **checkout** package changes" },
       {
         title:
-          "Confirm that a long step title wraps under itself rather than under its number",
+          "Compare the discount calculation and receipt totals across every package included in the release",
         detail:
-          "The detail stays muted beneath the title and keeps `paths/that/wrap.ts` and other inline Markdown intact across several lines of text.",
+          "Review `packages/checkout/src/discounts/percentage-discount.ts` alongside the shared receipt components. Both packages must use the same rounding rule.",
         attention: true,
       },
       {
-        title: "Close the pane",
-        detail: "The last step has no rail beneath it.",
+        title: "Publish the release notes",
+        detail: "Wait for approval of the payment integration.",
       },
     ],
   },
   {
     type: "comparison",
-    title: "Choose the summary layout",
+    title: "Choose the release scope",
     items: [
       {
-        name: "Compact",
-        summary: "Keep the goal and essential rows.",
+        name: "Receipt and discounts",
+        summary: "Ship the calculation and receipt changes together.",
         recommended: true,
-        qualification: "Useful when the message column is narrow.",
-        detail:
-          "Results beyond the first three fold behind the card's `More` control.",
+        qualification: "Requires approval of the payment integration.",
+        detail: "Both packages use the same rounding rule.",
       },
       {
-        name: "Full",
-        summary:
-          "Keep every result, review step, and artifact link together in one long card.",
-        qualification: "Uses more vertical space.",
+        name: "Receipt only",
+        summary: "Publish the receipt redesign first.",
+        qualification: "The discount line needs the new checkout response.",
       },
       {
-        name: "Two-column",
-        summary: "Put results beside review steps.",
-        detail:
-          "Needs a wide message column; it falls back to Full below about 40rem.",
+        name: "Discounts only",
+        summary: "Publish the checkout calculation first.",
+        detail: "The existing receipt will omit the discount breakdown.",
       },
     ],
   },
@@ -218,14 +211,12 @@ const replyParts = [
     before: "The results and review steps use the same emphasis.",
     after: "Review steps follow the goal and results.",
     unchanged: "The source content.",
-    limitation:
-      "This sample compares reported content; it does not describe an application behavior change.",
+    limitation: "Payment integration awaits review.",
   },
   {
     type: "checks",
-    title: "Example checks",
-    scope:
-      "Synthetic report for the Gallery; it is not a test report for this repository.",
+    title: "Release checks",
+    scope: "Checkout summary and receipt layout",
     testTotals: { passed: 2, failed: 1, skipped: 1 },
     items: [
       { name: "Keyboard selection", status: "passed" },
@@ -233,7 +224,7 @@ const replyParts = [
       {
         name: "Theme fallback",
         status: "failed",
-        detail: "Synthetic failure to show the failed status treatment.",
+        detail: "The receipt loses its selected theme after reload.",
       },
       {
         name: "Phone layout",
@@ -243,32 +234,30 @@ const replyParts = [
       {
         name: "BB interaction",
         status: "blocked",
-        detail: "The standalone Gallery does not connect to a BB server.",
+        detail: "Awaiting access to the staging server.",
       },
       {
         name: "Physical-device behavior",
         status: "untested",
-        detail: "No physical device was used for this sample.",
+        detail: "Device testing is scheduled after staging review.",
       },
     ],
   },
   {
     type: "delivery",
-    title: "Example delivery",
-    scope: "Synthetic stages, not the status of this repository.",
+    title: "Release delivery",
+    scope: "Checkout summary and receipt layout",
     stages: [
       {
-        name: "Local build",
+        name: "Build",
         status: "done",
         detail: "Plugin and Gallery bundles built.",
-        evidence: [
-          { label: "Build log", location: "https://example.com/build" },
-        ],
+        evidence: [{ label: "Build scripts", location: "package.json" }],
       },
       {
         name: "Live installation",
         status: "pending",
-        detail: "No plugin is installed by this playground.",
+        detail: "Awaiting deployment approval.",
       },
       {
         name: "Pushed",
@@ -287,8 +276,8 @@ const replyParts = [
   },
   {
     type: "details",
-    title: "Example details",
-    body: "The release summary groups the result with its review steps, so a reader who skips the headline still finds the caveats in order.\n\n- Keep artifact paths such as `src/checkout/discount.ts` beside their descriptions\n- State which checks ran\n- Leave pending deployment explicit\n\n```sh\nnpm run test -- checkout\n```",
+    title: "Release details",
+    body: "The checkout service applies the percentage discount before calculating tax. The receipt reads the resulting discount total from the checkout response.\n\n- `src/checkout/discount.ts` owns the rounding rule\n- Receipt tests cover zero, partial, and full discounts\n- Deployment awaits payment integration approval\n\n```sh\nnpm run test -- checkout\n```",
   },
   {
     type: "group",
@@ -312,7 +301,7 @@ const replyParts = [
         },
         {
           type: "text",
-          body: "Returns the discount total beside the subtotal; this cell is a list of two components kept together.",
+          body: "Returns the discount total beside the subtotal so the receipt can show each amount separately.",
         },
       ],
     ],
@@ -333,7 +322,7 @@ const replyParts = [
       [
         {
           type: "text",
-          body: "A reviewer needs the qualification before choosing the next release step:",
+          body: "The release has two remaining constraints:",
         },
         {
           type: "text",
@@ -385,11 +374,6 @@ function ReplyExample() {
           ]}
         />
       </GalleryControls>
-      <GalleryNotes>
-        Labels take the thread's workstream color, or muted text when the thread
-        is unfiled. Every component follows the recap card: labels in its
-        gutter, and status marks or step numbers in its mark column.
-      </GalleryNotes>
       <LiveExample name="PlainBody" sources={["src/app/reply/PlainBody.tsx"]}>
         <div
           className="ws-reply-accent min-w-0 break-words"
@@ -409,11 +393,11 @@ function ReplyExample() {
 function ControlsExample() {
   const [name, setName] = useState("Release summary");
   const [density, setDensity] = useState<"compact" | "full">("compact");
-  const [status, setStatus] = useState("No local action yet");
+  const [status, setStatus] = useState<string | null>(null);
   return (
     <div className="space-y-5">
       <LiveExample
-        name="Button · Input · Select"
+        name="BB controls composition"
         sources={[
           "components/ui/button.tsx",
           "components/ui/input.tsx",
@@ -444,10 +428,12 @@ function ControlsExample() {
             <Button
               type="button"
               onClick={() =>
-                setStatus(`Local preview: ${name || "Untitled"} · ${density}`)
+                setStatus(
+                  `Previewing ${name || "Untitled"} in ${density} layout`,
+                )
               }
             >
-              Preview locally
+              Preview
             </Button>
             <Button
               type="button"
@@ -455,17 +441,17 @@ function ControlsExample() {
               onClick={() => {
                 setName("Release summary");
                 setDensity("compact");
-                setStatus("Local controls reset");
+                setStatus("Controls reset");
               }}
             >
-              Reset locally
+              Reset
             </Button>
             <Button
               type="button"
               variant="ghost"
-              onClick={() => setStatus("Local draft discarded")}
+              onClick={() => setStatus("Draft discarded")}
             >
-              Discard locally
+              Discard
             </Button>
             <Button type="button" variant="outline" disabled>
               Unavailable
@@ -473,9 +459,11 @@ function ControlsExample() {
           </div>
         </div>
       </LiveExample>
-      <GalleryNotes>
-        <p role="status">{status}</p>
-      </GalleryNotes>
+      {status && (
+        <GalleryNotes>
+          <p role="status">{status}</p>
+        </GalleryNotes>
+      )}
     </div>
   );
 }
@@ -486,8 +474,7 @@ export const examples: GalleryExample[] = [
     id: "typography",
     title: "Existing type roles",
     group: "Foundations",
-    description:
-      "Existing sidebar classes and the exported question-prompt role; not a new global type scale.",
+    description: "Sidebar type roles and the question prompt.",
     source: `import { PROMPT_CLASS } from "../src/app/question/question-presentation";\n\n<span className="ws-text-section">Workstreams</span>\n<span className="ws-text-workstream">Release tools</span>\n<span className="ws-text-category">Ready to review</span>\n<span className="ws-text-thread">Check the release notes</span>\n<div className={PROMPT_CLASS}>Which layout should we use?</div>`,
     render: () => <TypographyExample />,
   },
@@ -508,9 +495,8 @@ export const examples: GalleryExample[] = [
     id: "reply-vocabulary",
     title: "Reply vocabulary",
     group: "Components",
-    description:
-      "All ten information components through PlainBody in the recap card style, with synthetic totals and statuses.",
-    source: `import { PlainBody } from "../src/app/reply/PlainBody";\nimport type { ReplyComponent } from "../src/domain/replyComponents";\n\n// The selector changes this part; PlainBody renders the selected vocabulary.\nconst part: ReplyComponent = ${JSON.stringify(
+    description: "Ten information components in the recap card style.",
+    source: `import { PlainBody } from "../src/app/reply/PlainBody";\nimport type { ReplyComponent } from "../src/domain/replyComponents";\n\nconst part: ReplyComponent = ${JSON.stringify(
       replyParts.find((item) => item.type === "change"),
       null,
       2,
@@ -521,9 +507,8 @@ export const examples: GalleryExample[] = [
     id: "bb-controls",
     title: "BB controls",
     group: "Components",
-    description:
-      "Vendored registry buttons, input, and select. All actions are local and can be exercised without a BB thread.",
-    source: `import { Button } from "../components/ui/button";\nimport { Input } from "../components/ui/input";\nimport { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../components/ui/select";\n\n<Input value={name} onChange={(event) => setName(event.target.value)} />\n<Select value={layout} onValueChange={setLayout}>\n  <SelectTrigger aria-label="Example layout"><SelectValue /></SelectTrigger>\n  <SelectContent>\n    <SelectItem value="compact">Compact</SelectItem>\n    <SelectItem value="full">Full</SelectItem>\n  </SelectContent>\n</Select>\n<Button onClick={previewLocally}>Preview locally</Button>\n<Button variant="outline" onClick={resetLocally}>Reset locally</Button>\n<Button variant="ghost" onClick={discardLocally}>Discard locally</Button>\n<Button variant="outline" disabled>Unavailable</Button>`,
+    description: "Registry buttons, input, and select.",
+    source: `import { Button } from "../components/ui/button";\nimport { Input } from "../components/ui/input";\nimport { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../components/ui/select";\n\n<Input value={name} onChange={(event) => setName(event.target.value)} />\n<Select value={layout} onValueChange={setLayout}>\n  <SelectTrigger aria-label="Example layout"><SelectValue /></SelectTrigger>\n  <SelectContent>\n    <SelectItem value="compact">Compact</SelectItem>\n    <SelectItem value="full">Full</SelectItem>\n  </SelectContent>\n</Select>\n<Button onClick={preview}>Preview</Button>\n<Button variant="outline" onClick={reset}>Reset</Button>\n<Button variant="ghost" onClick={discard}>Discard</Button>\n<Button variant="outline" disabled>Unavailable</Button>`,
     render: () => <ControlsExample />,
   },
 ];

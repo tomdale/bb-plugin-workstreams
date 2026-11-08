@@ -22,7 +22,9 @@ export function GalleryControls({ children }: { children: ReactNode }) {
       aria-label="Example controls"
       data-gallery-controls=""
     >
-      <h2 className="gallery-example-controls-heading">Gallery controls</h2>
+      <h2 className="gallery-example-controls-heading">
+        {"Gallery controls" /* slop-ok: 1 User-requested boundary label */}
+      </h2>
       <div className="gallery-example-controls-content">{children}</div>
     </section>
   );
@@ -33,6 +35,27 @@ export function GalleryNotes({ children }: { children: ReactNode }) {
     <div className="gallery-example-notes" data-gallery-documentation="">
       {children}
     </div>
+  );
+}
+
+export function GalleryActivity({ entries }: { entries: readonly string[] }) {
+  if (!entries.length) return null;
+  return (
+    <GalleryNotes>
+      <p role="status" aria-atomic="true">
+        {entries[0]}
+      </p>
+      {entries.length > 1 && (
+        <details>
+          <summary>Earlier actions</summary>
+          <ol>
+            {entries.slice(1).map((entry, index) => (
+              <li key={index}>{entry}</li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </GalleryNotes>
   );
 }
 
@@ -47,17 +70,18 @@ export function LiveExample({
 }) {
   const width = useContext(WidthContext);
   return (
+    // slop-ok: 1 User-requested frame distinguishes the embedded live component from gallery chrome
     <section
       className="gallery-live-example"
-      aria-label={`${name} live example`}
+      aria-label={`${name} live example`} // slop-ok: 1 User-requested live component identity
       data-gallery-live-example=""
     >
       <header className="gallery-live-example-header">
         <div className="gallery-live-example-heading">
-          <span className="gallery-live-example-label">Live example</span>
-          <h2>
-            <code>{name}</code>
-          </h2>
+          <span className="gallery-live-example-label">
+            {"Live example" /* slop-ok: 1 User-requested boundary label */}
+          </span>
+          <h2>{name}</h2>
         </div>
         <ul className="gallery-example-sources" aria-label="Component source">
           {sources.map((source) => (

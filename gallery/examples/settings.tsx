@@ -11,7 +11,7 @@ import {
   Stepper,
 } from "../../src/app/settings/ui";
 import { ExampleChoice } from "../ExampleChoice";
-import { GalleryControls, GalleryNotes, LiveExample } from "../ExampleFrame";
+import { GalleryActivity, GalleryControls, LiveExample } from "../ExampleFrame";
 import type { GalleryExample } from "../examples";
 
 type Layout = "normal" | "compact" | "stacked";
@@ -122,7 +122,7 @@ function SettingsExample() {
             value={state}
             options={[
               { value: "enabled", label: "Enabled" },
-              { value: "disabled", label: "Disabled · inert section" },
+              { value: "disabled", label: "Disabled" },
             ]}
             onChange={setState}
           />
@@ -135,7 +135,7 @@ function SettingsExample() {
             disabled={disabled || !recent}
             onClick={() => updateLimit(1)}
           >
-            Minimum · 1
+            Set minimum to 1
           </Button>
           <Button
             type="button"
@@ -144,18 +144,12 @@ function SettingsExample() {
             disabled={disabled || !recent}
             onClick={() => updateLimit(10)}
           >
-            Maximum · 10
+            Set maximum to 10
           </Button>
         </div>
       </GalleryControls>
-      <GalleryNotes>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Local settings, using the production row and control exports. Nothing
-          reads or saves BB preferences.
-        </p>
-      </GalleryNotes>
       <LiveExample
-        name="SettingsGroup · SectionRows"
+        name="Settings composition"
         sources={["src/app/settings/ui.tsx"]}
       >
         <div
@@ -163,6 +157,8 @@ function SettingsExample() {
           className={disabled ? "space-y-4 opacity-50" : "space-y-4"}
         >
           <SettingsGroup title="Sections">
+            {" "}
+            {/* slop-ok: 1 Preserve the demonstrated settings component’s own grouping */}
             <SectionRows compact={compact}>
               {compact ? (
                 <>
@@ -177,13 +173,13 @@ function SettingsExample() {
                 <>
                   <SettingRow
                     label="Up Next"
-                    description="Threads most worth your attention."
+                    description="Threads most worth your attention." // slop-ok: 1 Preserve the demonstrated settings row’s own description
                     stacked={layout === "stacked"}
                     control={upNextSwitch}
                   />
                   <SettingRow
                     label="Recent"
-                    description="Show recently active threads."
+                    description="Show recently active threads." // slop-ok: 1 Preserve the demonstrated settings row’s own description
                     stacked={layout === "stacked"}
                     control={
                       <div className="flex flex-wrap items-center gap-3">
@@ -197,6 +193,8 @@ function SettingsExample() {
             </SectionRows>
           </SettingsGroup>
           <SettingsGroup title="Details">
+            {" "}
+            {/* slop-ok: 1 Preserve the demonstrated settings component’s own grouping */}
             <SectionRows compact={compact}>
               <SettingRow
                 label="Timestamp"
@@ -238,39 +236,7 @@ function SettingsExample() {
           </SettingsGroup>
         </div>
       </LiveExample>
-      <GalleryNotes>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Open the picker and search for “zz” to see No matches. Tab to an
-          option, then use the arrow keys to move between results.
-        </p>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Focus the enabled stepper group and use ↑/↓; its buttons stop at 1 and
-          10. The disabled section is inert: Stepper’s current keyboard handler
-          does not check its disabled prop. Compact rows preserve the production
-          accessory column; stacked rows give longer controls their own line.
-        </p>
-        <section
-          aria-label="Local settings actions"
-          className="border-t border-border pt-3 text-xs"
-        >
-          <h3 className="mb-1 font-medium">Local action log</h3>
-          <div
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            className="text-muted-foreground"
-          >
-            {log[0] ?? "No local changes yet"}
-          </div>
-          {log.length > 1 ? (
-            <ol className="mt-1 space-y-1 text-muted-foreground">
-              {log.slice(1).map((entry, index) => (
-                <li key={index}>{entry}</li>
-              ))}
-            </ol>
-          ) : null}
-        </section>
-      </GalleryNotes>
+      <GalleryActivity entries={log} />
     </div>
   );
 }
@@ -280,7 +246,7 @@ export const settingsExample: GalleryExample = {
   title: "Settings composition",
   group: "Components",
   description:
-    "Production settings rows, switches, bounded steppers, segmented choices, and a searchable picker with local state.",
+    "Settings rows, switches, bounded steppers, segmented choices, and a searchable picker.",
   source: `import { useState } from "react";
 import { CompactSettingRow, SectionRows, SettingsGroup, SettingSwitch, Stepper } from "../src/app/settings/ui";
 

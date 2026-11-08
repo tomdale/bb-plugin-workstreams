@@ -50,19 +50,19 @@ const freeformQuestion: Question = {
 const longQuestion: Question = {
   ...layoutQuestion,
   prompt: "Which summary should lead a release review across several packages?",
-  details: `The reviewer needs to compare the result, the checks that ran, and the work still awaiting a decision. Keep each qualification beside the claim it limits.\n\n- The summary must fit a narrow message pane.\n- Long paths such as \`packages/release-tools/src/reports/quarterly-release-summary.tsx\` should remain readable.\n- Choose a layout to reveal its preview, then add notes about what you would change.\n\nThis is synthetic review content. No release, build, or deployment has run.`,
+  details: `The reviewer needs to compare the result, the checks that ran, and the work still awaiting a decision. Keep each qualification beside the claim it limits.\n\n- The summary must fit a narrow message pane.\n- Long paths such as \`packages/release-tools/src/reports/quarterly-release-summary.tsx\` should remain readable.\n- Package owners need the receipt and discount changes reviewed together.`,
   options: [
     {
       ...questionOptions[0],
       description:
         "Lead with the goal, then keep the essential review steps together. The reviewer can read the proposed change before deciding whether to inspect the longer report.",
-      preview: `Release summary\n  Goal: prepared a release report\n  Review\n    Read the narrow-pane report\n    Check long package paths\n    Confirm the release scope\n\n  Qualification\n    Local fixture, not a release report\n    No checks ran in this example\n    Deployment still needs approval`,
+      preview: `Release summary\n  Goal: prepared a release report\n  Review\n    Read the narrow-pane report\n    Check long package paths\n    Confirm the release scope\n\n  Qualification\n    Payment integration awaits review\n    Deployment still needs approval`,
     },
     {
       ...questionOptions[1],
       description:
         "Show results and their qualifications beside the review steps. This uses more vertical space but keeps the context available while the reader compares the report.",
-      preview: `Release summary\n  Goal: prepared a release report\n  Done\n    Report composition\n      packages/release-tools/src/reports/quarterly-release-summary.tsx\n    Review instructions\n      Keep qualifications beside each result\n  Review\n    Open the report in a narrow pane\n    Read all package paths\n    Compare the supporting details\n\n  Limits\n    Synthetic content\n    No build or deployment\n    No live files opened`,
+      preview: `Release summary\n  Goal: prepared a release report\n  Done\n    Report composition\n      packages/release-tools/src/reports/quarterly-release-summary.tsx\n    Review instructions\n      Keep qualifications beside each result\n  Review\n    Open the report in a narrow pane\n    Read all package paths\n    Compare the supporting details\n\n  Limits\n    Payment integration awaits review\n    Deployment needs approval`,
     },
     {
       value: "by-package",
@@ -78,7 +78,7 @@ const longQuestion: Question = {
       description:
         "Read preparation, verification, and deployment in sequence. Keep pending approval visible so preparation cannot be mistaken for a completed release.",
       preview:
-        "Preparation\n  Report drafted\nVerification\n  Not run in this fixture\nDeployment\n  Awaiting approval",
+        "Preparation\n  Report drafted\nVerification\n  Awaiting review\nDeployment\n  Awaiting approval",
     },
   ],
 };
@@ -183,7 +183,7 @@ function QuestionExample() {
   const [historyStatus, setHistoryStatus] =
     useState<QuestionHistory["status"]>("answered");
   const [reset, setReset] = useState(0);
-  const [result, setResult] = useState("No local answer submitted");
+  const [result, setResult] = useState<string | null>(null);
   const questions = questionsFor(preset, mode === "multiple");
   const submit = (answers: Record<string, QuestionAnswer>) => {
     const labels = questions.flatMap((question) => {
@@ -196,7 +196,7 @@ function QuestionExample() {
         ...(answer.freeText ? [answer.freeText] : []),
       ];
     });
-    setResult(`Local answer: ${labels.join(", ")}`);
+    setResult(`Answer: ${labels.join(", ")}`);
   };
   const disabled = state === "disabled" || state === "submitting";
   return (
@@ -209,7 +209,7 @@ function QuestionExample() {
             options={presets}
             onChange={(value) => {
               setPreset(value);
-              setResult("No local answer submitted");
+              setResult(null);
             }}
           />
           {preset === "history" ? (
@@ -232,7 +232,7 @@ function QuestionExample() {
                   value={mode}
                   onChange={(value) => {
                     setMode(value);
-                    setResult("No local answer submitted");
+                    setResult(null);
                   }}
                   options={[
                     { value: "single", label: "Single choice" },
@@ -249,7 +249,7 @@ function QuestionExample() {
                   { value: "disabled", label: "All actions disabled" },
                   {
                     value: "submitting",
-                    label: "Submitting · Cancel available",
+                    label: "Submitting",
                   },
                   { value: "cancel-disabled", label: "Cancel disabled" },
                   { value: "error", label: "Submit error" },
@@ -262,10 +262,10 @@ function QuestionExample() {
             variant="outline"
             onClick={() => {
               setReset(reset + 1);
-              setResult("Local form reset");
+              setResult("Form reset");
             }}
           >
-            Reset local form
+            Reset form
           </Button>
         </div>
       </GalleryControls>
@@ -297,32 +297,23 @@ function QuestionExample() {
               }
               error={
                 state === "error"
-                  ? "Synthetic submit error. Your selections are still available."
+                  ? "Couldn’t submit the answer. Try again."
                   : null
               }
               onSubmit={submit}
               onCancel={() => {
                 setReset(reset + 1);
-                setResult("Local answer cancelled");
+                setResult("Answer cancelled");
               }}
             />
           </div>
         </LiveExample>
       )}
-      <GalleryNotes>
-        <p role="status" className="text-xs text-muted-foreground">
-          {result}
-        </p>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Submit and Cancel update local state. Multiple questions use the real
-          tabs, Back, and Next controls; answers remain while navigating.
-          History opens with its disclosure. Disabled forms use the production
-          Submitting… label; the state selector does not start a request. For
-          the error preset, reset or change Form state to continue. Attachments
-          need a project and are disabled here. No upload, live question, or
-          saved BB answer is available.
-        </p>
-      </GalleryNotes>
+      {result && (
+        <GalleryNotes>
+          <p role="status">{result}</p>
+        </GalleryNotes>
+      )}
     </div>
   );
 }
@@ -332,19 +323,17 @@ export const questionExample: GalleryExample = {
   title: "Question form",
   group: "Components",
   description:
-    "The real form and history card: options, freeform, multiple questions, long previews, disabled actions, and errors. Answers stay local; uploads are unavailable.",
+    "Options, freeform answers, multiple questions, long previews, history, and form states.",
   source: `import { QuestionForm } from "../../src/app/question/question-form";
 import { QuestionHistoryCard } from "../../src/app/question/QuestionHistory";
 import { QUESTION_CARD_CLASS } from "../../src/app/question/question-presentation";
 
-// Fixture excerpts: no persistenceKey and no project for uploads.
 const questions = ${JSON.stringify([layoutQuestion, freeformQuestion], null, 2)};
 
 <div className={QUESTION_CARD_CLASS}>
   <QuestionForm questions={questions} disabled={false} cancelDisabled={false}
-    onSubmit={submitLocally} onCancel={resetLocally} />
+    onSubmit={submit} onCancel={reset} />
 </div>
-// historyRecord is the local typed fixture used by the history preset.
 <QuestionHistoryCard record={historyRecord("answered")} />`,
   render: () => <QuestionExample />,
 };

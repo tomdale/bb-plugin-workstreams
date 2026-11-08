@@ -29,9 +29,9 @@ import { RecapCardPreview } from "../src/app/composer/RecapCard";
     turnId: "gallery-local",
     at: 0,
     state: "review",
-    goal: "Prepared the design-system playground",
-    latest: [{ text: "Real components with local example data" }],
-    review: [{ text: "Check the specimens in light and dark themes" }],
+    goal: "Prepared the release summary",
+    latest: [{ text: "Grouped results with their review steps" }],
+    review: [{ text: "Review the receipt and discount changes together" }],
     links: [],
     next: [],
   }}
@@ -103,9 +103,11 @@ function IntroductionPreview() {
           turnId: "gallery-local",
           at: 0,
           state: "review",
-          goal: "Prepared the design-system playground",
-          latest: [{ text: "Real components with local example data" }],
-          review: [{ text: "Check the specimens in light and dark themes" }],
+          goal: "Prepared the release summary",
+          latest: [{ text: "Grouped results with their review steps" }],
+          review: [
+            { text: "Review the receipt and discount changes together" },
+          ],
           links: [],
           next: [],
         }}
@@ -161,7 +163,7 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    document.title = `${isIntroduction ? "Introduction" : (example?.title ?? "Page not found")} · Workstreams design system`;
+    document.title = `${isIntroduction ? "Introduction" : (example?.title ?? "Page not found")}: Workstreams design system`;
   }, [example, isIntroduction]);
 
   const title = isIntroduction
@@ -170,7 +172,7 @@ export default function App() {
   const description = isIntroduction
     ? "BB is the foundation. Workstreams adds a language for work identity, attention, and reported state."
     : (example?.description ??
-      "This address does not match a page in the design-system playground.");
+      "This address does not match a design-system page.");
 
   return (
     <div className="gallery-shell" data-bb-plugin="workstreams">
@@ -188,9 +190,6 @@ export default function App() {
         <a className="gallery-identity" href={pageHref("introduction")}>
           <WorkstreamIcon className="gallery-identity-mark" />
           <span>Workstreams</span>
-          <span className="gallery-identity-divider" aria-hidden="true">
-            /
-          </span>
           <span className="gallery-identity-section">Design system</span>
         </a>
         <div className="gallery-header-controls">
@@ -228,7 +227,6 @@ export default function App() {
         <Input
           id="gallery-search"
           type="search"
-          placeholder="Search documentation…"
           className="gallery-search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -236,7 +234,9 @@ export default function App() {
         <nav aria-label="Design system">
           {showSidebarPlayground && (
             <a className="gallery-nav-link" href="./sidebar.html">
-              Sidebar playground
+              {
+                "Sidebar playground" /* slop-ok: 2 Existing destination name, outside this cleanup */
+              }
             </a>
           )}
           {showIntroduction && (
@@ -280,19 +280,11 @@ export default function App() {
             </p>
           )}
         </nav>
-        <p className="gallery-sidebar-note">
-          Local playground · simulated BB host
-        </p>
       </aside>
 
       <main className="gallery-main" id="gallery-main" ref={main} tabIndex={-1}>
         <article className="gallery-document">
           <div className="gallery-page-heading">
-            <p className="gallery-eyebrow">
-              {isIntroduction
-                ? "Workstreams in BB"
-                : (example?.group ?? "Documentation")}
-            </p>
             <h1 ref={heading} tabIndex={-1}>
               {title}
             </h1>
@@ -305,12 +297,12 @@ export default function App() {
                 <p className="gallery-prose gallery-intro-lead">
                   Topic identity tells you which work belongs together. A recap
                   tells you what happened and what needs your attention. The
-                  components below come from Workstreams itself.
+                  examples bring those roles together.
                 </p>
               )}
               <section
                 className="gallery-playground"
-                aria-label={`${title} playground`}
+                aria-label={`${title} examples`}
               >
                 <div
                   className="gallery-specimen-toolbar"
@@ -318,7 +310,9 @@ export default function App() {
                   aria-label="Gallery preview controls"
                 >
                   <span className="gallery-specimen-label">
-                    Gallery controls
+                    {
+                      "Gallery controls" /* slop-ok: 1 User-requested boundary label */
+                    }
                   </span>
                   <Choices<PreviewWidth>
                     label="Preview width"
@@ -331,17 +325,11 @@ export default function App() {
                     ]}
                   />
                 </div>
-                <p className="gallery-width-note" data-gallery-documentation="">
-                  Width applies to live examples, not gallery controls or
-                  documentation. Wide fills the preview; Narrow is 640px and
-                  Phone is 360px, capped to fit. These test container layouts,
-                  not device behavior.
-                </p>
                 <PreviewWidthProvider width={width}>
                   <div className="gallery-specimen-content" key={page}>
                     {isIntroduction ? (
                       <LiveExample
-                        name="WorkstreamName · RecapCardPreview"
+                        name="Work identity and recap composition"
                         sources={[
                           "src/app/WorkstreamName.tsx",
                           "src/app/composer/RecapCard.tsx",
@@ -368,21 +356,6 @@ export default function App() {
 
           {isIntroduction && (
             <>
-              <section className="gallery-reading-section">
-                <h2>Built from the real UI</h2>
-                <p className="gallery-prose">
-                  Specimens import the same components, registry controls, and
-                  semantic tokens as the plugin. BB’s host is simulated here;
-                  example data and interactions stay local. This playground does
-                  not write to your threads, topics, or settings.
-                </p>
-                <p className="gallery-prose">
-                  The documentation shell gives examples room to breathe outside
-                  the plugin. Inside each preview, Workstreams keeps its compact
-                  component typography and density. Theme and width controls
-                  help inspect that boundary without restyling the components.
-                </p>
-              </section>
               <section
                 className="gallery-reading-section"
                 aria-labelledby="gallery-index-heading"
@@ -397,10 +370,7 @@ export default function App() {
                           .filter((entry) => entry.group === group)
                           .map((entry) => (
                             <li key={entry.id}>
-                              <a href={pageHref(entry.id)}>
-                                {entry.title}
-                                <span aria-hidden="true"> →</span>
-                              </a>
+                              <a href={pageHref(entry.id)}>{entry.title}</a>
                               <p>{entry.description}</p>
                             </li>
                           ))}
@@ -416,10 +386,6 @@ export default function App() {
               <a href={pageHref("introduction")}>Back to introduction</a>
             </Button>
           )}
-          <footer className="gallery-footer">
-            Workstreams design system <span aria-hidden="true">/</span>{" "}
-            Development playground
-          </footer>
         </article>
       </main>
     </div>

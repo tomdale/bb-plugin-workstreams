@@ -992,6 +992,108 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
   );
 
   browserTest.concurrent(
+    "shows interaction outcomes outside specimens and discloses earlier actions",
+    async ({ page }) => {
+      await page.goto(`${url}#settings`);
+      const notes = page.locator("[data-gallery-documentation]");
+      expect(await notes.count()).toBe(0);
+      await page.getByRole("button", { name: "Set minimum to 1" }).click();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "Recent: 1 threads" })
+        .waitFor();
+      await page.getByRole("button", { name: "Set maximum to 10" }).click();
+      const history = page.getByText("Earlier actions", { exact: true });
+      expect(await notes.locator("details").getAttribute("open")).toBeNull();
+      await history.click();
+      expect(await notes.locator("ol").innerText()).toContain(
+        "Recent: 1 threads",
+      );
+      expect(
+        await page.locator("[data-gallery-specimen] [role=status]").count(),
+      ).toBe(0);
+
+      await page.goto(`${url}#actions-overlays`);
+      expect(await page.locator("[data-gallery-documentation]").count()).toBe(
+        0,
+      );
+      const trigger = page.getByRole("button", { name: "Rename thread…" });
+      await trigger.click();
+      const dialog = page.getByRole("dialog", { name: "Rename thread" });
+      const name = dialog.getByRole("textbox", { name: "Thread name" });
+      await name.fill("");
+      expect(
+        await dialog
+          .getByRole("button", { name: "Save", exact: true })
+          .isDisabled(),
+      ).toBe(true);
+      await name.fill("Review checkout changes");
+      await dialog.getByRole("button", { name: "Save", exact: true }).click();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "Name saved: Review checkout changes" })
+        .waitFor();
+      expect(
+        await trigger.evaluate((el) => el === document.activeElement),
+      ).toBe(true);
+      await page
+        .getByRole("button", { name: "Review checkout changes", exact: true })
+        .waitFor();
+      await page.getByRole("combobox", { name: "Dialog submission" }).click();
+      await page.getByRole("option", { name: "Hold pending" }).click();
+      await trigger.click();
+      await dialog.getByRole("button", { name: "Save", exact: true }).click();
+      await dialog
+        .getByRole("status")
+        .filter({ hasText: "Saving thread name…" })
+        .waitFor();
+      expect(
+        await dialog
+          .getByRole("button", { name: "Save", exact: true })
+          .isDisabled(),
+      ).toBe(true);
+      await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "Rename cancelled" })
+        .waitFor();
+    },
+    60_000,
+  );
+
+  browserTest.concurrent(
+    "removes color overrides when leaving the color example",
+    async ({ page }) => {
+      await page.goto(`${url}#colors`);
+      await page.getByRole("combobox", { name: "Color choice" }).click();
+      await page.getByRole("option", { name: "Custom hex" }).click();
+      expect(
+        await page.locator("style[data-gallery-color-tokens]").textContent(),
+      ).toContain("--ws-needs-you");
+      await page
+        .getByRole("navigation", { name: "Design system" })
+        .getByRole("link", { name: "Actions, hints, and overlays" })
+        .click();
+      expect(
+        await page.locator("style[data-gallery-color-tokens]").count(),
+      ).toBe(0);
+      await page.getByRole("button", { name: "Open options" }).click();
+      const popover = page.getByRole("dialog");
+      await popover
+        .getByRole("button", { name: "Review release notes" })
+        .waitFor();
+      expect(
+        await popover.evaluate(
+          (el) => el.closest('[data-bb-plugin="workstreams"]') !== null,
+        ),
+      ).toBe(true);
+      await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: "Open options" }).waitFor();
+    },
+    60_000,
+  );
+
+  browserTest.concurrent(
     "runs recap and question controls locally without BB requests",
     async ({ page }) => {
       const requests: string[] = [];
@@ -1018,12 +1120,12 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       await page.getByRole("button", { name: /Submit/ }).click();
       await page
         .getByRole("status")
-        .filter({ hasText: "Local answer: Compact summary" })
+        .filter({ hasText: "Answer: Compact summary" })
         .waitFor();
-      await page.getByRole("button", { name: "Reset local form" }).click();
+      await page.getByRole("button", { name: "Reset form" }).click();
       await page
         .getByRole("status")
-        .filter({ hasText: "Local form reset" })
+        .filter({ hasText: "Form reset" })
         .waitFor();
       expect(requests).toEqual([]);
     },
