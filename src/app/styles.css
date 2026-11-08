@@ -217,6 +217,24 @@
     transparent
   );
 }
+/* The Workstreams heading's Reorganize action: plain needs-you text at rest,
+   a tinted chip under the pointer, deeper while pressed, and under keyboard
+   focus. */
+.ws-suggestions-action:hover,
+.ws-suggestions-action:focus-visible {
+  background-color: color-mix(
+    in oklab,
+    var(--ws-needs-you-soft) 22%,
+    transparent
+  );
+}
+.ws-suggestions-action:active {
+  background-color: color-mix(
+    in oklab,
+    var(--ws-needs-you-soft) 32%,
+    transparent
+  );
+}
 
 /* StatusDot's workstream dot takes the topic's hue (`workstreamColorStyle`
    sets --ws-color-dot or --ws-hue). The hollow dot holds its place for
