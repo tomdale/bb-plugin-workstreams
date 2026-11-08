@@ -1,5 +1,6 @@
-// Sample cards for the lab: a tall review card, short one-liners, and a very tall card, so the stack meets
-// the full range of card heights (about 73 to 330 px at the page's 680 px column).
+// Sample cards for the lab, at the page's 680 px column. The first six are the `lab` deck (240, 73, 162, 284, 96
+// and 140 px); the last two, a very tall review card (328 px) and a short complete card (118 px), join them in
+// the decks that match the sims' `w2` and `alt` height sets (`DECKS` in main.ts, `HEIGHTS` in sim/lib.mjs).
 export const ITEMS = [
   {
     s: "review",
@@ -83,6 +84,37 @@ export const ITEMS = [
       "Ordinary questions and explanations default to a short answer",
       "Updated the tool description and the standing instructions",
     ],
+    review: [],
+  },
+  {
+    s: "review",
+    l: "Ready for Review",
+    a: "3h ago",
+    p: "Platform: Accounts",
+    t: "Moving sign-in to the new identity service",
+    g: "Every sign-in now goes through the identity service, and the old session store is read only",
+    done: [
+      "Sign-in, sign-out and password reset call the identity service",
+      "Existing sessions keep working until they expire",
+      "The old session store accepts no new writes",
+      "Added an alert when the identity service is slower than the old path",
+      "Documented how to roll back to the old session store",
+    ],
+    review: [
+      "Sign in on a fresh browser and check that the session survives a reload",
+      "Reset a password and check that every other session ends",
+      "Read the rollback steps and confirm they match the runbook",
+      "Decide when the old session store can be deleted",
+    ],
+  },
+  {
+    s: "complete",
+    l: "Complete",
+    a: "5h ago",
+    p: "Billing: Invoices",
+    t: "Rounding tax per line",
+    g: "Invoices now round tax on each line before adding it up",
+    done: ["Totals match the accounting export to the cent"],
     review: [],
   },
 ];

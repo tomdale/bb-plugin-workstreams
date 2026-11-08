@@ -378,16 +378,37 @@ h1 {
   background: var(--bg);
   z-index: 90;
 }
+/* The card position, and the keys that drive the stage, on one line under the stack. */
 .foot {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 10px;
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px;
   color: var(--mid);
-  font-size: 13px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   z-index: 100;
+}
+.foot #pos {
+  flex: none;
+}
+.foot .keys {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.foot kbd {
+  font: 500 11px/1 system-ui;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 1px 3px;
+  color: var(--fg);
 }
 
 /* A control that does not apply to the current configuration is hidden, not greyed out. */
@@ -445,20 +466,6 @@ h1 {
   font-weight: 650;
   letter-spacing: -0.005em;
 }
-.ins-head p {
-  margin: 3px 0 0;
-  color: var(--ins-mid);
-  font-size: 11.5px;
-}
-.ins-head kbd {
-  font: 500 10.5px/1 system-ui;
-  border: 1px solid var(--ins-line);
-  border-bottom-width: 2px;
-  border-radius: 3px;
-  padding: 1px 3px;
-  background: #fff;
-  color: var(--ins-fg);
-}
 
 /* A module: a disclosure heading and its rows. */
 .mod {
@@ -471,12 +478,20 @@ h1 {
   padding: 9px 14px;
   cursor: pointer;
   list-style: none;
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 600;
   color: #52525b;
   user-select: none;
+}
+/* How many of a folded module's shown settings differ from the preset or default; an open module shows them. */
+.mod-count {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--ins-mid);
+  font-size: 11.5px;
+}
+.mod[open] > summary .mod-count {
+  display: none;
 }
 .mod > summary::-webkit-details-marker {
   display: none;
@@ -503,13 +518,6 @@ h1 {
   outline: 2px solid #3b82f6;
   outline-offset: -2px;
   border-radius: 4px;
-}
-/* The About module's heading names the panel, so it reads as a sentence. */
-.mod[data-module="about"] > summary {
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: 12px;
-  font-weight: 600;
 }
 .mod-body {
   display: flex;
@@ -569,6 +577,20 @@ h1 {
 .chips button {
   border-radius: 999px;
   padding: 2px 9px;
+}
+/* The preset the state is based on, changed since: outlined, filled only on an exact match. */
+.chips button.based {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* A preset whose motion the frame checker's rules do not describe. */
+.chips button.outside {
+  border-style: dashed;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 /* A saved preset: its chip and a delete button joined into one pill. */
 .saved-chip {
@@ -688,27 +710,65 @@ h1 {
   transform: translateX(11px);
 }
 
-/* Settings. A slider: its name and value on one line, the track under them. */
+/*
+ * Settings. A slider: its name, its value (a field, so a value can be typed) and the reset button on one
+ * line, the track under them. A value changed from the preset's or default is bold and offers its reset.
+ */
 .set {
   display: grid;
   align-items: center;
-  column-gap: 8px;
+  column-gap: 6px;
+  grid-template-columns: 1fr auto auto;
 }
 .set-name {
   min-width: 0;
 }
 .set-range {
-  grid-template-columns: 1fr auto;
   row-gap: 0;
 }
-.set-range output {
-  font-variant-numeric: tabular-nums;
+.set-value {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
   color: var(--ins-mid);
   font-size: 11.5px;
-  text-align: right;
-  min-width: 3ch;
 }
-.set-range input {
+.set .num {
+  width: 6ch;
+  padding: 0 2px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  text-align: right;
+}
+.set .num:hover {
+  border-color: var(--ins-line);
+}
+.set .num:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: -1px;
+  background: #fff;
+  color: var(--ins-fg);
+}
+.set.changed .set-value,
+.set.changed select,
+.set.changed .set-name {
+  color: var(--ins-fg);
+  font-weight: 650;
+}
+.inspector .reset {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--ins-mid);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.set-range input[type="range"] {
   grid-column: 1 / -1;
   width: 100%;
   margin: 0;
@@ -717,7 +777,7 @@ h1 {
   background: transparent;
   cursor: pointer;
 }
-.set-range input::-webkit-slider-runnable-track {
+.set-range input[type="range"]::-webkit-slider-runnable-track {
   height: 3px;
   border-radius: 2px;
   background: linear-gradient(
@@ -726,7 +786,7 @@ h1 {
     #d4d4d8 var(--fill, 50%)
   );
 }
-.set-range input::-webkit-slider-thumb {
+.set-range input[type="range"]::-webkit-slider-thumb {
   appearance: none;
   width: 12px;
   height: 12px;
@@ -736,23 +796,25 @@ h1 {
   border: 1px solid #a1a1aa;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
 }
-.set-range input:focus-visible {
+.set-range input[type="range"]:focus-visible {
   outline: none;
 }
-.set-range input:focus-visible::-webkit-slider-thumb {
+.set-range input[type="range"]:focus-visible::-webkit-slider-thumb {
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgb(59 130 246 / 0.3);
 }
 .set-toggle {
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 1fr auto;
+}
+.set-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   cursor: pointer;
 }
 .set-toggle input {
   margin: 0;
   accent-color: var(--accent);
-}
-.set-select {
-  grid-template-columns: 1fr auto;
 }
 .set-select select {
   font: inherit;
@@ -786,6 +848,14 @@ h1 {
   font-variant-numeric: tabular-nums;
   color: var(--ins-mid);
   font-size: 11.5px;
+}
+/* A Measured line: its label, then the measured sentence, which wraps. */
+.readout.measure {
+  grid-template-columns: 44px 1fr;
+  align-items: baseline;
+}
+.m-text {
+  font-variant-numeric: tabular-nums;
 }
 
 /* The About module's panel. */

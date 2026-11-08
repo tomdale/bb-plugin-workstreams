@@ -168,9 +168,11 @@ export async function hoverTip(
 export const describedBy = (locator) =>
   locator.evaluate(
     (el) =>
+      // A setting's own control is its `data-k` element, as tooltip.ts picks it.
       (el.matches("button, input, select, summary, [tabindex]")
         ? el
-        : el.querySelector("button, input, select")
+        : (el.querySelector("[data-k]") ??
+          el.querySelector("button, input, select"))
       )?.getAttribute("aria-describedby") ?? null,
   );
 

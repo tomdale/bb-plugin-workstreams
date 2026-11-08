@@ -9,7 +9,9 @@
  * `f.expect` rejects a claim the sweeps no longer support, so a change to the model fails the build instead of
  * leaving a stale tooltip. Each entry's footer names the commands that print its numbers.
  */
+import { QUEUE_CFG } from "../../../src/app/page/queue/drum.ts";
 import {
+  DECK_SIZE,
   PATH_SETTINGS,
   PILE_CLEARANCE,
   SPEEDS,
@@ -56,16 +58,16 @@ const HELD = (f: Facts) => ({ hz: f.def("cw1"), budget: f.def("ccap1") });
 const ENTRIES: Record<string, (f: Facts) => Draft> = {
   // ---- models ------------------------------------------------------------------------------------
   "model.product": () => ({
-    what: "The queue's card stack as it ships: `stackEngine.ts`, imported without changes. It runs the drum with the settings in `QUEUE_CFG`.",
+    what: "The drum at `shipped` run through the product engine: `stackEngine.ts`, imported without changes, keeps a short row of cards on the drum as the queue's pile changes.",
     effect: [
       [
         "Click",
-        "Shows the motion the queue ships. ↓ drops the front card clear of the pile and tucks it behind; ↑ runs the same ring backwards. Every card takes the same time, and a held key speeds up after a short hold. The preset buttons and the model's modules disappear; Playback, Path and `Bezier path` stay.",
+        "Shows the motion the queue ships. ↓ drops the front card clear of the pile and tucks it behind; ↑ runs the same ring backwards. A held key speeds up after a short hold. The preset buttons and the model's modules disappear; Playback, Measured, Path and `Bezier path` stay, and Measured runs on the engine's frames.",
       ],
     ],
     needs:
-      "Speed, clock and reduced motion work in every model. Presets and settings belong to the drum and the cascade.",
-    tune: "Nothing to tune. Hold ↑ and ↓ here, then switch to `Elastic drum` with `natural`, or to `Cascade`, and hold the same keys to compare. Pause and Step turn any model into a frame you can read.",
+      "The engine runs the drum with `QUEUE_CFG`, the `shipped` preset, so Measured here should match `Elastic drum` at `shipped`: a difference is the engine's own doing (its short row of cards, or how it takes a press). Speed, clock and reduced motion work in every model.",
+    tune: "Nothing to tune. Hold ↑ and ↓ here, then switch to `Elastic drum` at `shipped` and hold the same keys to compare the Measured numbers. Pause and Step turn any model into a frame you can read.",
   }),
   "model.drum": () => ({
     what: "The candidate model: each card follows one ring path on its own spring, and ↑ runs the same ring backwards.",
@@ -104,6 +106,32 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
   },
 
   // ---- presets -----------------------------------------------------------------------------------
+  "preset.shipped": () => {
+    const q = QUEUE_CFG;
+    const hz = (w: number | undefined) => String((w ?? 0) / TAU);
+    const perFrame = (v: number | undefined) => String((v ?? 0) / 60);
+    const ms = q.tempo?.ms ?? 0;
+    return {
+      what: "The configuration the queue ships with, `QUEUE_CFG` in `drum.ts`: a held key stiffens the springs and raises the edge budget after a short hold, and presses keep a steady beat.",
+      effect: [
+        [
+          "Feels",
+          t`A tap runs on a ${hz(q.omega0)} Hz spring with a ${perFrame(q.vcap)} px/frame budget. After ${q.holdDelay} ms held the spring rises to ${hz(q.omega1)} Hz and the budget to ${perFrame(q.vcap1)}, and a press waits at least ${ms} ms after the last, so a hold runs at most ${(1000 / ms).toFixed(1)} cards/s. A tall card takes longer than the beat, so the pace still dips at it.`,
+        ],
+        [
+          "Measured",
+          "The sweeps do not measure this preset. Hold a key and read the Measured module; on the alternating Cards deck the beat stretches at every tall card.",
+        ],
+        [
+          "Good for",
+          "Comparing a change with what ships, and starting a change to `QUEUE_CFG`.",
+        ],
+      ],
+      needs:
+        "Sets the held speed-up and a constant tempo; fold and loose clearing stay off. `Product now` runs the same configuration through the product engine. Clicking it clears slider changes.",
+      tune: "Start here, change one setting, hold a key on each Cards deck, and compare the Measured numbers with `Product now`. `Copy as QUEUE_CFG` copies the result as the literal to paste into `drum.ts`.",
+    };
+  },
   "preset.natural": (f) => {
     const p = f.preset("natural");
     const cap = f.sweep("cap").at(30);
@@ -245,7 +273,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           "Holding a key at a fast, even pace while every card stays readable.",
         ],
       ],
-      needs: t`Sets \`loosen clearing while held\`, which includes the held speed-up, and \`tempo\` to constant at ${f.def("tms")} ms. The checker counts the draw-order swaps and edge flashes that passing over a card causes, so this preset is not clean.`,
+      needs: t`Sets \`loosen clearing while held\`, which includes the held speed-up, and \`tempo\` to constant at ${f.def("tms")} ms. Passing over a card is a draw-order swap by the frame checker's rules, so the preset is outside them: its chip is dashed, the state line says so, and the checker in Measured counts the swaps and edge flashes as its cost rather than as a verdict.`,
       tune: t`Move the beat with \`constant interval\`: ${fast.value} ms gives ${fast.pace} cards/s and ${slow.value} ms gives ${slow.pace}. \`held height\` sets how far a leaving card drops: lower is faster and passes over more of the card behind.`,
     };
   },
@@ -344,11 +372,11 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     tune: "Press ↓, click Pause during the trip, then click Step to walk the rest of it one frame at a time.",
   }),
   "preset.save": () => ({
-    what: "Saves every setting as it is now as a preset of the running model, under the name in the field beside it, in this browser's storage.",
+    what: "Saves every setting as it is now as a preset of the running model, under a name you type, in this browser's storage.",
     effect: [
       [
         "Click",
-        "A chip with the name appears in the Saved row under the built-in presets, and a line under the field says it was saved. An empty name saves as `my preset` and a number; a saved preset's name replaces that preset; a built-in preset's name is refused. Enter in the field saves too.",
+        "The first click opens a name field under the buttons and the button reads Save. Enter or Save stores the preset, Escape closes the field. A chip with the name appears in the Saved row under the built-in presets, and a line says it was saved. An empty name saves as `my preset` and a number; a saved preset's name replaces that preset; a built-in preset's name is refused.",
       ],
     ],
     needs:
@@ -356,7 +384,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     tune: "Save a configuration before you try something risky, then click its chip to come back to it. Save variants under names that say what they change.",
   }),
   "preset.saved": () => ({
-    what: "A preset you saved with `Save preset`, kept in this browser.",
+    what: "A preset you saved with `Save as preset…`, kept in this browser.",
     effect: [
       [
         "Click",
@@ -378,6 +406,117 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     needs:
       "There is no undo: save the settings again to bring it back. The built-in presets cannot be deleted.",
     tune: "Prune presets you no longer compare against, so the Saved row stays short.",
+  }),
+  "preset.revert": () => ({
+    what: "Puts every model setting back to the preset the state is based on.",
+    effect: [
+      [
+        "Click",
+        "The preset's chip fills again, the state line reads nothing changed, and the Measured numbers clear. Path, Overlay and playback settings stay as they are, and so does the card in front.",
+      ],
+    ],
+    needs:
+      "Shown while a model setting differs from the preset; its label names the preset. A setting's own `reset` does the same for that setting alone.",
+    tune: "Use it to compare a change with its preset: note the Measured numbers, revert, and run the same hold again.",
+  }),
+  "copy.cfg": () => ({
+    what: "Copies the drum's configuration as the `QUEUE_CFG` literal in `drum.ts`, in that file's idiom: spring rates as `TAU * Hz` and edge budgets as px per frame times sixty.",
+    effect: [
+      [
+        "Click",
+        "The button reads `Copied` for a moment. The literal lists every field `QUEUE_CFG` sets now, in its order, then any other field that differs from the drum's defaults; the tempo lists its kind and the fields that kind reads.",
+      ],
+    ],
+    needs:
+      "Drum only. It copies the whole configuration, hidden settings included, so a setting that changes nothing under the current configuration still lands in the literal when it differs from the default.",
+    tune: "Paste it over `QUEUE_CFG` in `src/app/page/queue/drum.ts`, rebuild the lab, and hold the same keys in `Product now` to check the engine gives the same numbers.",
+  }),
+  reset: () => ({
+    what: "Puts one setting back to its preset's value, or a Path, Overlay or playback setting back to its default.",
+    effect: [
+      [
+        "Click",
+        "The value returns and stops being bold, and a folded module's count of changes drops by one.",
+      ],
+    ],
+    needs:
+      "Shown beside a setting while its value differs from the preset's or the default. Resetting a model setting clears the Measured numbers, which described the changed state.",
+    tune: "Reset changes one at a time to find which of them made the difference.",
+  }),
+  cards: (f) => {
+    // The sims' set names hold digits, so they come in as values.
+    const mixed = "w2";
+    return {
+      what: "Which cards the stack holds: the lab's own sample cards, or one of two decks built to match the sims' hardest height sets.",
+      effect: [
+        [
+          "lab",
+          "The page's six sample cards, repeated: the deck every other tooltip's page behaviour is described on.",
+        ],
+        [
+          "mixed 330",
+          t`Real cards close to the sims' \`${mixed}\` set (${f.set(mixed)} px), with the tallest card, ${f.cards.max} px, in the middle.`,
+        ],
+        [
+          "330 and 73",
+          t`The tallest and the shortest card in turn, as the sims' \`alt\` set (${f.set("alt")} px): every step changes height by the most the cards can, so an uneven pace shows at once.`,
+        ],
+      ],
+      needs: t`Every deck has ${DECK_SIZE} cards. Choosing one starts at the first card and clears the Measured numbers. The page measures each card as it draws it, so a deck's heights are its cards' own, close to the sims' set and not equal to it.`,
+      tune: "Hold a key on the alternating deck to see the hardest case for an even pace: a beat or a plan that holds there holds on the others.",
+    };
+  },
+  "measured.pace": () => ({
+    what: "The pace of the latest hold, measured on the page: cards per second, the shortest and longest step between cards, and the worst change from one step to the next.",
+    effect: [
+      [
+        "Reads",
+        "The mean over every step of the hold in its direction, from the first card that moved to the last, including any taken after the key came up. A step is the time between two changes of the front card on the page's clock, so a hold at ¼× reads as at full speed.",
+      ],
+      [
+        "Compares with",
+        "The sweeps' held pace, interval range and worst step-to-step change, which the tooltips quote: the same measure on a stepped clock with a fixed key repeat. A difference is the page's own key repeat or frame clock.",
+      ],
+    ],
+    needs:
+      "A run starts with a press while nothing moves and ends at rest with no key down; two cards or more make it a hold, one makes it a tap. The numbers clear when a model setting, the preset, the model or the deck changes. Hidden under reduced motion.",
+    tune: "Use `↓ from top` for a hold over the whole deck, change one setting, and run it again.",
+  }),
+  "measured.last": () => ({
+    what: "The pace of the last hold the other way from the latest, so ↑ and ↓ read side by side.",
+    effect: [
+      [
+        "Reads",
+        "Cards per second and how many cards the hold moved, as the pace line measures them.",
+      ],
+    ],
+    needs:
+      "Its label names the direction it reports. It clears with the pace line.",
+    tune: "Run `↓ from top` and then `↑ from bottom`: an even model holds the two at about the same pace.",
+  }),
+  "measured.tap": () => ({
+    what: "How long the last single press each way took to land, measured on the page, and how fast the card was still moving as it landed.",
+    effect: [
+      [
+        "Reads",
+        "↑ lands and ↓ settles: from the press until the new front card's top and natural bottom stay within two px of where they end and move less than one px in a frame (`landFrame` in `sim/lib.mjs`). Landing: the most that card moved in one frame over its last five, the faster of the two directions.",
+      ],
+    ],
+    needs:
+      "A run of one card is a tap, so press and release before the key repeats. It clears with the pace line. The sweeps' tap numbers are medians over many starting cards; this is one tap.",
+    tune: "Tap ↑ a few times after a change to the tap spring or budget: ↑ is the slowest trip, so a lag or a hard landing shows there first.",
+  }),
+  "measured.checker": (f) => ({
+    what: "The frame checker of `sim/check.mjs`, run on the page's frames since the last press from rest.",
+    effect: [
+      [
+        "Reads",
+        t`The problems found, by kind: a jump (an edge moving more than ${f.limit.jump} px in a frame), an edge flash (a lower edge changing by more than ${f.limit.band} px with nothing covering it), a fade flicker (a fade changing by more than ${f.limit.shade} in a frame), a swap (two overlapping cards changing draw order). Then the card and time of the last problem, the largest edge move, and for the cascade the most cards in front of the pile at once.`,
+      ],
+    ],
+    needs:
+      "It reads the model's own frames, recorded about once each sixtieth of a second of page clock, so its per-frame limits mean what they mean in the sims at any display rate or speed. Presets outside the checker's rules, `loose`, still show their count.",
+    tune: "Run the hold that worries you on the alternating Cards deck. A problem here that the sweeps do not report is the page's key repeat or frame clock at work; step through it with Pause and Step.",
   }),
   "hold.down": (f) => ({
     what: "Simulates holding ↓ from the first card to the last: it moves the stack to the top first, then holds the key until the front reaches the end.",
@@ -500,7 +639,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       ],
     ],
     needs:
-      "`hold delay` sets when it starts to rise; the rate is fixed. It is hidden unless `held speed-up` or `fold while held` is on in the drum, or the cascade's ramp is on (`no held ramp` turns it off).",
+      "The first line of the Measured module. `hold delay` sets when it starts to rise; the rate is fixed. It is hidden unless `held speed-up` or `fold while held` is on in the drum, or the cascade's ramp is on (`no held ramp` turns it off).",
     tune: "Watch it during a hold. If it is still near zero once your key repeat settles into a rhythm, lower the hold delay.",
   }),
   about: () => ({

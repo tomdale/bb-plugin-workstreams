@@ -4,7 +4,12 @@
  * `drumCfg` and `cascadeCfg` turn the page's state into a configuration for each model.
  */
 // The drum is the product's own (`drum.ts`); the headless sims import both models too.
-import { Drum, PRESETS } from "../../../src/app/page/queue/drum.ts";
+import {
+  Drum,
+  PRESETS,
+  QUEUE_CFG,
+  type DrumPatch,
+} from "../../../src/app/page/queue/drum.ts";
 import { INNER_KNOTS } from "./ring.ts";
 import {
   Cascade,
@@ -26,7 +31,15 @@ export const SPEEDS: readonly { id: string; label: string }[] = [
   { id: "0.5", label: "½×" },
   { id: "1", label: "1×" },
 ];
-export const PRESET_NAMES: string[] = Object.keys(PRESETS);
+/**
+ * The drum's presets on the page: `shipped`, the configuration the queue ships with (`QUEUE_CFG`), first, then
+ * the model's own `PRESETS`. The sweeps and `npm run check` measure only `PRESETS`.
+ */
+export const DRUM_PRESETS: Record<string, DrumPatch> = {
+  shipped: QUEUE_CFG,
+  ...PRESETS,
+};
+export const PRESET_NAMES: string[] = Object.keys(DRUM_PRESETS);
 export const CASCADE_PRESET_NAMES: string[] = Object.keys(CASCADE_PRESETS);
 /** The presets a mode offers; the product has none. */
 export const presetsOf = (mode: string): readonly string[] =>
@@ -35,6 +48,19 @@ export const presetsOf = (mode: string): readonly string[] =>
     : mode === "cascade"
       ? CASCADE_PRESET_NAMES
       : [];
+
+/**
+ * The card decks the Cards switch offers: `items` are indexes into `ITEMS` (items.js), repeated to fill
+ * `DECK_SIZE` cards. `lab` is the page's own set; `w2` and `alt` match the sims' height sets of those names
+ * (`HEIGHTS` in sim/lib.mjs) as closely as real cards can.
+ */
+export const DECKS: readonly { id: string; label: string; items: number[] }[] =
+  [
+    { id: "lab", label: "lab", items: [0, 1, 2, 3, 4, 5] },
+    { id: "w2", label: "mixed 330", items: [3, 4, 2, 6, 7, 5] },
+    { id: "alt", label: "330 and 73", items: [6, 1] },
+  ];
+export const DECK_SIZE = 12;
 
 /** The drum configuration fields the page reads and writes. */
 export type Cfg = {
@@ -76,6 +102,7 @@ type CascadePagePatch = CascadePatch & { fade?: number };
 export const MODULES = [
   { id: "model", label: "Model" },
   { id: "playback", label: "Playback" },
+  { id: "measured", label: "Measured" },
   { id: "taps", label: "Taps" },
   { id: "pace", label: "Pace" },
   { id: "held", label: "Held keys" },
@@ -85,7 +112,7 @@ export const MODULES = [
   { id: "about", label: "About" },
 ] as const;
 export type ModuleId = (typeof MODULES)[number]["id"];
-export type GroupId = Exclude<ModuleId, "model" | "about">;
+export type GroupId = Exclude<ModuleId, "model" | "measured" | "about">;
 
 type Base<C> = {
   /** The setting's short name: its key in the URL hash and in `sim/sweep.mjs`. */
@@ -910,9 +937,21 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "preset.save",
-    label: "Save preset",
+    label: "Save as preset…",
     kind: "button",
     meta: "stored in this browser",
+  },
+  {
+    id: "preset.revert",
+    label: "Revert",
+    kind: "button",
+    meta: "back to the preset",
+  },
+  {
+    id: "copy.cfg",
+    label: "Copy as QUEUE_CFG",
+    kind: "button",
+    meta: "copies TypeScript",
   },
   {
     id: "speed",
@@ -922,6 +961,12 @@ export const CONTROLS: readonly Control[] = [
   },
   { id: "clock.pause", label: "Pause", kind: "button", meta: "toggle" },
   { id: "clock.step", label: "Step ⅟₆₀ s", kind: "button", meta: "one frame" },
+  {
+    id: "cards",
+    label: "Cards",
+    kind: "buttons",
+    meta: DECKS.map((d) => d.label).join(", "),
+  },
   {
     id: "reduced",
     label: "Reduced motion",
@@ -935,6 +980,36 @@ export const CONTROLS: readonly Control[] = [
     meta: "default off",
   },
   { id: "held", label: "held", kind: "readout", meta: "0 to 1" },
+  {
+    id: "measured.pace",
+    label: "pace",
+    kind: "readout",
+    meta: "the last hold",
+  },
+  {
+    id: "measured.last",
+    label: "last",
+    kind: "readout",
+    meta: "the last hold the other way",
+  },
+  {
+    id: "measured.tap",
+    label: "tap",
+    kind: "readout",
+    meta: "the last tap each way",
+  },
+  {
+    id: "measured.checker",
+    label: "checker",
+    kind: "readout",
+    meta: "the last run",
+  },
+  {
+    id: "reset",
+    label: "reset",
+    kind: "button",
+    meta: "one setting",
+  },
   {
     id: "hold.down",
     label: "Hold ↓ from the top",
@@ -974,7 +1049,7 @@ export const CONTROLS: readonly Control[] = [
 // ---- page state ------------------------------------------------------------------------------------
 
 /**
- * The page's state, as the URL hash holds it: `v`, `preset`, `speed`, `reduced`, `path`, one entry per model
+ * The page's state, as the URL hash holds it: `v`, `preset`, `speed`, `cards`, `reduced`, `path`, one entry per model
  * setting key (`SETTING_KEYS`, which a preset button clears), and one per path and page setting key
  * (`PATH_KEYS` and `VIEW_KEYS`, which it keeps).
  */
@@ -989,6 +1064,7 @@ const OPT_KEYS = new Set([
   "v",
   "preset",
   "speed",
+  "cards",
   "reduced",
   "path",
   ...SETTING_KEYS,
@@ -1019,7 +1095,7 @@ function patchFor<C, P>(s: Setting<C, P>, raw: string, base: C): P | null {
 
 /** The preset's configuration with every setting the state overrides. */
 export function drumCfg(opt: Opt): Cfg {
-  const base: Cfg = Drum.config(PRESETS[opt.preset ?? ""]);
+  const base: Cfg = Drum.config(DRUM_PRESETS[opt.preset ?? ""]);
   const over: Patch = {};
   for (const s of SETTINGS) {
     const raw = opt[s.key];

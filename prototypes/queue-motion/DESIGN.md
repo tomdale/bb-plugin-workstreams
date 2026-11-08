@@ -223,6 +223,13 @@ The corrected rule reports 0 for both. The suite asserts the corrected rule. The
 product test (`tests/app/queue/stack-engine.test.ts`) runs neither rule, so
 adding one is a decision (see Open).
 
+The lab page runs the corrected rule too: its Measured module applies `problems`
+and `maxJump` to the frames the page draws, recorded about every 1/60 s of page
+clock, together with the held pace and the tap landing times the sweeps report.
+The sims stay the reference. A count on the page that the sweeps do not show
+comes from what only the page has: the OS key repeat, the browser's frame clock,
+and, in `Product now`, the engine's short row of cards.
+
 ## Cascade
 
 The cascade (`prototypes/queue-motion/src/cascade.ts`) is a second model of the

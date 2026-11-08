@@ -506,6 +506,7 @@ export function computeFacts() {
     limits: LIMITS,
     shown: { px: SHOWN_PX, frames: SHOWN_FRAMES },
     ...cardFacts(),
+    sets: HEIGHTS,
     rise: { to: RISE_TO, ms: heldRise() },
     presets: [...presetRows(DRUM), ...presetRows(CASCADE)],
     sweeps: [...paramRows(DRUM_SWEEPS), ...paramRows(CASCADE_SWEEPS)],
@@ -562,6 +563,8 @@ if (process.argv[1]?.endsWith("sweep.mjs")) {
       `| Fade flicker: a fade changes by more than | ${LIMITS.shade} |`,
     );
     console.log(`| Sample card heights, px | ${cards.min}–${cards.max} |`);
+    for (const [name, h] of Object.entries(HEIGHTS))
+      console.log(`| Height set \`${name}\`, px | ${h.join(", ")} |`);
     console.log(
       `| Planner estimate at scale 1, ms | ${f(estimate.short, 0)} for ${cards.min} px, ${f(estimate.tall, 0)} for ${cards.max} px |`,
     );

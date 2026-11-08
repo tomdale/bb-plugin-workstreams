@@ -64,6 +64,8 @@ export type RawFacts = {
   /** The rule for a card in a hold to count as shown: this many px of it uncovered for this many frames. */
   shown: { px: number; frames: number };
   cards: { min: number; max: number };
+  /** The sims' height sets by name, px (`HEIGHTS` in sim/lib.mjs). */
+  sets: Record<string, number[]>;
   estimate: { short: number; tall: number };
   rise: { to: number; ms: number };
   presets: PresetRow[];
@@ -303,6 +305,15 @@ export class Facts {
   get cards() {
     this.cite("limits");
     return { min: n0(this.raw.cards.min), max: n0(this.raw.cards.max) };
+  }
+  /** One of the sims' height sets, as text: "262, 92, 170, 330, 118 and 150". */
+  set(name: string): string {
+    this.cite("limits");
+    const h = this.raw.sets[name];
+    if (!h) throw new Error(`no height set named ${name}`);
+    return h.length > 1
+      ? `${h.slice(0, -1).join(", ")} and ${h.at(-1)}`
+      : String(h[0]);
   }
   /** The lookahead planner's estimated clear time at scale 1, ms, for the shortest and tallest card. */
   get estimate() {

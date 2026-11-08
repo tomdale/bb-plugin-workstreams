@@ -5,7 +5,7 @@
  *   node capture/sheets.mjs <specs> [<scenarios>]
  *
  * `specs`: comma list of `product`, `drum`, `drum:<preset>`, `cascade` and `cascade:<preset>`; a model named
- * alone runs its first preset (the drum's `natural`, the cascade's `default`). `scenarios`: comma list of SCEN
+ * alone runs its first preset (the drum's `shipped`, the cascade's `default`). `scenarios`: comma list of SCEN
  * keys (default: all). Keys are driven like a real hold: a first press, then a repeat every 33 ms after 250 ms,
  * released on arrival.
  */
@@ -60,8 +60,8 @@ export const SCEN = {
     end: 2300,
   },
 };
-// Alternating tall and short cards: items 3 (tallest) and 1 (shortest) of the sample set.
-const ORDERS = { alt: Array.from({ length: 24 }, (_, i) => (i % 2 ? 1 : 3)) };
+// Alternating tall and short cards: items 6 (tallest, 328 px) and 1 (shortest, 73 px) of items.js, as the sims' `alt` set.
+const ORDERS = { alt: Array.from({ length: 24 }, (_, i) => (i % 2 ? 1 : 6)) };
 
 export async function sheets(specs, scens, outDir = OUT + "/sheets", cols = 4) {
   const { browser, ctx, page } = await open();

@@ -445,6 +445,7 @@ async function controlsDriveThePage(browser) {
         drum.startsWith("## Queue motion lab settings\n") &&
         drum.includes("- Model: Elastic drum") &&
         drum.includes("- Preset: `natural`") &&
+        drum.includes("- Cards: lab") &&
         drum.includes("sway=40") &&
         drum.includes("| sway in front px | `sway` | **40 px** | 24 px |") &&
         drum.includes(
@@ -563,6 +564,17 @@ async function controlsDriveThePage(browser) {
         cur: window.__sim.cur(),
       }));
     const before = await state();
+    const closed = await page.$eval("#save-row", (r) => r.hidden);
+    await page.click('button[data-act="save"]');
+    const opened = await page.evaluate(() => ({
+      row: !document.getElementById("save-row").hidden,
+      focused: document.activeElement?.id === "preset-name",
+      label: document.querySelector('button[data-act="save"]').textContent,
+    }));
+    expect(
+      closed && opened.row && opened.focused && opened.label === "Save",
+      `Save as preset… opens the name field on demand, focused, and the button reads Save (${JSON.stringify(opened)})`,
+    );
     await page.fill("#preset-name", "fast");
     await page.press("#preset-name", "j");
     await page.press("#preset-name", "ArrowDown");
@@ -582,7 +594,8 @@ async function controlsDriveThePage(browser) {
         saved.chips[0].name === "fast" &&
         saved.chips[0].on === "true" &&
         saved.note === "Saved “fast”." &&
-        (await page.inputValue("#preset-name")) === "",
+        (await page.inputValue("#preset-name")) === "" &&
+        (await page.$eval("#save-row", (r) => r.hidden)),
       `Save preset adds a marked chip for the current settings (${JSON.stringify(saved)})`,
     );
     await page.click('button[data-act="p:fold"]');
@@ -596,21 +609,31 @@ async function controlsDriveThePage(browser) {
         restored.hash.includes("preset=natural") &&
         restored.hash.includes("cap=30") &&
         restored.hash.includes("sway=40") &&
+        // The saved preset changes natural, so natural is outlined as the preset it is based on.
         (await page.$eval('button[data-act="p:natural"]', (b) =>
-          b.classList.contains("on"),
+          b.classList.contains("based"),
         )),
       `a saved chip restores its preset and settings (${JSON.stringify({ fold: fold.hash, restored: restored.hash })})`,
     );
     await load(page, "#v=drum");
     const reloaded = await state();
+    await page.click('button[data-act="save"]');
     await page.fill("#preset-name", "fold");
     await page.click('button[data-act="save"]');
     const refused = await state();
+    await page.press("#preset-name", "Escape");
+    const escaped = await page.$eval("#save-row", (r) => r.hidden);
     await load(page, "#v=cascade");
     const cascadeSaved = await state();
-    const cascadeRow = await page.$eval("#save-row", (r) => r.hidden);
+    const cascadeRow = await page.$eval(
+      'button[data-act="save"]',
+      (b) => b.hidden,
+    );
     await load(page, "#v=product");
-    const productRow = await page.$eval("#save-row", (r) => r.hidden);
+    const productRow = await page.$eval(
+      'button[data-act="save"]',
+      (b) => b.hidden,
+    );
     await load(page, "#v=drum");
     await page.click('#saved-chips button[data-act="ud:0"]');
     const deleted = await state();
@@ -622,6 +645,7 @@ async function controlsDriveThePage(browser) {
         reloaded.chips[0].on === "false" &&
         refused.bad &&
         refused.chips.length === 1 &&
+        escaped &&
         cascadeSaved.savedHidden &&
         !cascadeRow &&
         productRow &&
@@ -631,7 +655,257 @@ async function controlsDriveThePage(browser) {
         !stored.includes("fast"),
       `saved presets persist, belong to their model, refuse a built-in name and delete (${JSON.stringify({ reloaded, refused, cascadeSaved, productRow, deleted })})`,
     );
+
+    await runState(page);
+    await cardsAndMeasured(page);
   });
+}
+
+/** What the Run state shows: the preset chips' marks, the state line, Revert, a setting's reset and typed value, the change counts, and Copy as QUEUE_CFG. */
+async function runState(page) {
+  const look = () =>
+    page.evaluate(() => {
+      const chip = (p) => document.querySelector(`button[data-act="p:${p}"]`);
+      const revert = document.querySelector('button[data-act="revert"]');
+      return {
+        first: document
+          .querySelector('#presets button[data-mode="drum"]')
+          ?.dataset.act.slice(2),
+        on: [...document.querySelectorAll("#presets button.on")].map((b) =>
+          b.dataset.act.slice(2),
+        ),
+        based: [...document.querySelectorAll("#presets button.based")].map(
+          (b) => [b.dataset.act.slice(2), b.getAttribute("aria-pressed")],
+        ),
+        state: document.getElementById("state").textContent,
+        revert: revert.hidden ? null : revert.textContent,
+        capReset: !document.querySelector('[data-key="cap"] .reset').hidden,
+        capChanged: document
+          .querySelector('[data-key="cap"]')
+          .classList.contains("changed"),
+        hash: location.hash,
+        loose: chip("loose").classList.contains("outside"),
+      };
+    });
+  await load(page, "#v=drum");
+  const start = await look();
+  expect(
+    start.first === "shipped" &&
+      start.on.includes("shipped") &&
+      start.hash.includes("preset=shipped") &&
+      start.state.startsWith("shipped, nothing changed.") &&
+      start.revert === null &&
+      !start.capReset &&
+      start.loose,
+    `the drum starts at shipped, the first preset, filled and unchanged, and loose is marked outside the checker (${JSON.stringify(start)})`,
+  );
+  await page.$eval('input[data-k="cap"]', (e) => {
+    e.value = "30";
+    e.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const moved = await look();
+  expect(
+    moved.on.length === 0 &&
+      JSON.stringify(moved.based) === '[["shipped","mixed"]]' &&
+      /^Based on shipped, with 1 change: edge budget, tap px\/frame\./.test(
+        moved.state,
+      ) &&
+      moved.revert === "Revert to shipped" &&
+      moved.capReset &&
+      moved.capChanged,
+    `a changed setting outlines its preset, names the change in the state line, and offers Revert and its reset (${JSON.stringify(moved)})`,
+  );
+  await page.click('[data-key="cap"] .reset');
+  const reset = await look();
+  await page.$eval('input[data-k="w0"]', (e) => {
+    e.value = "4";
+    e.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await page.click('button[data-act="revert"]');
+  const reverted = await look();
+  expect(
+    !reset.capChanged &&
+      !reset.hash.includes("cap=") &&
+      reverted.on.includes("shipped") &&
+      !reverted.hash.includes("w0=") &&
+      reverted.revert === null,
+    `reset puts one setting back and Revert puts them all back (${JSON.stringify({ reset: reset.hash, reverted: reverted.hash })})`,
+  );
+  // A value typed beside a slider applies on Enter, clamped to the slider's range.
+  await page.fill('[data-v="cap"]', "31");
+  await page.press('[data-v="cap"]', "Enter");
+  const typed = await page.evaluate(() => ({
+    hash: location.hash,
+    slider: document.querySelector('input[data-k="cap"]').value,
+  }));
+  await page.fill('[data-v="cap"]', "999");
+  await page.press('[data-v="cap"]', "Enter");
+  const clamped = await page.$eval('input[data-k="cap"]', (e) => [
+    e.value,
+    e.max,
+  ]);
+  expect(
+    typed.hash.includes("cap=31") &&
+      typed.slider === "31" &&
+      clamped[0] === clamped[1],
+    `a typed value sets the slider and the hash, clamped to its range (${JSON.stringify({ typed, clamped })})`,
+  );
+  // A folded module's heading counts its changed settings.
+  await page.click('[data-module="taps"] > summary');
+  const count = await page.$eval('[data-module="taps"] .mod-count', (c) => [
+    c.textContent,
+    getComputedStyle(c).display,
+  ]);
+  await page.click('[data-module="taps"] > summary');
+  const openCount = await page.$eval(
+    '[data-module="taps"] .mod-count',
+    (c) => getComputedStyle(c).display,
+  );
+  expect(
+    count[0] === "1 changed" && count[1] !== "none" && openCount === "none",
+    `a folded module's heading counts its changed settings, and an open one does not show the count (${JSON.stringify({ count, openCount })})`,
+  );
+  // Copy as QUEUE_CFG writes the shipped literal back at shipped, and is the drum's alone.
+  const cfgCopy = async (hash) => {
+    await load(page, hash);
+    const shown = await page.$eval(
+      'button[data-act="copycfg"]',
+      (b) => !b.hidden,
+    );
+    if (!shown) return null;
+    await page.evaluate(() => {
+      window.__copied = null;
+      navigator.clipboard.writeText = async (t) => {
+        window.__copied = t;
+      };
+    });
+    await page.click('button[data-act="copycfg"]');
+    await page.waitForFunction(() => window.__copied !== null);
+    return page.evaluate(() => window.__copied);
+  };
+  const shipped = await cfgCopy("#v=drum&preset=shipped");
+  const fold = await cfgCopy("#v=drum&preset=fold&w1=5.5");
+  const source = fs.readFileSync(
+    path.join(ROOT, "../../src/app/page/queue/drum.ts"),
+    "utf8",
+  );
+  const literal = source.match(
+    /export const QUEUE_CFG: DrumPatch = \{[^}]*\{[^}]*\},\n\};\n/,
+  )?.[0];
+  expect(
+    literal !== undefined && shipped === literal,
+    `Copy as QUEUE_CFG at shipped copies the literal drum.ts holds (${JSON.stringify(shipped)})`,
+  );
+  expect(
+    fold?.includes("fold: true,") &&
+      fold.includes("omega1: TAU * 5.5,") &&
+      fold.includes('tempo: { kind: "none" },') &&
+      (await cfgCopy("#v=cascade")) === null &&
+      (await cfgCopy("#v=product")) === null,
+    `Copy as QUEUE_CFG writes changed fields in drum.ts's idiom, for the drum only (${JSON.stringify(fold)})`,
+  );
+  await load(page, "#v=drum&preset=loose");
+  const loose = await look();
+  expect(
+    loose.state.includes("Outside the frame checker's rules"),
+    `the loose preset's state line says it is outside the checker's rules (${JSON.stringify(loose.state)})`,
+  );
+}
+
+/** The Cards switch swaps the deck, and the Measured module reads a hold, a tap and the checker from the page's frames. */
+async function cardsAndMeasured(page) {
+  const deck = async (id) => {
+    await page.click(`button[data-act="c:${id}"]`);
+    await page.waitForTimeout(200);
+    return page.evaluate(() => ({
+      hash: location.hash,
+      heights: window.__sim.heights(),
+      cur: window.__sim.cur(),
+      cards: document.querySelectorAll(".card").length,
+    }));
+  };
+  await load(page, "#v=drum");
+  const w2 = await deck("w2");
+  const alt = await deck("alt");
+  const lab = await deck("lab");
+  const tall = (h) => Math.max(...h);
+  expect(
+    w2.hash.includes("cards=w2") &&
+      tall(w2.heights) > 320 &&
+      alt.heights.every((h, i) => h === alt.heights[i % 2]) &&
+      tall(alt.heights) > 320 &&
+      Math.min(...alt.heights) < 80 &&
+      tall(lab.heights) < 300 &&
+      [w2, alt, lab].every((d) => d.cards === 12 && d.cur === 0),
+    `the Cards switch swaps the deck: mixed 330 and 330 and 73 reach past 320 px, lab stays under 300 (${JSON.stringify({ w2: w2.heights, alt: alt.heights, lab: lab.heights })})`,
+  );
+  const lines = () =>
+    page.evaluate(() =>
+      Object.fromEntries(
+        ["pace", "last", "tap", "checker"].map((id) => [
+          id,
+          document.getElementById(`m-${id}`).textContent,
+        ]),
+      ),
+    );
+  await load(page, "#v=drum&preset=natural");
+  await page.evaluate(() => window.__sim.pause());
+  const empty = await lines();
+  const runTo = async (act) => {
+    await page.click(`button[data-act="${act}"]`);
+    for (let n = 0; n < 40; n++) {
+      const done = await page.evaluate(() => {
+        for (let f = 0; f < 30; f++) window.__sim.advance(1000 / 60);
+        return document.querySelector('button[data-act^="run:"].on') === null;
+      });
+      if (done) break;
+    }
+    await page.evaluate(() => {
+      for (let f = 0; f < 90; f++) window.__sim.advance(1000 / 60);
+    });
+  };
+  await runTo("run:1");
+  const down = await lines();
+  await runTo("run:-1");
+  const up = await lines();
+  await page.evaluate(() => {
+    window.__sim.jump(5);
+    window.__sim.press(-1);
+    for (let f = 0; f < 120; f++) window.__sim.advance(1000 / 60);
+    window.__sim.press(1);
+    for (let f = 0; f < 120; f++) window.__sim.advance(1000 / 60);
+  });
+  const taps = await lines();
+  const label = await page.$eval("#m-last-label", (l) => l.textContent);
+  await page.$eval('input[data-k="w0"]', (e) => {
+    e.value = "4";
+    e.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const cleared = await lines();
+  expect(
+    empty.pace === "No hold yet." &&
+      /^↓ \d+\.\d cards\/s over 11 cards\. Steps \d+ to \d+ ms, worst change \d+\.\d\d×\.$/.test(
+        down.pace,
+      ) &&
+      /^↑ \d+\.\d cards\/s/.test(up.pace) &&
+      /^↓ \d+\.\d cards\/s over 11 cards\.$/.test(up.last) &&
+      label === "last ↓" &&
+      /^↑ lands in \d+ ms, ↓ settles in \d+ ms\. Landing \d+\.\d px\/frame\.$/.test(
+        taps.tap,
+      ) &&
+      /^\d+ problems? in \d+ frames/.test(down.checker) &&
+      cleared.pace === "No hold yet." &&
+      cleared.tap === "No tap yet.",
+    `Measured reads the holds, the taps and the checker from the page's frames, and clears when a model setting changes (${JSON.stringify({ down, up, taps, cleared })})`,
+  );
+  await load(page, "#v=cascade");
+  await page.evaluate(() => window.__sim.pause());
+  await runTo("run:1");
+  const cascade = await lines();
+  expect(
+    /cards? in front of the pile\.$/.test(cascade.checker),
+    `the cascade's checker line adds the cards in front of the pile (${cascade.checker})`,
+  );
 }
 
 // ---- tooltips: every control has one, it reads right, and it stays on screen -------------------------------
@@ -1367,7 +1641,7 @@ const modulesShown = (page) =>
       .filter((m) => !m.hidden)
       .map((m) => m.dataset.module),
   }));
-const ALWAYS = ["model", "playback", "path", "overlay", "about"];
+const ALWAYS = ["model", "playback", "measured", "path", "overlay", "about"];
 const MODEL_MODULES = {
   product: [],
   drum: ["taps", "pace", "held"],
@@ -1488,10 +1762,10 @@ async function hashHygiene(browser) {
       `a hash with an unknown preset and unknown keys loads without page errors${own.length ? `: ${own.join("; ")}` : ""}`,
     );
     expect(
-      await page.$eval('button[data-act="p:natural"]', (b) =>
+      await page.$eval('button[data-act="p:shipped"]', (b) =>
         b.classList.contains("on"),
       ),
-      "an unknown preset falls back to natural: the natural button is on",
+      "an unknown preset falls back to the first, shipped: its button is on",
     );
     const stray = (await keys()).filter((k) => ["zz", "yy", "xx"].includes(k));
     expect(

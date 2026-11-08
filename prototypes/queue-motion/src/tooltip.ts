@@ -91,10 +91,12 @@ export function installTooltips(scroller: HTMLElement): Tooltips {
 
   const controlOf = (n: EventTarget | null) =>
     n instanceof Element ? n.closest<HTMLElement>("[data-help]") : null;
+  // A setting's own control is its `data-k` element; its value field and reset button come before it.
   const focusable = (c: HTMLElement) =>
     c.matches("button, input, select, summary, [tabindex]")
       ? c
-      : c.querySelector<HTMLElement>("button, input, select");
+      : (c.querySelector<HTMLElement>("[data-k]") ??
+        c.querySelector<HTMLElement>("button, input, select"));
 
   function place(c: HTMLElement) {
     const r = c.getBoundingClientRect();

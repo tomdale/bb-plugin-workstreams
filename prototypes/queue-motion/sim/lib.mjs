@@ -19,6 +19,11 @@ export const CASCADE = {
   PRESETS: CASCADE_PRESETS,
 };
 
+/**
+ * The card height sets every scenario runs on, px, repeated to `N` cards: `w1` tops out at 284 px, `w2` at 330,
+ * and `alt` alternates the tallest and the shortest card. The lab page's Cards switch offers decks of real cards
+ * close to `w2` and `alt` (`DECKS` in src/controls.ts); its `lab` deck is its own six sample cards.
+ */
 export const HEIGHTS = {
   w1: [284, 73, 218, 96, 162, 140],
   w2: [262, 92, 170, 330, 118, 150],
@@ -80,8 +85,11 @@ export function record(
   return { frames, fronts, holds: hs };
 }
 
-/** Frame index at which card `i` has landed at the front (|c| < 0.01 and edge speed < 0.5 px/frame). */
-function landFrame(frames, i) {
+/**
+ * Frame index at which card `i` has landed: its top and natural bottom are within 2 px of where they end and
+ * moved under 1 px since the frame before. The page's Measured module uses it too, on its own frames.
+ */
+export function landFrame(frames, i) {
   const fin = frames.at(-1)[i];
   for (let n = 1; n < frames.length; n++) {
     const v = frames[n][i],
@@ -111,7 +119,8 @@ function firstChange(frames) {
   }
   return -1;
 }
-function landingSpeed(frames, i, land) {
+/** The most card `i`'s top or natural bottom moved in one frame over the last five frames up to `land`, px. */
+export function landingSpeed(frames, i, land) {
   let m = 0;
   for (let n = Math.max(1, land - 5); n <= land && n < frames.length; n++) {
     const v = frames[n][i],

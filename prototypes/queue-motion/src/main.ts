@@ -4,12 +4,20 @@
  */
 import { StackEngine } from "../../../src/app/page/queue/stackEngine.ts";
 // The drum is the product's own (`drum.ts`); the headless sims import both models too.
-import { Drum, LEAD } from "../../../src/app/page/queue/drum.ts";
+import {
+  DEFAULT_CFG,
+  Drum,
+  LEAD,
+  QUEUE_CFG,
+} from "../../../src/app/page/queue/drum.ts";
 import { Cascade } from "./cascade.ts";
 import {
   CASCADE_PRESET_NAMES,
   CASCADE_SETTINGS,
   CONTROLS,
+  DECKS,
+  DECK_SIZE,
+  DRUM_PRESETS,
   MODULES,
   MODES,
   PATH_KEYS,
@@ -49,7 +57,8 @@ import {
   type Ring,
   type Sway,
 } from "./ring.ts";
-import { settingsMarkdown, type CopyRow } from "./copy.ts";
+import { queueCfgSource, settingsMarkdown, type CopyRow } from "./copy.ts";
+import { Meter, type CheckView } from "./meter.ts";
 import {
   deletePreset,
   savePreset,
@@ -63,13 +72,14 @@ import { ITEMS } from "./items.js";
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const $$ = (s: string) => [...document.querySelectorAll<HTMLElement>(s)];
-const COPIES = 2;
-const BASE = Array.from({ length: ITEMS.length * COPIES }, (_, i) => ({
-  ...ITEMS[i % ITEMS.length],
-  n: i + 1,
-}));
-let ALL = BASE.slice();
-let N = ALL.length;
+/** `DECK_SIZE` cards from the sample items `ids` (indexes into `ITEMS`), repeated in order and numbered. */
+const deckOf = (ids: readonly number[]) =>
+  Array.from({ length: DECK_SIZE }, (_, i) => ({
+    ...ITEMS[ids[i % ids.length]!],
+    n: i + 1,
+  }));
+const itemsOf = (deck: string) =>
+  (DECKS.find((d) => d.id === deck) ?? DECKS[0]!).items;
 
 const faceHTML = (it: any) => {
   const rows = [
@@ -94,16 +104,19 @@ const sanitize = (o: Opt): Opt => {
     o.v === "product"
       ? presetsOf("drum").concat(presetsOf("cascade"))
       : presetsOf(o.v!);
-  if (!offered.includes(o.preset!)) o.preset = offered[0] ?? "natural";
+  if (!offered.includes(o.preset!)) o.preset = offered[0]!;
   if (!SPEEDS.some((s) => s.id === o.speed)) o.speed = "1";
+  if (!DECKS.some((d) => d.id === o.cards)) o.cards = DECKS[0]!.id;
   return o;
 };
 const opt: Opt = sanitize({
   v: "drum",
-  preset: "natural",
   speed: "1",
   ...parseOpt(location.hash),
 });
+/** The cards on the stage: the deck `opt.cards` names, or the order the capture scripts set. */
+let ALL = deckOf(itemsOf(opt.cards!));
+let N = ALL.length;
 /** Reduced motion is in force when the button or the system setting asks for it. */
 const systemReduced = matchMedia("(prefers-reduced-motion: reduce)");
 const reduced = () => opt.reduced === "1" || systemReduced.matches;
@@ -259,6 +272,10 @@ interface Sim {
   press(dir: 1 | -1): boolean;
   step(ms: number): void;
   views(): View[];
+  /** The model's own views, as the frame checker reads them: the frames the Measured module records. */
+  frame(): CheckView[];
+  /** The key of the card the model has in front: where a press has been taken, not only accepted. */
+  frontKey(): string;
   overlay(): Overlay;
   busy(): boolean;
   jump(n: number): void;
@@ -306,6 +323,8 @@ function drumSim(cur: number): Sim {
           vis: (v.bottom - v.top) / v.scale,
         };
       }),
+    frame: () => d.views(),
+    frontKey: () => `k${d.front}`,
     overlay: () => drumOverlay(d),
     busy: () => d.isBusy(),
     jump: (n) => {
@@ -373,6 +392,8 @@ function cascadeSim(cur: number): Sim {
             : (v.bottom - v.top) / v.scale,
       }));
     },
+    frame: () => m.views(),
+    frontKey: () => `k${m.front}`,
     overlay: () => ({
       ring: channelRing(),
       pile: slotTops((q) => m.slot(q)),
@@ -430,6 +451,23 @@ function productSim(cur: number): Sim {
         return { ...v, x, top, role };
       });
     },
+    // The engine reports a drawn and a natural height for each card; the checker reads edges on the stage.
+    frame: () =>
+      e.frame().cards.map((v) => {
+        const top = LEAD + v.scale * v.y;
+        return {
+          key: v.key,
+          painted: v.painted,
+          layer: v.layer,
+          scale: v.scale,
+          top,
+          bottom: top + v.scale * v.vis,
+          natBottom: top + v.scale * v.h,
+          shade: v.shade,
+        };
+      }),
+    // The page moves `at` when the engine accepts a press; the engine's drum may take it a few frames later.
+    frontKey: () => (e as any).keyOf[drumOf().front] ?? "",
     overlay: () => drumOverlay(drumOf()),
     busy: () => e.frame().busy,
     jump(n) {
@@ -442,6 +480,7 @@ function productSim(cur: number): Sim {
 }
 
 let sim: Sim;
+const meter = new Meter();
 let paused = false,
   raf = 0,
   last = 0,
@@ -651,6 +690,14 @@ function paint() {
     if (!held.has(i)) e.el.style.visibility = "hidden";
   });
   paintBezier(views);
+  syncMeasured();
+}
+
+const setText = (el: HTMLElement, text: string) => {
+  if (el.textContent !== text) el.textContent = text;
+};
+/** The Measured module's lines, rewritten only where the text changed. */
+function syncMeasured() {
   if (showsHeld()) {
     const lam = sim.lam!();
     const text = lam.toFixed(2);
@@ -660,6 +707,11 @@ function paint() {
       $("#lam .meter i").style.width = `${(lam * 100).toFixed(1)}%`;
     }
   }
+  setText($("#m-pace"), meter.paceText());
+  setText($("#m-last-label"), `last ${meter.otherDir() > 0 ? "↓" : "↑"}`);
+  setText($("#m-last"), meter.lastText());
+  setText($("#m-tap"), meter.tapText());
+  setText($("#m-checker"), meter.checkerText(opt.v === "cascade"));
 }
 
 function showHead(n: number, animate: boolean) {
@@ -691,6 +743,7 @@ function startRun(dir: 1 | -1) {
   sim.jump(start);
   showHead(start, false);
   run = { dir, t: 0, next: vcfg.repeatDelay, end: N - 1 - start };
+  metered(dir);
   sim.keyDown ? sim.keyDown(dir) : sim.press(dir);
   paint();
   wake();
@@ -719,11 +772,31 @@ function advance(ms: number) {
   while (r > 1e-9) {
     const d = Math.min(1000 / 60, r);
     runStep(d);
+    trackFront();
     sim.step(d);
+    simClock += d;
     r -= d;
+    trackFront();
+    if (meter.active) {
+      meter.sample(simClock, () => sim.frame());
+      if (!run && !held && !sim.busy()) meter.end();
+    }
   }
-  simClock += ms;
   paint();
+}
+/** A press or a key going down in direction `dir` is about to reach the model: it may start a measured run. */
+const metered = (dir: 1 | -1) => {
+  trackFront();
+  meter.press(simClock, dir, sim.frame());
+};
+/** The model's front card when last looked at; a change is a card taken, which the Measured module times. */
+let lastFront = "";
+function trackFront() {
+  const key = sim.frontKey();
+  if (key === lastFront) return;
+  const dir = Number(key.slice(1)) > Number(lastFront.slice(1)) ? 1 : -1;
+  lastFront = key;
+  meter.moved(simClock, dir, key);
 }
 function tickFrame(now: number) {
   raf = 0;
@@ -754,14 +827,19 @@ function press(dir: 1 | -1) {
     paint();
     return;
   }
+  metered(dir);
   sim.press(dir);
   paint();
   wake();
 }
-onMove = (c) => showHead(c, true);
+onMove = (c) => {
+  showHead(c, true);
+  trackFront();
+};
 
 function build(mode: Mode, cur = sim ? sim.cur : 0) {
   run = null;
+  meter.clear();
   opt.v = mode;
   sanitize(opt);
   refreshCfg();
@@ -800,19 +878,31 @@ const ALL_SETTINGS: readonly Setting<any, unknown>[] = [
   ...VIEW_SETTINGS,
 ];
 
+/** The button that puts one setting back to its preset's or default value; it shows while the value differs. */
+const resetButton = (s: Setting<any, unknown>) =>
+  `<button type="button" class="reset" data-help="reset" data-act="reset:${s.key}" aria-label="Reset ${esc(s.label)}" hidden>reset</button>`;
+
+/**
+ * One setting: its name, its value (a slider's value is a text field, so a value can be typed), the reset
+ * button, and the control. A limit that depends on another setting is set when the settings are synced.
+ */
 const settingHtml = (s: Setting<any, unknown>) => {
   const host = `data-help="setting.${s.key}" data-key="${s.key}"`;
-  // A limit that depends on another setting is set when the settings are synced.
+  const id = `set-${s.key}`;
   if (s.kind === "range")
-    return `<label class="set set-range" ${host}><span class="set-name">${esc(s.label)}</span><output></output><input type="range" data-k="${s.key}" min="${s.min}"${typeof s.max === "number" ? ` max="${s.max}"` : ""} step="${s.step}"></label>`;
+    return `<div class="set set-range" ${host}><label class="set-name" for="${id}">${esc(s.label)}</label><span class="set-value"><input type="text" class="num" data-v="${s.key}" inputmode="decimal" autocomplete="off" spellcheck="false" aria-label="${esc(s.label)}, value">${s.unit ? `<span class="unit">${esc(s.unit)}</span>` : ""}</span>${resetButton(s)}<input type="range" id="${id}" data-k="${s.key}" min="${s.min}"${typeof s.max === "number" ? ` max="${s.max}"` : ""} step="${s.step}"></div>`;
   if (s.kind === "toggle")
-    return `<label class="set set-toggle" ${host}><input type="checkbox" data-k="${s.key}"><span class="set-name">${esc(s.label)}</span></label>`;
-  return `<label class="set set-select" ${host}><span class="set-name">${esc(s.label)}</span><select data-k="${s.key}">${s.options.map((o) => `<option>${o}</option>`).join("")}</select></label>`;
+    return `<div class="set set-toggle" ${host}><label><input type="checkbox" data-k="${s.key}"><span class="set-name">${esc(s.label)}</span></label>${resetButton(s)}</div>`;
+  return `<div class="set set-select" ${host}><label class="set-name" for="${id}">${esc(s.label)}</label><select id="${id}" data-k="${s.key}">${s.options.map((o) => `<option>${o}</option>`).join("")}</select>${resetButton(s)}</div>`;
 };
 const settingsOf = (group: ModuleId) =>
   ALL_SETTINGS.filter((s) => s.group === group)
     .map(settingHtml)
     .join("");
+
+/** One line of the Measured module: a label and the text `syncMeasured` writes. */
+const measuredLine = (id: string, label: string) =>
+  `<div class="readout measure" data-help="measured.${id}" tabindex="0"><span class="row-label" id="m-${id}-label">${esc(label)}</span><span class="m-text" id="m-${id}"></span></div>`;
 
 /** The body of each module: its buttons, then its settings. */
 const BODIES: Record<ModuleId, () => string> = {
@@ -824,9 +914,10 @@ const BODIES: Record<ModuleId, () => string> = {
       button(`preset.${p}`, `p:${p}`, p, "cascade"),
     ).join("")}</div></div>` +
     `<div class="field" id="saved" hidden><span class="row-label">Saved</span><div class="chips" id="saved-chips"></div></div>` +
-    `<div class="save-row" id="save-row"><input type="text" id="preset-name" maxlength="40" placeholder="Name" aria-label="Saved preset name" autocomplete="off" spellcheck="false">${button("preset.save", "save", labelOf("preset.save"))}</div>` +
-    `<p class="save-note" id="save-note" role="status"></p>` +
-    `<p class="caption" id="note"></p>`,
+    `<p class="caption" id="state"></p>` +
+    `<div class="actions" id="actions">${button("preset.revert", "revert", labelOf("preset.revert"))}${button("preset.save", "save", labelOf("preset.save"))}${button("copy.cfg", "copycfg", labelOf("copy.cfg"))}</div>` +
+    `<div class="save-row" id="save-row" hidden><input type="text" id="preset-name" maxlength="40" placeholder="Name" aria-label="Saved preset name" autocomplete="off" spellcheck="false"></div>` +
+    `<p class="save-note" id="save-note" role="status"></p>`,
   playback: () =>
     row(
       "Speed",
@@ -841,9 +932,18 @@ const BODIES: Record<ModuleId, () => string> = {
       `<div class="pair">${button("hold.down", "run:1", "↓ from top")}${button("hold.up", "run:-1", "↑ from bottom")}</div>`,
       'id="hold-row"',
     ) +
+    row(
+      "Cards",
+      `<div class="seg seg-3" role="group" aria-label="Cards">${DECKS.map((d) => button("cards", `c:${d.id}`, d.label)).join("")}</div>`,
+    ) +
     switchButton("reduced", "reduced") +
-    settingsOf("playback") +
-    `<div id="lam" class="readout" data-help="held" tabindex="0" hidden><span class="row-label">held</span><span class="meter"><i></i></span><output>0.00</output></div>`,
+    settingsOf("playback"),
+  measured: () =>
+    `<div id="lam" class="readout" data-help="held" tabindex="0" hidden><span class="row-label">held</span><span class="meter"><i></i></span><output>0.00</output></div>` +
+    measuredLine("pace", "pace") +
+    measuredLine("last", "last ↑") +
+    measuredLine("tap", "tap") +
+    measuredLine("checker", "checker"),
   taps: () => settingsOf("taps"),
   pace: () => settingsOf("pace"),
   held: () => settingsOf("held"),
@@ -872,7 +972,7 @@ function renderInspector() {
     const summary =
       m.id === "about"
         ? `<summary data-help="about">${esc(labelOf("about"))}</summary>`
-        : `<summary>${esc(m.label)}</summary>`;
+        : `<summary>${esc(m.label)}<span class="mod-count"></span></summary>`;
     return `<details class="mod" data-module="${m.id}"${startsOpen(m.id) ? " open" : ""}>${summary}<div class="mod-body">${BODIES[m.id]()}</div></details>`;
   }).join("");
 }
@@ -928,6 +1028,16 @@ function saveNote(text: string, ok: boolean) {
   noteReset = window.setTimeout(() => (note.textContent = ""), 2400);
 }
 
+/** Whether the name field for `Save as preset…` is open. */
+let naming = false;
+function openSave(open: boolean) {
+  naming = open;
+  const field = $("#preset-name") as HTMLInputElement;
+  if (!open) field.value = "";
+  syncButtons();
+  if (open) field.focus();
+}
+
 /**
  * Saves the state under the name in the field, or `my preset N` when it is empty. A built-in preset's name is
  * refused, so a saved chip never reads like a built-in one; a saved preset's name replaces that preset.
@@ -947,40 +1057,91 @@ function saveCurrent() {
     saveNote("This browser would not store the preset.", false);
     return;
   }
-  field.value = "";
   renderSaved();
-  syncButtons();
+  openSave(false);
   saveNote(replaced ? `Replaced “${name}”.` : `Saved “${name}”.`, true);
 }
 
+/** The state with only the model and preset (and the motion and overlay switches the defaults depend on). */
+const bareOpt = (): Opt => ({
+  v: opt.v!,
+  preset: opt.preset!,
+  ...(opt.path ? { path: opt.path } : {}),
+  ...(opt.reduced ? { reduced: opt.reduced } : {}),
+});
+
+/**
+ * The running model's settings beside their values now and with nothing overridden (the preset's), for every
+ * model setting the state changes; the product has none.
+ */
+function modelLists(): [readonly Setting<any, unknown>[], unknown, unknown][] {
+  const bare = bareOpt();
+  return opt.v === "drum"
+    ? [[SETTINGS, cfg, drumCfg(bare)]]
+    : opt.v === "cascade"
+      ? [[CASCADE_SETTINGS, ccfg, cascadeCfg(bare)]]
+      : [];
+}
+
+/** The labels of the running model's settings whose value differs from the preset's. */
+function modelChanges(): string[] {
+  const out: string[] = [];
+  for (const [list, now, base] of modelLists())
+    for (const s of list)
+      if (valueText(s, now) !== valueText(s, base)) out.push(s.label);
+  return out;
+}
+
+/** Whether the running model's configuration is its preset's with nothing changed. */
+const atPreset = () => modelChanges().length === 0;
+
 function syncButtons() {
+  const exact = atPreset();
   for (const b of $$("#inspector button[data-act]")) {
     const [k, v] = (b.dataset.act ?? "").split(":");
     const on =
       k === "v"
         ? opt.v === v
         : k === "p"
-          ? opt.preset === v
+          ? opt.preset === v && exact
           : k === "s"
             ? opt.speed === v
-            : k === "pause"
-              ? paused
-              : k === "reduced"
-                ? opt.reduced === "1"
-                : k === "path"
-                  ? opt.path === "1"
-                  : k === "u"
-                    ? appliedIs(shownSaved[Number(v)])
-                    : k === "run"
-                      ? run?.dir === Number(v)
-                      : false;
+            : k === "c"
+              ? opt.cards === v
+              : k === "pause"
+                ? paused
+                : k === "reduced"
+                  ? opt.reduced === "1"
+                  : k === "path"
+                    ? opt.path === "1"
+                    : k === "u"
+                      ? appliedIs(shownSaved[Number(v)])
+                      : k === "run"
+                        ? run?.dir === Number(v)
+                        : false;
     b.classList.toggle("on", on);
-    if (!["step", "copy", "save", "ud"].includes(k!))
-      b.setAttribute("aria-pressed", String(on));
+    // A preset the state starts from but has changed is outlined: it is what `Revert` goes back to.
+    const based = k === "p" && opt.preset === v && !exact;
+    b.classList.toggle("based", based);
+    b.classList.toggle("outside", k === "p" && OUTSIDE_CHECKER.includes(v!));
+    if (
+      !["step", "copy", "copycfg", "save", "revert", "ud", "reset"].includes(k!)
+    )
+      b.setAttribute("aria-pressed", based ? "mixed" : String(on));
   }
+  const model = opt.v === "drum" || opt.v === "cascade";
   // Each model shows its own preset buttons; the product has none.
-  $("#presets").hidden = opt.v === "product";
-  $("#save-row").hidden = opt.v === "product";
+  $("#presets").hidden = !model;
+  const revert = $('#inspector [data-act="revert"]');
+  revert.hidden = !model || exact;
+  revert.textContent = `Revert to ${opt.preset}`;
+  $('#inspector [data-act="save"]').hidden = !model;
+  $('#inspector [data-act="save"]').textContent = naming
+    ? "Save"
+    : labelOf("preset.save");
+  $("#save-row").hidden = !model || !naming;
+  // `QUEUE_CFG` is a drum configuration.
+  $('#inspector [data-act="copycfg"]').hidden = opt.v !== "drum";
   // Under reduced motion a held key moves one card, so there is no hold to simulate.
   $("#hold-row").hidden = reduced();
   $('#inspector [data-act="run:1"]').textContent =
@@ -994,16 +1155,23 @@ function syncButtons() {
   $("#lam").hidden = !showsHeld();
 }
 
-/** Shows one list's settings that change something under configuration `c`, with their current values. */
+/**
+ * Shows one list's settings that change something under configuration `c`, with their current values; a value
+ * that differs from `base` (the preset's, or the default) is marked changed and offers its reset.
+ */
 function syncList<C>(
   list: readonly Setting<C, unknown>[],
   c: C,
+  base: C,
   active: boolean,
 ) {
   const root = $("#inspector");
   for (const s of list) {
     const host = root.querySelector<HTMLElement>(`[data-key="${s.key}"]`)!;
     host.hidden = !active || !s.shown(c);
+    const changed = valueText(s, c) !== valueText(s, base);
+    host.classList.toggle("changed", changed);
+    host.querySelector<HTMLElement>(".reset")!.hidden = !changed;
     const input = host.querySelector<HTMLInputElement | HTMLSelectElement>(
       "[data-k]",
     )!;
@@ -1014,7 +1182,8 @@ function syncList<C>(
       (input as HTMLInputElement).max = String(max);
       const v = round(s.read(c));
       if (Number(input.value) !== v) input.value = String(v);
-      host.querySelector("output")!.textContent = String(v);
+      const typed = host.querySelector<HTMLInputElement>(".num")!;
+      if (document.activeElement !== typed) typed.value = String(v);
       // The track fills to the value, so a column of sliders reads at a glance.
       host.style.setProperty(
         "--fill",
@@ -1024,30 +1193,46 @@ function syncList<C>(
   }
 }
 
+/** The modules that hold settings, and so hide when none of them shows. */
+const SETTING_MODULES = ["taps", "pace", "held", "stage", "path"] as const;
+
 /**
  * Shows the running model's settings, the Path settings while the path shows on screen, and the page's own,
- * each only while it changes something; then hides every settings module left with nothing to show. The
- * product has no model settings of its own. Under reduced motion no card moves, so the settings that shape
- * motion change nothing and hide; the cascade's Stage settings still cut and fade the stage, so they stay.
+ * each only while it changes something; then hides every settings module left with nothing to show, and
+ * writes on each heading how many of its shown settings are changed. The product has no model settings of its
+ * own. Under reduced motion no card moves, so the settings that shape motion change nothing and hide, and so
+ * does the Measured module; the cascade's Stage settings still cut and fade the stage, so they stay.
  */
 function syncSettings() {
   const moving = !reduced();
-  syncList(SETTINGS, cfg, opt.v === "drum" && moving);
+  const bare = bareOpt();
+  const cbase = cascadeCfg(bare);
+  syncList(SETTINGS, cfg, drumCfg(bare), opt.v === "drum" && moving);
   syncList(
     CASCADE_SETTINGS.filter((s) => s.group !== "stage"),
     ccfg,
+    cbase,
     opt.v === "cascade" && moving,
   );
   syncList(
     CASCADE_SETTINGS.filter((s) => s.group === "stage"),
     ccfg,
+    cbase,
     opt.v === "cascade",
   );
-  syncList(PATH_SETTINGS, pcfg, true);
-  syncList(VIEW_SETTINGS, vcfg, true);
-  for (const id of ["taps", "pace", "held", "stage", "path"] as const) {
+  syncList(PATH_SETTINGS, pcfg, pathCfg(bare, reduced()), true);
+  syncList(VIEW_SETTINGS, vcfg, viewCfg(bare, reduced()), true);
+  for (const id of SETTING_MODULES) {
     const mod = $(`[data-module="${id}"]`);
     mod.hidden = $$(`[data-module="${id}"] [data-key]`).every((l) => l.hidden);
+  }
+  $('[data-module="measured"]').hidden = !moving;
+  for (const mod of $$("[data-module]")) {
+    const n = [
+      ...mod.querySelectorAll<HTMLElement>("[data-key].changed"),
+    ].filter((h) => !h.hidden).length;
+    const count = mod.querySelector<HTMLElement>(".mod-count");
+    if (count) setText(count, n ? `${n} changed` : "");
   }
 }
 
@@ -1071,12 +1256,7 @@ function valueText(s: Setting<any, unknown>, c: unknown): string {
  * overridden (the preset's for a model's settings, the default for the path's and the page's).
  */
 function currentSettingsMarkdown(): string {
-  const bare: Opt = {
-    v: opt.v!,
-    preset: opt.preset!,
-    ...(opt.path ? { path: opt.path } : {}),
-    ...(opt.reduced ? { reduced: opt.reduced } : {}),
-  };
+  const bare = bareOpt();
   const isReduced = reduced();
   const lists: [readonly Setting<any, unknown>[], unknown, unknown][] = [
     [SETTINGS, cfg, drumCfg(bare)],
@@ -1108,6 +1288,7 @@ function currentSettingsMarkdown(): string {
     model: MODES.find((m) => m.id === opt.v)!.label,
     preset: opt.v === "product" ? null : opt.preset!,
     speed: SPEEDS.find((x) => x.id === opt.speed)?.label ?? `${opt.speed}×`,
+    cards: DECKS.find((d) => d.id === opt.cards)!.label,
     reduced: isReduced,
     overlay: opt.path === "1",
     hash: location.hash,
@@ -1133,14 +1314,13 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-let copyReset = 0;
-async function copySettings(b: HTMLElement) {
-  const ok = await copyText(currentSettingsMarkdown());
+/** Copies `text` and says on the button `b` for a moment whether it worked; `help` is the button's control id. */
+async function copyFrom(b: HTMLElement, help: string, text: string) {
+  const ok = await copyText(text);
   b.textContent = ok ? "Copied" : "Copy failed";
   b.classList.toggle("done", ok);
-  clearTimeout(copyReset);
-  copyReset = window.setTimeout(() => {
-    b.textContent = labelOf("copy");
+  window.setTimeout(() => {
+    b.textContent = labelOf(help);
     b.classList.remove("done");
   }, 1600);
 }
@@ -1157,14 +1337,41 @@ function syncStage() {
   clip.style.maskImage = clip.style.webkitMaskImage = mask;
 }
 
-/** The caption under the Model buttons: the active model and preset, in the words of their tooltips. */
-function syncNote() {
-  const name = MODES.find((m) => m.id === opt.v)!.label;
-  const lead = document.createElement("b");
-  lead.textContent = `${name}${opt.v !== "product" ? ` · ${opt.preset}` : ""}.`;
+/** Presets whose motion the frame checker's rules do not describe, so its count is a cost rather than a verdict. */
+const OUTSIDE_CHECKER = ["loose"];
+
+/**
+ * The state line under the presets: the preset the state is based on and what has changed from it, or, at
+ * the preset itself, its caption. The product's line says what it runs.
+ */
+function syncState() {
+  const line = $("#state");
+  if (opt.v === "product") {
+    line.replaceChildren();
+    inline(line, captionFor("product", ""));
+    return;
+  }
+  const name = document.createElement("b");
+  name.textContent = opt.preset!;
+  const changes = modelChanges();
   const text = document.createElement("span");
-  inline(text, captionFor(opt.v!, opt.preset!));
-  $("#note").replaceChildren(lead, " ", text);
+  if (!changes.length) {
+    line.replaceChildren(name, ", nothing changed. ");
+    inline(text, captionFor(opt.v!, opt.preset!));
+  } else {
+    // Labels may hold a comma, so a list of them is joined with semicolons.
+    const sep = changes.some((c) => c.includes(",")) ? "; " : ", ";
+    line.replaceChildren(
+      "Based on ",
+      name,
+      `, with ${changes.length} change${changes.length === 1 ? "" : "s"}: ${changes.join(sep)}.`,
+    );
+  }
+  if (OUTSIDE_CHECKER.includes(opt.preset!))
+    text.append(
+      ` Outside the frame checker's rules: passing over a card is a draw-order swap by design, so the checker counts its cost.`,
+    );
+  line.append(text);
 }
 
 function renderAbout(panel: HTMLElement, about: typeof ABOUT) {
@@ -1227,7 +1434,7 @@ function syncView() {
   syncSettings();
   syncStage();
   syncAbout();
-  syncNote();
+  syncState();
   tips.sync();
 }
 function syncAll() {
@@ -1235,22 +1442,48 @@ function syncAll() {
   writeHash();
 }
 
+/**
+ * Sets one setting's hash value (or, with `raw` undefined, removes it so the preset's or default value applies)
+ * and hands the result to the running model. A model setting's change makes the Measured numbers stale, so
+ * they are cleared.
+ */
+function setOpt(k: string, raw: string | undefined) {
+  if (raw === undefined) delete opt[k];
+  else opt[k] = raw;
+  refreshCfg();
+  sim.setCfg?.();
+  if (SETTING_KEYS.includes(k)) meter.clear();
+  // The path and the overlay are read as the cards are drawn, so a paused page redraws to show the change.
+  paint();
+  syncAll();
+}
+
 const inspector = $("#inspector");
 inspector.addEventListener("input", (e) => {
   const t = e.target as HTMLInputElement | HTMLSelectElement;
   const k = t.dataset.k;
   if (!k) return;
-  opt[k] =
+  setOpt(
+    k,
     t instanceof HTMLInputElement && t.type === "checkbox"
       ? t.checked
         ? "1"
         : "0"
-      : t.value;
-  refreshCfg();
-  sim.setCfg?.();
-  // The path and the overlay are read as the cards are drawn, so a paused page redraws to show the change.
-  if (PATH_KEYS.includes(k) || VIEW_KEYS.includes(k)) paint();
-  syncAll();
+      : t.value,
+  );
+});
+/** A value typed beside a slider applies when it is committed (Enter or leaving the field), clamped to the range. */
+inspector.addEventListener("change", (e) => {
+  const t = e.target as HTMLInputElement;
+  const k = t.dataset.v;
+  if (!k) return;
+  const v = Number(t.value.trim().replace(",", "."));
+  if (t.value.trim() === "" || !Number.isFinite(v)) {
+    syncView();
+    return;
+  }
+  // The hash clamps a value to its range, as it does for a link.
+  setOpt(k, String(v));
 });
 inspector.addEventListener("click", (e) => {
   const b = (e.target as HTMLElement).closest<HTMLElement>("button[data-act]");
@@ -1262,7 +1495,24 @@ inspector.addEventListener("click", (e) => {
     opt.preset = v!;
     build(b.dataset.mode as Mode);
   }
-  if (k === "save") saveCurrent();
+  if (k === "save") naming ? saveCurrent() : openSave(true);
+  if (k === "revert") {
+    for (const key of SETTING_KEYS) delete opt[key];
+    meter.clear();
+    refreshCfg();
+    sim.setCfg?.();
+    syncAll();
+  }
+  if (k === "reset") setOpt(v!, undefined);
+  if (k === "copycfg")
+    copyFrom(b, "copy.cfg", queueCfgSource(cfg, QUEUE_CFG, DEFAULT_CFG));
+  if (k === "c" && v !== opt.cards) {
+    opt.cards = v!;
+    ALL = deckOf(itemsOf(v!));
+    N = ALL.length;
+    buildDom();
+    build(opt.v as Mode, 0);
+  }
   if (k === "run") {
     const dir = Number(v) as 1 | -1;
     if (run?.dir === dir) stopRun();
@@ -1312,7 +1562,7 @@ inspector.addEventListener("click", (e) => {
     paint();
     syncAll();
   }
-  if (k === "copy") copySettings(b);
+  if (k === "copy") copyFrom(b, "copy", currentSettingsMarkdown());
   if (k === "path") {
     opt.path = opt.path === "1" ? "0" : "1";
     refreshCfg();
@@ -1363,7 +1613,11 @@ const typing = (e: KeyboardEvent) =>
   e.target instanceof HTMLInputElement && e.target.type === "text";
 addEventListener("keydown", (e) => {
   if (typing(e)) {
-    if (e.key === "Enter") saveCurrent();
+    const field = e.target as HTMLInputElement;
+    if (field.id === "preset-name") {
+      if (e.key === "Enter") saveCurrent();
+      if (e.key === "Escape") openSave(false);
+    } else if (e.key === "Enter") field.blur();
     return;
   }
   const d = keyDir(e.key);
@@ -1376,6 +1630,7 @@ addEventListener("keydown", (e) => {
     if (!e.repeat) press(d);
     return;
   }
+  metered(d);
   if (!e.repeat || held !== d) {
     held = d;
     sim.keyDown!(d);
@@ -1395,16 +1650,23 @@ addEventListener("hashchange", () => {
   // The hash is the whole state, so Back and Forward restore it: keys the new hash lacks return to their defaults.
   const next = sanitize({
     v: "drum",
-    preset: "natural",
     speed: "1",
     ...parseOpt(location.hash),
   });
-  const rebuild = next.v !== opt.v;
+  const before = effect(opt);
+  const deck = next.cards !== opt.cards;
+  const rebuild = deck || next.v !== opt.v;
   for (const k of Object.keys(opt)) delete opt[k];
   Object.assign(opt, next);
   refreshCfg();
-  if (rebuild) build(opt.v as Mode);
+  if (deck) {
+    ALL = deckOf(itemsOf(opt.cards!));
+    N = ALL.length;
+    buildDom();
+  }
+  if (rebuild) build(opt.v as Mode, deck ? 0 : sim.cur);
   else {
+    if (effect(opt) !== before) meter.clear();
     sim.setCfg?.();
     paint();
     syncView();
@@ -1437,10 +1699,12 @@ addEventListener("hashchange", () => {
   },
   cur: () => sim.cur,
   hold: (d: 1 | -1) => {
+    metered(d);
     sim.keyDown ? sim.keyDown(d) : sim.press(d);
     paint();
   },
   repeat: (d: 1 | -1) => {
+    metered(d);
     sim.press(d);
     paint();
   },
@@ -1448,8 +1712,11 @@ addEventListener("hashchange", () => {
     sim.keyUp?.();
     paint();
   },
+  /** Replaces the cards with the sample items `ord` (indexes into `ITEMS`), or with the Cards deck again. */
   setOrder: (ord: number[] | null) => {
-    ALL = ord ? ord.map((i) => BASE[i]!) : BASE.slice();
+    ALL = ord
+      ? ord.map((i, n) => ({ ...ITEMS[i]!, n: n + 1 }))
+      : deckOf(itemsOf(opt.cards!));
     N = ALL.length;
     buildDom();
     build(opt.v as Mode, 0);
