@@ -58,6 +58,26 @@ Workstream colors are allocated from a finite palette; a large family or many
 workstreams can produce similar colors. Labels and status text remain necessary;
 color is not an identity or status guarantee.
 
+### An old reply's unfinished results
+
+**Evidence:** `src/domain/reply.ts` (`parse`) and
+`src/app/reply/LegacyCard.tsx`.
+
+A reply that carries a card keeps its unchecked results in the body as a "Not
+done" section, so they stay visible when the live card, not the block, draws the
+turn. Where the block draws the card's fields itself, that section reads as a
+Markdown heading above the labelled Done, Review, Links and Next rows, and the
+card's own Not done row stays empty. The two shapes show the same unfinished
+work; the heading above a label row is not a distinction the stored data makes.
+
+### A part that fails to parse draws as body text
+
+**Evidence:** `src/app/reply/PlainBody.tsx`.
+
+A component the schema rejects prints its reason and then its source at body
+size, in body order. The reply renderer has no fallback frame, so the problem is
+legible without announcing that the part below it is not the real thing.
+
 ### Best-effort redaction
 
 **Evidence:** `src/domain/redact.ts`.

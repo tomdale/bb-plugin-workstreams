@@ -86,7 +86,7 @@ it("renders every specimen with its component", async () => {
     [...(delivery?.querySelectorAll("[data-reply-stage-status]") ?? [])].map(
       (mark) => mark.getAttribute("data-reply-stage-status"),
     ),
-  ).toEqual(["done", "pending", "blocked", "unknown"]);
+  ).toEqual(["done", "pending", "not-started", "unknown"]);
   const shows = (text: string) =>
     expect(slot.getAllByText(text, { exact: false }).length).toBeGreaterThan(0);
   for (const text of [

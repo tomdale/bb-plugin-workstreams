@@ -161,7 +161,7 @@ const delivered = block([
       { name: "Pushed", status: "pending", detail: "Waiting on your review" },
       {
         name: "Deployed",
-        status: "blocked",
+        status: "not-started",
         detail: "The plugin reloads after merge",
       },
       {
