@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { section, sidebarThread } from "./fixtures.ts";
+import { sidebarThread } from "./fixtures.ts";
 import { groupRows, mount } from "./sidebar-fixture.tsx";
 beforeEach(() => {
   window.localStorage.clear();
@@ -19,32 +19,29 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it.each(["show", "hover", "hide"])(
-  "applies the %s timestamp preference without hiding band context",
-  async (timestamps) => {
-    const slot = await mountWithBands(undefined, { settings: { timestamps } });
-    const alpha = slot.getByRole("region", { name: "Alpha" });
-    const upNext = slot.getByRole("region", { name: "Up Next" });
-    await waitFor(() => {
-      const ages = alpha.querySelectorAll("[data-timestamp]");
-      expect(ages).toHaveLength(timestamps === "hide" ? 0 : 2);
-      for (const age of ages)
-        expect(age.getAttribute("data-timestamp")).toBe(timestamps);
-      const bandAges = upNext.querySelectorAll("[data-timestamp]");
-      expect(bandAges).toHaveLength(timestamps === "hide" ? 0 : 3);
-      for (const age of bandAges)
-        expect(age.getAttribute("data-timestamp")).toBe(timestamps);
-    });
-    expect(within(upNext).getByText("Alpha")).toBeTruthy();
-    slot.lifecycle.unmount();
-  },
-);
+it("applies the hover timestamp preference without hiding band context", async () => {
+  const timestamps = "hover";
+  const slot = await mountWithBands(undefined, { settings: { timestamps } });
+  const alpha = slot.getByRole("region", { name: "Alpha" });
+  const upNext = slot.getByRole("region", { name: "Up Next" });
+  await waitFor(() => {
+    const ages = alpha.querySelectorAll("[data-timestamp]");
+    expect(ages).toHaveLength(2);
+    for (const age of ages)
+      expect(age.getAttribute("data-timestamp")).toBe(timestamps);
+    const bandAges = upNext.querySelectorAll("[data-timestamp]");
+    expect(bandAges).toHaveLength(3);
+    for (const age of bandAges)
+      expect(age.getAttribute("data-timestamp")).toBe(timestamps);
+  });
+  expect(within(upNext).getByText("Alpha")).toBeTruthy();
+  slot.lifecycle.unmount();
+});
 
-it.each([
-  ["always", [true, true]],
-  ["collapsed", [false, true]],
-  ["never", [false, false]],
-] as const)("shows header counts %s", async (when, [expanded, collapsed]) => {
+it("updates header counts when the group is collapsed", async () => {
+  const when = "collapsed",
+    expanded = false,
+    collapsed = true;
   const slot = await mount(
     [
       sidebarThread("ask", {
@@ -243,49 +240,6 @@ it("sorts workstreams alphabetically by default and lets the view menu change so
   slot.lifecycle.unmount();
 });
 
-it("groups whole trees by the root's workstream and hides hidden threads", async () => {
-  const slot = await mount(undefined, { settings: { showRecent: false } });
-  expect(groupRows(slot, "Alpha")).toEqual(["Root task", "Kid task"]);
-  expect(groupRows(slot, "Beta")).toEqual(["Beta task"]);
-  expect(groupRows(slot, "Unfiled")).toEqual(["Loose task"]);
-  expect(slot.queryByText("Hidden helper")).toBeNull();
-  slot.lifecycle.unmount();
-});
-
-it("omits empty workstreams without recent population, even if focused", async () => {
-  const slot = await mount(undefined, {
-    settings: { showRecent: false, showForYou: false },
-    lastPopulatedAt: {},
-    order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
-  });
-  await slot.findByRole("region", { name: "Alpha" });
-  expect(slot.queryByRole("region", { name: "Zeta" })).toBeNull();
-  expect(
-    slot.queryByRole("button", { name: /^Show other workstreams/ }),
-  ).toBeNull();
-  slot.lifecycle.unmount();
-});
-
-it("keeps at most three recent empty workstreams in the actual sidebar", async () => {
-  const at = Date.now();
-  const slot = await mount([], {
-    settings: { showRecent: false, showForYou: false, showArchived: false },
-    sections: ["A", "B", "C", "D", "Stale"].map((name) => section(name, name)),
-    lastPopulatedAt: {
-      A: at - 4,
-      B: at - 3,
-      C: at - 2,
-      D: at - 1,
-      Stale: at - 600_000,
-    },
-  });
-  await slot.findByRole("region", { name: "D" });
-  expect(
-    slot.getAllByRole("region").map((node) => node.getAttribute("aria-label")),
-  ).toEqual(["B", "C", "D"]);
-  slot.lifecycle.unmount();
-});
-
 it("shows Unfiled, then recent empty workstreams; empty ones get a scoped New work action and no zero count", async () => {
   const slot = await mount(undefined, {
     settings: { showRecent: false, showForYou: false, groupSort: "manual" },
@@ -320,42 +274,6 @@ it("shows Unfiled, then recent empty workstreams; empty ones get a scoped New wo
   expect(slot.inspection.navigateCalls).toEqual([
     { method: "toCompose", options: { focusPrompt: true } },
   ]);
-  slot.lifecycle.unmount();
-});
-
-it("leaves Unfiled out when every thread is in a workstream", async () => {
-  const slot = await mount(
-    [sidebarThread("a1", { sectionId: "sec_a", title: "Alpha task" })],
-    { settings: { showRecent: false, showForYou: false } },
-  );
-  await waitFor(() =>
-    expect(
-      slot.getAllByRole("region").map((r) => r.getAttribute("aria-label")),
-    ).toEqual(["Alpha", "Beta", "Zeta"]),
-  );
-  slot.lifecycle.unmount();
-});
-
-it("renders rows as shortcut-target anchors that open threads", async () => {
-  let navigated = 0;
-  const slot = await mount(undefined, {
-    settings: { showRecent: false },
-    onNavigate: () => navigated++,
-  });
-  const link = within(slot.getByRole("region", { name: "Alpha" })).getByRole(
-    "link",
-    {
-      name: "Root task",
-    },
-  );
-  expect(link.getAttribute("data-sidebar-thread-shortcut-target")).toBe("");
-  expect(link.getAttribute("data-sidebar-thread-id")).toBe("root");
-  expect(link.getAttribute("href")).toBe("/projects/proj_1/threads/root");
-  fireEvent.click(link, { metaKey: true });
-  expect(slot.inspection.sidebarActionCalls.at(-1)).toMatchObject({
-    method: "open",
-  });
-  expect(navigated).toBe(1);
   slot.lifecycle.unmount();
 });
 
@@ -595,27 +513,6 @@ it("offers a Topic submenu in the row menu", async () => {
   slot.lifecycle.unmount();
 });
 
-it("shows a pinned icon without replacing the native status mark", async () => {
-  const slot = await mount(
-    [
-      sidebarThread("pinned", {
-        sectionId: "sec_a",
-        title: "Pinned task",
-        isPinned: true,
-        isUnread: true,
-      }),
-    ],
-    { settings: { showRecent: false } },
-  );
-  const row = within(slot.getByRole("region", { name: "Alpha" }))
-    .getByRole("link", { name: "Pinned task" })
-    .closest<HTMLElement>(".ws-row")!;
-
-  expect(within(row).getByRole("img", { name: "Pinned" })).toBeTruthy();
-  expect(row.querySelector(".ws-status-slot .ws-mark")).toBeTruthy();
-  slot.lifecycle.unmount();
-});
-
 it("folds the status slot away only when no row in the group has a mark", async () => {
   const slots = (slot: Awaited<ReturnType<typeof mount>>, name: string) =>
     [
@@ -641,109 +538,6 @@ it("folds the status slot away only when no row in the group has a mark", async 
   await marked.findByRole("region", { name: "Alpha" });
   expect(slots(marked, "Alpha")).toEqual([false, false]);
   marked.lifecycle.unmount();
-});
-
-it("draws the working indicator chosen in settings, and follows changes", async () => {
-  const working = [
-    sidebarThread("busy", { title: "Busy", indicator: "runtime" }),
-  ];
-  const markOf = (slot: Awaited<ReturnType<typeof mount>>) =>
-    within(slot.getByRole("region", { name: "Unfiled" })).getByRole("img", {
-      name: "Working",
-    });
-  const byDefault = await mount(working, {
-    settings: { showRecent: false },
-  });
-  expect(markOf(byDefault).className).toContain("ws-spin-spokes");
-  byDefault.lifecycle.unmount();
-  const picked = await mount(working, {
-    settings: { showRecent: false },
-    spinner: { shape: "orbit", primary: "green", secondary: "none" },
-  });
-  await waitFor(() =>
-    expect(markOf(picked).className).toContain("ws-spin-orbit"),
-  );
-  expect(markOf(picked).style.getPropertyValue("--ws-spin-track")).toBe(
-    "transparent",
-  );
-  await picked.behavior.emitRealtime("spinner", {
-    spinner: { shape: "dots", primary: "#ff0000", secondary: "auto" },
-  });
-  expect(markOf(picked).className).toContain("ws-spin-dots");
-  expect(markOf(picked).style.getPropertyValue("--ws-spin-primary")).toBe(
-    "#ff0000",
-  );
-  picked.lifecycle.unmount();
-});
-
-it("draws no mark for a finished thread", async () => {
-  const slot = await mount(
-    [
-      sidebarThread("finished", {
-        title: "Finished",
-        latestAttentionAt: 100,
-      }),
-    ],
-    {
-      settings: { showRecent: false },
-      analysis: {
-        finished: {
-          recap: "Shipped it.",
-          state: "done",
-          needsYou: null,
-          subject: null,
-          drift: null,
-          driftSectionId: null,
-          revision: 100,
-          at: Date.now(),
-          model: "m",
-        },
-      },
-    },
-  );
-  const row = within(slot.getByRole("region", { name: "Unfiled" }));
-  expect(row.getByRole("link").getAttribute("aria-label")).toBe("Finished");
-  expect(row.queryByText("✓")).toBeNull();
-  slot.lifecycle.unmount();
-});
-
-it("archives a thread from its hover button without opening it", async () => {
-  let navigated = 0;
-  const slot = await mount(undefined, {
-    settings: { showRecent: false },
-    onNavigate: () => navigated++,
-  });
-  const row = within(slot.getByRole("region", { name: "Beta" }))
-    .getByRole("link", { name: "Beta task" })
-    .closest("li")!;
-  fireEvent.click(within(row).getByRole("button", { name: "Archive" }));
-  expect(slot.inspection.sidebarActionCalls.at(-1)).toMatchObject({
-    method: "archive",
-  });
-  expect(navigated).toBe(0);
-  slot.lifecycle.unmount();
-});
-
-it("shows workstreams and threads in the stored manual order", async () => {
-  const slot = await mount(
-    [
-      sidebarThread("a1", { sectionId: "sec_a", title: "A one" }),
-      sidebarThread("b1", { sectionId: "sec_b", title: "B one" }),
-      sidebarThread("b2", { sectionId: "sec_b", title: "B two" }),
-      sidebarThread("b3", { sectionId: "sec_b", title: "B three" }),
-    ],
-    {
-      settings: { showRecent: false, showForYou: false, groupSort: "manual" },
-      order: { workstreams: ["sec_b"], threads: { sec_b: ["b3", "b1"] } },
-    },
-  );
-  await waitFor(() =>
-    expect(
-      slot.getAllByRole("region").map((r) => r.getAttribute("aria-label")),
-    ).toEqual(["Beta", "Alpha", "Zeta"]),
-  );
-  expect(groupRows(slot, "Beta")).toEqual(["B two", "B three", "B one"]);
-  slot.lifecycle.unmount();
 });
 
 it("keeps thread titles at their default color in workstreams and Up Next", async () => {

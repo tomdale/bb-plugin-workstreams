@@ -204,44 +204,29 @@ describe("focused workstreams", () => {
     unfocused.lifecycle.unmount();
   });
 
-  it.each([
-    [
-      { waitingCount: "collapsed", threadCount: "collapsed" },
-      "Show other workstreams, 1 waiting on you, 2 threads",
-    ],
-    [
-      { waitingCount: "never", threadCount: "always" },
-      "Show other workstreams, 2 threads",
-    ],
-    [
-      { waitingCount: "always", threadCount: "never" },
-      "Show other workstreams, 1 waiting on you",
-    ],
-    [{ waitingCount: "never", threadCount: "never" }, "Show other workstreams"],
-  ])(
-    "respects count settings on the collapsed toggle: %j",
-    async (settings, name) => {
-      const slot = await mount(
-        [
-          asking("a1", "sec_a", 100),
-          sidebarThread("a2", { sectionId: "sec_a" }),
-          sidebarThread("z1", { sectionId: "sec_z" }),
-        ],
-        {
-          activeThreadId: null,
-          settings,
-          order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
-        },
-      );
-      const toggle = await slot.findByRole("button", { name });
-      expect(toggle.getAttribute("aria-expanded")).toBe("false");
-      fireEvent.click(toggle);
-      const hide = slot.getByRole("button", { name: "Hide other workstreams" });
-      expect(hide.querySelector(".ws-needs-you-pill")).toBeNull();
-      expect(hide.textContent).toBe("Hide other workstreams");
-      slot.lifecycle.unmount();
-    },
-  );
+  it("wires count preferences to the collapsed toggle and hides counts when expanded", async () => {
+    const settings = { waitingCount: "never", threadCount: "always" };
+    const name = "Show other workstreams, 2 threads";
+    const slot = await mount(
+      [
+        asking("a1", "sec_a", 100),
+        sidebarThread("a2", { sectionId: "sec_a" }),
+        sidebarThread("z1", { sectionId: "sec_z" }),
+      ],
+      {
+        activeThreadId: null,
+        settings,
+        order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
+      },
+    );
+    const toggle = await slot.findByRole("button", { name });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(toggle);
+    const hide = slot.getByRole("button", { name: "Hide other workstreams" });
+    expect(hide.querySelector(".ws-needs-you-pill")).toBeNull();
+    expect(hide.textContent).toBe("Hide other workstreams");
+    slot.lifecycle.unmount();
+  });
 
   it("hides other workstreams until revealed, then shows them collapsed", async () => {
     const slot = await mount(

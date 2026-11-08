@@ -12,11 +12,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
-import {
-  relativeAge,
-  statusRole,
-  workStateMark,
-} from "../../domain/presentation.ts";
+import { presentRow } from "./presentation.ts";
 import type { WorkView } from "../useWorkstreams.ts";
 import { StatusMark } from "./StatusMark.tsx";
 import { usePrefs } from "../prefs.ts";
@@ -35,46 +31,6 @@ function prTone(pr: PluginSidebarPullRequest): string {
   if (pr.attention === "changes_requested" || pr.attention === "blocked")
     return "ws-pr-attention";
   return "ws-pr-open";
-}
-
-/** The work state the row shows as a mark, if any. */
-export function shownWorkState(
-  work: WorkView | undefined,
-  attention: boolean | undefined,
-) {
-  return work?.kind === "current" &&
-    !(attention && work.analysis.state === "needs_decision")
-    ? work.analysis.state
-    : null;
-}
-
-/**
- * BB's own status is the primary mark: working, unread, waiting, error.
- * Workstreams' assessed state is only shown when BB has none to report.
- */
-export function hasNativeStatus(thread: PluginSidebarThread): boolean {
-  return (
-    Boolean(statusRole(thread.indicator)) ||
-    thread.hasPendingInteraction ||
-    thread.isUnread
-  );
-}
-
-/**
- * Whether the row draws anything in its status slot. A list whose rows all
- * draw nothing hides the slot, so titles sit flush left.
- */
-export function hasStatusMark(
-  thread: PluginSidebarThread,
-  work: WorkView | undefined,
-  attention?: boolean,
-): boolean {
-  if (hasNativeStatus(thread)) return true;
-  const state = shownWorkState(work, attention);
-  return Boolean(
-    state &&
-    workStateMark(state, work?.kind === "current" && work.reported).glyph,
-  );
 }
 
 export function Row({
@@ -140,22 +96,26 @@ export function Row({
   onNavigate: () => void;
 }) {
   const { prefs } = usePrefs();
-  const timestamps = prefs?.sidebar.timestamps ?? "show";
-  const shownState = shownWorkState(work, attention);
-  const reported = work?.kind === "current" && work.reported;
-  const state = shownState ? workStateMark(shownState, reported) : null;
-  const recap =
-    work?.kind === "current"
-      ? work.analysis.recap
-      : work?.kind === "pending"
-        ? `Updating… (was: ${work.previous.recap})`
-        : undefined;
+  const {
+    shownState,
+    reported,
+    state,
+    recap,
+    nativeStatus,
+    pinned,
+    accessibleName,
+    timestamp,
+  } = presentRow(thread, work, {
+    attention,
+    showPin,
+    timestamps: prefs?.sidebar.timestamps ?? "show",
+    now,
+  });
   const actions = experimental_useSidebarThreadActions();
   const { splitProps } = experimental_useSidebarThreadSplit(thread.id);
   const { hasUnsubmittedDraft } = useSidebarThreadDraft(thread.id);
   const rowStatus = useSidebarThreadRowStatus(thread.id);
   const shortcut = useSidebarThreadShortcut(thread.id);
-  const nativeStatus = hasNativeStatus(thread);
   const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
   const { paddingLeft, heightClass, leadingClass, compactActions } =
     rowGeometry({
@@ -187,11 +147,7 @@ export function Row({
         data-sidebar-thread-id={thread.id}
         aria-current={active ? "page" : undefined}
         aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
-        aria-label={
-          state?.glyph
-            ? `${thread.displayTitle}, ${state.label}`
-            : thread.displayTitle
-        }
+        aria-label={accessibleName}
         aria-describedby={recap ? `ws-recap-${thread.id}` : undefined}
         onClick={(event) => {
           event.preventDefault();
@@ -205,7 +161,7 @@ export function Row({
           {recap}
         </span>
       ) : null}
-      {thread.isPinned && showPin ? (
+      {pinned ? (
         <span
           className="pointer-events-none relative inline-flex size-3.5 shrink-0 items-center justify-center text-muted-foreground"
           role="img"
@@ -286,12 +242,12 @@ export function Row({
               {context}
             </span>
           ) : null}
-          {timestamps !== "hide" ? (
+          {timestamp ? (
             <span
-              data-timestamp={timestamps}
+              data-timestamp={timestamp.mode}
               className="flex shrink-0 text-[11px] font-normal tabular-nums text-muted-foreground/70"
             >
-              {relativeAge(thread.latestAttentionAt, now)}
+              {timestamp.text}
             </span>
           ) : null}
         </span>

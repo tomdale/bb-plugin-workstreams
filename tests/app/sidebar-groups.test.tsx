@@ -296,35 +296,6 @@ describe("nested workstreams", () => {
     slot.lifecycle.unmount();
   });
 
-  it("removes an archived subgroup and its parent without waiting for the grace period", async () => {
-    const threads = nestedThreads();
-    const slot = await mount(threads, options);
-    await slot.findByRole("region", { name: "Beacon: Automations" });
-    await waitFor(() =>
-      slot.getByRole("region", { name: "Beacon: Automations: CLI" }),
-    );
-    for (let i = 0; i < threads.length; i++) {
-      if (threads[i]!.sectionId === "sec_cli")
-        threads[i] = { ...threads[i]!, isArchived: true };
-    }
-    slot.selectThread("rebase");
-    await waitFor(() =>
-      expect(
-        slot.queryByRole("region", { name: "Beacon: Automations: CLI" }),
-      ).toBeNull(),
-    );
-    expect(groupRows(slot, "Beacon: Automations")).toHaveLength(3);
-    for (let i = 0; i < threads.length; i++)
-      threads[i] = { ...threads[i]!, isArchived: true };
-    slot.selectThread("rebase");
-    await waitFor(() =>
-      expect(
-        slot.queryByRole("region", { name: "Beacon: Automations" }),
-      ).toBeNull(),
-    );
-    slot.lifecycle.unmount();
-  });
-
   it("focuses a top-level group with all its subgroups", async () => {
     const slot = await mount(nestedThreads(), options);
     await waitFor(() =>
@@ -352,113 +323,80 @@ describe("nested workstreams", () => {
 });
 
 describe("small groups", () => {
-  it.each([0, 3])(
-    "keeps sibling headers together with %i review threads",
-    async (reviewCount) => {
-      const topic = (id: string, name: string, parentId: string | null) => ({
-        id,
-        name,
-        description: "",
-        parentId,
-        aliases: [],
-      });
-      const node = (topicId: string, name: string, total: number) => ({
-        topicId,
-        name,
-        prefix: [],
-        lists: true,
-        total,
-        children: [],
-      });
-      const slot = await mount(
-        [
-          sidebarThread("a1", { sectionId: "sec_alerts", title: "Rebase PR" }),
-          sidebarThread("a2", { sectionId: "sec_alerts", title: "Verify" }),
-          sidebarThread("a3", { sectionId: "sec_alerts", title: "Triage" }),
-          sidebarThread("c1", { sectionId: "sec_cli", title: "Add flags" }),
-          ...Array.from({ length: reviewCount }, (_, i) =>
-            sidebarThread(`r${i}`, {
-              sectionId: "sec_review",
-              title: `Review ${i}`,
-            }),
-          ),
+  it("labels inline subgroup rows without introducing another region", async () => {
+    const topic = (id: string, name: string, parentId: string | null) => ({
+      id,
+      name,
+      description: "",
+      parentId,
+      aliases: [],
+    });
+    const node = (topicId: string, name: string, total: number) => ({
+      topicId,
+      name,
+      prefix: [],
+      lists: true,
+      total,
+      children: [],
+    });
+    const slot = await mount(
+      [
+        sidebarThread("a1", { sectionId: "sec_alerts", title: "Rebase PR" }),
+        sidebarThread("a2", { sectionId: "sec_alerts", title: "Verify" }),
+        sidebarThread("a3", { sectionId: "sec_alerts", title: "Triage" }),
+        sidebarThread("c1", { sectionId: "sec_cli", title: "Add flags" }),
+      ],
+      {
+        sections: [
+          section("sec_alerts", "Automations: Alert Investigations"),
+          section("sec_cli", "Automations: CLI"),
         ],
-        {
-          sections: [
-            section("sec_alerts", "Automations: Alert Investigations"),
-            section("sec_cli", "Automations: CLI"),
-            ...(reviewCount
-              ? [section("sec_review", "Automations: Review")]
-              : []),
+        catalog: {
+          entities: [
+            topic("auto", "Automations", null),
+            topic("alerts", "Alert Investigations", "auto"),
+            topic("cli", "CLI", "auto"),
           ],
-          catalog: {
-            entities: [
-              topic("auto", "Automations", null),
-              topic("alerts", "Alert Investigations", "auto"),
-              topic("cli", "CLI", "auto"),
-              topic("review", "Review", "auto"),
-            ],
-            groups: {
-              sec_alerts: "alerts",
-              sec_cli: "cli",
-              sec_review: "review",
-            },
-            layout: [
-              {
-                ...node("auto", "Automations", 4 + reviewCount),
-                lists: false,
-                children: [
-                  node("alerts", "Alert Investigations", 3),
-                  node("cli", "CLI", 1),
-                  ...(reviewCount
-                    ? [node("review", "Review", reviewCount)]
-                    : []),
-                ],
-              },
-            ],
+          groups: {
+            sec_alerts: "alerts",
+            sec_cli: "cli",
           },
-          settings: { showRecent: false, showForYou: false },
+          layout: [
+            {
+              ...node("auto", "Automations", 4),
+              lists: false,
+              children: [
+                node("alerts", "Alert Investigations", 3),
+                node("cli", "CLI", 1),
+              ],
+            },
+          ],
         },
-      );
-      const top = () => slot.getByRole("region", { name: "Automations" });
-      await waitFor(() =>
-        expect(groupRows(slot, "Automations")).toEqual([
-          "Rebase PR",
-          "Verify",
-          "Triage",
-          "Add flags",
-          ...Array.from({ length: reviewCount }, (_, i) => `Review ${i}`),
-        ]),
-      );
-      expect(
-        within(top())
-          .queryAllByRole("region")
-          .map((r) => r.getAttribute("aria-label")),
-      ).toEqual(
-        reviewCount
-          ? [
-              "Automations: Alert Investigations",
-              "Automations: CLI",
-              "Automations: Review",
-            ]
-          : [],
-      );
-      const row = within(top())
-        .getByRole("link", { name: "Add flags" })
-        .closest("li")!;
-      if (reviewCount) {
-        expect(row.closest("section")).toBe(
-          slot.getByRole("region", { name: "Automations: CLI" }),
-        );
-        expect(within(row).queryByText("CLI")).toBeNull();
-      } else {
-        expect(row.closest("section")).toBe(top());
-        expect(within(row).getByText("CLI")).toBeTruthy();
-        expect(row.querySelector("[data-timestamp]")?.textContent).toBe("now");
-      }
-      slot.lifecycle.unmount();
-    },
-  );
+        settings: { showRecent: false, showForYou: false },
+      },
+    );
+    const top = () => slot.getByRole("region", { name: "Automations" });
+    await waitFor(() =>
+      expect(groupRows(slot, "Automations")).toEqual([
+        "Rebase PR",
+        "Verify",
+        "Triage",
+        "Add flags",
+      ]),
+    );
+    expect(
+      within(top())
+        .queryAllByRole("region")
+        .map((r) => r.getAttribute("aria-label")),
+    ).toEqual([]);
+    const row = within(top())
+      .getByRole("link", { name: "Add flags" })
+      .closest("li")!;
+    expect(row.closest("section")).toBe(top());
+    expect(within(row).getByText("CLI")).toBeTruthy();
+    expect(row.querySelector("[data-timestamp]")?.textContent).toBe("now");
+    slot.lifecycle.unmount();
+  });
 
   it("renders categories as row headings within the same workstream and keeps delegates with their roots", async () => {
     const threads = Array.from({ length: 7 }, (_, i) =>

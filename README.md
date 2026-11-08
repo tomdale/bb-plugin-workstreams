@@ -1046,11 +1046,12 @@ ordinary runs skip them if neither is available. The optional real-snapshot test
 requires `WORKSTREAMS_SNAPSHOT`. Paid model evaluations and the plugin
 activation smoke check run separately.
 
-Tests use up to eight VM workers with isolated test contexts and reusable
-compiled dependency code. DOM tests use jsdom; layout checks use real Chrome
-with a fresh browser context per test. Server fixtures use real, disposable
-SQLite databases with synchronous disk flushing disabled; they cover
-transactions, migrations, and reopening storage, not recovery after power loss.
+Tests use up to eight worker processes with isolated VM test contexts and
+reusable compiled dependency code. Each process owns its native modules. DOM
+tests use jsdom; layout checks use real Chrome with a fresh browser context per
+test. Server fixtures use real, disposable SQLite databases with synchronous
+disk flushing disabled; they cover transactions, migrations, and reopening
+storage, not recovery after power loss.
 
 Component tests mount the real component through the SDK harness without loading
 unrelated UI surfaces. `tests/app/registration.test.tsx` checks the plugin's
@@ -1068,8 +1069,15 @@ and request invalidation. Their tests drive state changes and deferred responses
 without mounting a page. DOM tests cover the React boundary: selection and
 Snooze, pagination controls, filter changes, realtime refresh, and effect
 cleanup. The Activity wiring test supplies a small loader result; the headless
-tests exercise the real loader with full pages. Keep these tests in `npm test`,
-not a separate fast suite.
+tests exercise the real loader with full pages. Sidebar row presentation, count
+preferences, archive ancestry, band sorting, tree folding, and batch snooze
+membership run headlessly through `src/app/sidebar/{presentation,rows}.ts`.
+Grouping policy matrices live in
+`tests/domain/{groups,nested-groups,project, empty-workstreams}.test.ts`;
+sidebar integration tests keep representative rendering and interaction cases.
+Native row shortcuts, Archive, disclosure, and realtime preferences are tested
+on a single real row through the SDK harness, without mounting the whole
+sidebar. Keep these tests in `npm test`, not a separate fast suite.
 
 Run `npm run test:benchmark -- --runs 5 --output-dir /tmp/workstreams-benchmark`
 to measure full-suite wall-clock time, including npm and Vitest startup. The

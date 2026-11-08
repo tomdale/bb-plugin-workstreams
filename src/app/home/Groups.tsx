@@ -11,7 +11,7 @@ import {
 } from "../../domain/workstreamColor.ts";
 import { WorkstreamName } from "../WorkstreamName.tsx";
 import type { WorkView } from "../useWorkstreams.ts";
-import { hasStatusMark } from "../sidebar/Row.tsx";
+import { hasStatusMark } from "../sidebar/presentation.ts";
 import { FocusIcon } from "../sidebar/FocusIcon.tsx";
 import { HomeRow } from "./HomeRow.tsx";
 import {

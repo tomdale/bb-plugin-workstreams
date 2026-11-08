@@ -15,7 +15,7 @@ import {
   type TopicColor,
 } from "../../domain/workstreamColor.ts";
 import type { WorkView } from "../useWorkstreams.ts";
-import { hasNativeStatus, shownWorkState } from "../sidebar/Row.tsx";
+import { hasNativeStatus, shownWorkState } from "../sidebar/presentation.ts";
 import { StatusMark } from "../sidebar/StatusMark.tsx";
 
 /**

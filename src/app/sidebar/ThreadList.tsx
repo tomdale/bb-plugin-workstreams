@@ -49,7 +49,6 @@ import {
 import {
   arrangeGroups,
   focusedSections,
-  groupRoots,
   type WorkstreamNode,
 } from "../../domain/groups.ts";
 import { selectRecent } from "../../domain/upNext.ts";
@@ -66,7 +65,20 @@ import {
   type BandSortOption,
 } from "./useBandOptions.ts";
 import { NameDialog, type NameRequest } from "./NameDialog.tsx";
-import { Row, hasStatusMark } from "./Row.tsx";
+import { Row } from "./Row.tsx";
+import { hasStatusMark, headerCounts } from "./presentation.ts";
+import {
+  descendantsOf,
+  foldKey,
+  foldDefault,
+  treesOf,
+  unfoldedRows,
+  sortedBandRows,
+  planBandRows,
+  planArchived,
+  groupSnoozeRequest,
+  type Placement,
+} from "./rows.ts";
 import { HeaderMenu, RowMenu, type RowMenuHandlers } from "./RowMenu.tsx";
 import { TraceInspector } from "../debug/Inspector.tsx";
 import {
@@ -126,8 +138,6 @@ function inlineGroups(group: ThreadNode): ThreadNode[] {
 /** A group's own name, for its rows' label: "Walkthrough Plugin" for "bb: Walkthrough Plugin". */
 const shortLabel = (label: string) => label.split(/:\s*/).at(-1) ?? label;
 type ThreadRow = RowModel<PluginSidebarThread>;
-/** Where a row is drawn: its workstream group, or one of the overlays. */
-type Placement = "group" | "needs-you" | "recent" | "snoozed" | "archived";
 /**
  * Threads to snooze together, from a thread row or a workstream row.
  * `subject` names them in the toast ("4 threads in Alpha").
@@ -154,80 +164,8 @@ type GroupSnooze = {
 const groupKey = (id: string) => `ws:${id}`;
 const treeKey = (id: string) => `t:${id}`;
 
-/** Each row's descendants, in tree order, across these tree-ordered lists. */
-function descendantsOf(
-  lists: readonly (readonly ThreadRow[])[],
-): Map<string, ThreadRow[]> {
-  const out = new Map<string, ThreadRow[]>();
-  for (const rows of lists)
-    rows.forEach((row, index) => {
-      const below: ThreadRow[] = [];
-      for (const next of rows.slice(index + 1)) {
-        if (next.depth <= row.depth) break;
-        below.push(next);
-      }
-      if (below.length > 0) out.set(row.thread.id, below);
-    });
-  return out;
-}
-
-/**
- * Collapse-state key for a parent row. Overlay copies of a thread fold
- * independently of its place in its group.
- */
-const foldKey = (placement: Placement, id: string) =>
-  placement === "group" ? `thread:${id}` : `${placement}:thread:${id}`;
-/**
- * Parents start expanded where they are drawn as trees (groups, Snoozed)
- * and collapsed in the Up Next and Recent overlays.
- */
-const foldDefault = (placement: Placement) =>
-  placement === "needs-you" || placement === "recent";
 /** Overlays draw a row flat, with its children only when expanded. */
 const isOverlay = foldDefault;
-
-/** A group's rows split into trees, each led by its root. */
-function treesOf(rows: readonly ThreadRow[]): ThreadRow[][] {
-  const trees: ThreadRow[][] = [];
-  for (const row of rows)
-    if (row.depth === 0 || trees.length === 0) trees.push([row]);
-    else trees.at(-1)!.push(row);
-  return trees;
-}
-
-function compareBandRows(
-  a: ThreadRow,
-  b: ThreadRow,
-  sort: BandSort,
-  snoozeOf: (
-    thread: PluginSidebarThread,
-  ) => { until: number | null } | undefined,
-): number {
-  if (sort === "title")
-    return a.thread.displayTitle.localeCompare(b.thread.displayTitle);
-  if (sort === "wake") {
-    const wake = (row: ThreadRow) =>
-      snoozeOf(row.thread)?.until ?? Number.POSITIVE_INFINITY;
-    return wake(a) - wake(b);
-  }
-  if (sort === "archived")
-    return (b.thread.archivedAt ?? 0) - (a.thread.archivedAt ?? 0);
-  return b.thread.latestAttentionAt - a.thread.latestAttentionAt;
-}
-
-function sortedBandRows(
-  rows: readonly ThreadRow[],
-  sort: BandSort,
-  snoozeOf: (
-    thread: PluginSidebarThread,
-  ) => { until: number | null } | undefined,
-): ThreadRow[] {
-  return [...rows].sort(
-    (a, b) =>
-      compareBandRows(a, b, sort, snoozeOf) ||
-      a.thread.id.localeCompare(b.thread.id),
-  );
-}
 
 export function WorkstreamsThreadList({
   activeThreadId,
@@ -274,10 +212,11 @@ export function WorkstreamsThreadList({
     hasLower,
     lowerCounts,
   } = arrangement;
-  const lowerWaiting =
-    prefs?.sidebar.waitingCount !== "never" && lowerCounts.needsYou > 0;
-  const lowerTotal =
-    prefs?.sidebar.threadCount !== "never" && lowerCounts.total > 0;
+  const { waiting: lowerWaiting, total: lowerTotal } = headerCounts(
+    lowerCounts,
+    true,
+    prefs?.sidebar,
+  );
   const prioritized = focusedSections(arrangement, new Set(prioritizedIds));
 
   const upNextState = useRef(initialUpNextState);
@@ -299,43 +238,13 @@ export function WorkstreamsThreadList({
     ws.showForYou ? shownNeedsRows : [],
     ws.recentLimit,
   );
-  const archivedThreads = ws.showArchived
-    ? archived.threads.filter((thread) => thread.isArchived && !thread.isHidden)
-    : [];
-  const archivedById = new Map(
-    archivedThreads.map((thread) => [thread.id, thread]),
-  );
-  const archivedWorkstreamOf = (thread: PluginSidebarThread) => {
-    let root = thread;
-    const seen = new Set([thread.id]);
-    while (root.parentThreadId && !seen.has(root.parentThreadId)) {
-      const parent = archivedById.get(root.parentThreadId);
-      if (!parent) break;
-      seen.add(parent.id);
-      root = parent;
-    }
-    return root.sectionId;
-  };
-  const archivedRows: ThreadRow[] = archivedThreads.map((thread) => ({
-    thread,
-    depth: 0,
-    hasChildren: false,
-    workstreamId: archivedWorkstreamOf(thread),
-    needsYou: false,
-  }));
-  const archivedGroups = sections
-    .map((section) => ({
-      id: section.id,
-      name: section.name,
-      threads: archivedThreads.filter(
-        (thread) => archivedWorkstreamOf(thread) === section.id,
-      ),
-    }))
-    .filter((group) => group.threads.length > 0);
-  const unsortedArchived = archivedThreads.filter((thread) => {
-    const sectionId = archivedWorkstreamOf(thread);
-    return !sectionId || !nameOf.has(sectionId);
-  });
+  const {
+    threads: archivedThreads,
+    rows: archivedRows,
+    groups: archivedGroups,
+    unfiled: unsortedArchived,
+    workstreamOf: archivedWorkstreamOf,
+  } = planArchived(archived.threads, sections, ws.showArchived);
 
   const descendants = descendantsOf([
     ...[...projection.groups, projection.unsorted, ...projection.dormant].map(
@@ -345,19 +254,8 @@ export function WorkstreamsThreadList({
   ]);
   const folded = (placement: Placement, id: string) =>
     isCollapsed(foldKey(placement, id), foldDefault(placement));
-  /** Drops rows beneath a folded ancestor; `rows` must be in tree order. */
-  const unfolded = (rows: readonly ThreadRow[], placement: Placement) => {
-    const out: ThreadRow[] = [];
-    let hideBelow: number | null = null;
-    for (const row of rows) {
-      if (hideBelow !== null && row.depth > hideBelow) continue;
-      hideBelow = null;
-      out.push(row);
-      if (descendants.has(row.thread.id) && folded(placement, row.thread.id))
-        hideBelow = row.depth;
-    }
-    return out;
-  };
+  const unfolded = (rows: readonly ThreadRow[], placement: Placement) =>
+    unfoldedRows(rows, (id) => descendants.has(id) && folded(placement, id));
 
   const listRef = useRef<HTMLDivElement>(null);
   const captureLayout = useFlip(listRef, [...prioritized].sort().join(" "));
@@ -449,22 +347,18 @@ export function WorkstreamsThreadList({
   const groupSnoozeOf = (
     group: ThreadGroup | ThreadNode,
   ): GroupSnooze | undefined => {
-    if (group.total === 0) return undefined;
-    const count = `${group.total} ${group.total === 1 ? "thread" : "threads"}`;
-    const request: SnoozeRequest = {
-      threads: groupRoots(group),
-      subject: `${count} in ${group.name}`,
-    };
+    const request = groupSnoozeRequest(group);
+    if (!request) return undefined;
     const snooze = (when: SnoozeWhen) => applySnooze(request, when);
     const custom = () => setCustomSnooze(request);
     return {
-      label: `Snooze ${count}`,
+      label: request.label,
       title: `Snooze ${request.subject} ${defaultWakeText}`,
       run: () => snooze(defaultWake()),
       menu: (
         <SnoozeMenuItems
           kit={plainMenuKit}
-          heading={`Snooze ${count}`}
+          heading={request.label}
           now={now}
           prefs={snoozePrefs}
           onSnooze={snooze}
@@ -617,49 +511,29 @@ export function WorkstreamsThreadList({
   ) => {
     const options = bandOptions[section];
     const marks = anyMark(rows, placement);
-    const trees =
-      placement === "snoozed" ? treesOf(rows) : rows.map((row) => [row]);
-    const orderedTrees = [...trees].sort(
-      (a, b) =>
-        compareBandRows(a[0]!, b[0]!, options.sort, ws.snoozeOf) ||
-        a[0]!.thread.id.localeCompare(b[0]!.thread.id),
-    );
+    const planned = planBandRows(rows, placement, options, ws.snoozeOf, nameOf);
     const renderTrees = (items: readonly ThreadRow[][]) =>
       items.flatMap((tree) =>
         unfolded(tree, placement).map((row) =>
           renderRow(row, placement, undefined, marks),
         ),
       );
-    if (!options.grouped) return renderTrees(orderedTrees);
-    const groups = new Map<string | null, ThreadRow[][]>();
-    for (const tree of orderedTrees) {
-      const id = tree[0]!.workstreamId;
-      const group = groups.get(id) ?? [];
-      group.push(tree);
-      groups.set(id, group);
-    }
-    return [...groups.entries()]
-      .sort(([a], [b]) =>
-        (a ? (nameOf.get(a) ?? UNFILED_NAME) : UNFILED_NAME).localeCompare(
-          b ? (nameOf.get(b) ?? UNFILED_NAME) : UNFILED_NAME,
-        ),
-      )
-      .map(([id, groupTrees]) => {
-        const name = id ? (nameOf.get(id) ?? UNFILED_NAME) : UNFILED_NAME;
-        return (
-          <li key={`${placement}:${id ?? "unsorted"}`} className="list-none">
-            <section
-              aria-label={`${placement === "archived" ? "Archived " : `${placement[0]!.toUpperCase()}${placement.slice(1)} · `}${name}`}
-              className="px-1"
-            >
-              <h3 className="px-1.5 py-0.5 text-[12px] font-medium text-muted-foreground">
-                {name}
-              </h3>
-              <ul className="mt-0.5">{renderTrees(groupTrees)}</ul>
-            </section>
-          </li>
-        );
-      });
+    if (!options.grouped) return renderTrees(planned[0]!.trees);
+    return planned.map(({ id, name, trees: groupTrees }) => {
+      return (
+        <li key={`${placement}:${id ?? "unsorted"}`} className="list-none">
+          <section
+            aria-label={`${placement === "archived" ? "Archived " : `${placement[0]!.toUpperCase()}${placement.slice(1)} · `}${name}`}
+            className="px-1"
+          >
+            <h3 className="px-1.5 py-0.5 text-[12px] font-medium text-muted-foreground">
+              {name}
+            </h3>
+            <ul className="mt-0.5">{renderTrees(groupTrees)}</ul>
+          </section>
+        </li>
+      );
+    });
   };
   const renderOverlayTree = (
     row: ThreadRow,
@@ -1761,8 +1635,7 @@ function WorkstreamGroup({
   const incoming = useIncomingThread(group.id);
   const label = "label" in group ? group.label : group.name;
   const isWorkstream = "hasSection" in group && group.hasSection;
-  const shows = (when: "always" | "collapsed" | "never" = "collapsed") =>
-    when === "always" || (when === "collapsed" && collapsed);
+  const counts = headerCounts(group, collapsed, prefs?.sidebar);
   const focusAction = onToggleFocus ? (
     <HoverAction
       compact
@@ -1885,7 +1758,7 @@ function WorkstreamGroup({
           </RowActions>
           {/* The header's details, as a thread row's age. */}
           <span className="flex shrink-0 items-center gap-1 empty:hidden">
-            {shows(prefs?.sidebar.waitingCount) && group.needsYou > 0 ? (
+            {counts.waiting ? (
               <span
                 className="ws-needs-you-pill rounded-full px-1.5 text-[11px] font-medium tabular-nums transition-colors duration-300"
                 title={`${group.needsYou} waiting on you`}
@@ -1893,7 +1766,7 @@ function WorkstreamGroup({
                 {group.needsYou}
               </span>
             ) : null}
-            {shows(prefs?.sidebar.threadCount) && group.total > 0 ? (
+            {counts.total ? (
               <span className="text-[11px] tabular-nums text-muted-foreground/70">
                 {group.total}
               </span>

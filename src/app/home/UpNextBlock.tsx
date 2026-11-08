@@ -3,7 +3,7 @@ import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import type { Row } from "../../domain/project.ts";
 import type { TopicColor } from "../../domain/workstreamColor.ts";
 import type { WorkView } from "../useWorkstreams.ts";
-import { hasStatusMark } from "../sidebar/Row.tsx";
+import { hasStatusMark } from "../sidebar/presentation.ts";
 import { FocusIcon } from "../sidebar/FocusIcon.tsx";
 import { HomeRow } from "./HomeRow.tsx";
 

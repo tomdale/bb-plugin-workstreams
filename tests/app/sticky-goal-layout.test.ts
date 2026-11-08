@@ -92,6 +92,13 @@ browserTest.skipIf(browserUnavailable)(
         document.querySelector<HTMLElement>(".surface")!.style.background =
           theme === "dark" ? "white" : "black";
       }, theme);
+      // Let the theme's styles reach the compositor before sampling pixels.
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          }),
+      );
       const image = await page.screenshot();
       const samples = await page.evaluate(
         async (source) => {
