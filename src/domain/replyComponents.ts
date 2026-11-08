@@ -163,7 +163,13 @@ const delivery = z
       z
         .object({
           name: text,
-          status: z.enum(["done", "pending", "blocked", "unknown"]),
+          status: z.enum([
+            "done",
+            "pending",
+            "blocked",
+            "not-started",
+            "unknown",
+          ]),
           detail: text.optional(),
           evidence: list(evidenceSchema).optional(),
         })

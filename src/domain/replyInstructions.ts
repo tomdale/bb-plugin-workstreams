@@ -54,7 +54,7 @@ Compose components as statements in workstreams fences inside the reply block, a
 ${signatureLines().join("\n")}
 comparison: essential reasons belong in summary or qualification; consequential trade-offs in qualification; supporting explanation in detail. Numerical scores need a stated measurement or scoring method.
 checks: testTotals uses actual nonnegative counts.
-delivery: reported status is not independent proof.
+delivery: reported status is not independent proof; not-started is a stage nobody has reached, and blocked is a stage that cannot proceed.
 details: required actions and important qualifications stay with what they qualify.
 group: relationship is peers for comparable pieces or supporting for explanation plus support; children are components or lists of components kept together, at most 8 components in total, with no nested group.
 Evidence entries link reported checks and delivery stages to real reports, source, or artifacts. location is HTTPS or a literal file path; line and endLine (1-based) need a file path. Distinguish a mock's presentation check from verifying its claims. Workspace files use relative paths; external files use absolute paths.

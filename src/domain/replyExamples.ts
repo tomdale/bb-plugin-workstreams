@@ -104,6 +104,11 @@ export const COMPONENT_EXAMPLES: Record<
         detail: "The coupon change is committed on the feature branch.",
       },
       { name: "Pushed", status: "pending", detail: "No push was requested." },
+      {
+        name: "Deployed",
+        status: "not-started",
+        detail: "Deployment follows the merge.",
+      },
     ],
   },
   recommendation: {

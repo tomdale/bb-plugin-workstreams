@@ -48,10 +48,20 @@ export const CHECK_STATUS: Record<CheckStatus, StatusShape> = {
   untested: { word: "Untested", path: RING, dashed: true, tone: MUTED },
 };
 
+/**
+ * `not-started` is a stage nobody has reached; `blocked` is one that cannot
+ * proceed, and only blocked is a warning.
+ */
 export const STAGE_STATUS: Record<StageStatus, StatusShape> = {
   done: { word: "Done", path: CHECK, tone: SUCCESS },
   pending: { word: "Pending", path: RING, tone: WAITING },
   blocked: { word: "Blocked", path: RING_SLASH, tone: NEEDS_YOU },
+  "not-started": {
+    word: "Not started",
+    path: RING,
+    dashed: true,
+    tone: MUTED,
+  },
   unknown: { word: "Unknown", path: RING, dashed: true, tone: MUTED },
 };
 

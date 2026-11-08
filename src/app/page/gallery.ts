@@ -256,7 +256,7 @@ const held = block([
       },
       {
         name: "Deployed",
-        status: "blocked",
+        status: "not-started",
         detail: "The plugin reloads after merge.",
       },
       {
@@ -353,7 +353,7 @@ export const SPECIMENS: readonly Specimen[] = [
   {
     title: "A change that is not ready",
     intro:
-      "The same parts reporting what went wrong: a failing check, a blocked row, a delivery that stops before it ships, and the recommendation that follows from them.",
+      "The same parts reporting what went wrong: a failing check, a blocked row, a stage nobody has reached, and the recommendation that follows from them.",
     messages: [
       { from: "user", text: "Is it ready to review?" },
       {
@@ -362,6 +362,7 @@ export const SPECIMENS: readonly Specimen[] = [
         features: [
           "checks with a failure",
           "blocked row",
+          "not-started stage",
           "delivery",
           "recommendation",
         ],

@@ -340,6 +340,8 @@ describe("liberal component input", () => {
       expect(stage("todo")).toBe("pending");
       expect(stage("failed")).toBe("blocked");
       expect(stage("unclear")).toBe("unknown");
+      expect(stage("not started")).toBe("not-started");
+      expect(stage("NotStarted")).toBe("not-started");
     });
 
     it("matches group relationships", () => {

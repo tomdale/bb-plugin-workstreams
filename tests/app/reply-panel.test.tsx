@@ -151,6 +151,37 @@ it("prints every row's status word at the row's edge, in its tone", () => {
   ]);
 });
 
+it("draws a stage nobody has reached as a dashed ring, not a warning", () => {
+  const view = draw({
+    type: "delivery",
+    title: "Where the fix stands",
+    scope: "branch fix/queue",
+    stages: [
+      { name: "Committed", status: "done" },
+      { name: "Deployed", status: "not-started" },
+    ],
+  });
+  const row = view.querySelector('[data-reply-delivery-stage="not-started"]')!;
+  expect(row.querySelector("[data-reply-status-word]")?.textContent).toBe(
+    "Not started",
+  );
+  expect(row.querySelector("[data-reply-status-word]")?.className).toContain(
+    "text-muted-foreground",
+  );
+  // A broken ring: the state has no result to report yet.
+  expect(
+    row
+      .querySelector("[data-reply-stage-status] svg")
+      ?.getAttribute("stroke-dasharray"),
+  ).toBe("2 2.4");
+  // Reaching no stage is not a failure, so the panel keeps its neutral tone.
+  expect(
+    view
+      .querySelector("[data-reply-panel]")!
+      .hasAttribute("data-reply-panel-failure"),
+  ).toBe(false);
+});
+
 it("joins a supporting group into one frame and draws its children unframed", () => {
   const view = draw({
     type: "group",
