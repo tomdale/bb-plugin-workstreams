@@ -40,8 +40,10 @@ type Token = Span &
   );
 
 class Fail extends Error {
-  constructor(readonly info: SyntaxIssue) {
+  readonly info: SyntaxIssue;
+  constructor(info: SyntaxIssue) {
     super(info.message);
+    this.info = info;
   }
 }
 const fail = (message: string, start: number, end = start + 1): never => {
@@ -103,10 +105,9 @@ function lexString(source: string, at: number): [Token, number] {
 class Lexer {
   private buffer: Token[] = [];
   private pos: number;
-  constructor(
-    private readonly source: string,
-    from: number,
-  ) {
+  private readonly source: string;
+  constructor(source: string, from: number) {
+    this.source = source;
     this.pos = from;
   }
   peek(ahead = 0): Token {
@@ -206,7 +207,10 @@ export function parseStatements(source: string): Statement[] {
 }
 
 class Parser {
-  constructor(private readonly lexer: Lexer) {}
+  private readonly lexer: Lexer;
+  constructor(lexer: Lexer) {
+    this.lexer = lexer;
+  }
   private get peek(): Token {
     return this.lexer.peek();
   }
