@@ -32,6 +32,10 @@ export class WorkstreamService {
   private lastReconciledAt: number | null = null;
   private lastThreads: InventoryThread[] = [];
   private lastSections: Section[] = [];
+  private population: {
+    populated: ReadonlySet<string>;
+    retained: ReadonlySet<string>;
+  } | null = null;
 
   constructor(
     private readonly sdk: () => Sdk,

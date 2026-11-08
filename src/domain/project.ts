@@ -125,6 +125,54 @@ function compareChildren(a: WorkstreamThread, b: WorkstreamThread): number {
   return a.createdAt - b.createdAt || a.id.localeCompare(b.id);
 }
 
+/** The next quiet workstream's transition into dormancy, if one is pending. */
+export function nextDormancyDeadline<T extends WorkstreamThread>(
+  threads: readonly T[],
+  sections: readonly Section[],
+  options: Pick<
+    ProjectionOptions<T>,
+    "now" | "dormantAfterMs" | "needsYou" | "order" | "snoozedUntil"
+  >,
+): number | undefined {
+  const visible = threads.filter(
+    (thread) => !thread.isHidden && !thread.isArchived,
+  );
+  const forest = buildForest(visible);
+  const known = new Set(sections.map((section) => section.id));
+  const prioritized = new Set(options.order?.prioritized ?? []);
+  const wakeOf = options.snoozedUntil ?? (() => undefined);
+  const needsYou =
+    options.needsYou ?? ((thread: T) => thread.hasPendingInteraction);
+  const stats = new Map<string, { lastActiveAt: number; needsYou: boolean }>();
+  const visit = (node: TreeNode<T>, key: string) => {
+    if (wakeOf(node.thread) !== undefined) return;
+    if (key !== UNSORTED_ID) {
+      const stat = stats.get(key) ?? { lastActiveAt: 0, needsYou: false };
+      stat.lastActiveAt = Math.max(
+        stat.lastActiveAt,
+        node.thread.latestAttentionAt,
+      );
+      stat.needsYou ||= needsYou(node.thread);
+      stats.set(key, stat);
+    }
+    for (const child of node.children) visit(child, key);
+  };
+  for (const root of forest.roots) {
+    const sectionId = root.thread.sectionId;
+    visit(root, sectionId && known.has(sectionId) ? sectionId : UNSORTED_ID);
+  }
+
+  const dormantAfterMs = options.dormantAfterMs ?? 30 * DAY_MS;
+  let next = Number.POSITIVE_INFINITY;
+  for (const [id, stat] of stats) {
+    if (stat.needsYou || prioritized.has(id)) continue;
+    // Dormancy uses a strict age comparison, so wake just after the boundary.
+    const deadline = stat.lastActiveAt + dormantAfterMs + 1;
+    if (deadline > options.now) next = Math.min(next, deadline);
+  }
+  return Number.isFinite(next) ? next : undefined;
+}
+
 export function projectWorkstreams<T extends WorkstreamThread>(
   threads: readonly T[],
   sections: readonly Section[],

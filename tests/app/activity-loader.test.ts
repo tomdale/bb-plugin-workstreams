@@ -210,6 +210,57 @@ it("keeps the previous trace view if a later page fails, then clears the error o
   expect(sink.calls).toHaveBeenLastCalledWith([], false);
 });
 
+it("coalesces a realtime burst to one active load and one trailing refresh", async () => {
+  const first = deferred<(typeof entry)[]>();
+  const second = deferred<(typeof entry)[]>();
+  const journal = vi
+    .fn()
+    .mockReturnValueOnce(first.promise)
+    .mockReturnValueOnce(second.promise);
+  const { loader, source, sink } = fixture({ journal });
+  const loading = loader.refresh(query);
+  loader.refresh(query);
+  loader.refresh(query);
+  loader.refresh(query);
+  expect(source.journal).toHaveBeenCalledTimes(1);
+
+  first.resolve([entry]);
+  await loading;
+  await vi.waitFor(() => expect(source.journal).toHaveBeenCalledTimes(2));
+  expect(source.journal).toHaveBeenCalledTimes(2);
+  second.resolve([{ ...entry, id: "trailing" }]);
+  await vi.waitFor(() =>
+    expect(sink.entries).toHaveBeenLastCalledWith([
+      { ...entry, id: "trailing" },
+    ]),
+  );
+  expect(source.journal).toHaveBeenCalledTimes(2);
+});
+
+it("keeps filter changes immediate and drops an older trailing realtime refresh", async () => {
+  const old = deferred<(typeof entry)[]>();
+  const journal = vi
+    .fn()
+    .mockReturnValueOnce(old.promise)
+    .mockResolvedValue([{ ...entry, id: "filtered" }]);
+  const { loader, source, sink } = fixture({ journal });
+  const realtime = loader.refresh(query);
+  loader.refresh(query);
+  await loader.load({ ...query, external: true });
+  expect(source.journal).toHaveBeenCalledTimes(2);
+  expect(sink.entries).toHaveBeenCalledExactlyOnceWith([
+    { ...entry, id: "filtered" },
+  ]);
+
+  old.resolve([entry]);
+  await realtime;
+  await Promise.resolve();
+  expect(source.journal).toHaveBeenCalledTimes(2);
+  expect(sink.entries).toHaveBeenCalledExactlyOnceWith([
+    { ...entry, id: "filtered" },
+  ]);
+});
+
 it("invalidates an older page when Debug is turned off", async () => {
   const full = Array.from({ length: TRACE_PAGE }, (_, i) => trace(`call-${i}`));
   const older = deferred<TraceSummary[]>();

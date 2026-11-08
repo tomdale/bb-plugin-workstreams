@@ -42,6 +42,7 @@ import {
   type WorkstreamThread,
 } from "./project.ts";
 import type { UpNextKind } from "./status.ts";
+import { buildForest } from "./tree.ts";
 
 /** Up Next trims threads not blocked on the user down to this many rows. */
 export const UP_NEXT_LIMIT = 5;
@@ -108,6 +109,34 @@ export function agedKind(
     now - thread.latestAttentionAt > UP_NEXT_STALE_AFTER_MS
     ? "other"
     : kind;
+}
+
+/** The next review or decision's transition out of its blocked tier. */
+export function nextUpNextDeadline<T extends UpNextThread>(
+  threads: readonly T[],
+  options: Pick<UpNextOptions<T>, "kindOf" | "now"> & {
+    readonly snoozedUntil?: (thread: T) => number | null | undefined;
+  },
+): number | undefined {
+  const visible = threads.filter(
+    (thread) => !thread.isHidden && !thread.isArchived,
+  );
+  const wakeOf = options.snoozedUntil ?? (() => undefined);
+  let next = Number.POSITIVE_INFINITY;
+  for (const root of buildForest(visible).roots) {
+    const thread = root.thread;
+    if (
+      wakeOf(thread) !== undefined ||
+      isRunning(thread) ||
+      thread.hasPendingInteraction
+    )
+      continue;
+    if (!isBlockedOnUser(options.kindOf(thread))) continue;
+    // Staleness uses a strict age comparison, so wake just after the boundary.
+    const deadline = thread.latestAttentionAt + UP_NEXT_STALE_AFTER_MS + 1;
+    if (deadline > options.now) next = Math.min(next, deadline);
+  }
+  return Number.isFinite(next) ? next : undefined;
 }
 
 type UpNextSelection<T extends WorkstreamThread> = {

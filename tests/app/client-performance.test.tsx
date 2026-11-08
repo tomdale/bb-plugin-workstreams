@@ -18,17 +18,11 @@ import { parsePrefs } from "../../src/domain/prefs.ts";
 import { topicIndex } from "../../src/domain/topic-path.ts";
 import { parseSpinner, type SpinnerStyle } from "../../src/domain/spinner.ts";
 import { DEFAULT_SNOOZE_PREFS } from "../../src/domain/snooze.ts";
-<<<<<<< HEAD
-||||||| parent of 8aca315 (make row hints and menus lazy and narrow preference/catalog subscriptions)
-import { EMPTY_WORKSTREAM_GRACE_MS } from "../../src/domain/empty-workstreams.ts";
-=======
-import { EMPTY_WORKSTREAM_GRACE_MS } from "../../src/domain/empty-workstreams.ts";
 import { Row } from "../../src/app/sidebar/Row.tsx";
 import {
   RowMenu,
   type RowMenuHandlers,
 } from "../../src/app/sidebar/RowMenu.tsx";
->>>>>>> 8aca315 (make row hints and menus lazy and narrow preference/catalog subscriptions)
 import { section, sidebarThread } from "./fixtures.ts";
 
 const harness = vi.hoisted(() => ({

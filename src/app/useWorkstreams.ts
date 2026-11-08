@@ -9,6 +9,7 @@ import { useStableSidebarThreads } from "./useStableSidebarThreads.ts";
 import { projectWorkstreams, type Projection } from "../domain/project.ts";
 import type { Recap } from "../domain/recap.ts";
 import { needsAttention, upNextKind, workView } from "../domain/status.ts";
+import { nextUpNextDeadline } from "../domain/upNext.ts";
 import type { ManualOrder } from "../domain/order.ts";
 import { RECENT_LIMIT } from "../domain/prefs.ts";
 import type { StoredAnalysis } from "../server/analyzer.ts";
@@ -60,14 +61,23 @@ export function useServerState() {
 
 export type { WorkView } from "../domain/status.ts";
 
-/** Refreshes ages each minute, or at an earlier visibility deadline. */
-export function useNow(intervalMs = 60_000, deadline?: number): number {
+/** Refreshes ages on an interval, or only at a visibility deadline. */
+export function useNow(
+  intervalMs: number | null = 60_000,
+  deadline?: number,
+): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const delay =
-      deadline !== undefined && deadline > Date.now()
-        ? Math.min(intervalMs, deadline - Date.now())
-        : intervalMs;
+    let delay = intervalMs;
+    if (
+      deadline !== undefined &&
+      (intervalMs === null || deadline > Date.now())
+    )
+      delay = Math.max(
+        0,
+        Math.min(intervalMs ?? Number.POSITIVE_INFINITY, deadline - Date.now()),
+      );
+    if (delay === null) return;
     const timer = setTimeout(() => setNow(Date.now()), delay);
     return () => clearTimeout(timer);
   }, [intervalMs, deadline, now]);
@@ -80,15 +90,38 @@ export function useWorkstreams() {
   const { rpc, server, refresh, reorder, setSnoozes } = useServerState();
 
   const { analysis, recaps, order, snoozes, catalog } = server;
+  const sampledAt = Date.now();
   const deadline = Math.min(
     ...Object.values(snoozes)
       .map((snooze) => snooze.until)
-      .filter((until): until is number => until !== null && until > Date.now()),
+      .filter((until): until is number => until !== null && until > sampledAt),
+    nextDormancyDeadline(threads, sections, {
+      now: sampledAt,
+      needsYou: (thread) => {
+        const work = workView(thread, analysis[thread.id], recaps[thread.id]);
+        return needsAttention(thread, work);
+      },
+      order,
+      snoozedUntil: (thread) => {
+        const snooze = snoozes[thread.id];
+        return isSnoozed(snooze, sampledAt) ? snooze!.until : undefined;
+      },
+    }) ?? Number.POSITIVE_INFINITY,
+    nextUpNextDeadline(threads, {
+      kindOf: (thread) =>
+        upNextKind(
+          thread,
+          workView(thread, analysis[thread.id], recaps[thread.id]),
+        ),
+      now: sampledAt,
+      snoozedUntil: (thread) => {
+        const snooze = snoozes[thread.id];
+        return isSnoozed(snooze, sampledAt) ? snooze!.until : undefined;
+      },
+    }) ?? Number.POSITIVE_INFINITY,
   );
-  const clock = useNow(
-    60_000,
-    Number.isFinite(deadline) ? deadline : undefined,
-  );
+  const displayNow = useNow();
+  const clock = useNow(null, Number.isFinite(deadline) ? deadline : undefined);
   // Parent rerenders keep the projection's clock stable. A timer deadline or
   // new projection input samples the current time for time-sensitive updates.
   const now = useMemo(
@@ -151,7 +184,7 @@ export function useWorkstreams() {
       workView(thread, analysis[thread.id], recaps[thread.id]),
     upNextOptions,
     now,
-    displayNow: clock,
+    displayNow,
     rpc,
     refresh,
     reorder,

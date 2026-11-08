@@ -22,6 +22,7 @@ import {
   QuestionOptionPreview,
 } from "./question-presentation.tsx";
 import { formatQuestionText } from "./question-markdown.ts";
+import { shareJson } from "../structuralSharing.ts";
 
 // BB's timeline pins layout changes to the bottom. A synthetic scroll session
 // lets its position keeper detach after the card grows; otherwise the disclosure
@@ -376,19 +377,81 @@ export function QuestionHistoryInline({
     record: QuestionHistory | null;
   } | null>(null);
   const direct = questionResultRecord(payload, row.id, row.startedAt);
-  const load = useCallback(async () => {
-    const prefix = `${row.threadId}:form:`;
-    if (!row.id.startsWith(prefix)) return;
-    const value = await rpc
-      .call("question_at", {
-        threadId: row.threadId,
-        interactionId: row.id.slice(prefix.length),
-      })
-      .catch(() => null);
-    setLoaded({ rowId: row.id, record: value });
-  }, [rpc, row.id, row.threadId]);
+  const directRef = useRef(direct);
+  directRef.current = direct;
+  const finalRef = useRef(false);
+  finalRef.current =
+    direct !== null ||
+    (loaded?.rowId === row.id &&
+      loaded.record !== null &&
+      loaded.record.status !== "pending" &&
+      loaded.record.status !== "unknown");
+  const scheduler = useRef({
+    key: "",
+    generation: 0,
+    inFlight: false,
+    trailing: false,
+  });
+  const load = useCallback(
+    async (initial = false) => {
+      const prefix = `${row.threadId}:form:`;
+      if (!row.id.startsWith(prefix) || (!initial && finalRef.current)) return;
+      const state = scheduler.current;
+      const key = row.id;
+      if (state.key !== key) {
+        state.key = key;
+        state.generation++;
+        state.inFlight = false;
+        state.trailing = false;
+      }
+      if (state.inFlight) {
+        state.trailing = true;
+        return;
+      }
+      state.inFlight = true;
+      const generation = state.generation;
+      try {
+        do {
+          state.trailing = false;
+          const value = await rpc
+            .call("question_at", {
+              threadId: row.threadId,
+              interactionId: row.id.slice(prefix.length),
+            })
+            .catch(() => null);
+          if (state.generation !== generation) return;
+          setLoaded((previous) => {
+            if (previous?.rowId === row.id) {
+              const record = shareJson(previous.record, value);
+              return record === previous.record
+                ? previous
+                : { rowId: row.id, record };
+            }
+            return { rowId: row.id, record: value };
+          });
+          if (
+            directRef.current ||
+            (value && value.status !== "pending" && value.status !== "unknown")
+          )
+            state.trailing = false;
+        } while (state.trailing);
+      } finally {
+        if (state.generation === generation) state.inFlight = false;
+      }
+    },
+    [rpc, row.id, row.threadId],
+  );
   useEffect(() => {
-    void load();
+    const state = scheduler.current;
+    state.generation++;
+    state.inFlight = false;
+    state.trailing = false;
+    void load(true);
+    return () => {
+      state.generation++;
+      state.inFlight = false;
+      state.trailing = false;
+    };
   }, [load]);
   useRealtime("changed", () => void load());
   const record = loaded?.rowId === row.id ? loaded.record : null;

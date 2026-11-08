@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useRealtime,
   useRpc,
@@ -20,6 +20,7 @@ import { CallRow } from "./CallRow.tsx";
 import { ActivityTerm } from "./ActivityTerm.tsx";
 import { ActivityThreadLink } from "./ActivityThreadLink.tsx";
 import { compareGroupNames } from "../../domain/group-name-order.ts";
+import { shareJson } from "../structuralSharing.ts";
 import { SelectField } from "../SelectField.tsx";
 import {
   createActivityLoader,
@@ -124,6 +125,133 @@ type Item =
   | { kind: "entry"; at: number; entry: JournalEntry }
   | { kind: "call"; at: number; trace: TraceSummary };
 
+const ActivityEntryRow = memo(function ActivityEntryRow({
+  entry,
+  debug,
+  focused,
+  undo,
+}: {
+  entry: JournalEntry;
+  debug: boolean;
+  focused: boolean;
+  undo: (entry: JournalEntry) => Promise<void>;
+}) {
+  const time = useMemo(() => {
+    const date = new Date(entry.at);
+    const localized = date.toLocaleString();
+    return {
+      iso: date.toISOString(),
+      localized,
+      clock: date.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+  }, [entry.at]);
+  return (
+    <li
+      className={cn(
+        "group/entry grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-baseline gap-x-3 rounded-md px-2 py-2 text-[13px] hover:bg-state-hover/50",
+        (entry.status === "undone" || entry.status === "dismissed") &&
+          "opacity-60",
+        focused && "rounded-md bg-state-hover",
+      )}
+    >
+      <time
+        className="whitespace-nowrap text-[11px] tabular-nums text-muted-foreground"
+        dateTime={time.iso}
+        title={time.localized}
+        aria-label={time.localized}
+      >
+        {time.clock}
+      </time>
+      <div className="min-w-0">
+        <div className="break-words">
+          <span className="mr-1.5 text-xs text-muted-foreground">
+            <ActivityTerm
+              label={ACTION_LABEL[entry.action]}
+              description={ACTION_HELP[entry.action]}
+              quiet
+            />
+          </span>
+          <span>{entry.rationale}</span>
+          {entry.threads.length ? (
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+              {entry.threads.map((thread) => (
+                <ActivityThreadLink
+                  key={thread.id}
+                  threadId={thread.id}
+                  fallback={thread.name}
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {entry.detail ? (
+            <span className="block text-xs text-muted-foreground">
+              {entry.detail}
+            </span>
+          ) : null}
+          {debug ? (
+            <details className="mt-1 text-xs text-muted-foreground [&:not([open])]:opacity-0 focus-within:opacity-100 group-hover/entry:opacity-100">
+              <summary className="w-fit cursor-pointer rounded hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+                Technical details
+              </summary>
+              {entry.traceIds?.length ? (
+                <div className="mt-2 flex items-center gap-1">
+                  <span>Inspect supporting model calls</span>
+                  <InspectButton
+                    target={{ link: { kind: "entry", ref: entry.id } }}
+                    title={`Model calls behind: ${entry.rationale}`}
+                    label="Inspect the model calls behind this change"
+                  />
+                </div>
+              ) : null}
+              <dl className="my-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+                <dt>Source</dt>
+                <dd>{SOURCE_LABEL[entry.source]}</dd>
+                <dt>Event ID</dt>
+                <dd className="break-all" translate="no">
+                  {entry.id}
+                </dd>
+              </dl>
+              <details>
+                <summary className="cursor-pointer">Raw event JSON</summary>
+                <pre className="mt-1 max-w-full overflow-x-auto whitespace-pre-wrap break-all rounded-md bg-state-hover p-2">
+                  {JSON.stringify(entry, null, 2)}
+                </pre>
+              </details>
+            </details>
+          ) : null}
+        </div>
+      </div>
+      <span className="flex items-center gap-2 text-xs">
+        {entry.status !== "applied" ? (
+          <span
+            className={cn(
+              "text-muted-foreground",
+              (entry.status === "failed" || entry.status === "partial") &&
+                "text-destructive",
+            )}
+          >
+            <ActivityTerm {...ENTRY_STATUS[entry.status]} />
+          </span>
+        ) : null}
+        {entry.undo &&
+        ["applied", "partial", "failed"].includes(entry.status) ? (
+          <button
+            type="button"
+            onClick={() => void undo(entry)}
+            className="text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/entry:opacity-100"
+          >
+            Undo
+          </button>
+        ) : null}
+      </span>
+    </li>
+  );
+});
+
 /**
  * The Activity log: every change Workstreams made or observed, and every
  * proposal, with filters by workstream, action, and needs-review.
@@ -171,9 +299,10 @@ export function Activity({
             rpc.call("traces", input).then((result) => result.traces),
         },
         {
-          entries: setEntries,
+          entries: (entries) =>
+            setEntries((previous) => shareJson(previous, entries)),
           calls: (calls, more) => {
-            setCalls(calls);
+            setCalls((previous) => shareJson(previous, calls));
             setMoreCalls(more);
           },
           error: setError,
@@ -185,7 +314,11 @@ export function Activity({
     () => loader.load({ external, debug, traceLimit, callKind }),
     [loader, external, debug, traceLimit, callKind],
   );
-  useRealtime("changed", load);
+  const refresh = useCallback(
+    () => loader.refresh({ external, debug, traceLimit, callKind }),
+    [loader, external, debug, traceLimit, callKind],
+  );
+  useRealtime("changed", refresh);
   useEffect(() => {
     void load();
     return () => loader.cancel();
@@ -216,58 +349,80 @@ export function Activity({
     }
   };
 
-  const undo = async (entry: JournalEntry) => {
-    setError(null);
-    try {
-      await rpc.call("undo", { entryId: entry.id });
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  };
-
-  const shownEntries = (entries ?? []).filter(
-    (entry) =>
-      !(debug && (action === MODEL_CALLS || failuresOnly || callKind)) &&
-      (!workstream || entry.workstreams.some((w) => w.id === workstream)) &&
-      (!action ||
-        (!debug && action === MODEL_CALLS) ||
-        entry.action === action),
+  const undo = useCallback(
+    async (entry: JournalEntry) => {
+      setError(null);
+      try {
+        await rpc.call("undo", { entryId: entry.id });
+        await load();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    },
+    [rpc, load],
   );
-  const shownCalls =
-    debug && showCalls && (!action || action === MODEL_CALLS)
-      ? calls.filter(
-          (trace) =>
-            (!callKind || trace.kind === callKind) &&
-            (!failuresOnly || trace.status !== "ok") &&
-            (!workstream ||
-              trace.threads.some((id) => workstreamOf?.(id) === workstream)),
-        )
-      : [];
-  const callCost = shownCalls.reduce((sum, t) => sum + (t.usage?.cost ?? 0), 0);
-  const items: Item[] = [
-    ...shownEntries.map((entry) => ({
-      kind: "entry" as const,
-      at: entry.at,
-      entry,
-    })),
-    ...shownCalls.map((trace) => ({
-      kind: "call" as const,
-      at: trace.at,
-      trace,
-    })),
-  ].sort((a, b) => b.at - a.at);
-  const hasAnyVisibleActivity =
-    (entries?.length ?? 0) > 0 ||
-    (debug && calls.length > 0) ||
-    Boolean(workstream || action || (debug && (callKind || failuresOnly)));
-  const days: { label: string; items: Item[] }[] = [];
-  for (const item of items) {
-    const label = day(item.at);
-    const last = days[days.length - 1];
-    if (last?.label === label) last.items.push(item);
-    else days.push({ label, items: [item] });
-  }
+
+  const { shownCalls, callCost, items, hasAnyVisibleActivity, days } =
+    useMemo(() => {
+      const shownEntries = (entries ?? []).filter(
+        (entry) =>
+          !(debug && (action === MODEL_CALLS || failuresOnly || callKind)) &&
+          (!workstream || entry.workstreams.some((w) => w.id === workstream)) &&
+          (!action ||
+            (!debug && action === MODEL_CALLS) ||
+            entry.action === action),
+      );
+      const shownCalls =
+        debug && showCalls && (!action || action === MODEL_CALLS)
+          ? calls.filter(
+              (trace) =>
+                (!callKind || trace.kind === callKind) &&
+                (!failuresOnly || trace.status !== "ok") &&
+                (!workstream ||
+                  trace.threads.some(
+                    (id) => workstreamOf?.(id) === workstream,
+                  )),
+            )
+          : [];
+      const callCost = shownCalls.reduce(
+        (sum, trace) => sum + (trace.usage?.cost ?? 0),
+        0,
+      );
+      const items: Item[] = [
+        ...shownEntries.map((entry) => ({
+          kind: "entry" as const,
+          at: entry.at,
+          entry,
+        })),
+        ...shownCalls.map((trace) => ({
+          kind: "call" as const,
+          at: trace.at,
+          trace,
+        })),
+      ].sort((a, b) => b.at - a.at);
+      const hasAnyVisibleActivity =
+        (entries?.length ?? 0) > 0 ||
+        (debug && calls.length > 0) ||
+        Boolean(workstream || action || (debug && (callKind || failuresOnly)));
+      const days: { label: string; items: Item[] }[] = [];
+      for (const item of items) {
+        const label = day(item.at);
+        const last = days[days.length - 1];
+        if (last?.label === label) last.items.push(item);
+        else days.push({ label, items: [item] });
+      }
+      return { shownCalls, callCost, items, hasAnyVisibleActivity, days };
+    }, [
+      entries,
+      calls,
+      debug,
+      action,
+      failuresOnly,
+      callKind,
+      workstream,
+      showCalls,
+      workstreamOf,
+    ]);
 
   return (
     <div className="mt-5">
@@ -428,120 +583,14 @@ export function Activity({
             {list.map((item) => {
               if (item.kind === "call")
                 return <CallRow key={item.trace.id} trace={item.trace} />;
-              const { entry } = item;
               return (
-                <li
-                  key={entry.id}
-                  className={cn(
-                    "group/entry grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-baseline gap-x-3 rounded-md px-2 py-2 text-[13px] hover:bg-state-hover/50",
-                    (entry.status === "undone" ||
-                      entry.status === "dismissed") &&
-                      "opacity-60",
-                    focus !== null &&
-                      entry.id === focus &&
-                      "rounded-md bg-state-hover",
-                  )}
-                >
-                  <time
-                    className="whitespace-nowrap text-[11px] tabular-nums text-muted-foreground"
-                    dateTime={new Date(entry.at).toISOString()}
-                    title={new Date(entry.at).toLocaleString()}
-                    aria-label={new Date(entry.at).toLocaleString()}
-                  >
-                    {new Date(entry.at).toLocaleTimeString(undefined, {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </time>
-                  <div className="min-w-0">
-                    <div className="break-words">
-                      <span className="mr-1.5 text-xs text-muted-foreground">
-                        <ActivityTerm
-                          label={ACTION_LABEL[entry.action]}
-                          description={ACTION_HELP[entry.action]}
-                          quiet
-                        />
-                      </span>
-                      <span>{entry.rationale}</span>
-                      {entry.threads.length ? (
-                        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
-                          {entry.threads.map((thread) => (
-                            <ActivityThreadLink
-                              key={thread.id}
-                              threadId={thread.id}
-                              fallback={thread.name}
-                            />
-                          ))}
-                        </div>
-                      ) : null}
-
-                      {entry.detail ? (
-                        <span className="block text-xs text-muted-foreground">
-                          {entry.detail}
-                        </span>
-                      ) : null}
-                      {debug ? (
-                        <details className="mt-1 text-xs text-muted-foreground [&:not([open])]:opacity-0 focus-within:opacity-100 group-hover/entry:opacity-100">
-                          <summary className="w-fit cursor-pointer rounded hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
-                            Technical details
-                          </summary>
-                          {entry.traceIds?.length ? (
-                            <div className="mt-2 flex items-center gap-1">
-                              <span>Inspect supporting model calls</span>
-                              <InspectButton
-                                target={{
-                                  link: { kind: "entry", ref: entry.id },
-                                }}
-                                title={`Model calls behind: ${entry.rationale}`}
-                                label="Inspect the model calls behind this change"
-                              />
-                            </div>
-                          ) : null}
-                          <dl className="my-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
-                            <dt>Source</dt>
-                            <dd>{SOURCE_LABEL[entry.source]}</dd>
-                            <dt>Event ID</dt>
-                            <dd className="break-all" translate="no">
-                              {entry.id}
-                            </dd>
-                          </dl>
-                          <details>
-                            <summary className="cursor-pointer">
-                              Raw event JSON
-                            </summary>
-                            <pre className="mt-1 max-w-full overflow-x-auto whitespace-pre-wrap break-all rounded-md bg-state-hover p-2">
-                              {JSON.stringify(entry, null, 2)}
-                            </pre>
-                          </details>
-                        </details>
-                      ) : null}
-                    </div>
-                  </div>
-                  <span className="flex items-center gap-2 text-xs">
-                    {entry.status !== "applied" ? (
-                      <span
-                        className={cn(
-                          "text-muted-foreground",
-                          (entry.status === "failed" ||
-                            entry.status === "partial") &&
-                            "text-destructive",
-                        )}
-                      >
-                        <ActivityTerm {...ENTRY_STATUS[entry.status]} />
-                      </span>
-                    ) : null}
-                    {entry.undo &&
-                    ["applied", "partial", "failed"].includes(entry.status) ? (
-                      <button
-                        type="button"
-                        onClick={() => void undo(entry)}
-                        className="text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/entry:opacity-100"
-                      >
-                        Undo
-                      </button>
-                    ) : null}
-                  </span>
-                </li>
+                <ActivityEntryRow
+                  key={item.entry.id}
+                  entry={item.entry}
+                  debug={debug}
+                  focused={focus !== null && item.entry.id === focus}
+                  undo={undo}
+                />
               );
             })}
           </ul>

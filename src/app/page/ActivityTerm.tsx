@@ -1,10 +1,11 @@
+import { memo } from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 
 /**
  * A term with an explanatory tooltip. `quiet` hides the info button until
  * its Activity row is hovered or focused, so a long log stays calm.
  */
-export function ActivityTerm({
+export const ActivityTerm = memo(function ActivityTerm({
   label,
   description,
   quiet = false,
@@ -55,4 +56,4 @@ export function ActivityTerm({
       </Tooltip.Provider>
     </span>
   );
-}
+});

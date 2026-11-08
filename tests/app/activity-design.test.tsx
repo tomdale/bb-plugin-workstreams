@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { CallRow } from "../../src/app/page/CallRow.tsx";
+import { ActivityTerm } from "../../src/app/page/ActivityTerm.tsx";
 import type { TraceSummary } from "../../src/domain/trace.ts";
 beforeEach(() =>
   vi.stubGlobal(
@@ -17,6 +19,7 @@ beforeEach(() =>
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 async function page(
@@ -105,6 +108,62 @@ it("preserves unknown summary formats as labeled model results", async () => {
   expect(await slot.findByText("A future summary format")).toBeTruthy();
   expect(slot.getByText("Model result:")).toBeTruthy();
   expect(slot.queryByText("Work status:")).toBeNull();
+});
+
+it("does not rerender settled terms and call rows for an unrelated disclosure", async () => {
+  const trace: TraceSummary = {
+    id: "settled",
+    at: 1000,
+    kind: "full-analysis",
+    status: "ok",
+    label: "Settled call",
+    model: "test/model",
+    durationMs: 1200,
+    replayOf: null,
+    usage: null,
+    error: null,
+    summary: "No change needed",
+    threads: [],
+  };
+  const termRender = vi.spyOn(
+    ActivityTerm as unknown as {
+      type: (props: Parameters<typeof ActivityTerm>[0]) => unknown;
+    },
+    "type",
+  );
+  const callRender = vi.spyOn(
+    CallRow as unknown as {
+      type: (props: Parameters<typeof CallRow>[0]) => unknown;
+    },
+    "type",
+  );
+  function Rows() {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <button type="button" onClick={() => setOpen((value) => !value)}>
+          Local disclosure
+        </button>
+        {open ? <p>Unrelated details</p> : null}
+        <ActivityTerm label="Settled term" description="Already visible" />
+        <ul>
+          <CallRow trace={trace} />
+        </ul>
+      </>
+    );
+  }
+  const slot = renderSlot(
+    { component: Rows },
+    {},
+    { rpc: { prefs: () => ({ prefs: { advanced: { debug: true } } }) } },
+  );
+  await slot.findByRole("button", { name: "Inspect this model call" });
+  termRender.mockClear();
+  callRender.mockClear();
+  fireEvent.click(slot.getByRole("button", { name: "Local disclosure" }));
+  expect(slot.getByText("Unrelated details")).toBeTruthy();
+  expect(termRender).not.toHaveBeenCalled();
+  expect(callRender).not.toHaveBeenCalled();
 });
 
 it("keeps failed calls and their errors visible outside technical details", async () => {

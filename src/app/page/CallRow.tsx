@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import {
   TRACE_KIND_TITLE,
@@ -135,8 +136,24 @@ function CallResult({ trace }: { trace: TraceSummary }) {
   );
 }
 
-export function CallRow({ trace }: { trace: TraceSummary }) {
+export const CallRow = memo(function CallRow({
+  trace,
+}: {
+  trace: TraceSummary;
+}) {
   const event = EVENT[trace.kind];
+  const time = useMemo(() => {
+    const date = new Date(trace.at);
+    const localized = date.toLocaleString();
+    return {
+      iso: date.toISOString(),
+      localized,
+      clock: date.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+  }, [trace.at]);
   return (
     <li
       className={cn(
@@ -146,14 +163,11 @@ export function CallRow({ trace }: { trace: TraceSummary }) {
     >
       <time
         className="pt-0.5 text-xs tabular-nums text-muted-foreground"
-        dateTime={new Date(trace.at).toISOString()}
-        title={new Date(trace.at).toLocaleString()}
-        aria-label={new Date(trace.at).toLocaleString()}
+        dateTime={time.iso}
+        title={time.localized}
+        aria-label={time.localized}
       >
-        {new Date(trace.at).toLocaleTimeString(undefined, {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}
+        {time.clock}
       </time>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-foreground">
@@ -244,4 +258,4 @@ export function CallRow({ trace }: { trace: TraceSummary }) {
       </div>
     </li>
   );
-}
+});

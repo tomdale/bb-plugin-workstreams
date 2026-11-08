@@ -158,11 +158,12 @@ it("filters internal calls, exposes metadata and event internals, and opens the 
 it("connects pagination, realtime, filter changes, and unmount to the loader", async () => {
   let publish!: Parameters<typeof activityLoader.createActivityLoader>[1];
   const load = vi.fn(async () => {});
+  const refresh = vi.fn(async () => {});
   const cancel = vi.fn();
   vi.spyOn(activityLoader, "createActivityLoader").mockImplementation(
     (_source, sink) => {
       publish = sink;
-      return { load, cancel };
+      return { load, refresh, cancel };
     },
   );
   const slot = await page({});
@@ -191,10 +192,12 @@ it("connects pagination, realtime, filter changes, and unmount to the loader", a
     slot.queryByRole("button", { name: "Load older model calls" }),
   ).toBeNull();
   load.mockClear();
+  refresh.mockClear();
   await slot.behavior.emitRealtime("changed", {});
-  expect(load).toHaveBeenCalledExactlyOnceWith(
+  expect(refresh).toHaveBeenCalledExactlyOnceWith(
     expect.objectContaining({ traceLimit: 200 }),
   );
+  expect(load).not.toHaveBeenCalled();
   cancel.mockClear();
   chooseOption(
     slot.getByRole("combobox", { name: "Filter by model call kind" }),
