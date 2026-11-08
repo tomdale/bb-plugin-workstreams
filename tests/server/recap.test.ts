@@ -1022,13 +1022,15 @@ describe("turn endings with reply blocks", () => {
     expect(message).toContain(
       "Any answer you already gave is visible to the user",
     );
-    expect(message).toContain("add no closing note");
-    // A recap that carries the answer ends the turn; nothing is added after it.
     expect(message).toContain(
-      "When the recap carries the answer, nothing follows the call",
+      "in a block or otherwise, and add no closing note",
+    );
+    // The recap is the turn's reply, so the turn ends at the call.
+    expect(message).toContain(
+      "If the recap contains the answer, the turn ends at the call",
     );
     expect(message).toContain(
-      "one reply follows the call with the missing information, and nothing follows that reply",
+      "If it leaves information unsaid, one reply follows the call with that information alone, and nothing follows that reply",
     );
     expect(message).toContain("Finish any remaining authorized work");
     expect(message).toContain("ask through the available question-card tool");

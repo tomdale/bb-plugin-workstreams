@@ -518,8 +518,14 @@ describe("delivered instructions", () => {
     (recap) => {
       const text = replyInstructions(recap);
       expect(text).toContain(
-        "A request that fixes the output — one word, exact text, no formatting — still goes in the block, which then holds what was asked for and nothing else.",
+        "A request that fixes the output — one word, exact text, no formatting — still goes in the block, and changes only what the block holds: the asked-for text and nothing else.",
       );
+      // Only a session with the recap tool can be asked for a missing recap.
+      expect(
+        text.includes(
+          "When a turn only reports a missing recap, and that recap contains the answer already given, the turn ends at that call without a reply block.",
+        ),
+      ).toBe(recap);
     },
   );
   it("teaches an example that parses through the production path", () => {
