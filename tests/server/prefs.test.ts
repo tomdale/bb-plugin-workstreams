@@ -9,6 +9,50 @@ import { loadPrefs, savePrefs, seedPrefs } from "../../src/server/prefs.ts";
 import { fakeWorld } from "./fake-bb.ts";
 
 describe("Workstreams prefs", () => {
+  it("defaults and validates each connecting line independently", async () => {
+    const defaults = parsePrefs({}).lines;
+    expect(Object.values(defaults).every((line) => !line.show)).toBe(true);
+    const partial = parsePrefs({
+      lines: {
+        children: {
+          show: true,
+          width: "bad",
+          color: "#112233",
+          indent: 4,
+          spacing: 8,
+        },
+        categories: { show: true },
+      },
+    });
+    expect(partial.lines.children).toEqual({
+      show: true,
+      width: 1,
+      color: "#112233",
+      indent: 4,
+      spacing: 8,
+    });
+    expect(partial.lines.categories.show).toBe(true);
+    expect(partial.lines.workstreams).toEqual(defaults.workstreams);
+    expect(
+      prefsPatchSchema.safeParse({
+        lines: { children: { ...defaults.children, width: 0 } },
+      }).success,
+    ).toBe(false);
+    expect(
+      prefsPatchSchema.safeParse({
+        lines: { children: { ...defaults.children, color: "url(evil)" } },
+      }).success,
+    ).toBe(false);
+    const world = await fakeWorld();
+    const db = openDatabase(world.bb);
+    savePrefs(db, { lines: { children: partial.lines.children } });
+    savePrefs(db, { lines: { categories: partial.lines.categories } });
+    expect(loadPrefs(db).lines).toMatchObject({
+      children: partial.lines.children,
+      categories: partial.lines.categories,
+    });
+    await world.harness.lifecycle.dispose();
+  });
   it("defaults the new sidebar visibility preferences on", () => {
     expect(parsePrefs({}).sidebar).toMatchObject({
       showForYou: true,

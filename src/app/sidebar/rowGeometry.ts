@@ -34,6 +34,7 @@ export function rowGeometry(options: {
   inGroup?: boolean;
   categorized?: boolean;
   hasSubtitle?: boolean;
+  childIndent?: number;
 }): {
   paddingLeft: number;
   heightClass: string;
@@ -51,7 +52,8 @@ export function rowGeometry(options: {
       : SIDEBAR_GEOMETRY.row.rootInset
     : 6;
   const paddingLeft =
-    baseIndent + Math.min(options.depth, MAX_INDENT) * INDENT_PX;
+    baseIndent +
+    Math.min(options.depth, MAX_INDENT) * (options.childIndent ?? INDENT_PX);
 
   // A one-line row takes its height token; a two-line row sizes itself from
   // its content, so it carries no height class (the `items-start` layout in

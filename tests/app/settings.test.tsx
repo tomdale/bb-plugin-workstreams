@@ -115,6 +115,56 @@ it("renders four compact sidebar toggles and saves their preferences", async () 
   ]);
 });
 
+it("saves independent connecting line controls", async () => {
+  const slot = await mount("sidebar");
+  const group = await slot.findByRole("region", { name: "Connecting lines" });
+  for (const name of [
+    "Child threads",
+    "Workstreams",
+    "Categories",
+    "Section groups",
+  ]) {
+    expect(
+      within(group)
+        .getByRole("switch", { name: `${name} connecting line` })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+  }
+  fireEvent.click(
+    within(group).getByRole("switch", {
+      name: "Child threads connecting line",
+    }),
+  );
+  await waitFor(() =>
+    expect(
+      within(group).getByLabelText("Child threads line width"),
+    ).toBeTruthy(),
+  );
+  fireEvent.click(
+    within(group).getByRole("button", {
+      name: "Increase Child threads line width",
+    }),
+  );
+  await waitFor(() =>
+    expect(
+      within(group).getByLabelText("Child threads line width").textContent,
+    ).toBe("2"),
+  );
+  fireEvent.change(within(group).getByLabelText("Child threads line color"), {
+    target: { value: "#123456" },
+  });
+  await waitFor(() =>
+    expect(within(group).getByText("Use theme")).toBeTruthy(),
+  );
+  fireEvent.click(within(group).getByText("Use theme"));
+  await waitFor(() => expect(within(group).getByText("Theme")).toBeTruthy());
+  expect(
+    within(group)
+      .getByRole("switch", { name: "Categories connecting line" })
+      .getAttribute("aria-checked"),
+  ).toBe("false");
+});
+
 it("saves the phone Home screen preference from its own group", async () => {
   const slot = await mount("sidebar");
   const group = await slot.findByRole("region", { name: "Home screen" });

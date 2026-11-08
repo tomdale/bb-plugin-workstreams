@@ -19,6 +19,7 @@ import { usePrefs } from "../prefs.ts";
 import { SnoozeIcon, WakeIcon } from "../snooze/icons.tsx";
 import { HoverAction, HoverMenuButton, RowActions } from "./HoverActions.tsx";
 import { rowGeometry } from "./rowGeometry.ts";
+import { guideStep } from "./GuideList.tsx";
 
 export { INDENT_PX, MAX_INDENT } from "./rowGeometry.ts";
 
@@ -123,6 +124,9 @@ export function Row({
       inGroup,
       categorized,
       hasSubtitle: Boolean(subtitle),
+      childIndent: prefs?.lines.children.show
+        ? guideStep(prefs.lines.children)
+        : undefined,
     });
 
   return (
