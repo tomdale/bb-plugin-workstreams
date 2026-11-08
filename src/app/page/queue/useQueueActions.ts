@@ -14,7 +14,15 @@ import { toast } from "sonner";
 /** How long a message waits behind its receipt before it is sent. */
 const SEND_HOLD_MS = 5_000;
 
-type ReceiptKind = "sent" | "archived" | "snoozed" | "accepted" | "declined";
+type ReceiptKind =
+  | "sent"
+  | "archived"
+  | "snoozed"
+  | "accepted"
+  | "declined"
+  | "dismissed"
+  | "answered"
+  | "question-dismissed";
 
 export type Receipt = {
   /** The queue item: a thread's id, or a suggestion's key (`suggestionKey`). */
@@ -192,11 +200,24 @@ export function useQueueActions() {
     });
   }, []);
 
+  const record = useCallback(
+    (receipt: Omit<Receipt, "holding" | "undoable">) => {
+      settlePrevious();
+      clear(receipt.itemId, true);
+      publish({
+        receipt: { ...receipt, holding: false, undoable: false },
+        undo: null,
+      });
+    },
+    [],
+  );
+
   return {
     receipt: current?.receipt ?? null,
     sent,
     cleared,
     apply,
+    record,
     send,
     undo,
     finishSent,

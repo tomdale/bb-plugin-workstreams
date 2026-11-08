@@ -209,6 +209,7 @@ interface QuestionInputBlockProps {
   /** What Enter does in the answer field: go to the next question or submit. */
   advance: "next" | "submit";
   shortcuts: ReadonlyMap<string, QuestionShortcut>;
+  projectId?: string | null;
 }
 
 /** The character count appears only as the answer nears its limit. */
@@ -226,12 +227,14 @@ function QuestionInputBlock({
   onShortcutSubmit,
   advance,
   shortcuts,
+  projectId: targetProjectId,
 }: QuestionInputBlockProps) {
   const options = question.options;
   const isCompactViewport = useIsCompactViewport();
   const pointerCoarse = usePointerCoarse();
   const softKeyboard = isCompactViewport && pointerCoarse;
-  const { projectId } = useBbContext();
+  const context = useBbContext();
+  const projectId = targetProjectId ?? context.projectId;
   const sdk = useSdk();
   const [uploading, setUploading] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
@@ -562,6 +565,7 @@ function useScrollFade(ref: RefObject<HTMLElement | null>) {
 
 interface QuestionFormProps {
   persistenceKey?: string;
+  projectId?: string | null;
   questions: readonly Question[];
   disabled: boolean;
   cancelDisabled: boolean;
@@ -573,6 +577,7 @@ interface QuestionFormProps {
 
 export function QuestionForm({
   persistenceKey,
+  projectId,
   questions,
   disabled,
   cancelDisabled,
@@ -825,6 +830,7 @@ export function QuestionForm({
           onShortcutSubmit={handleAdvance}
           advance={isLast ? "submit" : "next"}
           shortcuts={shortcuts}
+          projectId={projectId}
         />
       </div>
       {/* An edge-to-edge footer strip like the recap card's, offset by the

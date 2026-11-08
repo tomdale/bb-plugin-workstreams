@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { Database } from "../db.ts";
 import {
+  ASK_USER_QUESTION_RENDERER_ID,
   interactionPayloadSchema,
   interactionResponseSchema,
   type InteractionPayload,
@@ -257,6 +258,36 @@ export class QuestionStore {
         ? questionResultSchema.parse(JSON.parse(row.result))
         : null,
     }));
+  }
+
+  async answer(threadId: string, id: string, value: unknown, dismiss: boolean) {
+    const pending = this.pending(threadId);
+    if (!pending || pending.id !== id)
+      throw new Error("This question is no longer pending");
+    if (pending.recoverable) return this.recover(threadId, id, value, dismiss);
+    const interactions = await this.bb.sdk.threads.interactions.list({
+      threadId,
+    });
+    const interaction = interactions.find(
+      (item) =>
+        item.status === "pending" &&
+        item.origin?.kind === "plugin" &&
+        item.origin.pluginId === this.bb.pluginId &&
+        item.origin.rendererId === ASK_USER_QUESTION_RENDERER_ID &&
+        item.payload.kind === "plugin" &&
+        item.payload.data !== null &&
+        typeof item.payload.data === "object" &&
+        !Array.isArray(item.payload.data) &&
+        item.payload.data.durableId === id,
+    );
+    if (!interaction) throw new Error("This question is no longer active");
+    const target = { threadId, interactionId: interaction.id };
+    if (dismiss) await this.bb.sdk.threads.interactions.cancel(target);
+    else
+      await this.bb.sdk.threads.interactions.respond({
+        ...target,
+        value: interactionResponseSchema.parse(value),
+      });
   }
 
   async recover(

@@ -15,7 +15,12 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import { usePortalScopeProps } from "@/lib/portal-scope";
-import { ACCENT, RecapSummary, RecapText } from "../../composer/RecapCard.tsx";
+import {
+  ACCENT,
+  RecapSummary,
+  RecapText,
+  WaitingFooter,
+} from "../../composer/RecapCard.tsx";
 import type { RecapFiles } from "../../../domain/recap.ts";
 import {
   workstreamColorStyle,
@@ -145,26 +150,40 @@ export function ThreadCard({
   threadId,
   files,
   age,
+  question,
+  waitingCancelled = false,
 }: {
   card: QueueCard;
   threadId: string;
   files: RecapFiles | null;
   age: string;
+  question?: ReactNode;
+  waitingCancelled?: boolean;
 }) {
   return (
-    <div style={{ zoom: CARD_ZOOM }} className={CONTENT}>
-      {card.kind === "recap" ? (
-        <RecapSummary
-          recap={card.recap}
-          layout="full"
-          files={files}
-          threadId={threadId}
-          clearance=""
-          age={age}
-        />
-      ) : (
-        <PlainCard card={card} accentText={accentOf(card).text} age={age} />
-      )}
+    <div style={{ zoom: question ? undefined : CARD_ZOOM }} className={CONTENT}>
+      {question ??
+        (card.kind === "recap" ? (
+          <>
+            <RecapSummary
+              recap={card.recap}
+              layout="full"
+              files={files}
+              threadId={threadId}
+              clearance=""
+              age={age}
+            />
+            {card.recap.state === "waiting" ? (
+              <WaitingFooter
+                recap={card.recap}
+                compact={false}
+                cancelled={waitingCancelled}
+              />
+            ) : null}
+          </>
+        ) : (
+          <PlainCard card={card} accentText={accentOf(card).text} age={age} />
+        ))}
     </div>
   );
 }
@@ -399,6 +418,7 @@ export function ThreadActions({
   onCustomSnooze,
   onArchive,
   onOpen,
+  onDismiss,
 }: {
   /** A complete card with nothing to answer: Archive comes first. */
   archiveLeads: boolean;
@@ -406,11 +426,12 @@ export function ThreadActions({
   now: number;
   snoozePrefs: SnoozePrefs;
   onSnoozeOpen: (open: boolean) => void;
-  onReply: () => void;
+  onReply?: () => void;
   onSnooze: (when: SnoozeWhen) => void;
   onCustomSnooze: () => void;
   onArchive: () => void;
   onOpen: () => void;
+  onDismiss?: () => void;
 }) {
   const portalScope = usePortalScopeProps();
   const archive = (
@@ -425,12 +446,14 @@ export function ThreadActions({
   return (
     <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
       {archiveLeads ? archive : null}
-      <RowButton
-        icon={<Icon name="ArrowTurnBackward" fallback="CornerDownLeft" />}
-        label="Reply"
-        keyLabel="R"
-        onClick={onReply}
-      />
+      {onReply ? (
+        <RowButton
+          icon={<Icon name="ArrowTurnBackward" fallback="CornerDownLeft" />}
+          label="Reply"
+          keyLabel="R"
+          onClick={onReply}
+        />
+      ) : null}
       <DropdownMenu.Root open={snoozeOpen} onOpenChange={onSnoozeOpen}>
         <DropdownMenu.Trigger asChild>
           <RowButton icon={<SnoozeIcon />} label="Snooze…" keyLabel="S" />
@@ -465,6 +488,14 @@ export function ThreadActions({
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
       {archiveLeads ? null : archive}
+      {onDismiss ? (
+        <RowButton
+          icon={<Icon name="X" />}
+          label="Dismiss recap"
+          keyLabel="D"
+          onClick={onDismiss}
+        />
+      ) : null}
       <RowButton
         icon={<Icon name="ExternalLink" />}
         label="Open"

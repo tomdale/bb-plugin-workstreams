@@ -507,7 +507,7 @@ function WaitingAgents({ agents }: { agents: readonly WaitingAgent[] }) {
  * top rule drains toward the check. Dismissing the card or sending a message
  * cancels the check.
  */
-function WaitingFooter({
+export function WaitingFooter({
   recap,
   compact,
   cancelled,

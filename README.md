@@ -722,6 +722,17 @@ heading fades in place; the receipt line crossfades to the next one with a small
 drift. Under reduced motion the card only fades in and the heading changes in
 place.
 
+Question cards on this page use the same form as the thread: choose options,
+review previews, add notes, answer in your own words, or attach files and
+images, then submit or dismiss. Draft answers follow you between the page and
+the thread. Submission resumes an active question tool; an interrupted question
+sends its recovered answer to the thread.
+
+Waiting recaps show their status-check countdown. **Dismiss recap** (`D`)
+cancels that check and removes the item from the queue; **Undo** restores the
+recap with its check still cancelled. Review and complete recaps keep their
+links and proposed replies, and suggestions offer **Accept** and **Decline**.
+
 Each thread shows its workstream (click it to open **Topics**) and title above
 its latest recap card. Under the card:
 
@@ -741,10 +752,14 @@ The row of actions is centered in the column.
 A suggestion shows the topics its threads would move to (new ones marked), with
 **Accept and move N threads** (`1`) and **Decline** (`2`).
 
-Every action applies at once and leaves a line above the next item with **Undo**
-(`U`). A sent message waits `5` seconds behind its line before it goes out, so
-Undo can keep it from sending. When Up Next is clear, the page says so and
-offers to go through the earlier open threads.
+Actions leave a receipt above the next item. Archive, snooze, recap dismissal,
+and suggestion decisions offer **Undo** (`U`). A sent message waits `5` seconds
+behind its receipt before it goes out, so Undo can keep it from sending.
+Question answers and question dismissal apply immediately and cannot be undone.
+While a question is open, its form replaces the proposed replies and **Reply**
+action. The queue arrows stay below the scrollable cards, including long
+questions. When Up Next is clear, the page says so and offers to go through the
+earlier open threads.
 
 The **⋯** menu in the corner opens:
 

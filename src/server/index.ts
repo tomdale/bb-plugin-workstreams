@@ -1069,6 +1069,10 @@ export default async function plugin(bb: BbPluginApi) {
     question_at: ({ threadId, interactionId }) =>
       questions.atInteraction(threadId, interactionId),
     question_pending: ({ threadId }) => questions.pending(threadId),
+    question_answer: async ({ threadId, id, value, dismiss }) => {
+      await questions.answer(threadId, id, value, dismiss);
+      return { ok: true as const };
+    },
     question_recover: async ({ threadId, id, value, dismiss }) => {
       await questions.recover(threadId, id, value, dismiss);
       return { ok: true as const };

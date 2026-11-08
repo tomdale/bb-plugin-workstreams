@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { openDatabase } from "../../../src/server/db.ts";
 import { QuestionStore } from "../../../src/server/questions/store.ts";
 import { registerQuestionTool } from "../../../src/server/questions/tool.ts";
+import { buildInteractionPayload } from "../../../src/server/questions/translate.ts";
 
 const input = {
   questions: [
@@ -48,6 +49,87 @@ function setup() {
 }
 
 describe("durable questions", () => {
+  it.each([false, true])(
+    "answers the active native waiter from the queue (dismiss: %s)",
+    async (dismiss) => {
+      const { host, store, send } = setup();
+      const call = host.harness.callAgentTool("AskUserQuestion", input);
+      await vi.waitFor(() =>
+        expect(host.harness.pendingInteractions).toHaveLength(1),
+      );
+      const interaction = host.harness.pendingInteractions[0]!;
+      const pending = store().pending(interaction.threadId)!;
+      host.harness.sdk.stub("threads.interactions.list", async () => [
+        {
+          id: interaction.id,
+          origin: {
+            kind: "plugin",
+            pluginId: "workstreams",
+            rendererId: "ask-user-question",
+          },
+          status: "pending",
+          payload: { kind: "plugin", data: { durableId: pending.id } },
+        },
+      ]);
+      host.harness.sdk.stub(
+        "threads.interactions.respond",
+        async ({ interactionId, value }) => {
+          host.harness.submitInteraction(interactionId, value);
+          return {};
+        },
+      );
+      host.harness.sdk.stub(
+        "threads.interactions.cancel",
+        async ({ interactionId }) => {
+          host.harness.cancelInteraction(interactionId);
+          return {};
+        },
+      );
+      const value = { answers: { q0: { selected: [], freeText: "Tomorrow" } } };
+      await store().answer(
+        interaction.threadId,
+        pending.id,
+        dismiss ? null : value,
+        dismiss,
+      );
+      await call;
+      expect(send).not.toHaveBeenCalled();
+      expect(store().pending(interaction.threadId)).toBeNull();
+      const history = await store().history(interaction.threadId);
+      expect(history[0]?.status).toBe(dismiss ? "dismissed" : "answered");
+      if (!dismiss)
+        expect(history[0]?.result?.answers).toEqual({ "Ship it?": "Tomorrow" });
+      await expect(
+        store().answer(interaction.threadId, pending.id, value, false),
+      ).rejects.toThrow("no longer pending");
+      await host.harness.lifecycle.dispose();
+    },
+  );
+
+  it("does not resolve an unrelated or stale native interaction", async () => {
+    const { host, store } = setup();
+    const id = store().open("thread", buildInteractionPayload(input));
+    host.harness.sdk.stub("threads.interactions.list", async () => [
+      {
+        id: "other",
+        origin: {
+          kind: "plugin",
+          pluginId: "workstreams",
+          rendererId: "ask-user-question",
+        },
+        status: "pending",
+        payload: { kind: "plugin", data: { durableId: "other" } },
+      },
+    ]);
+    await expect(
+      store().answer("other-thread", id, null, true),
+    ).rejects.toThrow("no longer pending");
+    await expect(store().answer("thread", id, null, true)).rejects.toThrow(
+      "no longer active",
+    );
+    expect(store().pending("thread")?.id).toBe(id);
+    await host.harness.lifecycle.dispose();
+  });
   it("looks up a saved answer at its exact interaction row", async () => {
     const { host, store } = setup();
     const id = store().open("thread", {
@@ -245,7 +327,7 @@ it.each([false, true])(
     if (interrupted) {
       host = await host.harness.lifecycle.reload(plugin);
       await call;
-      await store().recover(interaction.threadId, saved.id, answer, false);
+      await store().answer(interaction.threadId, saved.id, answer, false);
     } else {
       host.harness.submitInteraction(interaction.id, answer);
       await call;

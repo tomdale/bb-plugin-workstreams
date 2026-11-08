@@ -49,6 +49,8 @@ import { prioritizedSet } from "../../home/model.ts";
 import { usePrefs } from "../../prefs.ts";
 import { useRecapPrefs } from "../../recap/prefs.ts";
 import { HashColors } from "../../composer/RecapCard.tsx";
+import { usePendingQuestion } from "../../question/pending.ts";
+import { QueueQuestion } from "../../question/QueueQuestion.tsx";
 import { CustomSnoozeDialog } from "../../snooze/CustomSnoozeDialog.tsx";
 import type { useWorkstreams } from "../../useWorkstreams.ts";
 import { actionMessage, cardOf, nextActionsOf } from "./card.ts";
@@ -109,20 +111,38 @@ function useSuggestions(ws: Workstreams) {
   return { ready, all: state?.suggestions ?? [], setState };
 }
 
-/** Where each recap's files live, read once per thread for its file links. */
-function useRecapFiles(threadId: string | null, hasRecap: boolean) {
+function useQueueRecap(threadId: string | null, recapId: string | null) {
   const rpc = useRpc<RpcContract>();
-  const [files, setFiles] = useState<Record<string, RecapFiles>>({});
-  const asked = useRef(new Set<string>());
+  const [revision, refresh] = useState(0);
+  const [state, setState] = useState<{
+    threadId: string;
+    recapId: string;
+    files: RecapFiles | null;
+    waitingCancelled: boolean;
+  } | null>(null);
+  useRealtime("changed", () => refresh((value) => value + 1));
   useEffect(() => {
-    if (!threadId || !hasRecap || asked.current.has(threadId)) return;
-    asked.current.add(threadId);
-    rpc
-      .call("recapFiles", { threadIds: [threadId] })
-      .then(({ files: read }) => setFiles((was) => ({ ...was, ...read })))
+    if (!threadId || !recapId) return;
+    let active = true;
+    void rpc
+      .call("recap_get", { threadId })
+      .then((result) => {
+        if (active && result.recap?.id === recapId)
+          setState({
+            threadId,
+            recapId,
+            files: result.files,
+            waitingCancelled: result.waitingCancelled,
+          });
+      })
       .catch(() => {});
-  }, [rpc, threadId, hasRecap]);
-  return threadId ? (files[threadId] ?? null) : null;
+    return () => {
+      active = false;
+    };
+  }, [rpc, threadId, recapId, revision]);
+  return state?.threadId === threadId && state.recapId === recapId
+    ? state
+    : null;
 }
 
 /** Whether ⇧ is held, for the replies' edit state. */
@@ -272,6 +292,8 @@ export function Queue({
   const motion = useQueueMotion(requested, pile, requestedPosition > 0, before);
   const current =
     motion.front && remaining.includes(motion.front) ? motion.front : requested;
+  const activeItem = useRef(current);
+  activeItem.current = current;
   const position = current ? remaining.indexOf(current) : -1;
   const earlierLeft = plan.earlier.filter(
     (row) => !cleared.has(row.thread.id),
@@ -279,6 +301,7 @@ export function Queue({
 
   const thread = current ? rowOf.get(current)?.thread : undefined;
   const suggestion = current ? suggestionOf.get(current) : undefined;
+  const pendingQuestion = usePendingQuestion(thread?.id ?? null);
   const card = thread
     ? cardOf(
         thread,
@@ -288,8 +311,13 @@ export function Queue({
         isRunning(thread),
       )
     : null;
-  const files = useRecapFiles(thread?.id ?? null, card?.kind === "recap");
-  const threadAnswers = card ? nextActionsOf(card).map(actionMessage) : [];
+  const recapContext = useQueueRecap(
+    thread?.id ?? null,
+    card?.kind === "recap" ? card.recap.id : null,
+  );
+  const files = recapContext?.files ?? null;
+  const threadAnswers =
+    card && !pendingQuestion ? nextActionsOf(card).map(actionMessage) : [];
   const answers = suggestion
     ? [`Accept and move ${movingCount(suggestion)} threads`, "Decline"]
     : threadAnswers;
@@ -398,6 +426,21 @@ export function Queue({
     if (edit) return setReplying({ id: thread.id, text });
     send(thread.id, text, card.kind === "recap" ? card.recap.id : undefined);
   };
+  const dismissRecap = () => {
+    if (!thread || card?.kind !== "recap") return;
+    const target = { threadId: thread.id, recapId: card.recap.id };
+    moveOn(thread.id);
+    actions.apply(
+      {
+        itemId: thread.id,
+        kind: "dismissed",
+        title: thread.displayTitle,
+        detail: "",
+      },
+      () => rpc.call("recap_dismiss", target),
+      () => rpc.call("recap_restore", target),
+    );
+  };
   const open = (id: string) => {
     try {
       threadActions.open(id);
@@ -415,8 +458,20 @@ export function Queue({
     suggestion,
     undo,
     skip,
+    pendingQuestion,
+    dismissRecap,
   });
-  keys.current = { answer, archive, open, thread, suggestion, undo, skip };
+  keys.current = {
+    answer,
+    archive,
+    open,
+    thread,
+    suggestion,
+    undo,
+    skip,
+    pendingQuestion,
+    dismissRecap,
+  };
   useEffect(() => {
     // Repeat independently of the OS key-repeat settings, as in the motion lab.
     let heldKey: string | null = null;
@@ -455,7 +510,13 @@ export function Queue({
         repeatTimer = setTimeout(repeat, 250);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (
+        event.defaultPrevented ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey
+      )
+        return;
       const target = event.target instanceof Element ? event.target : null;
       if (
         target?.closest(
@@ -464,6 +525,7 @@ export function Queue({
       )
         return;
       const k = keys.current;
+      if (target?.closest("[data-queue-question]")) return;
       // The replies and thread actions answer only once they are visible and live.
       const actions = motion.page.current?.querySelector<HTMLElement>(
         '[data-queue-part="actions"]',
@@ -480,9 +542,12 @@ export function Queue({
       } else if (key === "arrowup" || key === "arrowleft" || key === "k") {
         if (!event.repeat) startHold(key, -1);
       } else if (!acting) return;
-      else if (digit) k.answer(Number(digit) - 1, event.shiftKey);
+      else if (digit && !k.pendingQuestion)
+        k.answer(Number(digit) - 1, event.shiftKey);
       else if (!k.thread || k.suggestion) return;
-      else if (key === "r") setReplying({ id: k.thread.id, text: "" });
+      else if (key === "r" && !k.pendingQuestion)
+        setReplying({ id: k.thread.id, text: "" });
+      else if (key === "d" && !k.pendingQuestion) void k.dismissRecap();
       else if (key === "s") setSnoozeOpen(true);
       else if (key === "e") k.archive(k.thread.id);
       else if (key === "o") k.open(k.thread.id);
@@ -550,13 +615,38 @@ export function Queue({
       return shownCard
         ? {
             key: id,
-            frame: threadFrame(shownCard),
+            frame: threadFrame(
+              id === thread?.id && pendingQuestion
+                ? { kind: "needs", line: null }
+                : shownCard,
+            ),
             node: (
               <ThreadCard
                 card={shownCard}
                 threadId={id}
                 files={id === thread?.id ? files : null}
                 age={ago(row.latestAttentionAt, now)}
+                waitingCancelled={
+                  id === thread?.id && recapContext?.waitingCancelled === true
+                }
+                question={
+                  id === thread?.id && pendingQuestion ? (
+                    <QueueQuestion
+                      key={pendingQuestion.id}
+                      pending={pendingQuestion}
+                      projectId={row.projectId}
+                      onAnswered={(dismissed) => {
+                        if (activeItem.current === id) moveOn(id);
+                        actions.record({
+                          itemId: id,
+                          kind: dismissed ? "question-dismissed" : "answered",
+                          title: row.displayTitle,
+                          detail: "",
+                        });
+                      }}
+                    />
+                  ) : undefined
+                }
               />
             ),
           }
@@ -603,7 +693,7 @@ export function Queue({
       <div className="relative h-full min-h-0 flex-1">
         <div
           ref={motion.page}
-          className="absolute inset-0 overflow-y-auto [container-type:size] [scrollbar-gutter:stable] data-[moving]:overflow-y-hidden"
+          className="absolute inset-x-0 bottom-16 top-0 overflow-y-auto [container-type:size] [scrollbar-gutter:stable] data-[moving]:overflow-y-hidden"
         >
           <div
             className="mx-auto box-border w-full max-w-[720px] px-5 pb-24 pt-[var(--ws-queue-top)]"
@@ -631,7 +721,7 @@ export function Queue({
                 <div key={`actions:${current}`} data-queue-part="actions">
                   {thread && card ? (
                     <>
-                      {replying?.id === thread.id ? (
+                      {!pendingQuestion && replying?.id === thread.id ? (
                         <Composer
                           title={thread.displayTitle}
                           initial={replying.text}
@@ -640,24 +730,33 @@ export function Queue({
                         />
                       ) : (
                         <>
-                          <Answers
-                            answers={answers}
-                            editable
-                            shift={shift}
-                            onAnswer={answer}
-                          />
+                          {!pendingQuestion ? (
+                            <Answers
+                              answers={answers}
+                              editable
+                              shift={shift}
+                              onAnswer={answer}
+                            />
+                          ) : null}
                           <ThreadActions
                             archiveLeads={archiveLeads}
                             snoozeOpen={snoozeOpen}
                             now={now}
                             snoozePrefs={ws.snoozePrefs}
                             onSnoozeOpen={setSnoozeOpen}
-                            onReply={() =>
-                              setReplying({ id: thread.id, text: "" })
+                            onReply={
+                              pendingQuestion
+                                ? undefined
+                                : () => setReplying({ id: thread.id, text: "" })
                             }
                             onSnooze={(when) => snooze(thread.id, when)}
                             onCustomSnooze={() => setCustomSnooze(true)}
                             onArchive={() => archive(thread.id)}
+                            onDismiss={
+                              card.kind === "recap" && !pendingQuestion
+                                ? dismissRecap
+                                : undefined
+                            }
                             onOpen={() => open(thread.id)}
                           />
                         </>
@@ -782,6 +881,12 @@ function ReceiptLine({
       <>
         Snoozed {title} {receipt.detail}
       </>
+    ) : receipt.kind === "answered" ? (
+      <>Answered {title}</>
+    ) : receipt.kind === "question-dismissed" ? (
+      <>Dismissed question for {title}</>
+    ) : receipt.kind === "dismissed" ? (
+      <>Dismissed recap for {title}</>
     ) : receipt.kind === "accepted" ? (
       <>Accepted {title}</>
     ) : (

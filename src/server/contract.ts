@@ -354,6 +354,15 @@ export const rpcContract = defineRpcContract({
       })
       .nullable(),
   },
+  question_answer: {
+    input: z.object({
+      threadId: z.string().min(1),
+      id: z.string().min(1),
+      value: interactionResponseSchema.nullable(),
+      dismiss: z.boolean(),
+    }),
+    output: z.object({ ok: z.literal(true) }),
+  },
   question_recover: {
     input: z.object({
       threadId: z.string().min(1),

@@ -1,6 +1,15 @@
 // @vitest-environment jsdom
-import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import {
+  renderSlot,
+  type RenderSlotOptions,
+} from "@get-bb/plugin-sdk/testing/app";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { WorkstreamsPage } from "../../src/app/page/Page.tsx";
 import {
@@ -47,12 +56,16 @@ const analysis = (recap: string, state = "done") => ({
 async function mount(
   catalog?: import("../../src/domain/topics.ts").TopicState,
   extraThreads: ReturnType<typeof sidebarThread>[] = [],
+  rpc: Record<string, (input: unknown) => unknown> = {},
+  sdk: RenderSlotOptions["sdk"] = {},
 ) {
   const now = Date.now();
   return renderSlot(
     { component: WorkstreamsPage },
     { subPath: "" },
     {
+      context: { projectId: null, threadId: null },
+      sdk,
       sidebarThreads: {
         status: "ready",
         threads: [
@@ -110,6 +123,7 @@ async function mount(
         threadUnarchive: () => ({ ok: true }),
         journal: () => ({ entries: [entry] }),
         undo: () => ({ entry: { ...entry, id: "e2", action: "undo" } }),
+        ...rpc,
       },
     },
   );
@@ -512,7 +526,7 @@ it("centers the thread actions in the column", async () => {
   const row = slot.getByRole("button", { name: /^Reply/ }).parentElement!;
   expect(row.className).toContain("justify-center");
   expect(row.className).not.toMatch(/\bpl-\d/);
-  expect(row.children.length).toBe(4);
+  expect(row.children.length).toBe(5);
   slot.lifecycle.unmount();
 });
 
@@ -618,6 +632,362 @@ it("opens the item's thread", async () => {
     expect.objectContaining({ method: "open", threadId: "b1" }),
   );
   slot.lifecycle.unmount();
+});
+
+it.each([false, true])(
+  "answers a question in the stack (recoverable: %s)",
+  async (recoverable) => {
+    sessionStorage.clear();
+    const { payload } = await import("./question/submission-fixture.ts");
+    const answer = vi.fn(async () => ({ ok: true }));
+    const slot = await mount(undefined, [], {
+      question_pending: () => ({ id: "stack-question", recoverable, payload }),
+      question_answer: answer,
+    });
+    const form = await slot.findByRole("region", {
+      name: "Question needs your answer",
+    });
+    expect(slot.queryByText("Needs your decision")).toBeNull();
+    expect(slot.queryByRole("button", { name: /^Reply/ })).toBeNull();
+    expect(form.closest("[data-card-content]")).toBeTruthy();
+    fireEvent.click(slot.getByText("Cards"));
+    expect(slot.getByText("[ card ] [ card ]")).toBeTruthy();
+    fireEvent.change(slot.getByRole("textbox", { name: "Layout notes" }), {
+      target: { value: "Keep details" },
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "Next" }));
+    fireEvent.click(slot.getByText("Types, build"));
+    fireEvent.click(slot.getByText("Tests"));
+    fireEvent.click(within(form).getByRole("button", { name: "Next" }));
+    fireEvent.change(slot.getByRole("textbox", { name: "Notes answer" }), {
+      target: { value: "Ship tomorrow" },
+    });
+    expect(
+      slot
+        .getByRole("button", { name: "Attach files or images" })
+        .hasAttribute("disabled"),
+    ).toBe(false);
+    fireEvent.click(slot.getByRole("button", { name: "Submit" }));
+    await waitFor(() => expect(answer).toHaveBeenCalledOnce());
+    expect(answer.mock.calls[0]).toEqual([
+      {
+        threadId: "b1",
+        id: "stack-question",
+        dismiss: false,
+        value: {
+          answers: {
+            q0: { selected: ["q0o1"], freeText: "Keep details" },
+            q1: { selected: ["q1o0", "q1o1"] },
+            q2: { selected: [], freeText: "Ship tomorrow" },
+          },
+        },
+      },
+    ]);
+    slot.lifecycle.unmount();
+    sessionStorage.clear();
+  },
+);
+
+it("keeps a failed answer editable and retries dismissal", async () => {
+  sessionStorage.clear();
+  const { payload } = await import("./question/submission-fixture.ts");
+  const answer = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValue({ ok: true });
+  const slot = await mount(undefined, [], {
+    question_pending: () => ({
+      id: "stack-retry",
+      recoverable: false,
+      payload,
+    }),
+    question_answer: answer,
+  });
+  await slot.findByRole("region", { name: "Question needs your answer" });
+  fireEvent.click(slot.getByRole("button", { name: "Cancel" }));
+  expect(await slot.findByRole("alert")).toHaveProperty(
+    "textContent",
+    "Could not dismiss the question. Please try again.",
+  );
+  expect(heading(slot)).toBe("Beta question");
+  fireEvent.click(slot.getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(answer).toHaveBeenCalledTimes(2));
+  expect(answer.mock.calls[1]?.[0]).toMatchObject({
+    threadId: "b1",
+    id: "stack-retry",
+    dismiss: true,
+    value: null,
+  });
+  slot.lifecycle.unmount();
+  sessionStorage.clear();
+});
+
+it("dismisses and restores a recap from the stack", async () => {
+  const dismiss = vi.fn(async () => ({ ok: true }));
+  const restore = vi.fn(async () => ({ ok: true }));
+  const slot = await mount(undefined, [], {
+    recap_dismiss: dismiss,
+    recap_restore: restore,
+  });
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  fireEvent.click(slot.getByRole("button", { name: "Next" }));
+  await waitFor(() => expect(slot.getByText("Built the feed")).toBeTruthy());
+  fireEvent.click(slot.getByRole("button", { name: /Dismiss recap/ }));
+  await waitFor(() =>
+    expect(dismiss).toHaveBeenCalledWith({ threadId: "a1", recapId: "r1" }),
+  );
+  expect(await slot.findByText(/Dismissed recap for/)).toBeTruthy();
+  fireEvent.click(slot.getByRole("button", { name: /Undo/ }));
+  await waitFor(() =>
+    expect(restore).toHaveBeenCalledWith({ threadId: "a1", recapId: "r1" }),
+  );
+  slot.lifecycle.unmount();
+});
+
+it("uploads stack answers to the card's project without a selected thread", async () => {
+  sessionStorage.clear();
+  const { payload } = await import("./question/submission-fixture.ts");
+  const upload = vi.fn(
+    async ({ clientFile }: { projectId: string; clientFile: File }) => ({
+      type: "localFile" as const,
+      path: "uploaded/notes.txt",
+      name: clientFile.name,
+      mimeType: clientFile.type,
+      sizeBytes: clientFile.size,
+    }),
+  );
+  const answer = vi.fn(async (_input: unknown) => ({ ok: true }));
+  const slot = await mount(
+    undefined,
+    [],
+    {
+      question_pending: () => ({
+        id: "stack-upload",
+        recoverable: false,
+        payload: { questions: [payload.questions[2]] },
+      }),
+      question_answer: answer,
+    },
+    { projects: { attachments: { upload } } },
+  );
+  const form = await slot.findByRole("region", {
+    name: "Question needs your answer",
+  });
+  const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+  fireEvent.change(form.querySelector('input[type="file"]')!, {
+    target: { files: [file] },
+  });
+  await waitFor(() =>
+    expect(upload).toHaveBeenCalledWith({
+      projectId: "proj_1",
+      clientFile: file,
+    }),
+  );
+  await slot.findByRole("button", { name: "Remove notes.txt" });
+  fireEvent.click(slot.getByRole("button", { name: "Submit" }));
+  await waitFor(() => expect(answer).toHaveBeenCalledOnce());
+  expect(answer.mock.calls[0]?.[0]).toMatchObject({
+    value: {
+      answers: {
+        q2: {
+          attachments: [{ projectId: "proj_1", path: "uploaded/notes.txt" }],
+        },
+      },
+    },
+  });
+  slot.lifecycle.unmount();
+  sessionStorage.clear();
+});
+
+it("keeps question keyboard choices and drafts separate from queue navigation", async () => {
+  sessionStorage.clear();
+  const { payload } = await import("./question/submission-fixture.ts");
+  const slot = await mount(undefined, [], {
+    question_pending: (input) =>
+      (input as { threadId: string }).threadId === "b1"
+        ? { id: "stack-draft", recoverable: false, payload }
+        : null,
+  });
+  const form = await slot.findByRole("region", {
+    name: "Question needs your answer",
+  });
+  const choice = within(form).getByRole("radio", { name: /Rows/ });
+  fireEvent.keyDown(choice, { key: "2", code: "Digit2" });
+  expect(
+    within(form)
+      .getByRole("radio", { name: /Cards/ })
+      .getAttribute("aria-checked"),
+  ).toBe("true");
+  fireEvent.keyDown(choice, { key: "j" });
+  expect(heading(slot)).toBe("Beta question");
+  fireEvent.click(
+    within(slot.getByRole("navigation", { name: "Queue" })).getByRole(
+      "button",
+      { name: "Next" },
+    ),
+  );
+  await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+  fireEvent.click(
+    within(slot.getByRole("navigation", { name: "Queue" })).getByRole(
+      "button",
+      { name: "Previous" },
+    ),
+  );
+  const restored = await slot.findByRole("region", {
+    name: "Question needs your answer",
+  });
+  expect(
+    within(restored)
+      .getByRole("radio", { name: /Cards/ })
+      .getAttribute("aria-checked"),
+  ).toBe("true");
+  slot.lifecycle.unmount();
+  sessionStorage.clear();
+});
+
+it("shows the waiting recap countdown and retains cancellation after restore", async () => {
+  const recap = {
+    id: "waiting",
+    turnId: "turn",
+    at: Date.now(),
+    state: "waiting",
+    goal: "Waiting for the build",
+    latest: [],
+    review: [],
+    links: [],
+    next: [],
+    waitingAgents: [],
+    timeout: 120,
+  };
+  const get = vi.fn(async () => ({
+    recap,
+    files: null,
+    waitingCancelled: false,
+  }));
+  const slot = await mount(undefined, [], {
+    state: () => ({ ...emptyState(), recaps: { a1: recap } }),
+    recap_get: get,
+  });
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  fireEvent.click(slot.getByRole("button", { name: "Next" }));
+  expect(await slot.findByLabelText("Status check countdown")).toBeTruthy();
+  get.mockResolvedValue({ recap, files: null, waitingCancelled: true });
+  await act(async () => {
+    slot.behavior.emitRealtime("changed", {});
+  });
+  expect(await slot.findByText("Check cancelled")).toBeTruthy();
+  slot.lifecycle.unmount();
+});
+
+it.each(["accept", "decline"] as const)(
+  "keeps suggestion %s and undo available",
+  async (decision) => {
+    const suggestion = {
+      id: "suggestion",
+      kind: "edit",
+      summary: "Group card work",
+      reason: "These threads update the card stack",
+      status: "pending",
+      at: Date.now(),
+      decidedAt: null,
+      problem: null,
+      headline: "Group the card work",
+      arrivals: [],
+      change: {
+        op: "refile",
+        moves: [
+          {
+            from: null,
+            to: [{ name: "Cards", created: true }],
+            threads: [{ id: "a1", title: "Alpha work" }],
+            carried: 0,
+          },
+        ],
+      },
+    };
+    const state = {
+      suggestions: [suggestion],
+      running: false,
+      lastRunAt: null,
+      error: null,
+    };
+    const decide = vi.fn(async (_input: unknown) => ({
+      state: { ...state, suggestions: [] },
+      failed: [],
+      entries: { suggestion: "entry" },
+    }));
+    const reopen = vi.fn(async () => ({ state }));
+    const slot = await mount(undefined, [], {
+      suggestions: () => ({ state }),
+      suggestionsDecide: decide,
+      suggestionsReopen: reopen,
+    });
+    await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+    fireEvent.click(slot.getByRole("button", { name: /Archive/ }));
+    await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+    fireEvent.click(slot.getByRole("button", { name: /Archive/ }));
+    await waitFor(() => expect(heading(slot)).toBe("Group the card work"));
+    expect(slot.getByText("These threads update the card stack")).toBeTruthy();
+    expect(slot.queryByRole("button", { name: /Reply/ })).toBeNull();
+    fireEvent.click(
+      slot.getByRole("button", {
+        name: decision === "accept" ? /Accept and move/ : /Decline/,
+      }),
+    );
+    await waitFor(() =>
+      expect(decide).toHaveBeenCalledWith({ ids: ["suggestion"], decision }),
+    );
+    fireEvent.click(await slot.findByRole("button", { name: /Undo/ }));
+    await waitFor(() =>
+      expect(reopen).toHaveBeenCalledWith({
+        id: "suggestion",
+        entryId: "entry",
+      }),
+    );
+    slot.lifecycle.unmount();
+  },
+);
+
+it("does not change the selected item when an earlier question finishes sending", async () => {
+  sessionStorage.clear();
+  const { payload } = await import("./question/submission-fixture.ts");
+  let resolveAnswer!: (value: unknown) => void;
+  const sending = new Promise((resolve) => {
+    resolveAnswer = resolve;
+  });
+  const slot = await mount(undefined, [], {
+    question_pending: (input) =>
+      (input as { threadId: string }).threadId === "b1"
+        ? {
+            id: "stack-sending",
+            recoverable: false,
+            payload: { questions: [payload.questions[2]] },
+          }
+        : null,
+    question_answer: () => sending,
+  });
+  await slot.findByRole("textbox", { name: "Notes answer" });
+  fireEvent.change(slot.getByRole("textbox", { name: "Notes answer" }), {
+    target: { value: "Ship it" },
+  });
+  fireEvent.click(slot.getByRole("button", { name: "Submit" }));
+  fireEvent.click(
+    within(slot.getByRole("navigation", { name: "Queue" })).getByRole(
+      "button",
+      { name: "Next" },
+    ),
+  );
+  await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
+  await act(async () => {
+    resolveAnswer({ ok: true });
+  });
+  expect(heading(slot)).toBe("Alpha work");
+  expect((await slot.findByRole("status")).textContent).toBe(
+    "Answered Beta question",
+  );
+  expect(slot.queryByRole("button", { name: /Undo/ })).toBeNull();
+  slot.lifecycle.unmount();
+  sessionStorage.clear();
 });
 
 it("opens the activity log from the menu, with undo", async () => {
