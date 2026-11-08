@@ -1118,6 +1118,19 @@ mutation records before scanning for delivered questions, subagent results, or a
 replacement message scroller. The thread heading follows the active pane without
 measuring intermediate pane replacements during navigation.
 
+The New thread composer shares one identity reporter per draft. Text and
+picker-only updates stay in the full model for submission and diagnostics; topic
+controls subscribe to the fields they draw. Identity reports remain prompt for
+Enter: equal payloads and intermediate updates before the next microtask are
+coalesced, without a typing debounce or waiting for an earlier RPC. Clearing or
+disposing a draft flushes its pending nonempty report before it can be
+discarded.
+
+Profile the composer's one-view and kept-alive two-view cases with
+`npm test -- tests/app/typing-performance.test.tsx`. The tests count React
+commits and RPCs across 60 edits, and verify that both views still share one
+preview.
+
 Run the render-count regressions with:
 
 ```sh

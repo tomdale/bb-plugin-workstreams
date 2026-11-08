@@ -6,6 +6,7 @@
 import type { ComposerSelection } from "@get-bb/plugin-sdk/app";
 import type { ProjectChoice } from "../../domain/projectChoice.ts";
 import type { Preview } from "../../server/preview.ts";
+import type { ComposedIdentity } from "../../server/composed-drafts.ts";
 import type { DraftSubjectProposal } from "../../domain/topics.ts";
 import { routeDelay } from "./timing.ts";
 import type { WorkstreamTarget } from "./preset.ts";
@@ -50,6 +51,30 @@ export type NewWorkState = {
   events: readonly NewWorkEvent[];
 };
 
+export type NewWorkViewState = Pick<
+  NewWorkState,
+  "identity" | "decision" | "classifying" | "error" | "errors"
+>;
+
+/** What the server files the thread with: the topic the field shows. */
+export function submittedIdentity(
+  state: Pick<NewWorkState, "identity" | "decision">,
+): ComposedIdentity {
+  const identity = state.identity;
+  if (!identity) return null;
+  return {
+    entityId: identity.entityId,
+    proposal: identity.proposal,
+    provenance: identity.provenance,
+    ...(identity.sectionId ? { sectionId: identity.sectionId } : {}),
+    // Quick analysis's title travels with its topic, so the server doesn't
+    // ask again for the same text.
+    ...(identity.provenance === "automatic"
+      ? { goal: state.decision?.goal ?? null }
+      : {}),
+  };
+}
+
 export function submittedProject(state: NewWorkState): ProjectChoice | null {
   const projectId = state.selection?.projectId;
   return projectId
@@ -61,12 +86,21 @@ export function submittedProject(state: NewWorkState): ProjectChoice | null {
     : null;
 }
 
+export type NewWorkIdentityReport = {
+  text: string;
+  identity: ComposedIdentity;
+  projectChoice: ProjectChoice | null;
+};
+
 export type NewWorkDeps = {
   route(prompt: string, pickedProjectId: string | null): Promise<Preview>;
   cancelRoute(): void;
+  reportIdentity?(report: NewWorkIdentityReport): void | Promise<unknown>;
 };
 
-export function identityDisplay(state: NewWorkState): {
+export function identityDisplay(
+  state: Pick<NewWorkState, "identity" | "decision">,
+): {
   id: string | null;
   label: string;
   auto: boolean;
@@ -110,6 +144,49 @@ const RETRY_DELAY_MS = 300;
  */
 const routingModels = new Map<string, { model: NewWork; refs: number }>();
 
+function reportsEqual(
+  a: NewWorkIdentityReport,
+  b: NewWorkIdentityReport,
+): boolean {
+  if (
+    a.text !== b.text ||
+    a.projectChoice?.projectId !== b.projectChoice?.projectId ||
+    a.projectChoice?.source !== b.projectChoice?.source
+  )
+    return false;
+  const identityA = a.identity;
+  const identityB = b.identity;
+  if (identityA === null || identityB === null) return identityA === identityB;
+  return (
+    (identityA.entityId ?? null) === (identityB.entityId ?? null) &&
+    identityA.provenance === identityB.provenance &&
+    (identityA.sectionId ?? null) === (identityB.sectionId ?? null) &&
+    (identityA.goal ?? null) === (identityB.goal ?? null) &&
+    proposalsEqual(identityA.proposal, identityB.proposal)
+  );
+}
+
+function proposalsEqual(
+  a: DraftSubjectProposal | null | undefined,
+  b: DraftSubjectProposal | null | undefined,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const ancestorsA = a.ancestors ?? [];
+  const ancestorsB = b.ancestors ?? [];
+  return (
+    a.name === b.name &&
+    a.description === b.description &&
+    (a.parentId ?? null) === (b.parentId ?? null) &&
+    ancestorsA.length === ancestorsB.length &&
+    ancestorsA.every(
+      (ancestor, index) =>
+        ancestor.name === ancestorsB[index]!.name &&
+        ancestor.description === ancestorsB[index]!.description,
+    )
+  );
+}
+
 export function acquireRoutingModel(key: string, create: () => NewWork) {
   const existing = routingModels.get(key);
   if (existing) {
@@ -133,11 +210,17 @@ export function releaseRoutingModel(key: string, model: NewWork) {
 
 export class NewWork {
   private state: NewWorkState;
+  private viewState: NewWorkViewState;
   private listeners = new Set<() => void>();
+  private viewListeners = new Set<() => void>();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private generation = 0;
   private pending = false;
   private eventIds = 0;
+  private pendingReport: NewWorkIdentityReport | undefined;
+  private lastReport: NewWorkIdentityReport | undefined;
+  private reportQueued = false;
+  private reportingDisposed = false;
 
   constructor(
     private deps: NewWorkDeps,
@@ -154,6 +237,8 @@ export class NewWork {
       events: [],
       ...choice,
     };
+    this.viewState = this.viewSnapshotFromState();
+    this.queueIdentityReport();
   }
 
   snapshot = () => this.state;
@@ -164,9 +249,36 @@ export class NewWork {
     };
   };
 
+  viewSnapshot = () => this.viewState;
+  subscribeView = (listener: () => void) => {
+    this.viewListeners.add(listener);
+    return () => {
+      this.viewListeners.delete(listener);
+    };
+  };
+
+  private viewSnapshotFromState(): NewWorkViewState {
+    return {
+      identity: this.state.identity,
+      decision: this.state.decision,
+      classifying: this.state.classifying,
+      error: this.state.error,
+      errors: this.state.errors,
+    };
+  }
+
   private set(patch: Partial<NewWorkState>) {
     this.state = { ...this.state, ...patch };
+    const viewChanged =
+      this.viewState.identity !== this.state.identity ||
+      this.viewState.decision !== this.state.decision ||
+      this.viewState.classifying !== this.state.classifying ||
+      this.viewState.error !== this.state.error ||
+      this.viewState.errors !== this.state.errors;
+    if (viewChanged) this.viewState = this.viewSnapshotFromState();
+    this.queueIdentityReport();
     this.listeners.forEach((listener) => listener());
+    if (viewChanged) this.viewListeners.forEach((listener) => listener());
   }
 
   private begin(
@@ -210,6 +322,9 @@ export class NewWork {
   observe(text: string) {
     const trimmed = text.trim();
     if (trimmed === this.state.text) return;
+    // A native Enter can clear the draft in the same event turn. Emit the last
+    // nonempty report synchronously before the empty report forgets it.
+    if (!trimmed) this.flushPendingIdentityReport();
     this.set({
       text: trimmed,
       error: null,
@@ -330,7 +445,44 @@ export class NewWork {
   }
 
   dispose() {
+    this.flushPendingIdentityReport();
+    this.reportingDisposed = true;
     this.invalidate();
+  }
+
+  private queueIdentityReport() {
+    if (!this.deps.reportIdentity || this.reportingDisposed) return;
+    const report = {
+      text: this.state.text,
+      identity: submittedIdentity(this.state),
+      projectChoice: submittedProject(this.state),
+    };
+    if (this.pendingReport && reportsEqual(this.pendingReport, report)) return;
+    if (this.lastReport && reportsEqual(this.lastReport, report)) {
+      this.pendingReport = undefined;
+      return;
+    }
+    this.pendingReport = report;
+    if (this.reportQueued) return;
+    this.reportQueued = true;
+    // Reporting never waits for preview debounce or an earlier RPC. The single
+    // pending payload coalesces only changes made before this microtask.
+    queueMicrotask(() => {
+      this.reportQueued = false;
+      this.flushPendingIdentityReport();
+    });
+  }
+
+  private flushPendingIdentityReport() {
+    const report = this.pendingReport;
+    if (!report) return;
+    this.pendingReport = undefined;
+    this.lastReport = report;
+    try {
+      void Promise.resolve(this.deps.reportIdentity!(report)).catch(() => {});
+    } catch {
+      // The submit data or automatic classification still files the thread.
+    }
   }
 
   private invalidate() {

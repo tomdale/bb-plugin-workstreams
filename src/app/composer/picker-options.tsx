@@ -35,7 +35,7 @@ import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { TAG_ICON } from "../workstream-icon.ts";
 import { compareGroupNames } from "../../domain/group-name-order.ts";
-import { type NewWork, type NewWorkState } from "./new-work.ts";
+import { type NewWork, type NewWorkViewState } from "./new-work.ts";
 
 const NONE = "__none__";
 const CREATE = "__create__";
@@ -153,7 +153,7 @@ export function useCatalogEntities(enabled: boolean): Topic[] {
 }
 
 /** The Topic field's value as the pickers state it. */
-export function identityValue(state: NewWorkState): string {
+export function identityValue(state: NewWorkViewState): string {
   return state.identity ? state.identity.label : "Automatic";
 }
 
@@ -175,7 +175,10 @@ export function IdentityOptions({
   onQueryChange,
   onDone,
 }: OptionsProps) {
-  const state = useSyncExternalStore(newWork.subscribe, newWork.snapshot);
+  const state = useSyncExternalStore(
+    newWork.subscribeView,
+    newWork.viewSnapshot,
+  );
   const styles = LIST_CLASSES;
   const needle = query.trim().toLowerCase();
   const visibleEntities = useMemo(() => {

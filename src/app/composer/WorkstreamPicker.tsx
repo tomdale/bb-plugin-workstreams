@@ -7,7 +7,7 @@
  * preview, and No topic. The topic decides the thread's workstream, so
  * the composer never asks for one.
  */
-import { useState, useSyncExternalStore } from "react";
+import { memo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import {
@@ -27,7 +27,10 @@ import {
 import "./route-picker.css";
 
 function IdentityControl({ newWork }: { newWork: NewWork }) {
-  const state = useSyncExternalStore(newWork.subscribe, newWork.snapshot);
+  const state = useSyncExternalStore(
+    newWork.subscribeView,
+    newWork.viewSnapshot,
+  );
   const display = identityDisplay(state);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -94,7 +97,11 @@ function IdentityControl({ newWork }: { newWork: NewWork }) {
 /**
  * The field New work adds to BB's picker row: the Product/Feature identity chip.
  */
-export function WorkstreamPicker({ newWork }: { newWork: NewWork }) {
+export const WorkstreamPicker = memo(function WorkstreamPicker({
+  newWork,
+}: {
+  newWork: NewWork;
+}) {
   return (
     <div
       className="flex items-center gap-0.5 max-w-full min-w-0"
@@ -103,4 +110,4 @@ export function WorkstreamPicker({ newWork }: { newWork: NewWork }) {
       <IdentityControl newWork={newWork} />
     </div>
   );
-}
+});

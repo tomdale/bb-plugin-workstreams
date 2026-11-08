@@ -14,6 +14,7 @@ import { NewThreadRouting } from "../../src/app/composer/NewThreadRouting.tsx";
 import { fakeWorld } from "../server/fake-bb.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { TopicStore } from "../../src/server/topics.ts";
+import { setComposerPreset } from "../../src/app/composer/preset.ts";
 
 let world: Awaited<ReturnType<typeof fakeWorld>> | null = null;
 beforeAll(() => {
@@ -48,7 +49,10 @@ function RootComposer() {
   );
 }
 
-async function mount(answer: Record<string, unknown>) {
+async function mount(
+  answer: Record<string, unknown>,
+  options: { inherited?: boolean; deferReports?: boolean } = {},
+) {
   let seededAlphaId = "";
   world = await fakeWorld({
     // Placement of the first request fails here, so the composer's own
@@ -78,17 +82,33 @@ async function mount(answer: Record<string, unknown>) {
   const corpus = new TopicStore(openDatabase(w.bb));
   const alphaTopic = corpus.create("Alpha", "Alpha effort");
   corpus.bindGroup(alpha.id, alphaTopic.id);
-  corpus.bindGroup(beta.id, corpus.create("Beta", "Beta effort").id);
+  const betaTopic = corpus.create("Beta", "Beta effort");
+  corpus.bindGroup(beta.id, betaTopic.id);
   seededAlphaId = alphaTopic.id;
   w.addThread("a1", { sectionId: alpha.id, title: "Alpha task" });
   await w.harness.behavior.callRpc("refresh", null);
   const methods = ["prefs", "state", "catalog", "preview", "previewCancel"];
+  const deferredReports: (() => Promise<void>)[] = [];
   const rpc = Object.fromEntries(
     methods.map((method) => [
       method,
       (input: unknown) => w.harness.behavior.callRpc(method, input),
     ]),
   );
+  rpc.draftIdentity = (input: unknown) => {
+    if (!options.deferReports || !(input as { text?: string }).text)
+      return w.harness.behavior.callRpc("draftIdentity", input);
+    return new Promise((resolve, reject) => {
+      deferredReports.push(async () => {
+        try {
+          resolve(await w.harness.behavior.callRpc("draftIdentity", input));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  };
+  if (options.inherited) setComposerPreset({ topicId: alphaTopic.id }, "Alpha");
   const slot = renderSlot(
     { component: RootComposer },
     {},
@@ -106,9 +126,9 @@ async function mount(answer: Record<string, unknown>) {
       rpc: rpc as never,
     },
   );
-  const dispatch = async (prompt: string, repeat = false) => {
-    expect(slot.inspection.composer.submits).toHaveLength(1);
-    const submission = slot.inspection.composer.submits[0]!;
+  const dispatch = async (prompt: string, repeat = false, native = false) => {
+    if (!native) expect(slot.inspection.composer.submits).toHaveLength(1);
+    const submission = slot.inspection.composer.submits[0];
     const thread = w.addThread("composed", {
       createdAt: Date.now(),
       title: null,
@@ -117,10 +137,12 @@ async function mount(answer: Record<string, unknown>) {
       thread,
       input: { text: prompt },
       origin: "app",
-      experimental_submission: {
-        pluginId: "workstreams",
-        data: submission.experimental_data ?? null,
-      },
+      experimental_submission: native
+        ? null
+        : {
+            pluginId: "workstreams",
+            data: submission!.experimental_data ?? null,
+          },
     });
     const hook = w.harness.registrations.hooks["message.dispatch"]!;
     vi.useFakeTimers();
@@ -140,8 +162,112 @@ async function mount(answer: Record<string, unknown>) {
       entry.threads.some((thread) => thread.id === "composed"),
     );
   };
-  return { w, alpha, beta, slot, dispatch, journal };
+  return {
+    w,
+    alpha,
+    beta,
+    alphaTopic,
+    betaTopic,
+    corpus,
+    slot,
+    dispatch,
+    journal,
+    dispatchNative: (prompt: string) => dispatch(prompt, false, true),
+    releaseReports: async () => {
+      for (const report of deferredReports.splice(0)) await report();
+    },
+  };
 }
+
+it.each(["Beta", "No topic"] as const)(
+  "files the displayed %s choice when native dispatch has no submit metadata",
+  async (choice) => {
+    const { slot, corpus, betaTopic, dispatchNative } = await mount({});
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Topic: Automatic" }),
+    );
+    fireEvent.click(await screen.findByText(choice));
+    await screen.findByRole("button", { name: `Topic: ${choice}` });
+    const prompt = "Improve the parser diagnostics for this request";
+    await act(() => slot.behavior.setComposerText(prompt));
+    await dispatchNative(prompt);
+    expect(slot.inspection.composer.submits).toHaveLength(0);
+    expect(corpus.assignment("composed")).toMatchObject({
+      entityId: choice === "Beta" ? betaTopic.id : null,
+      provenance: "manual",
+    });
+  },
+);
+
+it("files an inherited topic when native dispatch has no submit metadata", async () => {
+  const { slot, corpus, alphaTopic, dispatchNative } = await mount(
+    {},
+    { inherited: true },
+  );
+  await screen.findByRole("button", { name: "Topic: Alpha" });
+  const prompt = "Improve parser diagnostics in this workstream";
+  await act(() => slot.behavior.setComposerText(prompt));
+  await dispatchNative(prompt);
+  expect(corpus.assignment("composed")).toMatchObject({
+    entityId: alphaTopic.id,
+    provenance: "inherited",
+  });
+});
+
+it("files an automatic topic and goal when native dispatch has no submit metadata", async () => {
+  const { w, slot, corpus, alphaTopic, dispatchNative } = await mount({});
+  const prompt = "Fix the parser in Alpha so it handles tabs";
+  await act(() => slot.behavior.setComposerText(prompt));
+  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await dispatchNative(prompt);
+  expect(corpus.assignment("composed")).toMatchObject({
+    entityId: alphaTopic.id,
+    provenance: "quick",
+  });
+  await waitFor(() =>
+    expect(w.threads.get("composed")?.title).toBe("Alpha parser tabs"),
+  );
+});
+
+it("files a manually proposed topic without submit metadata", async () => {
+  const { slot, corpus, dispatchNative } = await mount({});
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Topic: Automatic" }),
+  );
+  fireEvent.change(screen.getByPlaceholderText("Find a topic"), {
+    target: { value: "Billing" },
+  });
+  fireEvent.click(
+    await screen.findByRole("option", { name: /New topic “Billing”/ }),
+  );
+  await screen.findByRole("button", { name: "Topic: Billing" });
+  const prompt = "Add invoice exports for Billing";
+  await act(() => slot.behavior.setComposerText(prompt));
+  await dispatchNative(prompt);
+  expect(corpus.assignment("composed").entityId).toBe(
+    corpus.list().find((entity) => entity.name === "Billing")?.id,
+  );
+});
+
+it("does not wait for identity reporting before native dispatch and files a late report", async () => {
+  const { slot, corpus, betaTopic, dispatchNative, releaseReports } =
+    await mount({}, { deferReports: true });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Topic: Automatic" }),
+  );
+  fireEvent.click(await screen.findByText("Beta"));
+  await screen.findByRole("button", { name: "Topic: Beta" });
+  const prompt = "Improve parser diagnostics before the preview completes";
+  await act(() => slot.behavior.setComposerText(prompt));
+  await dispatchNative(prompt);
+  expect(corpus.assignment("composed").entityId).toBeNull();
+  expect(slot.inspection.composer.submits).toHaveLength(0);
+  await act(() => releaseReports());
+  expect(corpus.assignment("composed")).toMatchObject({
+    entityId: betaTopic.id,
+    provenance: "manual",
+  });
+});
 
 it("submits classified automatic identity through host metadata and assigns on server", async () => {
   const { w, slot, dispatch } = await mount({

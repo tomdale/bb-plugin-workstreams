@@ -7,7 +7,8 @@ import {
   NewWork as NewWorkModel,
   releaseRoutingModel,
   submittedProject,
-  type NewWorkState,
+  submittedIdentity,
+  type NewWorkViewState,
 } from "./new-work.ts";
 import { useDebugMode } from "../debug/debug.ts";
 import { NewWorkDebug } from "./NewWorkDebug.tsx";
@@ -61,6 +62,8 @@ export function NewThreadRouting() {
           cancelRoute: () => {
             void rpc.call("previewCancel", { draftKey }).catch(() => {});
           },
+          reportIdentity: (report) =>
+            rpc.call("draftIdentity", { draftKey, ...report }),
         },
         takeProjectChoice(scope.projectId),
       );
@@ -86,8 +89,8 @@ export function NewThreadRouting() {
   }, [composer.selection, composer.text, model]);
 
   const state = useSyncExternalStore(
-    model?.subscribe ?? emptySubscribe,
-    model?.snapshot ?? emptySnapshot,
+    model?.subscribeView ?? emptySubscribe,
+    model?.viewSnapshot ?? emptySnapshot,
   );
   const topicId =
     state.identity?.entityId ?? state.identity?.proposal?.parentId;
@@ -121,34 +124,6 @@ export function NewThreadRouting() {
     };
   }, [composer, model, rpc, sdk, topicId, sectionId, state.identity]);
 
-  // BB's Enter submits without a form event this banner could intercept, so
-  // the server also learns the draft's identity as it changes and files the
-  // thread whose first message has this text (`ComposedDrafts`).
-  const draftKey = composer.key;
-  useEffect(() => {
-    if (!model) return;
-    const identity = submittedIdentity(state);
-    void Promise.resolve()
-      .then(() =>
-        rpc.call("draftIdentity", {
-          draftKey,
-          text: state.text,
-          identity,
-          projectChoice: submittedProject(state),
-        }),
-      )
-      .catch(() => {
-        // The submit data or automatic classification still files the thread.
-      });
-  }, [
-    draftKey,
-    model,
-    rpc,
-    state.identity,
-    state.text,
-    state.selection,
-    state.suppliedProjectId,
-  ]);
   useEffect(() => {
     // The host composer submits through BB's own thread creation; the
     // destination the pickers show — picked or automatic — travels as submit
@@ -234,23 +209,6 @@ export function NewThreadRouting() {
   );
 }
 
-/** What the server files the thread with: the topic the field shows. */
-function submittedIdentity(state: NewWorkState) {
-  const identity = state.identity;
-  if (!identity) return null;
-  return {
-    entityId: identity.entityId,
-    proposal: identity.proposal,
-    provenance: identity.provenance,
-    ...(identity.sectionId ? { sectionId: identity.sectionId } : {}),
-    // Quick analysis's title travels with its topic, so the server doesn't
-    // ask again for the same text.
-    ...(identity.provenance === "automatic"
-      ? { goal: state.decision?.goal ?? null }
-      : {}),
-  };
-}
-
 /** New work's Debug section, mounted only once the banner is active. */
 function DebugSection({ newWork }: { newWork: NewWorkModel }) {
   return useDebugMode() ? <NewWorkDebug newWork={newWork} /> : null;
@@ -261,13 +219,10 @@ function emptySubscribe() {
 }
 
 const emptySnapshot = () => EMPTY_STATE;
-const EMPTY_STATE: NewWorkState = {
-  text: "",
+const EMPTY_STATE: NewWorkViewState = {
   identity: null,
-  selection: null,
   decision: null,
   classifying: false,
   error: null,
   errors: 0,
-  events: [],
 };
