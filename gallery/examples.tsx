@@ -454,6 +454,8 @@ function ControlsExample() {
               Discard
             </Button>
             <Button type="button" variant="outline" disabled>
+              {" "}
+              {/* slop-ok: 1 Legible text: preserve the demonstrated BB control’s disabled styling */}
               Unavailable
             </Button>
           </div>

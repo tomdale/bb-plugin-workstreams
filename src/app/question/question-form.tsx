@@ -228,7 +228,9 @@ function QuestionInputBlock({
   shortcuts,
 }: QuestionInputBlockProps) {
   const options = question.options;
-  const softKeyboard = useIsCompactViewport() && usePointerCoarse();
+  const isCompactViewport = useIsCompactViewport();
+  const pointerCoarse = usePointerCoarse();
+  const softKeyboard = isCompactViewport && pointerCoarse;
   const { projectId } = useBbContext();
   const sdk = useSdk();
   const [uploading, setUploading] = useState(false);

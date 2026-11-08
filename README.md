@@ -638,8 +638,10 @@ above the composer:
 - Supports `1–4` questions in tabs, each with up to `4` single-select or
   multi-select options (with number-key shortcuts and optional Markdown
   previews) plus an **Other…** freeform input.
-- Freeform answers support pasted images and project file attachments (`Enter`
-  to submit, `Shift+Enter` for a newline).
+- Freeform answers support pasted images and project file attachments. `Enter`
+  advances to the next question or submits the final answer; `Shift+Enter`
+  inserts a newline. On a compact viewport with a coarse pointer, `Enter`
+  inserts a newline. Answers remain while the viewport or pointer mode changes.
 - Draft answers save automatically to `sessionStorage` (`250 ms` debounce) and
   recover across page reloads or interrupted turns.
 - Submitted questions remain inline as read-only cards, collapsed by default to

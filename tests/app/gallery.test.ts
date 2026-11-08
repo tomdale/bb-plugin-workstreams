@@ -992,6 +992,74 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
   );
 
   browserTest.concurrent(
+    "keeps a mounted answer across viewport and pointer changes",
+    async ({ page }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.setViewportSize({ width: 1200, height: 1000 });
+      await page.goto(`${url}#question-form`);
+      await page.getByRole("combobox", { name: "Question preset" }).click();
+      await page
+        .getByRole("option", { name: "Freeform only", exact: true })
+        .click();
+      const answer = page.getByRole("textbox", { name: "Context answer" });
+      await answer.fill("Keep payment approval visible");
+      const input = await answer.elementHandle();
+      const cdp = await page.context().newCDPSession(page);
+      for (const [width, coarse] of [
+        [390, false],
+        [390, true],
+        [1200, true],
+        [1200, false],
+        [390, true],
+      ] as const) {
+        await cdp.send("Emulation.setTouchEmulationEnabled", {
+          enabled: coarse,
+          maxTouchPoints: 1,
+        });
+        await page.setViewportSize({ width, height: 1000 });
+        await page.waitForFunction(
+          ({ width, coarse }) =>
+            matchMedia("(max-width: 767px)").matches === width <= 767 &&
+            matchMedia("(pointer: coarse)").matches === coarse,
+          { width, coarse },
+        );
+        await page.waitForFunction(
+          ({ soft }) =>
+            document.body.textContent!.includes("Enter to submit") === !soft,
+          { soft: width <= 767 && coarse },
+        );
+        expect(await input!.evaluate((el) => el.isConnected)).toBe(true);
+        expect(await answer.inputValue()).toBe("Keep payment approval visible");
+        await answer.press("Shift+Enter");
+        expect(await answer.inputValue()).toBe(
+          "Keep payment approval visible\n",
+        );
+        await answer.fill("Keep payment approval visible");
+        if (width <= 767 && coarse) {
+          await answer.press("Enter");
+          expect(await answer.inputValue()).toBe(
+            "Keep payment approval visible\n",
+          );
+          expect(await page.getByRole("status").count()).toBe(0);
+          await answer.fill("Keep payment approval visible");
+        }
+      }
+      await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+      await page.setViewportSize({ width: 1200, height: 1000 });
+      await page.getByText(/Enter to submit/).waitFor();
+      await answer.press("Enter");
+      await page
+        .getByRole("status")
+        .filter({ hasText: "Answer: Keep payment approval visible" })
+        .waitFor();
+      expect(await answer.inputValue()).toBe("Keep payment approval visible");
+      expect(errors).toEqual([]);
+    },
+    60_000,
+  );
+
+  browserTest.concurrent(
     "shows interaction outcomes outside specimens and discloses earlier actions",
     async ({ page }) => {
       await page.goto(`${url}#settings`);
