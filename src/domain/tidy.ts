@@ -465,6 +465,17 @@ const rawEdit = z.object({
 
 export type ProposedEdit = { edit: TidyEdit; reason: string };
 
+export function normalizeTidyTopicId(
+  value: string,
+  known: ReadonlySet<string>,
+): string {
+  if (value.startsWith("[") && value.endsWith("]")) {
+    const inner = value.slice(1, -1);
+    if (known.has(inner)) return inner;
+  }
+  return value;
+}
+
 /**
  * Maps a tidy answer back to topic and thread IDs, keeping each edit that
  * names what it needs and dropping the rest; at most `TIDY_EDITS_MAX`.
@@ -476,6 +487,7 @@ export function parseTidy(text: string, input: TidyInput): ProposedEdit[] {
   const topicOf = new Map(
     [...placementIds(input.topics)].map(([id, short]) => [short, id]),
   );
+  const knownTopics = new Set(topicOf.keys());
   const shown = new Set(
     [...tidyThreadGroups(input).values()].flatMap((group) =>
       group.shown.map((thread) => thread.id),
@@ -494,7 +506,7 @@ export function parseTidy(text: string, input: TidyInput): ProposedEdit[] {
       return created.has(value.slice(4).trim().toLowerCase())
         ? `new:${value.slice(4).trim()}`
         : undefined;
-    return topicOf.get(value);
+    return topicOf.get(normalizeTidyTopicId(value, knownTopics));
   };
   const out: ProposedEdit[] = [];
   for (const item of parsed.edits) {

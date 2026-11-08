@@ -46,6 +46,52 @@ const parse = (...edits: Record<string, unknown>[]) =>
   parseTidy(JSON.stringify({ edits: edits.map(edit) }), input);
 
 describe("parseTidy", () => {
+  it("resolves bracketed topic IDs only when they are in the supplied tree", () => {
+    expect(
+      parse({ op: "rename", topic: "[automations]", name: "Runs" })[0]?.edit,
+    ).toEqual({ op: "rename", topic: "auto", name: "Runs" });
+    expect(
+      parse({
+        op: "reparent",
+        topic: "[beacon-code-review]",
+        parent: "[beacon]",
+        name: "Code Review",
+      })[0]?.edit,
+    ).toEqual({
+      op: "reparent",
+      topic: "review",
+      parent: "beacon",
+      name: "Code Review",
+    });
+    expect(
+      parse({
+        op: "merge",
+        from: "[automations]",
+        into: "[beacon-code-review]",
+      })[0]?.edit,
+    ).toEqual({ op: "merge", from: "auto", into: "review" });
+    expect(
+      parse({
+        op: "create",
+        name: "Tools",
+        parent: null,
+        children: ["[automations]", "[beacon-code-review]"],
+      })[0]?.edit,
+    ).toEqual({
+      op: "create",
+      name: "Tools",
+      description: "",
+      parent: null,
+      children: ["auto", "review"],
+    });
+    expect(
+      parse({ op: "rename", topic: "[unknown]", name: "Untrusted" }),
+    ).toEqual([]);
+    expect(
+      parse({ op: "rename", topic: "[[automations]]", name: "Untrusted" }),
+    ).toEqual([]);
+  });
+
   it("accepts moves only for displayed topic and Unfiled threads, preserving their prompt IDs", () => {
     const threads = [
       ...Array.from({ length: 13 }, (_, n) => ({
@@ -75,7 +121,7 @@ describe("parseTidy", () => {
     expect(prompt).not.toMatch(/\[r(?:13|26|27)\]/);
     const answer = {
       edits: ["r12", "r13", "r25", "r26", "r27"].map((thread) =>
-        edit({ op: "move", thread, topic: "beacon-code-review" }),
+        edit({ op: "move", thread, topic: "[beacon-code-review]" }),
       ),
     };
     expect(
