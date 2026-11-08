@@ -726,7 +726,9 @@ Question cards on this page use the same form as the thread: choose options,
 review previews, add notes, answer in your own words, or attach files and
 images, then submit or dismiss. Draft answers follow you between the page and
 the thread. Submission resumes an active question tool; an interrupted question
-sends its recovered answer to the thread.
+sends its recovered answer to the thread. Question footers run edge to edge
+inside the card, with **Cancel** aligned to the question text and **Submit** on
+the opposite side.
 
 Waiting recaps show their status-check countdown. **Dismiss recap** (`D`)
 cancels that check and removes the item from the queue; **Undo** restores the

@@ -161,7 +161,14 @@ export function ThreadCard({
   waitingCancelled?: boolean;
 }) {
   return (
-    <div style={{ zoom: question ? undefined : CARD_ZOOM }} className={CONTENT}>
+    <div
+      style={{ zoom: question ? undefined : CARD_ZOOM }}
+      className={
+        question
+          ? "@container/question overflow-hidden px-[17px] py-[13px] text-foreground"
+          : CONTENT
+      }
+    >
       {question ??
         (card.kind === "recap" ? (
           <>
