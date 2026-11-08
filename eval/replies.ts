@@ -144,10 +144,13 @@ const replyEnvelope = {
   required: ["reply"],
 } as Record<string, unknown>;
 /** Reading is lenient so a rejected recap is scored instead of thrown. */
-const readRecap = (text: string) =>
-  z
-    .object({ recap: z.unknown() })
-    .parse(JSON.parse(/\{[\s\S]*\}/.exec(text)?.[0] ?? text)).recap;
+const readRecap = (text: string): unknown => {
+  const parsed: unknown = JSON.parse(/\{[\s\S]*\}/.exec(text)?.[0] ?? text);
+  // A real call has no wrapper, so arguments sent bare are the same answer.
+  return typeof parsed === "object" && parsed !== null && "recap" in parsed
+    ? (parsed as { recap: unknown }).recap
+    : parsed;
+};
 const results = [];
 /** A response the gateway cut off mid-answer says nothing about the instructions. */
 const cutOff = (stopReason: string | null) =>
