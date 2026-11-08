@@ -869,7 +869,7 @@ export function WorkstreamsThreadList({
   const workstreamsHeading = hasWorkstreams ? (
     <div
       key="workstreams-heading"
-      className="flex items-center gap-1"
+      className="flex items-center gap-1.5"
       style={{
         height: SIDEBAR_GEOMETRY.sectionHeading.height,
         marginTop: SIDEBAR_GEOMETRY.sectionHeading.topMargin,
@@ -893,7 +893,7 @@ export function WorkstreamsThreadList({
             onClick={() =>
               navigate.toPluginPanel("home", { subPath: "organization" })
             }
-            className="ws-needs-you-text ws-suggestions-action flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] leading-[1.2] font-medium transition-colors"
+            className="ws-needs-you-text ws-suggestions-action flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-[1.5px] text-[11px] leading-[1.2] font-medium transition-colors"
           >
             <Icon name="MagicWand01" className="size-3" aria-hidden />
             Reorganize
