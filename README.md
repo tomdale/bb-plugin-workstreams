@@ -1088,5 +1088,9 @@ color literals in `src/app`.
 Then run the repository's `scripts/bb-plugin-smoke` against this package to
 verify activation in an isolated throwaway BB server. Opt-in model evaluations
 live in [eval/README.md](eval/README.md) (they make paid model calls and are not
-part of the unit test suite). See [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md) and
-[docs/organization.md](docs/organization.md) for architectural details.
+part of the unit test suite). The
+[reply architecture slice](eval/README.md#reply-architecture-slice) compares
+direct UI authoring, Markdown preserved as a text component, and a dedicated
+presentation call on one source-inspection task; its default command previews
+the experiment without paid calls. See [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md)
+and [docs/organization.md](docs/organization.md) for architectural details.

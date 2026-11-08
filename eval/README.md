@@ -186,6 +186,43 @@ answer does not replace the reply-format contract. This checks format and
 supplied facts, not tool selection, real harness turn ordering, visual
 rendering, or reader comprehension. Those need separate checks.
 
+## Reply architecture slice
+
+`node --experimental-transform-types eval/reply-architecture.ts` previews a
+one-case, tool-free experiment without credentials or paid calls. The Node flag
+supports the component parser's TypeScript parameter property. Add `--run` to
+make at most three paid calls: a pagination diagnosis with the production
+reply/component instructions, the same diagnosis with Markdown instructions,
+then presentation of that exact Markdown response using the production component
+contract. The deterministic path preserves the Markdown verbatim as a text
+component. Both task authorings receive the same code and question; the
+presentation call receives its source response, not the original task or
+reference answers.
+
+`EVAL_MODEL` selects the same model for all calls (default `openai/gpt-6-luna`).
+Reasoning is `none`; each call has a 2,048-token output limit and 30-second
+deadline. There are no retries. Further calls stop once reported cumulative cost
+reaches $0.75; this is not a hard spend cap, since an in-flight call or
+unreported cost can exceed it.
+
+The runner prints a fresh temporary artifact directory containing `report.json`,
+`semantic.md`, and each path's reply Markdown. The report keeps prompts,
+responses, parsed components, timings, reported usage/cost, and failures. It
+records the Git revision, a working-tree dirty flag, and the runner's SHA-256;
+the hash identifies the runner, not uncommitted changes to its dependencies.
+Unusable semantic output blocks both downstream paths. Invalid, empty, or
+truncated output fails the run, including a truncated response whose reply block
+happens to parse. A bare `workstreams` line followed by a component call is
+flagged as possible unfenced source; other misplaced source still needs manual
+inspection. The correction-expression match is a lexical cue, not a correctness
+score; a negated correction also matches. Use the report's manual questions to
+inspect the diagnosis, corrected offsets, unverified execution, and fidelity to
+the semantic source.
+
+This slice checks task authoring through presentation syntax. It does not run
+workspace tools, render a browser comparison, measure reader preference, or
+establish an architecture winner. It does not change the live reply path.
+
 ## Recap corrections
 
 `node eval/recap-corrections.ts` compares the previous and current reminder
