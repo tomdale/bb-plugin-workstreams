@@ -143,11 +143,21 @@
   );
   animation: ws-spin 1.4s linear infinite;
 }
+.ws-spin-braille {
+  overflow: hidden;
+}
 .ws-spin-braille::before {
-  content: "\280B";
+  content: "\280B\A\2819\A\2839\A\2838\A\283C\A\2834\A\2826\A\2827\A\2807\A\280F";
+  width: max-content;
+  height: 10em;
+  flex: none;
+  align-self: flex-start;
+  margin-top: 1px;
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 12px;
   font-weight: 400;
+  line-height: 1;
+  white-space: pre;
   animation: ws-braille 0.8s steps(1) infinite;
 }
 .ws-spin-dots {
@@ -171,36 +181,38 @@
     transform: rotate(360deg);
   }
 }
+/* Each 1em row holds the next glyph. The fixed-size strip moves inside the
+   mark's clip, so changing frames only updates its compositor transform. */
 @keyframes ws-braille {
   0% {
-    content: "\280B";
+    transform: translateY(0);
   }
   10% {
-    content: "\2819";
+    transform: translateY(-1em);
   }
   20% {
-    content: "\2839";
+    transform: translateY(-2em);
   }
   30% {
-    content: "\2838";
+    transform: translateY(-3em);
   }
   40% {
-    content: "\283C";
+    transform: translateY(-4em);
   }
   50% {
-    content: "\2834";
+    transform: translateY(-5em);
   }
   60% {
-    content: "\2826";
+    transform: translateY(-6em);
   }
   70% {
-    content: "\2827";
+    transform: translateY(-7em);
   }
   80% {
-    content: "\2807";
+    transform: translateY(-8em);
   }
   90% {
-    content: "\280F";
+    transform: translateY(-9em);
   }
 }
 @keyframes ws-wave {
