@@ -72,13 +72,13 @@ for (const test of queue) {
       ? []
       : decision.categories
           .map((category) => category.name)
-          .filter((name) => /[,&]/.test(name));
+          .filter((name) => /,|\band\b/.test(name));
     passed =
       JSON.stringify(actual) === JSON.stringify(expected) &&
       (!("keep" in test) || decision.keep === test.keep) &&
       (!test.noChainNames || chainedNames.length === 0);
     if (test.noChainNames && chainedNames.length)
-      error = `chained names: ${chainedNames.join("; ")}`;
+      error = `names joining scopes without "&": ${chainedNames.join("; ")}`;
   } catch (failure) {
     error = String(failure);
   }

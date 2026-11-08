@@ -125,7 +125,7 @@ export const cases: Array<{
   input: CategoryInput;
   partitions: string[][];
   keep?: boolean;
-  /** Fail a replacement whose category names chain themes with "," or "&". */
+  /** Fail a replacement whose names join scopes with "and" or ","; "&" joins. */
   noChainNames?: boolean;
 }> = [
   { id: "create", input: initial, partitions: expected },

@@ -76,7 +76,7 @@ The classifier chooses useful distinctions among these threads, with plain names
 and coherent membership. A category groups threads that share one theme;
 singletons are for work sharing a theme with no other thread, and an arrangement
 that is mostly singletons is regrouped. A name states its members' shared theme
-without chaining themes; names that no longer cover their members are renamed.
+and joins scopes with "&"; names that no longer cover their members are renamed.
 It does not force equal sizes or a General/Other catch-all. Fresh generations
 need at least two categories; an active generation can contract as its
 collection changes. Every eligible root must appear exactly once. Unsupported

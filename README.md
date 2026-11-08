@@ -290,9 +290,9 @@ category headings use a subdued version of the workstream color:
   or membership, or an explicit organization rebuild, before retrying.
 
 Categories describe distinctions useful among the current threads: each groups
-threads that share one theme, and its name states that theme. Child topics
-identify lasting areas assignable independently of that collection. Volume and
-recurring category names do not create child topics.
+threads that share one theme, and its name states that theme, joining scopes
+with &. Child topics identify lasting areas assignable independently of that
+collection. Volume and recurring category names do not create child topics.
 
 ### 5. Organizing suggestions
 
