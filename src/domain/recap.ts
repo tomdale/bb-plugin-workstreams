@@ -189,7 +189,7 @@ const recapFields = z
       .nullable()
       .optional()
       .describe(
-        "Waiting only: seconds until the agent should check task status, from 1 to 86400",
+        "Waiting only, and required then: seconds until the agent should check task status, from 1 to 86400",
       ),
     // A string is one step, or a list some harnesses send JSON-encoded.
     review: z
@@ -490,7 +490,7 @@ State describes the responsibilities this thread owns under the user's request. 
 Write terse sentence-case inline Markdown without closing periods. Limits count visible text, not link targets. @thread:<id> mentions render as chips; lowercase commit hashes render shortened with copy support when bare or alone in backticks, not links.
 goal: purpose in past tense for complete/review, -ing for waiting, at most 80 characters; a short factual answer states the answer itself and omits latest, review, links, and next.
 latest: 1–3 concrete results, most important first, about 12 words each; omit for a short answer. Advice states the recommendation itself, not an implemented change, and offers the action it proposes as Next. review: required for review state, 1–3 distinct steps to inspect or try the result and what to expect; UI steps include how to reach and exercise it. Items may be strings or { text, detail } with optional secondary detail; keep separate items, not semicolon-joined steps.
-waiting: goal names the awaited task, timeout gives a realistic polling interval in seconds. The card prompts a status check at expiry if the turn is still current. Add { threadId, task } per awaited agent in waitingAgents; with several, goal names their shared outcome. Omit latest, review, links, and next.
+waiting: goal names the awaited task; timeout is required, a realistic polling interval in seconds. The card prompts a status check at expiry if the turn is still current. Add { threadId, task } per awaited agent in waitingAgents; with several, goal names their shared outcome. Omit latest, review, links, and next.
 links: review targets only, as absolute paths or HTTPS URLs; source files qualify only for requested source review.
 next: required for complete and review; only a short factual answer with nothing left open omits it. Next names each thing the recap leaves open: a pull request unopened, unmerged, or awaiting review; a result only the user can check on their own machine or display; a decision they still own; a step named but not done; an optional improvement or unauthorized change you recommended; for a handoff, how the destination reports back. These are optional future requests, not blocking approval or automatic execution; an unauthorized action belongs here, not in a question card, unless the recap cannot stand without the answer. Do authorized continuations yourself. Prefer { title, message, description? }: a 2–4-word button label of at most 28 characters, the self-contained plain-text request it sends, at most 120 characters, and optional hover context of at most 120. A string is both label and request. Whitespace and closing periods are normalized. The user decides whether to archive the thread.
 Advice-only example: {"state":"complete","goal":"Recommended renaming the label","latest":["Renaming matches the stored value without changing execution"],"next":[{"title":"Rename the label","message":"Rename the setting label and add a regression test"}]}.`;

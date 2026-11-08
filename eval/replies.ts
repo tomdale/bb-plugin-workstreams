@@ -113,6 +113,11 @@ const cases = [
     short: true,
   },
 ] as const;
+/** A recap rejection as the tool reports it: the field path names what to fix. */
+const issueText = (issue?: { path: PropertyKey[]; message: string }) =>
+  issue
+    ? `${issue.path.length ? `${issue.path.map(String).join(".")}: ` : ""}${issue.message}`
+    : undefined;
 const apiKey = await gatewayKey();
 if (!apiKey) throw Error("AI Gateway authentication required");
 const model = process.env.EVAL_MODEL ?? "openai/gpt-6-luna";
@@ -206,7 +211,7 @@ for (const task of cases) {
           try {
             accepted = recapInputSchema.safeParse(readRecap(response.text));
             if (accepted.success) break;
-            rejection = accepted.error.issues[0]?.message ?? "invalid recap";
+            rejection = issueText(accepted.error.issues[0]) ?? "invalid recap";
           } catch (error) {
             rejection = error instanceof Error ? error.message : String(error);
           }
@@ -268,7 +273,7 @@ for (const task of cases) {
           problems.push("Fixed-output answer is not the requested fact alone");
         if (!recap)
           problems.push(
-            `Recap rejected: ${accepted?.error?.issues[0]?.message ?? "missing recap"}`,
+            `Recap rejected: ${issueText(accepted?.error?.issues[0]) ?? "missing recap"}`,
           );
         else if (
           recap.latest.length ||
@@ -294,7 +299,7 @@ for (const task of cases) {
           );
         else if (!accepted?.success)
           problems.push(
-            `Recap rejected: ${accepted?.error.issues[0]?.message ?? "missing recap"}`,
+            `Recap rejected: ${issueText(accepted?.error?.issues[0]) ?? "missing recap"}`,
           );
         else if (
           !(Array.isArray(task.state) ? task.state : [task.state]).includes(
