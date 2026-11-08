@@ -548,6 +548,42 @@
 .dark .ws-queue-path {
   color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
 }
+/* Sidebar typography: one semantic class per text role. Color stays on the
+   identity and theme classes below; these only set size, weight, and rhythm.
+   The geometry these accompany lives in sidebar/tokens.ts. */
+.ws-text-section {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  line-height: 1.2;
+}
+.ws-text-workstream {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.ws-text-inline-workstream {
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 1.2;
+}
+.ws-text-prefix {
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 1.2;
+}
+.ws-text-category {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.ws-text-thread {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
 /* A category inherits its workstream hue, tempered by the theme's muted ink. */
 .ws-workstream-name {
   color: var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)));

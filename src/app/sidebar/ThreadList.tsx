@@ -59,6 +59,8 @@ import {
 } from "../../domain/upNext.ts";
 import { useWorkstreams } from "../useWorkstreams.ts";
 import { groupCollapseKey, useCollapsed } from "./useCollapsed.ts";
+import { SIDEBAR_GEOMETRY } from "./tokens.ts";
+import { workstreamGap } from "./workstreamGap.ts";
 import {
   useBandOptions,
   type BandId,
@@ -91,7 +93,7 @@ import { snoozeThreads, wakeThreads } from "../snooze/actions.ts";
 import { CustomSnoozeDialog } from "../snooze/CustomSnoozeDialog.tsx";
 import { SnoozeMenuItems, plainMenuKit } from "../snooze/SnoozeMenuItems.tsx";
 import { SnoozeIcon } from "../snooze/icons.tsx";
-import { WorkstreamName, splitWorkstreamName } from "../WorkstreamName.tsx";
+import { WorkstreamName } from "../WorkstreamName.tsx";
 import {
   presenceProps,
   useFlip,
@@ -116,36 +118,6 @@ import { usePrefs } from "../prefs.ts";
 
 type ThreadGroup = Group<PluginSidebarThread>;
 type ThreadNode = WorkstreamNode<PluginSidebarThread>;
-
-/**
- * Spacing between consecutive workstream groups: 22px across an inline
- * parent boundary (4px if the previous workstream is collapsed), and 9px
- * between siblings of the same parent or between standalone workstreams
- * (0px if the previous workstream is collapsed).
- */
-function workstreamGap(
-  prev: ThreadNode | ThreadGroup | null,
-  curr: ThreadNode | ThreadGroup,
-  prevCollapsed: boolean,
-): number {
-  if (!prev) return 0;
-  const prevLabel = "label" in prev ? prev.label : prev.name;
-  const currLabel = "label" in curr ? curr.label : curr.name;
-  const prevOwner = splitWorkstreamName(prevLabel)?.owner ?? null;
-  const currOwner = splitWorkstreamName(currLabel)?.owner ?? null;
-  const prevKey = prevOwner ?? prev.id;
-  const currKey = currOwner ?? curr.id;
-  const isSame = prevKey === currKey;
-  const isInlineBoundary =
-    !isSame && (Boolean(prevOwner) || Boolean(currOwner));
-
-  if (prevCollapsed) {
-    const extra = isSame ? 0 : isInlineBoundary ? 4 : 0;
-    return 0 + extra;
-  }
-  const extra = isSame ? 0 : isInlineBoundary ? 13 : 0;
-  return 9 + extra;
-}
 
 /** The groups drawn inline under `group`, in order, theirs included. */
 function inlineGroups(group: ThreadNode): ThreadNode[] {
@@ -814,14 +786,19 @@ export function WorkstreamsThreadList({
       <Fragment key={category.id ?? "unplaced"}>
         {category.name ? (
           <li
-            className={cn(
-              "list-none",
-              index === 0 ? "mt-1" : "mt-[13px]",
-              "mb-[3px] h-3.5 pl-5",
-            )}
+            className="list-none"
+            style={{
+              marginTop:
+                index === 0
+                  ? SIDEBAR_GEOMETRY.category.firstTopGap
+                  : SIDEBAR_GEOMETRY.category.betweenGap,
+              marginBottom: SIDEBAR_GEOMETRY.category.afterGap,
+              height: SIDEBAR_GEOMETRY.category.height,
+              paddingLeft: SIDEBAR_GEOMETRY.category.indent,
+            }}
           >
             <h4
-              className="ws-category-label m-0 truncate text-[12px] font-medium leading-[1.2]"
+              className="ws-text-category ws-category-label m-0 truncate"
               style={workstreamColorStyle(colorOf(group)) as CSSProperties}
             >
               {label ? `${label} · ${category.name}` : category.name}
@@ -1017,9 +994,15 @@ export function WorkstreamsThreadList({
   const workstreamsHeading = hasWorkstreams ? (
     <div
       key="workstreams-heading"
-      className="flex h-[13px] items-center gap-1 pl-2.5 mt-[2px] mb-[9px]"
+      className="flex items-center gap-1"
+      style={{
+        height: SIDEBAR_GEOMETRY.sectionHeading.height,
+        marginTop: SIDEBAR_GEOMETRY.sectionHeading.topMargin,
+        marginBottom: SIDEBAR_GEOMETRY.sectionHeading.bottomMargin,
+        paddingLeft: SIDEBAR_GEOMETRY.sectionHeading.leftInset,
+      }}
     >
-      <h2 className="flex min-w-0 flex-1 items-center text-[11px] font-semibold uppercase tracking-[0.4px] leading-[1.2] text-muted-foreground">
+      <h2 className="ws-text-section flex min-w-0 flex-1 items-center text-muted-foreground">
         Workstreams
       </h2>
       <SidebarViewOptionsMenu
@@ -1189,7 +1172,16 @@ export function WorkstreamsThreadList({
 
   return (
     <DndContext {...contextProps}>
-      <div ref={listRef} className="ws-list flex flex-col px-2 py-3">
+      <div
+        ref={listRef}
+        className="ws-list flex flex-col"
+        style={{
+          paddingLeft: SIDEBAR_GEOMETRY.container.paddingX,
+          paddingRight: SIDEBAR_GEOMETRY.container.paddingX,
+          paddingTop: SIDEBAR_GEOMETRY.container.paddingY,
+          paddingBottom: SIDEBAR_GEOMETRY.container.paddingY,
+        }}
+      >
         {error ? (
           <p
             role="alert"
@@ -1308,7 +1300,14 @@ export function WorkstreamsThreadList({
                       onClick={toggleLower}
                       // A quiet link-style toggle, not a section header:
                       // the workstreams it reveals keep their own headers.
-                      className="group/lower mx-1.5 mt-4 mb-2.5 flex h-[15.2px] items-center gap-1.5 self-stretch rounded-sm text-left text-[12px] font-normal leading-[1.2] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+                      className="group/lower flex items-center gap-1.5 self-stretch rounded-sm text-left text-[12px] font-normal leading-[1.2] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+                      style={{
+                        marginLeft: SIDEBAR_GEOMETRY.lowerToggle.inset,
+                        marginRight: SIDEBAR_GEOMETRY.lowerToggle.inset,
+                        marginTop: SIDEBAR_GEOMETRY.lowerToggle.topMargin,
+                        marginBottom: SIDEBAR_GEOMETRY.lowerToggle.bottomMargin,
+                        height: SIDEBAR_GEOMETRY.lowerToggle.height,
+                      }}
                     >
                       <span className="underline-offset-2 group-hover/lower:underline">
                         {showLower
@@ -1843,8 +1842,13 @@ function WorkstreamGroup({
         <div
           ref={handle?.ref}
           {...handle?.listeners}
-          className="group/row relative flex h-[22px] items-center gap-1.5 rounded-md pr-2 hover:bg-sidebar-accent/60"
-          style={{ paddingLeft: nested ? 20 : 10 }}
+          className="group/row relative flex items-center gap-1.5 rounded-md pr-2 hover:bg-sidebar-accent/60"
+          style={{
+            height: SIDEBAR_GEOMETRY.workstreamHeader.height,
+            paddingLeft: nested
+              ? SIDEBAR_GEOMETRY.row.childIndent
+              : SIDEBAR_GEOMETRY.workstreamHeader.indent,
+          }}
         >
           <button
             type="button"
@@ -1858,7 +1862,13 @@ function WorkstreamGroup({
             {group.total > 0 ? (
               <span
                 aria-hidden="true"
-                className="absolute -left-3.5 top-1/2 flex h-3.5 w-2 -translate-y-1/2 items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100"
+                className="absolute top-1/2 flex h-3.5 -translate-y-1/2 items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100"
+                style={{
+                  left:
+                    -SIDEBAR_GEOMETRY.workstreamHeader.chevronWidth -
+                    SIDEBAR_GEOMETRY.workstreamHeader.chevronGap,
+                  width: SIDEBAR_GEOMETRY.workstreamHeader.chevronWidth,
+                }}
               >
                 <Icon
                   name={collapsed ? "ChevronRight" : "ChevronDown"}
@@ -1871,11 +1881,9 @@ function WorkstreamGroup({
               muted={muted || nested}
               accent={isWorkstream}
               className={
-                isWorkstream
-                  ? "text-[13px]"
-                  : nested
-                    ? "text-[11px] font-semibold uppercase tracking-wide"
-                    : "text-[13px]"
+                nested && !isWorkstream
+                  ? "text-[11px] font-semibold uppercase tracking-wide"
+                  : "ws-text-workstream"
               }
             />
           </button>

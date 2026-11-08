@@ -693,19 +693,21 @@ describe("small groups", () => {
 
     // Section heading: Workstreams
     const heading = slot.getByRole("heading", { name: "Workstreams" });
-    expect(heading.parentElement?.className).toContain("h-[13px]");
-    expect(heading.parentElement?.className).toContain("mt-[2px]");
-    expect(heading.parentElement?.className).toContain("mb-[9px]");
+    expect(heading.parentElement?.style.height).toBe("13px");
+    expect(heading.parentElement?.style.marginTop).toBe("2px");
+    expect(heading.parentElement?.style.marginBottom).toBe("9px");
+    expect(heading.parentElement?.style.paddingLeft).toBe("10px");
 
-    // Workstream header: 22px tall, hanging chevron at -left-3.5
+    // Workstream header: 22px tall, hanging chevron 14px left of its name
     const studioApp = slot.getByRole("region", { name: "Studio: App" });
     const studioAppHeader = within(studioApp).getByRole("button", {
       name: "Studio: App",
     });
-    expect(studioAppHeader.parentElement?.className).toContain("h-[22px]");
+    expect(studioAppHeader.parentElement?.style.height).toBe("22px");
     const chev = studioAppHeader.querySelector('[data-icon="ChevronDown"]')
       ?.parentElement as HTMLElement;
-    expect(chev.className).toContain("-left-3.5");
+    expect(chev.style.left).toBe("-14px");
+    expect(chev.style.width).toBe("8px");
     expect(chev.className).toContain("opacity-0");
 
     // Thread row heights: root thread is 21px, child thread is 28px (h-7)

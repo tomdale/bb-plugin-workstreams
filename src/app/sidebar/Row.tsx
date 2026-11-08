@@ -22,14 +22,9 @@ import { StatusMark } from "./StatusMark.tsx";
 import { usePrefs } from "../prefs.ts";
 import { SnoozeIcon, WakeIcon } from "../snooze/icons.tsx";
 import { HoverAction, HoverMenuButton, RowActions } from "./HoverActions.tsx";
+import { rowGeometry } from "./rowGeometry.ts";
 
-/**
- * One level of nesting: a status slot (14px) and the gap after it (6px), so
- * a child's mark sits where its parent's title starts. Each group's contents
- * in the thread list step in by the same amount.
- */
-export const INDENT_PX = 20;
-const MAX_INDENT = 3;
+export { INDENT_PX, MAX_INDENT } from "./rowGeometry.ts";
 
 function prTone(pr: PluginSidebarPullRequest): string {
   if (pr.state === "merged") return "ws-pr-merged";
@@ -162,8 +157,13 @@ export function Row({
   const shortcut = useSidebarThreadShortcut(thread.id);
   const nativeStatus = hasNativeStatus(thread);
   const { pullRequest } = experimental_useSidebarThreadPullRequest(thread.id);
-  const baseIndent = inGroup ? (categorized ? 8 : 5) : 6;
-  const paddingLeft = baseIndent + Math.min(depth, MAX_INDENT) * INDENT_PX;
+  const { paddingLeft, heightClass, leadingClass, compactActions } =
+    rowGeometry({
+      depth,
+      inGroup,
+      categorized,
+      hasSubtitle: Boolean(subtitle),
+    });
 
   return (
     <div
@@ -173,9 +173,7 @@ export function Row({
         // details, and hover buttons on it (`ws-row-aside`).
         subtitle
           ? "items-start py-1.5 [&>.ws-row-aside]:h-5 [&>.ws-status-slot]:mt-[3px]"
-          : depth > 0
-            ? "h-7 items-center"
-            : "h-[21px] items-center",
+          : heightClass,
         active ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/60",
       )}
       style={{ paddingLeft }}
@@ -279,13 +277,8 @@ export function Row({
         {/* The band's or subgroup's context and the age follow the title
             itself, so the row's trailing end is left to its marks and hover
             buttons. */}
-        <span
-          className={cn(
-            "flex min-w-0 items-baseline gap-1.5",
-            subtitle || depth > 0 ? "leading-5" : "leading-[1.2]",
-          )}
-        >
-          <span className="min-w-0 truncate">
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span className={cn("ws-text-thread min-w-0 truncate", leadingClass)}>
             <ThreadTitle threadId={thread.id} />
           </span>
           {context ? (
@@ -330,7 +323,7 @@ export function Row({
       <RowActions className="ws-row-aside">
         {showArchive ? (
           <HoverAction
-            compact={depth === 0}
+            compact={compactActions}
             label="Archive"
             onClick={() => actions.archive(thread.id)}
           >
@@ -340,7 +333,7 @@ export function Row({
         {snoozeAction ? (
           snoozeAction.menu ? (
             <HoverMenuButton
-              compact={depth === 0}
+              compact={compactActions}
               label={snoozeAction.title}
               onClick={snoozeAction.run}
               menu={snoozeAction.menu}
@@ -349,7 +342,7 @@ export function Row({
             </HoverMenuButton>
           ) : (
             <HoverAction
-              compact={depth === 0}
+              compact={compactActions}
               label={snoozeAction.title}
               onClick={snoozeAction.run}
             >
