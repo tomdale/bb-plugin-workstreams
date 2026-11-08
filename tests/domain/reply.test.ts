@@ -222,6 +222,12 @@ describe("composed replies", () => {
     expect(read(block(source)).body).toEqual([{ type: "text", body: source }]);
   });
 
+  it("reads a block whose closing line ends in zero-width characters", () => {
+    const message = ":::reply\nAn answer.\n:::\u200c";
+    expect(onlyReplyBlock(message)?.status).toBe("closed");
+    expect(lastReplyBlock(`Lead.\n\n${message}`)?.status).toBe("closed");
+  });
+
   it("keeps a literal ::: line with a longer outer marker", () => {
     const data = read("::::reply\n```md\n:::\n```\n::::\n");
     expect(data.body).toEqual([{ type: "text", body: "```md\n:::\n```" }]);

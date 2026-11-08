@@ -19,7 +19,7 @@ export function replyInstructions(recapTool: boolean): string {
 }
 
 function alone(): string {
-  return `When required input is missing, put the explanation in a reply block before calling the available question-card tool; the card ends the turn. Otherwise put the entire final answer, explanation, completion details, and relevant commit or PR links in one reply block. ${MARKERS}`;
+  return `When required input is missing, put the explanation in a reply block before calling the available question-card tool; the card ends the turn. Otherwise put the entire final answer, explanation, completion details, and relevant commit or PR links in one reply block, even a one-sentence answer. ${MARKERS}`;
 }
 
 /**
@@ -27,7 +27,7 @@ function alone(): string {
  * turn: the block carries the body, so no state, headline, results, or Next.
  */
 function withRecapTool(): string {
-  return `When required input is missing, put the explanation in a reply block before calling the available question-card tool; the card ends the turn. Otherwise the whole reply is one reply block — the answer, however short, then the explanation, completion details, and relevant commit or PR links — and you end the turn with the ${RECAP_TOOL} tool call. The recap card comes from that call, so the block sets no state and carries no headline, results, or Next. ${MARKERS}
+  return `When required input is missing, put the explanation in a reply block before calling the available question-card tool; the card ends the turn. Otherwise the whole reply is one reply block, even a one-sentence answer — the answer first, then the explanation, completion details, and relevant commit or PR links — and you end the turn with the ${RECAP_TOOL} tool call. The recap card comes from that call, so the block sets no state and carries no headline, results, or Next. ${MARKERS}
 Example, with two components in one fence:
 :::reply
 # Arrow keys follow the card order

@@ -87,8 +87,19 @@ export function readBlock(
   };
 }
 
+/**
+ * Models occasionally append zero-width characters after a marker line, which
+ * leaves `:::` unclosed for the Markdown parser. The server reads messages
+ * with them removed from line ends; bb's own renderer is not affected by this.
+ */
+const LINE_END_INVISIBLES =
+  /[\u200b-\u200d\u2060\ufeff]+(?=[ \t]*(?:\r?\n|$))/g;
+const withoutLineEndInvisibles = (message: string) =>
+  message.replace(LINE_END_INVISIBLES, "");
+
 /** The server can recover the last top-level reply despite stray text around it. */
-export function lastReplyBlock(message: string): ReplyBlockInput | null {
+export function lastReplyBlock(raw: string): ReplyBlockInput | null {
+  const message = withoutLineEndInvisibles(raw);
   const root = parseReplyMarkdown(message);
   for (const node of [...root.children].reverse()) {
     const block = readBlock(node, message);
@@ -98,7 +109,8 @@ export function lastReplyBlock(message: string): ReplyBlockInput | null {
 }
 
 /** Authored output is one top-level reply, with no other Markdown outside it. */
-export function onlyReplyBlock(message: string): ReplyBlockInput | null {
+export function onlyReplyBlock(raw: string): ReplyBlockInput | null {
+  const message = withoutLineEndInvisibles(raw);
   const root = parseReplyMarkdown(message);
   return root.children.length === 1
     ? readBlock(root.children[0], message)
