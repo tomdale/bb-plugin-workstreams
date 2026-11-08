@@ -11,7 +11,7 @@
  */
 import { DEFAULT_CFG } from "./cascade.ts";
 import {
-  BEZIER_DX,
+  RING_SWAY,
   FADE_MS,
   PILE_CLEARANCE,
   SPEEDS,
@@ -368,20 +368,17 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     tune: "Use it to check the fallback: press ↓ and ↑ and look for a calm cut with nothing sliding. Turn it off to compare with the motion.",
   }),
   path: () => ({
-    what: "Draws the cubic Bezier curves that incoming and outgoing cards follow on the stage, with their control points, anchors and live card markers.",
+    what: "Draws the path each moving card's top edge follows on the stage, as cubic Bezier segments with their control handles, anchors and a live marker for each card.",
     effect: [
       [
         "On",
-        t`Shows the outgoing curve on the right and the incoming curve on the left between the \`front\` anchor and the \`turn\` or \`park\` anchor, with control handles at ±${BEZIER_DX} px (an arc of ±${0.75 * BEZIER_DX} px at mid-trip), the drum's behind-pile \`tuck\` curve, the pile spine, and a moving dot for each painted card.`,
+        t`Shows the drum's ring as one rounded loop: down in front of the pile, bowing up to ${RING_SWAY} px to the right, across the column at the \`turn\`, and up behind the pile, bowing ${RING_SWAY} px to the left, to the \`tuck\`. ↓ runs it forwards and ↑ backwards. The cascade shows one ${RING_SWAY} px bow down the exit channel to \`park\`. The pile spine and a dot for each painted card are drawn too.`,
       ],
-      [
-        "Off",
-        "Hides the overlay; cards still follow the same incoming and outgoing Bezier curves.",
-      ],
+      ["Off", "Hides the overlay; cards still follow the same path."],
     ],
     needs:
-      "Works in every model. In the drum and the product the lower anchor is the turn pose for the card being cleared, and the dashed inner curve shows the tuck behind the pile; in the cascade the lower anchor is the clip line at `park`.",
-    tune: "Turn it on with `¼×` speed, or click Pause and Step during a press, to watch each card's marker ride its cubic Bezier curve between the anchors.",
+      "Works in every model. The vertical motion is each model's own, so springs, budgets and the frame checker are unchanged; the path only adds the sideways sway, which keeps a card moving through the turn instead of stopping there to reverse. The loop drawn is the one for the moving card nearest the front, or the front card at rest. Reduced motion removes the sway.",
+    tune: "Turn it on with `¼×` speed, or click Pause and Step during a press, to watch each card's marker ride the loop.",
   }),
   held: (f) => ({
     what: "A readout of the held state, from zero (tap behaviour) to one (the full speed-up, fold or ramp), shown while one of them is on.",

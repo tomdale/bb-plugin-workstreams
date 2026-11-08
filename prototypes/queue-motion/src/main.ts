@@ -7,11 +7,11 @@ import { StackEngine } from "../../../src/app/page/queue/stackEngine.ts";
 import { Drum, LEAD } from "../../../src/app/page/queue/drum.ts";
 import { Cascade } from "./cascade.ts";
 import {
-  BEZIER_DX,
   CASCADE_PRESET_NAMES,
   CASCADE_SETTINGS,
   CONTROLS,
   FADE_MS,
+  RING_SWAY,
   GROUPS,
   MODES,
   PRESET_NAMES,
@@ -30,6 +30,15 @@ import {
   type Opt,
   type Setting,
 } from "./controls.ts";
+import {
+  ringCubics,
+  ringKnots,
+  ringPoint,
+  ringSpan,
+  ringSway,
+  type Cubic,
+  type Ring,
+} from "./ring.ts";
 import { ABOUT, ABOUT_CASCADE, HELP, captionFor } from "./help.ts";
 import { inline, installTooltips } from "./tooltip.ts";
 // @ts-ignore: plain JS data
@@ -143,82 +152,11 @@ function buildDom() {
 buildDom();
 document.fonts?.ready.then(remeasure);
 
-// ---- cubic Bezier path for incoming and outgoing cards ----------------------------
+// ---- the ring path moving cards follow (see ring.ts) ------------------------------
 const STAGE_X = 340;
-const BEZIER_TUCK_DX = 48;
 const S0 = 1000 / 1170;
-const C1_Y = 0.2;
-const C2_Y = 0.8;
 
-type Pt = { x: number; y: number };
-type Cubic = [Pt, Pt, Pt, Pt];
 type Role = "pile" | "out" | "in";
-type BezierPaths = {
-  out: Cubic;
-  in: Cubic;
-  tuck?: Cubic;
-  pile: number[];
-  endLabel: "turn" | "park";
-};
-
-function makeArc(y0: number, y3: number, dx: number): Cubic {
-  const dy = y3 - y0;
-  return [
-    { x: STAGE_X, y: y0 },
-    { x: STAGE_X + dx, y: y0 + C1_Y * dy },
-    { x: STAGE_X + dx, y: y0 + C2_Y * dy },
-    { x: STAGE_X, y: y3 },
-  ];
-}
-
-/** Solves Y(s) = y0 + u * (y3 - y0) on a cubic Bezier with vertical control fractions 0.2 and 0.8. */
-function solveArcS(u: number): number {
-  const clamped = Math.min(1, Math.max(0, u));
-  let s = clamped;
-  for (let k = 0; k < 4; k++) {
-    const f = (0.6 + (1.2 - 0.8 * s) * s) * s - clamped;
-    const df = 0.6 + 2.4 * s * (1 - s);
-    s = Math.min(1, Math.max(0, s - f / df));
-  }
-  return s;
-}
-
-/** Horizontal offset from STAGE_X on `makeArc(y0, y3, dx)` at the point where Y(s) = y. */
-function arcOffsetX(y: number, y0: number, y3: number, dx: number): number {
-  const span = y3 - y0;
-  if (Math.abs(span) < 1e-4) return 0;
-  const s = solveArcS((y - y0) / span);
-  return 3 * s * (1 - s) * dx;
-}
-
-function evalCubic([p0, p1, p2, p3]: Cubic, s: number): Pt {
-  const m = 1 - s;
-  const b0 = m * m * m;
-  const b1 = 3 * m * m * s;
-  const b2 = 3 * m * s * s;
-  const b3 = s * s * s;
-  return {
-    x: b0 * p0.x + b1 * p1.x + b2 * p2.x + b3 * p3.x,
-    y: b0 * p0.y + b1 * p1.y + b2 * p2.y + b3 * p3.y,
-  };
-}
-
-function evalTangent([p0, p1, p2, p3]: Cubic, s: number): Pt {
-  const m = 1 - s;
-  const dx =
-    3 * m * m * (p1.x - p0.x) +
-    6 * m * s * (p2.x - p1.x) +
-    3 * s * s * (p3.x - p2.x);
-  const dy =
-    3 * m * m * (p1.y - p0.y) +
-    6 * m * s * (p2.y - p1.y) +
-    3 * s * s * (p3.y - p2.y);
-  const len = Math.hypot(dx, dy) || 1;
-  return { x: dx / len, y: dy / len };
-}
-
-const cubicPath = ([p0, p1, p2, p3]: Cubic) =>
-  `M ${p0.x.toFixed(1)} ${p0.y.toFixed(1)} C ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}, ${p3.x.toFixed(1)} ${p3.y.toFixed(1)}`;
 
 const drumTuckTop = (d: Drum, i: number) => {
   const hn = i + 1 < d.N ? d.hd(i + 1) : d.hd(i);
@@ -232,73 +170,43 @@ const slotTops = (slot: (q: number) => { y: number; z: number }) =>
     return LEAD + (1000 / (1000 - p.z)) * p.y;
   });
 
-function drumCardMotion(
-  d: Drum,
-  i: number,
-  top: number,
-  signs: Map<string, number>,
-  key: string,
-): { x: number; role: Role } {
+/** Card `i`'s ring: its own turn (clear below the card it uncovers) and tuck. */
+const drumRing = (d: Drum, i: number): Ring => ({
+  kind: "drum",
+  front: LEAD,
+  turn: d.turnTop(i),
+  tuck: drumTuckTop(d, i),
+  sway: RING_SWAY,
+});
+
+/** Which way a card off the pile is heading: out (↓, toward the tuck) or in (↑, back to the pile). */
+const roleOf = (c: number, target: number): Role =>
+  c >= -1e-4 ? "pile" : target < 0 ? "out" : "in";
+
+function drumCardMotion(d: Drum, i: number): { x: number; role: Role } {
   const c = d.c[i]!;
-  const want = d.target(i) < 0 ? 1 : -1;
-  if (c >= -1e-4) {
-    signs.set(key, want);
-    return { x: 0, role: "pile" };
-  }
-  const role: Role = want > 0 ? "out" : "in";
-  const turn = d.turnTop(i);
-  if (c > -1) {
-    const prev = signs.get(key);
-    const sign =
-      prev === undefined || c > -0.02 || c < -0.98
-        ? want
-        : prev + (want - prev) * 0.22;
-    signs.set(key, sign);
-    return { x: arcOffsetX(top, LEAD, turn, sign * BEZIER_DX), role };
-  }
-  signs.set(key, want);
-  if (c <= -2 + 1e-3) return { x: 0, role };
-  return {
-    x: arcOffsetX(top, turn, drumTuckTop(d, i), -BEZIER_TUCK_DX),
-    role,
-  };
+  return { x: ringSway(drumRing(d, i), -c), role: roleOf(c, d.target(i)) };
 }
 
-function drumBezierPaths(d: Drum): BezierPaths {
-  const safeFront = Math.min(Math.max(0, d.front), Math.max(0, d.N - 1));
-  const raw = d.views();
-  const outMover = raw.find(
-    (v) => v.painted && v.c < -1e-3 && v.c > -1 && d.target(v.i) < 0,
-  );
-  const inMover = raw.find(
-    (v) => v.painted && v.c < -1e-3 && d.target(v.i) >= 0,
-  );
-  const tuckMover = raw.find((v) => v.painted && v.c < -1e-3);
-  const outTurn = outMover
-    ? d.turnTop(outMover.i)
-    : d.N > 0
-      ? d.turnTop(safeFront)
-      : LEAD + 200;
-  const inTurn = inMover
-    ? d.turnTop(inMover.i)
-    : d.front > 0
-      ? d.turnTop(d.front - 1)
-      : d.N > 0
-        ? LEAD + d.hg(0) + 16 + d.dip()
-        : outTurn;
-  const tuckY = tuckMover
-    ? drumTuckTop(d, tuckMover.i)
-    : d.N > 0
-      ? drumTuckTop(d, safeFront)
-      : LEAD + 4;
-  return {
-    out: makeArc(LEAD, outTurn, BEZIER_DX),
-    in: makeArc(inTurn, LEAD, -BEZIER_DX),
-    tuck: makeArc(outTurn, tuckY, -BEZIER_TUCK_DX),
-    pile: slotTops((q) => d.slot(q)),
-    endLabel: "turn",
-  };
+/**
+ * The card whose ring the overlay draws: the moving card nearest the front, or, at rest, the front card, whose
+ * ring is the one the next ↓ takes.
+ */
+function drumRingCard(d: Drum): number {
+  let best = -1;
+  for (let i = 0; i < d.N; i++) {
+    const c = d.c[i]!;
+    if (c < -1e-4 && c > -2 + 1e-3 && (best < 0 || c > d.c[best]!)) best = i;
+  }
+  return best >= 0 ? best : Math.min(Math.max(0, d.front), d.N - 1);
 }
+
+type Overlay = { ring: Ring; pile: number[] };
+
+const drumOverlay = (d: Drum): Overlay => ({
+  ring: drumRing(d, drumRingCard(d)),
+  pile: slotTops((q) => d.slot(q)),
+});
 
 // ---- the two simulations behind one interface --------------------------------------
 type View = {
@@ -319,7 +227,7 @@ interface Sim {
   press(dir: 1 | -1): boolean;
   step(ms: number): void;
   views(): View[];
-  paths(): BezierPaths;
+  overlay(): Overlay;
   busy(): boolean;
   jump(n: number): void;
   setHeights(heights: number[]): void;
@@ -335,7 +243,6 @@ function drumSim(cur: number): Sim {
   refreshCfg();
   const d = new Drum(heights, cfg);
   d.jump(cur);
-  const signs = new Map<string, number>();
   let last = cur;
   const check = () => {
     if (d.front !== last) {
@@ -359,7 +266,7 @@ function drumSim(cur: number): Sim {
     },
     views: () =>
       d.views().map((v: any) => {
-        const { x, role } = drumCardMotion(d, v.i, v.top, signs, v.key);
+        const { x, role } = drumCardMotion(d, v.i);
         return {
           ...v,
           x,
@@ -367,11 +274,10 @@ function drumSim(cur: number): Sim {
           vis: (v.bottom - v.top) / v.scale,
         };
       }),
-    paths: () => drumBezierPaths(d),
+    overlay: () => drumOverlay(d),
     busy: () => d.isBusy(),
     jump: (n) => {
       d.jump(n);
-      signs.clear();
       last = n;
     },
     setHeights: (h) => d.setHeights(h),
@@ -396,7 +302,12 @@ function cascadeSim(cur: number): Sim {
   refreshCfg();
   const m = new Cascade(heights, modelCfg(ccfg));
   m.jump(cur);
-  const signs = new Map<string, number>();
+  const channelRing = (): Ring => ({
+    kind: "channel",
+    front: LEAD,
+    park: LEAD + m.cfg.park,
+    sway: RING_SWAY,
+  });
   let last = cur;
   const check = () => {
     if (m.front !== last) {
@@ -419,47 +330,24 @@ function cascadeSim(cur: number): Sim {
       check();
     },
     views: () => {
-      const parkTop = LEAD + m.cfg.park;
-      return m.views().map((v) => {
-        const want = m.target(v.i) < 0 ? 1 : -1;
-        let x = 0;
-        let role: Role = "pile";
-        if (v.c < -1e-4 && v.c > -1 + 1e-4) {
-          role = want > 0 ? "out" : "in";
-          const prev = signs.get(v.key);
-          const sign =
-            prev === undefined || v.c > -0.02 || v.c < -0.98
-              ? want
-              : prev + (want - prev) * 0.22;
-          signs.set(v.key, sign);
-          x = arcOffsetX(v.top, LEAD, parkTop, sign * BEZIER_DX);
-        } else {
-          signs.set(v.key, want);
-        }
-        return {
-          ...v,
-          x,
-          role,
-          vis:
-            v.group === 0 && v.bottom >= v.natBottom - 1e-6
-              ? v.h
-              : (v.bottom - v.top) / v.scale,
-        };
-      });
+      const ring = channelRing();
+      return m.views().map((v) => ({
+        ...v,
+        x: ringSway(ring, -v.c),
+        role: roleOf(v.c, m.target(v.i)),
+        vis:
+          v.group === 0 && v.bottom >= v.natBottom - 1e-6
+            ? v.h
+            : (v.bottom - v.top) / v.scale,
+      }));
     },
-    paths: () => {
-      const parkTop = LEAD + m.cfg.park;
-      return {
-        out: makeArc(LEAD, parkTop, BEZIER_DX),
-        in: makeArc(parkTop, LEAD, -BEZIER_DX),
-        pile: slotTops((q) => m.slot(q)),
-        endLabel: "park",
-      };
-    },
+    overlay: () => ({
+      ring: channelRing(),
+      pile: slotTops((q) => m.slot(q)),
+    }),
     busy: () => m.isBusy(),
     jump: (n) => {
       m.jump(n);
-      signs.clear();
       last = n;
     },
     setHeights: (h) => m.setHeights(h),
@@ -479,7 +367,6 @@ function productSim(cur: number): Sim {
   const keys = ALL.map((_, i) => "k" + i);
   const e = new StackEngine();
   e.setHeights(new Map(keys.map((k, i) => [k, heights[i]!])));
-  const signs = new Map<string, number>();
   let at = cur;
   const win = () => keys.slice(at, at + 4);
   e.sync(win(), undefined, true, at > 0);
@@ -507,15 +394,14 @@ function productSim(cur: number): Sim {
       const d = drumOf();
       return e.frame().cards.map((v, i) => {
         const top = LEAD + v.scale * v.y;
-        const { x, role } = drumCardMotion(d, i, top, signs, v.key);
+        const { x, role } = drumCardMotion(d, i);
         return { ...v, x, top, role };
       });
     },
-    paths: () => drumBezierPaths(drumOf()),
+    overlay: () => drumOverlay(drumOf()),
     busy: () => e.frame().busy,
     jump(n) {
       at = n;
-      signs.clear();
       e.sync(win(), undefined, true, at > 0);
     },
     setHeights: (h) => e.setHeights(new Map(keys.map((k, i) => [k, h[i]!]))),
@@ -539,79 +425,99 @@ const showsHeld = () =>
     ? cfg.fold || cfg.ramp || cfg.loose
     : opt.v === "cascade" && ccfg.ramp);
 
-function chevron(arc: Cubic, s: number, cls: string): string {
-  const pt = evalCubic(arc, s);
-  const t = evalTangent(arc, s);
+const f1 = (n: number) => n.toFixed(1);
+
+/** An arrowhead on the ring at `u`, pointing the way a card moving in `dir` travels (+1 out, −1 in). */
+function chevron(ring: Ring, u: number, dir: 1 | -1, cls: string): string {
+  const p = ringPoint(ring, u);
+  const len = Math.hypot(p.dx, p.dy) || 1;
+  const tx = (dir * p.dx) / len;
+  const ty = (dir * p.dy) / len;
+  const px = STAGE_X + p.x;
   const arm = 5.5;
   const spread = 4.2;
-  const bx = pt.x - t.x * arm;
-  const by = pt.y - t.y * arm;
-  const lx = bx - t.y * spread;
-  const ly = by + t.x * spread;
-  const rx = bx + t.y * spread;
-  const ry = by - t.x * spread;
-  return `<path class="bz-arrow ${cls}" d="M ${lx.toFixed(1)} ${ly.toFixed(1)} L ${pt.x.toFixed(1)} ${pt.y.toFixed(1)} L ${rx.toFixed(1)} ${ry.toFixed(1)}"/>`;
+  const bx = px - tx * arm;
+  const by = p.y - ty * arm;
+  return `<path class="bz-arrow ${cls}" d="M ${f1(bx - ty * spread)} ${f1(by + tx * spread)} L ${f1(px)} ${f1(p.y)} L ${f1(bx + ty * spread)} ${f1(by - tx * spread)}"/>`;
 }
+
+const cubicD = (cs: Cubic[]) =>
+  cs
+    .map(
+      ([p0, p1, p2, p3], k) =>
+        `${k === 0 ? `M ${f1(p0.x)} ${f1(p0.y)} ` : ""}C ${f1(p1.x)} ${f1(p1.y)}, ${f1(p2.x)} ${f1(p2.y)}, ${f1(p3.x)} ${f1(p3.y)}`,
+    )
+    .join(" ");
 
 function paintBezier(views: View[]) {
   const svg = $("#bezier");
   const show = opt.path === "1";
   svg.toggleAttribute("hidden", !show);
   if (!show) return;
-  const p = sim.paths();
-  const [o0, o1, o2, o3] = p.out;
-  const [i0, i1, i2, i3] = p.in;
-  const outMid = evalCubic(p.out, 0.5);
-  const inMid = evalCubic(p.in, 0.5);
-  const parts: string[] = [
-    // Control-point handles and knots
-    `<line class="bz-handle" x1="${o0.x}" y1="${o0.y.toFixed(1)}" x2="${o1.x.toFixed(1)}" y2="${o1.y.toFixed(1)}"/>`,
-    `<line class="bz-handle" x1="${o3.x}" y1="${o3.y.toFixed(1)}" x2="${o2.x.toFixed(1)}" y2="${o2.y.toFixed(1)}"/>`,
-    `<line class="bz-handle" x1="${i0.x}" y1="${i0.y.toFixed(1)}" x2="${i1.x.toFixed(1)}" y2="${i1.y.toFixed(1)}"/>`,
-    `<line class="bz-handle" x1="${i3.x}" y1="${i3.y.toFixed(1)}" x2="${i2.x.toFixed(1)}" y2="${i2.y.toFixed(1)}"/>`,
-    `<circle class="bz-ctrl bz-ctrl-out" cx="${o1.x.toFixed(1)}" cy="${o1.y.toFixed(1)}" r="3"/>`,
-    `<circle class="bz-ctrl bz-ctrl-out" cx="${o2.x.toFixed(1)}" cy="${o2.y.toFixed(1)}" r="3"/>`,
-    `<circle class="bz-ctrl bz-ctrl-in" cx="${i1.x.toFixed(1)}" cy="${i1.y.toFixed(1)}" r="3"/>`,
-    `<circle class="bz-ctrl bz-ctrl-in" cx="${i2.x.toFixed(1)}" cy="${i2.y.toFixed(1)}" r="3"/>`,
-  ];
+  const { ring, pile } = sim.overlay();
+  const cubics = ringCubics(ring, STAGE_X);
+  // The drum's ring splits at the turn into the drop in front of the pile and the rise behind it.
+  const front = ring.kind === "drum" ? cubics.slice(0, 2) : cubics;
+  const behind = ring.kind === "drum" ? cubics.slice(2) : [];
+  const parts: string[] = [];
+  // Control-point handles of every cubic segment
+  for (const [p0, p1, p2, p3] of cubics) {
+    parts.push(
+      `<line class="bz-handle" x1="${f1(p0.x)}" y1="${f1(p0.y)}" x2="${f1(p1.x)}" y2="${f1(p1.y)}"/>`,
+      `<line class="bz-handle" x1="${f1(p3.x)}" y1="${f1(p3.y)}" x2="${f1(p2.x)}" y2="${f1(p2.y)}"/>`,
+      `<circle class="bz-ctrl" cx="${f1(p1.x)}" cy="${f1(p1.y)}" r="2.6"/>`,
+      `<circle class="bz-ctrl" cx="${f1(p2.x)}" cy="${f1(p2.y)}" r="2.6"/>`,
+    );
+  }
   // Pile spine above the front card
-  if (p.pile.length >= 3) {
+  if (pile.length >= 3) {
     parts.push(
-      `<line class="bz-pile" x1="${STAGE_X}" y1="${p.pile[2]!.toFixed(1)}" x2="${STAGE_X}" y2="${p.pile[0]!.toFixed(1)}"/>`,
-      `<circle class="bz-slot" cx="${STAGE_X}" cy="${p.pile[1]!.toFixed(1)}" r="2.5"/>`,
-      `<circle class="bz-slot" cx="${STAGE_X}" cy="${p.pile[2]!.toFixed(1)}" r="2.5"/>`,
+      `<line class="bz-pile" x1="${STAGE_X}" y1="${f1(pile[2]!)}" x2="${STAGE_X}" y2="${f1(pile[0]!)}"/>`,
+      `<circle class="bz-slot" cx="${STAGE_X}" cy="${f1(pile[1]!)}" r="2.5"/>`,
+      `<circle class="bz-slot" cx="${STAGE_X}" cy="${f1(pile[2]!)}" r="2.5"/>`,
     );
   }
-  // Drum behind-pile tuck curve
-  if (p.tuck) {
-    const t3 = p.tuck[3];
-    const labelY = Math.max(LEAD + 14, t3.y + 3.5);
+  if (behind.length) {
     parts.push(
-      `<path class="bz-tuck" data-curve="tuck" d="${cubicPath(p.tuck)}"/>`,
-      `<circle class="bz-anchor-tuck" cx="${t3.x}" cy="${t3.y.toFixed(1)}" r="3.5"/>`,
-      `<text class="bz-label bz-label-tuck" x="${t3.x + 10}" y="${labelY.toFixed(1)}" text-anchor="start">tuck</text>`,
+      `<path class="bz-tuck" data-curve="behind" d="${cubicD(behind)}"/>`,
     );
   }
-  // Outgoing and incoming cubic Bezier curves
+  parts.push(`<path class="bz-out" data-curve="front" d="${cubicD(front)}"/>`);
+  // Which way each leg is travelled: ↓ runs the ring forwards, ↑ backwards.
   parts.push(
-    `<path class="bz-out" data-curve="out" d="${cubicPath(p.out)}"/>`,
-    `<path class="bz-in" data-curve="in" d="${cubicPath(p.in)}"/>`,
-    chevron(p.out, 0.5, "bz-arrow-out"),
-    chevron(p.in, 0.5, "bz-arrow-in"),
-    `<text class="bz-label bz-label-out" x="${(outMid.x + 10).toFixed(1)}" y="${(outMid.y + 4).toFixed(1)}" text-anchor="start">out ↓</text>`,
-    `<text class="bz-label bz-label-in" x="${(inMid.x - 10).toFixed(1)}" y="${(inMid.y + 4).toFixed(1)}" text-anchor="end">↑ in</text>`,
+    chevron(ring, 0.32, 1, "bz-arrow-out"),
+    chevron(ring, 0.68, -1, "bz-arrow-in"),
   );
-  // Anchors
+  const lobe = ringPoint(ring, 0.5);
+  parts.push(
+    `<text class="bz-label bz-label-out" x="${f1(STAGE_X + lobe.x + 10)}" y="${f1(lobe.y - 2)}" text-anchor="start">out ↓</text>`,
+    `<text class="bz-label bz-label-in" x="${f1(STAGE_X + lobe.x + 10)}" y="${f1(lobe.y + 11)}" text-anchor="start">↑ in</text>`,
+  );
+  // Anchors: the front, the turn or the clip line, and the tuck
+  const end = ringPoint(ring, 1);
   parts.push(
     `<circle class="bz-anchor" cx="${STAGE_X}" cy="${LEAD}" r="4.2"/>`,
     `<text class="bz-label bz-label-node" x="${STAGE_X + 10}" y="${LEAD - 6}" text-anchor="start">front</text>`,
-    `<circle class="bz-anchor" cx="${STAGE_X}" cy="${o3.y.toFixed(1)}" r="4.2"/>`,
-    `<text class="bz-label bz-label-node" x="${STAGE_X + 10}" y="${(o3.y + 4).toFixed(1)}" text-anchor="start">${p.endLabel}</text>`,
+    `<circle class="bz-anchor" cx="${f1(STAGE_X + end.x)}" cy="${f1(end.y)}" r="4.2"/>`,
+    `<text class="bz-label bz-label-node" x="${STAGE_X + 10}" y="${f1(end.y + 15)}" text-anchor="start">${ring.kind === "drum" ? "turn" : "park"}</text>`,
   );
-  if (Math.abs(i0.y - o3.y) > 2) {
+  if (ring.kind === "drum") {
+    const t = ringPoint(ring, ringSpan(ring));
     parts.push(
-      `<circle class="bz-anchor" cx="${STAGE_X}" cy="${i0.y.toFixed(1)}" r="3.6"/>`,
-      `<text class="bz-label bz-label-node" x="${STAGE_X - 10}" y="${(i0.y + 4).toFixed(1)}" text-anchor="end">${p.endLabel} ↑</text>`,
+      `<circle class="bz-anchor-tuck" cx="${f1(STAGE_X + t.x)}" cy="${f1(t.y)}" r="3.5"/>`,
+      `<text class="bz-label bz-label-tuck" x="${STAGE_X - 10}" y="${f1(Math.max(LEAD + 14, t.y + 3.5))}" text-anchor="end">tuck</text>`,
+    );
+    const back = ringPoint(ring, 1.5);
+    parts.push(
+      `<text class="bz-label bz-label-tuck" x="${f1(STAGE_X + back.x - 8)}" y="${f1(back.y + 4)}" text-anchor="end">behind</text>`,
+    );
+  }
+  // Knots where the cubic segments join
+  for (const u of ringKnots(ring).slice(1, -1)) {
+    if (u === 1) continue;
+    const k = ringPoint(ring, u);
+    parts.push(
+      `<circle class="bz-knot" cx="${f1(STAGE_X + k.x)}" cy="${f1(k.y)}" r="2.4"/>`,
     );
   }
   // Live markers for painted cards
@@ -620,7 +526,7 @@ function paintBezier(views: View[]) {
     if (!v.painted) continue;
     const cx = STAGE_X + (isRed ? 0 : v.x);
     parts.push(
-      `<circle class="bz-dot bz-dot-${v.role}" data-dot="${v.key}" cx="${cx.toFixed(1)}" cy="${v.top.toFixed(1)}" r="${v.role === "pile" ? "3.8" : "5"}"/>`,
+      `<circle class="bz-dot bz-dot-${v.role}" data-dot="${v.key}" cx="${f1(cx)}" cy="${f1(v.top)}" r="${v.role === "pile" ? "3.8" : "5"}"/>`,
     );
   }
   svg.innerHTML = parts.join("");

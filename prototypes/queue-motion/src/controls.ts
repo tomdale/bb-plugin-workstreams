@@ -15,8 +15,8 @@ import {
 export const TAU = 2 * Math.PI;
 /** How long the new front card fades in under reduced motion, ms. */
 export const FADE_MS = 160;
-/** Horizontal control-point offset of the incoming and outgoing cubic Bezier arcs, px from the column centre. */
-export const BEZIER_DX = 96;
+/** The widest sideways sway of a moving card's ring path, px from the column centre; see `ring.ts`. */
+export const RING_SWAY = 24;
 
 export type Mode = "product" | "drum" | "cascade";
 export const MODES: readonly { id: Mode; label: string }[] = [

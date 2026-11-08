@@ -95,7 +95,6 @@ h1 {
   z-index: 999;
 }
 .bz-out,
-.bz-in,
 .bz-tuck,
 .bz-pile,
 .bz-arrow {
@@ -105,10 +104,6 @@ h1 {
 }
 .bz-out {
   stroke: #d95f18;
-  stroke-width: 2.25;
-}
-.bz-in {
-  stroke: #2b5ce6;
   stroke-width: 2.25;
 }
 .bz-tuck {
@@ -129,13 +124,13 @@ h1 {
 }
 .bz-ctrl {
   fill: #fff;
+  stroke: #9ca3af;
   stroke-width: 1.4;
 }
-.bz-ctrl-out {
-  stroke: #d95f18;
-}
-.bz-ctrl-in {
-  stroke: #2b5ce6;
+.bz-knot {
+  fill: #fff;
+  stroke: #555;
+  stroke-width: 1.4;
 }
 .bz-arrow-out {
   stroke: #d95f18;

@@ -319,10 +319,10 @@ async function controlsDriveThePage(browser) {
     await page.click('button[data-act="step"]');
     const bezier = await page.evaluate(() => {
       const svg = document.getElementById("bezier");
-      const outD =
-        svg.querySelector('[data-curve="out"]')?.getAttribute("d") ?? "";
-      const inD =
-        svg.querySelector('[data-curve="in"]')?.getAttribute("d") ?? "";
+      const frontD =
+        svg.querySelector('[data-curve="front"]')?.getAttribute("d") ?? "";
+      const behindD =
+        svg.querySelector('[data-curve="behind"]')?.getAttribute("d") ?? "";
       const mover = window.__sim
         .views()
         .find((v) => v.role === "out" && v.painted);
@@ -336,7 +336,7 @@ async function controlsDriveThePage(browser) {
           !svg.hasAttribute("hidden") &&
           getComputedStyle(svg).display !== "none" &&
           svg.getBoundingClientRect().width > 0,
-        cubic: outD.includes(" C ") && inD.includes(" C "),
+        cubic: frontD.includes(" C ") && behindD.includes(" C "),
         movedX: mover ? Math.abs(mover.x) > 0.1 : false,
       };
     });
@@ -346,7 +346,7 @@ async function controlsDriveThePage(browser) {
         bezier.visible &&
         bezier.cubic &&
         bezier.movedX,
-      `Bezier path toggle shows the cubic Bezier paths and moves outgoing cards along the arc (${JSON.stringify(bezier)})`,
+      `Bezier path toggle draws the ring as cubic Bezier segments and sways outgoing cards along it (${JSON.stringify(bezier)})`,
     );
     await page.click('button[data-act="path"]');
   });
