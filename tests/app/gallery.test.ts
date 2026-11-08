@@ -119,6 +119,8 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         "colors",
         "typography",
         "work-identity",
+        "settings",
+        "actions-overlays",
         "recap-card",
         "question-form",
         "reply-vocabulary",
@@ -131,19 +133,38 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
           .getByRole("radio", { name: "Phone", exact: true })
           .check();
         const bounds = await page
-          .locator(".gallery-specimen-container")
-          .evaluate((element) => ({
-            width: element.clientWidth,
-            scroll: element.scrollWidth,
-            token: getComputedStyle(element)
-              .getPropertyValue("--ws-review-border")
-              .trim(),
-          }));
-        expect(bounds.token, `${id} loads Workstreams tokens`).not.toBe("");
+          .locator("[data-gallery-specimen]")
+          .evaluateAll((elements) =>
+            elements.map((element) => ({
+              width: element.clientWidth,
+              scroll: element.scrollWidth,
+              token: getComputedStyle(element)
+                .getPropertyValue("--ws-review-border")
+                .trim(),
+            })),
+          );
         expect(
-          bounds.scroll,
-          `${id} stays within the Phone preview`,
-        ).toBeLessThanOrEqual(bounds.width + 1);
+          bounds.length,
+          `${id} has labeled live examples`,
+        ).toBeGreaterThan(0);
+        for (const bound of bounds) {
+          expect(bound.token, `${id} loads Workstreams tokens`).not.toBe("");
+          expect(
+            bound.width,
+            `${id} applies Phone width to live examples`,
+          ).toBeLessThanOrEqual(360);
+          expect(
+            bound.scroll,
+            `${id} stays within the Phone preview`,
+          ).toBeLessThanOrEqual(bound.width + 1);
+        }
+        expect(
+          await page
+            .locator(
+              "[data-gallery-specimen] [data-gallery-controls], [data-gallery-specimen] [data-gallery-documentation]",
+            )
+            .count(),
+        ).toBe(0);
         if (id === "typography") {
           expect(
             await page

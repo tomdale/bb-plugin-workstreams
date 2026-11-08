@@ -1056,9 +1056,16 @@ Color choices use the production token generator and reset when you leave the
 example. The standalone theme supplies neutral registry aliases and a Purple
 fixture from Workstreams' default suggestion color; it is not a live BB theme.
 
+Gallery configuration sits in panels labeled **Gallery controls**. Frames
+labeled **Live example** identify the demonstrated components and link to their
+production sources. Explanations, local action logs, and source disclosures sit
+outside those frames. Controls inside a live frame belong to the demonstrated
+component, such as a settings switch or a question's answer choices.
+
 Use the theme and preview-width controls to inspect the components, and open
-each example's source disclosure to see its imports. Overlay presentation can
-follow the viewport or use the registry's compact-view override; a drawer
+each example's source disclosure to see its imports. Preview width resizes the
+live examples, not gallery configuration or documentation. Overlay presentation
+can follow the viewport or use the registry's compact-view override; a drawer
 preview does not emulate touch media queries or a soft keyboard. The
 introduction preview fills the selected width: Wide uses the available space,
 Narrow caps it at 640px, and Phone caps it at 360px. All three fit within the

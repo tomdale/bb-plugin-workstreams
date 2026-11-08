@@ -29,6 +29,7 @@ import {
   type TopicColor,
 } from "../../src/domain/workstreamColor";
 import { ExampleChoice } from "../ExampleChoice";
+import { GalleryControls, GalleryNotes, LiveExample } from "../ExampleFrame";
 import type { GalleryExample } from "../examples";
 
 const roles = [
@@ -109,28 +110,32 @@ function RoleSample({
   );
 }
 
-function Identity({ family }: { family: TopicColor }) {
+function topicSamples(family: TopicColor) {
   const firstChild = allocateChildColor(family, [], [family]);
   const secondChild = allocateChildColor(
     family,
     [firstChild],
     [family, firstChild],
   );
+  return [
+    { name: "Release tools", color: family, relationship: "Parent topic" },
+    {
+      name: "Release tools: Publishing",
+      color: firstChild,
+      relationship: "First child",
+    },
+    {
+      name: "Release tools: Release notes",
+      color: secondChild,
+      relationship: "Second child",
+    },
+  ];
+}
+
+function Identity({ family }: { family: TopicColor }) {
   return (
     <div className="space-y-3">
-      {[
-        { name: "Release tools", color: family, relationship: "Parent topic" },
-        {
-          name: "Release tools: Publishing",
-          color: firstChild,
-          relationship: "First child",
-        },
-        {
-          name: "Release tools: Release notes",
-          color: secondChild,
-          relationship: "Second child",
-        },
-      ].map((item) => (
+      {topicSamples(family).map((item) => (
         <div
           key={item.name}
           className="min-w-0"
@@ -140,22 +145,11 @@ function Identity({ family }: { family: TopicColor }) {
             <WorkstreamIcon />
             <WorkstreamName name={item.name} accent />
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {item.relationship} · hue {item.color.hue} · level{" "}
-            {item.color.level}
-          </p>
           {item.relationship === "Second child" && (
-            <p className="ws-text-category ws-category-label mt-1">
-              Drafts · category
-            </p>
+            <p className="ws-text-category ws-category-label mt-1">Drafts</p>
           )}
         </div>
       ))}
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        The first child inherits the parent color; the second uses the
-        production allocator. Category text uses its topic’s muted hue. Changing
-        reported state below does not change these topic hues.
-      </p>
     </div>
   );
 }
@@ -178,6 +172,13 @@ export function ColorsExample({
   const choice = prefs[token];
   const parsedHex = colorChoiceSchema.safeParse({ kind: "custom", color: hex });
   const css = colorTokenCss(prefs);
+  const selectedFamily = families[family === "first" ? 0 : 1]!;
+  const sampleStyle: CSSProperties = {
+    background:
+      surface === "page"
+        ? "var(--background)"
+        : `var(--surface-${surface}-solid)`,
+  };
   const setChoice = (next: ColorChoice) =>
     setPrefs((current) => ({ ...current, [token]: next }));
   const recap: Recap = {
@@ -209,187 +210,142 @@ export function ColorsExample({
   return (
     <div className="space-y-6">
       <style data-gallery-color-tokens="">{css}</style>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        One preference set applies to this page and its portaled controls, using
-        production root selectors. It is removed when you leave this example.
-        Use the gallery theme control for light and dark; no settings are saved.
-      </p>
-      <div
-        className="grid gap-3"
-        style={{
-          gridTemplateColumns:
-            "repeat(auto-fit, minmax(min(100%, 10rem), 1fr))",
-        }}
-      >
-        <ExampleChoice<ColorScheme>
-          label="Default set"
-          value={prefs.scheme}
-          options={[
-            { value: "workstreams", label: "Workstreams defaults" },
-            { value: "theme", label: "Match BB theme" },
-          ]}
-          onChange={(scheme) => setPrefs((current) => ({ ...current, scheme }))}
-        />
-        <ExampleChoice<ColorToken>
-          label="Edit token"
-          value={token}
-          options={COLOR_TOKENS.map((value) => ({
-            value,
-            label: COLOR_TOKEN_LABEL[value],
-          }))}
-          onChange={(next) => {
-            setToken(next);
-            const nextChoice = prefs[next];
-            setHex(nextChoice.kind === "custom" ? nextChoice.color : "#ff00ff");
+      <GalleryNotes>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          One preference set applies to this page and its portaled controls,
+          using production root selectors. It is removed when you leave this
+          example. Use the gallery theme control for light and dark; no settings
+          are saved.
+        </p>
+      </GalleryNotes>
+      <GalleryControls>
+        <div
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(min(100%, 10rem), 1fr))",
           }}
-        />
-        <ExampleChoice<ColorChoice["kind"]>
-          label="Color choice"
-          value={choice.kind}
-          options={[
-            { value: "default", label: "Follow default set" },
-            { value: "theme", label: "BB theme override" },
-            { value: "custom", label: "Custom hex" },
-          ]}
-          onChange={(kind) => {
-            if (kind === "default") setChoice({ kind });
-            else if (kind === "theme")
-              setChoice({ kind, color: "timeline-accent" });
-            else {
-              const color =
-                parsedHex.success && parsedHex.data.kind === "custom"
-                  ? parsedHex.data.color
-                  : "#ff00ff";
-              setHex(color);
-              setChoice({ kind, color });
+        >
+          <ExampleChoice<ColorScheme>
+            label="Default set"
+            value={prefs.scheme}
+            options={[
+              { value: "workstreams", label: "Workstreams defaults" },
+              { value: "theme", label: "Match BB theme" },
+            ]}
+            onChange={(scheme) =>
+              setPrefs((current) => ({ ...current, scheme }))
             }
-          }}
-        />
-        {choice.kind === "theme" && (
-          <ExampleChoice<ThemeColor>
-            label="BB theme color"
-            value={choice.color}
-            options={themeOptions}
-            onChange={(color) => setChoice({ kind: "theme", color })}
           />
-        )}
-        {choice.kind === "custom" && (
-          <>
-            <ExampleChoice<string>
-              label="Custom sample"
-              value={
-                customOptions.some((option) => option.value === choice.color)
-                  ? choice.color
-                  : "entered"
-              }
-              options={[
-                ...customOptions,
-                { value: "entered", label: "Entered hex" },
-              ]}
-              onChange={(color) => {
-                if (color === "entered") return;
+          <ExampleChoice<ColorToken>
+            label="Edit token"
+            value={token}
+            options={COLOR_TOKENS.map((value) => ({
+              value,
+              label: COLOR_TOKEN_LABEL[value],
+            }))}
+            onChange={(next) => {
+              setToken(next);
+              const nextChoice = prefs[next];
+              setHex(
+                nextChoice.kind === "custom" ? nextChoice.color : "#ff00ff",
+              );
+            }}
+          />
+          <ExampleChoice<ColorChoice["kind"]>
+            label="Color choice"
+            value={choice.kind}
+            options={[
+              { value: "default", label: "Follow default set" },
+              { value: "theme", label: "BB theme override" },
+              { value: "custom", label: "Custom hex" },
+            ]}
+            onChange={(kind) => {
+              if (kind === "default") setChoice({ kind });
+              else if (kind === "theme")
+                setChoice({ kind, color: "timeline-accent" });
+              else {
+                const color =
+                  parsedHex.success && parsedHex.data.kind === "custom"
+                    ? parsedHex.data.color
+                    : "#ff00ff";
                 setHex(color);
-                setChoice({ kind: "custom", color });
-              }}
+                setChoice({ kind, color });
+              }
+            }}
+          />
+          {choice.kind === "theme" && (
+            <ExampleChoice<ThemeColor>
+              label="BB theme color"
+              value={choice.color}
+              options={themeOptions}
+              onChange={(color) => setChoice({ kind: "theme", color })}
             />
-            <label className="flex min-w-0 flex-col gap-1.5 text-xs text-muted-foreground">
-              Custom hex
-              <Input
-                value={hex}
-                aria-invalid={!parsedHex.success}
-                className="text-foreground"
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setHex(value);
-                  const parsed = colorChoiceSchema.safeParse({
-                    kind: "custom",
-                    color: value,
-                  });
-                  if (parsed.success) setChoice(parsed.data);
+          )}
+          {choice.kind === "custom" && (
+            <>
+              <ExampleChoice<string>
+                label="Custom sample"
+                value={
+                  customOptions.some((option) => option.value === choice.color)
+                    ? choice.color
+                    : "entered"
+                }
+                options={[
+                  ...customOptions,
+                  { value: "entered", label: "Entered hex" },
+                ]}
+                onChange={(color) => {
+                  if (color === "entered") return;
+                  setHex(color);
+                  setChoice({ kind: "custom", color });
                 }}
               />
-              {!parsedHex.success && (
-                <span>Use #rrggbb; the last valid color remains applied.</span>
-              )}
-            </label>
-          </>
-        )}
-        <ExampleChoice<Surface>
-          label="Neutral surface"
-          value={surface}
-          options={[
-            { value: "page", label: "Page" },
-            { value: "raised", label: "Raised" },
-            { value: "recessed", label: "Recessed" },
-          ]}
-          onChange={setSurface}
-        />
-      </div>
-      <Button
-        type="button"
-        variant="outline"
-        onClick={() => {
-          setPrefs({ ...defaults });
-          setHex("#ff00ff");
-        }}
-      >
-        Reset all local colors
-      </Button>
-      <div
-        className="space-y-6 rounded-md border border-border p-3"
-        style={{
-          background:
-            surface === "page"
-              ? "var(--background)"
-              : `var(--surface-${surface}-solid)`,
-        }}
-      >
-        <div className="grid gap-3 @lg:grid-cols-2">
-          {COLOR_TOKENS.map((item) => {
-            const variable = COLOR_TOKEN_VAR[item];
-            return (
-              <section
-                key={item}
-                className="min-w-0 rounded-md border border-border p-3"
-              >
-                <h3
-                  className="mb-3 text-[13px] font-medium"
-                  style={{ color: `var(${variable}-text)` }}
-                >
-                  {COLOR_TOKEN_LABEL[item]}
-                </h3>
-                <dl className="space-y-2 text-xs">
-                  {roles.map((role) => (
-                    <div
-                      key={role.suffix}
-                      className="flex min-w-0 items-center gap-2"
-                    >
-                      <RoleSample variable={variable} suffix={role.suffix} />
-                      <div className="min-w-0">
-                        <dt>
-                          {role.label}{" "}
-                          <span className="text-muted-foreground">
-                            · {role.use}
-                          </span>
-                        </dt>
-                        <dd className="break-all font-mono text-[10px] text-muted-foreground">
-                          {variable}
-                          {role.suffix}
-                        </dd>
-                      </div>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            );
-          })}
+              <label className="flex min-w-0 flex-col gap-1.5 text-xs text-muted-foreground">
+                Custom hex
+                <Input
+                  value={hex}
+                  aria-invalid={!parsedHex.success}
+                  className="text-foreground"
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setHex(value);
+                    const parsed = colorChoiceSchema.safeParse({
+                      kind: "custom",
+                      color: value,
+                    });
+                    if (parsed.success) setChoice(parsed.data);
+                  }}
+                />
+                {!parsedHex.success && (
+                  <span>
+                    Use #rrggbb; the last valid color remains applied.
+                  </span>
+                )}
+              </label>
+            </>
+          )}
+          <ExampleChoice<Surface>
+            label="Neutral surface"
+            value={surface}
+            options={[
+              { value: "page", label: "Page" },
+              { value: "raised", label: "Raised" },
+              { value: "recessed", label: "Recessed" },
+            ]}
+            onChange={setSurface}
+          />
         </div>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Surface, footer, and rule steps are translucent and read against the
-          selected neutral surface. Custom text uses the generator’s lightness
-          clamp; this preview does not establish a contrast or accessibility
-          guarantee.
-        </p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setPrefs({ ...defaults });
+            setHex("#ff00ff");
+          }}
+        >
+          Reset all local colors
+        </Button>
         <div className="grid gap-3 @sm:grid-cols-2">
           <ExampleChoice<"first" | "second">
             label="Topic family"
@@ -420,66 +376,173 @@ export function ColorsExample({
             }))}
           />
         </div>
-        <Identity family={families[family === "first" ? 0 : 1]!} />
-        {context !== "recap" && (
-          <div className={QUESTION_CARD_CLASS}>
-            <QuestionForm
-              questions={[
-                {
-                  id: "gallery-colors-question",
-                  shortLabel: "Release",
-                  prompt: "Which release notes should we inspect?",
-                  details:
-                    "Needs you means a decision is required, not that work is waiting.",
-                  multiSelect: false,
-                  allowFreeText: false,
-                  options: [
-                    {
-                      value: "draft",
-                      label: "Draft notes",
-                      description: "Read the current draft.",
-                    },
-                    {
-                      value: "published",
-                      label: "Published notes",
-                      description: "Compare the published version.",
-                    },
-                  ],
-                },
-              ]}
-              disabled={false}
-              cancelDisabled={false}
-              onSubmit={() =>
-                setAnswer("Local answer submitted; nothing was saved")
-              }
-              onCancel={() =>
-                setAnswer("Local answer cancelled; nothing was saved")
-              }
-            />
-            <p role="status" className="mt-2 text-xs text-muted-foreground">
-              {answer}
-            </p>
+      </GalleryControls>
+      <LiveExample
+        name="Color-token samples"
+        sources={["src/app/theme/tokens.css", "src/domain/colors.ts"]}
+      >
+        <div className="grid gap-3 p-3 @lg:grid-cols-2" style={sampleStyle}>
+          {COLOR_TOKENS.map((item) => {
+            const variable = COLOR_TOKEN_VAR[item];
+            return (
+              <section
+                key={item}
+                className="min-w-0 rounded-md border border-border p-3"
+              >
+                <h3
+                  className="mb-3 text-[13px] font-medium"
+                  style={{ color: `var(${variable}-text)` }}
+                >
+                  {COLOR_TOKEN_LABEL[item]}
+                </h3>
+                <dl className="space-y-2 text-xs">
+                  {roles.map((role) => (
+                    <div
+                      key={role.suffix}
+                      className="flex min-w-0 items-center gap-2"
+                    >
+                      <RoleSample variable={variable} suffix={role.suffix} />
+                      <div className="min-w-0">
+                        <dt>{role.label}</dt>
+                        <dd className="break-all font-mono text-[10px] text-muted-foreground">
+                          {variable}
+                          {role.suffix}
+                        </dd>
+                      </div>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            );
+          })}
+        </div>
+      </LiveExample>
+      <GalleryNotes>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          These are token samples, not a production component. Surface, footer,
+          and rule steps are translucent and read against the selected neutral
+          surface. Custom text uses the generator’s lightness clamp; this
+          preview does not establish a contrast or accessibility guarantee.
+        </p>
+        <dl className="mt-3 grid gap-2 text-xs @sm:grid-cols-2">
+          {roles.map((role) => (
+            <div key={role.suffix}>
+              <dt className="font-medium">{role.label}</dt>
+              <dd className="text-muted-foreground">{role.use}</dd>
+            </div>
+          ))}
+        </dl>
+      </GalleryNotes>
+      <LiveExample
+        name="Topic identity samples"
+        sources={[
+          "src/app/WorkstreamIcon.tsx",
+          "src/app/WorkstreamName.tsx",
+          "src/domain/workstreamColor.ts",
+        ]}
+      >
+        <div className="p-3" style={sampleStyle}>
+          <Identity family={selectedFamily} />
+        </div>
+      </LiveExample>
+      <GalleryNotes>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          The first child inherits the parent color; the second uses the
+          production allocator. Drafts is a category whose text uses its topic’s
+          muted hue. Changing reported state does not change these topic hues.
+        </p>
+        <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+          {topicSamples(selectedFamily).map((item) => (
+            <li key={item.name}>
+              {item.name}: {item.relationship} · hue {item.color.hue} · level{" "}
+              {item.color.level}
+            </li>
+          ))}
+        </ul>
+      </GalleryNotes>
+      {context !== "recap" && (
+        <LiveExample
+          name="QuestionForm"
+          sources={[
+            "src/app/question/question-form.tsx",
+            "src/app/question/question-presentation.tsx",
+          ]}
+        >
+          <div className="p-3" style={sampleStyle}>
+            <div className={QUESTION_CARD_CLASS}>
+              <QuestionForm
+                questions={[
+                  {
+                    id: "gallery-colors-question",
+                    shortLabel: "Release",
+                    prompt: "Which release notes should we inspect?",
+                    details: "Choose a version of the release notes to read.",
+                    multiSelect: false,
+                    allowFreeText: false,
+                    options: [
+                      {
+                        value: "draft",
+                        label: "Draft notes",
+                        description: "Read the current draft.",
+                      },
+                      {
+                        value: "published",
+                        label: "Published notes",
+                        description: "Compare the published version.",
+                      },
+                    ],
+                  },
+                ]}
+                disabled={false}
+                cancelDisabled={false}
+                onSubmit={() =>
+                  setAnswer("Local answer submitted; nothing was saved")
+                }
+                onCancel={() =>
+                  setAnswer("Local answer cancelled; nothing was saved")
+                }
+              />
+            </div>
           </div>
-        )}
-        {context !== "question" && (
-          <RecapCardPreview recap={recap} layout="full" />
-        )}
+        </LiveExample>
+      )}
+      {context !== "recap" && (
+        <GalleryNotes>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Needs you means a decision is required, not that work is waiting.
+          </p>
+          <p role="status" className="text-xs text-muted-foreground">
+            {answer}
+          </p>
+        </GalleryNotes>
+      )}
+      {context !== "question" && (
+        <LiveExample
+          name="RecapCardPreview"
+          sources={["src/app/composer/RecapCard.tsx"]}
+        >
+          <div className="p-3" style={sampleStyle}>
+            <RecapCardPreview recap={recap} layout="full" />
+          </div>
+        </LiveExample>
+      )}
+      <GalleryNotes>
         <p className="text-xs text-muted-foreground">
           The recap preview is inert; its actions do not operate on BB.
         </p>
-      </div>
-      <details className="text-xs">
-        <summary className="cursor-pointer">
-          Current local color preferences and generated CSS
-        </summary>
-        <pre className="mt-3 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border p-3">
-          <code>
-            {JSON.stringify(prefs, null, 2)}
-            {"\n\n"}
-            {css || "No overrides; tokens.css supplies every default."}
-          </code>
-        </pre>
-      </details>
+        <details className="mt-3 text-xs">
+          <summary className="cursor-pointer">
+            Current local color preferences and generated CSS
+          </summary>
+          <pre className="mt-3 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border p-3">
+            <code>
+              {JSON.stringify(prefs, null, 2)}
+              {"\n\n"}
+              {css || "No overrides; tokens.css supplies every default."}
+            </code>
+          </pre>
+        </details>
+      </GalleryNotes>
     </div>
   );
 }
@@ -500,7 +563,7 @@ const prefs: ColorPrefs = { ...DEFAULT_COLORS, scheme: "workstreams",
 <style>{colorTokenCss(prefs)}</style>
 <RecapCardPreview recap={recap} layout="full" />
 
-// The live panel shows current preferences and the exact generated CSS.
+// Gallery notes show current preferences and the exact generated CSS.
 // Topic identity separately uses allocateFamilyColor, allocateChildColor,
 // and workstreamColorStyle; it never derives from a state token.`,
   render: () => <ColorsExample />,

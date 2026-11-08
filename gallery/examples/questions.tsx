@@ -9,6 +9,7 @@ import type {
 import { QUESTION_CARD_CLASS } from "../../src/app/question/question-presentation";
 import type { QuestionHistory } from "../../src/server/questions/history";
 import { ExampleChoice } from "../ExampleChoice";
+import { GalleryControls, GalleryNotes, LiveExample } from "../ExampleFrame";
 import type { GalleryExample } from "../examples";
 
 const questionOptions = [
@@ -30,8 +31,7 @@ const layoutQuestion: Question = {
   id: "gallery-layout",
   shortLabel: "Layout",
   prompt: "Which summary should we preview?",
-  details:
-    "This is a local example. Nothing is sent to an agent or saved in BB.",
+  details: "Compare the compact and full summary layouts before choosing one.",
   multiSelect: false,
   allowFreeText: false,
   options: questionOptions,
@@ -201,105 +201,128 @@ function QuestionExample() {
   const disabled = state === "disabled" || state === "submitting";
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end gap-3">
-        <ExampleChoice
-          label="Question preset"
-          value={preset}
-          options={presets}
-          onChange={(value) => {
-            setPreset(value);
-            setResult("No local answer submitted");
-          }}
-        />
-        {preset === "history" ? (
+      <GalleryControls>
+        <div className="flex flex-wrap items-end gap-3">
           <ExampleChoice
-            label="History status"
-            value={historyStatus}
-            onChange={setHistoryStatus}
-            options={[
-              { value: "answered", label: "Answered" },
-              { value: "dismissed", label: "Dismissed" },
-              { value: "pending", label: "Pending" },
-              { value: "unknown", label: "Answer unavailable" },
-            ]}
-          />
-        ) : (
-          <>
-            {preset !== "freeform" ? (
-              <ExampleChoice
-                label="Selection"
-                value={mode}
-                onChange={(value) => {
-                  setMode(value);
-                  setResult("No local answer submitted");
-                }}
-                options={[
-                  { value: "single", label: "Single choice" },
-                  { value: "multiple", label: "Multiple choices" },
-                ]}
-              />
-            ) : null}
-            <ExampleChoice
-              label="Form state"
-              value={state}
-              onChange={setState}
-              options={[
-                { value: "ready", label: "Ready" },
-                { value: "disabled", label: "All actions disabled" },
-                { value: "submitting", label: "Submitting · Cancel available" },
-                { value: "cancel-disabled", label: "Cancel disabled" },
-                { value: "error", label: "Submit error" },
-              ]}
-            />
-          </>
-        )}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setReset(reset + 1);
-            setResult("Local form reset");
-          }}
-        >
-          Reset local form
-        </Button>
-      </div>
-      {preset === "history" ? (
-        <QuestionHistoryCard
-          key={`${historyStatus}-${reset}`}
-          record={historyRecord(historyStatus)}
-        />
-      ) : (
-        <div className={QUESTION_CARD_CLASS}>
-          <QuestionForm
-            key={`${preset}-${mode}-${reset}`}
-            questions={questions}
-            disabled={disabled}
-            cancelDisabled={state === "disabled" || state === "cancel-disabled"}
-            error={
-              state === "error"
-                ? "Synthetic submit error. Your local selections are still available; reset or change the form state to continue."
-                : null
-            }
-            onSubmit={submit}
-            onCancel={() => {
-              setReset(reset + 1);
-              setResult("Local answer cancelled");
+            label="Question preset"
+            value={preset}
+            options={presets}
+            onChange={(value) => {
+              setPreset(value);
+              setResult("No local answer submitted");
             }}
           />
+          {preset === "history" ? (
+            <ExampleChoice
+              label="History status"
+              value={historyStatus}
+              onChange={setHistoryStatus}
+              options={[
+                { value: "answered", label: "Answered" },
+                { value: "dismissed", label: "Dismissed" },
+                { value: "pending", label: "Pending" },
+                { value: "unknown", label: "Answer unavailable" },
+              ]}
+            />
+          ) : (
+            <>
+              {preset !== "freeform" ? (
+                <ExampleChoice
+                  label="Selection"
+                  value={mode}
+                  onChange={(value) => {
+                    setMode(value);
+                    setResult("No local answer submitted");
+                  }}
+                  options={[
+                    { value: "single", label: "Single choice" },
+                    { value: "multiple", label: "Multiple choices" },
+                  ]}
+                />
+              ) : null}
+              <ExampleChoice
+                label="Form state"
+                value={state}
+                onChange={setState}
+                options={[
+                  { value: "ready", label: "Ready" },
+                  { value: "disabled", label: "All actions disabled" },
+                  {
+                    value: "submitting",
+                    label: "Submitting · Cancel available",
+                  },
+                  { value: "cancel-disabled", label: "Cancel disabled" },
+                  { value: "error", label: "Submit error" },
+                ]}
+              />
+            </>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setReset(reset + 1);
+              setResult("Local form reset");
+            }}
+          >
+            Reset local form
+          </Button>
         </div>
+      </GalleryControls>
+      {preset === "history" ? (
+        <LiveExample
+          name="QuestionHistoryCard"
+          sources={["src/app/question/QuestionHistory.tsx"]}
+        >
+          <QuestionHistoryCard
+            key={`${historyStatus}-${reset}`}
+            record={historyRecord(historyStatus)}
+          />
+        </LiveExample>
+      ) : (
+        <LiveExample
+          name="QuestionForm"
+          sources={[
+            "src/app/question/question-form.tsx",
+            "src/app/question/question-presentation.tsx",
+          ]}
+        >
+          <div className={QUESTION_CARD_CLASS}>
+            <QuestionForm
+              key={`${preset}-${mode}-${reset}`}
+              questions={questions}
+              disabled={disabled}
+              cancelDisabled={
+                state === "disabled" || state === "cancel-disabled"
+              }
+              error={
+                state === "error"
+                  ? "Synthetic submit error. Your selections are still available."
+                  : null
+              }
+              onSubmit={submit}
+              onCancel={() => {
+                setReset(reset + 1);
+                setResult("Local answer cancelled");
+              }}
+            />
+          </div>
+        </LiveExample>
       )}
-      <p role="status" className="text-xs text-muted-foreground">
-        {result}
-      </p>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Submit and Cancel update local state. Multiple questions use the real
-        tabs, Back, and Next controls; answers remain while navigating. History
-        opens with its disclosure. Disabled forms use the production Submitting…
-        label; the state selector does not start a request. Attachments need a
-        project and are disabled here. No upload, live question, or saved BB
-        answer is available.
-      </p>
+      <GalleryNotes>
+        <p role="status" className="text-xs text-muted-foreground">
+          {result}
+        </p>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Submit and Cancel update local state. Multiple questions use the real
+          tabs, Back, and Next controls; answers remain while navigating.
+          History opens with its disclosure. Disabled forms use the production
+          Submitting… label; the state selector does not start a request. For
+          the error preset, reset or change Form state to continue. Attachments
+          need a project and are disabled here. No upload, live question, or
+          saved BB answer is available.
+        </p>
+      </GalleryNotes>
     </div>
   );
 }

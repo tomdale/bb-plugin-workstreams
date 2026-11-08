@@ -11,6 +11,7 @@ import {
   type RecapLayout,
 } from "../../src/domain/recapPrefs";
 import { ExampleChoice } from "../ExampleChoice";
+import { GalleryControls, GalleryNotes, LiveExample } from "../ExampleFrame";
 import type { GalleryExample } from "../examples";
 
 const recapBase = {
@@ -140,7 +141,7 @@ function recapFor(
           {
             text: "Review notes distinguish local preparation from live deployment",
             detail:
-              "The gallery renders this text with the production card; it does not independently verify the claims",
+              "The report describes prepared work; live deployment is not independently verified",
           },
         ],
         review: [
@@ -239,123 +240,133 @@ function RecapExample() {
   const recap = recapFor(preset, state, fixtures.waitingAgents);
   return (
     <div className="space-y-5">
-      <div
-        className="grid gap-3"
-        style={{
-          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 9rem), 1fr))",
-        }}
-      >
-        <ExampleChoice
-          label="Recap preset"
-          value={preset}
-          options={presets}
-          onChange={(value) => {
-            setPreset(value);
-            setState(
-              value === "agents"
-                ? "waiting"
-                : value === "goal-only"
-                  ? "complete"
-                  : "review",
-            );
+      <GalleryControls>
+        <div
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(min(100%, 9rem), 1fr))",
           }}
-        />
-        <ExampleChoice
-          label="Reported state"
-          value={state}
-          onChange={setState}
-          options={RECAP_STATES.map((value) => ({
-            value,
-            label: COLOR_TOKEN_LABEL[value],
-          }))}
-        />
-        <ExampleChoice
-          label="Layout"
-          value={layout}
-          onChange={setLayout}
-          options={RECAP_LAYOUT_OPTIONS}
-        />
-        <ExampleChoice
-          label="Available width"
-          value={width}
-          onChange={setWidth}
-          options={[
-            { value: "wide", label: "Fill the pane" },
-            { value: "narrow", label: "Narrow · 320px" },
-          ]}
-        />
-        {preset === "hashes" ? (
+        >
           <ExampleChoice
-            label="Hash colors"
-            value={hashColor}
-            onChange={setHashColor}
+            label="Recap preset"
+            value={preset}
+            options={presets}
+            onChange={(value) => {
+              setPreset(value);
+              setState(
+                value === "agents"
+                  ? "waiting"
+                  : value === "goal-only"
+                    ? "complete"
+                    : "review",
+              );
+            }}
+          />
+          <ExampleChoice
+            label="Reported state"
+            value={state}
+            onChange={setState}
+            options={RECAP_STATES.map((value) => ({
+              value,
+              label: COLOR_TOKEN_LABEL[value],
+            }))}
+          />
+          <ExampleChoice
+            label="Layout"
+            value={layout}
+            onChange={setLayout}
+            options={RECAP_LAYOUT_OPTIONS}
+          />
+          <ExampleChoice
+            label="Available width"
+            value={width}
+            onChange={setWidth}
             options={[
-              { value: "theme", label: "Theme defaults" },
-              { value: "semantic", label: "Custom · loaded theme colors" },
+              { value: "wide", label: "Fill the pane" },
+              { value: "narrow", label: "Narrow · 320px" },
             ]}
           />
-        ) : null}
-        {preset === "agents" ? (
-          <ExampleChoice
-            label="Awaited agent state"
-            value={agentState}
-            onChange={setAgentState}
-            options={[
-              { value: "all", label: "All states" },
-              ...agentStates.map((agent) => ({
-                value: agent.value,
-                label: agent.label,
-              })),
-            ]}
-          />
-        ) : null}
-        <div className="flex items-end">
-          <Button
-            type="button"
-            variant="outline"
-            aria-pressed={archive}
-            onClick={() => setArchive(!archive)}
-          >
-            {archive ? "Hide Archive" : "Show Archive"}
-          </Button>
+          {preset === "hashes" ? (
+            <ExampleChoice
+              label="Hash colors"
+              value={hashColor}
+              onChange={setHashColor}
+              options={[
+                { value: "theme", label: "Theme defaults" },
+                { value: "semantic", label: "Custom · loaded theme colors" },
+              ]}
+            />
+          ) : null}
+          {preset === "agents" ? (
+            <ExampleChoice
+              label="Awaited agent state"
+              value={agentState}
+              onChange={setAgentState}
+              options={[
+                { value: "all", label: "All states" },
+                ...agentStates.map((agent) => ({
+                  value: agent.value,
+                  label: agent.label,
+                })),
+              ]}
+            />
+          ) : null}
+          <div className="flex items-end">
+            <Button
+              type="button"
+              variant="outline"
+              aria-pressed={archive}
+              onClick={() => setArchive(!archive)}
+            >
+              {archive ? "Hide Archive" : "Show Archive"}
+            </Button>
+          </div>
         </div>
-      </div>
-      <div
-        className="mx-auto min-w-0 overflow-clip"
-        style={{ maxWidth: width === "narrow" ? 320 : undefined }}
+      </GalleryControls>
+      <LiveExample
+        name="RecapCardPreview"
+        sources={["src/app/composer/RecapCard.tsx"]}
       >
-        <RecapCardPreview
-          recap={recap}
-          layout={layout}
-          showArchive={archive}
-          hashColors={
-            preset === "hashes" && hashColor === "semantic"
-              ? {
-                  digits: "var(--ws-review-text)",
-                  letters: "var(--ws-needs-you-text)",
-                }
-              : undefined
-          }
-          agents={{
-            ...fixtures.agents,
-            "gallery-agent": {
-              title: "Layout checks",
-              href: null,
-              tone: "running",
-              label: "Running",
-            },
-          }}
-        />
-      </div>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        The production preview is inert: dismiss, Archive, next actions, links,
-        and hash copying cannot act on BB. Waiting uses fixture agents without a
-        scheduled check; “Checking now” is display text. Artifacts are synthetic
-        HTTPS and file locations, not available documents. Artifact chips appear
-        in Review; Compact omits completed results on review cards. Next actions
-        can collapse to a disabled menu at narrow widths, not an interactive
-        action-menu demo.
-      </p>
+        <div
+          className="mx-auto min-w-0 overflow-clip"
+          style={{ maxWidth: width === "narrow" ? 320 : undefined }}
+        >
+          <RecapCardPreview
+            recap={recap}
+            layout={layout}
+            showArchive={archive}
+            hashColors={
+              preset === "hashes" && hashColor === "semantic"
+                ? {
+                    digits: "var(--ws-review-text)",
+                    letters: "var(--ws-needs-you-text)",
+                  }
+                : undefined
+            }
+            agents={{
+              ...fixtures.agents,
+              "gallery-agent": {
+                title: "Layout checks",
+                href: null,
+                tone: "running",
+                label: "Running",
+              },
+            }}
+          />
+        </div>
+      </LiveExample>
+      <GalleryNotes>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          The production preview is inert: dismiss, Archive, next actions,
+          links, and hash copying cannot act on BB. Waiting uses fixture agents
+          without a scheduled check; “Checking now” is display text. Artifacts
+          are synthetic HTTPS and file locations, not available documents.
+          Artifact chips appear in Review; Compact omits completed results on
+          review cards. Next actions can collapse to a disabled menu at narrow
+          widths, not an interactive action-menu demo.
+        </p>
+      </GalleryNotes>
     </div>
   );
 }

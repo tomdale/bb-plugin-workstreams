@@ -11,6 +11,7 @@ import {
   Stepper,
 } from "../../src/app/settings/ui";
 import { ExampleChoice } from "../ExampleChoice";
+import { GalleryControls, GalleryNotes, LiveExample } from "../ExampleFrame";
 import type { GalleryExample } from "../examples";
 
 type Layout = "normal" | "compact" | "stacked";
@@ -98,163 +99,178 @@ function SettingsExample() {
   );
   return (
     <div className="min-w-0 space-y-4">
-      <div
-        className="grid gap-3"
-        style={{
-          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 9rem), 1fr))",
-        }}
-      >
-        <ExampleChoice
-          label="Row layout"
-          value={layout}
-          options={[
-            { value: "compact", label: "Compact" },
-            { value: "normal", label: "Normal" },
-            { value: "stacked", label: "Stacked" },
-          ]}
-          onChange={setLayout}
-        />
-        <ExampleChoice
-          label="Controls"
-          value={state}
-          options={[
-            { value: "enabled", label: "Enabled" },
-            { value: "disabled", label: "Disabled · inert section" },
-          ]}
-          onChange={setState}
-        />
-      </div>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Local settings, using the production row and control exports. Nothing
-        reads or saves BB preferences.
-      </p>
-      <div
-        inert={disabled}
-        className={disabled ? "space-y-4 opacity-50" : "space-y-4"}
-      >
-        <SettingsGroup title="Sections">
-          <SectionRows compact={compact}>
-            {compact ? (
-              <>
-                <CompactSettingRow label="Up Next" control={upNextSwitch} />
-                <CompactSettingRow
-                  label="Recent"
-                  accessory={count}
-                  control={recentSwitch}
-                />
-              </>
-            ) : (
-              <>
-                <SettingRow
-                  label="Up Next"
-                  description="Threads most worth your attention."
-                  stacked={layout === "stacked"}
-                  control={upNextSwitch}
-                />
-                <SettingRow
-                  label="Recent"
-                  description="Show recently active threads."
-                  stacked={layout === "stacked"}
-                  control={
-                    <div className="flex flex-wrap items-center gap-3">
-                      {count}
-                      {recentSwitch}
-                    </div>
-                  }
-                />
-              </>
-            )}
-          </SectionRows>
-        </SettingsGroup>
-        <SettingsGroup title="Details">
-          <SectionRows compact={compact}>
-            <SettingRow
-              label="Timestamp"
-              stacked
-              control={
-                <SegmentedControl
-                  label="Timestamp"
-                  value={timestamp}
-                  options={timestampOptions}
-                  onChange={(value) => {
-                    setTimestamp(value);
-                    record(
-                      `Timestamp: ${timestampOptions.find((option) => option.value === value)?.label}`,
-                    );
-                  }}
-                />
-              }
-            />
-            <SettingRow
-              label="Home project"
-              description="Open the picker and search for “zz” to see No matches. Tab to an option, then use the arrow keys to move between results."
-              stacked
-              control={
-                <SettingsPicker
-                  label="Home project"
-                  value={project}
-                  options={projectOptions}
-                  disabled={disabled}
-                  className="w-full"
-                  onChange={(value) => {
-                    setProject(value);
-                    record(
-                      `Home project: ${projectOptions.find((option) => option.value === value)?.label}`,
-                    );
-                  }}
-                />
-              }
-            />
-          </SectionRows>
-        </SettingsGroup>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled || !recent}
-          onClick={() => updateLimit(1)}
-        >
-          Minimum · 1
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled || !recent}
-          onClick={() => updateLimit(10)}
-        >
-          Maximum · 10
-        </Button>
-      </div>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Focus the enabled stepper group and use ↑/↓; its buttons stop at 1 and
-        10. The disabled section is inert: Stepper’s current keyboard handler
-        does not check its disabled prop. Compact rows preserve the production
-        accessory column; stacked rows give longer controls their own line.
-      </p>
-      <section
-        aria-label="Local settings actions"
-        className="border-t border-border pt-3 text-xs"
-      >
-        <h3 className="mb-1 font-medium">Local action log</h3>
+      <GalleryControls>
         <div
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          className="text-muted-foreground"
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(min(100%, 9rem), 1fr))",
+          }}
         >
-          {log[0] ?? "No local changes yet"}
+          <ExampleChoice
+            label="Row layout"
+            value={layout}
+            options={[
+              { value: "compact", label: "Compact" },
+              { value: "normal", label: "Normal" },
+              { value: "stacked", label: "Stacked" },
+            ]}
+            onChange={setLayout}
+          />
+          <ExampleChoice
+            label="Controls"
+            value={state}
+            options={[
+              { value: "enabled", label: "Enabled" },
+              { value: "disabled", label: "Disabled · inert section" },
+            ]}
+            onChange={setState}
+          />
         </div>
-        {log.length > 1 ? (
-          <ol className="mt-1 space-y-1 text-muted-foreground">
-            {log.slice(1).map((entry, index) => (
-              <li key={index}>{entry}</li>
-            ))}
-          </ol>
-        ) : null}
-      </section>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled || !recent}
+            onClick={() => updateLimit(1)}
+          >
+            Minimum · 1
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled || !recent}
+            onClick={() => updateLimit(10)}
+          >
+            Maximum · 10
+          </Button>
+        </div>
+      </GalleryControls>
+      <GalleryNotes>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Local settings, using the production row and control exports. Nothing
+          reads or saves BB preferences.
+        </p>
+      </GalleryNotes>
+      <LiveExample
+        name="SettingsGroup · SectionRows"
+        sources={["src/app/settings/ui.tsx"]}
+      >
+        <div
+          inert={disabled}
+          className={disabled ? "space-y-4 opacity-50" : "space-y-4"}
+        >
+          <SettingsGroup title="Sections">
+            <SectionRows compact={compact}>
+              {compact ? (
+                <>
+                  <CompactSettingRow label="Up Next" control={upNextSwitch} />
+                  <CompactSettingRow
+                    label="Recent"
+                    accessory={count}
+                    control={recentSwitch}
+                  />
+                </>
+              ) : (
+                <>
+                  <SettingRow
+                    label="Up Next"
+                    description="Threads most worth your attention."
+                    stacked={layout === "stacked"}
+                    control={upNextSwitch}
+                  />
+                  <SettingRow
+                    label="Recent"
+                    description="Show recently active threads."
+                    stacked={layout === "stacked"}
+                    control={
+                      <div className="flex flex-wrap items-center gap-3">
+                        {count}
+                        {recentSwitch}
+                      </div>
+                    }
+                  />
+                </>
+              )}
+            </SectionRows>
+          </SettingsGroup>
+          <SettingsGroup title="Details">
+            <SectionRows compact={compact}>
+              <SettingRow
+                label="Timestamp"
+                stacked
+                control={
+                  <SegmentedControl
+                    label="Timestamp"
+                    value={timestamp}
+                    options={timestampOptions}
+                    onChange={(value) => {
+                      setTimestamp(value);
+                      record(
+                        `Timestamp: ${timestampOptions.find((option) => option.value === value)?.label}`,
+                      );
+                    }}
+                  />
+                }
+              />
+              <SettingRow
+                label="Home project"
+                stacked
+                control={
+                  <SettingsPicker
+                    label="Home project"
+                    value={project}
+                    options={projectOptions}
+                    disabled={disabled}
+                    className="w-full"
+                    onChange={(value) => {
+                      setProject(value);
+                      record(
+                        `Home project: ${projectOptions.find((option) => option.value === value)?.label}`,
+                      );
+                    }}
+                  />
+                }
+              />
+            </SectionRows>
+          </SettingsGroup>
+        </div>
+      </LiveExample>
+      <GalleryNotes>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Open the picker and search for “zz” to see No matches. Tab to an
+          option, then use the arrow keys to move between results.
+        </p>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Focus the enabled stepper group and use ↑/↓; its buttons stop at 1 and
+          10. The disabled section is inert: Stepper’s current keyboard handler
+          does not check its disabled prop. Compact rows preserve the production
+          accessory column; stacked rows give longer controls their own line.
+        </p>
+        <section
+          aria-label="Local settings actions"
+          className="border-t border-border pt-3 text-xs"
+        >
+          <h3 className="mb-1 font-medium">Local action log</h3>
+          <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className="text-muted-foreground"
+          >
+            {log[0] ?? "No local changes yet"}
+          </div>
+          {log.length > 1 ? (
+            <ol className="mt-1 space-y-1 text-muted-foreground">
+              {log.slice(1).map((entry, index) => (
+                <li key={index}>{entry}</li>
+              ))}
+            </ol>
+          ) : null}
+        </section>
+      </GalleryNotes>
     </div>
   );
 }

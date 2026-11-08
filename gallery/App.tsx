@@ -6,10 +6,14 @@ import { WorkstreamIcon } from "../src/app/WorkstreamIcon";
 import { WorkstreamName } from "../src/app/WorkstreamName";
 import { RecapCardPreview } from "../src/app/composer/RecapCard";
 import { examples } from "./examples";
+import {
+  LiveExample,
+  PreviewWidthProvider,
+  type PreviewWidth,
+} from "./ExampleFrame";
 import "./app.css";
 
 type Theme = "light" | "dark" | "system";
-type PreviewWidth = "wide" | "narrow" | "phone";
 
 const groups = ["Foundations", "Components"] as const;
 const introductionSource = `import { WorkstreamIcon } from "../src/app/WorkstreamIcon";
@@ -299,11 +303,17 @@ export default function App() {
                 </p>
               )}
               <section
-                className="gallery-specimen-section"
-                aria-label={`${title} live example`}
+                className="gallery-playground"
+                aria-label={`${title} playground`}
               >
-                <div className="gallery-specimen-toolbar">
-                  <span className="gallery-specimen-label">Preview</span>
+                <div
+                  className="gallery-specimen-toolbar"
+                  data-gallery-controls=""
+                  aria-label="Gallery preview controls"
+                >
+                  <span className="gallery-specimen-label">
+                    Gallery controls
+                  </span>
                   <Choices<PreviewWidth>
                     label="Preview width"
                     value={width}
@@ -315,28 +325,29 @@ export default function App() {
                     ]}
                   />
                 </div>
-                <div
-                  className="gallery-specimen-stage"
-                  data-gallery-preview-width={width}
-                >
-                  <div
-                    className="gallery-specimen-container"
-                    data-width={width}
-                  >
-                    <div className="gallery-specimen-content" key={page}>
-                      {isIntroduction ? (
-                        <IntroductionPreview />
-                      ) : (
-                        example?.render()
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <p className="gallery-width-note">
-                  Wide fills the preview. Narrow is 640px; Phone is 360px,
-                  capped to fit. These test container layouts, not device
-                  behavior.
+                <p className="gallery-width-note" data-gallery-documentation="">
+                  Width applies to live examples, not gallery controls or
+                  documentation. Wide fills the preview; Narrow is 640px and
+                  Phone is 360px, capped to fit. These test container layouts,
+                  not device behavior.
                 </p>
+                <PreviewWidthProvider width={width}>
+                  <div className="gallery-specimen-content" key={page}>
+                    {isIntroduction ? (
+                      <LiveExample
+                        name="WorkstreamName · RecapCardPreview"
+                        sources={[
+                          "src/app/WorkstreamName.tsx",
+                          "src/app/composer/RecapCard.tsx",
+                        ]}
+                      >
+                        <IntroductionPreview />
+                      </LiveExample>
+                    ) : (
+                      example?.render()
+                    )}
+                  </div>
+                </PreviewWidthProvider>
                 <Source
                   key={page}
                   source={

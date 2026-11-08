@@ -2,6 +2,7 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ExampleChoice } from "./ExampleChoice";
+import { GalleryControls, GalleryNotes, LiveExample } from "./ExampleFrame";
 import { colorsExample } from "./examples/colors";
 import { questionExample } from "./examples/questions";
 import { recapExample } from "./examples/recaps";
@@ -52,19 +53,23 @@ const typeRoles = [
 
 function TypographyExample() {
   return (
-    <dl className="divide-y divide-border">
+    <div className="space-y-5">
       {typeRoles.map((item) => (
-        <div
+        <LiveExample
           key={item.role}
-          className="grid gap-2 py-4 @sm:grid-cols-[9rem_minmax(0,1fr)]"
+          name={item.role}
+          sources={[
+            item.role === "Question prompt"
+              ? "src/app/question/question-presentation.tsx"
+              : "src/app/styles.css",
+          ]}
         >
-          <dt className="text-xs text-muted-foreground">{item.role}</dt>
-          <dd className={`min-w-0 break-words ${item.className}`}>
+          <div className={`min-w-0 break-words ${item.className}`}>
             {item.text}
-          </dd>
-        </div>
+          </div>
+        </LiveExample>
       ))}
-    </dl>
+    </div>
   );
 }
 
@@ -79,53 +84,64 @@ function IdentityExample() {
   const style = workstreamColorStyle(topicColors[family === "first" ? 0 : 1]!);
   return (
     <div className="space-y-6">
-      <div
-        className="grid gap-3"
-        style={{
-          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 9rem), 1fr))",
-        }}
+      <GalleryControls>
+        <div
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(min(100%, 9rem), 1fr))",
+          }}
+        >
+          <ExampleChoice
+            label="Name"
+            value={name}
+            onChange={setName}
+            options={identityNames.map((item) => ({
+              value: item,
+              label: item,
+            }))}
+          />
+          <ExampleChoice
+            label="Treatment"
+            value={tone}
+            onChange={setTone}
+            options={[
+              { value: "accent", label: "Topic hue" },
+              { value: "neutral", label: "Neutral" },
+              { value: "muted", label: "Muted" },
+            ]}
+          />
+          <ExampleChoice
+            label="Allocated hue"
+            value={family}
+            onChange={setFamily}
+            options={[
+              { value: "first", label: "First topic" },
+              { value: "second", label: "Second topic" },
+            ]}
+          />
+        </div>
+      </GalleryControls>
+      <LiveExample
+        name="WorkstreamIcon · WorkstreamName"
+        sources={["src/app/WorkstreamIcon.tsx", "src/app/WorkstreamName.tsx"]}
       >
-        <ExampleChoice
-          label="Name"
-          value={name}
-          onChange={setName}
-          options={identityNames.map((item) => ({ value: item, label: item }))}
-        />
-        <ExampleChoice
-          label="Treatment"
-          value={tone}
-          onChange={setTone}
-          options={[
-            { value: "accent", label: "Topic hue" },
-            { value: "neutral", label: "Neutral" },
-            { value: "muted", label: "Muted" },
-          ]}
-        />
-        <ExampleChoice
-          label="Allocated hue"
-          value={family}
-          onChange={setFamily}
-          options={[
-            { value: "first", label: "First topic" },
-            { value: "second", label: "Second topic" },
-          ]}
-        />
-      </div>
-      <div
-        className="flex min-w-0 items-center gap-2 py-5"
-        style={style as CSSProperties}
-      >
-        <WorkstreamIcon />
-        <WorkstreamName
-          name={name}
-          accent={tone === "accent"}
-          muted={tone === "muted"}
-        />
-      </div>
-      <p className="text-xs leading-relaxed text-muted-foreground">
+        <div
+          className="flex min-w-0 items-center gap-2 py-5"
+          style={style as CSSProperties}
+        >
+          <WorkstreamIcon />
+          <WorkstreamName
+            name={name}
+            accent={tone === "accent"}
+            muted={tone === "muted"}
+          />
+        </div>
+      </LiveExample>
+      <GalleryNotes>
         The actual name component subdues the owner prefix and preserves the
         colon for assistive technology. The shared icon stays neutral.
-      </p>
+      </GalleryNotes>
     </div>
   );
 }
@@ -162,7 +178,7 @@ const replyParts = [
     steps: [
       {
         title: "Switch to the narrow width",
-        detail: "The recap example exposes a 320px width.",
+        detail: "Use a pane about 320px wide.",
       },
       {
         title: "Read the review steps",
@@ -194,7 +210,7 @@ const replyParts = [
     before: "The results and review steps use the same emphasis.",
     after: "Review steps follow the goal and results.",
     unchanged: "The source content.",
-    limitation: "The current reply renderer remains plain Markdown.",
+    limitation: "Live deployment still needs review.",
   },
   {
     type: "checks",
@@ -233,7 +249,7 @@ const replyParts = [
   {
     type: "details",
     title: "Example details",
-    body: "This is the actual `PlainBody` renderer.\n\n- No separate card per component\n- No redesigned status marks\n- No host actions",
+    body: "The release summary groups the result with its review steps.\n\n- Keep artifact paths beside their descriptions\n- State which checks ran\n- Leave pending deployment explicit",
   },
   {
     type: "group",
@@ -246,7 +262,7 @@ const replyParts = [
       {
         type: "details",
         title: "Why it matters",
-        body: "The current renderer draws group children in order; it does not add a relationship-specific layout.",
+        body: "A reviewer needs the qualification before choosing the next release step.",
       },
     ],
   },
@@ -257,23 +273,27 @@ function ReplyExample() {
   const part = replyParts.find((item) => item.type === type)!;
   return (
     <div className="space-y-5">
-      <ExampleChoice
-        label="Reply component"
-        value={type}
-        onChange={setType}
-        options={replyParts.map((item) => ({
-          value: item.type,
-          label: item.type[0]!.toUpperCase() + item.type.slice(1),
-        }))}
-      />
-      <p className="text-xs leading-relaxed text-muted-foreground">
+      <GalleryControls>
+        <ExampleChoice
+          label="Reply component"
+          value={type}
+          onChange={setType}
+          options={replyParts.map((item) => ({
+            value: item.type,
+            label: item.type[0]!.toUpperCase() + item.type.slice(1),
+          }))}
+        />
+      </GalleryControls>
+      <GalleryNotes>
         Current renderer, not a proposed redesign: the vocabulary carries typed
         information, but presentation is plain Markdown. Comparison options and
         groups render in order, not as columns or new cards.
-      </p>
-      <div className="min-w-0 break-words">
-        <PlainBody part={part} document={undefined} files={null} />
-      </div>
+      </GalleryNotes>
+      <LiveExample name="PlainBody" sources={["src/app/reply/PlainBody.tsx"]}>
+        <div className="min-w-0 break-words">
+          <PlainBody part={part} document={undefined} files={null} />
+        </div>
+      </LiveExample>
     </div>
   );
 }
@@ -284,59 +304,70 @@ function ControlsExample() {
   const [status, setStatus] = useState("No local action yet");
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 @sm:grid-cols-2">
-        <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-          Example name
-          <Input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            className="text-foreground"
-          />
-        </label>
-        <ExampleChoice
-          label="Example layout"
-          value={density}
-          onChange={setDensity}
-          options={[
-            { value: "compact", label: "Compact" },
-            { value: "full", label: "Full" },
-          ]}
-        />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          onClick={() =>
-            setStatus(`Local preview: ${name || "Untitled"} · ${density}`)
-          }
-        >
-          Preview locally
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setName("Release summary");
-            setDensity("compact");
-            setStatus("Local controls reset");
-          }}
-        >
-          Reset locally
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => setStatus("Local draft discarded")}
-        >
-          Discard locally
-        </Button>
-        <Button type="button" variant="outline" disabled>
-          Unavailable
-        </Button>
-      </div>
-      <p role="status" className="text-xs text-muted-foreground">
-        {status}
-      </p>
+      <LiveExample
+        name="Button · Input · Select"
+        sources={[
+          "components/ui/button.tsx",
+          "components/ui/input.tsx",
+          "components/ui/select.tsx",
+        ]}
+      >
+        <div className="space-y-5">
+          <div className="grid gap-4 @sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+              Example name
+              <Input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                className="text-foreground"
+              />
+            </label>
+            <ExampleChoice
+              label="Example layout"
+              value={density}
+              onChange={setDensity}
+              options={[
+                { value: "compact", label: "Compact" },
+                { value: "full", label: "Full" },
+              ]}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              onClick={() =>
+                setStatus(`Local preview: ${name || "Untitled"} · ${density}`)
+              }
+            >
+              Preview locally
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setName("Release summary");
+                setDensity("compact");
+                setStatus("Local controls reset");
+              }}
+            >
+              Reset locally
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setStatus("Local draft discarded")}
+            >
+              Discard locally
+            </Button>
+            <Button type="button" variant="outline" disabled>
+              Unavailable
+            </Button>
+          </div>
+        </div>
+      </LiveExample>
+      <GalleryNotes>
+        <p role="status">{status}</p>
+      </GalleryNotes>
     </div>
   );
 }
