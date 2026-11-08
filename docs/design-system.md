@@ -163,8 +163,10 @@ message timeline. The reply body is not a stack of generic cards. Use shared
 Markdown and text behavior, then add structure where the component's data calls
 for it.
 
-- **Context:** A compact, muted orientation line for the subject and reported
-  location. Keep background explanation as ordinary prose.
+- **Context:** A compact orientation line: the topic as a small medium-weight
+  label in the reply accent, the way the sticky goal header shows its workstream
+  above the goal, with the reported location muted beneath it. Any background
+  follows as ordinary prose.
 - **Text:** Ordinary Markdown prose, unboxed. Preserve the author's paragraphs,
   lists, and inline formatting.
 - **Sequence:** Recap card steps in order: each step number sits in the mark
@@ -201,16 +203,20 @@ for it.
   unknown a question mark; every status but done also shows its label beside the
   name. Do not imply that a reported stage was independently verified.
 - **Recommendation:** The choice leads in semibold text. The reason and any
-  qualification follow as recap card rows, labeled "Reason" and "Caveat" in the
-  card's label gutter beside each value and stacked above it when narrow. Labels
-  take the reply accent, like Change; do not borrow `review` or `complete` color
-  to make advice appear like a work state.
-- **Details:** Give the section a clear heading and preserve its body as
-  Markdown. Supporting detail may be visually quieter; do not hide the answer or
-  essential caveats inside it.
-- **Group:** Give peer children equal visual weight. Place supporting children
-  beneath the point they qualify. Keep the relationship legible at narrow widths
-  without adding a card around every child.
+  qualification follow as recap card rows, labeled "Reason" and "Qualification"
+  in the card's label gutter beside each value and stacked above it when narrow.
+  Labels take the reply accent, like Change; do not borrow `review` or
+  `complete` color to make advice appear like a work state.
+- **Details:** The title as a component heading, then the body as ordinary
+  Markdown at full contrast, unboxed and never collapsed, because the answer or
+  essential caveats may land there. A `### Details` heading in prose renders the
+  same way.
+- **Group:** Peers share one row in equal columns when the message column fits
+  every peer at its minimum width, and otherwise each takes the full width; they
+  never wrap into a ragged second row. Supporting children sit beneath the first
+  child, the point they qualify, indented under one thin rule in the reply
+  accent. A child that is a list of components stays together in one cell. No
+  child gets a card.
 
 A reply headline is the answer's first reading stop. Keep component headings
 below it. Make evidence, status, qualifications, and recommendation easy to

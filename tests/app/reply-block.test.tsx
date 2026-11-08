@@ -245,7 +245,7 @@ it("keeps supporting detail, all checks, and comparison details visible", () => 
   expect(view.container.textContent).toContain("100-cent discount");
   expect(view.container.querySelector("button, [hidden]")).toBeNull();
 });
-it("flattens grouped component lists without losing their narrative or sources", () => {
+it("renders grouped component lists without losing their narrative or sources", () => {
   const view = draw(
     body({
       type: "group",

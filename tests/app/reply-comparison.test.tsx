@@ -88,7 +88,7 @@ it("stacks five or more comparison options", () => {
   expect(list.className).not.toMatch(/:grid-cols-\d/);
 });
 
-it("leads a recommendation with its choice, then labeled reason and caveat", () => {
+it("leads a recommendation with its choice, then labeled reason and qualification", () => {
   const view = draw({
     type: "recommendation",
     choice: "Use the compact layout.",
@@ -106,7 +106,7 @@ it("leads a recommendation with its choice, then labeled reason and caveat", () 
   ];
   expect(
     rows.map((row) => row.getAttribute("data-reply-recommendation-row")),
-  ).toEqual(["reason", "caveat"]);
+  ).toEqual(["reason", "qualification"]);
   expect(
     rows.map((row) => [
       row.querySelector("dt")?.textContent,
@@ -114,7 +114,7 @@ it("leads a recommendation with its choice, then labeled reason and caveat", () 
     ]),
   ).toEqual([
     ["Reason", "It keeps the goal visible."],
-    ["Caveat", "Use Full during review."],
+    ["Qualification", "Use Full during review."],
   ]);
   for (const row of rows) {
     const label = row.querySelector("dt")!.className;

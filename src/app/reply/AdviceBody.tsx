@@ -88,7 +88,7 @@ export function ComparisonBody({
 }
 
 /**
- * The choice leads as strong text; the reason and any caveat follow as recap
+ * The choice leads as strong text; the reason and any qualification follow as recap
  * card rows, labels in the card's gutter beside each value and stacked above
  * it when narrow.
  */
@@ -100,7 +100,7 @@ export function RecommendationBody({
   md: Md;
 }) {
   const rows: [string, string][] = [["Reason", part.reason]];
-  if (part.qualification) rows.push(["Caveat", part.qualification]);
+  if (part.qualification) rows.push(["Qualification", part.qualification]);
   return (
     <div data-reply-recommendation="" className="@container/advice min-w-0">
       <div

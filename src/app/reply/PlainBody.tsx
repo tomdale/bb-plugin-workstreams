@@ -8,6 +8,9 @@ import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
 import { normalizeReplyMarkdown } from "./markdown.ts";
 import { SequenceBody } from "./SequenceBody.tsx";
 import { ComparisonBody, RecommendationBody } from "./AdviceBody.tsx";
+import { ContextBody } from "./ContextBody.tsx";
+import { DetailsBody } from "./DetailsBody.tsx";
+import { GroupBody } from "./GroupBody.tsx";
 import {
   CHECK,
   Glyph,
@@ -182,13 +185,7 @@ export function PlainBody({
         </>
       );
     case "context":
-      return (
-        <>
-          {md(part.topic)}
-          {md(part.where)}
-          {md(part.background)}
-        </>
-      );
+      return <ContextBody part={part} md={md} />;
     case "comparison":
       return <ComparisonBody part={part} md={md} title={title} />;
     case "sequence":
@@ -365,19 +362,15 @@ export function PlainBody({
     case "recommendation":
       return <RecommendationBody part={part} md={md} />;
     case "details":
-      return (
-        <>
-          {title(part.title)}
-          {md(part.body)}
-        </>
-      );
+      return <DetailsBody part={part} md={md} title={title} />;
     case "group":
       return (
-        <>
-          {part.children.flat().map((child, i) => (
-            <PlainBody key={i} part={child} document={document} files={files} />
-          ))}
-        </>
+        <GroupBody
+          part={part}
+          renderChild={(child) => (
+            <PlainBody part={child} document={document} files={files} />
+          )}
+        />
       );
   }
 }

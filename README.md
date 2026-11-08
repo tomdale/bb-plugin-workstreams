@@ -566,9 +566,11 @@ which adds a message-block slot, you also get **Structured replies**:
   Details. Missing or disabled directive plugins leave the source readable.
 - The body renders as plain Markdown through BB's renderer. Full explanations,
   qualifications, checks, delivery records, and supporting details stay visible.
-  Information components are converted to Markdown in source order, including
-  grouped components. There are no component panels, columns, custom article
-  headings, lead treatment, disclosures, or reply-specific animations.
+  Information components render in source order, including grouped components;
+  peers in a group share a row in equal columns when the message column is wide
+  enough, and supporting components sit indented beneath the point they qualify.
+  There are no component panels, custom article headings, lead treatment,
+  disclosures, or reply-specific animations.
 - Parsing and validation retain the structured information: comparisons,
   sequences, behavior changes, checks, delivery records, recommendations, and
   bounded groups. Checks and delivery stages can include evidence links. A

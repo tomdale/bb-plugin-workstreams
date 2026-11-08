@@ -149,9 +149,11 @@ function IdentityExample() {
 const replyParts = [
   {
     type: "context",
-    topic: "Release summary",
-    where: "Local fixture",
-    background: "The following content is synthetic.",
+    topic: "Release summary for the **checkout** service",
+    where:
+      "`~/Code/shop/_tasks/main/release-summary` on `tomdale/release-summary`",
+    background:
+      "The release adds the discount path and the receipt redesign. Both changes ship together because the receipt reads the new discount total.\n\nThe following content is synthetic.",
   },
   {
     type: "text",
@@ -286,7 +288,34 @@ const replyParts = [
   {
     type: "details",
     title: "Example details",
-    body: "The release summary groups the result with its review steps.\n\n- Keep artifact paths beside their descriptions\n- State which checks ran\n- Leave pending deployment explicit",
+    body: "The release summary groups the result with its review steps, so a reader who skips the headline still finds the caveats in order.\n\n- Keep artifact paths such as `src/checkout/discount.ts` beside their descriptions\n- State which checks ran\n- Leave pending deployment explicit\n\n```sh\nnpm run test -- checkout\n```",
+  },
+  {
+    type: "group",
+    relationship: "peers",
+    children: [
+      {
+        type: "details",
+        title: "Discount path",
+        body: "Applies a percentage discount before tax and rounds each line to the cent.",
+      },
+      {
+        type: "details",
+        title: "Receipt redesign",
+        body: "Shows the discount as its own line under the subtotal, with the code that produced it.",
+      },
+      [
+        {
+          type: "context",
+          topic: "Checkout API",
+          where: "`services/checkout`",
+        },
+        {
+          type: "text",
+          body: "Returns the discount total beside the subtotal; this cell is a list of two components kept together.",
+        },
+      ],
+    ],
   },
   {
     type: "group",
@@ -294,13 +323,23 @@ const replyParts = [
     children: [
       {
         type: "text",
-        body: "Keep the qualification beside the recommendation.",
+        body: "Ship the discount path and the receipt redesign in the same release.",
       },
       {
         type: "details",
-        title: "Why it matters",
-        body: "A reviewer needs the qualification before choosing the next release step.",
+        title: "Why they ship together",
+        body: "The receipt reads the new discount total. Shipping it alone would show an empty discount line on every order.",
       },
+      [
+        {
+          type: "text",
+          body: "A reviewer needs the qualification before choosing the next release step:",
+        },
+        {
+          type: "text",
+          body: "- Payment integration remains unverified\n- Rollback restores both changes together",
+        },
+      ],
     ],
   },
 ] satisfies ReplyComponent[];
@@ -311,10 +350,16 @@ const replyAccents = (() => {
   return colors;
 })();
 
+/** A sample's picker label; the two group samples differ by relationship. */
+function replyLabel(part: ReplyComponent) {
+  const name = part.type[0]!.toUpperCase() + part.type.slice(1);
+  return part.type === "group" ? `${name} (${part.relationship})` : name;
+}
+
 function ReplyExample() {
-  const [type, setType] = useState<ReplyComponent["type"]>("change");
+  const [type, setType] = useState("Change");
   const [accent, setAccent] = useState("0");
-  const part = replyParts.find((item) => item.type === type)!;
+  const part = replyParts.find((item) => replyLabel(item) === type)!;
   return (
     <div className="space-y-5">
       <GalleryControls>
@@ -323,8 +368,8 @@ function ReplyExample() {
           value={type}
           onChange={setType}
           options={replyParts.map((item) => ({
-            value: item.type,
-            label: item.type[0]!.toUpperCase() + item.type.slice(1),
+            value: replyLabel(item),
+            label: replyLabel(item),
           }))}
         />
         <ExampleChoice
@@ -342,9 +387,8 @@ function ReplyExample() {
       </GalleryControls>
       <GalleryNotes>
         Labels take the thread's workstream color, or muted text when the thread
-        is unfiled. Change and Checks use the recap card's label gutter and
-        leading status marks. Comparison options and groups keep their current
-        rendering.
+        is unfiled. Every component follows the recap card: labels in its
+        gutter, and status marks or step numbers in its mark column.
       </GalleryNotes>
       <LiveExample name="PlainBody" sources={["src/app/reply/PlainBody.tsx"]}>
         <div
@@ -465,7 +509,7 @@ export const examples: GalleryExample[] = [
     title: "Reply vocabulary",
     group: "Components",
     description:
-      "All ten information components through PlainBody; Change, Checks, and Delivery follow the recap card, with synthetic totals and statuses.",
+      "All ten information components through PlainBody in the recap card style, with synthetic totals and statuses.",
     source: `import { PlainBody } from "../src/app/reply/PlainBody";\nimport type { ReplyComponent } from "../src/domain/replyComponents";\n\n// The selector changes this part; PlainBody renders the selected vocabulary.\nconst part: ReplyComponent = ${JSON.stringify(
       replyParts.find((item) => item.type === "change"),
       null,
