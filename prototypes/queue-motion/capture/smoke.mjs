@@ -615,8 +615,23 @@ async function controlsDriveThePage(browser) {
         )),
       `a saved chip restores its preset and settings (${JSON.stringify({ fold: fold.hash, restored: restored.hash })})`,
     );
+    await page.$eval('input[data-k="cap"]', (e) => {
+      e.value = "2100";
+      e.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.click('button[data-act="save"]');
+    await page.fill("#preset-name", "fast");
+    await page.click('button[data-act="save"]');
+    const replacement = await state();
     await load(page, "#v=drum");
     const reloaded = await state();
+    await page.click('#saved-chips button[data-act="u:0"]');
+    expect(
+      replacement.chips.length === 1 &&
+        replacement.note === "Replaced “fast”." &&
+        (await page.$eval('input[data-k="cap"]', (e) => e.value)) === "2100",
+      "replacing a saved preset keeps one chip and restores its new settings after reload",
+    );
     await page.click('button[data-act="save"]');
     await page.fill("#preset-name", "fold");
     await page.click('button[data-act="save"]');
@@ -907,6 +922,96 @@ async function cardsAndMeasured(page) {
 }
 
 // ---- tooltips: every control has one, it reads right, and it stays on screen -------------------------------
+
+async function storageFailures(browser) {
+  await withPage(browser, "denied storage", async (page) => {
+    await load(page, "#v=drum&preset=natural&cap=1800");
+    await page.click('button[data-act="save"]');
+    await page.fill("#preset-name", "kept");
+    await page.click('button[data-act="save"]');
+    const stored = await page.evaluate(() =>
+      localStorage.getItem("queue-motion-lab.presets"),
+    );
+    await page.evaluate(() => {
+      window.originalSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = () => {
+        throw new DOMException("full", "QuotaExceededError");
+      };
+    });
+    await page.click('button[data-act="save"]');
+    await page.fill("#preset-name", "denied");
+    await page.click('button[data-act="save"]');
+    expect(
+      (await page.$eval("#save-note", (el) => el.textContent)) ===
+        "This browser would not store the preset." &&
+        (await page.evaluate(() =>
+          localStorage.getItem("queue-motion-lab.presets"),
+        )) === stored &&
+        (await page.locator('#saved-chips [data-act^="u:"]').count()) === 1,
+      "quota-denied save reports failure without replacing an existing preset",
+    );
+    await page.click('#saved-chips [data-act="ud:0"]');
+    expect(
+      (await page.$eval("#save-note", (el) => el.textContent)) ===
+        "This browser would not delete the preset." &&
+        (await page.evaluate(() =>
+          localStorage.getItem("queue-motion-lab.presets"),
+        )) === stored &&
+        (await page.locator('#saved-chips [data-act^="u:"]').count()) === 1,
+      "quota-denied deletion reports failure and keeps the preset",
+    );
+    await page.evaluate(() => {
+      Storage.prototype.setItem = () => {};
+    });
+    await page.click('button[data-act="save"]');
+    expect(
+      (await page.$eval("#save-note", (el) => el.textContent)) ===
+        "This browser would not store the preset." &&
+        (await page.evaluate(() =>
+          localStorage.getItem("queue-motion-lab.presets"),
+        )) === stored,
+      "a silently ignored write is not reported as a save",
+    );
+    await page.evaluate(() => {
+      Storage.prototype.setItem = window.originalSetItem;
+      window.originalGetItem = Storage.prototype.getItem;
+      Storage.prototype.getItem = () => {
+        throw new DOMException("denied", "SecurityError");
+      };
+    });
+    await page.click('button[data-act="save"]');
+    await page.evaluate(() => {
+      Storage.prototype.getItem = window.originalGetItem;
+    });
+    expect(
+      (await page.$eval("#save-note", (el) => el.textContent)) ===
+        "This browser would not store the preset." &&
+        (await page.evaluate(() =>
+          localStorage.getItem("queue-motion-lab.presets"),
+        )) === stored,
+      "an unreadable record is not overwritten",
+    );
+  });
+  await withPage(browser, "unavailable storage", async (page) => {
+    await page.addInitScript(() =>
+      Object.defineProperty(window, "localStorage", {
+        get() {
+          throw new DOMException("denied", "SecurityError");
+        },
+      }),
+    );
+    await load(page, "#v=drum");
+    await page.click('button[data-act="save"]');
+    await page.fill("#preset-name", "blocked");
+    await page.click('button[data-act="save"]');
+    expect(
+      (await page.$eval("#save-note", (el) => el.textContent)) ===
+        "This browser would not store the preset." &&
+        (await page.locator('#saved-chips [data-act^="u:"]').count()) === 0,
+      "inaccessible storage reports failure without adding a preset",
+    );
+  });
+}
 
 async function helpMatchesControls(browser) {
   await withPage(browser, "help", async (page) => {
@@ -1947,6 +2052,7 @@ async function readmeNamesEverything(browser) {
 const SECTIONS = {
   cards: cardsAreDrawn,
   controls: controlsDriveThePage,
+  storage: storageFailures,
   help: helpMatchesControls,
   timing: hoverTiming,
   keyboard: keyboardShowsTips,

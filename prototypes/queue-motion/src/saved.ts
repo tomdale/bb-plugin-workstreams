@@ -25,27 +25,33 @@ export const savedKeys = (mode: "drum" | "cascade"): readonly string[] => [
   ...VIEW_KEYS,
 ];
 
-function read(): Store {
+function read(): Store | null {
+  let text: string | null;
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) ?? "{}");
-    return raw && typeof raw === "object" ? raw : {};
+    text = localStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+  try {
+    const raw = JSON.parse(text ?? "{}");
+    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   } catch {
     return {};
   }
 }
 function write(store: Store): boolean {
   try {
-    localStorage.setItem(KEY, JSON.stringify(store));
-    return true;
+    const text = JSON.stringify(store);
+    localStorage.setItem(KEY, text);
+    return localStorage.getItem(KEY) === text;
   } catch {
     return false;
   }
 }
 
 /** The saved presets of `mode`, oldest first; anything malformed in storage is skipped. */
-export function savedPresets(mode: string): SavedPreset[] {
-  if (mode !== "drum" && mode !== "cascade") return [];
-  const list = read()[mode];
+function presetsIn(store: Store, mode: "drum" | "cascade"): SavedPreset[] {
+  const list = store[mode];
   return Array.isArray(list)
     ? list.filter(
         (p): p is SavedPreset =>
@@ -55,6 +61,11 @@ export function savedPresets(mode: string): SavedPreset[] {
           typeof p.opt === "object",
       )
     : [];
+}
+
+export function savedPresets(mode: string): SavedPreset[] {
+  if (mode !== "drum" && mode !== "cascade") return [];
+  return presetsIn(read() ?? {}, mode);
 }
 
 /** What a saved preset of `mode` records from the state `opt`. */
@@ -74,14 +85,16 @@ export function savePreset(
   opt: Opt,
 ): boolean {
   const store = read();
-  const list = savedPresets(mode).filter((p) => p.name !== name);
+  if (store === null) return false;
+  const list = presetsIn(store, mode).filter((p) => p.name !== name);
   list.push({ name, opt: captureOpt(opt, mode) });
   store[mode] = list;
   return write(store);
 }
 
-export function deletePreset(mode: "drum" | "cascade", name: string): void {
+export function deletePreset(mode: "drum" | "cascade", name: string): boolean {
   const store = read();
-  store[mode] = savedPresets(mode).filter((p) => p.name !== name);
-  write(store);
+  if (store === null) return false;
+  store[mode] = presetsIn(store, mode).filter((p) => p.name !== name);
+  return write(store);
 }

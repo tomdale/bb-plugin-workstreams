@@ -425,19 +425,29 @@ function productSim(cur: number): Sim {
   e.setHeights(new Map(keys.map((k, i) => [k, heights[i]!])));
   let at = cur;
   const win = () => keys.slice(at, at + 4);
-  e.sync(win(), undefined, true, at > 0);
+  const before = () => keys.slice(Math.max(0, at - 2), at);
+  e.sync(win(), undefined, true, at > 0, before());
   const drumOf = () => (e as any).drum as Drum;
+  let last = cur;
+  const check = () => {
+    const front = Number(e.frame().front?.slice(1));
+    if (front !== last) {
+      const dir = front > last ? 1 : -1;
+      last = front;
+      onMove(front, dir);
+    }
+  };
   const sim: Sim = {
     get cur() {
-      return at;
+      return Number(e.frame().front?.slice(1));
     },
     press(dir) {
       if ((dir > 0 && at >= N - 1) || (dir < 0 && at <= 0)) return false;
       const d = dir > 0 ? "forward" : "back";
       if (!e.accept(d)) return false;
       at += dir;
-      e.sync(win(), d, false, at > 0);
-      onMove(at, dir);
+      e.sync(win(), d, false, at > 0, before());
+      check();
       return true;
     },
     keyDown(dir) {
@@ -445,7 +455,10 @@ function productSim(cur: number): Sim {
       sim.press(dir);
     },
     keyUp: () => e.release(),
-    step: (ms) => e.step(ms / 1000),
+    step: (ms) => {
+      e.step(ms / 1000);
+      check();
+    },
     views: () => {
       const d = drumOf();
       return e.frame().cards.map((v, i) => {
@@ -475,7 +488,8 @@ function productSim(cur: number): Sim {
     busy: () => e.frame().busy,
     jump(n) {
       at = n;
-      e.sync(win(), undefined, true, at > 0);
+      e.sync(win(), undefined, true, at > 0, before());
+      last = n;
     },
     setHeights: (h) => e.setHeights(new Map(keys.map((k, i) => [k, h[i]!]))),
   };
@@ -1648,10 +1662,11 @@ inspector.addEventListener("click", (e) => {
   if (k === "ud") {
     const saved = shownSaved[Number(v)];
     if (saved && (opt.v === "drum" || opt.v === "cascade")) {
-      deletePreset(opt.v, saved.name);
-      renderSaved();
-      syncButtons();
-      saveNote(`Deleted “${saved.name}”.`, true);
+      if (deletePreset(opt.v, saved.name)) {
+        renderSaved();
+        syncButtons();
+        saveNote(`Deleted “${saved.name}”.`, true);
+      } else saveNote("This browser would not delete the preset.", false);
     }
   }
   if (k === "s") {

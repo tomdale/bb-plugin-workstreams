@@ -12,8 +12,8 @@
  * receipt (drawn in the margin above the heading), Reply, and ⇧ never move
  * anything. Only a new item whose heading wraps to more lines moves the card,
  * gliding down by the difference (`useQueueMotion`); resizing the window moves
- * both with the page's height. The heading and the receipt crossfade to the
- * next ones with a small drift in the direction of travel.
+ * both with the page's height. The heading fades in place; the receipt
+ * crossfades with a small drift in the direction of travel.
  *
  * The next items wait as a stack of cards behind the card, peeking out above
  * it. Acting moves on to the next. ↓ and → (or J) step to the next item and ↑
@@ -259,9 +259,19 @@ export function Queue({
   const remaining = kept.current.filter(
     (id) => !cleared.has(id) && (rowOf.has(id) || suggestionOf.has(id)),
   );
-  // The item shown: where the user skipped to, else the first left.
-  const current =
+  // The requested item may be one move ahead while the drum waits at its gate.
+  const requested =
     cursor && remaining.includes(cursor) ? cursor : (remaining[0] ?? null);
+  const requestedPosition = requested ? remaining.indexOf(requested) : -1;
+  const pile = requested
+    ? remaining.slice(requestedPosition, requestedPosition + STACK_WINDOW)
+    : [];
+  const before = requested
+    ? remaining.slice(Math.max(0, requestedPosition - 2), requestedPosition)
+    : [];
+  const motion = useQueueMotion(requested, pile, requestedPosition > 0, before);
+  const current =
+    motion.front && remaining.includes(motion.front) ? motion.front : requested;
   const position = current ? remaining.indexOf(current) : -1;
   const earlierLeft = plan.earlier.filter(
     (row) => !cleared.has(row.thread.id),
@@ -284,12 +294,6 @@ export function Queue({
     ? [`Accept and move ${movingCount(suggestion)} threads`, "Decline"]
     : threadAnswers;
 
-  // The pile: the shown item and the next ones, as cards.
-  const pile = current
-    ? remaining.slice(position, position + STACK_WINDOW)
-    : [];
-  const motion = useQueueMotion(current, pile, position > 0);
-
   /** Shows another item: the next after acting or skipping, or one back. */
   const go = (id: string | null, toward: Direction) => {
     motion.capture(toward);
@@ -303,7 +307,7 @@ export function Queue({
     go(remaining[at + 1] ?? remaining[at - 1] ?? null, "forward");
   };
   const skip = (step: 1 | -1) => {
-    const next = remaining[position + step];
+    const next = remaining[requestedPosition + step];
     const toward = step === 1 ? "forward" : "back";
     // A held key moves one card at a time, and takes no more than two ahead.
     if (next && motion.accept(toward)) go(next, toward);
@@ -414,8 +418,42 @@ export function Queue({
   });
   keys.current = { answer, archive, open, thread, suggestion, undo, skip };
   useEffect(() => {
-    // The skip key held down; letting it go, or leaving the window, ends the hold.
+    // Repeat independently of the OS key-repeat settings, as in the motion lab.
     let heldKey: string | null = null;
+    let repeatTimer: ReturnType<typeof setTimeout> | null = null;
+    const stopHold = () => {
+      if (repeatTimer !== null) clearTimeout(repeatTimer);
+      repeatTimer = null;
+      heldKey = null;
+      motion.release();
+    };
+    const startHold = (key: string, step: 1 | -1) => {
+      stopHold();
+      heldKey = key;
+      motion.hold(step === 1 ? "forward" : "back");
+      keys.current.skip(step);
+      const repeat = () => {
+        if (!heldKey) return;
+        if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+          stopHold();
+          return;
+        }
+        const active = document.activeElement;
+        if (
+          active instanceof Element &&
+          active.closest(
+            "input, textarea, select, [contenteditable='true'], [role='dialog'], [role='menu'], [role='listbox']",
+          )
+        ) {
+          stopHold();
+          return;
+        }
+        keys.current.skip(step);
+        repeatTimer = setTimeout(repeat, 25);
+      };
+      if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches)
+        repeatTimer = setTimeout(repeat, 250);
+    };
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target instanceof Element ? event.target : null;
@@ -438,18 +476,9 @@ export function Queue({
       const key = event.key.toLowerCase();
       if (key === "u") k.undo();
       else if (key === "arrowdown" || key === "arrowright" || key === "j") {
-        // The first press of a key starts the hold; the OS repeats continue it.
-        if (!event.repeat) {
-          heldKey = key;
-          motion.hold("forward");
-        }
-        k.skip(1);
+        if (!event.repeat) startHold(key, 1);
       } else if (key === "arrowup" || key === "arrowleft" || key === "k") {
-        if (!event.repeat) {
-          heldKey = key;
-          motion.hold("back");
-        }
-        k.skip(-1);
+        if (!event.repeat) startHold(key, -1);
       } else if (!acting) return;
       else if (digit) k.answer(Number(digit) - 1, event.shiftKey);
       else if (!k.thread || k.suggestion) return;
@@ -462,13 +491,9 @@ export function Queue({
     };
     const onUp = (event: KeyboardEvent) => {
       if (heldKey === null || event.key.toLowerCase() !== heldKey) return;
-      heldKey = null;
-      motion.release();
+      stopHold();
     };
-    const onBlur = () => {
-      heldKey = null;
-      motion.release();
-    };
+    const onBlur = () => stopHold();
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onUp);
     window.addEventListener("blur", onBlur);
@@ -476,6 +501,7 @@ export function Queue({
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onUp);
       window.removeEventListener("blur", onBlur);
+      stopHold();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -554,11 +580,11 @@ export function Queue({
   // A card leaving the pile (an item acted on has left the feed) is drawn as
   // it last was until the motion has taken it out of sight.
   const retained = useRef(new Map<string, StackCard>());
-  const cards = pile.flatMap((id) => stackCard(id) ?? []);
+  const cards = [...before, ...pile].flatMap((id) => stackCard(id) ?? []);
   for (const card of cards) retained.current.set(card.key, card);
   const leaving = motion
     .held()
-    .filter((key) => !pile.includes(key))
+    .filter((key) => !before.includes(key) && !pile.includes(key))
     .flatMap((key) => retained.current.get(key) ?? []);
   for (const key of retained.current.keys())
     if (

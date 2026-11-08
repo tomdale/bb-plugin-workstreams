@@ -11,13 +11,10 @@
  * and visibility, without re-rendering React. Only the settled front card is
  * interactive; every other card is `inert` and `aria-hidden`.
  *
- * The heading, the receipt, and the replies change through copies of the old
- * ones taken just before the change (`capture`), drawn over the page where
- * they were so nothing in the layout moves. The heading and the receipt
- * crossfade with a small drift in the direction the pile went, the path line
- * leading the title (`crossfade`), as Web Animations of their own: a new press
- * starts again from what is on screen rather than queueing behind them. The
- * replies instead fade out at once and in again on the engine's clock, once
+ * The heading fades in at its new content. The receipt crossfades separately,
+ * and the replies use copies taken just before the change (`capture`), drawn
+ * over the page where they were so nothing in the layout moves. The
+ * replies fade out at once and in again on the engine's clock, once
  * no moving card passes over them. The column is pinned at a fixed top; when a
  * new item's heading wraps far enough that the card would sit under it, the
  * card glides down by the difference, and Reply and ⇧ never move it. Under
@@ -30,6 +27,7 @@ import {
   useLayoutEffect,
   useReducer,
   useRef,
+  useState,
 } from "react";
 import {
   StackEngine,
@@ -46,11 +44,8 @@ const CORNER = 11.5;
 /** The most the clock advances in one frame, so a stalled tab doesn't leap. */
 const MAX_FRAME_MS = 50;
 
-/**
- * The parts that fade through to the next item's, by `data-queue-part`. The
- * engine times the replies; the heading runs `crossfade`.
- */
-const FADED = ["heading", "actions"] as const;
+/** The replies fade on the engine's clock. */
+const FADED = ["actions"] as const;
 type Faded = (typeof FADED)[number];
 
 /**
@@ -232,6 +227,7 @@ export function useQueueMotion(
   item: string | null,
   pile: readonly string[],
   previous: boolean,
+  before: readonly string[] = [],
 ) {
   const page = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -239,6 +235,8 @@ export function useQueueMotion(
   const ghosts = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const [, released] = useReducer((n: number) => n + 1, 0);
+  const [front, setFront] = useState(item);
+  const frontRef = useRef(item);
   const engine = useRef<StackEngine | null>(null);
   engine.current ??= new StackEngine(() => released());
   const cards = useRef(new Map<string, CardParts>());
@@ -251,7 +249,7 @@ export function useQueueMotion(
   const copies = useRef<Partial<Record<Faded, HTMLElement>>>({});
   /** Where the unit rests, for a change nobody captured. */
   const restY = useRef<number | null>(null);
-  const lastItem = useRef(item);
+  const lastItem = useRef(front);
   const lastFront = useRef<string | undefined>(undefined);
   /** The receipt on show, with a copy kept current to leave as. */
   const lastReceipt = useRef<{ key: string; copy: HTMLElement } | null>(null);
@@ -259,10 +257,10 @@ export function useQueueMotion(
   const lastDirection = useRef<{ direction: Direction; at: number } | null>(
     null,
   );
-  /** When the heading's and receipt's crossfades last began. */
-  const lastCrossfade = useRef({ heading: -1e9, receipt: -1e9 });
-  const shown = useRef(item);
-  shown.current = item;
+  /** When the receipt's crossfade last began. */
+  const lastCrossfade = useRef({ receipt: -1e9 });
+  const shown = useRef(front);
+  shown.current = front;
   const moving = useRef(false);
 
   const yOf = useCallback((el: Element) => {
@@ -277,6 +275,10 @@ export function useQueueMotion(
   /** Writes the engine's frame to the page: no React render involved. */
   const write = useCallback((frame: StackFrame) => {
     const root = content.current;
+    if (frontRef.current !== frame.front) {
+      frontRef.current = frame.front;
+      setFront(frame.front);
+    }
     if (stage.current) stage.current.style.height = `${frame.height}px`;
     const order = [...frame.cards].sort((a, b) => a.layer - b.layer);
     for (const view of frame.cards) {
@@ -285,7 +287,7 @@ export function useQueueMotion(
       const style = parts.el.style;
       style.visibility = view.painted ? "" : "hidden";
       style.zIndex = String(order.indexOf(view) + 1);
-      style.transform = `scale(${view.scale.toFixed(5)}) translateY(${view.y.toFixed(2)}px)`;
+      style.transform = `translateX(${view.x.toFixed(2)}px) translateY(${(view.scale * view.y).toFixed(2)}px) rotate(${view.bank.toFixed(3)}deg) scale(${view.scale.toFixed(5)})`;
       const drawn = `${view.vis.toFixed(2)}px`;
       parts.base.style.height = parts.frame.style.height = drawn;
       parts.shade.style.height = drawn;
@@ -403,29 +405,7 @@ export function useQueueMotion(
         const el = partOf(root, part);
         // Under reduced motion the replies only fade in; no copy is kept.
         if (!el || (reduced && part === "actions")) continue;
-        if (part === "heading") {
-          // The heading may be mid-crossfade itself; the copy takes up from
-          // what is drawn, so a quick next press leaves from there.
-          const lines = [
-            ...el.querySelectorAll<HTMLElement>("[data-queue-line]"),
-          ];
-          if (
-            !lines.length ||
-            Number(getComputedStyle(lines.at(-1)!).opacity) <= 0.05
-          )
-            continue;
-          const piece = pieceOf(el);
-          const frozen =
-            piece.copy.querySelectorAll<HTMLElement>("[data-queue-line]");
-          lines.forEach((line, i) => {
-            const drawn = getComputedStyle(line);
-            frozen[i]!.style.opacity = drawn.opacity;
-            frozen[i]!.style.transform =
-              drawn.transform === "none" ? "" : drawn.transform;
-          });
-          pieces[part] = piece;
-        } else if (Number(getComputedStyle(el).opacity || 1) > 0.05)
-          // Replies that are not showing have nothing to fade out.
+        if (Number(getComputedStyle(el).opacity || 1) > 0.05)
           pieces[part] = pieceOf(el);
       }
       pending.current = {
@@ -475,7 +455,7 @@ export function useQueueMotion(
     const instant = !motionAvailable() || reduced;
     const direction = hint.current;
     hint.current = undefined;
-    engine.current!.sync(pile, direction, instant, previous);
+    engine.current!.sync(pile, direction, instant, previous, before);
     const front = pile[0];
     if (
       reduced &&
@@ -498,7 +478,7 @@ export function useQueueMotion(
     const unitEl = unit.current;
     let snap = pending.current;
     pending.current = null;
-    if (snap && (snap.from === item || performance.now() - snap.at > 500))
+    if (snap && (snap.from === front || performance.now() - snap.at > 500))
       snap = null;
     for (const animation of gliding.current) animation.cancel();
     gliding.current = [];
@@ -507,8 +487,8 @@ export function useQueueMotion(
     const fromY = snap?.unitY ?? restY.current;
     restY.current = unitY;
     if (!motionAvailable()) return;
-    const itemChanged = item !== lastItem.current;
-    lastItem.current = item;
+    const itemChanged = front !== lastItem.current;
+    lastItem.current = front;
     const reduced = reducedMotion();
     if (reduced && itemChanged)
       partOf(root, "actions")?.animate([{ opacity: 0 }, {}], {
@@ -527,8 +507,7 @@ export function useQueueMotion(
         }),
       );
 
-    // The old heading and replies are drawn where they were while they fade,
-    // and the new heading comes in over the old.
+    // The old replies stay where they were while they fade.
     const layer = ghosts.current;
     if (!itemChanged) return;
     for (const part of FADED) {
@@ -544,7 +523,6 @@ export function useQueueMotion(
         left: `${piece.x - x}px`,
         width: `${piece.width}px`,
       });
-      if (part === "heading") piece.copy.dataset.queueGhost = "heading";
       layer.append(piece.copy);
       const child = piece.copy.firstElementChild;
       const drift = child
@@ -554,25 +532,15 @@ export function useQueueMotion(
         piece.copy.style.top = `${piece.y - y - drift}px`;
       if (part === "actions") copies.current[part] = piece.copy;
     }
-    // A heading still leaving from the change before is dropped, not queued.
-    for (const old of layer?.querySelectorAll('[data-queue-ghost="heading"]') ??
-      [])
-      if (old !== snap?.pieces.heading?.copy) old.remove();
-    const now = performance.now();
-    crossfade(
-      partOf(root, "heading"),
-      snap?.pieces.heading?.copy ?? null,
-      signOf(),
-      {
-        rapid: now - lastCrossfade.current.heading < FADE_IN_MS,
-        reduced,
-      },
-    );
-    lastCrossfade.current.heading = now;
+    if (!reduced)
+      partOf(root, "heading")?.animate([{ opacity: 0.2 }, { opacity: 1 }], {
+        duration: 200,
+        easing: "ease-out",
+      });
     write(engine.current!.frame());
     // Only a change of item moves the column.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item]);
+  }, [front]);
 
   /** Which way the last change went, or `1` for one nobody captured. */
   const signOf = (): Sign => {
@@ -641,5 +609,6 @@ export function useQueueMotion(
     hold,
     release,
     held,
+    front,
   };
 }

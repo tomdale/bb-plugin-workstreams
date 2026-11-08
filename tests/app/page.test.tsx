@@ -46,6 +46,7 @@ const analysis = (recap: string, state = "done") => ({
 
 async function mount(
   catalog?: import("../../src/domain/topics.ts").TopicState,
+  extraThreads: ReturnType<typeof sidebarThread>[] = [],
 ) {
   const now = Date.now();
   return renderSlot(
@@ -74,6 +75,7 @@ async function mount(
             status: "active",
             indicator: "runtime",
           }),
+          ...extraThreads,
         ],
         sections: [section("sec_a", "Alpha"), section("sec_b", "Beta")],
         projects: [],
@@ -240,6 +242,54 @@ it("steps with ↓ and ↑ without scrolling the page, and not from a text field
   slot.lifecycle.unmount();
 });
 
+it("repeats a held skip after 250 ms and every 25 ms, independent of native repeats", async () => {
+  const slot = await mount(
+    undefined,
+    Array.from({ length: 6 }, (_, i) =>
+      sidebarThread(`extra${i}`, {
+        title: `Extra ${i}`,
+        isUnread: true,
+        latestAttentionAt: Date.now() - (i + 1) * 1000,
+      }),
+    ),
+  );
+  await waitFor(() =>
+    expect(
+      slot.getByRole("navigation", { name: "Queue" }).textContent,
+    ).toContain("1 of 8"),
+  );
+  vi.useFakeTimers();
+  const position = () =>
+    slot.getByRole("navigation", { name: "Queue" }).textContent;
+  act(() => {
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+  });
+  expect(position()).toContain("2 of 8");
+  act(() => {
+    fireEvent.keyDown(window, { key: "ArrowDown", repeat: true });
+    vi.advanceTimersByTime(249);
+  });
+  expect(position()).toContain("2 of 8");
+  act(() => {
+    vi.advanceTimersByTime(1);
+  });
+  expect(position()).toContain("3 of 8");
+  act(() => {
+    vi.advanceTimersByTime(24);
+  });
+  expect(position()).toContain("3 of 8");
+  act(() => {
+    vi.advanceTimersByTime(1);
+  });
+  expect(position()).toContain("4 of 8");
+  act(() => {
+    fireEvent.keyUp(window, { key: "ArrowDown" });
+    vi.advanceTimersByTime(100);
+  });
+  expect(position()).toContain("4 of 8");
+  slot.lifecycle.unmount();
+});
+
 it("steps through the queue without acting", async () => {
   const slot = await mount();
   await waitFor(() => expect(heading(slot)).toBe("Beta question"));
@@ -284,9 +334,9 @@ it("keeps one card per item in the stack, and only the front one live", async ()
   const beta = cards().find((el) => el.dataset.queueCard === "b1");
   press("ArrowRight");
   await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
-  // Without animation the change applies at once: the same card moved on.
-  expect(cards().find((el) => el.dataset.queueCard === "b1")).toBeUndefined();
-  expect(beta?.isConnected).toBe(false);
+  // The previous card stays hidden on the ring for a return trip.
+  expect(cards().find((el) => el.dataset.queueCard === "b1")).toBe(beta);
+  expect(beta?.style.visibility).toBe("hidden");
   expect(front().map((el) => el.dataset.queueCard)).toEqual(["a1"]);
   press("ArrowLeft");
   await waitFor(() => expect(heading(slot)).toBe("Beta question"));
@@ -294,7 +344,7 @@ it("keeps one card per item in the stack, and only the front one live", async ()
   slot.lifecycle.unmount();
 });
 
-it("moves the card to the back and releases it once it is out of sight", async () => {
+it("moves the card to the back and keeps it hidden for a return", async () => {
   const animate = vi.fn(() => ({ cancel() {}, onfinish: null }));
   Object.defineProperty(Element.prototype, "animate", {
     value: animate,
@@ -311,14 +361,115 @@ it("moves the card to the back and releases it once it is out of sight", async (
     // and the new one takes clicks and focus once it has come to the front.
     expect(card("b1")?.hasAttribute("inert")).toBe(true);
     await waitFor(() => expect(card("a1")?.hasAttribute("inert")).toBe(false));
-    await waitFor(() => expect(card("b1")).toBeNull(), { timeout: 4000 });
+    await waitFor(() => expect(card("b1")?.style.visibility).toBe("hidden"), {
+      timeout: 4000,
+    });
     slot.lifecycle.unmount();
   } finally {
     delete (Element.prototype as { animate?: unknown }).animate;
   }
 });
 
-it("crossfades the heading with a drift that follows the direction of travel", async () => {
+it("keeps reduced-motion skips still and does not repeat a held key", async () => {
+  const animate = vi.fn(() => ({
+    cancel() {},
+    finished: new Promise<void>(() => {}),
+  }));
+  Object.defineProperty(Element.prototype, "animate", {
+    value: animate,
+    configurable: true,
+  });
+  Object.defineProperty(window, "matchMedia", {
+    value: () => ({
+      matches: true,
+      addEventListener() {},
+      removeEventListener() {},
+    }),
+    configurable: true,
+  });
+  try {
+    const slot = await mount(undefined, [
+      sidebarThread("extra", {
+        title: "Extra",
+        isUnread: true,
+        latestAttentionAt: Date.now(),
+      }),
+    ]);
+    await waitFor(() =>
+      expect(
+        slot.getByRole("navigation", { name: "Queue" }).textContent,
+      ).toContain("1 of 3"),
+    );
+    vi.useFakeTimers();
+    act(() => {
+      fireEvent.keyDown(window, { key: "ArrowDown" });
+      vi.advanceTimersByTime(500);
+    });
+    expect(
+      slot.getByRole("navigation", { name: "Queue" }).textContent,
+    ).toContain("2 of 3");
+    const animations = animate.mock.calls as unknown as [
+      Keyframe[],
+      KeyframeAnimationOptions,
+    ][];
+    expect(
+      animations.every(([frames]) =>
+        frames.every((frame) => frame.transform === undefined),
+      ),
+    ).toBe(true);
+    slot.lifecycle.unmount();
+  } finally {
+    delete (window as { matchMedia?: unknown }).matchMedia;
+    delete (Element.prototype as { animate?: unknown }).animate;
+  }
+});
+
+it("keeps the heading on the drum's front while a skip waits", async () => {
+  const animate = vi.fn(() => ({
+    cancel() {},
+    finished: new Promise<void>(() => {}),
+  }));
+  Object.defineProperty(Element.prototype, "animate", {
+    value: animate,
+    configurable: true,
+  });
+  try {
+    const slot = await mount(undefined, [
+      sidebarThread("extra", {
+        title: "Extra",
+        isUnread: true,
+        latestAttentionAt: Date.now(),
+      }),
+    ]);
+    await waitFor(() =>
+      expect(
+        slot.getByRole("navigation", { name: "Queue" }).textContent,
+      ).toContain("1 of 3"),
+    );
+    press("ArrowDown");
+    await waitFor(() =>
+      expect(
+        slot.getByRole("navigation", { name: "Queue" }).textContent,
+      ).toContain("2 of 3"),
+    );
+    press("ArrowDown");
+    expect(
+      slot.getByRole("navigation", { name: "Queue" }).textContent,
+    ).toContain("2 of 3");
+    await waitFor(
+      () =>
+        expect(
+          slot.getByRole("navigation", { name: "Queue" }).textContent,
+        ).toContain("3 of 3"),
+      { timeout: 4000 },
+    );
+    slot.lifecycle.unmount();
+  } finally {
+    delete (Element.prototype as { animate?: unknown }).animate;
+  }
+});
+
+it("fades each new heading in place over 200 ms in either direction", async () => {
   const animate = vi.fn(
     (_keyframes: Keyframe[], _options: KeyframeAnimationOptions) => ({
       cancel() {},
@@ -332,32 +483,21 @@ it("crossfades the heading with a drift that follows the direction of travel", a
   try {
     const slot = await mount();
     await waitFor(() => expect(heading(slot)).toBe("Beta question"));
-    const drifts = () =>
-      animate.mock.calls.flatMap(([keyframes]) =>
-        keyframes[0]?.opacity === 0 ? [String(keyframes[0].transform)] : [],
-      );
-    const ghosts = () =>
-      slot.container.querySelectorAll('[data-queue-ghost="heading"]');
-    press("ArrowRight");
-    await waitFor(() => expect(heading(slot)).toBe("Alpha work"));
-    // Forward, the new heading rises from below and the old one stays drawn
-    // over the same place until it has gone.
-    expect(drifts()).toContain("translateY(6px)");
-    expect(ghosts().length).toBe(1);
-    expect(ghosts()[0]!.textContent).toContain("Beta question");
-    // The new heading waits for the old one to mostly fade, the path line
-    // first and the title after it.
-    const delays = animate.mock.calls
-      .filter(([keyframes]) => keyframes[0]?.opacity === 0)
-      .map(([, options]) => options.delay);
-    expect(delays).toContain(70);
-    expect(delays).toContain(110);
-    animate.mockClear();
-    press("ArrowLeft");
-    await waitFor(() => expect(heading(slot)).toBe("Beta question"));
-    expect(drifts()).toContain("translateY(-6px)");
-    // The old copy is dropped, not queued behind the new one.
-    expect(ghosts().length).toBe(1);
+    for (const [key, title] of [
+      ["ArrowRight", "Alpha work"],
+      ["ArrowLeft", "Beta question"],
+    ] as const) {
+      animate.mockClear();
+      press(key);
+      await waitFor(() => expect(heading(slot)).toBe(title));
+      expect(animate.mock.calls).toContainEqual([
+        [{ opacity: 0.2 }, { opacity: 1 }],
+        { duration: 200, easing: "ease-out" },
+      ]);
+      expect(
+        slot.container.querySelector('[data-queue-ghost="heading"]'),
+      ).toBeNull();
+    }
     slot.lifecycle.unmount();
   } finally {
     delete (Element.prototype as { animate?: unknown }).animate;

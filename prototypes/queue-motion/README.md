@@ -10,10 +10,10 @@ and recordings of each model.
 The product runs the drum (`src/app/page/queue/drum.ts`) through
 `src/app/page/queue/stackEngine.ts`, which keeps a short row of cards on the
 drum as the queue's pile changes. The drum's settings as shipped are `QUEUE_CFG`
-in `drum.ts`: the `even + held speed` preset with a constant 150 ms interval, a
-3 Hz tap spring and a 1020 px/s (17 px/frame) top speed, and a 5 Hz held spring
-and a 1800 px/s (30 px/frame) held top speed after a 250 ms hold. The page
-offers it as the drum's `shipped` preset. The lab imports both files, so a
+in `drum.ts`: the `natural` preset with a 60 ms minimum interval, a 3 Hz tap
+spring and 2640 px/s (44 px/frame at 60 Hz) top speed, a 0.25 covered-card
+fade, and loose clearing while held. The page offers it as the drum's `shipped`
+preset. The lab imports both files, so a
 rebuild shows the product as it is on this branch. The cascade
 (`src/cascade.ts`) is the lab's own model, and the product does not run it.
 [DESIGN.md](DESIGN.md) lists the goals the motion must meet, explains how the
@@ -71,7 +71,8 @@ are not part of it. Its chip, in the Saved row, restores those settings and is
 marked while they match; its × deletes it. An empty name saves as `my preset`
 and a number, a saved preset's name replaces that preset, and a built-in
 preset's name is refused. Applying one rewrites the hash, which carries the
-settings but not the name.
+settings but not the name. If storage refuses a save or deletion, the page
+reports the failure rather than claiming it succeeded.
 
 `Copy settings`, beside the inspector's title, copies the current state to the
 clipboard as Markdown: the model, preset, speed, cards, reduced motion,
@@ -204,7 +205,7 @@ draws it. They move cards sideways only: each model's vertical motion, springs
 and top speeds, and so every number the frame checker reports, are the same at
 any value. A preset button keeps them. The sway is a function of where the card
 is on its ring, so a card that changes direction mid-flight retraces it;
-`src/ring.ts` holds the curve.
+`src/app/page/queue/ring.ts` in the product holds the curve.
 
 | Module        | Setting             | Key     | Shown when                                                     |
 | ------------- | ------------------- | ------- | -------------------------------------------------------------- |
@@ -424,6 +425,7 @@ display's.
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `../../src/app/page/queue/drum.ts`                 | The drum model and its settings. The product, the page and the sims all import it.                                                             |
 | `src/cascade.ts`                                   | The cascade model, its settings and its presets. The page and the sims import it; the product does not.                                        |
+| `../../src/app/page/queue/ring.ts`                 | The shared path geometry the product and the lab use.                                                                                          |
 | `src/main.ts`, `page.html`, `page.css`, `items.js` | The page and its inspector, its styles, and the sample cards.                                                                                  |
 | `src/meter.ts`                                     | The Measured module's numbers: the sims' checker and landing functions applied to the page's frames.                                           |
 | `src/copy.ts`                                      | The text of `Copy settings` and `Copy as QUEUE_CFG`.                                                                                           |

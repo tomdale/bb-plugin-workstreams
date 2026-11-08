@@ -8,10 +8,10 @@
  * not a row: it can be long, and items come and go. So the engine keeps a
  * short row, the cards on the drum, and changes it as the page's wanted pile
  * changes:
- * - The pile the page states (`sync`) is the shown item and the next ones. A
- *   card in it that the drum lacks is put in at rest: a card coming back goes
- *   in behind the pile, where a card that left rests, and runs the drum's
- *   ring from there to the front; a card ahead goes in with the pile.
+ * - The pile the page states (`sync`) is the requested item and the next ones.
+ *   Two preceding cards stay on the ring behind it, so their springs can settle
+ *   toward the tuck before a held key brings them back. A card ahead goes in
+ *   with the pile.
  * - The page's pile can be ahead of the drum's front. Those moves are *owed*:
  *   each is taken as a press on the drum, which spaces presses by its tempo
  *   and takes one only once every card in transit has passed its flip. The
@@ -29,6 +29,7 @@
  * spring, so what is below the stack moves with it.
  */
 import { Drum, LEAD, QUEUE_CFG, type DrumView } from "./drum.ts";
+import { ringSway, type Ring } from "./ring.ts";
 
 export { LEAD };
 export type Direction = "forward" | "back";
@@ -51,6 +52,13 @@ const GONE = 0.02;
 const LIVE = 0.02;
 /** How near to rest the layout height must be to count as settled, px. */
 const SETTLED_PX = 0.05;
+const QUEUE_RING: Ring = {
+  kind: "drum",
+  front: 0,
+  turn: 0,
+  tuck: 0,
+  sway: { front: 24, behind: -11, peak: 0.45, peakBehind: 0.4, cross: -0.05 },
+};
 
 /** What the page needs to draw one card. */
 export type CardView = {
@@ -62,7 +70,9 @@ export type CardView = {
   /** Draw order (higher is nearer); only the order matters. */
   layer: number;
   scale: number;
+  x: number;
   y: number;
+  bank: number;
   /** The height drawn, in the card's own space, and its natural height. */
   vis: number;
   h: number;
@@ -74,6 +84,8 @@ export type CardView = {
 
 export type StackFrame = {
   cards: CardView[];
+  /** The card whose move has actually been taken by the drum. */
+  front: string | null;
   /** The stage's height: the room above the front card plus its height. */
   height: number;
   /** Opacities of the old replies fading out (kept as a copy) and of the
@@ -94,6 +106,7 @@ export class StackEngine {
   /** The key of each card on the drum, in queue order; `drum`'s arrays run parallel to it. */
   private keyOf: string[] = [];
   private want: readonly string[] = [];
+  private before: readonly string[] = [];
   /** Whether the queue has an item before the first one wanted. */
   private previous = false;
   private heights = new Map<string, number>();
@@ -126,15 +139,18 @@ export class StackEngine {
    * that leaves the queue has no neighbour to tell it from going back), and
    * `previous` whether the queue goes on before the shown item. The engine
    * takes the moves that get there as its clock runs; `instant` takes them
-   * all at once, and so does a pile it cannot reach by moving.
+   * all at once, and so does a pile it cannot reach by moving. `before` holds
+   * the preceding cards, in queue order, so they can settle behind the pile.
    */
   sync(
     want: readonly string[],
     hint?: Direction,
     instant = false,
     previous = this.previous,
+    before: readonly string[] = [],
   ) {
     this.want = want.slice(0, STACK_WINDOW);
+    this.before = before.slice(-2);
     this.previous = previous;
     this.drum.more.before = previous;
     const first = this.want[0];
@@ -142,6 +158,7 @@ export class StackEngine {
       this.reset();
       return;
     }
+    this.preloadBefore();
     let at = this.keyOf.indexOf(first);
     if (at < 0) {
       if (hint !== "back") {
@@ -203,21 +220,27 @@ export class StackEngine {
   /** The state to draw now. */
   frame(): StackFrame {
     const idle = this.owed() === 0 && this.below.state !== "pending";
-    const cards = this.drum.views().map((v: DrumView): CardView => ({
-      key: this.keyOf[v.i]!,
-      painted: v.painted,
-      interactive: idle && v.i === this.drum.front && Math.abs(v.c) < LIVE,
-      layer: v.layer,
-      scale: v.scale,
-      y: v.y,
-      vis: Math.max(0, (v.bottom - v.top) / v.scale),
-      h: v.h,
-      shade: v.shade,
-      content: v.content,
-    }));
+    const cards = this.drum.views().map((v: DrumView): CardView => {
+      const x = ringSway(QUEUE_RING, -v.c);
+      return {
+        key: this.keyOf[v.i]!,
+        painted: v.painted,
+        interactive: idle && v.i === this.drum.front && Math.abs(v.c) < LIVE,
+        layer: v.layer,
+        scale: v.scale,
+        x,
+        y: v.y,
+        bank: -x / 24,
+        vis: Math.max(0, (v.bottom - v.top) / v.scale),
+        h: v.h,
+        shade: v.shade,
+        content: v.content,
+      };
+    });
     const replies = this.below;
     return {
       cards,
+      front: this.keyOf[this.drum.front] ?? null,
       height: (this.want.length || this.keyOf.length ? LEAD : 0) + this.lay.h,
       replies: {
         old:
@@ -254,19 +277,38 @@ export class StackEngine {
   /** Starts over from the wanted pile, at rest and with no moves owed. */
   private reset() {
     const hold = this.drum.hold;
-    const gone = this.keyOf.filter((key) => !this.want.includes(key));
-    this.keyOf = [...this.want];
+    const gone = this.keyOf.filter(
+      (key) => !this.want.includes(key) && !this.before.includes(key),
+    );
+    this.keyOf = [...this.before, ...this.want];
     this.drum = new Drum(
       this.keyOf.map((k) => this.heightOf(k)),
       QUEUE_CFG,
     );
+    this.drum.jump(this.before.length);
     this.drum.more.before = this.previous;
     this.drum.hold = hold;
-    this.frontKey = this.keyOf[0];
+    this.frontKey = this.want[0];
     this.shown = this.want[0];
     this.lay = { h: this.frontHeight(), v: 0 };
     this.below = { state: "idle", t0: this.time, op: 1 };
     for (const key of gone) this.onRelease(key);
+  }
+
+  /** Keeps the preceding cards on the ring so they can settle toward their tuck before a return. */
+  private preloadBefore() {
+    for (let i = this.before.length - 1; i >= 0; i--) {
+      const key = this.before[i]!;
+      if (this.keyOf.includes(key)) continue;
+      const next = [...this.before.slice(i + 1), ...this.want]
+        .map((k) => this.keyOf.indexOf(k))
+        .find((at) => at >= 0);
+      const at = next ?? 0;
+      const c =
+        at <= this.drum.front ? at - this.drum.front - 1 : at - this.drum.front;
+      this.keyOf.splice(at, 0, key);
+      this.drum.insert(at, this.heightOf(key), c);
+    }
   }
 
   /** Puts a card the drum lacks in behind the pile, where it rests when it has left, and returns its index. */
@@ -316,12 +358,13 @@ export class StackEngine {
     if (key !== undefined) this.onRelease(key);
   }
 
-  /** Lets go of cards that have left: not wanted, and tucked out of sight behind the pile. */
+  /** Lets go of cards no longer needed once they are tucked out of sight. */
   private letGo() {
     for (let at = this.drum.front - 1; at >= 0; at--) {
       const key = this.keyOf[at]!;
-      if (this.want.includes(key)) continue;
-      if (this.drum.c[at]! <= PARKED + GONE) this.dropCard(at);
+      if (this.want.includes(key) || this.before.includes(key)) continue;
+      if (this.drum.c[at]! <= PARKED + GONE && !this.drum.views()[at]!.painted)
+        this.dropCard(at);
     }
   }
 

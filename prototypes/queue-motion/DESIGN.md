@@ -196,9 +196,9 @@ matter most:
 
 ## The edge budgets and the frame checker
 
-The 24 and 30 px/frame budgets come from the shipped engine, whose held ↓ moves
-edges up to about 30 px per frame. No perceptual threshold sets them. The
-checker's jump rule, 40 px in a frame, stops a higher budget: taps on `natural`,
+The lab defaults are 24 and 30 px/frame for taps and held keys; the selected
+queue uses 44 px/frame for taps and 30 while held. No perceptual threshold sets
+them. The checker's jump rule, 40 px in a frame, stops a higher budget: taps on `natural`,
 and held keys on `even + held speed`, `fold` and held speed-up alone, are clean
 at 39 px/frame and fail at 40. The budget is per frame, so a 120 Hz display
 allows twice the px/s: the suite scales `vcap` with the refresh rate. The page
@@ -551,24 +551,19 @@ A port into `stackEngine.ts` and the product page has these parts:
   height `vis` gives it, with rounded corners where it is cut, so the adapter
   reports a channel card that reaches the clip line at its full height, as the
   lab's adapter does, and the clip region cuts it.
-- **The product test.** `stack-engine.test.ts` asserts that a held key moves a
-  card about every 150 ms (8 to 11 cards in 1500 ms) and that no painted card's
-  top moves more than 31 px in a frame. The cascade's `default` holds 10.8
-  cards/s, and its largest held edge move is 32.8 px/frame at 60 Hz (32.7 for a
-  card's top alone, which is what the test measures; `no held ramp`: 26.6), so
-  the test changes or the cascade's held budget does. The test has no draw-order
-  or clip-band rule. The cascade changes no draw order among painted cards and
-  the corrected clip-band rule finds 0 problems, so a rule can be added if the
-  product wants one.
+- **The product test.** `stack-engine.test.ts` exercises held keys, release, and
+  the queue's selected edge budget. It has no draw-order or clip-band rule. The
+  cascade changes no draw order among painted cards and the corrected clip-band
+  rule finds 0 problems.
 - **A decision on the fade.** No sim measures the mask. Whether the product's
   stage takes a mask on every frame, or cuts at the clip line and shows the
   line, is open, and so is the mask's cost over four shadowed cards in the
   product's DOM.
-- **A decision on pace and tap ↑.** The product ships a constant 150 ms between
-  presses (`QUEUE_CFG`), and the cascade runs 83–117 ms held, which `pace` sets.
-  Its tap ↑ lands in 550 ms against the drum's 483, because the card rises from
-  480 px below. `park` at 360 px lands in 483 ms and shows a card for 7 frames
-  against the 10 the rule needs.
+- **Pace and tap ↑.** The product uses a 60 ms minimum interval with loose
+  clearing while held (`QUEUE_CFG`); the cascade runs 83–117 ms held, which
+  `pace` sets. Its tap ↑ lands in 550 ms against the natural drum's 483, because
+  the card rises from 480 px below. `park` at 360 px lands in 483 ms and shows a
+  card for 7 frames against the 10 the rule needs.
 - **The budgets' unit.** `QUEUE_CFG` and the cascade keep their budgets in px/s,
   so a 120 Hz display runs the 60 Hz pace with about half the move per frame
   (10.7 cards/s and 18.1 px/frame, above). The suite's 120 Hz table keeps
@@ -611,8 +606,9 @@ A port into `stackEngine.ts` and the product page has these parts:
   takes 550 ms and tap ↓ 217 ms.
 - **The edge budget.** The checker stops a budget at 40 px/frame, and no
   measurement says how far an edge may move in a frame before the motion looks
-  rushed. The defaults, 24 and 30 px/frame, come from the shipped engine, and
-  the cascade's held run moves an edge up to 32.8 px/frame.
+  rushed. The lab defaults are 24 and 30 px/frame; the selected product tap
+  budget is 44 px/frame, and the cascade's held run moves an edge up to 32.8
+  px/frame.
 - **The clip-band rule in the product test.** `stack-engine.test.ts` has no
   clip-band or draw-order rule. A port can add the corrected rule, which the
   drum and the cascade meet, or leave the test as it is.
