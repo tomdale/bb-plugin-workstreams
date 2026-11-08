@@ -541,6 +541,15 @@
 .dark .ws-sticky-goal__workstream {
   color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
 }
+/* A reply block's accent: its thread's workstream identity color, or muted
+   text when the thread is unfiled. Reply components take label color from it. */
+.ws-reply-accent {
+  --ws-reply-accent: var(--ws-color-light, var(--muted-foreground));
+}
+.dark .ws-reply-accent,
+.dark.ws-reply-accent {
+  --ws-reply-accent: var(--ws-color-dark, var(--muted-foreground));
+}
 /* The queue's workstream line, in the same identity color. */
 .ws-queue-path {
   color: var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)));

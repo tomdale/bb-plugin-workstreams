@@ -175,9 +175,10 @@ for it.
 - **Change:** Recap card rows: Before, After, Unchanged, and Limitation each
   take a small label in the card's label gutter beside the value, stacked above
   it when narrow. The gutter is at least the card's 3.25rem and widens to fit
-  the longest label so every value starts at the same edge. Labels stay muted:
-  Change has no work state, and every accent color available already names one
-  (complete, review, waiting, needs you, failure).
+  the longest label so every value starts at the same edge. Labels take the
+  reply block's accent, the thread's workstream identity color, so a reply reads
+  as part of its workstream rather than as a work state; an unfiled thread's
+  labels stay muted.
 - **Checks:** Scope, then the actual totals on one compact line, then the checks
   as recap card results: a stroked status mark before each name, with any detail
   muted beneath it. Each status has its own mark shape; every status but passed

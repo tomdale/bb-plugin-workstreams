@@ -22,6 +22,7 @@ import {
 } from "../../src/domain/replyExamples.ts";
 import type { ReplyComponent } from "../../src/domain/replyComponents.ts";
 import { blockInput } from "../domain/replyFixtures.ts";
+import { section, sidebarThread } from "./fixtures.ts";
 
 vi.mock("@get-bb/plugin-sdk/app", async (importActual) => {
   const actual = await importActual<typeof import("@get-bb/plugin-sdk/app")>();
@@ -90,12 +91,22 @@ function draw(
     streaming?: boolean;
     docked?: { turnId: string; dismissed?: boolean };
     debug?: boolean;
+    sectionId?: string;
   } = {},
 ) {
   const block = registration();
   return renderSlot(block, props(block, message, options.streaming), {
     sdk: SDK,
     openFilePreview: () => true,
+    ...(options.sectionId
+      ? {
+          sidebarThreads: {
+            status: "ready" as const,
+            threads: [sidebarThread("t1", { sectionId: options.sectionId })],
+            sections: [section(options.sectionId, "Release tools")],
+          },
+        }
+      : {}),
     rpc: {
       ...(options.debug !== undefined
         ? { prefs: () => ({ prefs: { advanced: { debug: options.debug } } }) }
@@ -188,7 +199,7 @@ it("renders every component as readable Markdown and native links in one reply",
       "[data-reply-component], aside, article, button, footer",
     ),
   ).toBeNull();
-  expect(block.className).toBe("min-w-0 space-y-4");
+  expect(block.className).toBe("ws-reply-accent min-w-0 space-y-4");
 });
 
 it("preserves source order rather than moving context above prose", () => {
@@ -796,4 +807,24 @@ it("leads delivery stages with status marks in their order", () => {
       expect(shown).toBeNull();
     else expect(shown?.textContent).not.toBe("");
   }
+});
+
+it("accents Change labels with the thread's workstream color", async () => {
+  const filed = draw(body(COMPONENT_EXAMPLES.change), { sectionId: "sec_a" });
+  const block =
+    filed.container.querySelector<HTMLElement>("[data-reply-block]")!;
+  expect(block.classList).toContain("ws-reply-accent");
+  await waitFor(() =>
+    expect(block.style.getPropertyValue("--ws-color-light")).toMatch(/^oklch/),
+  );
+  const label = filed.container.querySelector("[data-reply-change-row] dt");
+  expect(label?.className).toContain("--ws-reply-accent");
+  filed.lifecycle.unmount();
+  // An unfiled thread sets no identity color, so labels fall back to muted.
+  const unfiled = draw(body(COMPONENT_EXAMPLES.change));
+  expect(
+    unfiled.container
+      .querySelector<HTMLElement>("[data-reply-block]")!
+      .style.getPropertyValue("--ws-color-light"),
+  ).toBe("");
 });

@@ -5,6 +5,8 @@ import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
 import { recapHostFileLink } from "../../domain/recapFileLinks.ts";
 import { CARD_LABELS, replySchema, type Reply } from "../../domain/reply.ts";
 import { useDebugMode } from "../debug/debug.ts";
+import { useGoalContext } from "../goalContext.ts";
+import { workstreamColorStyle } from "../../domain/workstreamColor.ts";
 import { PLAIN_LIST_CLASS, PlainBody, PlainMarkdown } from "./PlainBody.tsx";
 import { ReplyDebug, useAssistantMessageText } from "./ReplyDebug.tsx";
 import { useDockedTurn } from "./useDockedTurn.ts";
@@ -65,6 +67,7 @@ export function ReplyBlock({
   const threadId = message.threadId ?? null;
   const docked = useDockedTurn(threadId, message.turnId ?? null);
   const workspace = useReplyWorkspace(threadId);
+  const workstream = useGoalContext(threadId)?.workstream ?? null;
   const debug = useDebugMode();
   const fullMessage = useAssistantMessageText(
     debug && status !== "streaming" ? message.id : null,
@@ -107,7 +110,8 @@ export function ReplyBlock({
       data-reply-docked={
         reply.card && docked !== false ? (docked ? "" : "pending") : undefined
       }
-      className="min-w-0 space-y-4"
+      className="ws-reply-accent min-w-0 space-y-4"
+      style={workstream ? workstreamColorStyle(workstream.color) : undefined}
       onClickCapture={(event) => {
         if (
           event.defaultPrevented ||

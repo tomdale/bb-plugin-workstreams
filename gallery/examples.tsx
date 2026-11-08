@@ -283,8 +283,15 @@ const replyParts = [
   },
 ] satisfies ReplyComponent[];
 
+const replyAccents = (() => {
+  const colors = [allocateFamilyColor([])];
+  while (colors.length < 4) colors.push(allocateFamilyColor(colors));
+  return colors;
+})();
+
 function ReplyExample() {
   const [type, setType] = useState<ReplyComponent["type"]>("change");
+  const [accent, setAccent] = useState("0");
   const part = replyParts.find((item) => item.type === type)!;
   return (
     <div className="space-y-5">
@@ -298,13 +305,34 @@ function ReplyExample() {
             label: item.type[0]!.toUpperCase() + item.type.slice(1),
           }))}
         />
+        <ExampleChoice
+          label="Workstream"
+          value={accent}
+          onChange={setAccent}
+          options={[
+            ...replyAccents.map((_, i) => ({
+              value: String(i),
+              label: `Topic color ${i + 1}`,
+            })),
+            { value: "none", label: "Unfiled" },
+          ]}
+        />
       </GalleryControls>
       <GalleryNotes>
-        Change and Checks use the recap card's label gutter and leading status
-        marks. Comparison options and groups keep their current rendering.
+        Labels take the thread's workstream color, or muted text when the thread
+        is unfiled. Change and Checks use the recap card's label gutter and
+        leading status marks. Comparison options and groups keep their current
+        rendering.
       </GalleryNotes>
       <LiveExample name="PlainBody" sources={["src/app/reply/PlainBody.tsx"]}>
-        <div className="min-w-0 break-words">
+        <div
+          className="ws-reply-accent min-w-0 break-words"
+          style={
+            accent === "none"
+              ? undefined
+              : workstreamColorStyle(replyAccents[Number(accent)]!)
+          }
+        >
           <PlainBody part={part} document={undefined} files={null} />
         </div>
       </LiveExample>

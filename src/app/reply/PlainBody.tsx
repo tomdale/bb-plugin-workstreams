@@ -228,7 +228,7 @@ export function PlainBody({
           className="col-span-full grid grid-cols-subgrid gap-y-0.5 py-2 @max-[24rem]/change:grid-cols-1"
         >
           <dt
-            className={`${LABEL_CLASS} whitespace-nowrap text-muted-foreground`}
+            className={`${LABEL_CLASS} whitespace-nowrap text-(--ws-reply-accent,var(--muted-foreground))`}
           >
             {label}
           </dt>
