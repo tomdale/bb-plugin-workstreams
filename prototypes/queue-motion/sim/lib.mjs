@@ -23,6 +23,8 @@ export const HEIGHTS = {
   w1: [284, 73, 218, 96, 162, 140],
   w2: [262, 92, 170, 330, 118, 150],
   alt: [330, 73],
+  /** The lab page's own cards, as it measures them at its default width. */
+  lab: [240, 73, 162, 284, 96, 140],
 };
 const N = 24;
 export const heightsOf = (name) =>

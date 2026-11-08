@@ -830,8 +830,12 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "gate slack is clean at zero and fails at the first values above it",
     );
     f.expect(
-      s5.neverSettled,
-      "a held ↓ never settles at the largest slack measured",
+      [s0, s1, s2, s3, s5].every((s) => !s.neverSettled),
+      "every slack measured settles after a hold",
+    );
+    f.expect(
+      s5.raw.problems > s3.raw.problems && s5.raw.rate > s3.raw.rate,
+      "slack past the slider's maximum adds both pace and problems",
     );
     f.expect(
       Math.abs(rate(e0) - rate(e3)) < 0.1,
@@ -851,7 +855,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
       ],
       needs: t`It matters only with \`tempo\` = none. Under a tempo the planned interval outlasts the gate, so held ↑ / ↓ stays ${e0.pace} cards/s (${e3.pace} at ${e3.value}) and the slider is hidden. With fold on, slack lifts ${f0.pace} to ${f2.pace} cards/s at ${f2.value}, with ${f1.verdict} at ${f1.value} and ${f3.verdict} at ${f3.value}.`,
-      tune: t`Start at ${s0.value}: on \`natural\` no value above it is clean (${s1.value} gives ${s1.verdict}). The slider stops at ${s3.value} because at ${s5.value} a held ↓ never settles (${s5.rate} cards/s, ${s5.problems} problems). For more pace, raise \`edge budget, tap\` or turn on fold.`,
+      tune: t`Start at ${s0.value}: on \`natural\` no value above it is clean (${s1.value} gives ${s1.verdict}). Every value settles once the key is released: cards that reach the turn together go behind the pile last-first, and a press waits when the card it brings to the front is taller than a card still short of its flip can clear. The slider stops at ${s3.value}; ${s5.value} gives ${s5.rate} cards/s with ${s5.problems} problems. For more pace, raise \`edge budget, tap\` or turn on fold.`,
     };
   },
 

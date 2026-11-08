@@ -183,13 +183,20 @@ both read λ.
   while the cards overlap. `npm run check` allows them in the holds of a loose
   preset and nowhere else.
 - **`gateSlack`** lets a press start while the card before it is short of its
-  flip by that many ring units. At 0.1 the held pace rises from 5.5 to 5.9
-  cards/s with no problems. At 0.15 two draw-order swaps appear, and at 0.5 a
-  held ↓ never settles (`npm run sweep -- slack`). Under a tempo it moves the
-  pace by at most 0.1 cards/s through 0.3, because the planned interval outlasts
-  the gate (`gate slack` on `even` in `npm run sweep -- params`). Past a small
-  slack, overlapping trips need the leader to open a gap of the follower's
-  height before it can go behind, which is the rule the gate already enforces.
+  flip by that many ring units. On `natural` the held pace rises from 5.1
+  cards/s at 0 to 5.5 at 0.1 and 6.0 at 0.3, the slider's maximum, with 4 and 12
+  draw-order swaps (`npm run sweep -- slack`). Every value settles after a hold,
+  on the sweep heights and the lab's own (`npm run check` holds every preset at
+  the slider's maximum with no tempo). Two rules keep it so. Several cards can
+  reach the turn together, and each would find the others in its turn band: a
+  card ignores front-segment cards earlier on the ring, which are drawn in front
+  of it on either side of the turn, so the last of them goes behind first. And a
+  card short of its flip must clear the pile's front card once everything is at
+  rest, so a press waits while the card it would bring to the front is taller
+  than that card's turn clears. At 0 every card has passed its flip before the
+  next press, so neither comes into play. Under a tempo slack moves the pace by
+  at most 0.1 cards/s through 0.3, because the planned interval outlasts the
+  gate (`gate slack` on `even` in `npm run sweep -- params`).
 
 Each setting's effect on its own is in `npm run sweep -- params`. The ones that
 matter most:

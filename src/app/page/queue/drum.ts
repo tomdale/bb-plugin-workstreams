@@ -15,7 +15,9 @@
  *                                  backwards)
  * `c = −1` is the one place draw order changes, and a card crosses it only when it is clear of everything it
  * swaps with; otherwise its target is held at −1 and it waits at the turn. Cards never pass through each
- * other because of that single guarded crossing.
+ * other because of that single guarded crossing. A waiting card must always get through: of several cards
+ * waiting together the last on the ring goes first, and no press leaves a front card taller than a card still
+ * short of its flip can clear.
  *
  * What sets the pace:
  * - A press is taken once every card in transit has passed its flip (`accepts`), so the rate is whatever the
@@ -149,7 +151,7 @@ export const DEFAULT_CFG: DrumConfig = {
   washTauOut: 120, // and rising
   hidePx: 3, // the tuck ends with the card's bottom this far inside the pile's lower edge
   tuckRate: 1.4, // the tuck (behind the pile, heading home) runs on a stiffer spring
-  gateSlack: 0, // ring units: a press may start while a leaver is this far short of its flip (0.1 stays clean)
+  gateSlack: 0, // ring units: a press may start while a leaver is this far short of its flip
   // Interval planner. kind "none": the flip gate alone. "constant": at least `ms` between presses.
   // "lookahead": the smoothed slowest estimated clear time among the `window` cards on each side of the one
   // being covered, where a card of height h takes `scale × (a + b·h)` ms.
@@ -349,18 +351,36 @@ export class Drum {
     }
     return sum / n;
   }
-  /** Whether a press may be taken now: the planned interval has passed, and every card in transit has passed its flip (less `gateSlack`). */
+  /**
+   * Whether a press may be taken now: the planned interval has passed, every card in transit has passed its flip
+   * (less `gateSlack`), and no card still short of its flip would be shut out of it by the press's new front card.
+   */
   accepts(dir: number) {
     const gap = this.tempoGap(dir);
     if (gap > 0 && this.time - this.lastTake < gap) return false;
+    const nf = this.front + dir;
     for (let i = 0; i < this.N; i++) {
       const t = this.target(i),
         c = this.c[i]!;
       const slack = this.cfg.gateSlack;
       if (t < 0 && c > -1 + slack + 1e-6) return false; // a leaver still in front
       if (t >= 0 && c < -1 - slack - 1e-6) return false; // an arriver still behind
+      const short = (i < nf && c > -1) || (i > nf && c < -1);
+      if (short && !this.turnClears(i, nf)) return false;
     }
     return true;
+  }
+  /**
+   * Whether card `i`'s turn band stays clear of card `j` resting in front of the pile, whatever the held state does
+   * from here. A card short of its flip must eventually cross with the pile at rest, and the pile at rest reaches
+   * down only as far as its front card, so a press that would leave a taller front card than `i`'s turn clears
+   * would hold `i` at the turn for good. Heights are compared whole and the dip at its smallest, `DIP_HELD`: a fold or
+   * `loose` only shrinks the difference, and the dip never goes below that.
+   */
+  turnClears(i: number, j: number) {
+    if (j < 0 || j >= this.N) return true;
+    const hn = i + 1 < this.N ? this.h[i + 1]! : this.h[i]!;
+    return this.h[j]! <= hn + GAP / 2 + DIP_HELD;
   }
   /** One press. Returns true if taken or left waiting; a press while another one waits is dropped. */
   press(dir: 1 | -1) {
@@ -513,6 +533,10 @@ export class Drum {
       if (!vj.painted) continue;
       // cards it swaps with: everything not behind the pile (pile and front-segment cards)
       if (this.c[j]! < -1) continue;
+      // ...except a front-segment card earlier on the ring, which is drawn in front of `i` on either side of the
+      // turn. Several cards waiting at the turn at once would otherwise each hold the others there for good; this
+      // lets the last of them go first.
+      if (j < i && this.c[j]! < 0) continue;
       const bottom = this.cfg.loose
         ? vj.top + (vj.bottom - vj.top) * (this.hg(j) / Math.max(1, this.hd(j)))
         : vj.bottom;
