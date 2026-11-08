@@ -2,10 +2,16 @@
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { usePrefs } from "../../src/app/prefs.ts";
 import { Row } from "../../src/app/sidebar/Row.tsx";
 import { sidebarThread } from "./fixtures.ts";
 
 afterEach(cleanup);
+
+function LiveRow(props: Parameters<typeof Row>[0]) {
+  usePrefs();
+  return <Row {...props} />;
+}
 
 async function mount(indicator: "none" | "runtime" = "none") {
   const thread = sidebarThread("root", {
@@ -23,7 +29,7 @@ async function mount(indicator: "none" | "runtime" = "none") {
     onNavigate: vi.fn(),
     disclosure: { expanded: true, toggle: vi.fn() },
   };
-  const slot = renderSlot({ component: Row }, props, {
+  const slot = renderSlot({ component: LiveRow }, props, {
     sidebarThreads: {
       status: "ready",
       threads: [thread],
@@ -85,7 +91,7 @@ it("wires the presented row to native shortcuts, split navigation, disclosure, a
   });
   expect(slot.container.querySelector("[data-timestamp]")).toBeNull();
   expect(slot.getByText("Alpha")).toBeTruthy();
-  slot.rerender(<Row {...props} showPin={false} />);
+  slot.rerender(<LiveRow {...props} showPin={false} />);
   expect(slot.queryByRole("img", { name: "Pinned" })).toBeNull();
   expect(
     slot.container.querySelector(".ws-status-slot .ws-mark"),

@@ -1,11 +1,11 @@
 /** Debug mode: the preference and what an inspector can open. */
 import type { TraceLink } from "../../domain/trace.ts";
-import { usePrefs } from "../prefs.ts";
+import { usePrefsRealtime, usePrefsSelector } from "../prefs.ts";
 
 /** Whether debug is on; inspect buttons and debug disclosures render only then. */
 export function useDebugMode(): boolean {
-  const { prefs } = usePrefs();
-  return prefs?.advanced.debug ?? false;
+  usePrefsRealtime();
+  return usePrefsSelector((prefs) => prefs?.advanced.debug ?? false);
 }
 
 /**

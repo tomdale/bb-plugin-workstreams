@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { useRealtime, useRpc, useSdk } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../server/contract.ts";
 import { shareJson } from "./structuralSharing.ts";
@@ -13,8 +13,7 @@ type Rpc = ReturnType<typeof useRpc<RpcContract>>;
 
 /**
  * One copy of the preferences per plugin client, shared by every component
- * that reads them (inspect buttons render one per row), so the first reader
- * loads them once and the rest subscribe.
+ * that reads them, so the first reader loads them once and the rest subscribe.
  */
 class PrefsStore {
   private value: Prefs | null = null;
@@ -115,11 +114,48 @@ function useStore(): PrefsStore {
   return store;
 }
 
+function useRealtimeReader(store: PrefsStore): void {
+  const reader = useRef({}).current;
+  useEffect(() => store.joinRealtime(reader), [store, reader]);
+  useRealtime("prefs", (payload) => store.receiveRealtime(reader, payload));
+}
+
+/** Keeps a preference selector live without subscribing to the whole snapshot. */
+export function usePrefsRealtime(): void {
+  useRealtimeReader(useStore());
+}
+
+/** Selects a stable value without rerendering for unrelated preference changes. */
+export function usePrefsSelector<T>(selector: (prefs: Prefs | null) => T): T {
+  const store = useStore();
+  const selectorRef = useRef(selector);
+  selectorRef.current = selector;
+  const cache = useRef<{
+    prefs: Prefs | null;
+    selector: (prefs: Prefs | null) => T;
+    value: T;
+  } | null>(null);
+  const snapshot = useCallback(() => {
+    const prefs = store.snapshot();
+    const selector = selectorRef.current;
+    const previous = cache.current;
+    if (previous && previous.prefs === prefs && previous.selector === selector)
+      return previous.value;
+    const value = selector(prefs);
+    cache.current = { prefs, selector, value };
+    return previous && Object.is(previous.value, value)
+      ? previous.value
+      : value;
+  }, [store]);
+  useEffect(store.load, [store]);
+  return useSyncExternalStore(store.subscribe, snapshot, snapshot);
+}
+
 /**
  * Workstreams' preferences, kept current across windows by the `prefs`
  * realtime broadcast. Null until the first load. `save` applies the patch
  * locally first so controls respond immediately, and reverts if the server
- * rejects it.
+ * rejects it. The app-wide reader shares its realtime updates with selectors.
  */
 export function usePrefs() {
   const store = useStore();
@@ -129,8 +165,6 @@ export function usePrefs() {
     store.snapshot,
   );
   useEffect(store.load, [store]);
-  const reader = useRef({}).current;
-  useEffect(() => store.joinRealtime(reader), [store, reader]);
-  useRealtime("prefs", (payload) => store.receiveRealtime(reader, payload));
+  useRealtimeReader(store);
   return { prefs, save: store.save };
 }

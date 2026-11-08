@@ -298,6 +298,64 @@ describe("row hover buttons", () => {
     slot.lifecycle.unmount();
   });
 
+  it("cancels a passing hint hover and ignores pointer focus", async () => {
+    const slot = await mount(undefined, { settings: { showRecent: false } });
+    const archive = within(await rowOf(slot)).getByRole("button", {
+      name: "Archive",
+    });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.pointerMove(archive, { pointerType: "mouse" });
+    await act(async () => vi.advanceTimersByTimeAsync(499));
+    fireEvent.pointerLeave(archive, { pointerType: "mouse" });
+    await act(async () => vi.advanceTimersByTimeAsync(500));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.pointerDown(document, { pointerType: "mouse" });
+    fireEvent.focus(archive);
+    await act(async () => vi.advanceTimersByTimeAsync(500));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.blur(archive);
+    fireEvent.keyDown(document, { key: "Tab" });
+    fireEvent.focus(archive);
+    expect(screen.getByRole("tooltip").textContent).toBe("Archive");
+    slot.lifecycle.unmount();
+  });
+
+  it("keeps the hint skip delay and quiets a menu until its trigger loses hover", async () => {
+    const slot = await mount(undefined, { settings: { showRecent: false } });
+    const sort = await slot.findByRole("button", { name: "Sort workstreams" });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    fireEvent.pointerMove(sort, { pointerType: "mouse" });
+    await act(async () => vi.advanceTimersByTimeAsync(500));
+    expect(screen.getByRole("tooltip").textContent).toBe("Sort workstreams");
+
+    fireEvent.blur(sort);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.pointerLeave(sort, { pointerType: "mouse" });
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    fireEvent.pointerMove(sort, { pointerType: "mouse" });
+    expect(screen.getByRole("tooltip").textContent).toBe("Sort workstreams");
+
+    fireEvent.pointerDown(sort, { pointerType: "mouse", button: 0 });
+    fireEvent.click(sort);
+    expect(screen.getByRole("menu", { name: "Sort workstreams" })).toBeTruthy();
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Sort workstreams" }), {
+      key: "Escape",
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(screen.queryByRole("menu")).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(500));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.pointerLeave(sort, { pointerType: "mouse" });
+    fireEvent.pointerMove(sort, { pointerType: "mouse" });
+    await act(async () => vi.advanceTimersByTimeAsync(500));
+    expect(screen.getByRole("tooltip").textContent).toBe("Sort workstreams");
+    slot.lifecycle.unmount();
+  });
+
   it("names the view menus and archive action in hints", async () => {
     const slot = await mountWithBands(undefined, {
       settings: { showForYou: false },

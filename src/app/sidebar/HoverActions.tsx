@@ -192,36 +192,38 @@ export function HoverMenuButton({
           {children}
         </HoverButton>
       </Popover.Anchor>
-      <Popover.Portal>
-        <Popover.Content
-          {...portalScope}
-          role="menu"
-          aria-label={label}
-          side="top"
-          align="end"
-          sideOffset={2}
-          collisionPadding={8}
-          className={menuSurfaceClass("60", "outline-none")}
-          onPointerEnter={cancel}
-          onPointerLeave={(event) => {
-            if (mouse(event)) schedule(false, MENU_CLOSE_DELAY_MS);
-          }}
-          onOpenAutoFocus={(event) => {
-            event.preventDefault();
-            if (byKeyboard.current)
-              menuItems(event.currentTarget as HTMLElement)[0]?.focus();
-          }}
-          // `close` returns focus itself, only for a keyboard-opened menu.
-          onCloseAutoFocus={(event) => event.preventDefault()}
-          onKeyDown={moveFocus}
-          onClick={(event) => {
-            if ((event.target as HTMLElement).closest('[role="menuitem"]'))
-              close();
-          }}
-        >
-          {menu}
-        </Popover.Content>
-      </Popover.Portal>
+      {open ? (
+        <Popover.Portal>
+          <Popover.Content
+            {...portalScope}
+            role="menu"
+            aria-label={label}
+            side="top"
+            align="end"
+            sideOffset={2}
+            collisionPadding={8}
+            className={menuSurfaceClass("60", "outline-none")}
+            onPointerEnter={cancel}
+            onPointerLeave={(event) => {
+              if (mouse(event)) schedule(false, MENU_CLOSE_DELAY_MS);
+            }}
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              if (byKeyboard.current)
+                menuItems(event.currentTarget as HTMLElement)[0]?.focus();
+            }}
+            // `close` returns focus itself, only for a keyboard-opened menu.
+            onCloseAutoFocus={(event) => event.preventDefault()}
+            onKeyDown={moveFocus}
+            onClick={(event) => {
+              if ((event.target as HTMLElement).closest('[role="menuitem"]'))
+                close();
+            }}
+          >
+            {menu}
+          </Popover.Content>
+        </Popover.Portal>
+      ) : null}
     </Popover.Root>
   );
 }

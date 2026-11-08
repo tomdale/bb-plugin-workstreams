@@ -21,8 +21,9 @@ import {
 } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../../server/contract.ts";
-import { topicPath } from "../../domain/topic-path.ts";
-import { takesThreads, type Topic } from "../../domain/topics.ts";
+import { topicIndex } from "../../domain/topic-path.ts";
+import { compareGroupNames } from "../../domain/group-name-order.ts";
+import type { Topic } from "../../domain/topics.ts";
 import {
   Command,
   CommandGroup,
@@ -34,7 +35,6 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { TAG_ICON } from "../workstream-icon.ts";
-import { compareGroupNames } from "../../domain/group-name-order.ts";
 import { type NewWork, type NewWorkViewState } from "./new-work.ts";
 
 const NONE = "__none__";
@@ -103,32 +103,6 @@ function Description({ text }: { text: string | null | undefined }) {
   );
 }
 
-/** Matches search queries against entity name, full ancestry, aliases, and description. */
-function matchesEntity(
-  entity: Topic,
-  entities: readonly Topic[],
-  query: string,
-): boolean {
-  if (!query) return true;
-  const needle = query.toLowerCase();
-  if (entity.name.toLowerCase().includes(needle)) return true;
-  if (entity.description?.toLowerCase().includes(needle)) return true;
-  if (entity.aliases.some((a) => a.toLowerCase().includes(needle))) return true;
-
-  let current: string | null = entity.parentId;
-  const seen = new Set<string>();
-  while (current && !seen.has(current)) {
-    seen.add(current);
-    const parent = entities.find((e) => e.id === current);
-    if (!parent) break;
-    if (parent.name.toLowerCase().includes(needle)) return true;
-    if (parent.aliases.some((a) => a.toLowerCase().includes(needle)))
-      return true;
-    current = parent.parentId;
-  }
-  return false;
-}
-
 /**
  * The Catalog's entities, fetched each time `enabled` turns on (a picker
  * opening) so the list reflects topics added since.
@@ -181,17 +155,16 @@ export function IdentityOptions({
   );
   const styles = LIST_CLASSES;
   const needle = query.trim().toLowerCase();
-  const visibleEntities = useMemo(() => {
-    return entities
-      .filter(
-        (e) =>
-          takesThreads(e.id, entities) && matchesEntity(e, entities, needle),
-      )
-      .sort((a, b) =>
-        compareGroupNames(topicPath(a.id, entities), topicPath(b.id, entities)),
-      );
-  }, [entities, needle]);
-  const exact = entities.some((e) => e.name.toLowerCase() === needle);
+  const index = useMemo(() => topicIndex(entities), [entities]);
+  const visibleTopics = useMemo(
+    () =>
+      index.leafTopics.filter(
+        (topic) =>
+          !needle || topic.searchText.some((text) => text.includes(needle)),
+      ),
+    [index, needle],
+  );
+  const exact = index.hasExactName(needle);
   const isManual = state.identity?.provenance === "manual";
   const isUnresolved =
     isManual &&
@@ -253,10 +226,9 @@ export function IdentityOptions({
             />
           </CommandItem>
         </CommandGroup>
-        {visibleEntities.length ? (
+        {visibleTopics.length ? (
           <CommandGroup heading="Products and features">
-            {visibleEntities.map((entity) => {
-              const fullLabel = topicPath(entity.id, entities);
+            {visibleTopics.map(({ entity, path: fullLabel }) => {
               const isSelected =
                 isManual && state.identity?.entityId === entity.id;
               return (
@@ -302,7 +274,7 @@ export function IdentityOptions({
             })}
           </CommandGroup>
         ) : null}
-        {visibleEntities.length ? <CommandSeparator /> : null}
+        {visibleTopics.length ? <CommandSeparator /> : null}
         <CommandGroup>
           {needle && !exact ? (
             <CommandItem

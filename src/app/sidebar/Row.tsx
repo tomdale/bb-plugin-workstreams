@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { presentRow } from "./presentation.ts";
 import type { WorkView } from "../useWorkstreams.ts";
 import { StatusMark } from "./StatusMark.tsx";
-import { usePrefs } from "../prefs.ts";
+import { usePrefsSelector } from "../prefs.ts";
 import { SnoozeIcon, WakeIcon } from "../snooze/icons.tsx";
 import { HoverAction, HoverMenuButton, RowActions } from "./HoverActions.tsx";
 import { rowGeometry } from "./rowGeometry.ts";
@@ -95,7 +95,9 @@ export function Row({
   inGroup?: boolean;
   onNavigate: () => void;
 }) {
-  const { prefs } = usePrefs();
+  const timestamps = usePrefsSelector(
+    (prefs) => prefs?.sidebar.timestamps ?? "show",
+  );
   const {
     shownState,
     reported,
@@ -108,7 +110,7 @@ export function Row({
   } = presentRow(thread, work, {
     attention,
     showPin,
-    timestamps: prefs?.sidebar.timestamps ?? "show",
+    timestamps,
     now,
   });
   const actions = experimental_useSidebarThreadActions();

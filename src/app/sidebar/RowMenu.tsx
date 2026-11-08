@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import {
   experimental_useSidebarThreadActions,
@@ -19,9 +19,8 @@ import type {
   SnoozeWhen,
   ThreadSnooze,
 } from "../../domain/snooze.ts";
-import { compareGroupNames } from "../../domain/group-name-order.ts";
-import { takesThreads } from "../../domain/topics.ts";
-import { topicPath } from "../../domain/topic-path.ts";
+import type { Topic, TopicAssignment } from "../../domain/topics.ts";
+import { topicIndex } from "../../domain/topic-path.ts";
 import {
   useSharedServerState,
   useSharedServerActions,
@@ -29,6 +28,8 @@ import {
 } from "../serverState.ts";
 import { isAutomaticTopic } from "../task/TaskIdentity.tsx";
 import { SnoozeMenuItems, type MenuKit } from "../snooze/SnoozeMenuItems.tsx";
+
+const NO_TOPICS: readonly Topic[] = [];
 
 export type RowMenuHandlers = {
   rename: (thread: PluginSidebarThread) => void;
@@ -72,36 +73,62 @@ export function RowMenu({
   showArchive?: boolean;
   children: ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
+  const assignment = useSharedServerStateSelector(
+    (server) => server.catalog?.assignments[thread.id] ?? null,
+  );
+  return (
+    <ContextMenu.Root open={open} onOpenChange={setOpen}>
+      <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
+      {open ? (
+        <RowMenuContent
+          thread={thread}
+          handlers={handlers}
+          snooze={snooze}
+          snoozePrefs={snoozePrefs}
+          showArchive={showArchive}
+          assignment={assignment}
+        />
+      ) : null}
+    </ContextMenu.Root>
+  );
+}
+
+/** Catalog and action hooks run only for the one menu Radix has opened. */
+function RowMenuContent({
+  thread,
+  handlers,
+  snooze,
+  snoozePrefs,
+  showArchive,
+  assignment,
+}: {
+  thread: PluginSidebarThread;
+  handlers: RowMenuHandlers;
+  snooze?: ThreadSnooze;
+  snoozePrefs: SnoozePrefs;
+  showArchive: boolean;
+  assignment: TopicAssignment | null;
+}) {
   const actions = experimental_useSidebarThreadActions();
   const portalScope = usePortalScopeProps();
   const debug = useDebugMode();
   const { rpc, refresh } = useSharedServerActions();
-  const catalog = useSharedServerStateSelector((server) => server.catalog);
+  const entities = useSharedServerStateSelector(
+    (server) => server.catalog?.entities ?? NO_TOPICS,
+  );
+  const index = useMemo(() => topicIndex(entities), [entities]);
 
   // Topic submenu: the same choices as the composer's topic picker.
-  const entities = useMemo(() => catalog?.entities ?? [], [catalog?.entities]);
-  const assignment = catalog?.assignments[thread.id] ?? null;
   const currentEntity = assignment?.entityId
-    ? (entities.find((e) => e.id === assignment.entityId) ?? null)
+    ? (index.byId.get(assignment.entityId) ?? null)
     : null;
-  const displayTopicPath = (id: string) =>
-    topicPath(id, entities).replace(/: /g, " › ");
+  const displayTopicPath = (id: string) => index.path(id).replace(/: /g, " › ");
   const currentLabel = currentEntity
     ? displayTopicPath(currentEntity.id)
     : "No topic";
   const isFork = Boolean(assignment?.inheritedFrom);
   const automatic = isAutomaticTopic(assignment);
-  // A topic holds threads or subtopics, never both (see `takesThreads`), so
-  // a parent topic cannot be a thread's topic and is not offered here.
-  const chosenTopics = useMemo(
-    () =>
-      entities
-        .filter((entity) => takesThreads(entity.id, entities))
-        .sort((a, b) =>
-          compareGroupNames(displayTopicPath(a.id), displayTopicPath(b.id)),
-        ),
-    [entities],
-  );
   const assignTopic = (entityId: string) => {
     if (handlers.assignIdentity) handlers.assignIdentity(thread, entityId);
     else
@@ -111,142 +138,135 @@ export function RowMenu({
         .catch(handlers.reportError);
   };
   return (
-    <ContextMenu.Root>
-      <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
-      <ContextMenu.Portal>
-        <ContextMenu.Content
-          {...portalScope}
-          aria-label="Thread actions"
-          className={menuSurfaceClass("48")}
-        >
-          <Item onSelect={() => actions.open(thread.id, { split: true })}>
-            Open in split
-          </Item>
-          {thread.parentThreadId ? (
-            <Item onSelect={() => handlers.openParent(thread)}>
-              Open parent
-            </Item>
-          ) : null}
-          <Separator />
-          <ContextMenu.Sub>
-            <SubTrigger>Topic</SubTrigger>
-            <ContextMenu.Portal>
-              <ContextMenu.SubContent
-                {...portalScope}
-                className={menuSurfaceClass("56", "max-h-96 overflow-y-auto")}
-              >
-                {isFork ? (
-                  <Item disabled onSelect={() => undefined}>
-                    <span className="flex-1 truncate">
-                      {currentLabel} (same as parent thread)
-                    </span>
-                  </Item>
-                ) : (
-                  <>
-                    <Item
-                      disabled={automatic}
-                      onSelect={() => {
-                        if (handlers.reclassifyIdentity) {
-                          handlers.reclassifyIdentity(thread);
-                        } else {
-                          void rpc
-                            .call("taskReclassify", { threadId: thread.id })
-                            .then(() => refresh())
-                            .catch(handlers.reportError);
-                        }
-                      }}
-                    >
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span>Automatic</span>
-                        <span className="truncate text-[11px] text-muted-foreground">
-                          {automatic ? currentLabel : "Let Workstreams choose"}
-                        </span>
+    <ContextMenu.Portal>
+      <ContextMenu.Content
+        {...portalScope}
+        aria-label="Thread actions"
+        className={menuSurfaceClass("48")}
+      >
+        <Item onSelect={() => actions.open(thread.id, { split: true })}>
+          Open in split
+        </Item>
+        {thread.parentThreadId ? (
+          <Item onSelect={() => handlers.openParent(thread)}>Open parent</Item>
+        ) : null}
+        <Separator />
+        <ContextMenu.Sub>
+          <SubTrigger>Topic</SubTrigger>
+          <ContextMenu.Portal>
+            <ContextMenu.SubContent
+              {...portalScope}
+              className={menuSurfaceClass("56", "max-h-96 overflow-y-auto")}
+            >
+              {isFork ? (
+                <Item disabled onSelect={() => undefined}>
+                  <span className="flex-1 truncate">
+                    {currentLabel} (same as parent thread)
+                  </span>
+                </Item>
+              ) : (
+                <>
+                  <Item
+                    disabled={automatic}
+                    onSelect={() => {
+                      if (handlers.reclassifyIdentity) {
+                        handlers.reclassifyIdentity(thread);
+                      } else {
+                        void rpc
+                          .call("taskReclassify", { threadId: thread.id })
+                          .then(() => refresh())
+                          .catch(handlers.reportError);
+                      }
+                    }}
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span>Automatic</span>
+                      <span className="truncate text-[11px] text-muted-foreground">
+                        {automatic ? currentLabel : "Let Workstreams choose"}
                       </span>
-                      {automatic ? (
-                        <Icon name="Check" className="ml-2 size-3.5" />
-                      ) : null}
+                    </span>
+                    {automatic ? (
+                      <Icon name="Check" className="ml-2 size-3.5" />
+                    ) : null}
+                  </Item>
+                  <Separator />
+                  {index.leafTopics.length ? (
+                    index.leafTopics.map(({ entity }) => {
+                      const isChosen =
+                        !automatic && entity.id === currentEntity?.id;
+                      return (
+                        <Item
+                          key={entity.id}
+                          disabled={isChosen}
+                          onSelect={() => assignTopic(entity.id)}
+                        >
+                          <span className="flex-1 truncate">
+                            {displayTopicPath(entity.id)}
+                          </span>
+                          {isChosen ? (
+                            <Icon name="Check" className="ml-2 size-3.5" />
+                          ) : null}
+                        </Item>
+                      );
+                    })
+                  ) : (
+                    // A topic tree always has a leaf, so this is an empty catalog.
+                    <Item disabled onSelect={() => undefined}>
+                      No topics yet
                     </Item>
-                    <Separator />
-                    {chosenTopics.length ? (
-                      chosenTopics.map((entity) => {
-                        const isChosen =
-                          !automatic && entity.id === currentEntity?.id;
-                        return (
-                          <Item
-                            key={entity.id}
-                            disabled={isChosen}
-                            onSelect={() => assignTopic(entity.id)}
-                          >
-                            <span className="flex-1 truncate">
-                              {displayTopicPath(entity.id)}
-                            </span>
-                            {isChosen ? (
-                              <Icon name="Check" className="ml-2 size-3.5" />
-                            ) : null}
-                          </Item>
-                        );
-                      })
-                    ) : (
-                      // A topic tree always has a leaf, so this is an empty catalog.
-                      <Item disabled onSelect={() => undefined}>
-                        No topics yet
-                      </Item>
-                    )}
-                  </>
-                )}
-              </ContextMenu.SubContent>
-            </ContextMenu.Portal>
-          </ContextMenu.Sub>
-          <Item onSelect={() => handlers.rename(thread)}>Rename…</Item>
-          <Item
-            onSelect={() => void actions.setPinned(thread.id, !thread.isPinned)}
-          >
-            {thread.isPinned ? "Unpin" : "Pin"}
-          </Item>
-          <Item
-            onSelect={() => void actions.setRead(thread.id, thread.isUnread)}
-          >
-            {thread.isUnread ? "Mark read" : "Mark unread"}
-          </Item>
-          {debug ? (
-            <>
-              <Separator />
-              <Item onSelect={() => handlers.inspect(thread)}>
-                Inspect model calls…
-              </Item>
-            </>
-          ) : null}
-          <Separator />
-          {snooze ? (
-            <Item onSelect={() => handlers.wake(thread)}>Wake now</Item>
-          ) : null}
-          <ContextMenu.Sub>
-            <SubTrigger>{snooze ? "Change snooze" : "Snooze"}</SubTrigger>
-            <ContextMenu.Portal>
-              <ContextMenu.SubContent
-                {...portalScope}
-                className={menuSurfaceClass("56")}
-              >
-                <SnoozeMenuItems
-                  kit={contextMenuKit}
-                  now={Date.now()}
-                  prefs={snoozePrefs}
-                  snooze={snooze}
-                  onSnooze={(when) => handlers.snooze(thread, when)}
-                  onCustom={() => handlers.customSnooze(thread)}
-                />
-              </ContextMenu.SubContent>
-            </ContextMenu.Portal>
-          </ContextMenu.Sub>
-          {showArchive ? (
-            <Item onSelect={() => actions.archive(thread.id)}>Archive</Item>
-          ) : null}
-          <Item destructive onSelect={() => actions.requestDelete(thread.id)}>
-            Delete…
-          </Item>
-        </ContextMenu.Content>
-      </ContextMenu.Portal>
-    </ContextMenu.Root>
+                  )}
+                </>
+              )}
+            </ContextMenu.SubContent>
+          </ContextMenu.Portal>
+        </ContextMenu.Sub>
+        <Item onSelect={() => handlers.rename(thread)}>Rename…</Item>
+        <Item
+          onSelect={() => void actions.setPinned(thread.id, !thread.isPinned)}
+        >
+          {thread.isPinned ? "Unpin" : "Pin"}
+        </Item>
+        <Item onSelect={() => void actions.setRead(thread.id, thread.isUnread)}>
+          {thread.isUnread ? "Mark read" : "Mark unread"}
+        </Item>
+        {debug ? (
+          <>
+            <Separator />
+            <Item onSelect={() => handlers.inspect(thread)}>
+              Inspect model calls…
+            </Item>
+          </>
+        ) : null}
+        <Separator />
+        {snooze ? (
+          <Item onSelect={() => handlers.wake(thread)}>Wake now</Item>
+        ) : null}
+        <ContextMenu.Sub>
+          <SubTrigger>{snooze ? "Change snooze" : "Snooze"}</SubTrigger>
+          <ContextMenu.Portal>
+            <ContextMenu.SubContent
+              {...portalScope}
+              className={menuSurfaceClass("56")}
+            >
+              <SnoozeMenuItems
+                kit={contextMenuKit}
+                now={Date.now()}
+                prefs={snoozePrefs}
+                snooze={snooze}
+                onSnooze={(when) => handlers.snooze(thread, when)}
+                onCustom={() => handlers.customSnooze(thread)}
+              />
+            </ContextMenu.SubContent>
+          </ContextMenu.Portal>
+        </ContextMenu.Sub>
+        {showArchive ? (
+          <Item onSelect={() => actions.archive(thread.id)}>Archive</Item>
+        ) : null}
+        <Item destructive onSelect={() => actions.requestDelete(thread.id)}>
+          Delete…
+        </Item>
+      </ContextMenu.Content>
+    </ContextMenu.Portal>
   );
 }
 

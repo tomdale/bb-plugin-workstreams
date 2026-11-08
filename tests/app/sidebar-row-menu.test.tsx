@@ -6,9 +6,16 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { topicIndex } from "../../src/domain/topic-path.ts";
 import { sidebarThread } from "./fixtures.ts";
 import { mount } from "./sidebar-fixture.tsx";
+
+vi.mock("../../src/domain/topic-path.ts", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../src/domain/topic-path.ts")>();
+  return { ...actual, topicIndex: vi.fn(actual.topicIndex) };
+});
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -72,6 +79,19 @@ const topicChoices = async (
 };
 
 describe("the row menu's Topic submenu", () => {
+  it("does no catalog indexing while the menu is closed", async () => {
+    const slot = await mount(threads(), {
+      settings: { showRecent: false, showForYou: false },
+      catalog,
+    });
+    await slot.findByRole("link", { name: "Root task" });
+    vi.mocked(topicIndex).mockClear();
+    expect(topicIndex).not.toHaveBeenCalled();
+    await topicChoices(slot, "Root task");
+    expect(topicIndex).toHaveBeenCalledOnce();
+    slot.lifecycle.unmount();
+  });
+
   it("offers only topics that can hold threads", async () => {
     const slot = await mount(threads(), {
       settings: { showRecent: false, showForYou: false },

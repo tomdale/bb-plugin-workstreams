@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { act, cleanup, waitFor, within } from "@testing-library/react";
-import { memo } from "react";
+import { memo, Profiler } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { ServerStateRealtime } from "../../src/app/serverState.ts";
 import { usePrefs } from "../../src/app/prefs.ts";
@@ -15,8 +15,20 @@ import {
 } from "../../src/app/useWorkstreams.ts";
 import { projectWorkstreams } from "../../src/domain/project.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
+import { topicIndex } from "../../src/domain/topic-path.ts";
 import { parseSpinner, type SpinnerStyle } from "../../src/domain/spinner.ts";
 import { DEFAULT_SNOOZE_PREFS } from "../../src/domain/snooze.ts";
+<<<<<<< HEAD
+||||||| parent of 8aca315 (make row hints and menus lazy and narrow preference/catalog subscriptions)
+import { EMPTY_WORKSTREAM_GRACE_MS } from "../../src/domain/empty-workstreams.ts";
+=======
+import { EMPTY_WORKSTREAM_GRACE_MS } from "../../src/domain/empty-workstreams.ts";
+import { Row } from "../../src/app/sidebar/Row.tsx";
+import {
+  RowMenu,
+  type RowMenuHandlers,
+} from "../../src/app/sidebar/RowMenu.tsx";
+>>>>>>> 8aca315 (make row hints and menus lazy and narrow preference/catalog subscriptions)
 import { section, sidebarThread } from "./fixtures.ts";
 
 const harness = vi.hoisted(() => ({
@@ -347,6 +359,79 @@ it("measures per-hook RPC clients and realtime work", async () => {
     expect(within(slot.container).getByTestId(`client-${id}`).textContent).toBe(
       "show:dots",
     );
+});
+
+it("skips closed row and menu renders for unrelated preference publishes", async () => {
+  const thread = sidebarThread("t1");
+  const handlers: RowMenuHandlers = {
+    rename: vi.fn(),
+    openParent: vi.fn(),
+    snooze: vi.fn(),
+    customSnooze: vi.fn(),
+    wake: vi.fn(),
+    reportError: vi.fn(),
+    inspect: vi.fn(),
+  };
+  let rowRenders = 0;
+  function LivePreferences() {
+    usePrefs();
+    return null;
+  }
+  function Suite() {
+    return (
+      <>
+        <LivePreferences />
+        <Profiler id="row" onRender={() => rowRenders++}>
+          <RowMenu
+            thread={thread}
+            handlers={handlers}
+            snoozePrefs={DEFAULT_SNOOZE_PREFS}
+          >
+            <Row
+              thread={thread}
+              depth={0}
+              active={false}
+              now={Date.now()}
+              onNavigate={() => {}}
+            />
+          </RowMenu>
+        </Profiler>
+      </>
+    );
+  }
+  const slot = renderSlot(
+    { component: Suite },
+    {},
+    {
+      rpc: rpc(),
+      sidebarThreads: {
+        status: "ready",
+        threads: [thread],
+        sections: [],
+        projects: [],
+      },
+    },
+  );
+  await waitFor(() =>
+    expect(slot.container.querySelector("[data-timestamp]")).not.toBeNull(),
+  );
+  expect(harness.active.get("prefs")?.size).toBe(1);
+  rowRenders = 0;
+  await slot.behavior.emitRealtime("prefs", {
+    prefs: { threads: { autoTitle: false } },
+  });
+  report("unrelated-preference-row-renders", { rows: 1, renders: rowRenders });
+  expect(rowRenders).toBe(0);
+  expect(slot.container.querySelector("[data-timestamp]")).not.toBeNull();
+
+  await slot.behavior.emitRealtime("prefs", {
+    prefs: { sidebar: { timestamps: "hide" } },
+  });
+  await waitFor(() =>
+    expect(slot.container.querySelector("[data-timestamp]")).toBeNull(),
+  );
+  expect(rowRenders).toBe(1);
+  slot.lifecycle.unmount();
 });
 
 it("shares pending spinner writes and live colors across per-hook clients", async () => {
@@ -784,6 +869,46 @@ it("rejects preference and spinner reads crossing a reader-free interval", async
   await waitFor(() => expect(shown).toBe("hide:dots"));
   expect(handlers.prefs).toHaveBeenCalledTimes(2);
   expect(handlers.spinner).toHaveBeenCalledTimes(2);
+});
+
+it("reuses catalog paths, leaf ordering, and search fields per snapshot", () => {
+  const entities = [
+    {
+      id: "area",
+      name: "Area",
+      description: "Parent scope",
+      parentId: null,
+      aliases: ["Realm"],
+    },
+    {
+      id: "shipping",
+      name: "Shipping",
+      description: "Exports",
+      parentId: "area",
+      aliases: ["Delivery"],
+    },
+    {
+      id: "loose",
+      name: "Loose ends",
+      description: "",
+      parentId: null,
+      aliases: [],
+    },
+  ];
+  const index = topicIndex(entities);
+  expect(topicIndex(entities)).toBe(index);
+  expect(index.byId.get("area")?.name).toBe("Area");
+  expect(index.path("shipping")).toBe("Area: Shipping");
+  expect(index.leafTopics.map((topic) => topic.path)).toEqual([
+    "Area: Shipping",
+    "Loose ends",
+  ]);
+  const shipping = index.leafTopics[0]!;
+  for (const query of ["shipping", "exports", "delivery", "area", "realm"])
+    expect(shipping.searchText.some((text) => text.includes(query))).toBe(true);
+  expect(index.hasExactName("area")).toBe(true);
+  expect(index.hasExactName("realm")).toBe(false);
+  expect(topicIndex(entities.map((entity) => ({ ...entity })))).not.toBe(index);
 });
 
 it("reuses equal JSON trees and unchanged branches of a nested update", () => {

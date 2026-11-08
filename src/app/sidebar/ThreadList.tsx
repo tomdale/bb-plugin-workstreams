@@ -281,10 +281,6 @@ export function WorkstreamsThreadList({
     () => populatedGroups.map((group) => groupKey(group.id)),
     [populatedGroups],
   );
-  const emptyGroupItems = useMemo(
-    () => emptyGroups.map((group) => groupKey(group.id)),
-    [emptyGroups],
-  );
   const dormantGroupItems = useMemo(
     () => dormantGroups.map((group) => groupKey(group.id)),
     [dormantGroups],
