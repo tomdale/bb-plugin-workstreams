@@ -61,7 +61,7 @@ function fill(tip: HTMLElement, control: Control, help: Help) {
   tip.replaceChildren(head, what, steps);
   if (help.numbers.length) {
     const src = element("p", "tip-src");
-    inline(src, `Numbers from ${help.numbers.join("; ")}.`);
+    inline(src, `Numbers from the simulation: ${help.numbers.join("; ")}.`);
     tip.append(src);
   }
 }

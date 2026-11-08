@@ -113,10 +113,13 @@ display rate or speed. The numbers clear when a model setting, the preset, the
 model or the deck changes.
 
 Every control has a tooltip, which says what the control is, what you see when
-you change it, what it works with, and how to tune it, and lists the sweep
-commands behind its numbers. Hover shows it after a short pause, keyboard focus
-at once, and Escape dismisses it. It opens to the left of the inspector, over
-the stage, and scrolls when it is taller than the window.
+you change it, what it works with, and how to tune it, and lists the simulation
+commands behind its numbers. The simulation is the headless runs of
+`npm run sweep`, which change one setting at a time; a line under a setting that
+begins "In the simulation" quotes them, and the Measured module shows the page's
+own runs beside them. Hover shows it after a short pause, keyboard focus at
+once, and Escape dismisses it. It opens to the left of the inspector, over the
+stage, and scrolls when it is taller than the window.
 
 A setting shows only while it changes something under the current configuration
 (last column of its table), and a hidden setting keeps its value. A slider's

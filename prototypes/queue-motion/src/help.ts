@@ -482,7 +482,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       ],
       [
         "Compares with",
-        "The sweeps' held pace, interval range and worst step-to-step change, which the tooltips quote: the same measure on a stepped clock with a fixed key repeat. A difference is the page's own key repeat or frame clock.",
+        "The simulation's held pace, interval range and worst step-to-step change, which the tooltips quote. The simulation is the lab's headless runs of each model (`npm run sweep`): one setting changed at a time, holds and taps over three sets of card heights, on a stepped clock with a fixed key repeat. A difference is the page's own key repeat or frame clock.",
       ],
     ],
     needs:
@@ -510,7 +510,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       ],
     ],
     needs:
-      "A run of one card is a tap, so press and release before the key repeats. It clears with the pace line. The sweeps' tap numbers are medians over many starting cards; this is one tap.",
+      "A run of one card is a tap, so press and release before the key repeats. It clears with the pace line. The simulation's tap numbers are medians over many starting cards; this is one tap.",
     tune: "Tap ↑ a few times after a change to the tap spring or budget: ↑ is the slowest trip, so a lag or a hard landing shows there first.",
   }),
   "measured.checker": (f) => ({
@@ -523,7 +523,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     ],
     needs:
       "It reads the model's own frames, recorded about once each sixtieth of a second of page clock, so its per-frame limits mean what they mean in the sims at any display rate or speed. Presets outside the checker's rules, `loose`, still show their count.",
-    tune: "Run the hold that worries you on the alternating Cards deck. A problem here that the sweeps do not report is the page's key repeat or frame clock at work; step through it with Pause and Step.",
+    tune: "Run the hold that worries you on the alternating Cards deck. A problem here that the simulation does not report is the page's key repeat or frame clock at work; step through it with Pause and Step.",
   }),
   "hold.down": (f) => ({
     what: "Simulates holding ↓ from the first card to the last: it moves the stack to the top first, then holds the key until the front reaches the end.",
@@ -858,7 +858,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       effect: [
         [
           "Reads",
-          t`The latest hold each way, in cards/s, as the Measured module's pace lines read it. The sweeps measure \`natural\` at ${nat.pace} cards/s.`,
+          t`The latest hold each way, in cards/s, as the Measured module's pace lines read it. The simulation measures \`natural\` at ${nat.pace} cards/s.`,
         ],
       ],
       needs:
@@ -1201,7 +1201,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
       ],
       needs: t`Drum only, shown while \`while held\` is \`fold to the header line\` or \`pass over the next card\`. A taller fold keeps more text but slows the hold: ${h160.value} gives ${h160.pace} cards/s. The line under the slider gives the shortest card on the stage.`,
-      tune: t`Start at ${f.def("h0")}, one line of status and goal. Pick the height by what you want to read while scanning; the sweep is clean from ${h50.value} to ${h160.value}. To change the pace without changing the look, use \`speeds up after\`.`,
+      tune: t`Start at ${f.def("h0")}, one line of status and goal. Pick the height by what you want to read while scanning; the simulation is clean from ${h50.value} to ${h160.value}. To change the pace without changing the look, use \`speeds up after\`.`,
     };
   },
 
@@ -1233,7 +1233,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`The card stays hazy for longer, until it has moved. At ${off.value} it regains its colour only as it travels, so it is hazy until it is nearly in front.`,
         ],
       ],
-      verdict: t`In the sweeps: no landing time moves; clean to ${base.value} per second, a fade flicker from ${over.value}.`,
+      verdict: t`In the simulation: no landing time moves; clean to ${base.value} per second, a fade flicker from ${over.value}.`,
       needs: t`It acts only on a card coming back, and takes its wash with it. No position or timing changes: a tap ↑ lands in ${base.upLand} ms at every value. The fade is limited to ${f.limit.shade} in a frame by the checker: ${base.value} per second is ${base.verdict} and ${over.value} gives ${over.verdict}.`,
       tune: t`Start at ${base.value}. Above it the checker reports a fade flicker, ${top.value} gives ${top.problems}; below it the returning card looks hazier for longer.`,
     };
@@ -1265,7 +1265,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`The text stays until the rising card is on it. At ${off.value} the content does not fade early; the card still shrinks to its pile height.`,
         ],
       ],
-      verdict: t`In the sweeps: no timing number moves; clean at every value.`,
+      verdict: t`In the simulation: no timing number moves; clean at every value.`,
       needs: t`The content fades as the rising card leaves the tuck and comes back once it has landed, when the card is a strip behind it. A card moving into the front on a ↓ never loses its content. The drawn bottom edge shrinks at a limited rate, so it never jumps. No position or timing changes: a tap ↑ lands in ${full.upLand} ms and held ↑ / ↓ runs at ${full.pace} cards/s at every value, ${full.verdict} at ${full.value}.`,
       tune: t`Start at ${full.value}. Lower it to ${half.value} to keep a trace of the text while the card is covered.`,
     };
@@ -1297,7 +1297,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`The interval follows each card's own height more closely: at ${w1.value} intervals run ${w1.range} ms and a tall card gives less warning.`,
         ],
       ],
-      verdict: t`In the sweeps on even: held ↑ / ↓ ${w1.pace} cards/s at ${w1.value} card, ${w3.pace} at ${w3.value}, the same above.`,
+      verdict: t`In the simulation on \`even\`: held ↑ / ↓ ${w1.pace} cards/s at ${w1.value} card, ${w3.pace} at ${w3.value}, the same above.`,
       needs: t`Shown while \`pacing\` is \`planned\`. Windows above ${w3.value} measure the same (${w6.pace} cards/s at ${w6.value}), so the slider stops there. \`plan\` multiplies whatever interval the window picks.`,
       tune: t`Start at ${w2.value}, which both even presets use. Raise it to ${w3.value} if a long hold still stutters at a tall card; lower it to ${w1.value} for more pace (${w1.pace} cards/s) and less easing. For overall speed use \`plan\`.`,
     };
@@ -1364,7 +1364,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           "The cut gets sharper. With no fade the part of a card below the clip line is cut off in one line.",
         ],
       ],
-      needs: t`A look setting: the sweeps measure positions and timing, and a mask on the stage changes neither. It fades the last px above the clip line, so \`park\` places it and limits it to \`park\` minus ${TALLEST_CARD + PILE_CLEARANCE} px. \`leave shade\` also washes a card on its way down.`,
+      needs: t`A look setting: the simulation measures positions and timing, and a mask on the stage changes neither. It fades the last px above the clip line, so \`park\` places it and limits it to \`park\` minus ${TALLEST_CARD + PILE_CLEARANCE} px. \`leave shade\` also washes a card on its way down.`,
       tune: "Hold ↓ and watch the lowest card: with no fade it slides under a hard edge, with a fade it thins out over the last stretch. Raise the fade until the edge stops being a line; the pile stays unfaded at every value.",
     };
   },
@@ -1524,7 +1524,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`At ${lo.value}× the tuck runs on the main spring, so a card lingers longer behind the pile. The worst step-to-step change moves from ${base.step}× to ${lo.step}× and the checker still reports ${lo.verdict}.`,
         ],
       ],
-      verdict: t`In the sweeps: no tap number moves; clean from ${lo.value}× to ${hi.value}×.`,
+      verdict: t`In the simulation: no tap number moves; clean from ${lo.value}× to ${hi.value}×.`,
       needs: t`Drum only. It acts only behind the pile, after the turn, so \`sway behind\` and the \`tuck\` anchor of \`Bezier path\` show where. The main spring is \`tap spring\`, or \`held spring\` once the held state rises; this multiplies it.`,
       tune: t`Leave it at ${base.value}× unless a card visibly hangs behind the pile: watch the purple behind leg with \`Bezier path\` on at \`¼×\`. Every value swept, ${lo.value}× to ${hi.value}×, is clean.`,
     };
@@ -1551,7 +1551,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`The tuck ends lower: at ${lo.value} px a tucked card's bottom sits level with the lower edge of the card in front, with no margin to hide it, and the landing speed is ${lo.landSpeed} px/frame against ${base.landSpeed}.`,
         ],
       ],
-      verdict: t`In the sweeps: tap ↑ lands in ${base.upLand} ms at ${base.value} px and ${hi.upLand} at ${hi.value}; clean at every value.`,
+      verdict: t`In the simulation: tap ↑ lands in ${base.upLand} ms at ${base.value} px and ${hi.upLand} at ${hi.value}; clean at every value.`,
       needs: t`Drum only. A card too tall to hide this way washes out instead (\`tall-card wash rise\`), and the same depth decides which cards count as too tall. The \`tuck\` anchor of \`Bezier path\` marks the end of the tuck.`,
       tune: t`Leave it at ${base.value} px. Raise it if a tucked card's lower edge shows under the front card; every value swept, ${lo.value} to ${hi.value} px, is clean.`,
     };
@@ -1578,7 +1578,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`The tall card fades out almost as soon as its path asks: ${quick.value} ms is clean, and at ${fast.value} ms the checker reports ${fast.verdict}.`,
         ],
       ],
-      verdict: t`In the sweeps: no timing number moves; clean from ${quick.value} ms, a fade flicker at ${fast.value}.`,
+      verdict: t`In the simulation: no timing number moves; clean from ${quick.value} ms, a fade flicker at ${fast.value}.`,
       needs: t`Drum only, and only for a card taller than the room the tuck leaves (\`tuck depth\`); the tallest sample cards, ${f.cards.max} px, are. \`tall-card wash clear\` sets the way back, when a returning card regains its colour. Pace and landing times are the same at every value swept.`,
       tune: t`Start at ${base.value} ms. Hold ↓ through the tallest cards at \`¼×\` and watch them fade behind the pile; stay at ${quick.value} ms or above.`,
     };
@@ -1605,7 +1605,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`The colour comes back almost at once: at ${fast.value} ms the checker reports ${fast.verdict}.`,
         ],
       ],
-      verdict: t`In the sweeps: no timing number moves; clean from ${base.value} to ${mid.value} ms.`,
+      verdict: t`In the simulation: no timing number moves; clean from ${base.value} to ${mid.value} ms.`,
       needs: t`Drum only, for cards too tall to hide behind the pile. \`incoming fade-in\` restores a card coming back with ↑ on its own clock, so this shows mostly on a card that reverses mid-tuck. Pace and landing times are the same at every value swept.`,
       tune: t`Keep it between ${base.value} and ${mid.value} ms, the clean range swept.`,
     };
@@ -1640,7 +1640,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`Short cards go through faster and the pace follows heights more: at ${lo.value} ms the hold runs at ${lo.pace} cards/s, intervals ${lo.range} ms, ${lo.step}× from one step to the next.`,
         ],
       ],
-      verdict: t`In the sweeps on even: held ↑ / ↓ ${lo.pace} cards/s at ${lo.value} ms, ${top.pace} at ${top.value}; all clean.`,
+      verdict: t`In the simulation on \`even\`: held ↑ / ↓ ${lo.pace} cards/s at ${lo.value} ms, ${top.pace} at ${top.value}; all clean.`,
       needs: t`Shown while \`pacing\` is \`planned\`. \`plan per px\` is the height term and \`plan\` multiplies both. The flip gate still applies, so an estimate shorter than a real trip changes nothing. Default ${base.value} ms gives ${base.pace} cards/s on \`even\`.`,
       tune: t`Move \`plan\` first. Raise this for steadier pacing among short cards; every value swept, ${lo.value} to ${top.value} ms, is clean.`,
     };
@@ -1676,7 +1676,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`The plan stops reading heights. At ${lo.value} the flip gate alone sets the pace, ${lo.pace} cards/s with ${lo.range} ms intervals and ${lo.step}× from one step to the next, as when the presses follow the cards.`,
         ],
       ],
-      verdict: t`In the sweeps on even: held ↑ / ↓ ${lo.pace} cards/s at ${lo.value} ms/px, ${top.pace} at ${top.value}; all clean.`,
+      verdict: t`In the simulation on \`even\`: held ↑ / ↓ ${lo.pace} cards/s at ${lo.value} ms/px, ${top.pace} at ${top.value}; all clean.`,
       needs: t`Shown while \`pacing\` is \`planned\`. \`plan base\` is the constant term and \`plan\` multiplies both. Default ${base.value} ms/px gives ${base.pace} cards/s on \`even\`.`,
       tune: t`Raise it until the slowest tall card in a hold no longer bunches up behind the gate. Every value swept, ${lo.value} to ${top.value} ms/px, is clean.`,
     };
@@ -1820,7 +1820,7 @@ export type About = {
 
 /** The panel's closing paragraph: what the frame checker counts, then `extra`, the source file and `DESIGN.md`. */
 function checkerParagraph(f: Facts, source: string, extra: string): string {
-  return t`The frame checker counts four problems. A jump: an edge moves more than ${f.limit.jump} px in a frame. An edge flash: a card's lower edge changes by more than ${f.limit.band} px with nothing covering the change. A fade flicker: a card's fade changes by more than ${f.limit.shade} in a frame. A swap: two cards change draw order while they overlap. A sweep is clean when it finds none, over three sets of card heights. ${extra} Source: ${source}; goals and limits: \`DESIGN.md\`.`;
+  return t`The frame checker counts four problems. A jump: an edge moves more than ${f.limit.jump} px in a frame. An edge flash: a card's lower edge changes by more than ${f.limit.band} px with nothing covering the change. A fade flicker: a card's fade changes by more than ${f.limit.shade} in a frame. A swap: two cards change draw order while they overlap. A simulated run is clean when the checker finds none of them, over three sets of card heights. ${extra} Source: ${source}; goals and limits: \`DESIGN.md\`.`;
 }
 
 function buildAbout(): About {
