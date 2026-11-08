@@ -103,9 +103,9 @@ supplies the topic it showed. Explicit composer choices have manual priority.
 
 Placement makes one closed-set call on the first request and again beside Full
 analysis after a new substantive request. It sees the generated title, first,
-second, and latest substantive requests, the settled outcome, project, checkout,
-and continuation/start hints. A checkout's usual topic is a hint unless at least
-two of its threads point at other repositories. Title edits, model changes,
+second, and latest substantive requests, project, checkout, and
+continuation/start hints. A checkout's usual topic is a hint unless at least two
+of its threads point at other repositories. Title edits, model changes,
 topic-definition changes, and control-only requests do not re-place a thread.
 
 Only leaf topics within the two-level limit can be chosen. A new first-level
@@ -116,12 +116,10 @@ than creating children around it. Quick's proposal can include one missing
 product ancestor when both product and capability are supported.
 
 Sources follow `manual > inherited > full > quick`. Manual choices survive
-automatic analysis. Full can replace an inherited or settled choice only for a
-scope shift or a supported narrowing beneath it; a thread settled to no topic
-stays open to any filing. Forced runs (`bb workstreams analyze`, handing a
-thread's topic back to Workstreams) settle the topic afresh. Accepted repairs
-and suggestions have Full provenance unless they preserve an explicit manual
-choice. Invalid output never files a thread or clears a valid assignment.
+automatic analysis. Full can replace an inherited choice only for a scope shift
+or a supported narrowing beneath it. Accepted repairs and suggestions have Full
+provenance unless they preserve an explicit manual choice. Invalid output never
+files a thread or clears a valid assignment.
 
 ## Reviewed topic changes
 

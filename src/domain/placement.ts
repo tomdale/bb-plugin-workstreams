@@ -58,8 +58,6 @@ export type PlacementInput = {
     readonly label: string;
     readonly inherited: boolean;
   } | null;
-  /** The outcome Full analysis settled for the thread, when it has one. */
-  readonly goal?: string | null;
 };
 
 export type PlacementOutput = TopicAnswer & { scopeShift: boolean };
@@ -205,9 +203,6 @@ export function placementPrompt(input: PlacementInput): string {
       : null,
     input.current
       ? `Its current topic${input.current.inherited ? ", from the thread or workstream it was started from" : ""}:\n${tagged("current_topic", line(input.current.label, 200))}`
-      : null,
-    input.goal
-      ? `The outcome the thread's work has settled into, which a single later request refines more often than it replaces:\n${tagged("settled_goal", line(input.goal, 300))}`
       : null,
   ].filter(Boolean);
   return `${HEADER}

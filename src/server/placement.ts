@@ -5,8 +5,7 @@
  * same freshness checks; the first request is placed here directly.
  *
  * Its evidence is the generated title, the first, second, and latest
- * substantive requests, the outcome Full analysis settled, the project,
- * and the checkout, plus hints:
+ * substantive requests, the project, and the checkout, plus hints:
  *
  * - the topic of the thread it continues or was started from, and of the
  *   workstream whose ＋ started it when that topic holds subtopics;
@@ -174,7 +173,7 @@ export class Placement {
   async question(
     thread: PlacementThread,
     rawRequests: readonly string[],
-    options: { force?: boolean; within?: string; goal?: string | null } = {},
+    options: { force?: boolean; within?: string } = {},
   ): Promise<PlacementQuestion | null> {
     const topics = this.deps.topics;
     const assignment = topics.assignment(thread.id);
@@ -221,7 +220,6 @@ export class Placement {
               inherited: assignment.provenance === "inherited",
             }
           : null,
-        goal: options.goal ?? null,
       },
     };
   }

@@ -127,7 +127,7 @@ export class Analyzer {
         question(
           thread: PlacementThread,
           requests: readonly string[],
-          options?: { force?: boolean; goal?: string | null },
+          options?: { force?: boolean },
         ): Promise<PlacementQuestion | null>;
         ask(
           threadId: string,
@@ -320,7 +320,7 @@ export class Analyzer {
     const question = await placement.question(
       { ...thread, sourceThreadId: context.sourceThreadId },
       context.requests.map((r) => r.text),
-      { goal: this.get(threadId)?.threadGoal ?? null, force: true, ...options },
+      { force: true, ...options },
     );
     if (!question) throw new Error("The thread has no request to place.");
     const title = displayTitle(thread);
@@ -433,7 +433,6 @@ export class Analyzer {
           ? await this.deps.placement.question(
               { ...thread, sourceThreadId: context.sourceThreadId },
               context.requests.map((r) => r.text),
-              { goal: previous?.threadGoal ?? null },
             )
           : null;
       // Placement runs beside Full analysis; it fails on its own.
@@ -596,9 +595,7 @@ export class Analyzer {
       if (stored.changes > 0 && topicAnswer && placing)
         this.deps.topics?.apply(
           threadId,
-          // A forced run is the user asking to settle the topic afresh, so
-          // its answer replaces a settled topic the way a scope shift does.
-          force ? { ...topicAnswer, scopeShift: true } : topicAnswer,
+          topicAnswer,
           placing.basis,
           topicTraceId,
         );

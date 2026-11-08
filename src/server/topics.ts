@@ -768,12 +768,11 @@ export class TopicStore {
 
   /**
    * Applies an analysis's topic under the source priority (see
-   * `AssignmentProvenance`): your topic is never replaced, and a settled
-   * topic — inherited or Full analysis's own — only by Full analysis on a
-   * scope shift or with a more specific topic beneath it. A thread settled
-   * to no topic stays open to any filing, and Quick analysis only fills a
-   * thread that has no topic yet or replaces its own earlier guess.
-   * Returns whether the assignment changed.
+   * `AssignmentProvenance`): your topic is never replaced, an inherited one
+   * only by Full analysis on a scope shift or with a more specific topic
+   * beneath it, and Quick analysis only fills a thread that has no topic yet
+   * or replaces its own earlier guess. Returns whether the assignment
+   * changed.
    */
   applyAnalysis(
     threadId: string,
@@ -796,13 +795,8 @@ export class TopicStore {
         | undefined;
       const current = row ? readSource(row.source) : null;
       if (current === "manual") return false;
-      // A settled topic holds unless the work moved (a scope shift) or the
-      // answer narrows beneath it; without a topic the thread stays open.
-      const settled =
-        current === "inherited" ||
-        (current === "full" && row?.entity_id != null);
       if (
-        settled &&
+        current === "inherited" &&
         !(
           kind === "full" &&
           (answer.scopeShift || this.narrows(answer, row?.entity_id ?? null))

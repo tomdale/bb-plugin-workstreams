@@ -253,7 +253,6 @@ const PROMPT_TAGS = [
   "agent_report",
   "project",
   "current_topic",
-  "settled_goal",
   "topic_tree",
   "title",
   "listed_under",

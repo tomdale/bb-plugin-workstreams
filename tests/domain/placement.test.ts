@@ -58,21 +58,6 @@ describe("placementPrompt", () => {
       "<checkout>\n/Users/me/Code/Repos/api/main\n</checkout>",
     );
     expect(prompt).not.toContain("current_topic");
-    expect(prompt).not.toContain("settled_goal");
-  });
-
-  it("shows the settled outcome beside the current topic when it has one", () => {
-    const prompt = placementPrompt({
-      ...input,
-      current: { label: "Automations: Planning", inherited: false },
-      goal: "Design the automations CLI surface.",
-    });
-    expect(prompt).toContain(
-      "<current_topic>\nAutomations: Planning\n</current_topic>",
-    );
-    expect(prompt).toContain(
-      "<settled_goal>\nDesign the automations CLI surface.\n</settled_goal>",
-    );
   });
 
   it("tells topics with the same name apart by their parents", () => {
