@@ -221,10 +221,7 @@ function SettingsExample() {
           </Button>
         </div>
       </GalleryControls>
-      <LiveExample
-        name="Settings composition"
-        sources={["src/app/settings/ui.tsx"]}
-      >
+      <LiveExample name="Settings rows" sources={["src/app/settings/ui.tsx"]}>
         <Variants minWidth="26rem">
           {controlStates.flatMap(({ state, label: stateLabel }) =>
             layouts.map(({ layout, label }) => (
@@ -245,10 +242,9 @@ function SettingsExample() {
 
 export const settingsExample: GalleryExample = {
   id: "settings",
-  title: "Settings composition",
+  title: "Settings",
   group: "Components",
-  description:
-    "Settings rows, switches, bounded steppers, segmented choices, and a searchable picker.",
+  description: "Rows, switches, steppers, segmented choices, and a picker.",
   source: `import { useState } from "react";
 import { CompactSettingRow, SectionRows, SettingsGroup, SettingSwitch, Stepper } from "../src/app/settings/ui";
 

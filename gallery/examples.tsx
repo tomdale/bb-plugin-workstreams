@@ -119,7 +119,7 @@ const identitySamples = [
 function IdentityExample() {
   return (
     <LiveExample
-      name="Work identity composition"
+      name="Icon and name"
       sources={["src/app/WorkstreamIcon.tsx", "src/app/WorkstreamName.tsx"]}
     >
       <Variants>
@@ -365,7 +365,7 @@ function ReplyExample() {
         </Variants>
       </LiveExample>
       <LiveExample
-        name="PlainBody workstream colors"
+        name="Workstream colors"
         sources={["src/app/reply/PlainBody.tsx"]}
       >
         <Variants minWidth="26rem">
@@ -395,7 +395,7 @@ function ControlsExample() {
   return (
     <div className="space-y-5">
       <LiveExample
-        name="BB controls composition"
+        name="Buttons and fields"
         sources={[
           "components/ui/button.tsx",
           "components/ui/input.tsx",
@@ -521,9 +521,9 @@ export const examples: GalleryExample[] = [
   colorsExample,
   {
     id: "typography",
-    title: "Existing type roles",
+    title: "Type roles",
     group: "Foundations",
-    description: "Sidebar type roles and the question prompt.",
+    description: "Sidebar and question text styles.",
     source: `import { PROMPT_CLASS } from "../src/app/question/question-presentation";\n\n<span className="ws-text-section">Workstreams</span>\n<span className="ws-text-workstream">Release tools</span>\n<span className="ws-text-category">Ready to review</span>\n<span className="ws-text-thread">Check the release notes</span>\n<div className={PROMPT_CLASS}>Which layout should we use?</div>`,
     render: () => <TypographyExample />,
   },
@@ -531,8 +531,7 @@ export const examples: GalleryExample[] = [
     id: "work-identity",
     title: "Work identity",
     group: "Components",
-    description:
-      "The shared icon and name, including owner-prefix treatment and catalog-allocated topic hues.",
+    description: "The shared icon and name, with topic hues.",
     source: `import { WorkstreamIcon } from "../src/app/WorkstreamIcon";\nimport { WorkstreamName } from "../src/app/WorkstreamName";\nimport { allocateFamilyColor, workstreamColorStyle } from "../src/domain/workstreamColor";\n\n<div style={workstreamColorStyle(allocateFamilyColor([]))}>\n  <WorkstreamIcon />\n  <WorkstreamName name="Workstreams: Recaps" accent />\n</div>`,
     render: () => <IdentityExample />,
   },
@@ -545,7 +544,7 @@ export const examples: GalleryExample[] = [
     id: "reply-vocabulary",
     title: "Reply vocabulary",
     group: "Components",
-    description: "Ten information components in the recap card style.",
+    description: "The ten reply components.",
     source: `import { PlainBody } from "../src/app/reply/PlainBody";\nimport type { ReplyComponent } from "../src/domain/replyComponents";\n\nconst part: ReplyComponent = ${JSON.stringify(
       replyParts.find((item) => item.type === "change"),
       null,
@@ -557,7 +556,7 @@ export const examples: GalleryExample[] = [
     id: "bb-controls",
     title: "BB controls",
     group: "Components",
-    description: "Registry buttons, input, and select.",
+    description: "Buttons, input, and select.",
     source: `import { Button } from "../components/ui/button";\nimport { Input } from "../components/ui/input";\nimport { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../components/ui/select";\n\n<Input value={name} onChange={(event) => setName(event.target.value)} />\n<Select value={layout} onValueChange={setLayout}>\n  <SelectTrigger aria-label="Example layout"><SelectValue /></SelectTrigger>\n  <SelectContent>\n    <SelectItem value="compact">Compact</SelectItem>\n    <SelectItem value="full">Full</SelectItem>\n  </SelectContent>\n</Select>\n<Button onClick={preview}>Preview</Button>\n<Button variant="outline" onClick={reset}>Reset</Button>\n<Button variant="ghost" onClick={discard}>Discard</Button>\n<Button variant="outline" disabled>Unavailable</Button>`,
     render: () => <ControlsExample />,
   },

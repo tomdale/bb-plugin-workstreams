@@ -332,8 +332,7 @@ export const questionExample: GalleryExample = {
   id: "question-form",
   title: "Question form",
   group: "Components",
-  description:
-    "Options, freeform answers, multiple questions, long previews, history, and form states.",
+  description: "Choices, freeform answers, history, and form states.",
   source: `import { QuestionForm } from "../../src/app/question/question-form";
 import { QuestionHistoryCard } from "../../src/app/question/QuestionHistory";
 import { QUESTION_CARD_CLASS } from "../../src/app/question/question-presentation";

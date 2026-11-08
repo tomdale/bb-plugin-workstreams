@@ -91,7 +91,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       expect(
         await page.getByLabel("Example source code").textContent(),
       ).toContain("RecapCardPreview");
-      await page.getByLabel("Find a page").fill("question form");
+      await page.getByLabel("Search pages").fill("question form");
       const navigation = page.getByRole("navigation", {
         name: "Design system",
       });
@@ -127,7 +127,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         "count-pill": ["Compact", "Roomy", "Wide count"],
         "key-chip": ["Default", "Bright", "Inline"],
         "section-heading": ["Title only", "With a count", "With an action"],
-        "menu-classes": ["Resting and highlighted", "Wider surface"],
+        "menu-classes": ["Items", "Wider surface"],
       };
       for (const [id, variants] of Object.entries(pages)) {
         await page.goto(`${url}#${id}`);
@@ -1420,11 +1420,11 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       ).toContain("--ws-needs-you");
       await page
         .getByRole("navigation", { name: "Design system" })
-        .getByRole("link", { name: "Actions, hints, and overlays" })
+        .getByRole("link", { name: "Overlays" })
         .click();
       await page
         .getByRole("heading", {
-          name: "Actions, hints, and overlays",
+          name: "Overlays",
           exact: true,
         })
         .waitFor();

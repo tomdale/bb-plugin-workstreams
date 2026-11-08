@@ -172,7 +172,7 @@ export default function App() {
     ? "Introduction"
     : (example?.title ?? "Page not found");
   const description = isIntroduction
-    ? "BB is the foundation. Workstreams adds a language for work identity, attention, and reported state."
+    ? "BB is the foundation. Workstreams adds identity, attention, and state."
     : (example?.description ??
       "This address does not match a design-system page.");
 
@@ -224,7 +224,7 @@ export default function App() {
         data-open={navigationOpen}
       >
         <label htmlFor="gallery-search" className="gallery-search-label">
-          Find a page
+          Search pages
         </label>
         <Input
           id="gallery-search"
@@ -239,7 +239,6 @@ export default function App() {
               {
                 "Sidebar playground" /* slop-ok: 2 Existing destination name, outside this cleanup */
               }
-              <span className="gallery-nav-note">Opens separately</span>
             </a>
           )}
           {showIntroduction && (
@@ -298,9 +297,8 @@ export default function App() {
             <>
               {isIntroduction && (
                 <p className="gallery-prose gallery-intro-lead">
-                  Topic identity tells you which work belongs together. A recap
-                  tells you what happened and what needs your attention. The
-                  examples bring those roles together.
+                  A topic shows which work belongs together. A recap shows what
+                  happened and what needs you.
                 </p>
               )}
               <section
@@ -332,7 +330,7 @@ export default function App() {
                   <div className="gallery-specimen-content" key={page}>
                     {isIntroduction ? (
                       <LiveExample
-                        name="Work identity and recap composition"
+                        name="Identity and recap"
                         sources={[
                           "src/app/WorkstreamName.tsx",
                           "src/app/composer/RecapCard.tsx",

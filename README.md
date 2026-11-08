@@ -1067,21 +1067,21 @@ from disk with no server. `npm run build` runs it after building the plugin, so
 the pages stay current whenever the plugin is rebuilt.
 
 The gallery includes foundations, a **Primitives** group, work identity,
-settings compositions, actions and overlays, recap and question playgrounds, and
-reply examples. Its **Sidebar playground** opens a separate development-only
-page with side-by-side Trial and Current examples, configurable row treatments,
-and independent connecting lines for the Workstreams section, shared parents,
-workstreams, categories, and child threads. Trial starts with the plugin's
-sidebar defaults, drawn from its geometry, typography, and preferences; reset
-returns to those defaults. Sidebar width is a shared preview control because BB
-owns the actual width. Experimental treatments with no app counterpart keep
-their own settings. Line controls set visibility, width, color, indent, and
-spacing. Changes and expandable state can be shared in the URL; fragments from
-older playground settings URLs can be applied to this page. The examples use the
-plugin's thread rows and workstream names with local fixtures, while the
-alternative grouping and layout treatments are simulated. Topic and status
-colors use the playground's light and dark fixtures, not your live BB settings.
-Nothing writes to BB or ships in the plugin.
+settings, overlays, recap and question playgrounds, and reply examples. Its
+**Sidebar playground** opens a separate development-only page with side-by-side
+Trial and Current examples, configurable row treatments, and independent
+connecting lines for the Workstreams section, shared parents, workstreams,
+categories, and child threads. Trial starts with the plugin's sidebar defaults,
+drawn from its geometry, typography, and preferences; reset returns to those
+defaults. Sidebar width is a shared preview control because BB owns the actual
+width. Experimental treatments with no app counterpart keep their own settings.
+Line controls set visibility, width, color, indent, and spacing. Changes and
+expandable state can be shared in the URL; fragments from older playground
+settings URLs can be applied to this page. The examples use the plugin's thread
+rows and workstream names with local fixtures, while the alternative grouping
+and layout treatments are simulated. Topic and status colors use the
+playground's light and dark fixtures, not your live BB settings. Nothing writes
+to BB or ships in the plugin.
 
 The playground batches real thread rows and workstream names into one React
 update per affected preview. Trial-only settings leave Current untouched; focus

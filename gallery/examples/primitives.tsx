@@ -221,7 +221,7 @@ function MenuExample() {
     <LiveExample name="Menu classes" sources={[`${PRIMITIVES}menu.ts`]}>
       <Variants minWidth="16rem">
         <Variant
-          label="Resting and highlighted"
+          label="Items"
           note="The second row shows the highlighted item; the third is disabled."
         >
           <MenuSpecimen width="48" highlighted="Recent activity" />
@@ -242,8 +242,7 @@ export const primitiveExamples: GalleryExample[] = [
     id: "status-dot",
     title: "Status dot",
     group: "Primitives",
-    description:
-      "A small colored circle in three sizes: state, workstream, or hollow.",
+    description: "A small colored circle.",
     source: `import { StatusDot } from "../src/app/primitives/StatusDot";\n\n<StatusDot tone="bg-(--ws-complete)" />\n<StatusDot size="sm" tone="bg-(--ws-needs-you)" />\n<StatusDot size="md" workstream style={workstreamColorStyle(color)} />\n<StatusDot size="md" hollow />`,
     render: () => <StatusDotExample />,
   },
@@ -251,7 +250,7 @@ export const primitiveExamples: GalleryExample[] = [
     id: "count-pill",
     title: "Count pill",
     group: "Primitives",
-    description: "The Needs you count on group headers, compact and roomy.",
+    description: "The Needs you count on group headers.",
     source: `import { CountPill } from "../src/app/primitives/CountPill";\n\n<CountPill>2</CountPill>\n<CountPill size="roomy">2</CountPill>`,
     render: () => <CountPillExample />,
   },
@@ -259,8 +258,7 @@ export const primitiveExamples: GalleryExample[] = [
     id: "key-chip",
     title: "Key chip",
     group: "Primitives",
-    description:
-      "An outlined key for a shortcut, in default, bright, and inline forms.",
+    description: "An outlined key for a shortcut.",
     source: `import { KeyChip } from "../src/app/primitives/KeyChip";\n\n<KeyChip>U</KeyChip>\n<KeyChip bright>1</KeyChip>\n<KeyChip inline>j</KeyChip>`,
     render: () => <KeyChipExample />,
   },
@@ -268,7 +266,7 @@ export const primitiveExamples: GalleryExample[] = [
     id: "section-heading",
     title: "Section heading",
     group: "Primitives",
-    description: "The small uppercase heading over a page section.",
+    description: "The small heading over a page section.",
     source: `import { SectionHeading } from "../src/app/primitives/SectionHeading";\n\n<SectionHeading>Project associations</SectionHeading>\n<SectionHeading className="flex items-baseline gap-2">Needs review <span>3</span></SectionHeading>`,
     render: () => <SectionHeadingExample />,
   },
@@ -276,8 +274,7 @@ export const primitiveExamples: GalleryExample[] = [
     id: "menu-classes",
     title: "Menu classes",
     group: "Primitives",
-    description:
-      "The surface, item, label, and separator classes of Workstreams' own menus.",
+    description: "Class names for Workstreams' own menus.",
     source: `import { MENU_ITEM_CLASS, MENU_LABEL_CLASS, MENU_SEPARATOR_CLASS, menuSurfaceClass } from "../src/app/primitives/menu";\n\n<DropdownMenu.Content className={menuSurfaceClass("48")}>\n  <DropdownMenu.Label className={MENU_LABEL_CLASS}>Sort</DropdownMenu.Label>\n  <DropdownMenu.Item className={MENU_ITEM_CLASS}>Alphabetical</DropdownMenu.Item>\n  <DropdownMenu.Separator className={MENU_SEPARATOR_CLASS} />\n</DropdownMenu.Content>`,
     render: () => <MenuExample />,
   },

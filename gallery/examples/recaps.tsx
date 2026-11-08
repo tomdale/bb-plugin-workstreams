@@ -356,7 +356,7 @@ export const recapExample: GalleryExample = {
   title: "Recap card",
   group: "Components",
   description:
-    "Work results, review steps, artifacts, next actions, and awaited agents.",
+    "Results, review steps, artifacts, next actions, and awaited agents.",
   source: `import { RecapCardPreview } from "../../src/app/composer/RecapCard";
 import type { Recap } from "../../src/domain/recap";
 

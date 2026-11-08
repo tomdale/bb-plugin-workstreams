@@ -338,7 +338,7 @@ export function ColorsExample({
         </Button>
       </GalleryControls>
       <LiveExample // slop-ok: 1 Keep the requested Live example frame and token-sample identity
-        name="Color-token samples" // slop-ok: 1 User-requested accurate sample identity
+        name="State colors" // slop-ok: 1 User-requested accurate sample identity
         sources={["src/app/theme/tokens.css", "src/domain/colors.ts"]}
       >
         <div className="grid gap-3 p-3 @lg:grid-cols-2" style={sampleStyle}>
@@ -385,7 +385,7 @@ export function ColorsExample({
         </dl>
       </GalleryNotes>
       <LiveExample // slop-ok: 1 Keep the requested Live example frame and topic-sample identity
-        name="Topic identity samples" // slop-ok: 1 User-requested accurate sample identity
+        name="Topic colors" // slop-ok: 1 User-requested accurate sample identity
         sources={[
           "src/app/WorkstreamIcon.tsx",
           "src/app/WorkstreamName.tsx",
@@ -490,9 +490,9 @@ export function ColorsExample({
 export const colorsExample: GalleryExample = {
   id: "colors",
   group: "Foundations",
-  title: "Semantic colors",
+  title: "Colors",
   description:
-    "Six state tokens with default, BB theme, and custom colors, plus question, recap, and topic identity examples.",
+    "The six state colors, with default, BB theme, and custom choices.",
   source: `import { colorTokenCss, DEFAULT_COLORS, type ColorPrefs } from "../../src/domain/colors";
 import { RecapCardPreview } from "../../src/app/composer/RecapCard";
 

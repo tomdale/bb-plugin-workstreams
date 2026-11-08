@@ -297,7 +297,7 @@ function OverlaysExample() {
   return (
     <div className="min-w-0 space-y-4">
       <LiveExample
-        name="RowActions composition"
+        name="Row actions"
         sources={[
           "src/app/sidebar/HoverActions.tsx",
           "src/app/snooze/SnoozeMenuItems.tsx",
@@ -322,7 +322,7 @@ function OverlaysExample() {
         </Variants>
       </LiveExample>
       <LiveExample
-        name="Hints and overlays"
+        name="Dialogs and popovers"
         sources={[
           "src/app/Hint.tsx",
           "components/ui/dialog.tsx",
@@ -374,10 +374,9 @@ function OverlaysExample() {
 
 export const overlaysExample: GalleryExample = {
   id: "actions-overlays",
-  title: "Actions, hints, and overlays",
+  title: "Overlays",
   group: "Components",
-  description:
-    "Row actions, hints, hover menus, responsive popovers, and dialog validation.",
+  description: "Row actions, hints, menus, popovers, and dialogs.",
   source: `import { Icon } from "../components/ui/icon";
 import { HoverAction, HoverMenuButton, RowActions } from "../src/app/sidebar/HoverActions";
 import { plainMenuKit } from "../src/app/snooze/SnoozeMenuItems";
