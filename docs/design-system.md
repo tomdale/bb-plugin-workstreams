@@ -172,12 +172,15 @@ for it.
 - **Comparison:** Keep options visibly paired and aligned. Use columns only when
   each option has enough width; stack them on narrow screens. Mark a
   recommendation with a label and restrained emphasis, not color alone.
-- **Change:** Pair Before and After so the reader can compare them directly.
-  Keep Unchanged and Limitation subordinate but adjacent to the change they
-  qualify.
-- **Checks:** Separate scope, actual totals, and individual checks. Pair each
-  status with readable text and a status mark. Keep skipped, failed, blocked,
-  and untested states explicit.
+- **Change:** Recap card rows: Before, After, Unchanged, and Limitation each
+  take a small label in the card's label gutter beside the value, stacked above
+  it when narrow. The gutter is at least the card's 3.25rem and widens to fit
+  the longest label so every value starts at the same edge.
+- **Checks:** Scope, then the actual totals on one compact line, then the checks
+  as recap card results: a stroked status mark before each name, with any detail
+  muted beneath it. Each status has its own mark shape; every status but passed
+  also shows its label beside the name, so skipped, failed, blocked, and
+  untested stay explicit.
 - **Delivery:** Show stages in order, with each stage's name, status, and detail
   together. Do not imply that a reported stage was independently verified.
 - **Recommendation:** Give the choice a clear typographic lead, then the reason

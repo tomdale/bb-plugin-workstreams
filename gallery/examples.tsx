@@ -287,8 +287,8 @@ function ReplyExample() {
         />
       </GalleryControls>
       <GalleryNotes>
-        Change pairs Before and After; Checks separates scope, totals, and
-        statuses. Comparison options and groups keep their current rendering.
+        Change and Checks use the recap card's label gutter and leading status
+        marks. Comparison options and groups keep their current rendering.
       </GalleryNotes>
       <LiveExample name="PlainBody" sources={["src/app/reply/PlainBody.tsx"]}>
         <div className="min-w-0 break-words">
@@ -402,7 +402,7 @@ export const examples: GalleryExample[] = [
     title: "Reply vocabulary",
     group: "Components",
     description:
-      "All ten information components through PlainBody; Change pairs values and Checks displays synthetic totals and statuses.",
+      "All ten information components through PlainBody; Change and Checks follow the recap card, with synthetic totals and statuses.",
     source: `import { PlainBody } from "../src/app/reply/PlainBody";\nimport type { ReplyComponent } from "../src/domain/replyComponents";\n\n// The selector changes this part; PlainBody renders the selected vocabulary.\nconst part: ReplyComponent = ${JSON.stringify(
       replyParts.find((item) => item.type === "change"),
       null,

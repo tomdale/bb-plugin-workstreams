@@ -313,7 +313,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
   );
 
   browserTest(
-    "pairs Change values responsively and distinguishes every check status",
+    "places Change labels in a gutter and distinguishes every check status",
     async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(`${url}#reply-vocabulary`);
@@ -329,18 +329,35 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       const pair = page.locator("[data-reply-change-pair]");
       expect(await pair.textContent()).toContain("Before");
       expect(await pair.textContent()).toContain("After");
+      // Labels sit in a gutter beside their values, and above them when narrow.
+      const placement = () =>
+        page.locator("[data-reply-change]").evaluate((change) => {
+          const rows = [...change.querySelectorAll("[data-reply-change-row]")];
+          return rows.map((row) => {
+            const label = row.querySelector("dt")!.getBoundingClientRect();
+            const value = row.querySelector("dd")!.getBoundingClientRect();
+            return {
+              beside: value.left >= label.right && value.top < label.bottom,
+              valueLeft: Math.round(value.left),
+              labelLines: Math.round(label.height / 16),
+            };
+          });
+        });
       await widthControl.getByRole("radio", { name: "Wide" }).check();
-      const wideTracks = await pair.evaluate(
-        (element) =>
-          getComputedStyle(element).gridTemplateColumns.split(" ").length,
-      );
-      expect(wideTracks).toBe(2);
+      const wide = await placement();
+      expect(wide.map((row) => row.beside)).toEqual([true, true, true, true]);
+      // One shared gutter: every value starts at the same edge, and no label
+      // wraps.
+      expect(new Set(wide.map((row) => row.valueLeft)).size).toBe(1);
+      expect(wide.every((row) => row.labelLines <= 1)).toBe(true);
       await widthControl.getByRole("radio", { name: "Phone" }).check();
-      const phoneTracks = await pair.evaluate(
-        (element) =>
-          getComputedStyle(element).gridTemplateColumns.split(" ").length,
-      );
-      expect(phoneTracks).toBe(1);
+      const phone = await placement();
+      expect(phone.map((row) => row.beside)).toEqual([
+        false,
+        false,
+        false,
+        false,
+      ]);
 
       await selectComponent("Checks");
       const statuses = await page

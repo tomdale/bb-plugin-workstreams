@@ -492,7 +492,7 @@ it("normalizes a relative prose link and supplies its workspace context", async 
   });
 });
 
-it("keeps sequence markers and separates check rows from test totals", () => {
+it("keeps sequence markers and leads check rows with status marks", () => {
   const view = draw(body(COMPONENT_EXAMPLES.sequence));
   expect(view.container.querySelector("ol")?.className).toContain(
     "list-decimal",
@@ -501,11 +501,22 @@ it("keeps sequence markers and separates check rows from test totals", () => {
   view.lifecycle.unmount();
   const checks = draw(body(COMPONENT_EXAMPLES.checks));
   expect(
-    checks.container.querySelector("[data-reply-check-items]")?.className,
-  ).toContain("divide-y");
-  expect(
     checks.container.querySelector('[aria-label="Reported test totals"]'),
   ).not.toBeNull();
+  // Each row leads with its status mark, as recap card results do.
+  for (const item of checks.container.querySelectorAll(
+    "[data-reply-check-item]",
+  )) {
+    expect(
+      item.firstElementChild?.hasAttribute("data-reply-check-status"),
+    ).toBe(true);
+    expect(item.firstElementChild?.querySelector("svg")).not.toBeNull();
+    // Only statuses other than passed repeat their label beside the name.
+    const shown = item.querySelector('[aria-hidden="true"]:not(svg)');
+    if (item.getAttribute("data-reply-check-item") === "passed")
+      expect(shown).toBeNull();
+    else expect(shown?.textContent).not.toBe("");
+  }
 });
 
 it("opens ordinary Markdown file URLs through the public file-preview API", async () => {

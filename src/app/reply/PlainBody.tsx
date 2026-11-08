@@ -4,9 +4,15 @@ import {
   UrlLink,
   experimental_FileLink as FileLink,
 } from "@get-bb/plugin-sdk/app";
-import { Icon } from "@/components/ui/icon";
 import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
 import { normalizeReplyMarkdown } from "./markdown.ts";
+import {
+  CHECK,
+  Glyph,
+  LABEL_CLASS,
+  MARK_CLASS,
+  MARK_ROW_CLASS,
+} from "../recap/marks.tsx";
 import {
   evidenceFilePath,
   type ReplyEvidence,
@@ -27,12 +33,14 @@ const CHECK_STATUS_LABEL: Record<CheckStatus, string> = {
   blocked: "Blocked",
   untested: "Not tested",
 };
-const CHECK_STATUS_ICON: Record<CheckStatus, string> = {
-  passed: "Check",
-  failed: "X",
-  skipped: "Circle",
-  blocked: "Circle",
-  untested: "Circle",
+// Stroked marks in the recap card's glyph style; each status has its own
+// shape so the list reads without color.
+const CHECK_STATUS_PATH: Record<CheckStatus, string> = {
+  passed: CHECK,
+  failed: "M4.5 4.5 11.5 11.5 M11.5 4.5 4.5 11.5",
+  skipped: "M4.5 8H11.5",
+  blocked: "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9Z M4.8 11.2 11.2 4.8",
+  untested: "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9Z",
 };
 const CHECK_STATUS_TONE: Record<CheckStatus, string> = {
   passed: "text-(--ws-complete-text)",
@@ -42,14 +50,15 @@ const CHECK_STATUS_TONE: Record<CheckStatus, string> = {
   untested: "text-muted-foreground",
 };
 
+/** The leading mark; its label is announced but shown only beside the name. */
 function CheckStatusMark({ status }: { status: CheckStatus }) {
   return (
     <span
       data-reply-check-status={status}
-      className={`inline-flex shrink-0 items-center gap-1.5 text-[0.85em] leading-[1.6] ${CHECK_STATUS_TONE[status]}`}
+      className={`flex ${CHECK_STATUS_TONE[status]}`}
     >
-      <Icon name={CHECK_STATUS_ICON[status]} aria-hidden className="size-3" />
-      {CHECK_STATUS_LABEL[status]}
+      <Glyph path={CHECK_STATUS_PATH[status]} className={MARK_CLASS} />
+      <span className="sr-only">{CHECK_STATUS_LABEL[status]}</span>
     </span>
   );
 }
@@ -185,45 +194,37 @@ export function PlainBody({
       const notes: [string, string][] = [];
       if (part.unchanged) notes.push(["Unchanged", part.unchanged]);
       if (part.limitation) notes.push(["Limitation", part.limitation]);
-      return (
+      const row = ([label, value]: [string, string]) => (
         <div
-          data-reply-change=""
-          className="@container/change min-w-0 space-y-3"
+          key={label}
+          data-reply-change-row={label.toLowerCase()}
+          className="col-span-full grid grid-cols-subgrid gap-y-0.5 py-2 @max-[24rem]/change:grid-cols-1"
         >
-          {title(part.title)}
-          <div
-            data-reply-change-pair=""
-            className="grid min-w-0 grid-cols-1 divide-y divide-border border-y border-border @min-[32rem]/change:grid-cols-2 @min-[32rem]/change:divide-x @min-[32rem]/change:divide-y-0"
+          <dt
+            className={`${LABEL_CLASS} whitespace-nowrap text-muted-foreground`}
           >
-            {(
-              [
-                ["Before", part.before],
-                ["After", part.after],
-              ] as const
-            ).map(([label, value]) => (
-              <div key={label} className="min-w-0 px-3 py-3">
-                <p className="mb-1.5 mt-0 text-[0.8em] font-medium text-muted-foreground">
-                  {label}
-                </p>
-                <div className="[&>p:first-child]:mt-0 [&>p:last-child]:mb-0">
-                  {md(value)}
-                </div>
-              </div>
-            ))}
-          </div>
-          {notes.length ? (
-            <dl className="m-0 divide-y divide-border text-[0.9em]">
-              {notes.map(([label, value]) => (
-                <div
-                  key={label}
-                  className="grid min-w-0 gap-1 py-2.5 @min-[24rem]/change:grid-cols-[5rem_minmax(0,1fr)] @min-[24rem]/change:gap-3"
-                >
-                  <dt className="text-muted-foreground">{label}</dt>
-                  <dd className="m-0 min-w-0">{md(value)}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
+            {label}
+          </dt>
+          <dd className="m-0 min-w-0 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0">
+            {md(value)}
+          </dd>
+        </div>
+      );
+      return (
+        <div data-reply-change="" className="@container/change min-w-0">
+          {title(part.title)}
+          {/* The recap card's label gutter, widened to fit its longest label
+              and shared by every row; labels stack above values when narrow. */}
+          <dl className="m-0 grid grid-cols-[minmax(3.25rem,max-content)_minmax(0,1fr)] gap-x-3 divide-y divide-border @max-[24rem]/change:grid-cols-1">
+            <div
+              data-reply-change-pair=""
+              className="col-span-full grid grid-cols-subgrid divide-y divide-border"
+            >
+              {row(["Before", part.before])}
+              {row(["After", part.after])}
+            </div>
+            {notes.map(row)}
+          </dl>
         </div>
       );
     }
@@ -236,66 +237,64 @@ export function PlainBody({
           ] as const)
         : [];
       return (
-        <div data-reply-checks="" className="min-w-0 space-y-3">
-          <div className="space-y-1">
-            {title(part.title)}
-            <div className="text-[0.85em] leading-[1.7] text-muted-foreground">
-              {md(part.scope)}
-            </div>
+        <div data-reply-checks="" className="min-w-0">
+          {title(part.title)}
+          <div className="text-[0.85em] text-muted-foreground [&_p]:my-0">
+            {md(part.scope)}
           </div>
           {totals.length ? (
             <ul
               aria-label="Reported test totals"
-              className="m-0 flex list-none flex-wrap gap-x-5 gap-y-2 p-0"
+              className="m-0 mt-1 flex list-none flex-wrap gap-x-3 p-0 text-[0.85em] text-muted-foreground"
             >
               {totals.map(([status, count]) => (
-                <li
-                  key={status}
-                  data-reply-test-total={status}
-                  className="flex items-baseline gap-1.5"
-                >
+                <li key={status} data-reply-test-total={status}>
                   <span
-                    className={`text-[1.35em] font-medium tabular-nums leading-[1.2] ${
-                      count === 0
-                        ? "text-muted-foreground"
-                        : status === "passed"
-                          ? "text-(--ws-complete-text)"
-                          : status === "failed"
-                            ? "text-(--ws-failure-text)"
-                            : "text-muted-foreground"
+                    className={`font-medium tabular-nums ${
+                      count > 0 && status === "passed"
+                        ? "text-(--ws-complete-text)"
+                        : count > 0 && status === "failed"
+                          ? "text-(--ws-failure-text)"
+                          : "text-foreground"
                     }`}
                   >
                     {count.toLocaleString()}
-                  </span>
-                  <span className="text-[0.8em] text-muted-foreground">
-                    {status}
-                  </span>
+                  </span>{" "}
+                  {status}
                 </li>
               ))}
             </ul>
           ) : null}
           <ul
             data-reply-check-items=""
-            className="m-0 list-none divide-y divide-border p-0"
+            className="m-0 mt-3 list-none space-y-1.5 p-0"
           >
             {part.items.map((item, i) => (
               <li
                 key={i}
                 data-reply-check-item={item.status}
-                className="min-w-0 space-y-1.5 py-3 first:pt-0"
+                className={MARK_ROW_CLASS}
               >
-                <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                  <div className="min-w-0 font-medium [&_p]:m-0">
+                <CheckStatusMark status={item.status} />
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 [&_p]:m-0">
                     {md(item.name)}
+                    {item.status === "passed" ? null : (
+                      <span
+                        aria-hidden="true"
+                        className={`${LABEL_CLASS} pt-0 ${CHECK_STATUS_TONE[item.status]}`}
+                      >
+                        {CHECK_STATUS_LABEL[item.status]}
+                      </span>
+                    )}
                   </div>
-                  <CheckStatusMark status={item.status} />
+                  {item.detail ? (
+                    <div className="mt-0.5 text-muted-foreground [&_p]:my-0">
+                      {md(item.detail)}
+                    </div>
+                  ) : null}
+                  {item.evidence?.length ? evidence(item.evidence) : null}
                 </div>
-                {item.detail ? (
-                  <div className="text-[0.9em] text-muted-foreground [&_p]:my-1">
-                    {md(item.detail)}
-                  </div>
-                ) : null}
-                {item.evidence?.length ? evidence(item.evidence) : null}
               </li>
             ))}
           </ul>

@@ -53,6 +53,15 @@ import { useContinuing } from "./useContinuing.ts";
 import { ActivityThreadLink } from "../page/ActivityThreadLink.tsx";
 import type { HeldSpace } from "./recapMotion.ts";
 import { Hint } from "../Hint.tsx";
+import {
+  CHECK,
+  Glyph,
+  LABEL_CLASS,
+  LABEL_GUTTER_CLASS,
+  MARK_CLASS,
+  MARK_ROW_CLASS,
+  PHONE_SECONDARY,
+} from "../recap/marks.tsx";
 import { usePortalScopeProps } from "@/lib/portal-scope";
 
 const CARD_CLASS =
@@ -102,7 +111,6 @@ function cardClass(state: Recap["state"], layout: RecapLayout) {
 // under the timeline's body text, so there the primary text is `text-base`
 // (the timeline's size) and the secondary text `text-xs`.
 const PHONE_PRIMARY = "max-md:pointer-coarse:text-base";
-const PHONE_SECONDARY = "max-md:pointer-coarse:text-xs";
 
 // What happened is the card's primary text.
 const BODY_CLASS = `text-[clamp(0.625rem,calc(0.4375rem+0.9375cqi),0.8125rem)] leading-[1.5] ${PHONE_PRIMARY} [text-wrap:pretty]`;
@@ -244,35 +252,7 @@ export function RecapText({
 }
 
 // Labels sit in a gutter beside their row, and above it on narrow cards.
-const ROW_CLASS =
-  "grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3 gap-y-0.5 py-2 @max-[24rem]/recap:grid-cols-1";
-export const LABEL_CLASS = `pt-px text-[11px] font-medium leading-[1.6] ${PHONE_SECONDARY}`;
-
-function Glyph({
-  path,
-  className,
-  filled = false,
-}: {
-  path: string;
-  className: string;
-  filled?: boolean;
-}) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 16 16"
-      className={className}
-      fill={filled ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d={path} />
-    </svg>
-  );
-}
-export const CHECK = "M3.5 8.5 6.5 11.5 12.5 4.5";
+const ROW_CLASS = `${LABEL_GUTTER_CLASS} py-2 @max-[24rem]/recap:grid-cols-1`;
 
 function useWaitingCountdown(recap: Recap, cancelled: boolean) {
   const [now, setNow] = useState(Date.now);
@@ -691,15 +671,12 @@ function Results({
         <li
           key={index}
           data-progress={item.path === ACTIVE ? "active" : "done"}
-          className={`grid grid-cols-[14px_minmax(0,1fr)] gap-x-1.5 max-md:pointer-coarse:grid-cols-[1.125rem_minmax(0,1fr)] ${body} text-foreground`}
+          className={`${MARK_ROW_CLASS} ${body} text-foreground`}
         >
           <Glyph
             path={item.path}
             filled={item.path === ACTIVE}
-            className={cn(
-              "mt-[0.2em] h-3.5 w-3.5 max-md:pointer-coarse:h-4 max-md:pointer-coarse:w-4",
-              accent,
-            )}
+            className={cn(MARK_CLASS, accent)}
           />
           <span className="sr-only">{item.label}: </span>
           <ItemText item={item.item} />
@@ -734,10 +711,7 @@ function Steps({ items }: { items: RecapItem[] }) {
   return (
     <ol className="m-0 list-none space-y-0.5 p-0">
       {items.map((item, index) => (
-        <li
-          key={index}
-          className={`grid grid-cols-[14px_minmax(0,1fr)] gap-x-1.5 max-md:pointer-coarse:grid-cols-[1.125rem_minmax(0,1fr)] ${body} text-foreground`}
-        >
+        <li key={index} className={`${MARK_ROW_CLASS} ${body} text-foreground`}>
           <span
             aria-hidden="true"
             className="text-[0.85em] font-medium tabular-nums text-foreground/60"
