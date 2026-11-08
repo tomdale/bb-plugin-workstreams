@@ -66,6 +66,7 @@ export async function mount(
     analysis?: Record<string, unknown>;
     recaps?: Record<string, unknown>;
     lastPopulatedAt?: Record<string, number>;
+    pendingSuggestions?: number;
     assignmentError?: string;
     moveWait?: Promise<void>;
     order?: {
@@ -196,6 +197,7 @@ export async function mount(
       state: () => ({
         ...emptyState(),
         analysis: options.analysis ?? {},
+        pendingSuggestions: options.pendingSuggestions ?? 0,
         recaps: options.recaps ?? {},
         lastPopulatedAt,
         order: {
