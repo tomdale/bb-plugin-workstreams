@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
-import { holdSpace } from "../../src/app/composer/recapMotion.ts";
+import {
+  animateCardIn,
+  followResizes,
+  growSlot,
+  holdSpace,
+} from "../../src/app/composer/recapMotion.ts";
 
 afterEach(() => {
   document.body.innerHTML = "";
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 /**
@@ -82,6 +88,140 @@ function scroller(options: {
     },
   };
 }
+
+function animationHarness(element: HTMLElement) {
+  const animations: {
+    finished: Promise<void>;
+    cancel: ReturnType<typeof vi.fn>;
+    onfinish: (() => void) | null;
+    finish(): void;
+  }[] = [];
+  const animate = vi.fn(
+    (_keyframes: Keyframe[], _options?: KeyframeAnimationOptions) => {
+      let resolve!: () => void;
+      let reject!: () => void;
+      const finished = new Promise<void>((yes, no) => {
+        resolve = yes;
+        reject = () => no(new Error("cancelled"));
+      });
+      const animation = {
+        finished,
+        cancel: vi.fn(reject),
+        onfinish: null as (() => void) | null,
+        finish() {
+          resolve();
+          animation.onfinish?.();
+        },
+      };
+      // followResizes consumes onfinish, while run consumes finished.
+      void finished.catch(() => {});
+      animations.push(animation);
+      return animation as unknown as Animation;
+    },
+  );
+  Object.defineProperty(element, "animate", {
+    configurable: true,
+    value: animate,
+  });
+  return { animations, animate };
+}
+
+it.each([false, true])(
+  "settles slot/card entrance after cancellation=%s",
+  async (cancel) => {
+    const slot = document.createElement("div");
+    const card = document.createElement("div");
+    vi.spyOn(slot, "getBoundingClientRect").mockReturnValue({
+      height: 180,
+    } as DOMRect);
+    const growAnimations = animationHarness(slot);
+    const cardAnimations = animationHarness(card);
+    const grow = growSlot(slot, 75);
+    const enter = animateCardIn(card);
+    expect(growAnimations.animate.mock.calls[0]![0]).toEqual([
+      { height: "75px", overflow: "hidden" },
+      { height: "180px", overflow: "hidden" },
+    ]);
+    if (cancel) {
+      grow.cancel();
+      enter.cancel();
+    } else {
+      growAnimations.animations[0]!.finish();
+      cardAnimations.animations[0]!.finish();
+    }
+    await Promise.all([grow.finished, enter.finished]);
+    expect(growAnimations.animations[0]!.cancel).toHaveBeenCalledTimes(
+      cancel ? 1 : 0,
+    );
+  },
+);
+
+it("keeps reduced-motion entrance opacity-only and skips slot growth", async () => {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({ matches: true })),
+  );
+  const slot = document.createElement("div");
+  const card = document.createElement("div");
+  vi.spyOn(slot, "getBoundingClientRect").mockReturnValue({
+    height: 180,
+  } as DOMRect);
+  const growAnimations = animationHarness(slot);
+  const cardAnimations = animationHarness(card);
+  await growSlot(slot).finished;
+  expect(growAnimations.animate).not.toHaveBeenCalled();
+  const enter = animateCardIn(card);
+  expect(cardAnimations.animate.mock.calls[0]![0]).toEqual([
+    { opacity: 0 },
+    { opacity: 1 },
+  ]);
+  cardAnimations.animations[0]!.finish();
+  await enter.finished;
+});
+
+it("follows content wrapping, snaps on width changes, and cancels on cleanup", () => {
+  let callback!: ResizeObserverCallback;
+  const disconnect = vi.fn();
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(next: ResizeObserverCallback) {
+        callback = next;
+      }
+      observe() {}
+      disconnect = disconnect;
+    },
+  );
+  const frame = document.createElement("div");
+  const body = document.createElement("div");
+  let height = 100;
+  let width = 600;
+  vi.spyOn(body, "getBoundingClientRect").mockImplementation(
+    () => ({ width, height }) as DOMRect,
+  );
+  vi.spyOn(frame, "getBoundingClientRect").mockImplementation(
+    () => ({ height: height + 20 }) as DOMRect,
+  );
+  const animations = animationHarness(frame);
+  const dispose = followResizes(frame, body);
+  const deliver = () => callback([], {} as ResizeObserver);
+  deliver();
+  expect(animations.animate).not.toHaveBeenCalled();
+  height = 160;
+  deliver();
+  expect(animations.animate).toHaveBeenCalledOnce();
+  width = 400;
+  height = 220;
+  deliver();
+  expect(animations.animate).toHaveBeenCalledOnce();
+  expect(animations.animations[0]!.cancel).toHaveBeenCalledOnce();
+  height = 260;
+  deliver();
+  expect(animations.animate).toHaveBeenCalledTimes(2);
+  dispose();
+  expect(disconnect).toHaveBeenCalledOnce();
+  expect(animations.animations[1]!.cancel).toHaveBeenCalledOnce();
+});
 
 it("trades held space for timeline growth until it is used up", () => {
   const dom = scroller({ timeline: 1000, slot: 120, viewport: 600 });

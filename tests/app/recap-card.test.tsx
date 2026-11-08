@@ -1315,6 +1315,172 @@ it("holds the card's space the moment sending hides it", async () => {
   );
 });
 
+it.each([false, true])(
+  "holds the cached slot height with observer delivered=%s",
+  async (delivered) => {
+    const observers: {
+      callback: ResizeObserverCallback;
+      target?: Element;
+      disconnected: boolean;
+    }[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        state: (typeof observers)[number];
+        constructor(callback: ResizeObserverCallback) {
+          this.state = { callback, disconnected: false };
+          observers.push(this.state);
+        }
+        observe(target: Element) {
+          this.state.target = target;
+        }
+        disconnect() {
+          this.state.disconnected = true;
+        }
+      },
+    );
+    const slotReads: HTMLElement[] = [];
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        if (this.classList.contains("flow-root")) slotReads.push(this);
+        return {
+          height: this.classList.contains("flow-root") ? 120 : 0,
+        } as DOMRect;
+      },
+    );
+    const slot = await mount();
+    const card = await slot.findByRole("region", { name: "Latest recap" });
+    const shown = card.parentElement!;
+    expect(slotReads).toHaveLength(0);
+    const observer = observers.find((item) => item.target === shown)!;
+    expect(observer).toBeTruthy();
+    if (delivered)
+      observer.callback(
+        [
+          {
+            target: shown,
+            borderBoxSize: [{ blockSize: 182.5 }],
+          } as unknown as ResizeObserverEntry,
+        ],
+        {} as ResizeObserver,
+      );
+    await slot.setComposerText("Draft keeps the recap visible");
+    expect(slot.getByRole("region", { name: "Latest recap" })).toBe(card);
+    expect(slotReads).toHaveLength(0);
+    const heights: string[] = [];
+    const mutations = new MutationObserver(() => {
+      const held = slot.container.querySelector<HTMLElement>(
+        "[aria-hidden='true'].flow-root",
+      );
+      if (held) heights.push(held.style.height);
+    });
+    mutations.observe(slot.container, { childList: true, subtree: true });
+    interactionOverride.value = true;
+    await slot.setComposerText("Question owns the ending");
+    mutations.disconnect();
+    expect(heights[0]).toBe(delivered ? "182.5px" : "120px");
+    expect(slotReads).toHaveLength(delivered ? 0 : 1);
+    expect(observer.disconnected).toBe(true);
+    interactionOverride.value = false;
+    await slot.setComposerText("Draft retained after question");
+    expect(
+      await slot.findByRole("region", { name: "Latest recap" }),
+    ).toBeTruthy();
+  },
+);
+
+it.each([false, true])(
+  "settles a returning card entrance with unmount=%s",
+  async (unmount) => {
+    const original = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "animate",
+    );
+    const animations: {
+      element: HTMLElement;
+      finish(): void;
+      cancel: ReturnType<typeof vi.fn>;
+    }[] = [];
+    Object.defineProperty(HTMLElement.prototype, "animate", {
+      configurable: true,
+      value: function (this: HTMLElement) {
+        let finish!: () => void;
+        let reject!: (reason: Error) => void;
+        const finished = new Promise<void>((yes, no) => {
+          finish = yes;
+          reject = no;
+        });
+        const animation = {
+          element: this,
+          finish,
+          finished,
+          cancel: vi.fn(() => reject(new Error("cancelled"))),
+        };
+        animations.push(animation);
+        return animation;
+      },
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        return {
+          height: this.classList.contains("relative") ? 60 : 120,
+        } as DOMRect;
+      },
+    );
+    try {
+      const slot = await mount();
+      await slot.findByRole("region", { name: "Latest recap" });
+      interactionOverride.value = true;
+      await slot.setComposerText("Question opens");
+      const exit = animations[0]!;
+      interactionOverride.value = false;
+      await slot.setComposerText("Question clears");
+      expect(exit.cancel).toHaveBeenCalledOnce();
+      const returning = animations.slice(1);
+      expect(returning).toHaveLength(2);
+      expect(
+        returning.some((animation) =>
+          animation.element.classList.contains("flow-root"),
+        ),
+      ).toBe(true);
+      expect(
+        returning.some(
+          (animation) =>
+            animation.element.getAttribute("aria-label") === "Latest recap",
+        ),
+      ).toBe(true);
+      if (unmount) {
+        slot.lifecycle.unmount();
+        expect(
+          returning.every(
+            (animation) => animation.cancel.mock.calls.length === 1,
+          ),
+        ).toBe(true);
+        await act(async () => {});
+      } else {
+        await act(async () => returning[0]!.finish());
+        expect(
+          returning.every(
+            (animation) => animation.cancel.mock.calls.length === 0,
+          ),
+        ).toBe(true);
+        await act(async () => returning[1]!.finish());
+        expect(
+          returning.every(
+            (animation) => animation.cancel.mock.calls.length === 1,
+          ),
+        ).toBe(true);
+        expect(slot.getByRole("region", { name: "Latest recap" })).toBeTruthy();
+        slot.lifecycle.unmount();
+      }
+    } finally {
+      if (original)
+        Object.defineProperty(HTMLElement.prototype, "animate", original);
+      else delete (HTMLElement.prototype as Partial<HTMLElement>).animate;
+    }
+  },
+);
+
 it("renders commit hashes and thread mentions as chips", async () => {
   const slot = await mount({
     recap: { latest: ["Pushed cef48186269c for @thread:other"] },

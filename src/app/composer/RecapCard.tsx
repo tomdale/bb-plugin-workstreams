@@ -51,6 +51,7 @@ import {
   followResizes,
   growSlot,
   holdSpace,
+  observeSlotHeight,
 } from "./recapMotion.ts";
 import { useContinuing } from "./useContinuing.ts";
 import { ActivityThreadLink } from "../page/ActivityThreadLink.tsx";
@@ -1616,7 +1617,7 @@ export function RecapCard() {
   const ghostRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const shownHeight = useRef(0);
+  const shownHeight = useRef<ReturnType<typeof observeSlotHeight> | null>(null);
   const lastFrame = useRef<CardProps | null>(null);
   const [inlineEditor, setInlineEditor] = useState(false);
   const [shown, setShown] = useState(false);
@@ -1679,12 +1680,15 @@ export function RecapCard() {
     }
   } else if (shown) {
     setShown(false);
-    if (!inlineEditor && lastFrame.current && shownHeight.current > 0)
-      setHold({
-        id: ++holdCount,
-        height: shownHeight.current,
-        ghost: lastFrame.current,
-      });
+    if (!inlineEditor && lastFrame.current) {
+      const height = shownHeight.current?.height() ?? 0;
+      if (height > 0)
+        setHold({
+          id: ++holdCount,
+          height,
+          ghost: lastFrame.current,
+        });
+    }
   }
 
   useHold(hold, slotRef, ghostRef, setHold);
@@ -1697,14 +1701,12 @@ export function RecapCard() {
   useLayoutEffect(() => {
     const slot = slotRef.current;
     if (!shown || !slot) return;
-    const measure = () => {
-      shownHeight.current = slot.getBoundingClientRect().height;
+    const measurement = observeSlotHeight(slot);
+    shownHeight.current = measurement;
+    return () => {
+      measurement.dispose();
+      shownHeight.current = null;
     };
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(slot);
-    return () => observer.disconnect();
   }, [shown]);
 
   useLayoutEffect(() => {

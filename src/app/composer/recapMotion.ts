@@ -11,6 +11,36 @@
  * the slot is used up, the host's usual pinned scrolling takes over.
  */
 
+/**
+ * Caches the flow-root slot's height without forcing layout at mount or in
+ * observer delivery. A hide before the first delivery still needs the live
+ * height, as does a browser without ResizeObserver. The slot has no border
+ * or padding, so contentRect is also its border-box height.
+ */
+export function observeSlotHeight(slot: HTMLElement) {
+  let height: number | null = null;
+  let live = true;
+  const observer =
+    typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver((entries) => {
+          if (!live) return;
+          for (const entry of entries) {
+            if (entry.target === slot)
+              height =
+                entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
+          }
+        });
+  observer?.observe(slot, { box: "border-box" });
+  return {
+    height: () => height ?? slot.getBoundingClientRect().height,
+    dispose() {
+      live = false;
+      observer?.disconnect();
+    },
+  };
+}
+
 const EXIT_MS = 420;
 const ENTER_MS = 360;
 const RESIZE_MS = 380;
