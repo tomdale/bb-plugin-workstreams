@@ -594,8 +594,6 @@ body[data-embedded="true"] .playground {
   white-space: nowrap;
 }
 .prefix {
-  color: var(--muted);
-  opacity: 0.6;
   font-size: var(--font-prefix-size);
   font-weight: var(--font-prefix-weight);
   line-height: var(--font-prefix-line);
@@ -754,7 +752,6 @@ body[data-embedded="true"] .playground {
   line-height: var(--font-category-line);
   letter-spacing: var(--font-category-spacing);
   margin: var(--cat-gap) 0 var(--cat-after) var(--cat-offset);
-  color: color-mix(in oklab, var(--color) var(--mix), var(--muted));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1360,8 +1357,16 @@ body[data-embedded="true"] .playground {
 }
 
 .name > span,
-.accent,
-.row .ws-row > span:has(.ws-text-thread) {
+.accent {
   font: inherit;
   letter-spacing: inherit;
+}
+.row .ws-row > span:has(.ws-text-thread) {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+}
+.row[data-custom-weight="true"] .ws-row > span:has(.ws-text-thread) {
+  font-weight: inherit;
 }

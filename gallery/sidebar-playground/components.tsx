@@ -1,4 +1,9 @@
-import { createElement, type ReactNode } from "react";
+import {
+  createContext,
+  createElement,
+  useContext,
+  type ReactNode,
+} from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
@@ -6,6 +11,17 @@ import { Row } from "../../src/app/sidebar/Row.tsx";
 import { WorkstreamName } from "../../src/app/WorkstreamName.tsx";
 import type { WorkView } from "../../src/domain/status.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
+import { DEFAULT_SPINNER } from "../../src/domain/spinner.ts";
+import {
+  DEFAULT_SNOOZE_PREFS,
+  defaultPreset,
+  describeWake,
+  presetWhen,
+} from "../../src/domain/snooze.ts";
+import {
+  SnoozeMenuItems,
+  plainMenuKit,
+} from "../../src/app/snooze/SnoozeMenuItems.tsx";
 import { installGalleryHost } from "../host.tsx";
 import "../base.css";
 import "./style.css";
@@ -16,20 +32,42 @@ const runtime = (
     __bbPluginRuntime: { pluginSdkApp: Record<string, unknown> };
   }
 ).__bbPluginRuntime.pluginSdkApp;
-const rpc = {
+const LegacyPreview = createContext(false);
+const sdk = {};
+const legacySdk = {};
+const rpc = (legacy: boolean) => ({
   call: async (method: string) => {
     if (method === "prefs")
-      return { prefs: parsePrefs({ sidebar: { timestamps: "hide" } }) };
+      return {
+        prefs: parsePrefs(legacy ? { sidebar: { timestamps: "hide" } } : {}),
+      };
     if (method === "spinner")
-      return { spinner: { shape: "dots", primary: "text", secondary: "auto" } };
+      return {
+        spinner: legacy
+          ? { shape: "dots", primary: "text", secondary: "auto" }
+          : DEFAULT_SPINNER,
+      };
     throw new Error(`Sidebar playground has no RPC method: ${method}`);
   },
-};
+});
+const currentRpc = rpc(false);
+const legacyRpc = rpc(true);
+function previewAction(action: string, title: string) {
+  const message = document.getElementById("previewAction");
+  if (message) {
+    message.hidden = false;
+    message.textContent = `Preview only: ${action} ${title}`;
+  }
+}
 Object.assign(runtime, {
-  useRpc: () => rpc,
+  useSdk: () => (useContext(LegacyPreview) ? legacySdk : sdk),
+  useRpc: () => (useContext(LegacyPreview) ? legacyRpc : currentRpc),
   ThreadTitle: ({ threadId }: { threadId: string }) =>
     createElement("span", null, threadId),
-  experimental_useSidebarThreadActions: () => ({ open() {}, archive() {} }),
+  experimental_useSidebarThreadActions: () => ({
+    open: (title: string) => previewAction("open", title),
+    archive: (title: string) => previewAction("archive", title),
+  }),
   experimental_useSidebarThreadSplit: () => ({ splitProps: {} }),
   useSidebarThreadDraft: () => ({ hasUnsubmittedDraft: false }),
   useSidebarThreadRowStatus: () => null,
@@ -42,7 +80,12 @@ export function clearComponents(panel: string) {
   for (const root of roots.get(panel) ?? []) root.unmount();
   roots.set(panel, []);
 }
-function mount(panel: string, target: HTMLElement, node: ReactNode) {
+function mount(
+  panel: string,
+  target: HTMLElement,
+  node: ReactNode,
+  legacy = false,
+) {
   const root = createRoot(target);
   let panelRoots = roots.get(panel);
   if (!panelRoots) {
@@ -50,7 +93,9 @@ function mount(panel: string, target: HTMLElement, node: ReactNode) {
     roots.set(panel, panelRoots);
   }
   panelRoots.push(root);
-  flushSync(() => root.render(node));
+  flushSync(() =>
+    root.render(createElement(LegacyPreview.Provider, { value: legacy }, node)),
+  );
 }
 
 export function mountThread(
@@ -61,6 +106,7 @@ export function mountThread(
     kind: string;
     depth: number;
     categorized: boolean;
+    legacy?: boolean;
     expanded?: boolean;
     toggle?: () => void;
   },
@@ -91,7 +137,7 @@ export function mountThread(
     indicator,
     indicatorLabel: null,
     hasPendingInteraction: false,
-    isUnread: false,
+    isUnread: options.kind === "unread" && !options.legacy,
     isPinned: false,
     latestAttentionAt: 0,
   } as PluginSidebarThread;
@@ -110,6 +156,22 @@ export function mountThread(
         },
       }
     : undefined;
+  const now = Date.now();
+  const wake = presetWhen(defaultPreset(DEFAULT_SNOOZE_PREFS), now);
+  const snoozeAction = options.legacy
+    ? undefined
+    : {
+        kind: "snooze" as const,
+        title: `Snooze ${describeWake(wake.until, now, wake.events)}`,
+        run: () => previewAction("snooze", options.title),
+        menu: createElement(SnoozeMenuItems, {
+          now,
+          prefs: DEFAULT_SNOOZE_PREFS,
+          kit: plainMenuKit,
+          onSnooze: () => previewAction("snooze", options.title),
+          onCustom: () => previewAction("custom snooze", options.title),
+        }),
+      };
   mount(
     panel,
     target,
@@ -121,13 +183,14 @@ export function mountThread(
       inGroup: true,
       active: false,
       now: 0,
-      showArchive: false,
-      showPin: false,
+      showArchive: !options.legacy,
+      snoozeAction,
       onNavigate() {},
       disclosure: options.toggle
         ? { expanded: options.expanded ?? true, toggle: options.toggle }
         : undefined,
     }),
+    options.legacy,
   );
 }
 

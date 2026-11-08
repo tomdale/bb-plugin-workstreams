@@ -1,8 +1,16 @@
 import { fileURLToPath } from "node:url";
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect } from "vitest";
 import { browserTest, browserUnavailable } from "./browser-fixture";
+import { SIDEBAR_GEOMETRY } from "../../src/app/sidebar/tokens.ts";
+import { workstreamGap } from "../../src/app/sidebar/workstreamGap.ts";
+import { parsePrefs } from "../../src/domain/prefs.ts";
+import { DEFAULT_SPINNER } from "../../src/domain/spinner.ts";
 
 let server: ChildProcess | undefined;
 let url: string;
@@ -244,6 +252,369 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
   );
 
   browserTest.concurrent(
+    "starts and resets both sidebar previews to the app defaults",
+    async ({ page }) => {
+      const errors: string[] = [];
+      const writes: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      page.on("request", (request) => {
+        if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method()))
+          writes.push(request.url());
+      });
+      await page.goto(`${url}sidebar.html`);
+      await page
+        .locator(`#after .ws-spin-${DEFAULT_SPINNER.shape}`)
+        .first()
+        .waitFor();
+      await page
+        .locator(`#before .ws-spin-${DEFAULT_SPINNER.shape}`)
+        .first()
+        .waitFor();
+      const compare = async () => {
+        const panels = await page.evaluate(() => {
+          const sample = (id: string) => {
+            const root = document.getElementById(id)!;
+            const bounds = root.getBoundingClientRect();
+            return Array.from(
+              root.querySelectorAll(".heading, .cat, .row"),
+            ).map((element) => {
+              const box = element.getBoundingClientRect();
+              const text = element.querySelector(".title, .accent") ?? element;
+              const style = getComputedStyle(text);
+              return {
+                text: text.textContent,
+                top: Math.round((box.top - bounds.top) * 10) / 10,
+                left: Math.round((box.left - bounds.left) * 10) / 10,
+                height: box.height,
+                size: style.fontSize,
+                weight: style.fontWeight,
+                lineHeight: style.lineHeight,
+                color: style.color,
+              };
+            });
+          };
+          return { trial: sample("after"), current: sample("before") };
+        });
+        expect(panels.trial).toEqual(panels.current);
+      };
+      await compare();
+      const timestamp = parsePrefs({}).sidebar.timestamps;
+      const timestamps = page.locator("#after [data-timestamp]");
+      if (timestamp === "hide") expect(await timestamps.count()).toBe(0);
+      else {
+        expect(await timestamps.count()).toBeGreaterThan(0);
+        expect(await timestamps.first().getAttribute("data-timestamp")).toBe(
+          timestamp,
+        );
+      }
+      expect(await page.locator("#after [data-guide]").count()).toBe(0);
+      const firstRow = page.locator("#after .ws-row").first();
+      const rowCount = await page.locator("#after .ws-row").count();
+      await firstRow.hover();
+      await firstRow
+        .getByRole("button", { name: "Archive", exact: true })
+        .click();
+      expect(await page.locator("#previewAction").textContent()).toContain(
+        "Preview only: archive",
+      );
+      expect(await page.locator("#after .ws-row").count()).toBe(rowCount);
+      const snooze = firstRow.getByRole("button", { name: /^Snooze / });
+      await snooze.focus();
+      await page.keyboard.press("ArrowDown");
+      const menu = page.getByRole("menu", { name: /^Snooze / });
+      await menu.waitFor();
+      expect(await menu.getByRole("menuitem").count()).toBeGreaterThan(1);
+      await menu.getByRole("menuitem").first().click();
+      expect(await page.locator("#previewAction").textContent()).toContain(
+        "Preview only: snooze",
+      );
+      expect(await page.locator("#after .ws-row").count()).toBe(rowCount);
+      expect(
+        await page
+          .locator("#after .row:not(.child)")
+          .first()
+          .evaluate((el) => el.getBoundingClientRect().height),
+      ).toBe(SIDEBAR_GEOMETRY.row.rootHeight);
+      expect(
+        await page
+          .locator("#after .row.child")
+          .first()
+          .evaluate((el) => el.getBoundingClientRect().height),
+      ).toBe(SIDEBAR_GEOMETRY.row.childHeight);
+      expect(
+        await page
+          .locator("#after .heading")
+          .first()
+          .evaluate((el) => el.getBoundingClientRect().height),
+      ).toBe(SIDEBAR_GEOMETRY.workstreamHeader.height);
+      expect(
+        await page
+          .locator("#after .cat")
+          .first()
+          .evaluate((el) => el.getBoundingClientRect().height),
+      ).toBe(SIDEBAR_GEOMETRY.category.height);
+      const lineHeight = await page.evaluate(() => {
+        const row = document.querySelector("#after .row.child .ws-row")!;
+        const reference = row.cloneNode(true) as HTMLElement;
+        document.getElementById("after")!.append(reference);
+        const trial = parseFloat(
+          getComputedStyle(row.querySelector(".ws-text-thread")!).lineHeight,
+        );
+        const app = parseFloat(
+          getComputedStyle(reference.querySelector(".ws-text-thread")!)
+            .lineHeight,
+        );
+        reference.remove();
+        return { trial, app };
+      });
+      expect(Math.abs(lineHeight.trial - lineHeight.app)).toBeLessThan(0.05);
+      const unreadWeight = await page.evaluate(() => {
+        const row = document.querySelector(
+          "#after .row:has(.ws-mark-unread) .ws-row",
+        )!;
+        const reference = row.cloneNode(true) as HTMLElement;
+        document.getElementById("after")!.append(reference);
+        const trial = getComputedStyle(
+          row.querySelector(".ws-text-thread")!,
+        ).fontWeight;
+        const app = getComputedStyle(
+          reference.querySelector(".ws-text-thread")!,
+        ).fontWeight;
+        reference.remove();
+        return { trial, app };
+      });
+      expect(unreadWeight.trial).toBe(unreadWeight.app);
+      const tokenUrl = `/@fs${fileURLToPath(new URL("../../src/app/sidebar/tokens.ts", import.meta.url)).replaceAll("\\", "/")}`;
+      const adaptive = await page.evaluate(
+        (tokenPath) =>
+          new Promise((resolve, reject) => {
+            const extraStyle = document.createElement("style");
+            extraStyle.textContent =
+              ".ws-text-workstream { font-size: 14px } .ws-text-category { font-size: 15px }";
+            document.head.append(extraStyle);
+            const script = document.createElement("script");
+            script.type = "module";
+            const timer = setTimeout(
+              () => reject(new Error("Defaults probe did not run")),
+              10_000,
+            );
+            document.addEventListener(
+              "defaults-probe",
+              (event) => {
+                clearTimeout(timer);
+                script.remove();
+                extraStyle.remove();
+                resolve((event as CustomEvent).detail);
+              },
+              { once: true },
+            );
+            script.textContent = `
+          import { SIDEBAR_GEOMETRY as geometry } from ${JSON.stringify(tokenPath)};
+          import { appSidebarDefaults } from "/sidebar-playground/appDefaults.ts";
+          const oldHeight = geometry.row.rootHeight;
+          try {
+            geometry.row.rootHeight = 27;
+            const values = appSidebarDefaults();
+            document.dispatchEvent(new CustomEvent("defaults-probe", { detail: {
+              height: values.rowHeight,
+              workstreamSize: values.font_workstream_size,
+              categorySize: values.font_category_size,
+            }}));
+          } finally { geometry.row.rootHeight = oldHeight; }
+        `;
+            document.head.append(script);
+          }),
+        tokenUrl,
+      );
+      expect(adaptive).toEqual({
+        height: "27",
+        workstreamSize: "14",
+        categorySize: "15",
+      });
+      const gaps = async () =>
+        page.locator("#after .tier > .family").evaluateAll((families) =>
+          families.map((family) => ({
+            name: family.querySelector(".heading")!.getAttribute("aria-label")!,
+            collapsed:
+              family
+                .querySelector(".heading")!
+                .getAttribute("aria-expanded") === "false",
+            gap: parseFloat(getComputedStyle(family).marginTop),
+          })),
+        );
+      const checkGaps = async () => {
+        const groups = await gaps();
+        for (let i = 0; i < groups.length; i++) {
+          const current = groups[i]!;
+          const prev = groups[i - 1];
+          expect(current.gap).toBe(
+            workstreamGap(
+              prev ? { id: prev.name, name: prev.name } : null,
+              { id: current.name, name: current.name },
+              prev?.collapsed ?? false,
+            ),
+          );
+        }
+      };
+      await checkGaps();
+      for (const id of ["after", "before"])
+        await page.locator(`#${id} .heading`).first().click();
+      await compare();
+      await checkGaps();
+      await page
+        .getByRole("button", { name: "Workstreams", exact: true })
+        .click();
+      await page.getByText("Group spacing · shared", { exact: true }).click();
+      await page.locator("#itemGap").fill("16");
+      expect(await page.locator("#itemGap").inputValue()).toBe("16");
+      await page.getByRole("button", { name: "Reset all" }).click();
+      expect(await page.locator("#itemGap").inputValue()).toBe(
+        String(SIDEBAR_GEOMETRY.gaps.item),
+      );
+      await compare();
+      await page
+        .getByLabel("View: Example order", { exact: true })
+        .selectOption("manual");
+      expect(
+        await page
+          .locator("#after .heading")
+          .first()
+          .getAttribute("aria-label"),
+      ).toBe("Studio: App");
+      await compare();
+      expect(errors).toEqual([]);
+      expect(writes).toEqual([]);
+    },
+    60_000,
+  );
+
+  browserTest.concurrent(
+    "uses the app defaults in the built gallery as well as the dev server",
+    async ({ page }) => {
+      const root = fileURLToPath(new URL("../../", import.meta.url));
+      const output = mkdtempSync(join(tmpdir(), "workstreams-gallery-"));
+      let preview: ChildProcess | undefined;
+      try {
+        const vite = `${root}node_modules/vite/bin/vite.js`;
+        const config = `${root}gallery/vite.config.ts`;
+        await promisify(execFile)(
+          process.execPath,
+          [vite, "build", "--config", config, "--outDir", output],
+          { cwd: root, env: { ...process.env, NO_COLOR: "1" } },
+        );
+        preview = spawn(
+          process.execPath,
+          [
+            vite,
+            "preview",
+            "--config",
+            config,
+            "--outDir",
+            output,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "0",
+          ],
+          {
+            cwd: root,
+            env: { ...process.env, NO_COLOR: "1" },
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+        const address = await new Promise<string>((resolve, reject) => {
+          let text = "";
+          const timer = setTimeout(
+            () => reject(new Error(`Gallery preview did not start: ${text}`)),
+            30_000,
+          );
+          const read = (chunk: Buffer) => {
+            text += chunk.toString();
+            const match = text.match(/http:\/\/127\.0\.0\.1:\d+\//);
+            if (match) {
+              clearTimeout(timer);
+              resolve(match[0]);
+            }
+          };
+          preview!.stdout!.on("data", read);
+          preview!.stderr!.on("data", read);
+          preview!.once("error", (error) => {
+            clearTimeout(timer);
+            reject(error);
+          });
+          preview!.once("exit", (code) => {
+            clearTimeout(timer);
+            reject(new Error(`Gallery preview exited (${code}): ${text}`));
+          });
+        });
+        const errors: string[] = [];
+        page.on("pageerror", (error) => errors.push(error.message));
+        await page.goto(`${address}sidebar.html`);
+        await page.locator("#after .ws-row").first().waitFor();
+        expect(await page.locator("#rowHeight").inputValue()).toBe(
+          String(SIDEBAR_GEOMETRY.row.rootHeight),
+        );
+        expect(await page.locator("#childRowHeight").inputValue()).toBe(
+          String(SIDEBAR_GEOMETRY.row.childHeight),
+        );
+        expect(await page.locator("#font_category_color").inputValue()).toBe(
+          "default",
+        );
+        expect(errors).toEqual([]);
+      } finally {
+        if (preview && preview.exitCode === null) {
+          const exited = once(preview, "exit");
+          preview.kill("SIGTERM");
+          await exited;
+        }
+        rmSync(output, { recursive: true, force: true });
+      }
+    },
+    90_000,
+  );
+
+  browserTest.concurrent(
+    "retains prior Trial settings from saved playground URLs",
+    async ({ page }) => {
+      await page.goto(`${url}sidebar.html#iv=8&preview=trial`);
+      await page.locator("#after .ws-spin-dots").first().waitFor();
+      expect(await page.locator("#rowHeight").inputValue()).toBe("25");
+      expect(await page.locator("#itemGap").inputValue()).toBe("7");
+      expect(await page.locator("#after [data-timestamp]").count()).toBe(0);
+      expect(new URL(page.url()).hash).toContain("legacyPresentation=1");
+      await page.reload();
+      await page.locator("#after .ws-spin-dots").first().waitFor();
+      expect(await page.locator("#rowHeight").inputValue()).toBe("25");
+      await page.getByRole("button", { name: "Reset all" }).click();
+      await page
+        .locator(`#after .ws-spin-${DEFAULT_SPINNER.shape}`)
+        .first()
+        .waitFor();
+      expect(await page.locator("#rowHeight").inputValue()).toBe(
+        String(SIDEBAR_GEOMETRY.row.rootHeight),
+      );
+      const timestamp = parsePrefs({}).sidebar.timestamps;
+      const timestamps = page.locator("#after [data-timestamp]");
+      if (timestamp === "hide") expect(await timestamps.count()).toBe(0);
+      else {
+        expect(await timestamps.count()).toBeGreaterThan(0);
+        expect(await timestamps.first().getAttribute("data-timestamp")).toBe(
+          timestamp,
+        );
+      }
+      expect(new URL(page.url()).hash).toBe("");
+      await page.goto(`${url}sidebar.html#iv=6&preview=trial`);
+      await page.locator("#after .ws-spin-dots").first().waitFor();
+      expect(await page.locator("#rowHeight").inputValue()).toBe("21");
+      await page.goto(`${url}sidebar.html#iv=7&preview=trial`);
+      await page.locator("#after .ws-spin-dots").first().waitFor();
+      expect(await page.locator("#rowHeight").inputValue()).toBe("25");
+      expect(await page.locator("#grouping").inputValue()).toBe("family");
+    },
+    60_000,
+  );
+
+  browserTest.concurrent(
     "uses fixture topic colors and scoped status tokens in both sidebar previews",
     async ({ page }) => {
       const errors: string[] = [];
@@ -273,6 +644,14 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
               ).color,
               expected: resolvedColor(unit, "var(--color)"),
             }));
+            const productionColor = (element: Element, className: string) => {
+              const probe = document.createElement("span");
+              probe.className = className;
+              element.append(probe);
+              const color = getComputedStyle(probe).color;
+              probe.remove();
+              return color;
+            };
             const firstWithPrefix = units.find((unit) =>
               unit.querySelector(".ws-text-prefix"),
             )!;
@@ -314,16 +693,13 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
               },
               prefix: {
                 actual: getComputedStyle(prefix).color,
-                expected: resolvedColor(
-                  firstWithPrefix,
-                  "color-mix(in oklab, var(--color) 60%, black)",
-                ),
+                expected: productionColor(firstWithPrefix, "ws-prefix-name"),
               },
               category: {
                 actual: getComputedStyle(category).color,
-                expected: resolvedColor(
+                expected: productionColor(
                   firstWithCategory,
-                  "color-mix(in oklab, var(--color) 45%, oklch(from var(--color) l 0 h))",
+                  "ws-category-label",
                 ),
               },
               marks,
@@ -350,6 +726,28 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         colorsByTheme[theme] = panels.trial.names[0]!.actual;
       }
       expect(colorsByTheme.Dark).not.toBe(colorsByTheme.Light);
+
+      await page
+        .getByRole("button", { name: "Categories", exact: true })
+        .click();
+      const trialCategory = page.locator("#after .cat").first();
+      const currentCategory = page.locator("#before .cat").first();
+      const originalCategory = await currentCategory.evaluate(
+        (el) => getComputedStyle(el).color,
+      );
+      await page.locator("#mix").fill("60");
+      expect(
+        await trialCategory.evaluate((el) => getComputedStyle(el).color),
+      ).not.toBe(originalCategory);
+      expect(
+        await currentCategory.evaluate((el) => getComputedStyle(el).color),
+      ).toBe(originalCategory);
+      await page.getByRole("button", { name: "Reset all" }).click();
+      expect(
+        await trialCategory.evaluate((el) => getComputedStyle(el).color),
+      ).toBe(
+        await currentCategory.evaluate((el) => getComputedStyle(el).color),
+      );
 
       await page
         .getByRole("button", { name: "Workstreams", exact: true })

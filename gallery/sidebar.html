@@ -126,6 +126,7 @@
               ><select id="sort">
                 <option value="name">Name A–Z</option>
                 <option value="activity">Recent activity</option>
+                <option value="manual">Manual order</option>
               </select>
               <div class="hint">Recent activity interleaves families</div>
             </div>
@@ -679,12 +680,12 @@
             ></textarea>
           </div>
         </section>
+        <p id="previewAction" class="note" role="status" hidden></p>
         <p class="note">
           Sample names and ordering are invented. Click a parent or workstream
           heading to collapse it. Drag a stepper up or down to adjust its value.
-          Trial rows start at 25px; Current uses 21px root rows and 28px child
-          rows. The current and trial panels share the theme, sidebar width,
-          focus and example order; other controls affect the trial. Category
+          <span id="baselineNote"></span> Both panels share the theme, sidebar
+          width, focus and example order; other controls affect Trial. Category
           contrast depends on hue and theme.
         </p>
       </div>

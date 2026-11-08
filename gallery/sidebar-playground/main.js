@@ -3,6 +3,9 @@ import {
   mountThread,
   mountWorkstreamName,
 } from "./components.tsx";
+import { appSidebarDefaults } from "./appDefaults.ts";
+import { compareGroupNames } from "../../src/domain/group-name-order.ts";
+import { workstreamGap } from "../../src/app/sidebar/workstreamGap.ts";
 
 const defaults = {
   grouping: "family",
@@ -165,7 +168,7 @@ const fontFields = [
   },
   { key: "size", name: "Size", min: 8, max: 24, step: 1, unit: "px" },
   { key: "weight", name: "Weight", min: 100, max: 900, step: 50, unit: "" },
-  { key: "line", name: "Line height", min: 90, max: 180, step: 5, unit: "%" },
+  { key: "line", name: "Line height", min: 90, max: 180, step: 0.1, unit: "%" },
   {
     key: "spacing",
     name: "Letter spacing",
@@ -273,6 +276,7 @@ for (const spec of fontSpecs) {
       input.max = String(field.max);
       input.step = String(field.step);
       input.dataset.unit = field.unit;
+      if (field.key === "line") input.dataset.increment = "5";
     }
     input.value = String(value);
     input.setAttribute(
@@ -772,6 +776,7 @@ function presetValues(u) {
   };
 }
 let theme = "dark",
+  legacyPresentation = false,
   showBounds = false,
   inlineWorkstreamInitialized = false,
   collapsedInlineGapInitialized = false,
@@ -966,6 +971,7 @@ for (const [id, source] of [
   linkDefaults[id] = () => false;
 }
 const variantFallback = {};
+const generatedWorkstreamControls = [];
 const newWorkstreamStaging = document.createElement("div");
 newWorkstreamStaging.hidden = true;
 document.body.append(newWorkstreamStaging);
@@ -1004,6 +1010,7 @@ const workstreamRows = {
   },
 };
 function addWorkstreamControl(id, source, linkSource = source, fallback) {
+  generatedWorkstreamControls.push([id, source]);
   const original = $(source),
     control = document.createElement("div"),
     label = document.createElement("label"),
@@ -1097,6 +1104,41 @@ for (const role of [
     addWorkstreamControl(target, source, source, fallback);
   }
 }
+// Versioned URLs omit unchanged values, so keep their original baselines.
+const version6Defaults = { ...currentDefaults };
+const version8Defaults = { ...defaults };
+const appDefaults = appSidebarDefaults();
+Object.assign(currentDefaults, appDefaults);
+for (const [id, source] of generatedWorkstreamControls)
+  currentDefaults[id] = currentDefaults[source];
+// Sidebar width belongs to BB, not the plugin's geometry; both panels share it.
+currentDefaults.width = version8Defaults.width;
+Object.assign(defaults, currentDefaults);
+// Keep production values representable if a future geometry or type token changes.
+for (const [id, value] of Object.entries(appDefaults)) {
+  const input = $(id);
+  if (!input) continue;
+  if (input.tagName === "SELECT") {
+    if (![...input.options].some((option) => option.value === value))
+      input.add(new Option(value, value));
+    continue;
+  }
+  if (!["number", "range"].includes(input.type)) continue;
+  const number = Number(value);
+  if (!Number.isFinite(number)) throw new Error(`Invalid app default: ${id}`);
+  const oldMin = Number(input.min || 0),
+    oldMax = Number(input.max || number),
+    step = Number(input.step || 1);
+  const min = Math.min(oldMin, number);
+  input.min = String(min);
+  input.max = String(Math.max(oldMax, number));
+  const aligned = (n) => Math.abs(n - Math.round(n)) < 1e-7;
+  if (!aligned((number - min) / step) || !aligned((oldMin - min) / step)) {
+    input.dataset.increment ||= String(step);
+    input.step = "0.0001";
+  }
+}
+
 const linkKey = (id) => id.replace(/_(customColor|blend)$/, "_color");
 const isLinked = (id) => {
   id = linkKey(id);
@@ -1592,7 +1634,7 @@ for (const id of Object.keys(defaults)) {
       const setStep = (steps) => {
         const min = Number(input.min),
           max = Number(input.max),
-          step = Number(input.step || 1),
+          step = Number(input.dataset.increment || input.step || 1),
           start = Number(lastValid[id]);
         const value = Math.min(max, Math.max(min, start + steps * step));
         input.value = String(Number(value.toFixed(8)));
@@ -2287,9 +2329,16 @@ function restoreUrl() {
   const params = new URLSearchParams(location.hash.slice(1)),
     version = params.get("iv"),
     hasState = params.toString() !== "",
-    legacy = hasState && version !== "6" && version !== "7" && version !== "8",
+    legacy = hasState && !["6", "7", "8", "9"].includes(version),
     previous = hasState && version === "6",
-    previousTrial = hasState && version === "7";
+    previousTrial = hasState && version === "7",
+    previousV8 = hasState && version === "8";
+  legacyPresentation =
+    legacy ||
+    previous ||
+    previousTrial ||
+    previousV8 ||
+    params.get("legacyPresentation") === "1";
   previewMode = ["trial", "current", "both"].includes(params.get("preview"))
     ? params.get("preview")
     : "both";
@@ -2305,10 +2354,12 @@ function restoreUrl() {
     $(id).value = legacy
       ? (legacyDefaults[id] ?? currentDefaults[id] ?? value)
       : previous
-        ? (currentDefaults[id] ?? value)
+        ? (version6Defaults[id] ?? value)
         : previousTrial
           ? (previousTrialDefaults[id] ?? value)
-          : value;
+          : previousV8
+            ? (version8Defaults[id] ?? value)
+            : value;
   theme = "dark";
   for (const panel of ["before", "after"]) {
     collapsed[panel].clear();
@@ -2337,10 +2388,12 @@ function restoreUrl() {
       (legacy
         ? legacyDefaults
         : previous
-          ? currentDefaults
+          ? version6Defaults
           : previousTrial
             ? previousTrialDefaults
-            : defaults
+            : previousV8
+              ? version8Defaults
+              : defaults
       ).collapsedInlineBoundaryMode === "separate");
   for (const role of Object.keys(collapsedSpecs))
     collapsedInitialized[role] =
@@ -2496,6 +2549,7 @@ function syncUrl() {
   if (previewMode !== "both") params.set("preview", previewMode);
   if (previewWidth !== null) params.set("previewWidth", String(previewWidth));
   if (theme !== "dark") params.set("theme", theme);
+  if (legacyPresentation) params.set("legacyPresentation", "1");
   if (showBounds) params.set("bounds", "1");
   const changedLinks = [
     ...new Set([...defaultLinkExceptions, ...linkExceptions]),
@@ -2524,7 +2578,7 @@ function syncUrl() {
   );
   if (savedParents.length)
     params.set("trialParents", savedParents.sort().join(","));
-  if ([...params].length) params.set("iv", "8");
+  if ([...params].length) params.set("iv", "9");
   const target = new URL(document.baseURI);
   target.hash = params.toString();
   let embedded = window.self !== window.top;
@@ -2540,12 +2594,13 @@ function syncUrl() {
   $("shareUrl").value = target.href;
 }
 function ordered(list) {
+  if ($("sort").value === "manual") return [...list];
+  const label = (item) =>
+    item.parent ? `${item.parent}: ${item.name}` : item.name;
   return [...list].sort((a, b) =>
     $("sort").value === "activity"
       ? b.activity - a.activity
-      : `${a.parent} ${a.name}`
-          .trim()
-          .localeCompare(`${b.parent} ${b.name}`.trim()),
+      : compareGroupNames(label(a), label(b)),
   );
 }
 function units(list, mode) {
@@ -2639,7 +2694,15 @@ function applyCollapsedText(element, role, inline = false) {
 function applyFontColor(element, role, panel, resolve = effectiveValue) {
   if (panel === "before") resolve = (id) => currentDefaults[id];
   const mode = resolve(`font_${role}_color`);
-  if (mode === "default") return;
+  if (mode === "default") {
+    if (
+      role === "category" &&
+      panel === "after" &&
+      valueOf("mix") !== appDefaults.mix
+    )
+      element.style.color = `color-mix(in oklab, var(--color) ${valueOf("mix")}%, oklch(from var(--color) l 0 h))`;
+    return;
+  }
   const accent =
       role === "parent" || role === "collapsedParent"
         ? "var(--family-color)"
@@ -2712,9 +2775,23 @@ function addRows(root, item, panel) {
             )
           : "left";
       row.dataset.hasStatus = String(kind !== "none");
+      const textRole = depth
+        ? categorized
+          ? "catChildThread"
+          : "childThread"
+        : categorized
+          ? "catThread"
+          : "thread";
+      const weightKey = `font_${textRole}_weight`;
+      row.dataset.customWeight = String(
+        panel === "after" &&
+          (legacyPresentation ||
+            effectiveValue(weightKey) !== appDefaults[weightKey]),
+      );
       mountThread(panel, row, {
         title,
         kind,
+        legacy: panel === "after" && legacyPresentation,
         depth: depth || 0,
         categorized,
         expanded: !hidden,
@@ -2737,17 +2814,7 @@ function addRows(root, item, panel) {
         disclosure.dataset.childKey = key;
         disclosure.classList.add("thread-disclosure");
       }
-      applyFontColor(
-        text,
-        depth
-          ? categorized
-            ? "catChildThread"
-            : "childThread"
-          : categorized
-            ? "catThread"
-            : "thread",
-        panel,
-      );
+      applyFontColor(text, textRole, panel);
       const wrap = document.createElement("div");
       wrap.className =
         "row-wrap" +
@@ -2781,7 +2848,7 @@ function addRows(root, item, panel) {
   if (item.categories)
     item.categories.forEach(([name, rows], index) => {
       const cat = document.createElement("div");
-      cat.className = "cat" + (index ? " subsequent" : "");
+      cat.className = "cat ws-category-label" + (index ? " subsequent" : "");
       cat.textContent = name;
       applyFontColor(cat, "category", panel);
       root.append(cat);
@@ -3087,7 +3154,8 @@ function renderPanel(id, mode) {
     let previousKey = null,
       previousInline = false,
       previousGap = null,
-      previousCollapsed = false;
+      previousCollapsed = false,
+      previousItem = null;
     for (const group of units(items, mode)) {
       const inline = Boolean(
           (mode === "prefix" || group.prefix) && group.items[0].parent,
@@ -3102,6 +3170,18 @@ function renderPanel(id, mode) {
         (group.parent ? " has-parent" : "") +
         (group.key === previousKey ? " same-parent" : "") +
         (boundary ? " inline-boundary" : "");
+      const useAppGaps =
+        mode === "prefix" &&
+        (!isTrial ||
+          (!legacyPresentation &&
+            [
+              "itemGap",
+              "familyGap",
+              "inlineFamilyGap",
+              "collapsedWorkstreamGap",
+              "collapsedInlineBoundaryMode",
+              "collapsedInlineFamilyGap",
+            ].every((key) => effectiveValue(key) === defaults[key])));
       const collapsedBoundary =
         boundary &&
         previousCollapsed &&
@@ -3123,6 +3203,13 @@ function renderPanel(id, mode) {
             Number(isTrial ? valueOf("itemGap") : currentDefaults.itemGap)) +
           extra +
           "px";
+      }
+      if (useAppGaps && previousItem) {
+        const gapGroup = (item) => ({
+          id: item.id,
+          name: item.parent ? `${item.parent}: ${item.name}` : item.name,
+        });
+        family.style.marginTop = `${workstreamGap(gapGroup(previousItem), gapGroup(group.items[0]), previousCollapsed)}px`;
       }
       family.style.setProperty(
         "--family-color",
@@ -3213,6 +3300,7 @@ function renderPanel(id, mode) {
               : null;
         }
       previousCollapsed = isParentCollapsed || lastCollapsed;
+      previousItem = group.items.at(-1);
       previousGap =
         isParentCollapsed && isTrial && collapsedActive("collapsedParent")
           ? Number(effectiveValue("collapsedParentGap"))
@@ -3283,6 +3371,9 @@ function render() {
   document.body.dataset.theme = theme;
   document.documentElement.classList.toggle("dark", theme === "dark");
   document.documentElement.classList.toggle("light", theme === "light");
+  $("baselineNote").textContent = legacyPresentation
+    ? "Trial uses an older saved presentation; Reset all returns to the app's sidebar defaults."
+    : "Trial starts with the app's sidebar defaults.";
   $("showBounds").setAttribute("aria-pressed", String(showBounds));
   document
     .querySelector(".playground")
@@ -3723,6 +3814,9 @@ $("reset").addEventListener("click", () => {
     lastValid[id] = $(id).value;
   }
   theme = "dark";
+  legacyPresentation = false;
+  $("previewAction").hidden = true;
+  $("previewAction").textContent = "";
   showBounds = false;
   previewMode = "both";
   previewWidth = null;
