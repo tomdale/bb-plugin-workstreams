@@ -1039,6 +1039,28 @@ npm test
 npm run build
 ```
 
+### Standalone design system gallery
+
+Run `npm run gallery` and open the local URL printed by Vite to browse the
+Workstreams design system outside BB. The development-only app in `gallery/`
+imports the plugin's actual components and vendored BB controls. It is separate
+from the plugin's Gallery view and is not registered or shipped in the plugin.
+Build a static copy with `npm run gallery:build`.
+
+The gallery includes foundations, work identity, recap and question playgrounds,
+and reply examples. Use its theme and preview-width controls to inspect the
+components, and open each example's source disclosure to see its imports.
+Navigation links preserve the selected page in the URL hash.
+
+Examples use synthetic data and local state. The standalone host cannot send
+messages, change threads, upload attachments, or call the Workstreams server. It
+supplies a development theme and Markdown renderer; BB-specific host behavior
+still needs verification inside BB. Reply examples show the current renderer,
+not the target presentation described in
+[docs/design-system.md](docs/design-system.md).
+
+### Tests and verification
+
 `npm test` runs domain, server, DOM interaction, and browser layout tests. The
 browser tests require Chromium (install it with
 `npx playwright-core install chromium`) or a Chrome executable in `CHROME_PATH`;
