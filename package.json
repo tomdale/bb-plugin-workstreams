@@ -13,7 +13,8 @@
       "icon": "./assets/workstream.svg",
       "experimental_icons": {
         "workstream": "./assets/workstream.svg",
-        "tag": "./assets/tag.svg"
+        "tag": "./assets/tag.svg",
+        "sparkles": "./assets/sparkles.svg"
       }
     },
     "server": "./src/server/index.ts",

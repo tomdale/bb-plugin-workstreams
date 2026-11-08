@@ -40,6 +40,7 @@ import {
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
+import { SPARKLES_ICON } from "../workstream-icon.ts";
 import { cn } from "@/lib/utils";
 import {
   MENU_ITEM_CLASS,
@@ -895,7 +896,7 @@ export function WorkstreamsThreadList({
             }
             className="ws-needs-you-text ws-suggestions-action flex shrink-0 cursor-pointer items-center gap-0.5 rounded-md px-1.5 py-[1.5px] text-[11px] leading-[1.2] font-medium transition-colors"
           >
-            <Icon name="MagicWand01" className="size-3" aria-hidden />
+            <Icon name={SPARKLES_ICON} className="size-3" aria-hidden />
             Reorganize
           </button>
         </Hint>
