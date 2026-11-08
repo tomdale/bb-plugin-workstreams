@@ -1,8 +1,14 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { ExampleChoice } from "./ExampleChoice";
-import { GalleryControls, GalleryNotes, LiveExample } from "./ExampleFrame";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { GalleryNotes, LiveExample, Variant, Variants } from "./ExampleFrame";
 import { colorsExample } from "./examples/colors";
 import { questionExample } from "./examples/questions";
 import { recapExample } from "./examples/recaps";
@@ -77,68 +83,45 @@ const firstTopicColor = allocateFamilyColor([]);
 const topicColors = [firstTopicColor, allocateFamilyColor([firstTopicColor])];
 const identityNames = ["Release tools", "Workstreams: Recaps"] as const;
 
+const identityTones = [
+  { tone: "accent", label: "Topic hue" },
+  { tone: "neutral", label: "Neutral" },
+  { tone: "muted", label: "Muted" },
+] as const;
+const identityHues = ["First topic", "Second topic"] as const;
+
 function IdentityExample() {
-  const [name, setName] = useState<string>(identityNames[1]);
-  const [tone, setTone] = useState<"accent" | "neutral" | "muted">("accent");
-  const [family, setFamily] = useState<"first" | "second">("first");
-  const style = workstreamColorStyle(topicColors[family === "first" ? 0 : 1]!);
   return (
-    <div className="space-y-6">
-      <GalleryControls>
-        <div
-          className="grid gap-3"
-          style={{
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(min(100%, 20rem), 1fr))",
-          }}
-        >
-          <ExampleChoice
-            label="Name"
-            value={name}
-            onChange={setName}
-            options={identityNames.map((item) => ({
-              value: item,
-              label: item,
-            }))}
-          />
-          <ExampleChoice
-            label="Treatment"
-            value={tone}
-            onChange={setTone}
-            options={[
-              { value: "accent", label: "Topic hue" },
-              { value: "neutral", label: "Neutral" },
-              { value: "muted", label: "Muted" },
-            ]}
-          />
-          <ExampleChoice
-            label="Allocated hue"
-            value={family}
-            onChange={setFamily}
-            options={[
-              { value: "first", label: "First topic" },
-              { value: "second", label: "Second topic" },
-            ]}
-          />
-        </div>
-      </GalleryControls>
-      <LiveExample
-        name="Work identity composition"
-        sources={["src/app/WorkstreamIcon.tsx", "src/app/WorkstreamName.tsx"]}
-      >
-        <div
-          className="flex min-w-0 items-center gap-2 py-5"
-          style={style as CSSProperties}
-        >
-          <WorkstreamIcon />
-          <WorkstreamName
-            name={name}
-            accent={tone === "accent"}
-            muted={tone === "muted"}
-          />
-        </div>
-      </LiveExample>
-    </div>
+    <LiveExample
+      name="Work identity composition"
+      sources={["src/app/WorkstreamIcon.tsx", "src/app/WorkstreamName.tsx"]}
+    >
+      <Variants>
+        {identityTones.flatMap(({ tone, label }) =>
+          identityHues.map((hue, index) => (
+            <Variant key={`${tone}-${hue}`} label={`${label}, ${hue}`}>
+              <div
+                className="min-w-0 space-y-3 py-2"
+                style={
+                  workstreamColorStyle(topicColors[index]!) as CSSProperties
+                }
+              >
+                {identityNames.map((name) => (
+                  <div key={name} className="flex min-w-0 items-center gap-2">
+                    <WorkstreamIcon />
+                    <WorkstreamName
+                      name={name}
+                      accent={tone === "accent"}
+                      muted={tone === "muted"}
+                    />
+                  </div>
+                ))}
+              </div>
+            </Variant>
+          )),
+        )}
+      </Variants>
+    </LiveExample>
   );
 }
 
@@ -339,52 +322,49 @@ const replyAccents = (() => {
   return colors;
 })();
 
-/** A sample's picker label; the two group samples differ by relationship. */
+/** A sample's label; the two group samples differ by relationship. */
 function replyLabel(part: ReplyComponent) {
   const name = part.type[0]!.toUpperCase() + part.type.slice(1);
   return part.type === "group" ? `${name} (${part.relationship})` : name;
 }
 
 function ReplyExample() {
-  const [type, setType] = useState("Change");
-  const [accent, setAccent] = useState("0");
-  const part = replyParts.find((item) => replyLabel(item) === type)!;
+  const change = replyParts.find((item) => item.type === "change")!;
   return (
     <div className="space-y-5">
-      <GalleryControls>
-        <ExampleChoice
-          label="Reply component"
-          value={type}
-          onChange={setType}
-          options={replyParts.map((item) => ({
-            value: replyLabel(item),
-            label: replyLabel(item),
-          }))}
-        />
-        <ExampleChoice
-          label="Workstream"
-          value={accent}
-          onChange={setAccent}
-          options={[
-            ...replyAccents.map((_, i) => ({
-              value: String(i),
-              label: `Topic color ${i + 1}`,
-            })),
-            { value: "none", label: "Unfiled" },
-          ]}
-        />
-      </GalleryControls>
       <LiveExample name="PlainBody" sources={["src/app/reply/PlainBody.tsx"]}>
-        <div
-          className="ws-reply-accent min-w-0 break-words"
-          style={
-            accent === "none"
-              ? undefined
-              : workstreamColorStyle(replyAccents[Number(accent)]!)
-          }
-        >
-          <PlainBody part={part} document={undefined} files={null} />
-        </div>
+        <Variants minWidth="26rem">
+          {replyParts.map((part) => (
+            <Variant key={replyLabel(part)} label={replyLabel(part)}>
+              <div
+                className="ws-reply-accent min-w-0 break-words"
+                style={workstreamColorStyle(replyAccents[0]!)}
+              >
+                <PlainBody part={part} document={undefined} files={null} />
+              </div>
+            </Variant>
+          ))}
+        </Variants>
+      </LiveExample>
+      <LiveExample
+        name="PlainBody workstream colors"
+        sources={["src/app/reply/PlainBody.tsx"]}
+      >
+        <Variants minWidth="26rem">
+          {[...replyAccents, null].map((accent, index) => (
+            <Variant
+              key={index}
+              label={accent ? `Topic color ${index + 1}` : "Unfiled"}
+            >
+              <div
+                className="ws-reply-accent min-w-0 break-words"
+                style={accent ? workstreamColorStyle(accent) : undefined}
+              >
+                <PlainBody part={change} document={undefined} files={null} />
+              </div>
+            </Variant>
+          ))}
+        </Variants>
       </LiveExample>
     </div>
   );
@@ -414,15 +394,24 @@ function ControlsExample() {
                 className="text-foreground"
               />
             </label>
-            <ExampleChoice
-              label="Example layout"
-              value={density}
-              onChange={setDensity}
-              options={[
-                { value: "compact", label: "Compact" },
-                { value: "full", label: "Full" },
-              ]}
-            />
+            <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+              Example layout
+              <Select
+                value={density}
+                onValueChange={(next) => setDensity(next as typeof density)}
+              >
+                <SelectTrigger
+                  aria-label="Example layout"
+                  className="w-full text-xs text-foreground"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="compact">Compact</SelectItem>
+                  <SelectItem value="full">Full</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button

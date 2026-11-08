@@ -114,12 +114,19 @@ export function LiveExample({
 }
 
 /** Lays preset variants side by side; each `Variant` is one labeled specimen. */
-export function Variants({ children }: { children: ReactNode }) {
+export function Variants({
+  minWidth = "22rem",
+  children,
+}: {
+  /** Narrowest column the grid will create. */
+  minWidth?: string;
+  children: ReactNode;
+}) {
   return (
     <div
       className="grid items-start gap-x-4 gap-y-6"
       style={{
-        gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 22rem), 1fr))",
+        gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${minWidth}), 1fr))`,
       }}
     >
       {children}

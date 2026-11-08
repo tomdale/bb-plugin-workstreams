@@ -863,23 +863,19 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
     async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(`${url}#reply-vocabulary`);
-      const selectComponent = async (name: string) => {
-        await page
-          .getByRole("radiogroup", { name: "Reply component" })
-          .getByRole("radio", { name, exact: true })
-          .click();
-      };
+      const variant = (name: string) =>
+        page.getByRole("group", { name, exact: true }).first();
       const widthControl = page.getByRole("radiogroup", {
         name: "Preview width",
       });
 
-      await selectComponent("Change");
-      const pair = page.locator("[data-reply-change-pair]");
+      const change = variant("Change");
+      const pair = change.locator("[data-reply-change-pair]");
       expect(await pair.textContent()).toContain("Before");
       expect(await pair.textContent()).toContain("After");
       // Labels sit in a gutter beside their values, and above them when narrow.
       const placement = () =>
-        page.locator("[data-reply-change]").evaluate((change) => {
+        change.locator("[data-reply-change]").evaluate((change) => {
           const rows = [...change.querySelectorAll("[data-reply-change-row]")];
           return rows.map((row) => {
             const label = row.querySelector("dt")!.getBoundingClientRect();
@@ -907,8 +903,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         false,
       ]);
 
-      await selectComponent("Checks");
-      const statuses = await page
+      const statuses = await variant("Checks")
         .locator("[data-reply-check-status]")
         .evaluateAll((elements) =>
           elements.map((element) =>
@@ -1085,7 +1080,9 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       expect(await page.locator("[data-gallery-documentation]").count()).toBe(
         0,
       );
-      const trigger = page.getByRole("button", { name: "Rename thread…" });
+      const trigger = page
+        .getByRole("group", { name: "Follow viewport", exact: true })
+        .getByRole("button", { name: "Rename thread…" });
       await trigger.click();
       const dialog = page.getByRole("dialog", { name: "Rename thread" });
       const name = dialog.getByRole("textbox", { name: "Thread name" });
@@ -1104,14 +1101,13 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       expect(
         await trigger.evaluate((el) => el === document.activeElement),
       ).toBe(true);
-      await page
-        .getByRole("button", { name: "Review checkout changes", exact: true })
-        .waitFor();
-      await page
-        .getByRole("radiogroup", { name: "Dialog submission" })
-        .getByRole("radio", { name: "Hold pending" })
-        .click();
       await trigger.click();
+      expect(await name.inputValue()).toBe("Review checkout changes");
+      await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+      const pendingTrigger = page
+        .getByRole("group", { name: "Dialog holds pending", exact: true })
+        .getByRole("button", { name: "Rename thread…" });
+      await pendingTrigger.click();
       await dialog.getByRole("button", { name: "Save", exact: true }).click();
       await dialog
         .getByRole("status")
@@ -1149,7 +1145,10 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       await page
         .locator("style[data-gallery-color-tokens]")
         .waitFor({ state: "detached" });
-      await page.getByRole("button", { name: "Open options" }).click();
+      const options = page
+        .getByRole("group", { name: "Follow viewport", exact: true })
+        .getByRole("button", { name: "Open options" });
+      await options.click();
       const popover = page.getByRole("dialog");
       await popover
         .getByRole("button", { name: "Review release notes" })
@@ -1160,7 +1159,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         ),
       ).toBe(true);
       await page.keyboard.press("Escape");
-      await page.getByRole("button", { name: "Open options" }).waitFor();
+      await options.waitFor();
     },
     60_000,
   );
