@@ -15,8 +15,6 @@ import {
 export const TAU = 2 * Math.PI;
 /** How long the new front card fades in under reduced motion, ms. */
 export const FADE_MS = 160;
-/** The widest sideways sway of a moving card's ring path, px from the column centre; see `ring.ts`. */
-export const RING_SWAY = 24;
 
 export type Mode = "product" | "drum" | "cascade";
 export const MODES: readonly { id: Mode; label: string }[] = [
@@ -66,6 +64,7 @@ export const GROUPS = [
   { id: "pace", label: "Pace" },
   { id: "held", label: "Held keys" },
   { id: "stage", label: "Stage" },
+  { id: "path", label: "Path" },
 ] as const;
 export type GroupId = (typeof GROUPS)[number]["id"];
 
@@ -435,6 +434,68 @@ export const CASCADE_SETTINGS: readonly Setting<
   },
 ];
 
+// ---- the path every model's moving cards follow -------------------------------------------------------
+
+/**
+ * The sideways shape of the path a moving card follows (`ring.ts`). It belongs to no model: every model, the
+ * product included, shows these settings, and a preset button leaves them as they are. `loop` says whether
+ * the running model has a leg behind the pile (the drum and the product do, the cascade does not).
+ */
+export type PathCfg = {
+  sway: number;
+  swayBehind: number;
+  peak: number;
+  loop: boolean;
+};
+export const PATH_DEFAULT: PathCfg = {
+  sway: 24,
+  swayBehind: -24,
+  peak: 0.5,
+  loop: true,
+};
+
+export const PATH_SETTINGS: readonly Setting<PathCfg, Partial<PathCfg>>[] = [
+  {
+    kind: "range",
+    key: "sway",
+    group: "path",
+    label: "sway in front px",
+    unit: "px",
+    min: -80,
+    max: 80,
+    step: 1,
+    read: (c) => c.sway,
+    write: (sway) => ({ sway }),
+    shown: always,
+  },
+  {
+    kind: "range",
+    key: "swayb",
+    group: "path",
+    label: "sway behind px",
+    unit: "px",
+    min: -80,
+    max: 80,
+    step: 1,
+    read: (c) => c.swayBehind,
+    write: (swayBehind) => ({ swayBehind }),
+    shown: (c) => c.loop,
+  },
+  {
+    kind: "range",
+    key: "peak",
+    group: "path",
+    label: "widest point",
+    unit: "",
+    min: 0.25,
+    max: 0.75,
+    step: 0.05,
+    read: (c) => c.peak,
+    write: (peak) => ({ peak }),
+    shown: always,
+  },
+];
+
 /** The page's cascade configuration with nothing overridden. */
 const cascadeBase = (preset?: CascadePatch): CascadeCfg => ({
   ...Cascade.config(preset),
@@ -453,6 +514,8 @@ export function defaultOf(key: string): number {
   if (drum?.kind === "range") return drum.read(Drum.config());
   const cascade = CASCADE_SETTINGS.find((x) => x.key === key);
   if (cascade?.kind === "range") return cascade.read(cascadeBase());
+  const path = PATH_SETTINGS.find((x) => x.key === key);
+  if (path?.kind === "range") return path.read(PATH_DEFAULT);
   throw new Error(`${key} is not a slider, so it has no numeric default`);
 }
 
@@ -534,16 +597,22 @@ export const CONTROLS: readonly Control[] = [
   },
   ...SETTINGS.map((s) => describeSetting(s, Drum.config())),
   ...CASCADE_SETTINGS.map((s) => describeSetting(s, cascadeBase())),
+  ...PATH_SETTINGS.map((s) => describeSetting(s, PATH_DEFAULT)),
 ];
 
 // ---- page state ------------------------------------------------------------------------------------
 
-/** The page's state, as the URL hash holds it: `v`, `preset`, `speed`, `reduced`, `path`, and one entry per setting key. */
+/**
+ * The page's state, as the URL hash holds it: `v`, `preset`, `speed`, `reduced`, `path`, one entry per model
+ * setting key (`SETTING_KEYS`, which a preset button clears) and one per path setting key (`PATH_KEYS`, which
+ * it keeps).
+ */
 export type Opt = Record<string, string>;
 export const SETTING_KEYS: readonly string[] = [
   ...SETTINGS.map((s) => s.key),
   ...CASCADE_SETTINGS.map((s) => s.key),
 ];
+export const PATH_KEYS: readonly string[] = PATH_SETTINGS.map((s) => s.key);
 const OPT_KEYS = new Set([
   "v",
   "preset",
@@ -551,6 +620,7 @@ const OPT_KEYS = new Set([
   "reduced",
   "path",
   ...SETTING_KEYS,
+  ...PATH_KEYS,
 ]);
 
 /** The known keys of a URL hash; anything else is dropped. */
@@ -606,6 +676,19 @@ export function cascadeCfg(opt: Opt): CascadeCfg {
   }
   const cfg = { ...base, ...over };
   return { ...cfg, fade: Math.min(cfg.fade, fadeCap(cfg.park)) };
+}
+
+/** The path settings the state overrides, for the model `opt.v` names. */
+export function pathCfg(opt: Opt): PathCfg {
+  const base = { ...PATH_DEFAULT, loop: opt.v !== "cascade" };
+  const over: Partial<PathCfg> = {};
+  for (const s of PATH_SETTINGS) {
+    const raw = opt[s.key];
+    if (raw === undefined) continue;
+    const p = patchFor(s, raw, base);
+    if (p) Object.assign(over, p);
+  }
+  return { ...base, ...over };
 }
 
 /** The part of a page configuration the cascade model reads. */

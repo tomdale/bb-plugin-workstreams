@@ -33,18 +33,18 @@ press also starts the hold that the drum's fold and speed-up settings and the
 cascade's ramp react to. The Model buttons switch between the shipped engine,
 the drum and the cascade. The controls:
 
-| Control               | What it does                                                                                                                                                                                                                                                                                                                |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Model                 | `Product now` imports `src/app/page/queue/stackEngine.ts` as it is and hides the preset and settings rows. `Elastic drum` runs `drum.ts` with the lab's settings, and `Cascade` runs `src/cascade.ts` with its own.                                                                                                         |
-| Preset                | A named set of one model's settings (`PRESETS` in `drum.ts` or in `src/cascade.ts`). Each model shows its own buttons, built from its list. A click clears every slider change.                                                                                                                                             |
-| Settings bar          | The running model's settings as sliders, toggles and one choice. The drum's are in the groups Taps, Pace and Held keys, the cascade's in Taps, Pace and Stage. Moving one overrides the preset.                                                                                                                             |
-| Speed, Clock          | ¼×, ½×, 1×; pause and step one 1/60 s frame. The clock is the page's own, so a paused page is a frame you can read.                                                                                                                                                                                                         |
-| Reduced motion        | No card moves; the new front fades in over 160 ms. The system's reduced-motion setting turns it on too.                                                                                                                                                                                                                     |
-| Bezier path           | Draws the rounded loop a moving card follows as cubic Bezier segments: down in front of the pile, across the column at `turn`, and up behind it to `tuck` (the cascade: one bow down to `park`), with handles, anchors and live card markers. Cards sway up to 24 px sideways along it; their vertical motion is unchanged. |
-| Held readout          | `held 0.00` to `held 1.00` beside the buttons while the drum's held speed-up, fold or loose clearing is on, or the cascade's ramp is: how far the held state has risen.                                                                                                                                                     |
-| How the drum works    | A panel at the bottom left: the ring path the cards follow, the four problems the frame checker counts, and which settings group acts on which part. The product shows it too.                                                                                                                                              |
-| How the cascade works | The same panel while the cascade runs: the exit channel and the clip line, what sets the pace of a held key, the four problems, and which settings group acts on which part.                                                                                                                                                |
-| Tooltips              | Every control has one. Hover shows it after a short pause, keyboard focus at once, and Escape dismisses it.                                                                                                                                                                                                                 |
+| Control               | What it does                                                                                                                                                                                                                                                                                                                                               |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Model                 | `Product now` imports `src/app/page/queue/stackEngine.ts` as it is and hides the preset row and the model settings; with `Bezier path` on it shows the Path settings. `Elastic drum` runs `drum.ts` with the lab's settings, and `Cascade` runs `src/cascade.ts` with its own.                                                                             |
+| Preset                | A named set of one model's settings (`PRESETS` in `drum.ts` or in `src/cascade.ts`). Each model shows its own buttons, built from its list. A click clears every slider change.                                                                                                                                                                            |
+| Settings bar          | The running model's settings as sliders, toggles and one choice, then, while `Bezier path` is on, the Path settings every model shares. The drum's are in the groups Taps, Pace and Held keys, the cascade's in Taps, Pace and Stage. Moving a model setting overrides the preset.                                                                         |
+| Speed, Clock          | ¼×, ½×, 1×; pause and step one 1/60 s frame. The clock is the page's own, so a paused page is a frame you can read.                                                                                                                                                                                                                                        |
+| Reduced motion        | No card moves; the new front fades in over 160 ms. The system's reduced-motion setting turns it on too.                                                                                                                                                                                                                                                    |
+| Bezier path           | Draws the rounded loop a moving card follows as cubic Bezier segments: down in front of the pile, across the column at `turn`, and up behind it to `tuck` (the cascade: one bow down to `park`), with handles, a ring at each leg's widest point, anchors and live card markers. The settings bar shows the Path settings, which shape it, while it is on. |
+| Held readout          | `held 0.00` to `held 1.00` beside the buttons while the drum's held speed-up, fold or loose clearing is on, or the cascade's ramp is: how far the held state has risen.                                                                                                                                                                                    |
+| How the drum works    | A panel at the bottom left: the ring path the cards follow, the four problems the frame checker counts, and which settings group acts on which part. The product shows it too.                                                                                                                                                                             |
+| How the cascade works | The same panel while the cascade runs: the exit channel and the clip line, what sets the pace of a held key, the four problems, and which settings group acts on which part.                                                                                                                                                                               |
+| Tooltips              | Every control has one. Hover shows it after a short pause, keyboard focus at once, and Escape dismisses it.                                                                                                                                                                                                                                                |
 
 A tooltip says what its control is, what you see when you change it, what it
 works with, and how to tune it. It lists the sweep commands behind its numbers.
@@ -91,6 +91,27 @@ tallest card (330 px) and its 16 px shadow, so no pile card fades.
 |       | edge fade px              | `fade`   | always         |
 |       | leave shade               | `shade`  | always         |
 
+The Path settings shape the path a moving card follows in every model, the
+product included, and the settings bar shows them while `Bezier path` is on (in
+the product, nothing else). They move cards sideways only: each model's vertical
+motion, springs and edge budgets, and so every number the frame checker reports,
+are the same at any value. A preset button keeps them. The sway is a function of
+where the card is on its ring, so a card that changes direction mid-flight
+retraces it; `src/ring.ts` holds the curve.
+
+| Group | Setting          | Key     | Shown when                                            |
+| ----- | ---------------- | ------- | ----------------------------------------------------- |
+| Path  | sway in front px | `sway`  | `Bezier path` is on                                   |
+|       | sway behind px   | `swayb` | `Bezier path` is on, and the drum or the product runs |
+|       | widest point     | `peak`  | `Bezier path` is on                                   |
+
+`sway` is the widest sideways offset, in px, on the way down in front of the
+pile (positive is right), `swayb` the same on the drum's leg behind the pile,
+and `peak` where along each leg the widest point sits, as a fraction of the leg.
+The defaults, `sway` 24, `swayb` −24 and `peak` 0.5, make a symmetric loop. With
+`sway` and `swayb` at 0 cards move as the models draw them, straight down and
+back up the column.
+
 The URL hash holds the state, for example `#v=drum&preset=fold&cap1=34` (`fold`
 with a held edge budget of 34 px/frame) or `#v=cascade&sp1=125&fade=0` (the
 cascade's `default` with a held spacing of 125 px and no edge fade). `v` is
@@ -98,13 +119,14 @@ cascade's `default` with a held spacing of 125 px and no edge fade). `v` is
 name the model lacks gives its first preset (`natural` for the drum, `default`
 for the cascade); the product has no presets. `speed` is `0.25`, `0.5` or `1`,
 and `reduced` and `path` are `1` or `0`. Every other key is a setting's key from
-the two tables above: the drum's `w0`, `cap`, `fadein`, `cover`, `tk`, `tw`,
-`ts`, `tms`, `slack`, `ramp`, `fold`, `loose`, `delay`, `w1`, `cap1` and `h0`,
-and the cascade's `cw0`, `ccap`, `sp0`, `sp1`, `cdelay`, `park`, `fade` and
-`shade`. The two models' keys differ, so one hash can hold both models'
-settings, and the model that `v` names reads only its own. A toggle is `1` or
-`0`, `tk` is one of its three choices, and a slider's value is clamped to its
-range. The page ignores a key or value it does not recognise.
+the tables above: the drum's `w0`, `cap`, `fadein`, `cover`, `tk`, `tw`, `ts`,
+`tms`, `slack`, `ramp`, `fold`, `loose`, `delay`, `w1`, `cap1` and `h0`, the
+cascade's `cw0`, `ccap`, `sp0`, `sp1`, `cdelay`, `park`, `fade` and `shade`, and
+the path's `sway`, `swayb` and `peak`, which every model reads. The two models'
+keys differ, so one hash can hold both models' settings, and the model that `v`
+names reads only its own. A toggle is `1` or `0`, `tk` is one of its three
+choices, and a slider's value is clamped to its range. The page ignores a key or
+value it does not recognise.
 
 The drum's presets:
 

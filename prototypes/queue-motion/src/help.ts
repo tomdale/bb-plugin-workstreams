@@ -11,8 +11,8 @@
  */
 import { DEFAULT_CFG } from "./cascade.ts";
 import {
-  RING_SWAY,
   FADE_MS,
+  PATH_SETTINGS,
   PILE_CLEARANCE,
   SPEEDS,
   TALLEST_CARD,
@@ -22,6 +22,10 @@ import {
 import { Facts, t, type RawFacts, type RowView } from "./facts.ts";
 
 declare const __FACTS__: RawFacts;
+
+const PEAK = PATH_SETTINGS.find((s) => s.key === "peak")!;
+const PATH_PEAK_MIN = PEAK.kind === "range" ? PEAK.min : "";
+const PATH_PEAK_MAX = PEAK.kind === "range" ? PEAK.max : "";
 
 export type Help = {
   /** One plain line: what the control is. */
@@ -55,7 +59,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     effect: [
       [
         "Click",
-        "Shows the motion the queue ships. ↓ drops the front card clear of the pile and tucks it behind; ↑ runs the same ring backwards. Every card takes the same time, and a held key speeds up after a short hold. The preset and settings rows disappear.",
+        "Shows the motion the queue ships. ↓ drops the front card clear of the pile and tucks it behind; ↑ runs the same ring backwards. Every card takes the same time, and a held key speeds up after a short hold. The preset row and the model's settings disappear; with `Bezier path` on, the Path settings stay.",
       ],
     ],
     needs:
@@ -67,7 +71,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
     effect: [
       [
         "Click",
-        "↓ drops the front card clear of the pile and tucks it behind. ↑ brings a card up from just below the pile and slows it into the front. The preset and settings rows appear.",
+        "↓ drops the front card clear of the pile and tucks it behind. ↑ brings a card up from just below the pile and slows it into the front. The preset row and the drum's settings appear.",
       ],
     ],
     needs:
@@ -367,18 +371,18 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "The page also turns it on when the system setting `prefers-reduced-motion` is set. It applies to every model and overrides every preset and setting, which have no effect while it is on.",
     tune: "Use it to check the fallback: press ↓ and ↑ and look for a calm cut with nothing sliding. Turn it off to compare with the motion.",
   }),
-  path: () => ({
+  path: (f) => ({
     what: "Draws the path each moving card's top edge follows on the stage, as cubic Bezier segments with their control handles, anchors and a live marker for each card.",
     effect: [
       [
         "On",
-        t`Shows the drum's ring as one rounded loop: down in front of the pile, bowing up to ${RING_SWAY} px to the right, across the column at the \`turn\`, and up behind the pile, bowing ${RING_SWAY} px to the left, to the \`tuck\`. ↓ runs it forwards and ↑ backwards. The cascade shows one ${RING_SWAY} px bow down the exit channel to \`park\`. The pile spine and a dot for each painted card are drawn too.`,
+        t`Shows the drum's ring as one rounded loop: down in front of the pile, across the column at the \`turn\`, and up behind the pile to the \`tuck\`, with a ring at each leg's widest point. With the default Path settings it bows ${f.def("sway")} px to the right in front and ${Math.abs(Number(f.def("swayb")))} px to the left behind. ↓ runs it forwards and ↑ backwards. The cascade shows one bow down the exit channel to \`park\`. The pile spine and a dot for each painted card are drawn too.`,
       ],
       ["Off", "Hides the overlay; cards still follow the same path."],
     ],
     needs:
-      "Works in every model. The vertical motion is each model's own, so springs, budgets and the frame checker are unchanged; the path only adds the sideways sway, which keeps a card moving through the turn instead of stopping there to reverse. The loop drawn is the one for the moving card nearest the front, or the front card at rest. Reduced motion removes the sway.",
-    tune: "Turn it on with `¼×` speed, or click Pause and Step during a press, to watch each card's marker ride the loop.",
+      "Works in every model. While it is on, the settings bar shows the Path settings, which shape the curve (the product shows only those); a value set there stays in force when the overlay is off. the vertical motion is each model's own, so springs, budgets and the frame checker are unchanged. The loop drawn is the one for the moving card nearest the front, or the front card at rest. Reduced motion removes the sway.",
+    tune: "Turn it on with `¼×` speed, or click Pause and Step during a press, then move the Path sliders and watch each card's marker ride the loop.",
   }),
   held: (f) => ({
     what: "A readout of the held state, from zero (tap behaviour) to one (the full speed-up, fold or ramp), shown while one of them is on.",
@@ -1288,6 +1292,54 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       tune: t`Start at ${base.value}. Hold ↓ and compare the lowest cards at ${lo.value}, ${base.value} and ${hi.value}: raise it to push leaving cards back, lower it to keep them readable until they park.`,
     };
   },
+  // ---- the path, which every model shares ------------------------------------------------------------
+  "setting.sway": (f) => ({
+    what: "How far, in px, a moving card swings sideways at its widest point on the way down in front of the pile (the cascade: down its exit channel). Positive is to the right, negative to the left.",
+    effect: [
+      [
+        "Raise",
+        t`A wider bow. In the drum the card keeps more sideways speed through the \`turn\`, so the reversal reads as a rounded loop; far past the default ${f.def("sway")} px it reads as a swing rather than a drop.`,
+      ],
+      [
+        "Lower",
+        "A straighter drop. At zero the card runs straight down the column, and in the drum it stops at the turn to reverse, as the models draw it with no path. Below zero it bows to the left.",
+      ],
+    ],
+    needs:
+      "A look setting: it moves cards sideways only, so the frame checker's numbers, the springs and the edge budgets are the same at every value. The sway is a function of where the card is on its ring, so it reverses with a card that changes direction mid-flight. `widest point` places the bow, `sway behind px` shapes the drum's other leg, and `Bezier path` draws it.",
+    tune: t`Start at ${f.def("sway")} px with \`Bezier path\` on and \`¼×\` speed. Raise it until the turn stops looking like a bounce, and lower it if the card seems to slide off the column.`,
+  }),
+  "setting.swayb": (f) => ({
+    what: "How far, in px, a card swings sideways at its widest point on the drum's leg behind the pile, from the turn up to the tuck. Positive is to the right, negative to the left.",
+    effect: [
+      [
+        "Raise",
+        t`Toward the right. From the default ${f.def("swayb")} px it narrows the loop, and past zero both legs bow the same way, so the path is a hook rather than a loop.`,
+      ],
+      [
+        "Lower",
+        "Toward the left. The opposite sign to `sway in front px` makes a closed loop around the turn; a larger value widens it.",
+      ],
+    ],
+    needs:
+      "Shown for the drum and the product; the cascade has no leg behind the pile. Most of this leg is hidden behind the pile, so it shows as the card leaves the turn and as a returning card (↑) drops toward it. The width eases between the two legs' widest points, so different values add no corner at the turn.",
+    tune: "Set it to the negative of `sway in front px` for a round loop, then press ↑ at `¼×` to watch the card come out from behind the pile.",
+  }),
+  "setting.peak": (f) => ({
+    what: "Where along each leg the card reaches its widest sway, as a fraction of the leg from the front (or from the tuck behind the pile).",
+    effect: [
+      [
+        "Raise",
+        t`The widest point moves toward the turn: the card falls nearly straight at first and swings out late, so the turn is tighter. At the most, ${PATH_PEAK_MAX}, the card is still turning wide as it reaches it.`,
+      ],
+      [
+        "Lower",
+        t`The widest point moves toward the front: the card swings out as soon as it leaves and drifts back to the column before the turn. At the least, ${PATH_PEAK_MIN}, the drop from the front starts at an angle.`,
+      ],
+    ],
+    needs: t`A look setting with the same numbers at every value, like \`sway in front px\`. The leg behind the pile mirrors it, so the loop stays symmetric about the turn. Default ${f.def("peak")}.`,
+    tune: "Leave it at the default for an even bow. Raise it if the card seems to swing out too early, lower it for a softer start.",
+  }),
 };
 
 /** The commands behind a tooltip's numbers are collected as the entry reads them. */

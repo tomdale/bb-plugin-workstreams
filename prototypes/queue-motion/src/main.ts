@@ -11,7 +11,10 @@ import {
   CASCADE_SETTINGS,
   CONTROLS,
   FADE_MS,
-  RING_SWAY,
+  PATH_KEYS,
+  PATH_SETTINGS,
+  pathCfg,
+  type PathCfg,
   GROUPS,
   MODES,
   PRESET_NAMES,
@@ -33,11 +36,13 @@ import {
 import {
   ringCubics,
   ringKnots,
+  ringPeaks,
   ringPoint,
   ringSpan,
   ringSway,
   type Cubic,
   type Ring,
+  type Sway,
 } from "./ring.ts";
 import { ABOUT, ABOUT_CASCADE, HELP, captionFor } from "./help.ts";
 import { inline, installTooltips } from "./tooltip.ts";
@@ -90,10 +95,18 @@ const opt: Opt = sanitize({
 /** The drum and cascade configurations the state asks for; recomputed whenever `opt` changes. */
 let cfg: Cfg = drumCfg(opt);
 let ccfg: CascadeCfg = cascadeCfg(opt);
+let pcfg: PathCfg = pathCfg(opt);
 const refreshCfg = () => {
   cfg = drumCfg(opt);
   ccfg = cascadeCfg(opt);
+  pcfg = pathCfg(opt);
 };
+/** The path's sideways shape for `ring.ts`, read fresh each frame so a slider applies mid-flight. */
+const sway = (): Sway => ({
+  front: pcfg.sway,
+  behind: pcfg.swayBehind,
+  peak: pcfg.peak,
+});
 const writeHash = () => (location.hash = new URLSearchParams(opt).toString());
 
 // ---- DOM -------------------------------------------------------------------------
@@ -176,7 +189,7 @@ const drumRing = (d: Drum, i: number): Ring => ({
   front: LEAD,
   turn: d.turnTop(i),
   tuck: drumTuckTop(d, i),
-  sway: RING_SWAY,
+  sway: sway(),
 });
 
 /** Which way a card off the pile is heading: out (↓, toward the tuck) or in (↑, back to the pile). */
@@ -306,7 +319,7 @@ function cascadeSim(cur: number): Sim {
     kind: "channel",
     front: LEAD,
     park: LEAD + m.cfg.park,
-    sway: RING_SWAY,
+    sway: sway(),
   });
   let last = cur;
   const check = () => {
@@ -449,6 +462,12 @@ const cubicD = (cs: Cubic[]) =>
     )
     .join(" ");
 
+/** A label's x and anchor just outside the curve at offset `x`: on the side the curve bows to, right when straight. */
+function beside(x: number, straight: 1 | -1 = 1): string {
+  const side = x > 0 ? 1 : x < 0 ? -1 : straight;
+  return `x="${f1(STAGE_X + x + 10 * side)}" text-anchor="${side > 0 ? "start" : "end"}"`;
+}
+
 function paintBezier(views: View[]) {
   const svg = $("#bezier");
   const show = opt.path === "1";
@@ -457,17 +476,23 @@ function paintBezier(views: View[]) {
   const { ring, pile } = sim.overlay();
   const cubics = ringCubics(ring, STAGE_X);
   // The drum's ring splits at the turn into the drop in front of the pile and the rise behind it.
-  const front = ring.kind === "drum" ? cubics.slice(0, 2) : cubics;
-  const behind = ring.kind === "drum" ? cubics.slice(2) : [];
+  const half = ring.kind === "drum" ? cubics.length / 2 : cubics.length;
+  const front = cubics.slice(0, half);
+  const behind = cubics.slice(half);
   const parts: string[] = [];
-  // Control-point handles of every cubic segment
-  for (const [p0, p1, p2, p3] of cubics) {
-    parts.push(
-      `<line class="bz-handle" x1="${f1(p0.x)}" y1="${f1(p0.y)}" x2="${f1(p1.x)}" y2="${f1(p1.y)}"/>`,
-      `<line class="bz-handle" x1="${f1(p3.x)}" y1="${f1(p3.y)}" x2="${f1(p2.x)}" y2="${f1(p2.y)}"/>`,
-      `<circle class="bz-ctrl" cx="${f1(p1.x)}" cy="${f1(p1.y)}" r="2.6"/>`,
-      `<circle class="bz-ctrl" cx="${f1(p2.x)}" cy="${f1(p2.y)}" r="2.6"/>`,
-    );
+  // Control-point handles at the knots the sliders move: each leg's widest point, and the turn. The other
+  // knots only keep the fit close, and their handles would crowd the curve.
+  const knots = ringKnots(ring);
+  const named = [...ringPeaks(ring), ...(ring.kind === "drum" ? [1] : [])];
+  for (const u of named) {
+    const k = knots.indexOf(u);
+    if (k <= 0 || k >= knots.length - 1) continue;
+    const at = cubics[k]![0];
+    for (const c of [cubics[k - 1]![2], cubics[k]![1]])
+      parts.push(
+        `<line class="bz-handle" x1="${f1(at.x)}" y1="${f1(at.y)}" x2="${f1(c.x)}" y2="${f1(c.y)}"/>`,
+        `<circle class="bz-ctrl" cx="${f1(c.x)}" cy="${f1(c.y)}" r="2.6"/>`,
+      );
   }
   // Pile spine above the front card
   if (pile.length >= 3) {
@@ -488,10 +513,10 @@ function paintBezier(views: View[]) {
     chevron(ring, 0.32, 1, "bz-arrow-out"),
     chevron(ring, 0.68, -1, "bz-arrow-in"),
   );
-  const lobe = ringPoint(ring, 0.5);
+  const lobe = ringPoint(ring, ring.sway.peak);
   parts.push(
-    `<text class="bz-label bz-label-out" x="${f1(STAGE_X + lobe.x + 10)}" y="${f1(lobe.y - 2)}" text-anchor="start">out ↓</text>`,
-    `<text class="bz-label bz-label-in" x="${f1(STAGE_X + lobe.x + 10)}" y="${f1(lobe.y + 11)}" text-anchor="start">↑ in</text>`,
+    `<text class="bz-label bz-label-out" ${beside(lobe.x)} y="${f1(lobe.y - 2)}">out ↓</text>`,
+    `<text class="bz-label bz-label-in" ${beside(lobe.x)} y="${f1(lobe.y + 11)}">↑ in</text>`,
   );
   // Anchors: the front, the turn or the clip line, and the tuck
   const end = ringPoint(ring, 1);
@@ -507,14 +532,13 @@ function paintBezier(views: View[]) {
       `<circle class="bz-anchor-tuck" cx="${f1(STAGE_X + t.x)}" cy="${f1(t.y)}" r="3.5"/>`,
       `<text class="bz-label bz-label-tuck" x="${STAGE_X - 10}" y="${f1(Math.max(LEAD + 14, t.y + 3.5))}" text-anchor="end">tuck</text>`,
     );
-    const back = ringPoint(ring, 1.5);
+    const back = ringPoint(ring, 2 - ring.sway.peak);
     parts.push(
-      `<text class="bz-label bz-label-tuck" x="${f1(STAGE_X + back.x - 8)}" y="${f1(back.y + 4)}" text-anchor="end">behind</text>`,
+      `<text class="bz-label bz-label-tuck" ${beside(back.x, back.x === 0 ? -1 : 1)} y="${f1(back.y + 4)}">behind</text>`,
     );
   }
-  // Knots where the cubic segments join
-  for (const u of ringKnots(ring).slice(1, -1)) {
-    if (u === 1) continue;
+  // Each leg's widest point
+  for (const u of ringPeaks(ring)) {
     const k = ringPoint(ring, u);
     parts.push(
       `<circle class="bz-knot" cx="${f1(STAGE_X + k.x)}" cy="${f1(k.y)}" r="2.4"/>`,
@@ -726,11 +750,12 @@ const settingHtml = (s: Setting<any, unknown>) => {
   return `<label ${host}>${esc(s.label)} <select data-k="${s.key}">${s.options.map((o) => `<option>${o}</option>`).join("")}</select></label>`;
 };
 
-/** The settings bar holds both models' settings; a model's are hidden while another model runs. */
+/** The settings bar holds both models' settings and the path's; a model's are hidden while another model runs. */
 function renderSettings() {
   const all: readonly Setting<any, unknown>[] = [
     ...SETTINGS,
     ...CASCADE_SETTINGS,
+    ...PATH_SETTINGS,
   ];
   $("#sbar").innerHTML = GROUPS.map((g) =>
     group(
@@ -768,13 +793,16 @@ function syncList<C>(
   }
 }
 
-/** Shows the settings of the running model that change something under its configuration. */
+/**
+ * Shows the settings of the running model that change something under its configuration, and, while `Bezier
+ * path` draws the path they shape, the Path settings every model shares. The product has only those.
+ */
 function syncSettings() {
-  const sbar = $("#sbar");
-  sbar.hidden = opt.v === "product";
-  if (sbar.hidden) return;
+  const showPath = opt.path === "1";
+  $("#sbar").hidden = opt.v === "product" && !showPath;
   syncList(SETTINGS, cfg, opt.v === "drum");
   syncList(CASCADE_SETTINGS, ccfg, opt.v === "cascade");
+  syncList(PATH_SETTINGS, pcfg, showPath);
   for (const g of $$("#sbar .grp"))
     g.hidden = $$(`#sbar [data-group="${g.dataset.group}"] label`).every(
       (l) => l.hidden,
@@ -870,6 +898,8 @@ $("#sbar").addEventListener("input", (e) => {
       : t.value;
   refreshCfg();
   sim.setCfg?.();
+  // The path is read as the cards are drawn, so a paused page redraws to show a path slider's change.
+  if (PATH_KEYS.includes(k)) paint();
   syncAll();
 });
 $("#bar").addEventListener("click", (e) => {

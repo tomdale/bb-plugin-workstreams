@@ -99,7 +99,9 @@ const FOLD = {
 };
 const PRODUCT = { name: "product", hash: "#v=product" };
 const CASCADE = { name: "cascade", hash: "#v=cascade" };
-const STATES = [NATURAL, EVEN_HELD, FOLD, PRODUCT, CASCADE];
+/** The drum with `Bezier path` on, which shows the Path settings. */
+const PATH = { name: "path", hash: "#v=drum&preset=natural&path=1" };
+const STATES = [NATURAL, EVEN_HELD, FOLD, PRODUCT, CASCADE, PATH];
 
 /** The tooltip rows a control's kind promises, besides the closing `Works with` and `Tune`. */
 const KIND_ROWS = {
@@ -349,6 +351,37 @@ async function controlsDriveThePage(browser) {
       `Bezier path toggle draws the ring as cubic Bezier segments and sways outgoing cards along it (${JSON.stringify(bezier)})`,
     );
     await page.click('button[data-act="path"]');
+
+    // The path sliders move cards sideways only: zero sway keeps a leaving card on the column, a negative one
+    // swings it left, and its top edge is where it would be at the default.
+    const tops = {};
+    for (const sway of ["0", "-40", "24"]) {
+      await load(page, `#v=drum&preset=natural&sway=${sway}`);
+      await page.evaluate(() => {
+        window.__sim.pause();
+        window.__sim.jump(2);
+        window.__sim.press(1);
+      });
+      for (let f = 0; f < 6; f++)
+        await page.evaluate(() => window.__sim.advance(1000 / 60));
+      tops[sway] = await page.evaluate(() => {
+        const v = window.__sim
+          .views()
+          .find((v) => v.role === "out" && v.painted);
+        return v ? { x: v.x, top: v.top } : null;
+      });
+    }
+    expect(
+      tops["0"] &&
+        tops["-40"] &&
+        tops["24"] &&
+        Math.abs(tops["0"].x) < 1e-6 &&
+        tops["-40"].x < -1 &&
+        tops["24"].x > 1 &&
+        tops["0"].top === tops["24"].top &&
+        tops["-40"].top === tops["24"].top,
+      `sway in front px moves a leaving card sideways and leaves its top edge alone (${JSON.stringify(tops)})`,
+    );
   });
 }
 
@@ -765,6 +798,15 @@ const CASCADE_SHOWN = {
   shade: () => true,
 };
 
+/** The path's settings, which every model shows; the leg behind the pile is the drum's and the product's. */
+const PATH_SHOWN = {
+  sway: () => true,
+  swayb: (mode) => mode !== "cascade",
+  peak: () => true,
+};
+const pathKeys = (mode) =>
+  Object.keys(PATH_SHOWN).filter((k) => PATH_SHOWN[k](mode));
+
 /** The setting keys the settings bar draws now. */
 const shownKeys = (page) =>
   page.evaluate(() =>
@@ -875,19 +917,26 @@ async function settingsVisibility(browser) {
     });
     await page.selectOption('select[data-k="tk"]', "constant");
     await page.check('input[data-k="fold"]');
+    await page.click('button[data-act="path"]');
+    await page.$eval('input[data-k="sway"]', (e) => {
+      e.value = "40";
+      e.dispatchEvent(new Event("input", { bubbles: true }));
+    });
     await page.click('button[data-act="p:natural"]');
     const cleared = await page.evaluate(() => ({
       cap: document.querySelector('input[data-k="cap"]').value,
       tk: document.querySelector('select[data-k="tk"]').value,
       fold: document.querySelector('input[data-k="fold"]').checked,
+      sway: document.querySelector('input[data-k="sway"]').value,
       keys: [...new URLSearchParams(location.hash.slice(1)).keys()],
     }));
     expect(
       cleared.cap === dflt &&
         cleared.tk === "none" &&
         !cleared.fold &&
-        !cleared.keys.some((k) => k in SHOWN),
-      `a preset button clears every setting override (${JSON.stringify(cleared)})`,
+        !cleared.keys.some((k) => k in SHOWN) &&
+        cleared.sway === "40",
+      `a preset button clears every model setting override and keeps the path's (${JSON.stringify(cleared)})`,
     );
 
     // The cascade has its own settings: the ramp's hide with the ramp, and each model's hide under the other.
@@ -895,6 +944,25 @@ async function settingsVisibility(browser) {
     await load(page, CASCADE.hash);
     await only(CASCADE_KEYS, true, "cascade: its settings");
     await only(Object.keys(SHOWN), false, "cascade: the drum's settings");
+    await only(
+      Object.keys(PATH_SHOWN),
+      false,
+      "cascade without Bezier path: the path's settings",
+    );
+    await load(page, `${CASCADE.hash}&path=1`);
+    await only(
+      pathKeys("cascade"),
+      true,
+      "cascade with Bezier path: the path's settings",
+    );
+    await only(["swayb"], false, "cascade: no leg behind the pile");
+    await load(page, `${NATURAL.hash}&path=1`);
+    await only(
+      pathKeys("drum"),
+      true,
+      "drum with Bezier path: the path's settings",
+    );
+    await load(page, CASCADE.hash);
     await page.click('button[data-act="p:no held ramp"]');
     await only(
       CASCADE_KEYS.filter((k) => !CASCADE_SHOWN[k]({ ramp: false })),
@@ -932,7 +1000,13 @@ async function settingsVisibility(browser) {
       `the cascade's stage is cut at LEAD + park and its fade is capped at park − 346 (${JSON.stringify(stage)})`,
     );
 
-    // Product mode has no drum controls.
+    // Product mode has no model controls; with Bezier path on it shows the path's.
+    await load(page, `${PRODUCT.hash}&path=1`);
+    const productKeys = await shownKeys(page);
+    expect(
+      JSON.stringify(productKeys) === JSON.stringify(pathKeys("product")),
+      `product mode with Bezier path shows only the path's settings (${productKeys.join(", ")})`,
+    );
     await load(page, PRODUCT.hash);
     const bars = () =>
       page.evaluate(() => ({
