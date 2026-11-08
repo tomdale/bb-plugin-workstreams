@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import { memo, useMemo, type ComponentProps } from "react";
 import {
   Markdown,
   UrlLink,
@@ -18,20 +18,21 @@ export type ReplyDocument = ComponentProps<
 >["experimental_document"];
 
 /** Prose inside a part: the reply's own Markdown, at the reply's body size. */
-export function PlainMarkdown({
+export const PlainMarkdown = memo(function PlainMarkdown({
   content,
   document,
 }: {
   content: string | undefined;
   document: ReplyDocument;
 }) {
-  return content ? (
-    <Markdown
-      content={normalizeReplyMarkdown(content)}
-      experimental_document={document}
-    />
+  const normalized = useMemo(
+    () => (content ? normalizeReplyMarkdown(content) : content),
+    [content],
+  );
+  return normalized ? (
+    <Markdown content={normalized} experimental_document={document} />
   ) : null;
-}
+});
 
 /**
  * Where a row's claim was checked: a link into the workspace or the web, or a

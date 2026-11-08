@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
 import type { PluginBrowserBbSdk } from "@get-bb/plugin-sdk/app";
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import { afterEach, expect, it } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
 import {
   deliveredCardRecord,
   DeliveredQuestionCards,
@@ -191,6 +197,64 @@ it.each([prefix, recoveredPrefix])(
     }
   },
 );
+
+it("reconciles duplicate answers when an existing form gains or loses its result", async () => {
+  const raw = `${recoveredPrefix}\n${JSON.stringify(result)}\n${recoveredSuffix}`;
+  const record = deliveredCardRecord(raw)!;
+  const { QuestionHistoryCard } =
+    await import("../../../src/app/question/QuestionHistory.tsx");
+  const pending = { ...record, status: "pending" as const, result: null };
+  const view = (answered: boolean) => (
+    <div data-timeline-row-list="normal">
+      <div data-timeline-row-id="thread:form:one">
+        <QuestionHistoryCard record={answered ? record : pending} />
+      </div>
+      <div data-timeline-row-id="thread:delivery">
+        <p>{raw}</p>
+      </div>
+    </div>
+  );
+  const message = render(view(false));
+  const overlay = renderSlot({ component: DeliveredQuestionCards }, {});
+  await waitFor(() =>
+    expect(
+      message.container.querySelector(
+        "[data-ws-delivered-anchor] [data-ws-question-history]",
+      ),
+    ).not.toBeNull(),
+  );
+  const originalCard = message.container.querySelector(
+    '[data-timeline-row-id="thread:form:one"] [data-ws-question-history]',
+  );
+  message.rerender(view(true));
+  await waitFor(() =>
+    expect(
+      message.container.querySelector(".ws-delivered-question-duplicate"),
+    ).not.toBeNull(),
+  );
+  expect(
+    message.container.querySelector(
+      '[data-timeline-row-id="thread:form:one"] [data-ws-question-history]',
+    ),
+  ).toBe(originalCard);
+  expect(
+    message.container.querySelector(
+      "[data-ws-delivered-anchor] [data-ws-question-history]",
+    ),
+  ).toBeNull();
+  message.rerender(view(false));
+  await waitFor(() =>
+    expect(
+      message.container.querySelector(".ws-delivered-question-duplicate"),
+    ).toBeNull(),
+  );
+  expect(
+    message.container.querySelector(
+      "[data-ws-delivered-anchor] [data-ws-question-history]",
+    ),
+  ).not.toBeNull();
+  overlay.lifecycle.unmount();
+});
 
 it("keeps one answer when the original form and a delivery are both mounted, and restores it as rows unmount", async () => {
   const raw = `${recoveredPrefix}\n${JSON.stringify(result)}\n${recoveredSuffix}`;
@@ -440,4 +504,116 @@ it("replaces only the delivery row inside a turn and leaves unrelated content vi
     message.container.querySelectorAll(".ws-delivered-question-row"),
   ).toHaveLength(1);
   overlay.lifecycle.unmount();
+});
+
+it("detects a delivered result streamed into an existing generated row", async () => {
+  const message = render(
+    <div data-timeline-row-id="thread:assistant">
+      <p />
+    </div>,
+  );
+  const stream = message.container.querySelector("p")!;
+  const overlay = renderSlot({ component: DeliveredQuestionCards }, {});
+  await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+
+  for (const chunk of [prefix, "\n", JSON.stringify(result)]) {
+    stream.append(document.createTextNode(chunk));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  }
+
+  await waitFor(() =>
+    expect(
+      message.container.querySelector("[data-ws-question-history]"),
+    ).not.toBeNull(),
+  );
+  expect(message.getByText("What should we test?")).toBeTruthy();
+  overlay.lifecycle.unmount();
+});
+
+it("cleans up a delivered row reported through removed mutation nodes", async () => {
+  const raw = `${prefix}\n${JSON.stringify(result)}`;
+  const message = render(
+    <div data-timeline-row-id="thread:delivery">
+      <p>{raw}</p>
+    </div>,
+  );
+  const row = message.container.querySelector<HTMLElement>(
+    "[data-timeline-row-id]",
+  )!;
+  const host = row.querySelector<HTMLElement>("p")!;
+  const overlay = renderSlot({ component: DeliveredQuestionCards }, {});
+  await waitFor(() =>
+    expect(row.querySelector("[data-ws-delivered-anchor]")).not.toBeNull(),
+  );
+
+  message.unmount();
+
+  await waitFor(() => {
+    expect(row.querySelector("[data-ws-delivered-anchor]")).toBeNull();
+    expect(host.classList.contains("ws-delivered-question-source")).toBe(false);
+    expect(row.classList.contains("ws-delivered-question-row")).toBe(false);
+  });
+  overlay.lifecycle.unmount();
+});
+
+it("does not scan the full timeline for unrelated DOM updates", async () => {
+  const raw = `${prefix}\n${JSON.stringify(result)}`;
+  const message = render(
+    <div data-timeline-row-id="thread:delivery">
+      <p>{raw}</p>
+    </div>,
+  );
+  const overlay = renderSlot({ component: DeliveredQuestionCards }, {});
+  await waitFor(() =>
+    expect(
+      message.container.querySelector("[data-ws-question-history]"),
+    ).not.toBeNull(),
+  );
+  const composer = document.createElement("div");
+  composer.dataset.appComposer = "";
+  const composerText = document.createElement("div");
+  composer.append(composerText);
+  const sidebar = document.createElement("aside");
+  const assistant = document.createElement("div");
+  assistant.dataset.timelineRowId = "thread:assistant";
+  const stream = document.createElement("p");
+  assistant.append(stream);
+  message.container.append(composer, sidebar, assistant);
+  const queries = vi.spyOn(document, "querySelectorAll");
+  const scans = () =>
+    queries.mock.calls.filter(
+      ([selector]) => selector === "[data-timeline-row-id]",
+    ).length;
+  const flush = () =>
+    act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  await flush();
+  queries.mockClear();
+
+  try {
+    for (const value of ["H", "He", "Hel"]) {
+      composerText.textContent = value;
+      await flush();
+    }
+    const composerScans = scans();
+    for (const label of ["One", "Two"]) {
+      sidebar.append(document.createTextNode(label));
+      await flush();
+    }
+    const sidebarScans = scans() - composerScans;
+    const beforeStreaming = scans();
+    for (const chunk of ["Working", " on", " the", " answer"]) {
+      stream.append(document.createTextNode(chunk));
+      await flush();
+    }
+    const streamingScans = scans() - beforeStreaming;
+
+    expect({ composerScans, sidebarScans, streamingScans }).toEqual({
+      composerScans: 0,
+      sidebarScans: 0,
+      streamingScans: 0,
+    });
+  } finally {
+    queries.mockRestore();
+    overlay.lifecycle.unmount();
+  }
 });

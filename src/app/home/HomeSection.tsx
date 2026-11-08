@@ -123,7 +123,9 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
 
   const nameOf = new Map(sections.map((section) => [section.id, section.name]));
   const env: HomeEnv = {
-    now: ws.now,
+    now: ws.displayNow,
+    analysis: server.analysis,
+    recaps: server.recaps,
     work: ws.work,
     snoozeOf: ws.snoozeOf,
     showAge: (prefs?.sidebar.timestamps ?? "show") === "show",
@@ -154,6 +156,8 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
               more={plan.upNext.more}
               focused={plan.focus.active}
               work={ws.work}
+              analysis={server.analysis}
+              recaps={server.recaps}
               workstreamOf={(row) => {
                 const name = row.workstreamId
                   ? nameOf.get(row.workstreamId)
@@ -168,7 +172,7 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
                     }
                   : null;
               }}
-              now={ws.now}
+              now={ws.displayNow}
               showAge={env.showAge}
             />
           ) : null}

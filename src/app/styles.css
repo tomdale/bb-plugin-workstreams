@@ -299,8 +299,9 @@
     filter: blur(2px);
   }
 }
-/* The shimmer: a wide, feathered band of the attention color that drifts
-   across the card every few seconds. */
+/* The shimmer's gradient is three card widths wide. Translating that layer
+   keeps the sweep on the compositor; background-position would repaint it.
+   Transform percentages refer to the layer, so divide card offsets by three. */
 .ws-needs::after {
   content: "";
   position: absolute;
@@ -308,8 +309,10 @@
   z-index: -1;
   border-radius: inherit;
   pointer-events: none;
+  right: auto;
+  width: 300%;
   background-repeat: no-repeat;
-  background-size: 300% 100%;
+  background-size: 100% 100%;
   background-image: linear-gradient(
     110deg,
     transparent 30%,
@@ -322,11 +325,11 @@
 }
 @keyframes ws-needs-shimmer {
   0% {
-    background-position: 125% 0;
+    transform: translateX(calc(-250% / 3));
   }
   39.25%,
   100% {
-    background-position: -25% 0;
+    transform: translateX(calc(50% / 3));
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -449,6 +449,9 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
 
 #### Row indicators and actions
 
+Thread ages refresh once a minute. Snoozes wake at their expiry time, and empty
+workstreams leave the list when their grace period ends.
+
 - **Status marks:** Live BB runtime indicators (customizable working spinner,
   `?` waiting, `!` error, `✎` unsent draft, unread dot) and Workstreams status
   glyphs (`◆` Needs your decision, `◇` Ready for your review, `⏸︎` Blocked on
@@ -1101,6 +1104,31 @@ npm run typecheck
 npm test
 npm run build
 ```
+
+### UI performance
+
+Client views share preference loads and pending-question polling. Equal server
+and sidebar snapshots retain their unchanged values, so unrelated updates do not
+redraw every thread row or reparse stable reply text. Timeline observers check
+mutation records before scanning for delivered questions, subagent results, or a
+replacement message scroller.
+
+Run the render-count regressions with:
+
+```sh
+npm test -- tests/app/client-performance.test.tsx tests/app/sidebar-performance.test.tsx tests/app/home-performance.test.tsx tests/app/stable-content-rendering.test.tsx tests/app/duplicate-request-performance.test.tsx
+```
+
+The regressions count work with advancing clocks and JSON-cloned sidebar
+updates; React duration samples are diagnostic, not timing thresholds.
+
+Profile the Up Next shimmer in headless Chrome with `npm run profile:shimmer`.
+The command writes Chrome traces and a JSON report to a temporary directory. Set
+`CHROME_PATH` if Chrome is not installed in a standard location. To compare
+another stylesheet, pass `-- --baseline /path/to/styles.css`. The profiler uses
+an isolated card and does not load BB thread data. Browser regressions also
+check the gradient trajectory, light and dark rendering, compositor activity,
+and reduced motion.
 
 ### Queue motion lab
 

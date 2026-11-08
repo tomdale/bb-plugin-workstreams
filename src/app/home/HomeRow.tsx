@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   ThreadTitle,
   useSidebarThreadDraft,
@@ -14,9 +15,92 @@ import {
   workstreamColorStyle,
   type TopicColor,
 } from "../../domain/workstreamColor.ts";
-import type { WorkView } from "../useWorkstreams.ts";
+import type { ServerState, WorkView } from "../useWorkstreams.ts";
+import { workView } from "../../domain/status.ts";
 import { hasNativeStatus, shownWorkState } from "../sidebar/presentation.ts";
 import { StatusMark } from "../sidebar/StatusMark.tsx";
+
+/**
+ * A Home row with stable action identities. The memo compares every prop,
+ * including the disclosure callback, so unrelated thread updates do not rerun
+ * the draft hook and presentation work with a stale callback hidden by a
+ * custom comparator.
+ */
+export const HomeThreadRow = memo(function HomeThreadRow({
+  thread,
+  analysis,
+  recap,
+  now,
+  variant,
+  depth = 0,
+  showMarkSlot,
+  showAge,
+  workstreamName,
+  workstreamHue,
+  workstreamLevel,
+  trailing,
+  disclosureId,
+  disclosureOpen,
+  disclosureCount,
+  toggleDisclosure,
+}: {
+  thread: PluginSidebarThread;
+  analysis?: ServerState["analysis"][string];
+  recap?: ServerState["recaps"][string];
+  now: number;
+  variant: "attention" | "group" | "snoozed";
+  depth?: number;
+  showMarkSlot: boolean;
+  showAge: boolean;
+  workstreamName?: string;
+  workstreamHue?: number;
+  workstreamLevel?: TopicColor["level"];
+  trailing?: string;
+  disclosureId?: string;
+  disclosureOpen?: boolean;
+  disclosureCount?: number;
+  toggleDisclosure?: (id: string, byDefault: boolean) => void;
+}) {
+  const work = workView(thread, analysis, recap);
+  return (
+    <HomeRow
+      thread={thread}
+      work={work}
+      now={now}
+      variant={variant}
+      depth={depth}
+      showMarkSlot={showMarkSlot}
+      showAge={showAge}
+      workstream={
+        workstreamName &&
+        workstreamHue !== undefined &&
+        workstreamLevel !== undefined
+          ? {
+              name: workstreamName,
+              color: { hue: workstreamHue, level: workstreamLevel },
+            }
+          : null
+      }
+      ask={
+        variant === "attention" && work.kind === "current"
+          ? work.analysis.needsYou
+          : null
+      }
+      trailing={trailing}
+      disclosure={
+        disclosureId &&
+        disclosureOpen !== undefined &&
+        disclosureCount !== undefined
+          ? {
+              open: disclosureOpen,
+              count: disclosureCount,
+              toggle: () => toggleDisclosure?.(disclosureId, true),
+            }
+          : undefined
+      }
+    />
+  );
+});
 
 /**
  * One thread as a Home row: BB's status mark or the work state's, the BB

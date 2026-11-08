@@ -184,6 +184,7 @@ it.each(["collapsed", "empty"])(
           ids: target === "collapsed" ? ["alpha", "beta"] : ["alpha"],
         }),
       );
+      await dragGuardRemoved();
       slot.selectThread("alpha");
       const header = within(
         slot.getByRole("region", { name: "Beta" }),
@@ -195,7 +196,6 @@ it.each(["collapsed", "empty"])(
           target === "collapsed" ? ["Alpha task", "Beta task"] : ["Alpha task"],
         ),
       );
-      await dragGuardRemoved();
       slot.lifecycle.unmount();
     } finally {
       restore();

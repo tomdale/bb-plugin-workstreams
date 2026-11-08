@@ -1,10 +1,10 @@
-import { experimental_useSidebarThreads } from "@get-bb/plugin-sdk/app";
+import { useStableSidebarThreads } from "./useStableSidebarThreads.ts";
 import { useMemo } from "react";
 import {
   colorForWorkstream,
   type TopicColor,
 } from "../domain/workstreamColor.ts";
-import { useSharedServerState } from "./serverState.ts";
+import { useSharedServerStateSelector } from "./serverState.ts";
 
 type GoalContext = {
   /**
@@ -21,14 +21,17 @@ type GoalContext = {
 
 /** What a thread is for: its title, desired outcome, and workstream. */
 export function useGoalContext(threadId: string | null): GoalContext | null {
-  const { threads, sections } = experimental_useSidebarThreads();
-  const { server } = useSharedServerState();
+  const { threads, sections } = useStableSidebarThreads();
+  const threadGoal = useSharedServerStateSelector((server) =>
+    threadId ? server.analysis[threadId]?.threadGoal : undefined,
+  );
+  const catalog = useSharedServerStateSelector((server) => server.catalog);
   return useMemo(() => {
     if (!threadId) return null;
     const thread = threads.find((item) => item.id === threadId);
     if (!thread) return null;
     const title = thread.displayTitle;
-    const goal = server.analysis[threadId]?.threadGoal;
+    const goal = threadGoal;
     // Delegates follow their root's workstream, even when BB keeps a different
     // native section on the delegate itself.
     let root = thread;
@@ -48,9 +51,9 @@ export function useGoalContext(threadId: string | null): GoalContext | null {
       workstream: section
         ? {
             name: section.name,
-            color: colorForWorkstream(section.id, server.catalog),
+            color: colorForWorkstream(section.id, catalog),
           }
         : null,
     };
-  }, [threadId, threads, sections, server.analysis, server.catalog]);
+  }, [threadId, threads, sections, threadGoal, catalog]);
 }

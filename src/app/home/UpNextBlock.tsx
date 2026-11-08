@@ -2,10 +2,10 @@ import { useState } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import type { Row } from "../../domain/project.ts";
 import type { TopicColor } from "../../domain/workstreamColor.ts";
-import type { WorkView } from "../useWorkstreams.ts";
+import type { ServerState, WorkView } from "../useWorkstreams.ts";
 import { hasStatusMark } from "../sidebar/presentation.ts";
 import { FocusIcon } from "../sidebar/FocusIcon.tsx";
-import { HomeRow } from "./HomeRow.tsx";
+import { HomeThreadRow } from "./HomeRow.tsx";
 
 /**
  * Up Next on Home: the rows `selectUpNext` chose, in the sidebar's Up
@@ -17,6 +17,8 @@ export function UpNextBlock({
   more,
   focused,
   work,
+  analysis,
+  recaps,
   workstreamOf,
   now,
   showAge,
@@ -27,6 +29,8 @@ export function UpNextBlock({
   /** Focus left other workstreams' threads out. */
   focused: boolean;
   work: (thread: PluginSidebarThread) => WorkView;
+  analysis: ServerState["analysis"];
+  recaps: ServerState["recaps"];
   workstreamOf: (row: Row<PluginSidebarThread>) => {
     name: string;
     color: TopicColor;
@@ -64,20 +68,20 @@ export function UpNextBlock({
       </h2>
       <ul className="ws-home-rows" role="list">
         {rows.map((row) => {
-          const analysis = work(row.thread);
+          const workstream = workstreamOf(row);
           return (
-            <HomeRow
+            <HomeThreadRow
               key={row.thread.id}
               thread={row.thread}
-              work={analysis}
+              analysis={analysis[row.thread.id]}
+              recap={recaps[row.thread.id]}
               now={now}
               variant="attention"
               showMarkSlot={marks}
               showAge={showAge}
-              workstream={workstreamOf(row)}
-              ask={
-                analysis.kind === "current" ? analysis.analysis.needsYou : null
-              }
+              workstreamName={workstream?.name}
+              workstreamHue={workstream?.color.hue}
+              workstreamLevel={workstream?.color.level}
             />
           );
         })}

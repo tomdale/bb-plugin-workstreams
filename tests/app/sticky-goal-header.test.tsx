@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { cleanup, waitFor } from "@testing-library/react";
+import { act, cleanup, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { Profiler, type ProfilerOnRenderCallback } from "react";
 import {
   SUBTITLE_LINE,
   SUBTITLE_SIZE,
@@ -67,9 +68,18 @@ function paneFixture({ recap }: { recap: boolean }) {
 async function mountHeading(
   headingTransition: "fade" | "scroll" = "scroll",
   goal: string | null = null,
+  onRender?: ProfilerOnRenderCallback,
 ) {
   stubResizeObserver();
-  const heading = { component: StickyGoalHeader };
+  const heading = {
+    component: onRender
+      ? () => (
+          <Profiler id="heading" onRender={onRender}>
+            <StickyGoalHeader />
+          </Profiler>
+        )
+      : StickyGoalHeader,
+  };
   return renderSlot(
     heading,
     {},
@@ -460,3 +470,135 @@ it("falls back to the body when the sliding surface is missing", async () => {
   expect(overlay()!.parentElement).toBe(document.body);
   slot.lifecycle.unmount();
 });
+
+it("does not scan for a scroller after unrelated DOM updates", async () => {
+  paneFixture({ recap: false });
+  const column = document.querySelector<HTMLElement>('[data-test="column"]')!;
+  const stream = document.createElement("p");
+  column.append(stream);
+  const slot = await mountHeading();
+  await waitFor(() => expect(root()).not.toBeNull());
+  const composer = document.querySelector<HTMLElement>("[data-app-composer]")!;
+  const composerText = document.createElement("div");
+  composer.append(composerText);
+  const sidebar = document.createElement("aside");
+  document.body.append(sidebar);
+  const queries = vi.spyOn(document, "querySelectorAll");
+  const scans = () =>
+    queries.mock.calls.filter(
+      ([selector]) => selector === "[data-thread-window] .thread-scrollbar",
+    ).length;
+  const flush = () =>
+    act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  await flush();
+  queries.mockClear();
+
+  try {
+    for (const value of ["H", "He", "Hel"]) {
+      composerText.textContent = value;
+      await flush();
+    }
+    const composerScans = scans();
+    for (const label of ["One", "Two"]) {
+      sidebar.append(document.createTextNode(label));
+      await flush();
+    }
+    const sidebarScans = scans() - composerScans;
+    const beforeStreaming = scans();
+    for (const chunk of ["Working", " on", " the", " answer"]) {
+      stream.append(document.createTextNode(chunk));
+      await flush();
+    }
+    const streamingScans = scans() - beforeStreaming;
+
+    expect({ composerScans, sidebarScans, streamingScans }).toEqual({
+      composerScans: 0,
+      sidebarScans: 0,
+      streamingScans: 0,
+    });
+  } finally {
+    queries.mockRestore();
+    slot.lifecycle.unmount();
+  }
+});
+
+it("reattaches after scroller replacement and split-pane changes", async () => {
+  paneFixture({ recap: false });
+  const slot = await mountHeading();
+  await waitFor(() => expect(root()).not.toBeNull());
+  const original = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  const replacement = document.createElement("div");
+  replacement.className = "thread-scrollbar";
+  replacement.dataset.test = "replacement";
+  replacement.innerHTML =
+    "<div><div data-test='replacement-column' data-scroll-attached></div></div>";
+  original.replaceWith(replacement);
+  await waitFor(() =>
+    expect(root()?.parentElement?.dataset.test).toBe("replacement-column"),
+  );
+
+  const secondPane = document.createElement("div");
+  secondPane.innerHTML =
+    "<div data-thread-window><div class='thread-scrollbar'><div><div data-scroll-attached></div></div></div></div>";
+  document.querySelector("main")!.append(secondPane);
+  await waitFor(() => expect(root()).toBeNull());
+  secondPane.remove();
+  await waitFor(() =>
+    expect(root()?.parentElement?.dataset.test).toBe("replacement-column"),
+  );
+  slot.lifecycle.unmount();
+});
+
+it.each(["fade", "scroll"] as const)(
+  "skips collapsed heading commits and follows reentry in %s mode",
+  async (mode) => {
+    paneFixture({ recap: false });
+    const scroller = document.querySelector<HTMLElement>(
+      '[data-test="messages"]',
+    )!;
+    Object.defineProperties(scroller, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 400 },
+      scrollTop: { configurable: true, writable: true, value: 600 },
+    });
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 900, 672),
+    );
+    const commits = vi.fn();
+    const slot = await mountHeading(mode, null, commits);
+    try {
+      await waitFor(() => expect(overlay()).not.toBeNull());
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 550));
+      });
+      scroller.scrollTop = 350;
+      scroller.dispatchEvent(new Event("scroll"));
+      await waitFor(() =>
+        expect(root()?.getAttribute("data-collapsed")).toBe("true"),
+      );
+      commits.mockClear();
+      for (let step = 0; step < 20; step++) {
+        await act(async () => {
+          scroller.scrollTop = 340 - step * 5;
+          scroller.dispatchEvent(new Event("scroll"));
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        });
+      }
+      expect(commits).not.toHaveBeenCalled();
+      scroller.scrollTop = 590;
+      scroller.dispatchEvent(new Event("scroll"));
+      await waitFor(() =>
+        expect(root()?.getAttribute("data-collapsed")).toBe("false"),
+      );
+      expect(commits.mock.calls.length).toBeGreaterThan(0);
+      const expanded = overlay()!.querySelector<HTMLElement>(
+        '[data-ws-heading="expanded"] .ws-goal-overlay__group',
+      )!;
+      expect(Number(expanded.style.opacity)).toBeGreaterThan(0);
+    } finally {
+      slot.lifecycle.unmount();
+    }
+  },
+);

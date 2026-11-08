@@ -105,10 +105,14 @@ export function titleExitDistance(
 // Both copies travel the same distance over 2.5 times as much timeline scroll.
 const HEADING_SCROLL_RATIO = 0.4;
 
+export function headingScrollLimit(exitDistance: number): number {
+  return exitDistance / HEADING_SCROLL_RATIO;
+}
+
 /** The compact copy starts one exit distance below its final position. */
 export function headingScroll(fromBottom: number, exitDistance: number) {
   const t = Math.min(
-    Math.max(0, fromBottom) / (exitDistance / HEADING_SCROLL_RATIO),
+    Math.max(0, fromBottom) / headingScrollLimit(exitDistance),
     1,
   );
   // Start responsively and ease to zero velocity at the shared endpoint.

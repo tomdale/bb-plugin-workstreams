@@ -1,9 +1,11 @@
 // Mounts the phone Home section the way BB does: a `homepageSection` slot
 // inside BB's compact home scroll viewport, with a mocked thread list and
 // plugin state.
-import type {
-  PluginSidebarSection,
-  PluginSidebarThread,
+import { Profiler, type ProfilerOnRenderCallback } from "react";
+import {
+  experimental_useSidebarThreads,
+  type PluginSidebarSection,
+  type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { HomeSection } from "../../src/app/home/HomeSection.tsx";
@@ -49,6 +51,7 @@ export type HomeOptions = {
   drafts?: string[];
   /** Holds an answer back until the promise settles, as a slow server does. */
   gates?: { prefs?: Promise<unknown>; state?: Promise<unknown> };
+  onRender?: ProfilerOnRenderCallback;
 };
 
 /** Everything but the `sidebar` group falls back to the plugin's defaults. */
@@ -76,20 +79,35 @@ export async function mountHome(options: HomeOptions = {}) {
   const Section = HomeSection;
   const compact = options.placement !== "bare";
   const threads = options.threads ?? [];
+  let publishedThreads: PluginSidebarThread[] = [];
   function Mounted() {
-    return compact ? (
-      <div data-testid="root-compose-compact-scroll-viewport">
-        <div data-testid="plugin-homepage-sections">
-          <section>
-            <h2>Workstreams</h2>
-            <div data-bb-plugin-root="">
-              <Section projectId={null} />
+    if (
+      publishedThreads.length !== threads.length ||
+      publishedThreads.some((thread, index) => thread !== threads[index])
+    )
+      publishedThreads = [...threads];
+    const snapshot = experimental_useSidebarThreads();
+    snapshot.threads = publishedThreads;
+    return (
+      <Profiler
+        id="workstreams-home"
+        onRender={options.onRender ?? (() => undefined)}
+      >
+        {compact ? (
+          <div data-testid="root-compose-compact-scroll-viewport">
+            <div data-testid="plugin-homepage-sections">
+              <section>
+                <h2>Workstreams</h2>
+                <div data-bb-plugin-root="">
+                  <Section projectId={null} />
+                </div>
+              </section>
             </div>
-          </section>
-        </div>
-      </div>
-    ) : (
-      <Section projectId={null} />
+          </div>
+        ) : (
+          <Section projectId={null} />
+        )}
+      </Profiler>
     );
   }
   const slot = renderSlot(
@@ -127,7 +145,18 @@ export async function mountHome(options: HomeOptions = {}) {
       },
     },
   );
-  return slot;
+  return {
+    ...slot,
+    rerenderHome: () => slot.rerender(<Mounted />),
+    replaceThread: (
+      id: string,
+      change: (thread: PluginSidebarThread) => PluginSidebarThread,
+    ) => {
+      const index = threads.findIndex((thread) => thread.id === id);
+      threads[index] = change(threads[index]!);
+      slot.rerender(<Mounted />);
+    },
+  };
 }
 
 /** A current analysis result that asks the user to decide. */

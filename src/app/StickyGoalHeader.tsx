@@ -20,10 +20,15 @@ import {
   headingHeight,
   headingOpacity,
   headingScroll,
+  headingScrollLimit,
   pinnedHeight,
   titleExitDistance,
 } from "./goalHeading.ts";
 import { WorkstreamIcon } from "./WorkstreamIcon.tsx";
+import {
+  changedSubtreesMatch,
+  mutationTargetElement,
+} from "./mutationRecords.ts";
 
 const SCROLLER = "[data-thread-window] .thread-scrollbar";
 /** BB's composer shell, which holds the recap and question cards. */
@@ -171,7 +176,22 @@ function useMessageScroller(threadId: string | null): Mount | null {
     };
 
     attach();
-    const observer = new MutationObserver(attach);
+    const observer = new MutationObserver((records) => {
+      const detached =
+        current !== null &&
+        (!current.scroller.isConnected ||
+          !current.column.isConnected ||
+          !current.root.isConnected ||
+          !current.overlay.isConnected);
+      const lifecycleChanged = records.some((record) => {
+        if (changedSubtreesMatch(record, ".thread-scrollbar")) return true;
+        const target = mutationTargetElement(record);
+        const scroller = target?.closest<HTMLElement>(SCROLLER);
+        if (!scroller) return false;
+        return target === scroller || target === scroller.firstElementChild;
+      });
+      if (detached || lifecycleChanged) attach();
+    });
     observer.observe(document.body, { childList: true, subtree: true });
     return () => {
       observer.disconnect();
@@ -184,7 +204,10 @@ function useMessageScroller(threadId: string | null): Mount | null {
   return mount;
 }
 
-function useScrollState(scroller: HTMLElement | null): {
+function useScrollState(
+  scroller: HTMLElement | null,
+  scrollLimit: number,
+): {
   fromBottom: number;
   // BB's own overflow fades appear only once content has scrolled out of view,
   // so the fade beneath the heading is on exactly when the timeline is
@@ -192,22 +215,31 @@ function useScrollState(scroller: HTMLElement | null): {
   fade: boolean;
 } {
   const [state, setState] = useState({ fromBottom: 0, fade: false });
+  const latest = useRef(state);
   useEffect(() => {
     // A new scroller (another thread) starts expanded until it is measured.
-    setState({ fromBottom: 0, fade: false });
+    latest.current = { fromBottom: 0, fade: false };
+    setState(latest.current);
+  }, [scroller]);
+  useEffect(() => {
     if (!scroller) return;
     let frame = 0;
     const update = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const range = scroller.scrollHeight - scroller.clientHeight;
-        const fromBottom = Math.max(0, range - scroller.scrollTop);
-        const fade = scroller.scrollTop > 1;
-        setState((prev) =>
-          prev.fromBottom === fromBottom && prev.fade === fade
-            ? prev
-            : { fromBottom, fade },
+        const fromBottom = Math.min(
+          scrollLimit,
+          Math.max(0, range - scroller.scrollTop),
         );
+        const fade = scroller.scrollTop > 1;
+        if (
+          latest.current.fromBottom === fromBottom &&
+          latest.current.fade === fade
+        )
+          return;
+        latest.current = { fromBottom, fade };
+        setState(latest.current);
       });
     };
     update();
@@ -219,7 +251,7 @@ function useScrollState(scroller: HTMLElement | null): {
       scroller.removeEventListener("scroll", update);
       resize.disconnect();
     };
-  }, [scroller]);
+  }, [scroller, scrollLimit]);
   return state;
 }
 
@@ -402,7 +434,6 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const { prefs } = usePrefs();
   const fadeOnly = (prefs?.threads.headingTransition ?? "fade") === "fade";
   const mount = useMessageScroller(threadId);
-  const { fromBottom, fade } = useScrollState(mount?.scroller ?? null);
   const settled = useSettled(mount);
   const base = mount?.baseFontSize ?? 14;
   const placement = usePlacement(mount, base);
@@ -459,6 +490,10 @@ export function StickyGoalHeader(): React.ReactElement | null {
     goal ? goalLines : 0,
   );
   const exitDistance = titleExitDistance(base, eyebrow, titleLines);
+  const { fromBottom, fade } = useScrollState(
+    mount?.scroller ?? null,
+    headingScrollLimit(exitDistance),
+  );
   const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
   const { moved, remaining, progress } = placement?.short
     ? { moved: exitDistance, remaining: 0, progress: 1 }

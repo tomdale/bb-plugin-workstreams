@@ -1,6 +1,7 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useRealtime, useRpc, useSdk } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../server/contract.ts";
+import { shareJson } from "./structuralSharing.ts";
 import {
   mergePrefs,
   parsePrefs,
@@ -19,6 +20,9 @@ class PrefsStore {
   private value: Prefs | null = null;
   private listeners = new Set<() => void>();
   private loading: Promise<void> | null = null;
+  private realtimeReaders = new Set<object>();
+  private lifetime = 0;
+  private revision = 0;
 
   constructor(private readonly rpc: Rpc) {}
 
@@ -26,21 +30,54 @@ class PrefsStore {
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    if (this.listeners.size === 1) {
+      this.lifetime += 1;
+      this.loading = null;
+      this.load();
+    }
+    return () => {
+      this.listeners.delete(listener);
+      if (this.listeners.size === 0) {
+        this.lifetime += 1;
+        this.loading = null;
+      }
+    };
   };
 
   set = (next: Prefs | null) => {
-    this.value = next;
+    this.revision += 1;
+    const shared = shareJson(this.value, next);
+    if (shared === this.value) return;
+    this.value = shared;
     for (const listener of this.listeners) listener();
   };
 
+  joinRealtime = (reader: object) => {
+    this.realtimeReaders.add(reader);
+    return () => {
+      this.realtimeReaders.delete(reader);
+    };
+  };
+
+  receiveRealtime = (reader: object, payload: unknown) => {
+    // Hooks register individually; the oldest reader publishes for the store.
+    if (this.realtimeReaders.values().next().value !== reader) return;
+    this.set(parsePrefs((payload as { prefs?: unknown })?.prefs));
+  };
+
   load = () => {
-    this.loading ??= this.rpc
+    if (this.loading) return;
+    const lifetime = this.lifetime;
+    const revision = this.revision;
+    this.loading = this.rpc
       .call("prefs", null)
-      .then(({ prefs }) => this.set(parsePrefs(prefs)))
+      .then(({ prefs }) => {
+        if (this.lifetime === lifetime && this.revision === revision)
+          this.set(parsePrefs(prefs));
+      })
       .catch(() => {
         // A later reader retries.
-        this.loading = null;
+        if (this.lifetime === lifetime) this.loading = null;
       });
   };
 
@@ -92,8 +129,8 @@ export function usePrefs() {
     store.snapshot,
   );
   useEffect(store.load, [store]);
-  useRealtime("prefs", (payload) =>
-    store.set(parsePrefs((payload as { prefs?: unknown })?.prefs)),
-  );
+  const reader = useRef({}).current;
+  useEffect(() => store.joinRealtime(reader), [store, reader]);
+  useRealtime("prefs", (payload) => store.receiveRealtime(reader, payload));
   return { prefs, save: store.save };
 }

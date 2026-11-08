@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import {
   experimental_useSidebarThreadActions,
@@ -22,7 +22,11 @@ import type {
 import { compareGroupNames } from "../../domain/group-name-order.ts";
 import { takesThreads } from "../../domain/topics.ts";
 import { topicPath } from "../../domain/topic-path.ts";
-import { useSharedServerState } from "../serverState.ts";
+import {
+  useSharedServerState,
+  useSharedServerActions,
+  useSharedServerStateSelector,
+} from "../serverState.ts";
 import { isAutomaticTopic } from "../task/TaskIdentity.tsx";
 import { SnoozeMenuItems, type MenuKit } from "../snooze/SnoozeMenuItems.tsx";
 
@@ -71,11 +75,12 @@ export function RowMenu({
   const actions = experimental_useSidebarThreadActions();
   const portalScope = usePortalScopeProps();
   const debug = useDebugMode();
-  const { server, rpc, refresh } = useSharedServerState();
+  const { rpc, refresh } = useSharedServerActions();
+  const catalog = useSharedServerStateSelector((server) => server.catalog);
 
   // Topic submenu: the same choices as the thread header's Topic control.
-  const entities = server.catalog?.entities ?? [];
-  const assignment = server.catalog?.assignments[thread.id] ?? null;
+  const entities = useMemo(() => catalog?.entities ?? [], [catalog?.entities]);
+  const assignment = catalog?.assignments[thread.id] ?? null;
   const currentEntity = assignment?.entityId
     ? (entities.find((e) => e.id === assignment.entityId) ?? null)
     : null;
@@ -88,11 +93,15 @@ export function RowMenu({
   const automatic = isAutomaticTopic(assignment);
   // A topic holds threads or subtopics, never both (see `takesThreads`), so
   // a parent topic cannot be a thread's topic and is not offered here.
-  const chosenTopics = entities
-    .filter((entity) => takesThreads(entity.id, entities))
-    .sort((a, b) =>
-      compareGroupNames(displayTopicPath(a.id), displayTopicPath(b.id)),
-    );
+  const chosenTopics = useMemo(
+    () =>
+      entities
+        .filter((entity) => takesThreads(entity.id, entities))
+        .sort((a, b) =>
+          compareGroupNames(displayTopicPath(a.id), displayTopicPath(b.id)),
+        ),
+    [entities],
+  );
   const assignTopic = (entityId: string) => {
     if (handlers.assignIdentity) handlers.assignIdentity(thread, entityId);
     else

@@ -11,7 +11,7 @@ import { QUESTION_CARD_CLASS } from "./question-presentation.tsx";
  * marker). Without an anchor, as in a composer that shows no banners, the
  * form renders inside the shell as usual.
  */
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
   useComposer,
@@ -81,15 +81,16 @@ export function QuestionAnchor() {
       setBusy(false);
     }
   };
+  const anchorRef = useCallback(
+    (node: HTMLElement | null) => {
+      if (!threadId) return;
+      setAnchor(threadId, node);
+      return () => setAnchor(threadId, null);
+    },
+    [threadId],
+  );
   return (
-    <div
-      ref={(node) => {
-        if (!threadId) return;
-        setAnchor(threadId, node);
-        return () => setAnchor(threadId, null);
-      }}
-      className="contents"
-    >
+    <div ref={anchorRef} className="contents">
       {pending?.recoverable && !native ? (
         <div
           className={QUESTION_CARD_CLASS}

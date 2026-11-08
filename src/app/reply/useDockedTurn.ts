@@ -5,19 +5,20 @@
  * turn. Every block shares one server-state read. While it loads, recap
  * fields are withheld so they do not appear then vanish.
  */
-import { useSharedServerState } from "../serverState.ts";
+import { useSharedServerStateSelector } from "../serverState.ts";
 
 export function useDockedTurn(
   threadId: string | null,
   turnId: string | null,
 ): boolean | null {
-  const { server } = useSharedServerState();
-  if (!threadId || !turnId) return false;
-  if (!server.ready) return null;
-  const recap = server.recaps[threadId];
-  return (
-    !!recap &&
-    recap.turnId === turnId &&
-    !(server.dismissedRecaps ?? []).includes(recap.id)
-  );
+  return useSharedServerStateSelector((server) => {
+    if (!threadId || !turnId) return false;
+    if (!server.ready) return null;
+    const recap = server.recaps[threadId];
+    return (
+      !!recap &&
+      recap.turnId === turnId &&
+      !(server.dismissedRecaps ?? []).includes(recap.id)
+    );
+  });
 }

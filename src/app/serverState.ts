@@ -4,7 +4,7 @@ import {
   useRpc,
   useSdk,
 } from "@get-bb/plugin-sdk/app";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { RpcContract } from "../server/contract.ts";
 import type { ManualOrder } from "../domain/order.ts";
 import {
@@ -15,6 +15,7 @@ import {
   type SnoozeWhen,
 } from "../domain/snooze.ts";
 import type { ServerState, ReorderChange } from "./useWorkstreams.ts";
+import { shareJson } from "./structuralSharing.ts";
 
 type Rpc = ReturnType<typeof useRpc<RpcContract>>;
 
@@ -66,7 +67,9 @@ class ServerStore {
   };
 
   private publish(value: ServerState): void {
-    this.value = value;
+    const shared = shareJson(this.value, value);
+    if (Object.is(shared, this.value)) return;
+    this.value = shared;
     for (const listener of this.listeners) listener();
   }
 
@@ -290,6 +293,48 @@ function useStore(): ServerStore {
     stores.set(rpc, store);
   }
   return store;
+}
+
+/** Selects a stable value without rerendering for unrelated state changes. */
+export function useSharedServerStateSelector<T>(
+  selector: (server: ServerState) => T,
+): T {
+  const store = useStore();
+  const selectorRef = useRef(selector);
+  selectorRef.current = selector;
+  const cache = useRef<{
+    server: ServerState;
+    selector: (server: ServerState) => T;
+    value: T;
+  } | null>(null);
+  const snapshot = useCallback(() => {
+    const server = store.snapshot();
+    const selector = selectorRef.current;
+    const previous = cache.current;
+    if (
+      previous &&
+      previous.server === server &&
+      previous.selector === selector
+    )
+      return previous.value;
+    const value = selector(server);
+    cache.current = { server, selector, value };
+    return previous && Object.is(previous.value, value)
+      ? previous.value
+      : value;
+  }, [store]);
+  return useSyncExternalStore(store.subscribe, snapshot, snapshot);
+}
+
+export function useSharedServerActions() {
+  const store = useStore();
+  return {
+    rpc: store.rpc,
+    refresh: store.refresh,
+    reorder: store.reorder,
+    setSnoozes: store.setSnoozes,
+    saveSnoozePrefs: store.saveSnoozePrefs,
+  };
 }
 
 /** One snapshot and shared optimistic actions for this plugin's RPC client. */

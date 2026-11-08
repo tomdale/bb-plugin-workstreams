@@ -103,6 +103,10 @@ export function useIncomingThread(groupId: string): boolean {
 }
 
 const verticalOnly: Modifier = ({ transform }) => ({ ...transform, x: 0 });
+const mouseSensorOptions = { activationConstraint: { distance: 4 } };
+const touchSensorOptions = {
+  activationConstraint: { delay: 250, tolerance: 6 },
+};
 
 /**
  * DndContext props for reordering and topic moves. `containerRef` bounds the
@@ -118,10 +122,8 @@ export function useSidebarDnd({
   acceptsThread: AcceptsThreadDrop;
 }): { contextProps: DndContextProps } {
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 250, tolerance: 6 },
-    }),
+    useSensor(MouseSensor, mouseSensorOptions),
+    useSensor(TouchSensor, touchSensorOptions),
   );
   const suppressClick = useClickSuppression();
 

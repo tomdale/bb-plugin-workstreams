@@ -339,3 +339,80 @@ it("restores the old host when BB remounts the body of a retained row", async ()
   ).toHaveLength(1);
   overlay.lifecycle.unmount();
 });
+
+it("cleans up a retained row reported through removed mutation nodes", async () => {
+  const { message, overlay } = fixtures();
+  await waitFor(() =>
+    expect(
+      message.container.querySelector("[data-ws-subagent-anchor]"),
+    ).not.toBeNull(),
+  );
+  const row = message.container.querySelector<HTMLElement>(
+    "[data-timeline-row-id]",
+  )!;
+  const host = row.querySelector<HTMLElement>("[data-message-column]")!;
+
+  message.unmount();
+
+  await waitFor(() => {
+    expect(row.querySelector("[data-ws-subagent-anchor]")).toBeNull();
+    expect(host.classList.contains("ws-subagent-delivery-source")).toBe(false);
+  });
+  overlay.lifecycle.unmount();
+});
+
+it("does not scan the full timeline for unrelated DOM updates", async () => {
+  const { message, overlay } = fixtures();
+  await waitFor(() =>
+    expect(
+      message.container.querySelector("[data-reply-block]"),
+    ).not.toBeNull(),
+  );
+  const composer = document.createElement("div");
+  composer.dataset.appComposer = "";
+  const composerText = document.createElement("div");
+  composer.append(composerText);
+  const sidebar = document.createElement("aside");
+  const assistant = document.createElement("div");
+  assistant.dataset.timelineRowId = "thr_parent:assistant";
+  const stream = document.createElement("p");
+  assistant.append(stream);
+  message.container.append(composer, sidebar, assistant);
+  const queries = vi.spyOn(document, "querySelectorAll");
+  const scans = () =>
+    queries.mock.calls.filter(
+      ([selector]) => selector === "[data-timeline-row-id]",
+    ).length;
+  const flush = () =>
+    act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  await flush();
+  queries.mockClear();
+
+  try {
+    for (const value of ["H", "He", "Hel"]) {
+      composerText.textContent = value;
+      await flush();
+    }
+    const composerScans = scans();
+    for (const label of ["One", "Two"]) {
+      sidebar.append(document.createTextNode(label));
+      await flush();
+    }
+    const sidebarScans = scans() - composerScans;
+    const beforeStreaming = scans();
+    for (const chunk of ["Working", " on", " the", " answer"]) {
+      stream.append(document.createTextNode(chunk));
+      await flush();
+    }
+    const streamingScans = scans() - beforeStreaming;
+
+    expect({ composerScans, sidebarScans, streamingScans }).toEqual({
+      composerScans: 0,
+      sidebarScans: 0,
+      streamingScans: 0,
+    });
+  } finally {
+    queries.mockRestore();
+    overlay.lifecycle.unmount();
+  }
+});

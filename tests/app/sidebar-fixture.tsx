@@ -1,5 +1,7 @@
+import { Profiler, type ProfilerOnRenderCallback } from "react";
 import {
   experimental_useSidebarThreads,
+  type PluginSidebarThread,
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
@@ -60,6 +62,7 @@ export async function mount(
     settings?: Record<string, boolean | string>;
     spinner?: unknown;
     onNavigate?: () => void;
+    onRender?: ProfilerOnRenderCallback;
     analysis?: Record<string, unknown>;
     recaps?: Record<string, unknown>;
     lastPopulatedAt?: Record<string, number>;
@@ -125,12 +128,24 @@ export async function mount(
     searchQuery: "",
   };
   const Component = list.component;
+  let publishedThreads: PluginSidebarThread[] = [];
   function LiveThreadList(props: PluginThreadListProps) {
-    // The SDK fixture has no live-thread setter. Publish a fresh snapshot on
-    // rerender, matching the immutable updates delivered by the real hook.
+    // Publish a new array only for an immutable data change, not a parent render.
+    if (
+      publishedThreads.length !== threads.length ||
+      publishedThreads.some((thread, index) => thread !== threads[index])
+    )
+      publishedThreads = [...threads];
     const snapshot = experimental_useSidebarThreads();
-    snapshot.threads = [...threads];
-    return <Component {...props} />;
+    snapshot.threads = publishedThreads;
+    return (
+      <Profiler
+        id="workstreams-sidebar"
+        onRender={options.onRender ?? (() => undefined)}
+      >
+        <Component {...props} />
+      </Profiler>
+    );
   }
   const slot = renderSlot({ ...list, component: LiveThreadList }, props, {
     sidebarThreads: {
@@ -341,12 +356,22 @@ export async function mount(
       },
     },
   });
+  const rerender = (activeThreadId = props.activeThreadId) =>
+    slot.rerender(
+      <LiveThreadList {...props} activeThreadId={activeThreadId} />,
+    );
   return {
     ...slot,
-    selectThread: (activeThreadId: string | null) =>
-      slot.rerender(
-        <LiveThreadList {...props} activeThreadId={activeThreadId} />,
-      ),
+    rerenderList: () => rerender(),
+    replaceThread: (
+      id: string,
+      change: (thread: PluginSidebarThread) => PluginSidebarThread,
+    ) => {
+      const index = threads.findIndex((thread) => thread.id === id);
+      threads[index] = change(threads[index]!);
+      rerender();
+    },
+    selectThread: rerender,
   };
 }
 

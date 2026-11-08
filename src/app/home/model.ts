@@ -159,16 +159,22 @@ export function unfoldedRows<T extends WorkstreamThread>(
   return out;
 }
 
-/** How many threads sit beneath `rows[index]`, in a tree-ordered list. */
-export function descendantCount<T extends WorkstreamThread>(
+/** Every row's descendant count in one pass over a tree-ordered list. */
+export function descendantCounts<T extends WorkstreamThread>(
   rows: readonly Row<T>[],
-  index: number,
-): number {
-  const depth = rows[index]?.depth ?? 0;
-  let count = 0;
-  for (const row of rows.slice(index + 1)) {
-    if (row.depth <= depth) break;
-    count += 1;
-  }
-  return count;
+): number[] {
+  const counts = Array.from({ length: rows.length }, () => 0);
+  const open: { depth: number; index: number }[] = [];
+  const closeThrough = (depth: number, end: number) => {
+    while (open.length > 0 && open[open.length - 1]!.depth >= depth) {
+      const row = open.pop()!;
+      counts[row.index] = end - row.index - 1;
+    }
+  };
+  rows.forEach((row, index) => {
+    closeThrough(row.depth, index);
+    open.push({ depth: row.depth, index });
+  });
+  closeThrough(-1, rows.length);
+  return counts;
 }

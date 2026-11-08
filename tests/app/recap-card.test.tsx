@@ -808,10 +808,20 @@ it.each(["full", "minimal"])(
         ],
       },
     });
-    const backup = await slot.findByRole("link", { name: "backup notes" });
-    expect(backup.closest("strong")?.textContent).toBe(
-      "Saved backup notes safely",
+    await waitFor(() =>
+      expect(
+        slot
+          .getByRole("region", { name: "Latest recap" })
+          .classList.contains(layout === "minimal" ? "px-3" : "px-4"),
+      ).toBe(true),
     );
+    const backup = await waitFor(() => {
+      const link = slot.getByRole("link", { name: "backup notes" });
+      expect(link.closest("strong")?.textContent).toBe(
+        "Saved backup notes safely",
+      );
+      return link;
+    });
     fireEvent.click(backup);
     expect(slot.inspection.navigateCalls).toContainEqual({
       method: "experimental_openFilePreview",

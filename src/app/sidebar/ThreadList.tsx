@@ -19,7 +19,9 @@
  */
 import {
   Fragment,
+  memo,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -33,7 +35,6 @@ import {
 } from "@dnd-kit/sortable";
 import {
   experimental_useSidebarThreadActions,
-  experimental_useSidebarThreads,
   useBbNavigate,
   type PluginSidebarThread,
   type PluginThreadListProps,
@@ -60,7 +61,9 @@ import {
 } from "../../domain/groups.ts";
 import { selectRecent } from "../../domain/upNext.ts";
 import { initialUpNextState, planSidebarUpNext } from "./upNextState.ts";
-import { useWorkstreams } from "../useWorkstreams.ts";
+import { useWorkstreams, type ServerState } from "../useWorkstreams.ts";
+import { useStableSidebarThreads } from "../useStableSidebarThreads.ts";
+import { workView } from "../../domain/status.ts";
 import { groupCollapseKey, useCollapsed } from "./useCollapsed.ts";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
 import { workstreamGap } from "./workstreamGap.ts";
@@ -104,6 +107,7 @@ import {
   presetWhen,
   shortWake,
   type SnoozeWhen,
+  type ThreadSnooze,
 } from "../../domain/snooze.ts";
 import { snoozeThreads, wakeThreads } from "../snooze/actions.ts";
 import { CustomSnoozeDialog } from "../snooze/CustomSnoozeDialog.tsx";
@@ -180,7 +184,7 @@ export function WorkstreamsThreadList({
 }: PluginThreadListProps) {
   const ws = useWorkstreams();
   const { prefs, save: savePrefs } = usePrefs();
-  const archived = experimental_useSidebarThreads({
+  const archived = useStableSidebarThreads({
     experimental_lifecycles: ws.showArchived ? ["archived"] : [],
   });
   const actions = experimental_useSidebarThreadActions();
@@ -201,8 +205,11 @@ export function WorkstreamsThreadList({
     null,
   );
   const [customSnooze, setCustomSnooze] = useState<SnoozeRequest | null>(null);
-  const { projection, sections, now } = ws;
-  const nameOf = new Map(sections.map((s) => [s.id, s.name]));
+  const { projection, sections, displayNow: now } = ws;
+  const nameOf = useMemo(
+    () => new Map(sections.map((section) => [section.id, section.name])),
+    [sections],
+  );
   const prioritizedIds = ws.server.order.prioritized;
   const groupSort = prefs?.sidebar.groupSort ?? "alphabetical";
   /**
@@ -216,7 +223,10 @@ export function WorkstreamsThreadList({
   // workstreams and the empty ones. With any workstream focused, the rest
   // (with Unfiled and Dormant) sit hidden behind a toggle below the focused
   // ones.
-  const arrangement = arrangeGroups(projection, groupSort, ws.topics);
+  const arrangement = useMemo(
+    () => arrangeGroups(projection, groupSort, ws.topics),
+    [projection, groupSort, ws.topics],
+  );
   const {
     pinned: pinnedGroups,
     populated: populatedGroups,
@@ -231,15 +241,22 @@ export function WorkstreamsThreadList({
     true,
     prefs?.sidebar,
   );
-  const prioritized = focusedSections(arrangement, new Set(prioritizedIds));
+  const prioritized = useMemo(
+    () => focusedSections(arrangement, new Set(prioritizedIds)),
+    [arrangement, prioritizedIds],
+  );
 
   const upNextState = useRef(initialUpNextState);
-  const upNext = planSidebarUpNext(
-    upNextState.current,
-    projection,
-    { ...ws.upNextOptions, prioritized },
-    activeThreadId,
-    showMore,
+  const upNext = useMemo(
+    () =>
+      planSidebarUpNext(
+        upNextState.current,
+        projection,
+        { ...ws.upNextOptions, prioritized },
+        activeThreadId,
+        showMore,
+      ),
+    [projection, ws.upNextOptions, prioritized, activeThreadId, showMore],
   );
   if (showMore !== upNext.expanded) setShowMore(upNext.expanded);
   const { rows: shownNeedsRows, moreCount } = upNext;
@@ -247,10 +264,14 @@ export function WorkstreamsThreadList({
     upNextState.current = upNext.state;
   });
   const focus = { active: upNext.focused };
-  const recentRows = selectRecent(
-    projection,
-    ws.showForYou ? shownNeedsRows : [],
-    ws.recentLimit,
+  const recentRows = useMemo(
+    () =>
+      selectRecent(
+        projection,
+        ws.showForYou ? shownNeedsRows : [],
+        ws.recentLimit,
+      ),
+    [projection, ws.showForYou, shownNeedsRows, ws.recentLimit],
   );
   const {
     threads: archivedThreads,
@@ -258,14 +279,23 @@ export function WorkstreamsThreadList({
     groups: archivedGroups,
     unfiled: unsortedArchived,
     workstreamOf: archivedWorkstreamOf,
-  } = planArchived(archived.threads, sections, ws.showArchived);
+  } = useMemo(
+    () => planArchived(archived.threads, sections, ws.showArchived),
+    [archived.threads, sections, ws.showArchived],
+  );
 
-  const descendants = descendantsOf([
-    ...[...projection.groups, projection.unsorted, ...projection.dormant].map(
-      (group) => group.rows,
-    ),
-    projection.snoozed,
-  ]);
+  const descendants = useMemo(
+    () =>
+      descendantsOf([
+        ...[
+          ...projection.groups,
+          projection.unsorted,
+          ...projection.dormant,
+        ].map((group) => group.rows),
+        projection.snoozed,
+      ]),
+    [projection],
+  );
   const folded = (placement: Placement, id: string) =>
     isCollapsed(foldKey(placement, id), foldDefault(placement));
   const unfolded = (rows: readonly ThreadRow[], placement: Placement) =>
@@ -327,26 +357,48 @@ export function WorkstreamsThreadList({
       previous: ws.snoozeOf,
       subject: request.subject,
     });
-  const handlers: RowMenuHandlers = {
-    rename: (thread) =>
-      setNameRequest({
-        title: "Rename thread",
-        initial: thread.title ?? thread.displayTitle,
-        submitLabel: "Rename",
-        onSubmit: (name) => actions.rename(thread.id, name),
-      }),
-    openParent: (thread) => {
-      if (thread.parentThreadId) {
-        navigate.toThread(thread.parentThreadId);
-        onNavigate();
-      }
-    },
-    inspect: (thread) => setInspecting(thread),
-    snooze: (thread, when) => applySnooze({ threads: [thread] }, when),
-    customSnooze: (thread) => setCustomSnooze({ threads: [thread] }),
-    wake: (thread) => wakeThreads(ws.setSnoozes, [thread]),
-    reportError: report,
-  };
+  const currentRowActions = useRef({
+    actions,
+    navigate,
+    onNavigate,
+    applySnooze,
+    setSnoozes: ws.setSnoozes,
+  });
+  useLayoutEffect(() => {
+    currentRowActions.current = {
+      actions,
+      navigate,
+      onNavigate,
+      applySnooze,
+      setSnoozes: ws.setSnoozes,
+    };
+  });
+  const handlers = useMemo<RowMenuHandlers>(
+    () => ({
+      rename: (thread) =>
+        setNameRequest({
+          title: "Rename thread",
+          initial: thread.title ?? thread.displayTitle,
+          submitLabel: "Rename",
+          onSubmit: (name) =>
+            currentRowActions.current.actions.rename(thread.id, name),
+        }),
+      openParent: (thread) => {
+        if (thread.parentThreadId) {
+          currentRowActions.current.navigate.toThread(thread.parentThreadId);
+          currentRowActions.current.onNavigate();
+        }
+      },
+      inspect: (thread) => setInspecting(thread),
+      snooze: (thread, when) =>
+        currentRowActions.current.applySnooze({ threads: [thread] }, when),
+      customSnooze: (thread) => setCustomSnooze({ threads: [thread] }),
+      wake: (thread) =>
+        wakeThreads(currentRowActions.current.setSnoozes, [thread]),
+      reportError: report,
+    }),
+    [],
+  );
   const snoozePrefs = ws.snoozePrefs;
   const preset = defaultPreset(snoozePrefs);
   const shownWhen = presetWhen(preset, now);
@@ -354,6 +406,11 @@ export function WorkstreamsThreadList({
   const defaultSnoozeTitle = `Snooze ${defaultWakeText}`;
   /** When the default preset wakes, from the moment of the click. */
   const defaultWake = () => presetWhen(preset, Date.now());
+  const currentDefaultWake = useRef(defaultWake);
+  useLayoutEffect(() => {
+    currentDefaultWake.current = defaultWake;
+  });
+  const wakeByDefault = useMemo(() => () => currentDefaultWake.current(), []);
   /**
    * A workstream row's snooze button, while the row lists threads: it
    * snoozes every one of them (see `groupRoots`) with the default preset,
@@ -388,11 +445,6 @@ export function WorkstreamsThreadList({
   /** An unfiled row has no workstream to name, so it shows its age instead. */
   const workstreamName = (row: ThreadRow) =>
     row.workstreamId ? nameOf.get(row.workstreamId) : undefined;
-  /** What an Up Next thread asks of Tom, from its current analysis. */
-  const askOf = (row: ThreadRow) => {
-    const work = ws.work(row.thread);
-    return work?.kind === "current" ? work.analysis.needsYou : null;
-  };
   /** Whether any of these rows draws a status mark (see `hasStatusMark`). */
   const anyMark = (rows: readonly ThreadRow[], placement: Placement) =>
     rows.some(
@@ -404,12 +456,21 @@ export function WorkstreamsThreadList({
           placement === "needs-you",
         ),
     );
-  const needsMarks = anyMark(shownNeedsRows, "needs-you");
-  const groupMarks = anyMark(
-    [...projection.groups, projection.unsorted, ...projection.dormant].flatMap(
-      (group) => group.rows,
-    ),
-    "group",
+  const needsMarks = useMemo(
+    () => anyMark(shownNeedsRows, "needs-you"),
+    [shownNeedsRows, ws.server.analysis, ws.server.recaps, descendants],
+  );
+  const groupMarks = useMemo(
+    () =>
+      anyMark(
+        [
+          ...projection.groups,
+          projection.unsorted,
+          ...projection.dormant,
+        ].flatMap((group) => group.rows),
+        "group",
+      ),
+    [projection, ws.server.analysis, ws.server.recaps, descendants],
   );
   const rowKey = (row: ThreadRow) => row.thread.id;
   const showBand = ws.showForYou && shownNeedsRows.length > 0;
@@ -419,40 +480,6 @@ export function WorkstreamsThreadList({
     showMore || moreCount > 0 ? ["more"] : [],
     String,
   );
-  /**
-   * The row's hover snooze button and the menu beside it. In Snoozed, a
-   * thread with its own snooze wakes; a descendant that is only there with
-   * its parent has none.
-   */
-  const snoozeActionOf = (row: ThreadRow, placement: Placement) => {
-    const snooze = ws.snoozeOf(row.thread);
-    if (placement === "archived") return undefined;
-    if (placement === "snoozed" && !snooze) return undefined;
-    const menu = (
-      <SnoozeMenuItems
-        kit={plainMenuKit}
-        now={now}
-        prefs={snoozePrefs}
-        snooze={snooze}
-        onSnooze={(when) => handlers.snooze(row.thread, when)}
-        onWake={() => handlers.wake(row.thread)}
-        onCustom={() => handlers.customSnooze(row.thread)}
-      />
-    );
-    if (placement !== "snoozed")
-      return {
-        kind: "snooze" as const,
-        title: defaultSnoozeTitle,
-        run: () => handlers.snooze(row.thread, defaultWake()),
-        menu,
-      };
-    return {
-      kind: "wake" as const,
-      title: `Wake now (snoozed ${describeWake(snooze!.until, now, snooze!.events)})`,
-      run: () => handlers.wake(row.thread),
-      menu,
-    };
-  };
   const contextOf = (row: ThreadRow, placement: Placement) => {
     if (
       placement === "group" ||
@@ -474,46 +501,33 @@ export function WorkstreamsThreadList({
     label?: string,
     categorized = false,
   ) => (
-    <RowMenu
+    <SidebarThreadRow
       key={key}
+      handleRef={handle?.ref}
+      handleListeners={handle?.listeners}
       thread={row.thread}
-      handlers={handlers}
+      depth={depth}
+      active={row.thread.id === activeThreadId}
+      now={now}
+      context={label ?? contextOf(row, placement)}
+      placement={placement}
+      analysis={ws.server.analysis[row.thread.id]}
+      recap={ws.server.recaps[row.thread.id]}
+      showStatusSlot={showStatusSlot}
       snooze={ws.snoozeOf(row.thread)}
       snoozePrefs={snoozePrefs}
-      showArchive={placement !== "archived"}
-    >
-      <li ref={handle?.ref} {...handle?.listeners} className="list-none">
-        <Row
-          thread={row.thread}
-          depth={depth}
-          active={row.thread.id === activeThreadId}
-          now={now}
-          context={label ?? contextOf(row, placement)}
-          attention={placement === "needs-you"}
-          work={ws.work(row.thread)}
-          showStatusSlot={showStatusSlot}
-          showPin={placement === "group"}
-          subtitle={placement === "needs-you" ? askOf(row) : null}
-          snoozeAction={snoozeActionOf(row, placement)}
-          showArchive={placement !== "archived"}
-          disclosure={
-            placement !== "recent" && descendants.has(row.thread.id)
-              ? {
-                  expanded: !folded(placement, row.thread.id),
-                  toggle: () =>
-                    toggle(
-                      foldKey(placement, row.thread.id),
-                      foldDefault(placement),
-                    ),
-                }
-              : undefined
-          }
-          categorized={categorized}
-          inGroup={placement === "group"}
-          onNavigate={onNavigate}
-        />
-      </li>
-    </RowMenu>
+      defaultSnoozeTitle={defaultSnoozeTitle}
+      defaultWake={wakeByDefault}
+      handlers={handlers}
+      disclosureExpanded={
+        placement !== "recent" && descendants.has(row.thread.id)
+          ? !folded(placement, row.thread.id)
+          : undefined
+      }
+      categorized={categorized}
+      onNavigate={onNavigate}
+      toggleDisclosure={toggle}
+    />
   );
   /**
    * An overlay row followed, when expanded, by its visible descendants,
@@ -581,12 +595,13 @@ export function WorkstreamsThreadList({
     categorized = false,
   ) => {
     const marks = groupMarks;
+    const trees = treesOf(group.rows);
     return (
       <SortableContext
-        items={treesOf(group.rows).map((tree) => treeKey(tree[0]!.thread.id))}
+        items={trees.map((tree) => treeKey(tree[0]!.thread.id))}
         strategy={verticalListSortingStrategy}
       >
-        {treesOf(group.rows).map((tree) => {
+        {trees.map((tree) => {
           const root = tree[0]!.thread;
           return (
             <Sortable
@@ -1340,6 +1355,140 @@ export function WorkstreamsThreadList({
     </DndContext>
   );
 }
+
+/**
+ * A list row with stable action identities. Its memo compares every prop,
+ * including callbacks, so an unrelated thread update skips the SDK hooks and
+ * presentation work in `Row` without retaining stale actions.
+ */
+const SidebarThreadRow = memo(function SidebarThreadRow({
+  thread,
+  depth,
+  active,
+  now,
+  context,
+  placement,
+  analysis,
+  recap,
+  showStatusSlot,
+  snooze,
+  snoozePrefs,
+  defaultSnoozeTitle,
+  defaultWake,
+  handlers,
+  disclosureExpanded,
+  categorized,
+  onNavigate,
+  toggleDisclosure,
+  handleRef,
+  handleListeners,
+}: {
+  handleRef?: DragHandle["ref"];
+  handleListeners?: DragHandle["listeners"];
+  thread: PluginSidebarThread;
+  depth: number;
+  active: boolean;
+  now: number;
+  context?: string;
+  placement: Placement;
+  analysis?: ServerState["analysis"][string];
+  recap?: ServerState["recaps"][string];
+  showStatusSlot: boolean;
+  snooze?: ThreadSnooze;
+  snoozePrefs: ServerState["snoozePrefs"];
+  defaultSnoozeTitle: string;
+  defaultWake: () => SnoozeWhen;
+  handlers: RowMenuHandlers;
+  disclosureExpanded?: boolean;
+  categorized: boolean;
+  onNavigate: () => void;
+  toggleDisclosure: (id: string, byDefault?: boolean) => void;
+}) {
+  const work = workView(thread, analysis, recap);
+  let snoozeAction:
+    | {
+        kind: "snooze" | "wake";
+        title: string;
+        run: () => void;
+        menu: ReactNode;
+      }
+    | undefined;
+  if (
+    placement !== "archived" &&
+    (placement !== "snoozed" || snooze !== undefined)
+  ) {
+    const menu = (
+      <SnoozeMenuItems
+        kit={plainMenuKit}
+        now={now}
+        prefs={snoozePrefs}
+        snooze={snooze}
+        onSnooze={(when) => handlers.snooze(thread, when)}
+        onWake={() => handlers.wake(thread)}
+        onCustom={() => handlers.customSnooze(thread)}
+      />
+    );
+    snoozeAction =
+      placement === "snoozed"
+        ? {
+            kind: "wake",
+            title: `Wake now (snoozed ${describeWake(snooze!.until, now, snooze!.events)})`,
+            run: () => handlers.wake(thread),
+            menu,
+          }
+        : {
+            kind: "snooze",
+            title: defaultSnoozeTitle,
+            run: () => handlers.snooze(thread, defaultWake()),
+            menu,
+          };
+  }
+  return (
+    <RowMenu
+      thread={thread}
+      handlers={handlers}
+      snooze={snooze}
+      snoozePrefs={snoozePrefs}
+      showArchive={placement !== "archived"}
+    >
+      <li ref={handleRef} {...handleListeners} className="list-none">
+        <Row
+          thread={thread}
+          depth={depth}
+          active={active}
+          now={now}
+          context={context}
+          attention={placement === "needs-you"}
+          work={work}
+          showStatusSlot={showStatusSlot}
+          showPin={placement === "group"}
+          subtitle={
+            placement === "needs-you" && work.kind === "current"
+              ? work.analysis.needsYou
+              : null
+          }
+          snoozeAction={snoozeAction}
+          showArchive={placement !== "archived"}
+          disclosure={
+            disclosureExpanded === undefined
+              ? undefined
+              : {
+                  expanded: disclosureExpanded,
+                  toggle: () =>
+                    toggleDisclosure(
+                      foldKey(placement, thread.id),
+                      foldDefault(placement),
+                    ),
+                }
+          }
+          categorized={categorized}
+          inGroup={placement === "group"}
+          onNavigate={onNavigate}
+        />
+      </li>
+    </RowMenu>
+  );
+});
 
 /** The band of threads most worth the user's attention (see `selectUpNext`). */
 const UP_NEXT = "Up Next";

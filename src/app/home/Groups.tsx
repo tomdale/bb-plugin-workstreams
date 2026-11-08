@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { UNSORTED_ID, type Group, type Row } from "../../domain/project.ts";
@@ -10,14 +10,14 @@ import {
   type TopicColor,
 } from "../../domain/workstreamColor.ts";
 import { WorkstreamName } from "../WorkstreamName.tsx";
-import type { WorkView } from "../useWorkstreams.ts";
+import type { ServerState, WorkView } from "../useWorkstreams.ts";
 import { hasStatusMark } from "../sidebar/presentation.ts";
 import { FocusIcon } from "../sidebar/FocusIcon.tsx";
 import { CountPill } from "../primitives/CountPill.tsx";
 import { StatusDot } from "../primitives/StatusDot.tsx";
-import { HomeRow } from "./HomeRow.tsx";
+import { HomeThreadRow } from "./HomeRow.tsx";
 import {
-  descendantCount,
+  descendantCounts,
   startsOpen,
   unfoldedRows,
   type HomePlan,
@@ -29,6 +29,8 @@ type CountWhen = "always" | "collapsed" | "never";
 /** What every Home list needs to draw a row. */
 export type HomeEnv = {
   now: number;
+  analysis: ServerState["analysis"];
+  recaps: ServerState["recaps"];
   work: (thread: Thread) => WorkView;
   snoozeOf: (thread: Thread) => ThreadSnooze | undefined;
   showAge: boolean;
@@ -201,10 +203,11 @@ export function WorkstreamGroups({
             {plan.snoozed.map((row) => {
               const snooze = env.snoozeOf(row.thread);
               return (
-                <HomeRow
+                <HomeThreadRow
                   key={row.thread.id}
                   thread={row.thread}
-                  work={env.work(row.thread)}
+                  analysis={env.analysis[row.thread.id]}
+                  recap={env.recaps[row.thread.id]}
                   now={env.now}
                   variant="snoozed"
                   depth={row.depth}
@@ -256,47 +259,60 @@ function GroupSection({
   const subgroups =
     "subgroups" in group ? group.subgroups.filter((sub) => !sub.inline) : [];
   // Its own rows, then each inline group's, labeled with that group's name.
-  const blocks = [
-    { group, label: undefined as string | undefined },
-    ...("subgroups" in group ? inlineGroups(group) : []).map((sub) => ({
-      group: sub,
-      label: sub.label.split(/:\s*/).at(-1),
-    })),
-  ].flatMap(({ group: source, label }) =>
-    categoryRows(
-      source.rows,
-      "categories" in source ? source.categories : undefined,
-    ).map((category) => ({
-      rows: category.rows,
-      label,
-      heading: category.name
-        ? label
-          ? `${label} · ${category.name}`
-          : category.name
-        : undefined,
-    })),
-  );
-  const rows = open
-    ? blocks.flatMap((block) =>
-        unfoldedRows(
-          block.rows,
-          (row) => !env.isOpen(treeKey(row.thread.id), true),
-        ).map((row, index) => ({
-          row,
-          label: block.label,
-          heading: index === 0 ? block.heading : undefined,
+  const blocks = useMemo(
+    () =>
+      [
+        { group, label: undefined as string | undefined },
+        ...("subgroups" in group ? inlineGroups(group) : []).map((sub) => ({
+          group: sub,
+          label: sub.label.split(/:\s*/).at(-1),
         })),
-      )
-    : [];
-  const descendants = new Map(
-    open
-      ? blocks.flatMap((block) =>
-          block.rows.map(
-            (row, index) =>
-              [row.thread.id, descendantCount(block.rows, index)] as const,
-          ),
-        )
-      : [],
+      ].flatMap(({ group: source, label }) =>
+        categoryRows(
+          source.rows,
+          "categories" in source ? source.categories : undefined,
+        ).map((category) => ({
+          rows: category.rows,
+          label,
+          heading: category.name
+            ? label
+              ? `${label} · ${category.name}`
+              : category.name
+            : undefined,
+        })),
+      ),
+    [group],
+  );
+  const isOpen = env.isOpen;
+  const rows = useMemo(
+    () =>
+      open
+        ? blocks.flatMap((block) =>
+            unfoldedRows(
+              block.rows,
+              (row) => !isOpen(treeKey(row.thread.id), true),
+            ).map((row, index) => ({
+              row,
+              label: block.label,
+              heading: index === 0 ? block.heading : undefined,
+            })),
+          )
+        : [],
+    [open, blocks, isOpen],
+  );
+  const descendants = useMemo(
+    () =>
+      new Map(
+        open
+          ? blocks.flatMap((block) => {
+              const counts = descendantCounts(block.rows);
+              return block.rows.map(
+                (row, index) => [row.thread.id, counts[index] ?? 0] as const,
+              );
+            })
+          : [],
+      ),
+    [open, blocks],
   );
   return (
     <section
@@ -368,25 +384,26 @@ function GroupSection({
                     <h4 className="m-0 truncate">{heading}</h4>
                   </li>
                 ) : null}
-                <HomeRow
+                <HomeThreadRow
                   thread={row.thread}
-                  work={env.work(row.thread)}
+                  analysis={env.analysis[row.thread.id]}
+                  recap={env.recaps[row.thread.id]}
                   now={env.now}
                   variant="group"
                   depth={row.depth}
                   showMarkSlot
                   showAge={env.showAge}
                   trailing={label}
-                  disclosure={
+                  disclosureId={
+                    row.hasChildren ? treeKey(row.thread.id) : undefined
+                  }
+                  disclosureOpen={
                     row.hasChildren
-                      ? {
-                          open: env.isOpen(treeKey(row.thread.id), true),
-                          count: children,
-                          toggle: () =>
-                            env.toggle(treeKey(row.thread.id), true),
-                        }
+                      ? env.isOpen(treeKey(row.thread.id), true)
                       : undefined
                   }
+                  disclosureCount={row.hasChildren ? children : undefined}
+                  toggleDisclosure={env.toggle}
                 />
               </Fragment>
             );

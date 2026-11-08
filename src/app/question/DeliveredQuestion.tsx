@@ -9,6 +9,10 @@ import {
   type QuestionHistory,
 } from "../../server/questions/history.ts";
 import { QuestionHistoryCard } from "./QuestionHistory.tsx";
+import {
+  changedSubtreesMatch,
+  mutationTargetElement,
+} from "../mutationRecords.ts";
 
 const prefixes = [DELIVERED_QUESTION_PREFIX, RECOVERED_QUESTION_PREFIX];
 function isTransport(text: string) {
@@ -250,8 +254,28 @@ export function DeliveredQuestionCards() {
       if (changed)
         setTargets([...mounted.values()].map((target) => ({ ...target })));
     };
-    const observer = new MutationObserver(() => {
-      if (!scheduled) {
+    const observer = new MutationObserver((records) => {
+      const relevant = records.some((record) => {
+        if (record.attributeName === "data-ws-question-result") return true;
+        if (mutationTargetElement(record)?.closest("[data-ws-question-result]"))
+          return true;
+        if (
+          changedSubtreesMatch(record, "[data-timeline-row-id]") ||
+          changedSubtreesMatch(record, "[data-ws-question-result]")
+        )
+          return true;
+        const row = mutationTargetElement(record)?.closest<HTMLElement>(
+          "[data-timeline-row-id]",
+        );
+        if (!row) return false;
+        for (const target of mounted.values()) {
+          if (target.row === row) return true;
+        }
+        return prefixes.some((prefix) =>
+          (row.textContent ?? "").includes(prefix),
+        );
+      });
+      if (relevant && !scheduled) {
         scheduled = true;
         queueMicrotask(scan);
       }
@@ -260,6 +284,8 @@ export function DeliveredQuestionCards() {
       subtree: true,
       childList: true,
       characterData: true,
+      attributes: true,
+      attributeFilter: ["data-ws-question-result"],
     });
     scan();
     return () => {

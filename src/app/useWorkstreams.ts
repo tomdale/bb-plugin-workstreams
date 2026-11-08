@@ -4,10 +4,8 @@
  * domain projection.
  */
 import { useEffect, useMemo, useState } from "react";
-import {
-  experimental_useSidebarThreads,
-  type PluginSidebarThread,
-} from "@get-bb/plugin-sdk/app";
+import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import { useStableSidebarThreads } from "./useStableSidebarThreads.ts";
 import { projectWorkstreams, type Projection } from "../domain/project.ts";
 import {
   EMPTY_WORKSTREAM_GRACE_MS,
@@ -82,8 +80,7 @@ export function useNow(intervalMs = 60_000, deadline?: number): number {
 }
 
 export function useWorkstreams() {
-  const { status, threads, sections, projects } =
-    experimental_useSidebarThreads();
+  const { status, threads, sections, projects } = useStableSidebarThreads();
   const { prefs } = usePrefs();
   const { rpc, server, refresh, reorder, setSnoozes } = useServerState();
 
@@ -92,10 +89,29 @@ export function useWorkstreams() {
     ...Object.values(lastPopulatedAt ?? {})
       .map((at) => at + EMPTY_WORKSTREAM_GRACE_MS)
       .filter((at) => at > Date.now()),
+    ...Object.values(snoozes)
+      .map((snooze) => snooze.until)
+      .filter((until): until is number => until !== null && until > Date.now()),
   );
-  const now = Math.max(
-    useNow(60_000, Number.isFinite(deadline) ? deadline : undefined),
-    Date.now(),
+  const clock = useNow(
+    60_000,
+    Number.isFinite(deadline) ? deadline : undefined,
+  );
+  // Parent rerenders keep the projection's clock stable. A timer deadline or
+  // new projection input samples the current time for time-sensitive updates.
+  const now = useMemo(
+    () => Math.max(clock, Date.now()),
+    [
+      clock,
+      threads,
+      sections,
+      analysis,
+      recaps,
+      order,
+      snoozes,
+      lastPopulatedAt,
+      deadline,
+    ],
   );
   /** What nests the workstreams (see `nestGroups`). */
   const topics: WorkstreamTopics | undefined = useMemo(
@@ -154,6 +170,7 @@ export function useWorkstreams() {
       workView(thread, analysis[thread.id], recaps[thread.id]),
     upNextOptions,
     now,
+    displayNow: clock,
     rpc,
     refresh,
     reorder,

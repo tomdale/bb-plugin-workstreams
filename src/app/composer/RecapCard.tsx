@@ -3,6 +3,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   createContext,
   Fragment,
+  memo,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -198,7 +199,7 @@ function Sha({ sha }: { sha: string }) {
  * overrides keep BB's paragraph and code styles inside the recap's type
  * scale.
  */
-export function RecapText({
+export const RecapText = memo(function RecapText({
   text,
   className = "",
   typeClass,
@@ -209,7 +210,7 @@ export function RecapText({
 }) {
   const scale = useBodyClass();
   typeClass ??= scale;
-  const segments = recapSegments(text);
+  const segments = useMemo(() => recapSegments(text), [text]);
   const experimental_document = useContext(MarkdownDocumentContext);
   if (segments.length === 1 && segments[0]!.kind === "markdown")
     return (
@@ -251,7 +252,7 @@ export function RecapText({
       })}
     </div>
   );
-}
+});
 
 // Labels sit in a gutter beside their row, and above it on narrow cards.
 const ROW_CLASS = `${LABEL_GUTTER_CLASS} py-2 @max-[24rem]/recap:grid-cols-1`;
@@ -839,19 +840,24 @@ export function RecapSummary({
       </>
     );
   }
-  const markdownDocument: MarkdownDocument | undefined =
-    threadId && files?.root
-      ? {
-          threadId,
-          rootPath: files.root,
-          target: {
-            kind: "workspace",
-            environmentId: files.environmentId,
-            // Markdown resolves relative links from the document's directory.
-            path: "__recap__.md",
-          },
-        }
-      : undefined;
+  const rootPath = files?.root;
+  const environmentId = files?.environmentId;
+  const markdownDocument = useMemo<MarkdownDocument | undefined>(
+    () =>
+      threadId && rootPath && environmentId
+        ? {
+            threadId,
+            rootPath,
+            target: {
+              kind: "workspace",
+              environmentId,
+              // Markdown resolves relative links from the document's directory.
+              path: "__recap__.md",
+            },
+          }
+        : undefined,
+    [threadId, rootPath, environmentId],
+  );
   return (
     <div
       className="contents"

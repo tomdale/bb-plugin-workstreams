@@ -9,7 +9,7 @@ import {
   homeMode,
 } from "../../src/app/home/layout.ts";
 import {
-  descendantCount,
+  descendantCounts,
   planHome,
   prioritizedSet,
   startsOpen,
@@ -271,9 +271,7 @@ describe("tree rows", () => {
 
   it("lists a tree in order and counts what sits beneath each thread", () => {
     expect(ids(rows)).toEqual(["root", "kid", "grandkid", "sibling", "next"]);
-    expect(rows.map((_, index) => descendantCount(rows, index))).toEqual([
-      3, 1, 0, 0, 0,
-    ]);
+    expect(descendantCounts(rows)).toEqual([3, 1, 0, 0, 0]);
   });
 
   it("drops rows beneath a folded ancestor only", () => {

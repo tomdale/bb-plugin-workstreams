@@ -15,6 +15,10 @@ import {
   type SubagentDelivery,
 } from "../../domain/subagentDelivery.ts";
 import { ReplyBlock } from "./ReplyBlock.tsx";
+import {
+  changedSubtreesMatch,
+  mutationTargetElement,
+} from "../mutationRecords.ts";
 
 const runsSchema = z.object({
   runs: z.array(
@@ -221,8 +225,21 @@ export function SubagentDeliveries() {
       }
       if (changed) update();
     };
-    const observer = new MutationObserver(() => {
-      if (!scheduled) {
+    const observer = new MutationObserver((records) => {
+      const relevant = records.some((record) => {
+        if (changedSubtreesMatch(record, "[data-timeline-row-id]")) return true;
+        const row = mutationTargetElement(record)?.closest<HTMLElement>(
+          "[data-timeline-row-id]",
+        );
+        if (!row) return false;
+        return (
+          rows.has(row) ||
+          /(?:^|:)([^:]+):user-seed:(\d+)(?:-(\d+))?$/.test(
+            row.dataset.timelineRowId ?? "",
+          )
+        );
+      });
+      if (relevant && !scheduled) {
         scheduled = true;
         queueMicrotask(scan);
       }
