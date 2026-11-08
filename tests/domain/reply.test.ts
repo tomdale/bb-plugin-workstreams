@@ -497,7 +497,7 @@ describe("delivered instructions", () => {
   it("puts the recap call first and the block last", () => {
     const text = replyInstructions(true);
     expect(text).toContain(
-      "When the turn reports finished work or a wait on another thread, call WorkstreamsRecap — the card comes from that call — and then write the block",
+      "When the turn reports finished work or a wait on another thread, call WorkstreamsRecap — the card comes from that call — and write the reply after it",
     );
     // The block carries the substance the card only summarizes.
     expect(text).toContain(
@@ -530,7 +530,7 @@ describe("delivered instructions", () => {
     (recap) => {
       const text = replyInstructions(recap);
       expect(text).toContain(
-        "A request that fixes the output — one word, exact text, no formatting — still goes in the block, and changes only what the block holds: the asked-for text and nothing else.",
+        "A request that fixes the output — one word, exact text, or no formatting — is answered with that text alone, without a block.",
       );
       // Only a session with the recap tool can be asked for a missing recap.
       expect(

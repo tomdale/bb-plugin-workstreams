@@ -334,7 +334,7 @@ describe("configure", () => {
       ).toBe(composed ? 1 : 0);
       if (composed && !options.noRecap)
         expect(text).toContain(
-          "call WorkstreamsRecap — the card comes from that call — and then write the block",
+          "call WorkstreamsRecap — the card comes from that call — and write the reply after it",
         );
       // A waiting turn is a reply, so the block reaches it too.
       if (composed)
