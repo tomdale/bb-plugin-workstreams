@@ -701,6 +701,7 @@ async function edges(browser) {
 const SHOWN = {
   w0: () => true,
   cap: () => true,
+  cover: () => true,
   tk: () => true,
   fold: () => true,
   loose: (s) => !s.fold,

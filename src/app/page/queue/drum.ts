@@ -42,6 +42,7 @@ const P = 1000,
 const sc = (z: number) => P / (P - z);
 const S0 = sc(-ZDROP);
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+const easeOut = (u: number) => 1 - (1 - u) * (1 - u);
 const smooth = (u: number) => {
   const x = clamp(u, 0, 1);
   return x * x * (3 - 2 * x);
@@ -53,6 +54,10 @@ const LAMBDA_OMEGA = TAU * 1.6;
 const DIP_TAP = 20;
 const DIP_HELD = 6;
 /** How far a leaving card washes out at the turn when `loose` lets it pass over the card it uncovers, at λ = 1. */
+/** Time constant, ms, of the covered card's fade in and out: a fade that follows its target cannot jump when the target does. */
+const COVER_TAU = 50;
+/** How much of the rising card's way from the tuck to the front it takes for the covered card's fade to reach its target. */
+const COVER_RISE = 0.35;
 const LOOSE_WASH = 0.6;
 
 /** The interval planner's settings; see `DEFAULT_CFG`. */
@@ -76,6 +81,7 @@ export type DrumConfig = {
   ramp: boolean;
   H0: number;
   holdDelay: number;
+  coverFade: number;
   washTauIn: number;
   washTauOut: number;
   hidePx: number;
@@ -126,6 +132,7 @@ export const DEFAULT_CFG: DrumConfig = {
   ramp: false, // while held, ramp the spring rate and edge budget toward their λ = 1 values without folding
   H0: 73, // folded (header) height, or the virtual height `loose` clears, px
   holdDelay: 250, // ms a key is held before λ heads to 1
+  coverFade: 0.7, // how far the card a rising card is about to cover fades before the rising card reaches it, 0 to 1
   washTauIn: 40, // ms: the drawn wash of a too-tall card follows its path value, falling
   washTauOut: 120, // and rising
   hidePx: 3, // the tuck ends with the card's bottom this far inside the pile's lower edge
@@ -186,6 +193,8 @@ export class Drum {
   v: number[];
   /** The drawn wash of each too-tall card (lagged). */
   g: number[];
+  /** The fade of each pile card that a rising card is about to cover (lagged); see `coverTarget`. */
+  cf: number[];
   /** The held state, 0 to 1. */
   lam = 0;
   lamV = 0;
@@ -207,6 +216,7 @@ export class Drum {
     this.c = heights.map((_, i) => i); // settled at front = 0
     this.v = heights.map(() => 0);
     this.g = heights.map(() => 0);
+    this.cf = heights.map(() => 0);
   }
   jump(n: number) {
     this.front = n;
@@ -224,6 +234,7 @@ export class Drum {
     this.c.splice(at, 0, c);
     this.v.splice(at, 0, 0);
     this.g.splice(at, 0, 0);
+    this.cf.splice(at, 0, 0);
     this.N++;
     if (at <= this.front) this.front++;
     this.g[at] = this.washTarget(at);
@@ -234,6 +245,7 @@ export class Drum {
     this.c.splice(at, 1);
     this.v.splice(at, 1);
     this.g.splice(at, 1);
+    this.cf.splice(at, 1);
     this.N--;
     if (at < this.front) this.front--;
   }
@@ -243,6 +255,7 @@ export class Drum {
       this.c[i] = this.target(i);
       this.v[i] = 0;
       this.g[i] = this.washTarget(i);
+      this.cf[i] = 0;
     }
     this.lam = 0;
     this.lamV = 0;
@@ -398,6 +411,9 @@ export class Drum {
       this.v[i]! += (wi * wi * (t - c) - 2 * wi * this.v[i]!) * dt;
       this.c[i] = c + this.v[i]! * dt;
     }
+    const k = 1 - Math.exp((-dt * 1000) / COVER_TAU);
+    for (let i = 0; i < this.N; i++)
+      this.cf[i]! += (this.coverTarget(i) - this.cf[i]!) * k;
     for (let i = 0; i < this.N; i++) {
       const gt = this.washTarget(i);
       const tau = gt < this.g[i]! ? this.cfg.washTauIn : this.cfg.washTauOut;
@@ -464,6 +480,7 @@ export class Drum {
   }
   isBusy() {
     if (this.hold || this.pending) return true;
+    if (this.cf.some((x) => x > 1e-3)) return true;
     for (let i = 0; i < this.N; i++)
       if (
         Math.abs(this.c[i]! - this.target(i)) > 1e-3 ||
@@ -479,6 +496,23 @@ export class Drum {
     const hn = i + 1 < this.N ? this.hg(i + 1) : this.hg(i);
     return LEAD + hn + GAP + this.dip();
   }
+  /**
+   * How far card `i`, in the pile, has faded because the card before it is rising to cover it (a ↑). The fade
+   * starts as the rising card leaves the tuck, well before it overlaps, reaches `coverFade` by the time it
+   * is a third of the way up, and lifts again as it lands, when the card behind it is clipped to its height.
+   */
+  coverTarget(i: number) {
+    const j = i - 1;
+    if (this.cfg.coverFade <= 0 || j < 0 || this.target(j) < 0) return 0;
+    const cj = this.c[j]!;
+    if (cj >= 0) return 0;
+    const p = clamp((cj + 2) / 2, 0, 1);
+    return (
+      this.cfg.coverFade *
+      easeOut(clamp(p / COVER_RISE, 0, 1)) *
+      (1 - smooth(clamp((p - 0.85) / 0.15, 0, 1)))
+    );
+  }
   slot(q: number) {
     q = clamp(q, 0, VIS);
     const y = q <= 2 ? -DY * q : -2 * DY + (q - 2) * (HIDE_Y + 2 * DY);
@@ -493,7 +527,7 @@ export class Drum {
       return {
         y: p.y,
         z: p.z,
-        shade: p.depth,
+        shade: 1 - (1 - p.depth) * (1 - this.cf[i]!),
         group: 1,
         painted: c < VIS - 1e-3,
         g: 0,
@@ -515,7 +549,7 @@ export class Drum {
       return {
         y: (T - LEAD) / sc(z),
         z,
-        shade: 1 - (1 - leave) * (1 - g),
+        shade: 1 - (1 - leave) * (1 - g) * (1 - this.cf[i]!),
         group: 0,
         painted: g < 0.98,
         g,
@@ -533,7 +567,7 @@ export class Drum {
     const y = yTurn + (yTuck - yTurn) * smooth(r);
     const g = this.g[i]!;
     const depth = 0.48 * smooth(r);
-    const shade = 1 - (1 - depth) * (1 - 0.35) * (1 - g);
+    const shade = 1 - (1 - depth) * (1 - 0.35) * (1 - g) * (1 - this.cf[i]!);
     const parked = c <= -2 + 1e-3; // at or past the tuck: hidden (covered, or washed out)
     return { y, z: -ZDROP, shade, group: 2, painted: !parked && g < 0.98, g };
   }

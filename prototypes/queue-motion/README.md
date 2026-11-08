@@ -59,6 +59,7 @@ settings are in three groups, Taps, Pace and Held keys:
 | --------- | -------------------------- | ------- | ---------------------- |
 | Taps      | spring Hz, tap             | `w0`    | always                 |
 |           | edge budget, tap px/frame  | `cap`   | always                 |
+|           | covered card fade          | `cover` | always                 |
 | Pace      | tempo                      | `tk`    | always                 |
 |           | tempo window               | `tw`    | tempo is `lookahead`   |
 |           | tempo scale                | `ts`    | tempo is `lookahead`   |
@@ -95,13 +96,13 @@ cascade's `default` with a held spacing of 125 px and no edge fade). `v` is
 name the model lacks gives its first preset (`natural` for the drum, `default`
 for the cascade); the product has no presets. `speed` is `0.25`, `0.5` or `1`,
 and `reduced` is `1` or `0`. Every other key is a setting's key from the two
-tables above: the drum's `w0`, `cap`, `tk`, `tw`, `ts`, `tms`, `slack`, `ramp`,
-`fold`, `loose`, `delay`, `w1`, `cap1` and `h0`, and the cascade's `cw0`,
-`ccap`, `sp0`, `sp1`, `cdelay`, `park`, `fade` and `shade`. The two models' keys
-differ, so one hash can hold both models' settings, and the model that `v` names
-reads only its own. A toggle is `1` or `0`, `tk` is one of its three choices,
-and a slider's value is clamped to its range. The page ignores a key or value it
-does not recognise.
+tables above: the drum's `w0`, `cap`, `cover`, `tk`, `tw`, `ts`, `tms`, `slack`,
+`ramp`, `fold`, `loose`, `delay`, `w1`, `cap1` and `h0`, and the cascade's
+`cw0`, `ccap`, `sp0`, `sp1`, `cdelay`, `park`, `fade` and `shade`. The two
+models' keys differ, so one hash can hold both models' settings, and the model
+that `v` names reads only its own. A toggle is `1` or `0`, `tk` is one of its
+three choices, and a slider's value is clamped to its range. The page ignores a
+key or value it does not recognise.
 
 The drum's presets:
 

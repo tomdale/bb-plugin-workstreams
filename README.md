@@ -646,18 +646,21 @@ holding `↑` does the same in reverse: each card comes out from behind the stac
 and up to the front, so every item's card makes the trip. After a key has been
 held for a quarter of a second the cards' springs stiffen and their speed limit
 rises, so a long hold moves a little faster, and letting go rests on a whole
-card. Under reduced motion the new item only fades in. To look ahead or back
-without acting, use the footer's arrows, which also show where you are ("2 of
-9"), or press `↓`, `→` or `J` for the next item and `↑`, `←` or `K` for the
-previous one. The card stack's top edge sits about a quarter of the way down the
-page, and the heading sits in a fixed place just above the stack. The replies
-and actions follow the card and the page grows downward, so opening Reply,
-holding `Shift`, or a receipt appearing above never moves anything. The stack
-keeps that place from item to item and follows the window as you resize it; it
-only glides down when the next item's heading wraps to more lines. The heading
-and the receipt line crossfade to the next ones, drifting a few pixels the way
-the cards go (up when you move on, down when you go back), the workstream line
-just ahead of the title; under reduced motion they only fade.
+card. When a card comes back from behind the stack, the card it is about to
+cover begins to fade as soon as the returning card leaves its tuck, so it is
+already faint when the returning card passes over it. Under reduced motion the
+new item only fades in. To look ahead or back without acting, use the footer's
+arrows, which also show where you are ("2 of 9"), or press `↓`, `→` or `J` for
+the next item and `↑`, `←` or `K` for the previous one. The card stack's top
+edge sits about a quarter of the way down the page, and the heading sits in a
+fixed place just above the stack. The replies and actions follow the card and
+the page grows downward, so opening Reply, holding `Shift`, or a receipt
+appearing above never moves anything. The stack keeps that place from item to
+item and follows the window as you resize it; it only glides down when the next
+item's heading wraps to more lines. The heading and the receipt line crossfade
+to the next ones, drifting a few pixels the way the cards go (up when you move
+on, down when you go back), the workstream line just ahead of the title; under
+reduced motion they only fade.
 
 Each thread shows its workstream (click it to open **Topics**) and title above
 its latest recap card. Under the card:

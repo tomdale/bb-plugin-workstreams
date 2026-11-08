@@ -99,6 +99,15 @@ export const PARAMS = [
     true,
   ),
   sweep(
+    "cover",
+    "covered card fade",
+    "natural",
+    (v) => ({ coverFade: v }),
+    [0, 0.35, 0.7, 1],
+    0.7,
+    true,
+  ),
+  sweep(
     "tw",
     "tempo window",
     "even",

@@ -486,6 +486,37 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
   },
 
   // ---- pace ---------------------------------------------------------------------------------------
+  "setting.cover": (f) => {
+    const s = f.sweep("cover");
+    const off = s.at(0),
+      base = s.at(0.7),
+      full = s.at(1);
+    f.expect(
+      [off, base, full].every((r) => r.clean),
+      "the covered card fade is clean at none, its default and full",
+    );
+    f.expect(
+      Math.abs(rate(off) - rate(full)) < 0.1 &&
+        dn(off) === dn(full) &&
+        up(off) === up(full),
+      "the covered card fade does not change the pace or the landing times",
+    );
+    return {
+      what: "How far the card a rising card is about to cover fades, from 0 (no fade) to 1 (fully washed out). It acts on ↑ only: ↓ never has a card rising over another.",
+      effect: [
+        [
+          "Raise",
+          "The old front card washes out as soon as the card coming back leaves its tuck, so it is already faint when that card passes over it and its text does not show through the edge of the rising card.",
+        ],
+        [
+          "Lower",
+          t`The old front card keeps its colour until the rising card is on it. At ${off.value} nothing fades early.`,
+        ],
+      ],
+      needs: t`The fade follows the rising card's progress, then lifts as it lands. It changes no position or timing: a tap ↑ lands in ${base.upLand} ms and held ↑ / ↓ runs at ${base.pace} cards/s at every value, ${base.verdict} at the default ${base.value} and ${full.verdict} at ${full.value}.`,
+      tune: t`Start at ${base.value}. Raise it to ${full.value} if the card underneath still reads while the new one passes over it. Lower it if the pile looks washed out during a held ↑.`,
+    };
+  },
   "setting.tk": (f) => {
     const nat = f.preset("natural");
     const even = f.preset("even");
@@ -898,7 +929,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       "a taller fold is slower",
     );
     f.expect(
-      h60.clean && h73.clean && h130.clean && !h50.clean && !h160.clean,
+      h50.clean && h60.clean && h73.clean && h130.clean && !h160.clean,
       "folded heights from the lower to the upper quoted value are clean",
     );
     return {
@@ -910,11 +941,11 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
         ],
         [
           "Lower",
-          t`A thinner strip and a faster hold: ${h60.value} gives ${h60.pace} cards/s. Below ${h60.value} the fade flickers: ${h50.value} gives ${h50.verdict} (a card's fade changes by more than ${f.limit.shade} in a frame).`,
+          t`A thinner strip and a faster hold: ${h60.value} gives ${h60.pace} cards/s. ${h50.value} gives ${h50.pace} and is ${h50.verdict}, but a strip that thin leaves little to recognise.`,
         ],
       ],
       needs: t`Needs \`fold while held\` or \`loosen clearing while held\`. A taller fold keeps more text but slows the hold, and past ${h130.value} cards swap draw order: ${h160.value} gives ${h160.verdict}.`,
-      tune: t`Start at ${f.def("h0")}, one line of status and goal. Pick the height by what you want to read while scanning, and note the sweep is clean at ${h60.value}, ${h73.value}, ${h110.value} and ${h130.value} and fails at ${h50.value} and ${h160.value}. To change the pace without changing the look, use \`hold delay\`.`,
+      tune: t`Start at ${f.def("h0")}, one line of status and goal. Pick the height by what you want to read while scanning, and note the sweep is clean from ${h50.value} to ${h130.value} and fails at ${h160.value}. To change the pace without changing the look, use \`hold delay\`.`,
     };
   },
 

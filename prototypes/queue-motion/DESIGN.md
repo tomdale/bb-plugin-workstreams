@@ -139,6 +139,13 @@ both read λ.
   understood well enough to detect a target, with about 300 ms more of
   processing needed to keep it. That result is about pictures; applied to cards,
   a body cannot be read in 100 ms and a header line can be recognised.
+- **`coverFade`** fades the card a returning card is about to cover. The pile
+  card after a card that is rising (a ↑) takes a fade of up to 0.7 that begins
+  as the card leaves its tuck, reaches its target when the card has risen a
+  third of the way, and lifts as the card lands. The fade follows its target
+  with a 50 ms time constant so it cannot jump when the target does; a fade that
+  did jump gave 5–30 fade flickers per ↑ hold. It moves no position, and
+  `npm run check` stays clean with it on.
 - **`loose`** includes `ramp`'s speed-up and shrinks only the heights the
   clearing geometry uses, toward `H0` with λ, while every card is drawn whole. A
   leaving card drops just far enough to clear a card of that virtual height, so

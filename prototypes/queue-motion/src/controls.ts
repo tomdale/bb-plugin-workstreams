@@ -45,6 +45,7 @@ export type Cfg = {
   vcap1: number;
   holdDelay: number;
   gateSlack: number;
+  coverFade: number;
   fold: boolean;
   loose: boolean;
   ramp: boolean;
@@ -130,6 +131,19 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     step: 1,
     read: (c) => c.vcap / 60,
     write: (v) => ({ vcap: 60 * v }),
+    shown: always,
+  },
+  {
+    kind: "range",
+    key: "cover",
+    group: "taps",
+    label: "covered card fade",
+    unit: "×",
+    min: 0,
+    max: 1,
+    step: 0.05,
+    read: (c) => c.coverFade,
+    write: (coverFade) => ({ coverFade }),
     shown: always,
   },
   {
