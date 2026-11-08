@@ -1101,4 +1101,6 @@ part of the unit test suite). The
 direct UI authoring, Markdown preserved as a text component, and a dedicated
 presentation call on one source-inspection task; its default command previews
 the experiment without paid calls. See [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md)
-and [docs/organization.md](docs/organization.md) for architectural details.
+and [docs/organization.md](docs/organization.md) for architectural details. See
+[docs/design-system.md](docs/design-system.md) for the BB visual foundation and
+Workstreams' semantic colors, components, and layout idioms.
