@@ -136,7 +136,7 @@ it("registers a Debug mode command with no default shortcut", async () => {
   ).commandPaletteActions;
   expect(commands).toContainEqual({
     id: "toggle-debug-mode",
-    title: "Workstreams: toggle debug mode",
+    title: "Workstreams: toggle Debug mode",
     defaultShortcut: null,
     run: expect.any(Function),
   });

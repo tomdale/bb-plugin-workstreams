@@ -151,7 +151,7 @@ export default definePluginApp((app) => {
   });
   app.commands.register({
     id: "toggle-debug-mode",
-    title: "Workstreams: toggle debug mode",
+    title: "Workstreams: toggle Debug mode",
     run: () => toggleDebugMode(),
   });
   app.commands.register({
