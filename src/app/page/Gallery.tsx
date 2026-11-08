@@ -48,14 +48,17 @@ const Message = ({
   index: number;
 }) =>
   message.from === "user" ? (
-    <p className="mt-4 rounded-lg border border-border bg-state-hover/60 px-3 py-2 text-[13px] leading-6">
+    <p
+      className="mt-4 rounded-lg border border-border bg-state-hover/60 px-3 py-2 text-[13px] leading-6" // slop-ok: 3 stands in for BB's own user message bubble
+    >
       {message.text}
     </p>
   ) : (
     <div className="mt-4" data-gallery-reply="">
       <AgentReply block={message.block} index={index} />
+      {/* slop-ok: 2 the Gallery's existing caption naming the parts each reply uses */}
       <p className="mt-3 border-t border-border pt-2 text-[11.5px] text-muted-foreground">
-        {message.features.join(" · ")}
+        Uses {message.features.join(", ")}
       </p>
     </div>
   );
@@ -64,9 +67,7 @@ export function Gallery() {
   return (
     <div data-gallery="">
       <p className="mt-2 text-[13px] leading-6 text-muted-foreground">
-        A specimen transcript, not a thread: the replies are written to use
-        every part a reply block accepts, so each one can be read here the way
-        it renders in a conversation. Nothing on this page is sent or stored.
+        Replies that together use every part a reply block accepts.
       </p>
       {SPECIMENS.map((specimen) => (
         <section key={specimen.title} className="mt-8">

@@ -24,22 +24,27 @@ const draw = (part: ReplyPart) =>
 
 const checks = (
   statuses: ("passed" | "failed" | "blocked")[],
-): ReplyComponent => ({
+): Extract<ReplyComponent, { type: "checks" }> => ({
   type: "checks",
   title: "The branch's checks",
   scope: "vitest, run in the task worktree",
   items: statuses.map((status, i) => ({ name: `Check ${i + 1}`, status })),
 });
 
-/** One part of each type, to compare what is framed with what is not. */
-const ROWS: ReplyComponent[] = [
-  checks(["passed"]),
-  {
-    type: "delivery",
-    title: "Where the fix stands",
-    scope: "branch fix/queue",
-    stages: [{ name: "Committed", status: "done" }],
-  },
+const delivery = (
+  statuses: ("done" | "pending" | "blocked" | "not-started")[],
+): ReplyComponent => ({
+  type: "delivery",
+  title: "Where the fix stands",
+  scope: "branch fix/queue",
+  stages: statuses.map((status, i) => ({ name: `Stage ${i + 1}`, status })),
+});
+
+/** The parts that report results, and so draw a frame. */
+const REPORTS: ReplyComponent[] = [checks(["passed"]), delivery(["done"])];
+
+/** Every other part draws in the message flow. */
+const IN_FLOW: ReplyComponent[] = [
   {
     type: "sequence",
     title: "Steps",
@@ -59,8 +64,6 @@ const ROWS: ReplyComponent[] = [
     before: "Before it",
     after: "After it",
   },
-];
-const SINGLE_SUBJECT: ReplyComponent[] = [
   { type: "context", topic: "Queue keys", where: "src/queue.ts" },
   { type: "recommendation", choice: "Ship it", reason: "It is done." },
   { type: "details", title: "Why", body: "Because." },
@@ -73,10 +76,18 @@ const SINGLE_SUBJECT: ReplyComponent[] = [
       { type: "text", body: "Two." },
     ],
   },
+  {
+    type: "group",
+    relationship: "supporting",
+    children: [
+      { type: "text", body: "The point." },
+      { type: "text", body: "Its support." },
+    ],
+  },
 ];
 
-it.each(ROWS.map((part) => [part.type, part] as const))(
-  "frames %s, whose data is a list of parallel rows",
+it.each(REPORTS.map((part) => [part.type, part] as const))(
+  "frames %s, which reports results",
   (_type, part) => {
     const view = draw(part);
     const panel = view.querySelector("[data-reply-panel]")!;
@@ -93,50 +104,65 @@ it.each(ROWS.map((part) => [part.type, part] as const))(
   },
 );
 
-it.each(SINGLE_SUBJECT.map((part) => [part.type, part] as const))(
-  "draws %s, a part with one subject, without a frame",
+it.each(IN_FLOW.map((part, i) => [`${part.type} ${i}`, part] as const))(
+  "draws %s in the message flow, without a frame",
   (_type, part) => {
     expect(draw(part).querySelector("[data-reply-panel]")).toBeNull();
   },
 );
 
-it("keeps prose unframed even beside a panel", () => {
-  const view = draw({ type: "text", body: "A paragraph." });
-  expect(view.querySelector("[data-reply-panel]")).toBeNull();
-  expect(view.querySelector("p")?.textContent).toBe("A paragraph.");
+it("draws a titled part's title above its rows", () => {
+  const view = draw(IN_FLOW[2]!);
+  const change = view.querySelector("[data-reply-change]")!;
+  expect(change.querySelector("h3")?.textContent).toBe("The change");
+  // Each row has a hairline above it, so the part has an edge where it starts.
+  const rows = [...change.querySelectorAll("[data-reply-change-row]")];
+  expect(rows.map((row) => row.getAttribute("data-reply-change-row"))).toEqual([
+    "before",
+    "after",
+  ]);
+  for (const row of rows) expect(row.className).toContain("border-t");
 });
 
-it("tones a panel that holds a failure at its frame, its header and its title", () => {
-  const failing = draw(checks(["passed", "failed"]));
+it("tones a frame holding a failure at its edge and header, and leaves the title neutral", () => {
+  const failing = draw(checks(["passed", "blocked", "failed"]));
   const panel = failing.querySelector("[data-reply-panel]")!;
-  expect(panel.hasAttribute("data-reply-panel-failure")).toBe(true);
+  expect(panel.getAttribute("data-reply-panel-tone")).toBe("failure");
   expect(panel.className).toContain("border-(--ws-failure-border)");
   const header = panel.querySelector("[data-reply-panel-header]")!;
   expect(header.className).toContain("bg-(--ws-failure-surface)");
   expect(header.className).toContain("border-(--ws-failure-border)");
-  expect(panel.querySelector("[data-reply-panel-title]")?.className).toContain(
-    "text-(--ws-failure-text)",
-  );
-});
-
-it("tones a panel holding a blocked row, and leaves a passing one neutral", () => {
-  const blocked = draw(checks(["passed", "blocked"]));
-  expect(
-    blocked
-      .querySelector("[data-reply-panel]")!
-      .hasAttribute("data-reply-panel-failure"),
-  ).toBe(true);
-  const passing = draw(checks(["passed", "passed"]));
-  const panel = passing.querySelector("[data-reply-panel]")!;
-  expect(panel.hasAttribute("data-reply-panel-failure")).toBe(false);
-  expect(panel.className).toContain("border-border");
-  expect(panel.className).not.toContain("--ws-failure");
-  expect(panel.querySelector("[data-reply-panel-title]")?.className).toContain(
+  expect(panel.querySelector("[data-reply-panel-title]")?.className).toBe(
     "text-foreground",
   );
+  // The frame carries the tone, so a failing row is not tinted as well.
+  for (const row of panel.querySelectorAll("[data-reply-check-item]"))
+    expect(row.className).not.toMatch(/bg-\(--ws/);
 });
 
-it("prints every row's status word at the row's edge, in its tone", () => {
+it("tones a frame whose worst row is blocked as needing someone, not as a failure", () => {
+  for (const part of [
+    checks(["passed", "blocked"]),
+    delivery(["done", "blocked"]),
+  ]) {
+    const panel = draw(part).querySelector("[data-reply-panel]")!;
+    expect(panel.getAttribute("data-reply-panel-tone")).toBe("needsYou");
+    expect(panel.className).toContain("border-(--ws-needs-you-border)");
+    expect(panel.className).not.toContain("--ws-failure");
+    cleanup();
+  }
+});
+
+it("leaves a frame with nothing failed or blocked neutral", () => {
+  const panel = draw(checks(["passed", "passed"])).querySelector(
+    "[data-reply-panel]",
+  )!;
+  expect(panel.hasAttribute("data-reply-panel-tone")).toBe(false);
+  expect(panel.className).toContain("border-border");
+  expect(panel.className).not.toContain("--ws-");
+});
+
+it("prints the status word for every row that needs reading, in its tone", () => {
   const view = draw(checks(["passed", "failed", "blocked"]));
   const words = [...view.querySelectorAll("[data-reply-status-word]")];
   expect(words.map((word) => word.textContent)).toEqual([
@@ -144,23 +170,17 @@ it("prints every row's status word at the row's edge, in its tone", () => {
     "Failed",
     "Blocked",
   ]);
+  // A pass is the expected outcome: its mark stands alone, and its word is
+  // there only for assistive technology.
   expect(words.map((word) => word.className)).toEqual([
-    expect.stringContaining("text-(--ws-complete-text)"),
+    "sr-only",
     expect.stringContaining("text-(--ws-failure-text)"),
     expect.stringContaining("text-(--ws-needs-you-text)"),
   ]);
 });
 
 it("draws a stage nobody has reached as a dashed ring, not a warning", () => {
-  const view = draw({
-    type: "delivery",
-    title: "Where the fix stands",
-    scope: "branch fix/queue",
-    stages: [
-      { name: "Committed", status: "done" },
-      { name: "Deployed", status: "not-started" },
-    ],
-  });
+  const view = draw(delivery(["done", "not-started"]));
   const row = view.querySelector('[data-reply-delivery-stage="not-started"]')!;
   expect(row.querySelector("[data-reply-status-word]")?.textContent).toBe(
     "Not started",
@@ -174,34 +194,42 @@ it("draws a stage nobody has reached as a dashed ring, not a warning", () => {
       .querySelector("[data-reply-stage-status] svg")
       ?.getAttribute("stroke-dasharray"),
   ).toBe("2 2.4");
-  // Reaching no stage is not a failure, so the panel keeps its neutral tone.
+  // Reaching no stage is not a failure, so the frame keeps its neutral tone.
   expect(
     view
       .querySelector("[data-reply-panel]")!
-      .hasAttribute("data-reply-panel-failure"),
+      .hasAttribute("data-reply-panel-tone"),
   ).toBe(false);
 });
 
-it("joins a supporting group into one frame and draws its children unframed", () => {
+it("draws a supporting group's children as they draw alone", () => {
   const view = draw({
     type: "group",
     relationship: "supporting",
-    children: [
-      { type: "text", body: "The point." },
-      {
-        type: "change",
-        title: "Why it holds",
-        before: "Before",
-        after: "After",
-      },
-    ],
+    children: [{ type: "text", body: "The point." }, checks(["failed"])],
   });
-  const panels = view.querySelectorAll("[data-reply-panel]");
-  expect(panels).toHaveLength(1);
-  // A child inside the group's frame keeps its title and rows, without a
-  // second border around them.
-  expect(view.querySelector("[data-reply-change]")).not.toBeNull();
-  expect(view.querySelector("[data-reply-change] h3")?.textContent).toBe(
-    "Why it holds",
+  // The group adds no frame; the checks keep their own, with its tone.
+  const panels = [...view.querySelectorAll("[data-reply-panel]")];
+  expect(panels.map((panel) => panel.getAttribute("data-reply-panel"))).toEqual(
+    ["checks"],
+  );
+  expect(panels[0]!.getAttribute("data-reply-panel-tone")).toBe("failure");
+  const support = view.querySelector("[data-reply-group-support]")!;
+  expect(support.contains(panels[0]!)).toBe(true);
+});
+
+it("lets secondary text take its size and tone through BB's Markdown", () => {
+  const view = draw({
+    type: "sequence",
+    title: "Steps",
+    steps: [{ title: "One", detail: "Why it matters." }],
+  });
+  const detail = view.querySelector("[data-reply-step-detail]")!;
+  // BB's renderer sets text-sm text-foreground on its root and paragraphs, so
+  // the wrapper hands its own size and tone down.
+  expect(detail.className).toContain("text-muted-foreground");
+  expect(detail.className).toContain("[&_.text-foreground]:text-inherit!");
+  expect(detail.className).toContain(
+    "[&_[data-markdown-preview]]:text-[length:inherit]!",
   );
 });

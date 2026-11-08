@@ -563,7 +563,8 @@ it("keeps sequence markers and leads check rows with status marks", () => {
       item.firstElementChild?.hasAttribute("data-reply-check-status"),
     ).toBe(true);
     expect(item.firstElementChild?.querySelector("svg")).not.toBeNull();
-    // Every row prints its status word, in one column at the right edge.
+    // Every row carries its status word in one column at the right edge; a
+    // pass's word is read only by assistive technology.
     expect(item.querySelector("[data-reply-status-word]")?.textContent).toBe(
       { passed: "Passed", failed: "Failed", skipped: "Skipped" }[
         item.getAttribute("data-reply-check-item") as

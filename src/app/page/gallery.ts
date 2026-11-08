@@ -32,7 +32,7 @@ const DIRECTIVE =
 
 const investigation = block([
   "# The held key reads the card's position from the render that started the burst",
-  "Key auto-repeat fires about thirty times a second, and every repeat runs the same handler, captured when the card was where the burst began. The card moves once, and each later repeat asks for the same move again — so the queue appears to skip ahead by however many repeats arrived before the next render.",
+  "Key auto-repeat fires about thirty times a second, and every repeat runs the same handler, captured when the card was where the burst began. The card moves once, and each later repeat asks for the same move again, so the queue appears to skip ahead by however many repeats arrived before the next render.",
   componentFence({
     type: "context",
     topic: "Queue card keyboard handling",
@@ -123,7 +123,7 @@ const delivered = block([
   } satisfies ReplyComponent),
   componentFence({
     type: "checks",
-    title: "Local suite",
+    title: "Vitest suite",
     scope: "vitest, run in the task worktree",
     testTotals: { passed: 8, failed: 0, skipped: 1 },
     items: [
@@ -156,7 +156,7 @@ const delivered = block([
       {
         name: "Committed",
         status: "done",
-        detail: "abc1234 on the task branch",
+        detail: "4f9c2e1 on the task branch",
       },
       { name: "Pushed", status: "pending", detail: "Waiting on your review" },
       {
@@ -247,7 +247,7 @@ const held = block([
       {
         name: "Committed",
         status: "done",
-        detail: "abc1234 on the task branch",
+        detail: "4f9c2e1 on the task branch",
       },
       {
         name: "Pushed",

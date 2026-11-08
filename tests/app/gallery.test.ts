@@ -1146,9 +1146,9 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       });
 
       const change = variant("Change");
-      const pair = change.locator("[data-reply-change-pair]");
-      expect(await pair.textContent()).toContain("Before");
-      expect(await pair.textContent()).toContain("After");
+      const rows = change.locator("[data-reply-change-row]");
+      expect(await rows.nth(0).textContent()).toContain("Before");
+      expect(await rows.nth(1).textContent()).toContain("After");
       // Labels sit in a gutter beside their values, and above them when narrow.
       const placement = () =>
         change.locator("[data-reply-change]").evaluate((change) => {

@@ -1,26 +1,21 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { ReplyPart } from "../../domain/replyComponents.ts";
 import { Evidence, type ReplyDocument } from "./Evidence.tsx";
 import { PANEL_ROW_CLASS, StatusMark, StatusWord } from "./Panel.tsx";
-import { CHECK_STATUS, reportsFailure, type CheckStatus } from "./status.ts";
-import { ROW_NAME_CLASS, SECONDARY_CLASS } from "./type.ts";
+import { CHECK_STATUS, reportsFailure } from "./status.ts";
+import { ROW_NAME_CLASS, SECONDARY_TEXT } from "./type.ts";
 
 /* The mark, the row's own content, and its status word at the edge, where one
    scan down a single column finds every failure. */
 export const STATUS_ROW_CLASS =
   "grid grid-cols-[14px_minmax(0,1fr)_auto] items-start gap-x-2.5 max-md:pointer-coarse:grid-cols-[1.125rem_minmax(0,1fr)_auto]";
 
-/** A row that reports something to act on takes its tone's tint. */
-const ROW_TINT: Partial<Record<CheckStatus, string>> = {
-  failed: "bg-(--ws-failure-surface)",
-  blocked: "bg-(--ws-needs-you-surface)",
-};
-
 const TOTAL_STATUSES = ["passed", "failed", "skipped"] as const;
 
 /**
- * The reported totals, at the right edge of a checks header. A zero count is
- * muted, so a clean run shows no red word.
+ * The reported totals, at the right edge of a checks header, as one short
+ * sentence: "8 tests passed, 0 failed, 1 skipped". A count above zero takes its
+ * status's tone and a zero stays muted, so a clean run shows no red word.
  */
 export function TestTotals({
   totals,
@@ -28,50 +23,45 @@ export function TestTotals({
   totals: { passed: number; failed: number; skipped: number };
 }) {
   return (
-    <div
+    <p
       aria-label="Reported test totals"
-      className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5"
+      className="m-0 text-[11.5px] font-medium leading-[18px] text-muted-foreground"
     >
-      <span className="text-[11px] font-medium leading-[17.6px] text-muted-foreground">
-        Tests
-      </span>
-      {TOTAL_STATUSES.map((status) => {
+      {TOTAL_STATUSES.map((status, i) => {
         const count = totals[status];
+        const word = CHECK_STATUS[status].word.toLowerCase();
         return (
-          <span
-            key={status}
-            data-reply-test-total={status}
-            className={`inline-flex items-baseline gap-1 text-[11.5px] font-medium leading-[18px] ${
-              count > 0 ? CHECK_STATUS[status].tone : "text-muted-foreground"
-            }`}
-          >
-            <b className="font-medium tabular-nums">{count.toLocaleString()}</b>
-            {CHECK_STATUS[status].word.toLowerCase()}
-          </span>
+          <Fragment key={status}>
+            {i ? ", " : null}
+            <span
+              data-reply-test-total={status}
+              className={count > 0 ? CHECK_STATUS[status].tone : undefined}
+            >
+              <span className="tabular-nums">{count.toLocaleString()}</span>{" "}
+              {i ? word : `${count === 1 ? "test" : "tests"} ${word}`}
+            </span>
+          </Fragment>
         );
       })}
-    </div>
+    </p>
   );
 }
 
 /**
  * One row per check: its mark, its name, detail and evidence, and its status
- * word at the right edge. A failed or blocked row takes its tone's tint and a
- * heavier name, so the row reads as failing before the word is found.
+ * word at the right edge. A failed or blocked row takes a heavier name; the
+ * frame around the rows carries the tone, so the row itself is not tinted.
  */
 export function CheckRows({
   part,
   document,
   files,
   md,
-  pad = PANEL_ROW_CLASS,
 }: {
   part: Extract<ReplyPart, { type: "checks" }>;
   document: ReplyDocument;
   files: Parameters<typeof Evidence>[0]["files"];
   md: (content: string | undefined) => ReactNode;
-  /** Row padding; a part already inside a frame draws its rows flush. */
-  pad?: string;
 }) {
   return (
     <ul
@@ -84,7 +74,7 @@ export function CheckRows({
           <li
             key={i}
             data-reply-check-item={item.status}
-            className={`${STATUS_ROW_CLASS} ${pad} ${ROW_TINT[item.status] ?? ""}`}
+            className={`${STATUS_ROW_CLASS} ${PANEL_ROW_CLASS}`}
           >
             <StatusMark
               status={status}
@@ -101,7 +91,8 @@ export function CheckRows({
               </div>
               {item.detail ? (
                 <div
-                  className={`mt-0.5 min-w-0 text-muted-foreground ${SECONDARY_CLASS} [&_p]:m-0`}
+                  data-reply-check-detail=""
+                  className={`mt-0.5 min-w-0 ${SECONDARY_TEXT}`}
                 >
                   {md(item.detail)}
                 </div>

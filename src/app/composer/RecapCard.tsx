@@ -57,7 +57,9 @@ import type { HeldSpace } from "./recapMotion.ts";
 import { Hint } from "../Hint.tsx";
 import {
   CHECK,
+  FILE,
   Glyph,
+  LINK,
   LABEL_CLASS,
   LABEL_GUTTER_CLASS,
   MARK_CLASS,
@@ -568,10 +570,6 @@ function WaitingFooter({
 }
 /** A solid dot: work still in progress. */
 const ACTIVE = "M8 5.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 1 0 0-4.5Z";
-const FILE =
-  "M9.5 1.5H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5Z M9.5 1.5V5H13";
-const LINK =
-  "M6.5 9.5a3 3 0 0 0 4.24 0l2-2a3 3 0 0 0-4.24-4.24l-.5.5 M9.5 6.5a3 3 0 0 0-4.24 0l-2 2a3 3 0 0 0 4.24 4.24l.5-.5";
 
 /** Where the turn's result stands, above the goal. */
 function StateLine({

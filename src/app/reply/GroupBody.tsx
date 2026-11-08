@@ -1,7 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { ReplyLeaf, ReplyPart } from "../../domain/replyComponents.ts";
-import { Panel } from "./Panel.tsx";
-import { partReportsFailure } from "./status.ts";
 
 type Group = Extract<ReplyPart, { type: "group" }>;
 
@@ -10,19 +8,20 @@ const PEER_MIN_REM = 13;
 const PEER_GAP_REM = 1.5;
 
 /**
- * A group's children in their relationship. Peers are separate parts, so they
- * get no frame: they share the width in equal columns when the message column
- * has room and stack when it does not, never wrapping some of them. Supporting
- * children are one object with the point they qualify, so they share one panel:
- * the first child, then the rest indented under a thin rule in the reply accent.
- * A child that is a list stays together in one cell.
+ * A group's children in their relationship. Peers share the width in equal
+ * columns when the message column has room and stack when it does not, never
+ * wrapping some of them. Supporting children sit beneath the first child, the
+ * point they qualify, indented under a thin rule in the reply accent. No child
+ * gets a frame from the group; each draws as it would on its own, so checks
+ * keep their own frame and its tone. A child that is a list stays together in
+ * one cell.
  */
 export function GroupBody({
   part,
   renderChild,
 }: {
   part: Group;
-  /** Draws a child inside the group's own frame: no frame of its own, no gutter. */
+  /** Draws one child, the way it draws outside a group. */
   renderChild: (child: ReplyLeaf) => ReactNode;
 }) {
   const cell = (
@@ -71,19 +70,14 @@ export function GroupBody({
   }
   const [point, ...support] = part.children;
   return (
-    <Panel part="group" failed={partReportsFailure(part)}>
+    <div data-reply-group="supporting" className="min-w-0 space-y-3">
+      {cell(point!, 0)}
       <div
-        data-reply-group="supporting"
-        className="min-w-0 space-y-3 px-3.5 py-2.5"
+        data-reply-group-support=""
+        className="min-w-0 space-y-4 border-l-2 border-(--ws-reply-accent,var(--border))/40 pl-3.5" // slop-ok: 2 the supporting rule this group already draws
       >
-        {cell(point!, 0)}
-        <div
-          data-reply-group-support=""
-          className="min-w-0 space-y-4 border-l-2 border-(--ws-reply-accent,var(--border))/40 pl-3.5"
-        >
-          {support.map((child, i) => cell(child, i + 1))}
-        </div>
+        {support.map((child, i) => cell(child, i + 1))}
       </div>
-    </Panel>
+    </div>
   );
 }

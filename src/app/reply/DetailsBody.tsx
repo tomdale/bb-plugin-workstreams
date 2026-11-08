@@ -17,7 +17,7 @@ export function DetailsBody({
   md: Render;
 }) {
   return (
-    <section data-reply-details="" className="min-w-0">
+    <section data-reply-details="" className="min-w-0 space-y-1">
       <PartTitle>{md(titleMarkdown(part.title))}</PartTitle>
       <div
         data-reply-details-body=""

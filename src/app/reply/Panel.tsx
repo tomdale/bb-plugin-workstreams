@@ -1,15 +1,13 @@
 import type { ReactNode } from "react";
 import { Glyph, MARK_CLASS } from "../recap/marks.tsx";
-import type { StatusShape } from "./status.ts";
+import { SECONDARY_TEXT } from "./type.ts";
+import type { PanelTone, StatusShape } from "./status.ts";
 
 /**
- * The frame a part draws when its data is a list of parallel rows: checks, a
- * delivery, a sequence, a comparison, a change, or a supporting group. It is the
- * recessed, bordered box subagent deliveries already use, so a reply's parts read
- * as objects of the same family as the message surface around them.
- *
- * A part with one subject (context, a recommendation, supporting detail) draws a
- * label and no frame, and prose is never framed.
+ * The frame a part draws when it reports results: checks and a delivery. It is
+ * the recessed, bordered box subagent deliveries already use, so the edge of a
+ * frame in a reply always means that a result is reported inside it. Every
+ * other part draws with the recap card's rules, gutters and marks and no frame.
  */
 
 /**
@@ -17,31 +15,34 @@ import type { StatusShape } from "./status.ts";
  * cannot pass a larger size down to its rows.
  */
 const PANEL_CLASS =
-  "min-w-0 overflow-hidden rounded-lg border bg-surface-recessed text-[13px] leading-[21px]";
-
-const NEUTRAL = {
-  frame: "border-border",
-  header: "border-border",
-  title: "text-foreground",
-};
+  "min-w-0 overflow-hidden rounded-lg border bg-surface-recessed text-[13px] leading-[21px]"; // slop-ok: 2 the frame checks, deliveries and subagent deliveries already draw
 
 /**
- * A failure has to be findable before a row is read, so a part holding a failed
- * or blocked row takes the failure tone at its edge and in its header strip.
- * Passing parts stay neutral, which keeps the recap card the loudest object.
+ * A failure has to be findable before a row is read, so a part's frame and
+ * header strip take the tone of its worst row, the way a recap card takes its
+ * state's. The title stays neutral, like the card's goal: the rows carry the
+ * mark and the word. Parts with nothing failed or blocked stay neutral, which
+ * keeps the recap card the loudest object.
  */
-const FAILURE = {
-  frame: "border-(--ws-failure-border)",
-  header: "border-(--ws-failure-border) bg-(--ws-failure-surface)",
-  title: "text-(--ws-failure-text)",
-};
+const TONES: Record<PanelTone | "neutral", { frame: string; header: string }> =
+  {
+    neutral: { frame: "border-border", header: "border-border" },
+    failure: {
+      frame: "border-(--ws-failure-border)",
+      header: "border-(--ws-failure-border) bg-(--ws-failure-surface)",
+    },
+    needsYou: {
+      frame: "border-(--ws-needs-you-border)",
+      header: "border-(--ws-needs-you-border) bg-(--ws-needs-you-surface)",
+    },
+  };
 
 /** A row's padding inside a panel, on the design's 14px gutter. */
 export const PANEL_ROW_CLASS = "px-3.5 py-2";
 
 export function Panel({
   part,
-  failed,
+  tone,
   title,
   scope,
   summary,
@@ -49,39 +50,37 @@ export function Panel({
 }: {
   /** The part's type, recorded so a test and the gallery can find the frame. */
   part: string;
-  /** Whether a row inside failed or is blocked; it tones the frame and header. */
-  failed?: boolean;
+  /** The worst state among the rows; it tones the frame and header. */
+  tone?: PanelTone | null;
   title?: ReactNode;
   scope?: ReactNode;
   /** A tally that summarises state, at the right edge of the header. */
   summary?: ReactNode;
   children: ReactNode;
 }) {
-  const tone = failed ? FAILURE : NEUTRAL;
+  const classes = TONES[tone ?? "neutral"];
   return (
     <section
       // The part's own marker, so a framed part answers to the same attribute
       // whether or not it drew a panel.
       {...{ [`data-reply-${part}`]: "" }}
       data-reply-panel={part}
-      data-reply-panel-failure={failed ? "" : undefined}
-      className={`${PANEL_CLASS} ${tone.frame}`}
+      data-reply-panel-tone={tone ?? undefined}
+      className={`${PANEL_CLASS} ${classes.frame}`}
     >
       {title || scope || summary ? (
         <div
           data-reply-panel-header=""
-          className={`flex flex-wrap items-baseline gap-x-4 gap-y-0.5 border-b px-3.5 py-2 ${tone.header}`}
+          className={`flex flex-wrap items-baseline gap-x-4 gap-y-0.5 border-b px-3.5 py-2 ${classes.header}`}
         >
           <div className="min-w-0 flex-1 basis-48">
             {title ? (
-              <div data-reply-panel-title="" className={tone.title}>
+              <div data-reply-panel-title="" className="text-foreground">
                 {title}
               </div>
             ) : null}
             {scope ? (
-              <div className="mt-0.5 min-w-0 text-[12px] leading-[18px] text-muted-foreground">
-                {scope}
-              </div>
+              <div className={`mt-0.5 min-w-0 ${SECONDARY_TEXT}`}>{scope}</div>
             ) : null}
           </div>
           {summary}
@@ -142,12 +141,20 @@ export function RailCell({
   );
 }
 
-/** The status word at a row's right edge, where one column can be scanned. */
+/**
+ * The status word at a row's right edge, where one column can be scanned. An
+ * expected outcome's word is read only by assistive technology, so the column
+ * shows only the rows that need reading.
+ */
 export function StatusWord({ status }: { status: StatusShape }) {
   return (
     <span
       data-reply-status-word={status.word}
-      className={`text-[11px] font-medium leading-[17.6px] ${status.tone}`}
+      className={
+        status.quiet
+          ? "sr-only"
+          : `text-[11px] font-medium leading-[17.6px] ${status.tone}`
+      }
     >
       {status.word}
     </span>

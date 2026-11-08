@@ -99,20 +99,20 @@ it("leads a recommendation with its choice, then labeled reason and qualificatio
   const choice = root.querySelector("[data-reply-recommendation-choice]")!;
   expect(choice.textContent).toBe("Use the compact layout.");
   expect(choice.className).toContain("font-semibold");
-  expect(root.firstElementChild).toBe(choice);
 
   const rows = [
     ...root.querySelectorAll("dl > [data-reply-recommendation-row]"),
   ];
   expect(
     rows.map((row) => row.getAttribute("data-reply-recommendation-row")),
-  ).toEqual(["reason", "qualification"]);
+  ).toEqual(["choice", "reason", "qualification"]);
   expect(
     rows.map((row) => [
       row.querySelector("dt")?.textContent,
       row.querySelector("dd")?.textContent,
     ]),
   ).toEqual([
+    ["Recommended", "Use the compact layout."],
     ["Reason", "It keeps the goal visible."],
     ["Qualification", "Use Full during review."],
   ]);
@@ -131,5 +131,5 @@ it("omits the caveat row when a recommendation has no qualification", () => {
   });
   expect(
     [...view.querySelectorAll("dt")].map((label) => label.textContent),
-  ).toEqual(["Reason"]);
+  ).toEqual(["Recommended", "Reason"]);
 });

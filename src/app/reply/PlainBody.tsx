@@ -10,51 +10,42 @@ import { DeliveryStages } from "./DeliveryBody.tsx";
 import { DetailsBody } from "./DetailsBody.tsx";
 import { PlainMarkdown, type ReplyDocument } from "./Evidence.tsx";
 import { GroupBody } from "./GroupBody.tsx";
-import { PANEL_ROW_CLASS, Panel } from "./Panel.tsx";
+import { Glyph } from "../recap/marks.tsx";
+import { Panel } from "./Panel.tsx";
 import { PartTitle, titleMarkdown } from "./PartTitle.tsx";
 import { SequenceBody } from "./SequenceBody.tsx";
-import { partReportsFailure } from "./status.ts";
-import { BODY_CLASS, SECONDARY_CLASS } from "./type.ts";
+import { CHECK_STATUS, partTone } from "./status.ts";
+import { INHERIT_MARKDOWN, SECONDARY_CLASS } from "./type.ts";
 
 export { PlainMarkdown };
 
 type Context = { document: ReplyDocument; files: RecapFiles | null };
 
 /**
- * The parts whose data is a list of parallel rows, and which therefore draw a
- * panel. A part with one subject — context, a recommendation, supporting
- * detail — draws its label and no frame, and prose is never framed.
- */
-const ROW_PARTS = new Set<ReplyPart["type"]>([
-  "checks",
-  "delivery",
-  "sequence",
-  "comparison",
-  "change",
-]);
-
-/**
  * One part of a reply.
  *
- * `framed` is false for a part drawn inside another part's panel, such as a
- * child of a supporting group: that frame is the only frame, so the child draws
- * its rows flush and without a border of its own.
+ * Checks and a delivery report results, so they draw in a frame whose edge
+ * takes the tone of their worst row. Every other part draws in the message
+ * flow: a titled part as its title above its rows, a part with one subject as
+ * its labels, and prose as prose.
  */
 export function PlainBody({
   part,
   document,
   files,
-  framed = true,
-}: Context & { part: ReplyPart; framed?: boolean }) {
+}: Context & { part: ReplyPart }) {
   const md = (content: string | undefined) => (
     <PlainMarkdown content={content} document={document} />
   );
   const title = (value: string | undefined) =>
     value ? <PartTitle>{md(titleMarkdown(value))}</PartTitle> : null;
-  const panelled = framed && ROW_PARTS.has(part.type);
-  /** The part's own marker, on its root whether that root is a panel or not. */
-  const mark = (type: string) => ({ [`data-reply-${type}`]: "" });
-  const pad = panelled ? PANEL_ROW_CLASS : "";
+  /** A titled part in the message flow: the title, then its rows. */
+  const titled = (type: string, value: string, rows: ReactNode) => (
+    <div {...{ [`data-reply-${type}`]: "" }} className="min-w-0 space-y-1.5">
+      {title(value)}
+      {rows}
+    </div>
+  );
   switch (part.type) {
     case "text":
       return md(part.body);
@@ -71,115 +62,69 @@ export function PlainBody({
         </p>
       );
     case "unparsed":
+      // The reason is a failure the reader can act on, so it takes the failure
+      // mark and text step; the source below it stays readable as written.
       return (
-        <>
-          {md(part.error)}
+        <div data-reply-unparsed="" className="min-w-0 space-y-1.5">
+          <div
+            data-reply-unparsed-reason=""
+            className={`flex min-w-0 items-baseline gap-1.5 ${SECONDARY_CLASS} text-(--ws-failure-text) ${INHERIT_MARKDOWN} [&_p]:m-0`}
+          >
+            <Glyph
+              path={CHECK_STATUS.failed.path}
+              className="h-3 w-3 shrink-0 translate-y-[1.5px]"
+            />
+            <div className="min-w-0">{md(part.error)}</div>
+          </div>
           {md(part.source)}
-        </>
+        </div>
       );
     case "context":
       return <ContextBody part={part} md={md} />;
-    case "comparison": {
-      const rows = <ComparisonBody part={part} md={md} />;
-      return panelled ? (
-        <Panel part="comparison" title={title(part.title)}>
-          {rows}
-        </Panel>
-      ) : (
-        <div {...mark("comparison")} className="min-w-0">
-          {title(part.title)}
-          {rows}
-        </div>
+    case "comparison":
+      return titled(
+        "comparison",
+        part.title,
+        <ComparisonBody part={part} md={md} />,
       );
-    }
-    case "sequence": {
-      const rows = <SequenceBody part={part} md={md} pad={pad} />;
-      return panelled ? (
-        <Panel part="sequence" title={title(part.title)}>
-          {rows}
-        </Panel>
-      ) : (
-        <div {...mark("sequence")} className="min-w-0">
-          {title(part.title)}
-          {rows}
-        </div>
+    case "sequence":
+      return titled(
+        "sequence",
+        part.title,
+        <SequenceBody part={part} md={md} />,
       );
-    }
-    case "change": {
-      const rows = <ChangeBody part={part} md={md} pad={pad} />;
-      return panelled ? (
-        <Panel part="change" title={title(part.title)}>
-          {rows}
-        </Panel>
-      ) : (
-        <div {...mark("change")} className="min-w-0">
-          {title(part.title)}
-          {rows}
-        </div>
-      );
-    }
-    case "checks": {
-      const rows = (
-        <CheckRows
-          part={part}
-          document={document}
-          files={files}
-          md={md}
-          pad={pad}
-        />
-      );
-      return panelled ? (
+    case "change":
+      return titled("change", part.title, <ChangeBody part={part} md={md} />);
+    case "checks":
+      return (
         <Panel
           part="checks"
-          failed={partReportsFailure(part)}
+          tone={partTone(part)}
           title={title(part.title)}
           scope={md(part.scope)}
           summary={
             part.testTotals ? <TestTotals totals={part.testTotals} /> : null
           }
         >
-          {rows}
+          <CheckRows part={part} document={document} files={files} md={md} />
         </Panel>
-      ) : (
-        <div {...mark("checks")} className="min-w-0">
-          {title(part.title)}
-          <div className={`${SECONDARY_CLASS} text-muted-foreground [&_p]:m-0`}>
-            {md(part.scope)}
-          </div>
-          {part.testTotals ? <TestTotals totals={part.testTotals} /> : null}
-          {rows}
-        </div>
       );
-    }
-    case "delivery": {
-      const rows = (
-        <DeliveryStages
-          part={part}
-          document={document}
-          files={files}
-          md={md}
-          pad={pad}
-        />
-      );
-      return panelled ? (
+    case "delivery":
+      return (
         <Panel
           part="delivery"
-          failed={partReportsFailure(part)}
+          tone={partTone(part)}
           title={title(part.title)}
           scope={md(part.scope)}
         >
-          {rows}
+          <DeliveryStages
+            part={part}
+            document={document}
+            files={files}
+            md={md}
+          />
         </Panel>
-      ) : (
-        <div {...mark("delivery")} className="min-w-0">
-          {title(part.title)}
-          <div className={`${SECONDARY_CLASS} text-muted-foreground [&_p]:m-0`}>
-            {md(part.scope)}
-          </div>
-          {rows}
-        </div>
       );
-    }
     case "recommendation":
       return <RecommendationBody part={part} md={md} />;
     case "details":
@@ -189,17 +134,9 @@ export function PlainBody({
         <GroupBody
           part={part}
           renderChild={(child) => (
-            <PlainBody
-              part={child}
-              document={document}
-              files={files}
-              framed={false}
-            />
+            <PlainBody part={child} document={document} files={files} />
           )}
         />
       );
   }
 }
-
-/** A bullet list the reply writes itself: evidence under a check, a step's sources. */
-export const PLAIN_LIST_CLASS = `mb-2 pl-5 text-foreground [&>li]:mb-1 ${BODY_CLASS}`;

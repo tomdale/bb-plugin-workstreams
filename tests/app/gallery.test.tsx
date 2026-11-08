@@ -66,7 +66,11 @@ it("renders every specimen with its component", async () => {
   const slot = await mount();
   expect(slot.getByRole("heading", { level: 1 }).textContent).toBe("Gallery");
   const change = slot.container.querySelector("[data-reply-change]");
-  expect(change?.querySelector("[data-reply-change-pair]")).not.toBeNull();
+  expect(
+    [...(change?.querySelectorAll("[data-reply-change-row]") ?? [])].map(
+      (row) => row.getAttribute("data-reply-change-row"),
+    ),
+  ).toEqual(["before", "after", "unchanged", "limitation"]);
   expect(change?.textContent).toContain("Before");
   expect(change?.textContent).toContain("After");
   const checks = slot.container.querySelector("[data-reply-checks]");
@@ -105,7 +109,7 @@ it("renders every specimen with its component", async () => {
     "Before",
     "After",
     "A held key re-read a stale index and skipped several cards",
-    "Local suite",
+    "Vitest suite",
     "Where the fix stands",
     "The plugin reloads after merge",
     "Merge after one pass on a real queue",

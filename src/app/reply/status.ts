@@ -22,6 +22,11 @@ export type StageStatus = Extract<
 export type StatusShape = {
   /** The word printed beside the row, in the row's tone. */
   word: string;
+  /**
+   * The expected outcome: its mark stands alone and its word is read only by
+   * assistive technology, so the column of words lists only the exceptions.
+   */
+  quiet?: boolean;
   /** The stroked mark's path, in the 16-unit grid the recap card draws in. */
   path: string;
   /** A stroked ring drawn as a broken line: a state nobody has established. */
@@ -41,7 +46,7 @@ const RING = "M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 1 0 0-9Z";
 const RING_SLASH = `${RING} M4.8 11.2 11.2 4.8`;
 
 export const CHECK_STATUS: Record<CheckStatus, StatusShape> = {
-  passed: { word: "Passed", path: CHECK, tone: SUCCESS },
+  passed: { word: "Passed", path: CHECK, tone: SUCCESS, quiet: true },
   failed: { word: "Failed", path: CROSS, tone: FAILURE },
   skipped: { word: "Skipped", path: DASH, tone: MUTED },
   blocked: { word: "Blocked", path: RING_SLASH, tone: NEEDS_YOU },
@@ -53,7 +58,7 @@ export const CHECK_STATUS: Record<CheckStatus, StatusShape> = {
  * proceed, and only blocked is a warning.
  */
 export const STAGE_STATUS: Record<StageStatus, StatusShape> = {
-  done: { word: "Done", path: CHECK, tone: SUCCESS },
+  done: { word: "Done", path: CHECK, tone: SUCCESS, quiet: true },
   pending: { word: "Pending", path: RING, tone: WAITING },
   blocked: { word: "Blocked", path: RING_SLASH, tone: NEEDS_YOU },
   "not-started": {
@@ -65,23 +70,26 @@ export const STAGE_STATUS: Record<StageStatus, StatusShape> = {
   unknown: { word: "Unknown", path: RING, dashed: true, tone: MUTED },
 };
 
-/** A status that stops the work; a part reporting one draws its own frame in the failure tone. */
+/** A status that stops the work, whose row's name takes a heavier weight. */
 export const reportsFailure = (status: string): boolean =>
   status === "failed" || status === "blocked";
 
+/** The state a part's frame reports at its edge, when it reports one. */
+export type PanelTone = "failure" | "needsYou";
+
 /**
- * Whether a part holds a row that failed or is blocked, including the rows of
- * a group's children, so a failure reaches the edge of whatever frames it.
+ * The worst state among a part's rows, which its frame takes so the state is
+ * findable before a row is read: failure when a row failed, `needsYou` when a
+ * row is blocked and none failed, and none otherwise.
  */
-export function partReportsFailure(part: ReplyComponent): boolean {
-  switch (part.type) {
-    case "checks":
-      return part.items.some((item) => reportsFailure(item.status));
-    case "delivery":
-      return part.stages.some((stage) => reportsFailure(stage.status));
-    case "group":
-      return part.children.flat().some(partReportsFailure);
-    default:
-      return false;
-  }
+export function partTone(
+  part: Extract<ReplyComponent, { type: "checks" | "delivery" }>,
+): PanelTone | null {
+  const statuses: string[] =
+    part.type === "checks"
+      ? part.items.map((item) => item.status)
+      : part.stages.map((stage) => stage.status);
+  if (statuses.includes("failed")) return "failure";
+  if (statuses.includes("blocked")) return "needsYou";
+  return null;
 }

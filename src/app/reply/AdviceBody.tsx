@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { LABEL_CLASS } from "../recap/marks.tsx";
-import { SECONDARY_CLASS } from "./type.ts";
+import { LabelledRows } from "./rows.tsx";
+import { SECONDARY_TEXT } from "./type.ts";
 import type { ReplyPart } from "../../domain/replyComponents.ts";
 
 type Md = (content: string | undefined) => ReactNode;
@@ -36,9 +37,9 @@ export function ComparisonBody({ part, md }: { part: Comparison; md: Md }) {
           <li
             key={i}
             data-reply-comparison-option={item.recommended ? "recommended" : ""}
-            className={`row-span-4 grid min-w-0 grid-rows-subgrid gap-y-0 border-t px-3.5 pt-2 pb-3 ${
+            className={`row-span-4 grid min-w-0 grid-rows-subgrid gap-y-0 border-t pt-2 pb-1 ${
               item.recommended
-                ? "border-t-2 border-(--ws-reply-accent,var(--foreground)) pt-[calc(0.5rem-1px)]"
+                ? "border-t-2 border-(--ws-reply-accent,var(--foreground)) pt-[calc(0.5rem-1px)]" // slop-ok: 2 the recommended option's existing heavier rule
                 : "border-border"
             }`}
           >
@@ -67,7 +68,7 @@ export function ComparisonBody({ part, md }: { part: Comparison; md: Md }) {
             {item.detail ? (
               <div
                 data-reply-comparison-detail=""
-                className={`row-start-4 mt-1.5 min-w-0 ${SECONDARY_CLASS} text-muted-foreground ${FLUSH}`}
+                className={`row-start-4 mt-1.5 min-w-0 ${SECONDARY_TEXT}`}
               >
                 {md(item.detail)}
               </div>
@@ -80,9 +81,10 @@ export function ComparisonBody({ part, md }: { part: Comparison; md: Md }) {
 }
 
 /**
- * The choice leads as strong text; the reason and any qualification follow as recap
- * card rows, labels in the card's gutter beside each value and stacked above
- * it when narrow.
+ * The reply's recommendation as labelled rows: Recommended beside the choice in
+ * semibold, then the reason and any qualification. The label is the word the
+ * recommended option in a comparison carries, in the same accent, so a
+ * recommendation reads the same wherever it appears and never as a work state.
  */
 export function RecommendationBody({
   part,
@@ -91,30 +93,34 @@ export function RecommendationBody({
   part: Recommendation;
   md: Md;
 }) {
-  const rows: [string, string][] = [["Reason", part.reason]];
-  if (part.qualification) rows.push(["Qualification", part.qualification]);
+  const rows: Parameters<typeof LabelledRows>[0]["rows"] = [
+    {
+      label: "Recommended",
+      value: (
+        <div
+          data-reply-recommendation-choice=""
+          className={`font-semibold ${FLUSH}`}
+        >
+          {md(part.choice)}
+        </div>
+      ),
+      data: { "data-reply-recommendation-row": "choice" },
+    },
+    {
+      label: "Reason",
+      value: md(part.reason),
+      data: { "data-reply-recommendation-row": "reason" },
+    },
+  ];
+  if (part.qualification)
+    rows.push({
+      label: "Qualification",
+      value: md(part.qualification),
+      data: { "data-reply-recommendation-row": "qualification" },
+    });
   return (
-    <div data-reply-recommendation="" className="@container/advice min-w-0">
-      <div
-        data-reply-recommendation-choice=""
-        className="font-semibold [&_p]:my-0"
-      >
-        {md(part.choice)}
-      </div>
-      <dl className="m-0 mt-1.5 grid grid-cols-[minmax(3.25rem,max-content)_minmax(0,1fr)] gap-x-3 gap-y-1 @max-[24rem]/advice:grid-cols-1">
-        {rows.map(([label, value]) => (
-          <div
-            key={label}
-            data-reply-recommendation-row={label.toLowerCase()}
-            className="col-span-full grid grid-cols-subgrid gap-y-0.5 @max-[24rem]/advice:grid-cols-1"
-          >
-            <dt className={`${LABEL_CLASS} whitespace-nowrap ${ACCENT_TEXT}`}>
-              {label}
-            </dt>
-            <dd className={`m-0 min-w-0 ${FLUSH}`}>{md(value)}</dd>
-          </div>
-        ))}
-      </dl>
+    <div data-reply-recommendation="" className="min-w-0">
+      <LabelledRows rows={rows} />
     </div>
   );
 }

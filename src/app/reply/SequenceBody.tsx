@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import type { ReplyPart } from "../../domain/replyComponents.ts";
 import { LABEL_CLASS, MARK_CLASS, MARK_ROW_CLASS } from "../recap/marks.tsx";
-import { PANEL_ROW_CLASS, RailCell } from "./Panel.tsx";
-import { SECONDARY_CLASS } from "./type.ts";
+import { RailCell } from "./Panel.tsx";
+import { SECONDARY_TEXT } from "./type.ts";
 
 type Sequence = Extract<ReplyPart, { type: "sequence" }>;
 
@@ -17,12 +17,9 @@ type Sequence = Extract<ReplyPart, { type: "sequence" }>;
 export function SequenceBody({
   part,
   md,
-  pad = PANEL_ROW_CLASS,
 }: {
   part: Sequence;
   md: (content: string | undefined) => ReactNode;
-  /** Row padding; a part already inside a frame draws its rows flush. */
-  pad?: string;
 }) {
   const last = part.steps.length - 1;
   return (
@@ -33,7 +30,7 @@ export function SequenceBody({
             key={i}
             data-reply-sequence-step={i + 1}
             data-reply-attention={step.attention ? "" : undefined}
-            className={`${MARK_ROW_CLASS} ${pad} ${i < last ? "pb-2" : ""}`}
+            className={`${MARK_ROW_CLASS} ${i < last ? "pb-2" : ""}`}
           >
             <RailCell rail={i < last}>
               <span
@@ -44,7 +41,11 @@ export function SequenceBody({
               </span>
             </RailCell>
             <div className="min-w-0">
-              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 [&_p]:m-0">
+              <div
+                className={`flex min-w-0 flex-wrap items-baseline gap-x-2 [&_p]:m-0 ${
+                  step.attention ? "font-medium" : ""
+                }`}
+              >
                 {md(step.title)}
                 {step.attention ? (
                   <span
@@ -58,7 +59,7 @@ export function SequenceBody({
               {step.detail ? (
                 <div
                   data-reply-step-detail=""
-                  className={`mt-0.5 text-muted-foreground ${SECONDARY_CLASS} [&_p]:m-0`}
+                  className={`mt-0.5 ${SECONDARY_TEXT}`}
                 >
                   {md(step.detail)}
                 </div>

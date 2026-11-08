@@ -26,6 +26,13 @@ export const MARK_CLASS =
 
 export const CHECK = "M3.5 8.5 6.5 11.5 12.5 4.5";
 
+/** A page with a folded corner: a link to a file. */
+export const FILE =
+  "M9.5 1.5H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5Z M9.5 1.5V5H13";
+/** Two chain links: a link to the web. */
+export const LINK =
+  "M6.5 9.5a3 3 0 0 0 4.24 0l2-2a3 3 0 0 0-4.24-4.24l-.5.5 M9.5 6.5a3 3 0 0 0-4.24 0l-2 2a3 3 0 0 0 4.24 4.24l.5-.5";
+
 export function Glyph({
   path,
   className,

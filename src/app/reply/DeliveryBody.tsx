@@ -3,7 +3,7 @@ import type { ReplyPart } from "../../domain/replyComponents.ts";
 import { Evidence, type ReplyDocument } from "./Evidence.tsx";
 import { PANEL_ROW_CLASS, RailCell, StatusMark, StatusWord } from "./Panel.tsx";
 import { STAGE_STATUS, reportsFailure } from "./status.ts";
-import { ROW_NAME_CLASS, SECONDARY_CLASS } from "./type.ts";
+import { ROW_NAME_CLASS, SECONDARY_TEXT } from "./type.ts";
 
 /* The mark, the stage's own content, and its status word at the edge, where a
    scan down one column finds every stage that needs someone. */
@@ -21,14 +21,11 @@ export function DeliveryStages({
   document,
   files,
   md,
-  pad = PANEL_ROW_CLASS,
 }: {
   part: Extract<ReplyPart, { type: "delivery" }>;
   document: ReplyDocument;
   files: Parameters<typeof Evidence>[0]["files"];
   md: (content: string | undefined) => ReactNode;
-  /** Row padding; a part already inside a frame draws its rows flush. */
-  pad?: string;
 }) {
   const last = part.stages.length - 1;
   return (
@@ -43,9 +40,7 @@ export function DeliveryStages({
           <li
             key={i}
             data-reply-delivery-stage={stage.status}
-            className={`${STAGE_ROW_CLASS} ${pad} ${
-              reportsFailure(stage.status) ? "bg-(--ws-needs-you-surface)" : ""
-            }`}
+            className={`${STAGE_ROW_CLASS} ${PANEL_ROW_CLASS}`}
           >
             <RailCell rail={i < last}>
               <StatusMark
@@ -63,7 +58,8 @@ export function DeliveryStages({
               </div>
               {stage.detail ? (
                 <div
-                  className={`mt-0.5 min-w-0 text-muted-foreground ${SECONDARY_CLASS} [&_p]:m-0`}
+                  data-reply-stage-detail=""
+                  className={`mt-0.5 min-w-0 ${SECONDARY_TEXT}`}
                 >
                   {md(stage.detail)}
                 </div>
