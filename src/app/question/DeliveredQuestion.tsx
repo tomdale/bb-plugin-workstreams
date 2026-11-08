@@ -15,6 +15,13 @@ function isTransport(text: string) {
   return prefixes.some((prefix) => text.startsWith(prefix));
 }
 
+// BB's retained user-input row key carries its thread and event sequence.
+function retainedUserSeed(row: HTMLElement) {
+  return /(?:^|:)([^:]+):user-seed:(\d+)(?:-(\d+))?$/.exec(
+    row.dataset.timelineRowId ?? "",
+  );
+}
+
 /** User and generated delivery messages have no plugin renderer slot. */
 export function deliveredCardRecord(text: string): QuestionHistory | null {
   return questionResultRecord(
@@ -31,7 +38,14 @@ type Target = {
   anchor: HTMLElement;
   text: string;
   record: QuestionHistory | null;
+  preview: boolean;
 };
+
+function syncSourceConcealment(target: Target) {
+  const concealed = target.record !== null || target.preview;
+  target.row.classList.toggle("ws-delivered-question-row", concealed);
+  target.host.classList.toggle("ws-delivered-question-source", concealed);
+}
 
 export function DeliveredQuestionCards() {
   const sdk = useSdk();
@@ -43,14 +57,14 @@ export function DeliveredQuestionCards() {
     const originals = new Map<string, Promise<QuestionHistory | null>>();
     const readOriginal = (target: Target) => {
       const rowId = target.row.dataset.timelineRowId ?? "";
-      // BB's retained user-input row key carries its thread and event sequence.
-      const match = /(?:^|:)([^:]+):user-seed:(\d+)(?:-\d+)?$/.exec(rowId);
+      const match = retainedUserSeed(target.row);
       if (!match) return;
       const existing = originals.get(rowId);
       if (existing) {
         void existing.then((record) => {
           if (active && mounted.get(target.host) === target && record) {
             target.record = record;
+            syncSourceConcealment(target);
             setTargets(
               [...mounted.values()].map((current) => ({ ...current })),
             );
@@ -60,6 +74,7 @@ export function DeliveredQuestionCards() {
       }
       const threadId = match[1]!;
       const seq = Number(match[2]);
+      const groupIndex = Number(match[3] ?? 0);
       const request = sdk.threads.events
         .list({
           threadId,
@@ -73,7 +88,16 @@ export function DeliveredQuestionCards() {
           for (const event of events) {
             if (event.type !== "client/turn/requested" || event.seq !== seq)
               continue;
-            for (const part of event.data.input ?? []) {
+            const groups = (event.data.inputGroups ?? [event.data.input ?? []])
+              .map((group) =>
+                group.filter((part) => part.visibility !== "agent-only"),
+              )
+              .filter((group) =>
+                group.some(
+                  (part) => part.type !== "text" || part.text.length > 0,
+                ),
+              );
+            for (const part of groups[groupIndex] ?? []) {
               const record =
                 part.type === "text" ? deliveredCardRecord(part.text) : null;
               if (record) return record;
@@ -87,8 +111,10 @@ export function DeliveredQuestionCards() {
         if (!active || !record) return;
         // A virtualized row may have unmounted while its event was loading.
         for (const current of mounted.values()) {
-          if (current.row.dataset.timelineRowId === rowId)
+          if (current.row.dataset.timelineRowId === rowId) {
             current.record = record;
+            syncSourceConcealment(current);
+          }
         }
         setTargets([...mounted.values()].map((current) => ({ ...current })));
         scan();
@@ -117,7 +143,9 @@ export function DeliveredQuestionCards() {
             !record &&
             isTransport(text) &&
             (text.endsWith("…") || text.endsWith("..."));
-          if (!record && !isClippedPreview) {
+          const canReadOriginal =
+            isTransport(text) && retainedUserSeed(target.row) !== null;
+          if (!record && !isClippedPreview && !canReadOriginal) {
             target.anchor.remove();
             host.classList.remove("ws-delivered-question-source");
             target.row.classList.remove(
@@ -128,9 +156,11 @@ export function DeliveredQuestionCards() {
             changed = true;
             continue;
           }
-          if (record || isClippedPreview) {
+          if (record || isClippedPreview || canReadOriginal) {
             target.text = text;
             target.record = record;
+            target.preview = isClippedPreview;
+            syncSourceConcealment(target);
             readOriginal(target);
             changed = true;
           }
@@ -163,12 +193,13 @@ export function DeliveredQuestionCards() {
             !record &&
             isTransport(text) &&
             (text.endsWith("…") || text.endsWith("..."));
-          if (!record && !isClippedPreview) continue;
+          // User-message Markdown can strip JSON escapes or rewrite its text.
+          // Retained rows have an exact event to read even without an ellipsis.
+          const canReadOriginal = retainedUserSeed(row) !== null;
+          if (!record && !isClippedPreview && !canReadOriginal) continue;
           const anchor = document.createElement("div");
           anchor.dataset.wsDeliveredAnchor = "";
           row.append(anchor);
-          row.classList.add("ws-delivered-question-row");
-          host.classList.add("ws-delivered-question-source");
           const target: Target = {
             host,
             row,
@@ -176,7 +207,11 @@ export function DeliveredQuestionCards() {
             text,
             record,
             duplicate: false,
+            preview: isClippedPreview,
           };
+          // A malformed retained source stays visible unless its exact event
+          // yields a card. Clipped previews already have an expansion fallback.
+          syncSourceConcealment(target);
           mounted.set(host, target);
           readOriginal(target);
           changed = true;
@@ -242,11 +277,11 @@ export function DeliveredQuestionCards() {
   }, [sdk]);
   return (
     <>
-      {targets.map(({ host, anchor, record, duplicate }, index) =>
+      {targets.map(({ host, anchor, record, duplicate, preview }, index) =>
         createPortal(
           duplicate ? null : record ? (
             <QuestionHistoryCard record={record} />
-          ) : (
+          ) : preview ? (
             <button
               type="button"
               className="ws-delivered-question-preview"
@@ -254,7 +289,7 @@ export function DeliveredQuestionCards() {
             >
               Expand to view the question and answer
             </button>
-          ),
+          ) : null,
           anchor,
           String(index),
         ),

@@ -302,6 +302,118 @@ it("loads the exact retained event instead of reconstructing Markdown-altered or
   overlay.lifecycle.unmount();
 });
 
+const markdownAnswer = {
+  ...result,
+  answers: { "What should we test?": '"Theme" → keep the literal arrow' },
+};
+
+function renderMarkdownRewrittenAnswer() {
+  return render(
+    <div data-timeline-row-id="thread:user-seed:670-1">
+      <div data-message-column="">
+        <div>
+          <div data-image-gallery-clipped="">
+            <div data-markdown-preview="">
+              <p>{`${recoveredPrefix}\n${JSON.stringify(markdownAnswer).replaceAll("→", "->").replaceAll('\\"', '"')}\n${recoveredSuffix}`}</p>
+            </div>
+          </div>
+          <button>Show more</button>
+        </div>
+      </div>
+    </div>,
+  );
+}
+
+it("recovers the exact retained input group when Markdown rewrites its visible JSON", async () => {
+  const { vi } = await import("vitest");
+  const retainedPart = (value: unknown) => ({
+    type: "text",
+    text: `${recoveredPrefix}\n${JSON.stringify(value)}\n${recoveredSuffix}`,
+  });
+  const other = retainedPart({
+    ...result,
+    answers: { "What should we test?": "Another input's answer" },
+  });
+  const retained = retainedPart(markdownAnswer);
+  const hidden = {
+    ...retainedPart({
+      ...result,
+      answers: { "What should we test?": "Agent-only answer" },
+    }),
+    visibility: "agent-only",
+  };
+  const read = vi.fn(
+    async () =>
+      [
+        {
+          type: "client/turn/requested",
+          seq: 670,
+          data: {
+            input: [hidden, other, retained],
+            inputGroups: [[hidden], [], [other], [retained]],
+          },
+        },
+      ] as unknown as Awaited<
+        ReturnType<PluginBrowserBbSdk["threads"]["events"]["list"]>
+      >,
+  );
+  const message = renderMarkdownRewrittenAnswer();
+  const overlay = renderSlot(
+    { component: DeliveredQuestionCards },
+    {},
+    { sdk: { threads: { events: { list: read } } } },
+  );
+
+  await waitFor(() =>
+    expect(message.getByRole("button", { expanded: false })).toBeTruthy(),
+  );
+  fireEvent.click(message.getByRole("button", { expanded: false }));
+  expect(message.getAllByText('"Theme" → keep the literal arrow')).toHaveLength(
+    2,
+  );
+  expect(message.queryByText("Another input's answer")).toBeNull();
+  expect(message.queryByText("Agent-only answer")).toBeNull();
+  expect(read).toHaveBeenCalledOnce();
+  expect(
+    message.container
+      .querySelector("[data-timeline-row-id]")
+      ?.classList.contains("ws-delivered-question-row"),
+  ).toBe(true);
+  overlay.lifecycle.unmount();
+});
+
+it.each(["rejects", "returns no question"])(
+  "keeps the original message visible when retained recovery %s",
+  async (mode) => {
+    const { vi } = await import("vitest");
+    const read = vi.fn(async () => {
+      if (mode === "rejects") throw new Error("Events unavailable");
+      return [];
+    });
+    const message = renderMarkdownRewrittenAnswer();
+    const overlay = renderSlot(
+      { component: DeliveredQuestionCards },
+      {},
+      { sdk: { threads: { events: { list: read } } } },
+    );
+
+    await waitFor(() => expect(read).toHaveBeenCalledOnce());
+    expect(
+      message.container.querySelector(".ws-delivered-question-source"),
+    ).toBeNull();
+    expect(
+      message.container.querySelector(".ws-delivered-question-row"),
+    ).toBeNull();
+    expect(
+      message.queryByText("Expand to view the question and answer"),
+    ).toBeNull();
+    expect(
+      message.container.querySelector("[data-markdown-preview] p")?.textContent,
+    ).toContain(recoveredPrefix);
+    overlay.lifecycle.unmount();
+  },
+);
+
 it("replaces only the delivery row inside a turn and leaves unrelated content visible", async () => {
   const message = render(
     <div data-timeline-row-id="thread:turn">
