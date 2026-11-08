@@ -386,6 +386,8 @@ export const rpcContract = defineRpcContract({
        * `previewCancel` for the same draft aborts this one's model call.
        */
       draftKey: z.string().min(1).max(500).nullable().optional(),
+      /** TEMPORARY diagnosis: the banner instance asking, for log tracing. */
+      clientId: z.string().max(50).optional(),
     }),
     output: previewSchema,
   },
@@ -394,7 +396,11 @@ export const rpcContract = defineRpcContract({
    * Returns whether one was running.
    */
   previewCancel: {
-    input: z.object({ draftKey: z.string().min(1).max(500) }),
+    input: z.object({
+      draftKey: z.string().min(1).max(500),
+      /** TEMPORARY diagnosis: the banner instance asking, for log tracing. */
+      clientId: z.string().max(50).optional(),
+    }),
     output: z.object({ canceled: z.boolean() }),
   },
   /**
@@ -408,6 +414,8 @@ export const rpcContract = defineRpcContract({
       text: z.string().max(20_000),
       identity: taskIdentitySubmissionSchema.nullable(),
       projectChoice: projectChoiceSchema.nullable().optional(),
+      /** TEMPORARY diagnosis: the banner instance reporting, for log tracing. */
+      clientId: z.string().max(50).optional(),
     }),
     output: z.object({ filed: z.boolean() }),
   },

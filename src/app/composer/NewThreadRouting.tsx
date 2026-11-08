@@ -27,6 +27,8 @@ export function NewThreadRouting() {
   const [composerRoot, setComposerRoot] = useState<HTMLElement | null>(null);
   const composerRef = useRef(composer);
   composerRef.current = composer;
+  // TEMPORARY diagnosis: the model's clientId, for draftIdentity tracing.
+  const instanceIdRef = useRef<string>("-");
 
   useEffect(() => {
     const primary = root?.closest<HTMLElement>(
@@ -44,6 +46,8 @@ export function NewThreadRouting() {
     setCheckedRoot(true);
     setComposerRoot(primary);
     const draftKey = composer.key;
+    // TEMPORARY diagnosis: distinguish concurrent banner instances in logs.
+    const clientId = Math.random().toString(36).slice(2, 8);
     const nativeModel = new NewWorkModel(
       {
         route: async (prompt, pickedProjectId) =>
@@ -51,13 +55,17 @@ export function NewThreadRouting() {
             prompt,
             pickedProjectId,
             draftKey,
+            clientId,
           })) as Preview,
         cancelRoute: () => {
-          void rpc.call("previewCancel", { draftKey }).catch(() => {});
+          void rpc
+            .call("previewCancel", { draftKey, clientId })
+            .catch(() => {});
         },
       },
       takeProjectChoice(composer.scope.projectId),
     );
+    instanceIdRef.current = clientId;
     // Opened from a workstream's ＋: the thread starts with its topic.
     const preset = takeComposerPreset();
     if (preset) nativeModel.selectWorkstream(preset.target, preset.label);
@@ -127,6 +135,7 @@ export function NewThreadRouting() {
           text: state.text,
           identity,
           projectChoice: submittedProject(state),
+          clientId: instanceIdRef.current,
         }),
       )
       .catch(() => {
