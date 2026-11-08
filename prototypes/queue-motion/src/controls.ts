@@ -43,7 +43,6 @@ export type Cfg = {
   vcap: number;
   vcap1: number;
   holdDelay: number;
-  gateSlack: number;
   coverFade: number;
   incomingFade: number;
   washTauIn: number;
@@ -307,19 +306,6 @@ export const SETTINGS: readonly Setting<Cfg, Patch>[] = [
     read: (c) => c.tempo.ms,
     write: (ms) => ({ tempo: { ms } }),
     shown: (c) => c.tempo.kind === "constant",
-  },
-  {
-    kind: "range",
-    key: "slack",
-    group: "pace",
-    label: "gate slack",
-    unit: "ring units",
-    min: 0,
-    max: 0.3,
-    step: 0.05,
-    read: (c) => c.gateSlack,
-    write: (gateSlack) => ({ gateSlack }),
-    shown: (c) => c.tempo.kind === "none",
   },
   {
     kind: "toggle",

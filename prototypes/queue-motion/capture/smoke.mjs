@@ -1039,7 +1039,6 @@ const SHOWN = {
   tw: (s) => s.tk === "lookahead",
   ts: (s) => s.tk === "lookahead",
   tms: (s) => s.tk === "constant",
-  slack: (s) => s.tk === "none",
   tuck: () => true,
   hide: () => true,
   wrise: () => true,
@@ -1142,7 +1141,6 @@ async function settingsVisibility(browser) {
       false,
       "natural: the held settings and folded height",
     );
-    await only(["slack"], true, "natural: gate slack");
     await only(["ramp"], true, "natural: the held speed-up toggle");
     await only(
       ["w0", "cap", "tk", "fold"],
@@ -1152,20 +1150,12 @@ async function settingsVisibility(browser) {
 
     await page.selectOption('select[data-k="tk"]', "lookahead");
     await only(["tw", "ts"], true, "tempo lookahead: tempo window and scale");
-    await only(
-      ["slack", "tms"],
-      false,
-      "tempo lookahead: gate slack and constant interval",
-    );
+    await only(["tms"], false, "tempo lookahead: constant interval");
     await page.selectOption('select[data-k="tk"]', "constant");
     await only(["tms"], true, "tempo constant: constant interval");
-    await only(
-      ["tw", "ts", "slack"],
-      false,
-      "tempo constant: window, scale and gate slack",
-    );
+    await only(["tw", "ts"], false, "tempo constant: window and scale");
     await page.selectOption('select[data-k="tk"]', "none");
-    await only(["slack"], true, "tempo none: gate slack again");
+    await only(["tw", "ts", "tms"], false, "tempo none: no tempo settings");
 
     await page.check('input[data-k="fold"]');
     await only(["ramp"], false, "fold on: the held speed-up toggle");

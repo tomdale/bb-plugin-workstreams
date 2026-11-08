@@ -101,7 +101,6 @@ in three modules, Taps, Pace and Held keys:
 |           | estimate base ms           | `ta`     | tempo is `lookahead`   |
 |           | estimate ms per px         | `tb`     | tempo is `lookahead`   |
 |           | constant interval ms       | `tms`    | tempo is `constant`    |
-|           | gate slack                 | `slack`  | tempo is `none`        |
 | Held keys | held speed-up              | `ramp`   | fold and loose are off |
 |           | fold while held            | `fold`   | always                 |
 |           | loosen clearing while held | `loose`  | fold is off            |
@@ -203,9 +202,9 @@ name the model lacks gives its first preset (`natural` for the drum, `default`
 for the cascade); the product has no presets. `speed` is `0.25`, `0.5` or `1`,
 and `reduced` and `path` are `1` or `0`. Every other key is a setting's key from
 the tables above: the drum's `w0`, `cap`, `fadein`, `cover`, `tuck`, `hide`,
-`wrise`, `wclear`, `tk`, `tw`, `ts`, `ta`, `tb`, `tms`, `slack`, `ramp`, `fold`,
-`loose`, `delay`, `w1`, `cap1` and `h0`, the cascade's `cw0`, `ccap`, `sp0`,
-`sp1`, `cdelay`, `cw1`, `ccap1`, `park`, `fade` and `shade`, the path's `sway`,
+`wrise`, `wclear`, `tk`, `tw`, `ts`, `ta`, `tb`, `tms`, `ramp`, `fold`, `loose`,
+`delay`, `w1`, `cap1` and `h0`, the cascade's `cw0`, `ccap`, `sp0`, `sp1`,
+`cdelay`, `cw1`, `ccap1`, `park`, `fade` and `shade`, the path's `sway`,
 `swayb`, `peak`, `peakb`, `cross` and `bank`, which every model reads, and the
 page's `rfade`, `hfade`, `krd`, `kri`, `handles`, `knots`, `inner`, `arrows`,
 `labels`, `spine` and `dots`. The two models' keys differ, so one hash can hold
@@ -237,7 +236,6 @@ npm run check                      # every drum preset, then the cascade's, at 6
 npm run suite -- natural,fold      # the same scenarios as markdown tables, for the drum presets named
 npm run suite -- cascade           # the cascade's presets beside the drum's natural and even: a table per refresh rate
 npm run sweep -- params            # effect of each drum setting, one at a time, on the configuration in its On column
-npm run sweep -- slack             # starting the next press before the previous card flips
 npm run sweep -- presets           # the drum's presets side by side
 npm run sweep -- held              # how fast the held state ramps in, and how far a short tap pushes it
 npm run sweep -- limits            # the checker's thresholds, the sample card heights, the planner's estimates

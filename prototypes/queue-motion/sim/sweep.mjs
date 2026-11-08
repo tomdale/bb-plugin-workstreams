@@ -2,13 +2,11 @@
  * One-at-a-time sweeps over a model's settings, on a stepped 60 Hz clock.
  *
  *   node sim/sweep.mjs params [cascade]   each setting's effect on tap landing, held pace and checker problems
- *   node sim/sweep.mjs slack              how far the next press may start before the previous card flips
  *   node sim/sweep.mjs presets [cascade]  the named presets side by side
  *   node sim/sweep.mjs held               how fast the held state ramps in, and how far a short tap pushes it
  *   node sim/sweep.mjs limits [cascade]   the checker's thresholds, the sample card heights and the planner's estimates
  *
- * `params` and `presets` sweep the drum unless `cascade` follows; `slack` and `held` are about the drum's gate
- * and fold, and `limits` is shared: with `cascade` it adds the rule for a card to count as shown.
+ * `params` and `presets` sweep the drum unless `cascade` follows; `held` is about the drum's held state, and `limits` is shared: with `cascade` it adds the rule for a card to count as shown.
  *
  * Held numbers are 14-card holds in both directions over the three height sets in lib.mjs. Each cell is one
  * run. A setting changes alone, on top of the context named beside it, so an interaction between settings shows
@@ -186,10 +184,6 @@ export const PARAMS = [
     "fold with constant": [[80, 100, 150, 200, 250], 285],
     loose: [[60, 80, 100, 150, 200], 100],
   }),
-  ...heldSweeps("slack", "gate slack", (v) => ({ gateSlack: v }), {
-    even: [[0, 0.1, 0.3], 0],
-    fold: [[0, 0.1, 0.2, 0.3], 0],
-  }),
   ...heldSweeps("delay", "hold delay, ms", (v) => ({ holdDelay: v }), {
     "held speed-up alone": [[0, 250, 600], 250],
     "even + held speed": [[0, 250, 800], 250],
@@ -219,9 +213,6 @@ export const PARAMS = [
     73,
   ),
 ];
-
-/** Slack values for `slackRows`, on `natural`. */
-const SLACKS = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.5];
 
 const sumKinds = (list) => {
   const k = { jump: 0, band: 0, shade: 0, swap: 0 };
@@ -446,36 +437,6 @@ export function paramRows({ model, contexts, params, merge } = DRUM_SWEEPS) {
   }));
 }
 
-/** Gate slack on `natural`: pace over six holds, how long the slowest took to settle, and the problems. */
-export function slackRows() {
-  return SLACKS.map((slack) => {
-    let rate = 0,
-      settle = 0,
-      problems = 0;
-    const kinds = [];
-    for (const h of SETS)
-      for (const dir of [1, -1]) {
-        const r = holdRun(h, { gateSlack: slack }, HZ, {
-          dir,
-          from: dir > 0 ? 1 : 14,
-          to: dir > 0 ? 14 : 1,
-        });
-        rate += r.meanRate / 6;
-        settle = Math.max(settle, r.settledMs);
-        problems += r.probCorr;
-        kinds.push(r.kinds);
-      }
-    return {
-      slack,
-      rate,
-      settle,
-      neverSettled: settle >= 8000,
-      problems,
-      kinds: sumKinds(kinds),
-    };
-  });
-}
-
 /** Every preset of a model (the drum's by default) through the full suite at 60 Hz. */
 export function presetRows(model = DRUM) {
   return Object.keys(model.PRESETS).map((name) => {
@@ -548,7 +509,6 @@ export function computeFacts() {
     rise: { to: RISE_TO, ms: heldRise() },
     presets: [...presetRows(DRUM), ...presetRows(CASCADE)],
     sweeps: [...paramRows(DRUM_SWEEPS), ...paramRows(CASCADE_SWEEPS)],
-    slack: slackRows(),
     taps: tapHeldRows(),
   };
 }
@@ -577,14 +537,6 @@ if (process.argv[1]?.endsWith("sweep.mjs")) {
           `| ${i ? "" : p.label} | ${i ? "" : p.context} | ${r.value}${r.value === p.def ? "*" : ""} | ${tap(r.upLand, 0)} | ${tap(r.dnLand, 0)} | ${tap(r.landSpeed)} | ${f(r.heldUp)} / ${f(r.heldDn)} | ${f(r.ivMin, 0)}–${f(r.ivMax, 0)} | ${f(r.step, 2)}× | ${f(r.heldJump, 0)} | ${problemsText(r.problems, r.kinds)} |${cascade ? ` ${r.channel} | ${r.framesMin} | ${f(r.visible, 0)} |` : ""}`,
         );
       });
-  } else if (mode === "slack") {
-    console.log(
-      "| Slack | Cards/s (mean of 6 holds) | Worst settle, ms | Problems | Kinds |\n|---|---|---|---|---|",
-    );
-    for (const r of slackRows())
-      console.log(
-        `| ${r.slack} | ${f(r.rate)} | ${f(r.settle, 0)}${r.neverSettled ? " (never settled)" : ""} | ${r.problems} | ${JSON.stringify(r.kinds)} |`,
-      );
   } else if (mode === "held") {
     console.log(
       `The held state reaches ${RISE_TO} ${f(heldRise(), 0)} ms after the hold delay ends.\n`,
@@ -627,7 +579,7 @@ if (process.argv[1]?.endsWith("sweep.mjs")) {
       );
   } else {
     console.error(
-      "usage: node sim/sweep.mjs params|slack|presets|held|limits [cascade]",
+      "usage: node sim/sweep.mjs params|presets|held|limits [cascade]",
     );
     process.exit(2);
   }

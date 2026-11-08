@@ -33,7 +33,6 @@ import {
   repeatPace,
 } from "./lib.mjs";
 import { orderChanges } from "./check.mjs";
-import { SETTINGS } from "../src/controls.ts";
 
 const PRESETS = DRUM.PRESETS;
 
@@ -274,49 +273,6 @@ function invariants(name, hz, R, S) {
     S["held max jump, px/frame"] <= 40 && S["tap max jump, px/frame"] <= 40,
     "a card edge jumped more than 40 px in a frame",
   );
-  return failures;
-}
-
-/** The most gate slack the lab's slider offers. */
-const SLACK_MAX = SETTINGS.find((s) => s.key === "slack").max;
-
-/**
- * What `--check` asserts about gate slack, once per run: with the slider at its maximum and no tempo (the only
- * setting that shows it), every drum preset settles after a held key, in both directions from either end and
- * released at several points, on the sweep heights and the lab's own. Slack lets several cards reach the turn
- * at once, and a drum that let them hold one another there would never come to rest.
- */
-function slackInvariants() {
-  const failures = [];
-  const frameMs = 1000 / 60;
-  for (const [name, preset] of Object.entries(PRESETS))
-    for (const set of [...SETS, "lab"])
-      for (const dir of [1, -1])
-        for (const repeat of [25, 33])
-          for (const holdMs of [700, 1500, 6000]) {
-            const cfg = {
-              ...preset,
-              gateSlack: SLACK_MAX,
-              tempo: { ...preset.tempo, kind: "none" },
-            };
-            const d = new Drum(heightsOf(set), cfg);
-            d.jump(dir > 0 ? 0 : d.N - 1);
-            d.keyDown(dir);
-            let t = 0;
-            for (let next = 250; t < holdMs; t += frameMs) {
-              while (next <= t) {
-                d.press(dir);
-                next += repeat;
-              }
-              d.step(frameMs);
-            }
-            d.keyUp();
-            d.step(8000);
-            if (d.isBusy())
-              failures.push(
-                `${name}, gate slack ${SLACK_MAX}, ${set}: a held ${dir > 0 ? "↓" : "↑"} (${repeat} ms repeat, released at ${holdMs} ms) never settled`,
-              );
-          }
   return failures;
 }
 
@@ -659,7 +615,6 @@ if (process.argv[1] && process.argv[1].endsWith("suite.mjs")) {
     for (const k of Object.keys(rows[cols[0]]))
       console.log(`| ${k} | ${cols.map((c) => fmt(rows[c][k])).join(" | ")} |`);
   }
-  if (flag("--check") && !compared) failures.push(...slackInvariants());
   const out = val("--json", "");
   if (out) fs.writeFileSync(out, JSON.stringify(results, null, 1));
   if (flag("--check")) {

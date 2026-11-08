@@ -57,14 +57,6 @@ export type PresetRow = {
   tapDn: number;
   landSpeed: number;
 };
-export type SlackRow = {
-  slack: number;
-  rate: number;
-  settle: number;
-  neverSettled: boolean;
-  problems: number;
-  kinds: Kinds;
-};
 export type TapRow = { delay: number; peaks: { ms: number; peak: number }[] };
 export type RawFacts = {
   hz: number;
@@ -76,7 +68,6 @@ export type RawFacts = {
   rise: { to: number; ms: number };
   presets: PresetRow[];
   sweeps: Sweep[];
-  slack: SlackRow[];
   taps: TapRow[];
 };
 
@@ -266,32 +257,9 @@ export class PresetView {
   }
 }
 
-export class SlackView {
-  readonly raw: SlackRow;
-  constructor(raw: SlackRow) {
-    this.raw = raw;
-  }
-  get value() {
-    return String(this.raw.slack);
-  }
-  get rate() {
-    return n1(this.raw.rate);
-  }
-  get problems() {
-    return String(this.raw.problems);
-  }
-  get verdict() {
-    return verdict(this.raw.problems, this.raw.kinds);
-  }
-  get neverSettled() {
-    return this.raw.neverSettled;
-  }
-}
-
 const COMMANDS = {
   params: "npm run sweep -- params",
   cascadeParams: "npm run sweep -- params cascade",
-  slack: "npm run sweep -- slack",
   presets: "npm run sweep -- presets",
   cascadePresets: "npm run sweep -- presets cascade",
   held: "npm run sweep -- held",
@@ -378,14 +346,6 @@ export class Facts {
       `${found.label} on ${found.context}`,
     );
     return new SweepView(found);
-  }
-
-  /** Gate slack on `natural`, from `npm run sweep -- slack`. */
-  slack(value: number): SlackView {
-    const row = this.raw.slack.find((s) => s.slack === value);
-    if (!row) throw new Error(`gate slack was not measured at ${value}`);
-    this.cite("slack");
-    return new SlackView(row);
   }
 
   /** A tap of `ms` ms on `fold`: the peak held state (0 to 1) it reaches for a given hold delay. */

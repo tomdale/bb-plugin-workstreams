@@ -92,8 +92,7 @@ than 40 px in a frame. No perceptual threshold sets the budget (see the edge
 budgets section below), so the sweep shows where the checker stops a higher one,
 not where the motion starts to look rushed.
 
-`tempo`, `ramp`, `fold` and `gateSlack` change the trade too. The presets set
-the first three:
+`tempo`, `ramp` and `fold` change the trade too. The presets set them:
 
 | Preset (60 Hz, `npm run sweep -- presets`) | Held ↑ / ↓, cards/s | Interval range | Worst step-to-step change | Max jump, px/frame | Problems |
 | ------------------------------------------ | ------------------- | -------------- | ------------------------- | ------------------ | -------- |
@@ -168,9 +167,9 @@ both read λ.
   rising card is on its way, instead of staying tall until covered. The limit
   holds for every card, so no edge jumps when a card turns around mid-flight.
   The cost is in the margins, not the presets: every preset passes
-  `npm run check`, but `gate slack` above 0 on `natural` now gives swaps, and a
-  tap spring of 4.5 Hz or more, a held budget of 39 on `even + held speed` and a
-  225 ms beat with held speed-up each give one to a few more.
+  `npm run check`, but a tap spring of 4.5 Hz or more, a held budget of 39 on
+  `even + held speed` and a 225 ms beat with held speed-up each give one to a
+  few more.
 - **`loose`** includes `ramp`'s speed-up and shrinks only the heights the
   clearing geometry uses, toward `H0` with λ, while every card is drawn whole. A
   leaving card drops just far enough to clear a card of that virtual height, so
@@ -181,25 +180,8 @@ both read λ.
   checker counts 110 problems in the holds over its three height sets,
   draw-order swaps and clip bands: passing over a card changes the draw order
   while the cards overlap. `npm run check` allows them in the holds of a loose
-  preset and nowhere else.
-- **`gateSlack`** lets a press start while the card before it is short of its
-  flip by that many ring units. On `natural` the held pace rises from 5.1
-  cards/s at 0 to 5.5 at 0.1 and 6.0 at 0.3, the slider's maximum, with 4 and 12
-  draw-order swaps (`npm run sweep -- slack`). Every value settles after a hold,
-  on the sweep heights and the lab's own (`npm run check` holds every preset at
-  the slider's maximum with no tempo). Two rules keep it so. Several cards can
-  reach the turn together, and each would find the others in its turn band: a
-  card ignores front-segment cards earlier on the ring, which are drawn in front
-  of it on either side of the turn, so the last of them goes behind first. And a
-  card short of its flip must clear the pile's front card once everything is at
-  rest, so a press waits while the card it would bring to the front is taller
-  than that card's turn clears. At 0 every card has passed its flip before the
-  next press, so neither comes into play. Under a tempo slack moves the pace by
-  at most 0.1 cards/s through 0.3, because the planned interval outlasts the
-  gate (`gate slack` on `even` in `npm run sweep -- params`).
-
-Each setting's effect on its own is in `npm run sweep -- params`. The ones that
-matter most:
+  preset and nowhere else. Each setting's effect on its own is in
+  `npm run sweep -- params`. The ones that matter most:
 
 - Folding on or off moves held pace from 5.5 / 5.5 to 10.1 / 10.8 cards/s.
 - The tap spring moves tap ↑ landing between 683 ms (2 Hz) and 383 ms (4.5 Hz);
@@ -587,6 +569,14 @@ A port into `stackEngine.ts` and the product page has these parts:
   cascade slides a leaver down in front of the pile and parks it below a clip
   line, so draw order never changes and the pace follows the spacing between
   cards. The Cascade section has its numbers and its costs.
+- **Starting a press before the previous card flips.** A press could be taken
+  while the leaving card was still short of its flip by a margin. On `natural` a
+  margin of 0.1 ring units raised the held pace from 5.1 to 5.5 cards/s with 4
+  draw-order swaps, and no margin above 0 was clean. Under a tempo it moved the
+  pace by at most 0.1 cards/s, because the planned interval outlasts the gate.
+  It also let several cards reach the turn together, where each held the others
+  in its turn band and the drum never settled, which took two more rules at the
+  turn to prevent. The gate waits for the flip.
 
 ## Open
 

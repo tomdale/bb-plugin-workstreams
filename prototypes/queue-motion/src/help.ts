@@ -700,7 +700,7 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
           t`The interval eases up before a tall card and back after it: ${even.pace} cards/s, intervals ${even.range} ms, worst step-to-step change ${even.step}× (${nat.step}× with no tempo).`,
         ],
       ],
-      needs: t`\`lookahead\` shows \`tempo window\` and \`tempo scale\`; \`constant\` shows \`constant interval\`; \`none\` shows \`gate slack\`, which a tempo makes redundant. A tempo only delays a press: the cards' own gate still sets the earliest start.`,
+      needs: t`\`lookahead\` shows \`tempo window\` and \`tempo scale\`; \`constant\` shows \`constant interval\`. A tempo only delays a press: the cards' own gate still sets the earliest start.`,
       tune: t`Start with \`lookahead\`. Choose \`constant\` when you know the pace you want. A tempo trades pace for evenness, and fold wins pace back: with fold on, \`constant\` at ${fold.value} ms gives ${fold.pace} cards/s, worst step-to-step change ${fold.step}×.`,
     };
   },
@@ -809,53 +809,6 @@ const ENTRIES: Record<string, (f: Facts) => Draft> = {
       ],
       needs: t`Only \`tempo\` = constant uses it. Held speed-up shortens trips, so the beat can run faster: with it on, ${hs225.value} ms holds ${hs225.range} ms at ${hs225.pace} cards/s, ${hs225.verdict}, while ${hs200.value} ms gives ${hs200.verdict}. Fold goes further: ${fold150.value} ms gives ${fold150.pace} cards/s and ${fold80.value} ms gives ${fold80.pace}, ${fold80.verdict}, with intervals ${fold80.range} ms.`,
       tune: t`Start at the pace you want. When the interval range's upper end is above this setting, the trips are the limit, not the beat: raise the interval, or turn on \`held speed-up\` or \`fold while held\`. With held speed-up alone the checker finds ${hs225.verdict} at ${hs225.value} ms and ${hs200.verdict} at ${hs200.value}: a swap or two moves between values, so judge by feel.`,
-    };
-  },
-  "setting.slack": (f) => {
-    const s0 = f.slack(0),
-      s1 = f.slack(0.1),
-      s2 = f.slack(0.15),
-      s3 = f.slack(0.3),
-      s5 = f.slack(0.5);
-    const e = f.sweep("slack", "even");
-    const e0 = e.at(0),
-      e3 = e.at(0.3);
-    const fo = f.sweep("slack", "fold");
-    const f0 = fo.at(0),
-      f1 = fo.at(0.1),
-      f2 = fo.at(0.2),
-      f3 = fo.at(0.3);
-    f.expect(
-      s0.raw.problems === 0 && s1.raw.problems > 0 && s2.raw.problems > 0,
-      "gate slack is clean at zero and fails at the first values above it",
-    );
-    f.expect(
-      [s0, s1, s2, s3, s5].every((s) => !s.neverSettled),
-      "every slack measured settles after a hold",
-    );
-    f.expect(
-      s5.raw.problems > s3.raw.problems && s5.raw.rate > s3.raw.rate,
-      "slack past the slider's maximum adds both pace and problems",
-    );
-    f.expect(
-      Math.abs(rate(e0) - rate(e3)) < 0.1,
-      "gate slack does not change an even pace",
-    );
-    f.expect(rate(f2) > rate(f0), "gate slack speeds up a fold");
-    return {
-      what: "How early the next press may start: how far the card before it may still be short of its flip, the moment it passes behind the pile.",
-      effect: [
-        [
-          "Raise",
-          t`The next card starts sooner: ${s0.rate} cards/s at ${s0.value}, ${s1.rate} at ${s1.value}, ${s3.rate} at ${s3.value}. Cards begin to overlap: at ${s1.value} the checker finds ${s1.verdict} (two cards change draw order while they overlap), at ${s3.value} it finds ${s3.verdict}.`,
-        ],
-        [
-          "Lower",
-          t`At ${s0.value} each press waits until the card before it has passed its flip: the reviewed behaviour.`,
-        ],
-      ],
-      needs: t`It matters only with \`tempo\` = none. Under a tempo the planned interval outlasts the gate, so held ↑ / ↓ stays ${e0.pace} cards/s (${e3.pace} at ${e3.value}) and the slider is hidden. With fold on, slack lifts ${f0.pace} to ${f2.pace} cards/s at ${f2.value}, with ${f1.verdict} at ${f1.value} and ${f3.verdict} at ${f3.value}.`,
-      tune: t`Start at ${s0.value}: on \`natural\` no value above it is clean (${s1.value} gives ${s1.verdict}). Every value settles once the key is released: cards that reach the turn together go behind the pile last-first, and a press waits when the card it brings to the front is taller than a card still short of its flip can clear. The slider stops at ${s3.value}; ${s5.value} gives ${s5.rate} cards/s with ${s5.problems} problems. For more pace, raise \`edge budget, tap\` or turn on fold.`,
     };
   },
 
@@ -1901,7 +1854,7 @@ function buildAbout(): About {
         "Taps",
         "`spring Hz, tap` and `edge budget, tap` set how fast one card travels.",
       ],
-      ["Pace", "`tempo` and `gate slack` set when the next press may start."],
+      ["Pace", "`tempo` sets when the next press may start."],
       [
         "Held keys",
         "`held speed-up` and `fold while held` change both once a key has been held past `hold delay`.",
