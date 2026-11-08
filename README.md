@@ -1180,12 +1180,13 @@ Then run the repository's `scripts/bb-plugin-smoke` against this package to
 verify activation in an isolated throwaway BB server. Opt-in model evaluations
 live in [eval/README.md](eval/README.md) (they make paid model calls and are not
 part of the unit test suite). The
-[reply architecture slice](eval/README.md#reply-architecture-slice) compares
-direct UI authoring, Markdown preserved as a text component, and a dedicated
-presentation call on one source-inspection task. Both UI authors receive the
-same worked syntax examples. Format, component use, corruption, and separately
-judged fidelity are reported independently; the default command previews the
-experiment without paid calls. See [PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md) and
+[reply comparison](eval/README.md#reply-comparison) compares **Answer and format
+in one step**, **Show the answer as written**, and **Answer first, format in a
+second step** on one code-inspection task. Both steps that choose UI blocks
+receive the same worked examples. Results show whether the format is valid, how
+many UI blocks were used, whether broken text was found, and whether the meaning
+was kept. The default command previews the experiment without paid calls. See
+[PLUGIN_OVERVIEW.md](PLUGIN_OVERVIEW.md) and
 [docs/organization.md](docs/organization.md) for architectural details. See
 [docs/design-system.md](docs/design-system.md) for the BB visual foundation and
 Workstreams' semantic colors, components, and layout idioms.

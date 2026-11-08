@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  APPROACH_NAMES,
   deterministicReply,
+  resultLines,
   runSlice,
   sliceNeedsReview,
   TASK,
@@ -202,7 +204,14 @@ describe("reply architecture checks", () => {
   });
 });
 
-describe("reply architecture slice", () => {
+describe("reply comparison", () => {
+  it("uses plain approach names without renaming saved report keys", () => {
+    expect(APPROACH_NAMES).toEqual({
+      direct: "Answer and format in one step",
+      deterministic: "Show the answer as written",
+      presentation: "Answer first, format in a second step",
+    });
+  });
   it("gives both UI authorings the same worked examples and presents the exact semantic source", async () => {
     const complete = vi
       .fn()
@@ -238,6 +247,17 @@ describe("reply architecture slice", () => {
     expect(result.paths.presentation.checks.componentUse.status).toBe("none");
     expect(sliceNeedsReview(result)).toBe(false);
     expect(result.totalCost).toBeCloseTo(0.004);
+    expect(Object.keys(result.paths)).toEqual([
+      "direct",
+      "deterministic",
+      "presentation",
+    ]);
+    expect(resultLines(result)).toEqual([
+      `${APPROACH_NAMES.direct}: valid format=yes, UI blocks=0, broken text=none found, meaning kept=yes (model check)`,
+      `${APPROACH_NAMES.deterministic}: valid format=yes, UI blocks=0, broken text=none found, meaning kept=yes (unchanged text)`,
+      `${APPROACH_NAMES.presentation}: valid format=yes, UI blocks=0, broken text=none found, meaning kept=yes (model check)`,
+      "The answer before formatting: meaning kept=yes (model check)",
+    ]);
   });
 
   it("keeps format, corruption, and fidelity failures independent", async () => {
@@ -252,6 +272,7 @@ describe("reply architecture slice", () => {
     const result = await runSlice(complete);
     expect(result.paths.direct.checks.format.status).toBe("pass");
     expect(result.paths.direct.checks.corruption.status).toBe("fail");
+    expect(resultLines(result)[0]).toContain("broken text=possible problems");
     expect(result.paths.direct.checks.fidelity.status).toBe("pass");
     expect(sliceNeedsReview(result)).toBe(true);
   });
@@ -284,6 +305,7 @@ describe("reply architecture slice", () => {
     expect(result.paths.direct.checks.format.status).toBe("pass");
     expect(result.paths.direct.checks.corruption.status).toBe("pass");
     expect(result.paths.direct.checks.fidelity.status).toBe("fail");
+    expect(resultLines(result)[0]).toContain("meaning kept=no (model check)");
     expect(sliceNeedsReview(result)).toBe(true);
   });
 
@@ -296,6 +318,9 @@ describe("reply architecture slice", () => {
       .mockResolvedValueOnce(judged(["semantic", "presentation"]));
     const result = await runSlice(complete);
     expect(result.paths.direct.checks.format.status).toBe("blocked");
+    expect(resultLines(result)[0]).toBe(
+      `${APPROACH_NAMES.direct}: valid format=not checked, UI blocks=not checked, broken text=not checked, meaning kept=not checked`,
+    );
     expect(result.paths.direct.checks.format.errors).toContain(
       "Gateway unavailable",
     );
@@ -378,6 +403,9 @@ describe("reply architecture slice", () => {
       .mockResolvedValueOnce(completion(JSON.stringify(judgedReview)));
     const result = await runSlice(complete);
     expect(result.paths.presentation.checks.fidelity.status).toBe("review");
+    expect(resultLines(result)[2]).toContain(
+      "meaning kept=unsure (model check)",
+    );
     expect(sliceNeedsReview(result)).toBe(true);
   });
 

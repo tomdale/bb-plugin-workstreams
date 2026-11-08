@@ -58,6 +58,12 @@ export const PRESENTATION_INSTRUCTIONS = [
   UI_INSTRUCTIONS,
 ].join("\n\n");
 
+export const APPROACH_NAMES = {
+  direct: "Answer and format in one step",
+  deterministic: "Show the answer as written",
+  presentation: "Answer first, format in a second step",
+} as const;
+
 export function deterministicReply(source: string): string {
   return `:::reply\n${componentFence({ type: "text", body: source })}\n:::`;
 }
@@ -279,6 +285,43 @@ export function sliceNeedsReview(
   );
 }
 
+export function resultLines(
+  result: Awaited<ReturnType<typeof runSlice>>,
+): string[] {
+  const yesNo = (status: string) =>
+    status === "pass"
+      ? "yes"
+      : status === "fail"
+        ? "no"
+        : status === "review"
+          ? "unsure"
+          : "not checked";
+  const meaning = (check: Fidelity) =>
+    check.status === "error" || check.status === "blocked"
+      ? "not checked"
+      : `${yesNo(check.status)} (${check.method === "model" ? "model check" : "unchanged text"})`;
+  const lines = (
+    Object.keys(APPROACH_NAMES) as (keyof typeof APPROACH_NAMES)[]
+  ).map((name) => {
+    const { checks } = result.paths[name];
+    const blocks =
+      checks.componentUse.status === "blocked"
+        ? "not checked"
+        : checks.componentUse.count;
+    const broken =
+      checks.corruption.status === "pass"
+        ? "none found"
+        : checks.corruption.status === "fail"
+          ? "possible problems"
+          : "not checked";
+    return `${APPROACH_NAMES[name]}: valid format=${yesNo(checks.format.status)}, UI blocks=${blocks}, broken text=${broken}, meaning kept=${meaning(checks.fidelity)}`;
+  });
+  return [
+    ...lines,
+    `The answer before formatting: meaning kept=${meaning(result.semanticFidelity)}`,
+  ];
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.some((arg) => arg !== "--run" && arg !== "--help"))
@@ -294,6 +337,7 @@ async function main() {
             "node --experimental-transform-types eval/reply-architecture.ts --run",
           model,
           calls: 4,
+          approaches: APPROACH_NAMES,
           maxTokensPerCall: 2048,
           timeoutMsPerCall: 30_000,
           reportedCostStop: 0.75,
@@ -304,7 +348,7 @@ async function main() {
             presentation: PRESENTATION_INSTRUCTIONS,
             fidelity: FIDELITY_INSTRUCTIONS,
           },
-          note: "Preview only; --run makes paid calls. Format, component-use, corruption, and model-judged fidelity are separate. Fidelity verdicts require human inspection; corruption detection is heuristic. No tools, retries, or browser rendering.",
+          note: "Preview only; --run makes paid calls. Results show whether the format is valid, how many UI blocks were used, whether broken text was found, and whether the meaning was kept. A model checks meaning and can be wrong; broken-text checks can miss problems. No tools, retries, or browser rendering.",
         },
         null,
         2,
@@ -361,14 +405,11 @@ async function main() {
   );
   for (const [name, path] of Object.entries(result.paths)) {
     await writeFile(join(directory, `${name}.md`), path.source ?? "");
-    console.log(
-      `${name}: format=${path.checks.format.status}, component-use=${path.checks.componentUse.status}(${path.checks.componentUse.count}), corruption=${path.checks.corruption.status}, fidelity=${path.checks.fidelity.status}`,
-    );
   }
+  for (const line of resultLines(result)) console.log(line);
   console.log(
     `Reported cost: $${result.totalCost.toFixed(6)}; inspect report.json and all Markdown outputs before judging quality`,
   );
-  console.log(`Semantic source fidelity: ${result.semanticFidelity.status}`);
   if (sliceNeedsReview(result)) process.exitCode = 1;
 }
 

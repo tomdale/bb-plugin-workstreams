@@ -185,20 +185,24 @@ answer does not replace the reply-format contract. This checks format and
 supplied facts, not tool selection, real harness turn ordering, visual
 rendering, or reader comprehension. Those need separate checks.
 
-## Reply architecture slice
+## Reply comparison
 
 `node --experimental-transform-types eval/reply-architecture.ts` previews a
-one-case, tool-free experiment without credentials or paid calls. The Node flag
-supports the component parser's TypeScript parameter property. Add `--run` to
-make at most four paid calls: a pagination diagnosis with the production
-reply/component instructions, the same diagnosis with Markdown instructions,
-presentation of that exact Markdown response, then a separate fidelity review.
-Direct UI authoring and the presenter receive identical worked context, finding,
-recommendation, and details examples from the production guide. The semantic
-author receives Markdown instructions without the component guide. Both task
-authorings receive the same code and question; the presenter receives its source
-response, not the original task or reference answers. The deterministic path
-preserves the Markdown verbatim as a text component.
+one-case experiment without credentials or paid calls. The Node flag supports
+the reply parser's TypeScript parameter property. Add `--run` to compare:
+
+- **Answer and format in one step:** one model writes the answer and chooses its
+  UI blocks.
+- **Show the answer as written:** one model writes Markdown, which is displayed
+  unchanged inside a text block.
+- **Answer first, format in a second step:** a second model arranges that same
+  Markdown answer into UI blocks.
+
+Both ways of writing the answer receive the same code and question. Both steps
+that choose UI blocks receive identical worked examples from the production
+guide. The second-step formatter receives the answer to arrange, not the
+original task or reference answers. A fourth model call checks whether the
+answers kept the required meaning. The experiment has no execution tools.
 
 `EVAL_MODEL` selects the same model for all calls (default `openai/gpt-6-luna`).
 Reasoning is `none`; each call has a 2,048-token output limit and 30-second
@@ -210,42 +214,44 @@ The runner prints a fresh temporary artifact directory containing `report.json`,
 `semantic.md`, and each path's reply Markdown. The report keeps prompts,
 responses, parsed components, timings, reported usage/cost, and failures. It
 records the Git revision, a working-tree dirty flag, and the runner's SHA-256;
-the hash identifies the runner, not uncommitted changes to its dependencies.
-Each path's `checks` separates four dimensions:
+the hash identifies the runner, not uncommitted changes to its dependencies. The
+console uses the three approach names above. Saved reports and filenames use
+`direct`, `deterministic`, and `presentation`, respectively; `semantic.md` holds
+the answer before formatting. Each approach's `checks` records:
 
-- `format`: one closed whole-message reply with valid components and no recap
-  fields. Transport errors, empty output, and token limits fail or block this
-  check even if a partial reply parses.
-- `componentUse`: counts and types of information components, excluding text
-  wrappers. `none` is allowed; readable Markdown does not fail format because it
-  uses no information components.
-- `corruption`: heuristic detection of unfenced component calls, including
-  multiline calls without a `workstreams` marker, and reply-delimiter residue or
-  nested reply containers. Literal code examples are excluded. These checks
-  catch suspected source leakage, not every possible duplicated or garbled
-  answer.
-- `fidelity`: a separate model call compares direct and semantic answers with
-  the task and the presented answer with its exact semantic source. It returns
-  `pass`, `fail`, or `review` with reasons and verbatim issue quotes; quotes and
-  comparison coverage are validated. Unavailable, truncated, malformed, or
-  contradictory judge output becomes `error` or `blocked`, not a pass. The
-  deterministic path checks exact source preservation; the semantic source's own
-  task fidelity is reported separately as `semanticFidelity`.
+- **Valid format?** (`format`): one closed whole-message reply with valid UI
+  blocks and no recap fields. Failed requests, empty output, and token limits
+  fail or block this check even if a partial reply can be read.
+- **UI blocks** (`componentUse`): counts and types of information blocks,
+  excluding text wrappers. Zero is allowed; readable Markdown does not fail
+  because it uses no information blocks.
+- **Broken text?** (`corruption`): checks for component calls printed as prose,
+  leftover reply markers, and nested reply containers. Literal code examples are
+  excluded. These checks can miss duplicated or garbled answers; the console
+  says `none found` when they find no problems.
+- **Meaning kept?** (`fidelity`): a separate model compares each written answer
+  with the task, then compares the formatted answer with the exact answer it
+  received. It returns `pass`, `fail`, or `review` with reasons and exact
+  quotes; the runner validates the quotes and checks that every comparison was
+  answered. Missing, cut-off, malformed, or contradictory review output becomes
+  `error` or `blocked`, not a pass. **Show the answer as written** checks for an
+  exact copy, not a correct diagnosis. The answer before formatting is checked
+  against the task separately as `semanticFidelity`.
 
-The report retains the fidelity request, raw verdicts, latency, and cost as the
-`fidelity` call. Total run cost and duration include that evaluation overhead;
-it is not a presentation-path cost. The judge uses the selected model in a
-separate call and can be wrong or miss an issue. It does not establish factual
-truth or replace human inspection. A zero exit requires format and corruption
-passes, fidelity passes for all available paths, and a semantic-source fidelity
-pass; component use is advisory. `review`, judge errors, and blocked results
-exit nonzero. Unusable semantic output blocks both downstream paths. Use the
-report's manual questions to inspect the diagnosis, corrected offsets,
-unverified execution, and fidelity to the source.
+The report retains the meaning check's request, raw responses, time, and cost as
+the `fidelity` call. Total run cost and duration include this review; it is not
+part of producing an answer. The review uses the selected model in a separate
+call and can be wrong. It does not replace human inspection. A zero exit
+requires valid format, no detected broken text, and a meaning-check pass for all
+three approaches and the answer before formatting. The number of UI blocks does
+not affect the exit status. Uncertain reviews, failed checks, and missing
+results exit nonzero. An unusable answer before formatting blocks both
+approaches that depend on it. Use the report's manual questions to inspect the
+diagnosis, corrected offsets, unverified execution, and any changed meaning.
 
-This slice checks task authoring through presentation syntax. It does not run
+This experiment checks writing an answer and formatting it. It does not run
 workspace tools, render a browser comparison, measure reader preference, or
-establish an architecture winner. It does not change the live reply path.
+establish which approach is best. It does not change live replies.
 
 ## Recap corrections
 
