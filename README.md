@@ -1136,11 +1136,14 @@ context, so cookies, storage, viewport, and theme changes stay isolated.
 Component tests mount the real component through the SDK harness without loading
 unrelated UI surfaces. `tests/app/registration.test.tsx` checks the plugin's
 production slot bindings, feature order, and new-thread integration. Sidebar
-fixtures omit Up Next and Recent unless the case requests `mountWithBands`.
-Related gestures and display variants can share a mounted scenario; keep
-failure, cancellation, and ownership boundaries explicit. Ranking policy
-matrices belong in domain tests, with representative UI cases checking rendering
-and interactions.
+action tests use `sidebar-action-fixture.tsx` when broader list wiring is not
+under test; it still mounts the real `ThreadList` for snooze, menu, and group
+actions. Consolidated cases keep negative controls and cross-group states that
+make their assertions discriminating. Sidebar fixtures omit Up Next and Recent
+unless the case requests `mountWithBands`. Related gestures and display variants
+can share a mounted scenario; keep failure, cancellation, and ownership
+boundaries explicit. Ranking policy matrices belong in domain tests, with
+representative UI cases checking rendering and interactions.
 
 Stateful UI rules also run through production headless interfaces:
 `src/app/sidebar/upNextState.ts` plans Up Next's selected-row anchor and

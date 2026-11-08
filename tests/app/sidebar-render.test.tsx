@@ -325,61 +325,6 @@ it("sorts and groups Recent from its section menu and persists the preference", 
   slot.lifecycle.unmount();
 });
 
-it("shows pin icons only in workstream rows, not in overlays", async () => {
-  const slot = await mountWithBands(
-    [
-      sidebarThread("pinned", {
-        sectionId: "sec_a",
-        title: "Pinned task",
-        isPinned: true,
-      }),
-    ],
-    { settings: { showRecent: true, showForYou: false } },
-  );
-
-  expect(
-    within(await slot.findByRole("region", { name: "Recent" })).queryByRole(
-      "img",
-      {
-        name: "Pinned",
-      },
-    ),
-  ).toBeNull();
-  expect(
-    within(slot.getByRole("region", { name: "Alpha" })).getByRole("img", {
-      name: "Pinned",
-    }),
-  ).toBeTruthy();
-  slot.lifecycle.unmount();
-});
-
-it("hides the pin icon in Up Next but keeps it in the workstream", async () => {
-  const slot = await mountWithBands(
-    [
-      sidebarThread("pinned-ask", {
-        sectionId: "sec_a",
-        title: "Pinned ask",
-        isPinned: true,
-        hasPendingInteraction: true,
-        indicator: "waiting-for-input",
-      }),
-    ],
-    { settings: { showRecent: false } },
-  );
-
-  expect(
-    within(slot.getByRole("region", { name: "Up Next" })).queryByRole("img", {
-      name: "Pinned",
-    }),
-  ).toBeNull();
-  expect(
-    within(slot.getByRole("region", { name: "Alpha" })).getByRole("img", {
-      name: "Pinned",
-    }),
-  ).toBeTruthy();
-  slot.lifecycle.unmount();
-});
-
 it("shows Up Next and Recent as overlays without removing group rows", async () => {
   const slot = await mountWithBands([
     sidebarThread("ask", {
@@ -387,15 +332,23 @@ it("shows Up Next and Recent as overlays without removing group rows", async () 
       title: "Asking task",
       hasPendingInteraction: true,
       indicator: "waiting-for-input",
+      isPinned: true,
       latestAttentionAt: Date.now() - 60_000,
     }),
     ...[1, 2, 3, 4, 5].map((n) =>
       sidebarThread(`other${n}`, {
         sectionId: "sec_b",
         title: `Other ${n}`,
+        isPinned: n === 5,
         latestAttentionAt: Date.now() - n * 1_000,
       }),
     ),
+    sidebarThread("other5-child", {
+      parentThreadId: "other5",
+      sectionId: "sec_b",
+      title: "Other 5 child",
+      latestAttentionAt: Date.now() - 500,
+    }),
   ]);
   // Up Next takes the question and the four newest others; Recent carries
   // on with the next one.
@@ -407,7 +360,29 @@ it("shows Up Next and Recent as overlays without removing group rows", async () 
     "Other 4",
   ]);
   expect(groupRows(slot, "Recent")).toEqual(["Other 5"]);
-  expect(groupRows(slot, "Beta")).toHaveLength(5);
+  expect(groupRows(slot, "Recent")).not.toContain("Other 5 child");
+  expect(
+    within(slot.getByRole("region", { name: "Recent" })).queryByRole("img", {
+      name: "Pinned",
+    }),
+  ).toBeNull();
+  expect(
+    within(slot.getByRole("region", { name: "Up Next" })).queryByRole("img", {
+      name: "Pinned",
+    }),
+  ).toBeNull();
+  expect(
+    within(slot.getByRole("region", { name: "Alpha" })).getByRole("img", {
+      name: "Pinned",
+    }),
+  ).toBeTruthy();
+  expect(
+    within(slot.getByRole("region", { name: "Recent" })).queryByRole("button", {
+      name: /child threads/i,
+    }),
+  ).toBeNull();
+  expect(groupRows(slot, "Beta")).toContain("Other 5 child");
+  expect(groupRows(slot, "Beta")).toHaveLength(6);
   expect(groupRows(slot, "Alpha")).toEqual(["Asking task"]);
   const alpha = within(slot.getByRole("region", { name: "Alpha" }));
   expect(alpha.queryByTitle("1 waiting on you")).toBeNull();
@@ -457,25 +432,6 @@ it("keeps child disclosures beneath the sticky Up Next card", async () => {
     name: "Show child threads",
   });
   expect(disclosure.className).not.toContain("z-10");
-  slot.lifecycle.unmount();
-});
-
-it("shows only top-level threads in Recent", async () => {
-  const slot = await mountWithBands(undefined, {
-    settings: { showForYou: false },
-  });
-  await slot.findByRole("region", { name: "Recent" });
-  expect(groupRows(slot, "Recent").sort()).toEqual([
-    "Beta task",
-    "Loose task",
-    "Root task",
-  ]);
-  expect(
-    within(slot.getByRole("region", { name: "Recent" })).queryByRole("button", {
-      name: /child threads/i,
-    }),
-  ).toBeNull();
-  expect(groupRows(slot, "Alpha")).toEqual(["Root task", "Kid task"]);
   slot.lifecycle.unmount();
 });
 

@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { sidebarThread } from "./fixtures.ts";
+import { section, sidebarThread } from "./fixtures.ts";
 import {
   groupRows,
   mount,
@@ -50,6 +50,7 @@ describe("snoozing", () => {
         }),
       ],
       {
+        sections: [section("sec_a", "Alpha"), section("sec_b", "Beta")],
         snoozes: {
           ask: { until: later(), attentionAt: 0, at: 0 },
           nap: { until: null, attentionAt: Date.now() + 1, at: 0 },
@@ -100,6 +101,7 @@ describe("snoozing", () => {
   it("hides snoozed threads without resurfacing them in other groups", async () => {
     const slot = await mountWithBands(threads(), {
       settings: { showSnoozed: false },
+      sections: [section("sec_a", "Alpha"), section("sec_b", "Beta")],
       snoozes: { nap: { until: later(), attentionAt: 0, at: 0 } },
     });
     await waitFor(() =>
@@ -115,8 +117,9 @@ describe("snoozing", () => {
   });
 
   it("snoozes with the default choice from the row's hover button", async () => {
-    const slot = await mount(threads(), {
+    const slot = await mount(threads().slice(0, 2), {
       settings: { showRecent: false },
+      sections: [section("sec_a", "Alpha")],
       snoozePrefs: snoozeSettings(threeHours, untilUpdate),
     });
     const alpha = await waitFor(() =>
@@ -140,8 +143,9 @@ describe("snoozing", () => {
   });
 
   it("wakes a thread from the Snoozed fold", async () => {
-    const slot = await mount(threads(), {
+    const slot = await mount(threads().slice(0, 2), {
       settings: { showRecent: false },
+      sections: [section("sec_a", "Alpha")],
       snoozes: { nap: { until: later(), attentionAt: 0, at: 0 } },
     });
     fireEvent.click(
@@ -185,6 +189,7 @@ describe("snoozing a workstream row", () => {
   it("snoozes every thread the row lists with the default choice", async () => {
     const slot = await mount(threads(), {
       settings: { showRecent: false, showForYou: false },
+      sections: [section("sec_a", "Alpha"), section("sec_b", "Beta")],
       snoozePrefs: snoozeSettings(threeHours, untilUpdate),
     });
     const alpha = await waitFor(() =>
@@ -222,8 +227,9 @@ describe("snoozing a workstream row", () => {
   });
 
   it("offers the presets under a heading naming the batch", async () => {
-    const slot = await mount(threads(), {
+    const slot = await mount(threads().slice(0, 3), {
       settings: { showRecent: false, showForYou: false },
+      sections: [section("sec_a", "Alpha")],
       snoozePrefs: snoozeSettings(thirtyMinutes, untilUpdate),
     });
     const alpha = await waitFor(() =>
@@ -255,8 +261,19 @@ describe("snoozing a workstream row", () => {
 
   it("snoozes Unfiled, and has no button on a workstream with no threads", async () => {
     const slot = await mount(
-      [...threads(), sidebarThread("loose", { title: "Loose task" })],
-      { settings: { showRecent: false, showForYou: false } },
+      [
+        sidebarThread("ask", { sectionId: "sec_a", title: "Asking task" }),
+        sidebarThread("other", { sectionId: "sec_b", title: "Other task" }),
+        sidebarThread("loose", { title: "Loose task" }),
+      ],
+      {
+        settings: { showRecent: false, showForYou: false },
+        sections: [
+          section("sec_a", "Alpha"),
+          section("sec_b", "Beta"),
+          section("sec_z", "Zeta"),
+        ],
+      },
     );
     const zeta = await waitFor(() =>
       slot.getByRole("region", { name: "Zeta" }),
@@ -294,8 +311,9 @@ describe("snoozing a workstream row", () => {
       .map((item) => item.textContent);
 
   it("offers a header's hover actions in its right-click menu, in their order", async () => {
-    const slot = await mount(threads(), {
+    const slot = await mount(threads().slice(0, 3), {
       settings: { showRecent: false, showForYou: false },
+      sections: [section("sec_a", "Alpha")],
       snoozePrefs: snoozeSettings(threeHours, untilUpdate),
     });
     expect(items(await headerMenu(slot, "Alpha"))).toEqual([
@@ -319,8 +337,9 @@ describe("snoozing a workstream row", () => {
   });
 
   it("snoozes a header's threads from its right-click Snooze menu", async () => {
-    const slot = await mount(threads(), {
+    const slot = await mount(threads().slice(0, 3), {
       settings: { showRecent: false, showForYou: false },
+      sections: [section("sec_a", "Alpha")],
       snoozePrefs: snoozeSettings(threeHours, untilUpdate),
     });
     await headerMenu(slot, "Alpha");
@@ -351,8 +370,14 @@ describe("snoozing a workstream row", () => {
 
   it("offers only Snooze on Unfiled's header", async () => {
     const slot = await mount(
-      [...threads(), sidebarThread("loose", { title: "Loose task" })],
-      { settings: { showRecent: false, showForYou: false } },
+      [
+        sidebarThread("ask", { sectionId: "sec_a", title: "Asking task" }),
+        sidebarThread("loose", { title: "Loose task" }),
+      ],
+      {
+        settings: { showRecent: false, showForYou: false },
+        sections: [section("sec_a", "Alpha")],
+      },
     );
     expect(items(await headerMenu(slot, "Unfiled"))).toEqual([
       "Snooze 1 thread",
@@ -369,6 +394,7 @@ it("keeps a snoozed child moving with its parent", async () => {
     ],
     {
       settings: { showRecent: false },
+      sections: [section("sec_a", "Alpha")],
       snoozes: { kid: { until: Date.now() + 60_000, attentionAt: 0, at: 0 } },
     },
   );
@@ -386,7 +412,13 @@ it("keeps a snoozed child moving with its parent", async () => {
 });
 
 it("marks the row menu's submenus with a chevron", async () => {
-  const slot = await mount(undefined, { settings: { showRecent: false } });
+  const slot = await mount(
+    [sidebarThread("root", { sectionId: "sec_a", title: "Root task" })],
+    {
+      settings: { showRecent: false },
+      sections: [section("sec_a", "Alpha")],
+    },
+  );
   fireEvent.contextMenu(
     within(slot.getByRole("region", { name: "Alpha" })).getByRole("link", {
       name: "Root task",

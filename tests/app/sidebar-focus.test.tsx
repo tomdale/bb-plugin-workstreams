@@ -50,15 +50,7 @@ describe("focused workstreams", () => {
       expect(regions(slot)).toEqual(["Alpha", "Beta", "Zeta"]),
     );
     expect(slot.queryByRole("button", { name: "Focus on Unfiled" })).toBeNull();
-    slot.lifecycle.unmount();
-  });
-
-  it("names the header's focus and new-work actions in hints", async () => {
-    const slot = await mount(
-      [sidebarThread("a1", { sectionId: "sec_a", title: "Alpha task" })],
-      { activeThreadId: null, settings: { showForYou: false } },
-    );
-    const focus = await slot.findByRole("button", { name: "Focus on Alpha" });
+    const focus = slot.getByRole("button", { name: "Focus on Alpha" });
     const newWork = slot.getByRole("button", { name: "New work in Alpha" });
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     expect(await hintText(focus)).toBe("Focus");

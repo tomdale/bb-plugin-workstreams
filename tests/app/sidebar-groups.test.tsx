@@ -123,6 +123,26 @@ describe("nested workstreams", () => {
       "Write CLI docs",
       "Add CLI flags",
     ]);
+    fireEvent.click(
+      slot.getByRole("button", { name: "Focus on Beacon: Automations" }),
+    );
+    await waitFor(() =>
+      expect(
+        slot.getByRole("button", {
+          name: "Stop focusing on Beacon: Automations",
+        }),
+      ).toBeTruthy(),
+    );
+    expect(
+      slot.queryByRole("button", {
+        name: "Focus on Beacon: Automations: CLI",
+      }),
+    ).toBeNull();
+    fireEvent.click(
+      slot.getByRole("button", {
+        name: "Stop focusing on Beacon: Automations",
+      }),
+    );
     // Collapsing a subgroup leaves its parent's other threads showing.
     fireEvent.click(
       within(alerts()).getByRole("button", { name: "Alert Investigations" }),
@@ -293,31 +313,6 @@ describe("nested workstreams", () => {
       ["commands", "docs", "flags"],
       ["rebase", "triage", "verify"],
     ]);
-    slot.lifecycle.unmount();
-  });
-
-  it("focuses a top-level group with all its subgroups", async () => {
-    const slot = await mount(nestedThreads(), options);
-    await waitFor(() =>
-      within(
-        slot.getByRole("region", { name: "Beacon: Automations" }),
-      ).getByRole("region", { name: "Beacon: Automations: CLI" }),
-    );
-    fireEvent.click(
-      slot.getByRole("button", { name: "Focus on Beacon: Automations" }),
-    );
-    await waitFor(() =>
-      expect(
-        slot.getByRole("button", {
-          name: "Stop focusing on Beacon: Automations",
-        }),
-      ).toBeTruthy(),
-    );
-    expect(
-      slot.queryByRole("button", {
-        name: "Focus on Beacon: Automations: CLI",
-      }),
-    ).toBeNull();
     slot.lifecycle.unmount();
   });
 });

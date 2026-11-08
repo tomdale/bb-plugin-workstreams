@@ -1,4 +1,7 @@
-import { mountWithBands } from "./sidebar-fixture.tsx";
+import {
+  mountOneWorkstream as mount,
+  mountOneWorkstreamWithBands as mountWithBands,
+} from "./sidebar-action-fixture.tsx";
 // @vitest-environment jsdom
 import {
   act,
@@ -9,10 +12,9 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { sidebarThread } from "./fixtures.ts";
+import { section as sidebarSection, sidebarThread } from "./fixtures.ts";
 import { hintText } from "./hints.ts";
 import {
-  mount,
   snoozeSettings,
   thirtyMinutes,
   threeHours,
@@ -202,14 +204,24 @@ describe("row hover buttons", () => {
   it.each([false, true])(
     "keeps a populated workstream's Focus after its hover-only actions (focused: %s)",
     async (focused) => {
-      const slot = await mount(undefined, {
-        settings: { showRecent: false },
-        order: {
-          workstreams: [],
-          threads: {},
-          prioritized: focused ? ["sec_a"] : [],
+      const slot = await mount(
+        [
+          sidebarThread("root", { sectionId: "sec_a", title: "Root task" }),
+          sidebarThread("kid", {
+            parentThreadId: "root",
+            sectionId: "sec_a",
+            title: "Kid task",
+          }),
+        ],
+        {
+          settings: { showRecent: false },
+          order: {
+            workstreams: [],
+            threads: {},
+            prioritized: focused ? ["sec_a"] : [],
+          },
         },
-      });
+      );
       if (focused)
         await slot.findByRole("button", { name: "Stop focusing on Alpha" });
       const header = (await rowOf(slot))
@@ -235,6 +247,7 @@ describe("row hover buttons", () => {
     async (focused) => {
       const slot = await mount([], {
         settings: { showRecent: false, showForYou: false },
+        sections: [sidebarSection("sec_z", "Zeta")],
         order: {
           workstreams: [],
           threads: {},
@@ -257,11 +270,22 @@ describe("row hover buttons", () => {
   );
 
   it("keeps only a focused workstream's Focus and a recent empty one's New work in view", async () => {
-    const slot = await mount(undefined, {
-      settings: { showRecent: false, showForYou: false },
-      lastPopulatedAt: { sec_z: Date.now() },
-      order: { workstreams: [], threads: {}, prioritized: ["sec_b"] },
-    });
+    const slot = await mount(
+      [
+        sidebarThread("alpha", { sectionId: "sec_a", title: "Alpha task" }),
+        sidebarThread("beta", { sectionId: "sec_b", title: "Beta task" }),
+      ],
+      {
+        settings: { showRecent: false, showForYou: false },
+        sections: [
+          sidebarSection("sec_a", "Alpha"),
+          sidebarSection("sec_b", "Beta"),
+          sidebarSection("sec_z", "Zeta"),
+        ],
+        lastPopulatedAt: { sec_z: Date.now() },
+        order: { workstreams: [], threads: {}, prioritized: ["sec_b"] },
+      },
+    );
     const revealed = () =>
       [...slot.container.querySelectorAll("button[data-revealed]")].map((b) =>
         b.getAttribute("aria-label"),
@@ -286,7 +310,11 @@ describe("row hover buttons", () => {
           latestAttentionAt: long,
         }),
       ],
-      { activeThreadId: null, settings: { showRecent: false } },
+      {
+        activeThreadId: null,
+        settings: { showRecent: false },
+        sections: [sidebarSection("sec_b", "Beta")],
+      },
     );
     fireEvent.click(
       await waitFor(() => slot.getByRole("button", { name: /^Dormant/ })),
