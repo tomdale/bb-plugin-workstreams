@@ -16,6 +16,12 @@
  * several components on one line; `//` comments; and a JSON object or list of
  * objects whose `type` names the component.
  *
+ * Closing punctuation is forgiving too, because a call whose values are all
+ * lists of objects reads like JSON and writers close it with `}` instead of
+ * `)`. Any of `)`, `]`, and `}` ends the entry list or list it closes, and a
+ * container the writer never closed ends with the component itself. Stray
+ * closers and sentence punctuation between components are skipped.
+ *
  * Each top-level statement parses independently: an error ends that statement
  * and parsing resumes at the next line that begins, in column one, with
  * `name(`. One malformed component therefore never hides the others.
@@ -75,6 +81,10 @@ const QUOTES: Record<string, string> = {
   "\u201c": "\u201d",
   "\u2018": "\u2019",
 };
+/** Punctuation that closes a container, or that no statement can begin with. */
+const CLOSERS = [")", "]", "}"] as const;
+const BETWEEN_STATEMENTS = /[\s,;)\]}.]/;
+
 /** What may follow a closing quote: the end of the value, an operator, or a new field. */
 const AFTER_STRING =
   /^[ \t]*(?:$|[\r\n,;:=)\]}+]|\/\/)|^[ \t]+[A-Za-z_]\w*[ \t]*[:=]/;
@@ -300,7 +310,8 @@ export function parseStatements(source: string): Statement[] {
   const callLine = /^[A-Za-z_]\w*[ \t]*\(/gm;
   let from = 0;
   for (;;) {
-    while (from < source.length && /[\s,;]/.test(source[from]!)) from++;
+    while (from < source.length && BETWEEN_STATEMENTS.test(source[from]!))
+      from++;
     if (source.startsWith("//", from)) {
       const eol = source.indexOf("\n", from);
       from = eol === -1 ? source.length : eol;
@@ -323,11 +334,13 @@ export function parseStatements(source: string): Statement[] {
   }
 }
 
-const isTerminator = (t: Token | null, closer: string) =>
+const isTerminator = (t: Token | null) =>
   t !== null &&
   (t.t === "eof" ||
     (t.t === "punct" &&
-      (t.text === "," || t.text === ";" || t.text === closer)));
+      (t.text === "," ||
+        t.text === ";" ||
+        CLOSERS.some((closer) => closer === t.text))));
 const isSeparator = (t: Token | null) =>
   t?.t === "punct" && (t.text === ":" || t.text === "=");
 
@@ -365,7 +378,7 @@ class Parser {
   statement(): { calls: CallNode[]; end: number } {
     const t = this.peek;
     if (t.t === "punct" && (t.text === "{" || t.text === "[")) {
-      const value = this.value(t.text === "{" ? "}" : "]");
+      const value = this.value();
       const items = value.kind === "list" ? value.items : [value];
       return {
         calls: items.map((item) => typedObjectCall(item) ?? notComponent(item)),
@@ -383,66 +396,71 @@ class Parser {
   }
   private call(): CallNode {
     const name = this.next();
-    this.expect("(", `after "${name.text}"`);
-    const args = this.fields(")", name.text);
-    const close = this.expect(")", `to close ${name.text}(`);
+    const open = this.expect("(", `after "${name.text}"`);
+    const { fields: args, end } = this.entries(open.end);
     return {
       kind: "call",
       name: name.text,
       nameSpan: { start: name.start, end: name.end },
       args,
       start: name.start,
-      end: close.end,
+      end,
     };
   }
+  /** Whether the next token ends the container, by a closer or by the component's end. */
+  private closes(): boolean {
+    const t = this.peek;
+    return (
+      t.t === "eof" ||
+      (t.t === "punct" && CLOSERS.some((closer) => closer === t.text))
+    );
+  }
   /**
-   * `key: value` entries up to the closer, for calls and objects. A value with
-   * no key before it is positional; a key that directly follows a value is
-   * read as if a comma separated them.
+   * `key: value` entries up to the closer or the end of the component, for
+   * calls and objects. A value with no key before it is positional; a key that
+   * directly follows a value is read as if a comma separated them. A closer
+   * that does not match the one that opened the container still ends it, and so
+   * does the end of the component, because both mean the writer finished.
    */
-  private fields(closer: ")" | "}", owner?: string): Field[] {
+  private entries(openEnd: number): { fields: Field[]; end: number } {
     const fields: Field[] = [];
+    let end = openEnd;
     this.skipCommas();
-    while (!this.isPunct(closer)) {
+    while (!this.closes()) {
       const key = this.peek;
-      if (key.t === "eof")
-        return fail(
-          `Expected "${closer}" ${owner ? `to close ${owner}(` : "to close the object"}, found the end of the component.`,
-          key.start,
-        );
       const named =
         (key.t === "ident" || key.t === "string") &&
         isSeparator(this.lexer.look(1));
+      let field: Field;
       if (named) {
         this.next();
         this.next();
-        const value = this.value(closer);
-        fields.push({
+        field = {
           key: key.text,
           keySpan: { start: key.start, end: key.end },
-          value,
-        });
+          value: this.value(),
+        };
       } else {
-        const value = this.value(closer);
-        fields.push({
+        const value = this.value();
+        field = {
           key: null,
           keySpan: { start: value.start, end: value.end },
           value,
-        });
+        };
       }
+      fields.push(field);
+      end = field.value.end;
       if (this.isPunct(",") || this.isPunct(";")) this.skipCommas();
-      else if (!this.isPunct(closer) && !this.startsValue()) {
+      else if (!this.closes() && !this.startsValue()) {
         const t = this.peek;
         return fail(
-          t.t === "eof"
-            ? `Expected "," or "${closer}", found the end of the component.`
-            : `Expected "," or "${closer}" after the value${named ? ` of "${key.text}"` : ""}.`,
+          `Expected "," or ")" after the value${named ? ` of "${key.text}"` : ""}.`,
           t.start,
           Math.max(t.end, t.start + 1),
         );
       }
     }
-    return fields;
+    return { fields, end: this.closes() ? this.next().end : end };
   }
   /** Whether the next token can begin another entry, for a missing comma. */
   private startsValue(): boolean {
@@ -467,16 +485,16 @@ class Parser {
    * Whether the token after a word or number continues the same unquoted
    * text rather than ending the value or starting the next field.
    */
-  private continuesText(closer: string): boolean {
+  private continuesText(): boolean {
     const after = this.lexer.look(1);
-    if (isTerminator(after, closer)) return false;
+    if (isTerminator(after)) return false;
     if (after && (after.t === "ident" || after.t === "string")) {
       const then = this.lexer.look(2);
       if (isSeparator(then)) return false;
     }
     return true;
   }
-  private value(closer: string): Node {
+  private value(): Node {
     let t: Token;
     try {
       t = this.peek;
@@ -492,7 +510,7 @@ class Parser {
         this.next();
         return { kind: "string", value: t.text, ...span };
       case "number":
-        if (this.continuesText(closer)) return this.loose(t.start);
+        if (this.continuesText()) return this.loose(t.start);
         this.next();
         return { kind: "number", value: Number(t.text), ...span };
       case "ident": {
@@ -506,7 +524,7 @@ class Parser {
           if (/^(?:[A-Za-z_]\w*\s*[:=]|\)|[[{"])/.test(after))
             return this.call();
         }
-        if (this.continuesText(closer)) return this.loose(t.start);
+        if (this.continuesText()) return this.loose(t.start);
         this.next();
         if (t.text === "true" || t.text === "false")
           return { kind: "boolean", value: t.text === "true", ...span };
@@ -528,29 +546,25 @@ class Parser {
     const open = this.next();
     const items: Node[] = [];
     this.skipCommas();
-    while (!this.isPunct("]")) {
-      if (this.peek.t === "eof")
-        return fail(
-          'Expected "]" to close the list, found the end of the component.',
-          this.peek.start,
-        );
-      items.push(this.value("]"));
+    while (!this.closes()) {
+      items.push(this.value());
       if (this.isPunct(",") || this.isPunct(";")) this.skipCommas();
-      else if (!this.isPunct("]") && !this.startsValue())
+      else if (!this.closes() && !this.startsValue())
         return fail(
           'Expected "," or "]" in the list.',
           this.peek.start,
           Math.max(this.peek.end, this.peek.start + 1),
         );
     }
-    const close = this.next();
-    return { kind: "list", items, start: open.start, end: close.end };
+    const end = this.closes()
+      ? this.next().end
+      : (items.at(-1)?.end ?? open.end);
+    return { kind: "list", items, start: open.start, end };
   }
   private object(): Node {
     const open = this.next();
-    const fields = this.fields("}");
-    const close = this.expect("}", "to close the object");
-    return { kind: "object", fields, start: open.start, end: close.end };
+    const { fields, end } = this.entries(open.end);
+    return { kind: "object", fields, start: open.start, end };
   }
 }
 

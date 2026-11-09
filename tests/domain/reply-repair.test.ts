@@ -194,6 +194,46 @@ describe("liberal component input", () => {
     it("reads a call written with a space before its parenthesis", () => {
       expect(one('text (body: "a")')).toMatchObject({ body: "a" });
     });
+
+    it("closes a call the writer closed with the wrong closer", () => {
+      // A call whose values are lists of objects reads like JSON, so writers
+      // end it with `}`. Every closer closes the container it ends.
+      expect(
+        one(
+          'checks(title: "T", scope: "S", items: [{name: "N", status: passed}]}',
+        ),
+      ).toMatchObject({ items: [{ name: "N", status: "passed" }] });
+      expect(
+        one(
+          'delivery(title: "T", scope: "S", stages: [{name: "N", status: done}]}',
+        ),
+      ).toMatchObject({ stages: [{ name: "N", status: "done" }] });
+      expect(
+        one('table(title: "T", columns: ["A"], rows: [["1"]]}'),
+      ).toMatchObject({ rows: [["1"]] });
+      expect(one('{"type": "text", "body": "a")')).toMatchObject({
+        body: "a",
+      });
+    });
+
+    it("closes a call the writer left open at the end of the component", () => {
+      expect(one('text(body: "a"')).toMatchObject({ body: "a" });
+      expect(
+        one(
+          'checks(title: "T", scope: "S", items: [{name: "N", status: passed}]',
+        ),
+      ).toMatchObject({ items: [{ name: "N", status: "passed" }] });
+    });
+
+    it("skips stray closers and sentence punctuation between components", () => {
+      const items = compileComponents(
+        'text(body: "a")}).\ndelivery(title: "T", scope: "S", stages: [{name: "N", status: done}]])',
+      );
+      expect(items.map((i) => i.ok && i.component.type)).toEqual([
+        "text",
+        "delivery",
+      ]);
+    });
   });
 
   describe("names", () => {

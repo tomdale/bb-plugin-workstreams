@@ -115,9 +115,9 @@ describe("compact component syntax", () => {
     );
   });
 
-  it("reports unclosed and unterminated input at the failing token", () => {
-    expect(error('text(body: "a"')).toContain("end of the component");
+  it("reports unterminated input at the failing token", () => {
     expect(error('text(body: "a')).toContain("Unterminated string");
+    expect(error("text(body: )")).toContain("Expected a value");
   });
 
   it("validates group children individually", () => {
