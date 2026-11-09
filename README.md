@@ -391,7 +391,8 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
 2. **Workstreams (focused and other tiers):**
    - **Topics and categories:** Each leaf topic has its own workstream header,
      with its first-level container dimmed before its name when present
-     (**Vercel Agent** Automations). The workstream name uses its identity
+     (**Vercel Agent** Automations). The container reads in one muted color
+     whatever its areas' hues, and the workstream name uses its identity
      color. Categories are row headings inside that workstream, not additional
      workstreams or identity levels. Focus, ordering, and Dormant continue to
      apply to workstreams.

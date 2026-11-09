@@ -9,6 +9,14 @@ const styles = readFileSync(
 
 const longText = "A long sidebar label that should truncate ".repeat(8);
 
+/** True for a color carrying no hue of its own, in either serialization. */
+function isNeutral(color: string): boolean {
+  const oklab = /^oklab\(\S+ (\S+) (\S+)/.exec(color);
+  if (oklab) return Math.hypot(Number(oklab[1]), Number(oklab[2])) < 0.001;
+  const rgb = /^rgba?\((\d+), (\d+), (\d+)/.exec(color);
+  return rgb !== null && rgb[1] === rgb[2] && rgb[2] === rgb[3];
+}
+
 describe.skipIf(browserUnavailable)(
   "sidebar browser layout",
   { timeout: 30_000 },
@@ -20,7 +28,7 @@ describe.skipIf(browserUnavailable)(
           <div style="--ws-hue: 47; --ws-color-light: oklch(42% .1 47); --ws-color-dark: oklch(75% .1 47); --muted-foreground: rgb(130, 130, 130); color: rgb(130, 130, 130)">
             <span class="ws-mark ws-mark-unread"></span>
             <span class="ws-mark ws-spin ws-spin-dots"></span>
-            <span class="ws-prefix-name">Prefix</span>
+            <span class="ws-text-prefix">Prefix</span>
             <span class="ws-workstream-name">Workstream</span>
             <h4 class="ws-category-label">Category</h4>
             <span class="thread-title">Thread title</span>
@@ -37,7 +45,7 @@ describe.skipIf(browserUnavailable)(
             category: getComputedStyle(
               document.querySelector(".ws-category-label")!,
             ).color,
-            prefix: getComputedStyle(document.querySelector(".ws-prefix-name")!)
+            prefix: getComputedStyle(document.querySelector(".ws-text-prefix")!)
               .color,
             name: getComputedStyle(
               document.querySelector(".ws-workstream-name")!,
@@ -52,6 +60,9 @@ describe.skipIf(browserUnavailable)(
           expect(colors.category).not.toBe(colors.name);
           expect(colors.category).not.toBe("rgb(130, 130, 130)");
           expect(colors.prefix).not.toBe(colors.name);
+          // The parent in an "Owner: Area" name wears the theme's muted ink,
+          // one color under every area, never a tint of the area's hue.
+          expect(isNeutral(colors.prefix), colors.prefix).toBe(true);
           expect(colors.title).toBe("rgb(130, 130, 130)");
           expect(colors.name).toBe(
             dark ? "oklch(0.75 0.1 47)" : "oklch(0.42 0.1 47)",

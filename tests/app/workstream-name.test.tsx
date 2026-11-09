@@ -18,23 +18,18 @@ describe("WorkstreamName", () => {
     const { container, getByText } = render(
       <WorkstreamName name="Workstreams: Recaps" />,
     );
-    expect(getByText("Workstreams").className).toContain(
-      "text-muted-foreground",
-    );
+    expect(getByText("Workstreams").className).toContain("ws-text-prefix");
     expect(getByText(":").className).toContain("sr-only");
     expect(container.textContent).toBe("Workstreams: Recaps");
   });
 
-  it("accents only the workstream name, leaving the parent subdued", () => {
+  it("accents only the workstream name, leaving the parent in its one color", () => {
     const { getByText } = render(
       <WorkstreamName name="Vercel Agent: Automations" accent />,
     );
-    expect(getByText("Vercel Agent").className).toContain(
-      "text-muted-foreground/60",
-    );
-    expect(getByText("Vercel Agent").className).not.toContain(
-      "ws-workstream-name",
-    );
+    // The owner carries only the prefix role, whose muted color does not
+    // depend on the area's hue, so one parent reads alike under every area.
+    expect(getByText("Vercel Agent").className).toBe("ws-text-prefix");
     expect(getByText("Automations").className).toContain("ws-workstream-name");
   });
 

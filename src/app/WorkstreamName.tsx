@@ -16,6 +16,10 @@ export function splitWorkstreamName(
  * shows the owner subdued before the area, without the colon; the colon is
  * kept in the accessible text so screen readers hear the full name.
  *
+ * The owner keeps its single muted color from `.ws-text-prefix` under `accent`
+ * too, so one parent reads alike beneath every area, rather than taking a
+ * tint of whichever area's hue the name sits in.
+ *
  * Its weight and line height are defaults that the caller's `className`
  * replaces, and the parts inherit the result, so Home and the archived
  * groups set their own type. A sidebar header passes `ws-text-workstream`.
@@ -50,14 +54,7 @@ export function WorkstreamName({
     );
   return (
     <span className={cn("truncate font-[450] leading-[1.2]", className)}>
-      <span
-        className={cn(
-          "ws-text-prefix text-muted-foreground/60",
-          accent && "ws-prefix-name",
-        )}
-      >
-        {parts.owner}
-      </span>
+      <span className="ws-text-prefix">{parts.owner}</span>
       <span className="sr-only">:</span>{" "}
       <span
         className={cn(

@@ -928,7 +928,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
               },
               prefix: {
                 actual: getComputedStyle(prefix).color,
-                expected: productionColor(firstWithPrefix, "ws-prefix-name"),
+                expected: productionColor(firstWithPrefix, "ws-text-prefix"),
               },
               category: {
                 actual: getComputedStyle(category).color,

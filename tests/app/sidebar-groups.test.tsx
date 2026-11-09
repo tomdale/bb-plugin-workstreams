@@ -508,9 +508,7 @@ describe("small groups", () => {
     expect(group.querySelector(".ws-workstream-name")?.textContent).toBe(
       "Workstreams Plugin",
     );
-    expect(
-      group.querySelector(".text-muted-foreground\\/60")?.textContent,
-    ).toBe("bb");
+    expect(group.querySelector(".ws-text-prefix")?.textContent).toBe("bb");
     expect(
       Number((group as HTMLElement).style.getPropertyValue("--ws-hue")),
     ).toBe(workstreamHue("sec_ws"));

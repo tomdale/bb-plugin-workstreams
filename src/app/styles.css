@@ -642,16 +642,15 @@
   font-size: 13px;
 }
 
+/* The parent in an "Owner: Area" name wears the theme's muted ink, the same
+   color on every surface, so a parent reads alike under each of its areas
+   however the area's own hue differs. */
+.ws-text-prefix {
+  color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+}
 /* A category inherits its workstream hue, tempered by the theme's muted ink. */
 .ws-workstream-name {
   color: var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)));
-}
-.ws-prefix-name {
-  color: color-mix(
-    in oklab,
-    var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250))) 60%,
-    black
-  );
 }
 .ws-category-label {
   color: color-mix(
@@ -667,13 +666,6 @@
 }
 .dark .ws-workstream-name {
   color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
-}
-.dark .ws-prefix-name {
-  color: color-mix(
-    in oklab,
-    var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250))) 60%,
-    black
-  );
 }
 .dark .ws-category-label {
   color: color-mix(
