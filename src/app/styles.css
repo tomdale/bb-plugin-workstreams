@@ -560,22 +560,25 @@
   position: absolute;
   right: 0;
   left: 0;
-  /* Keep the background opaque at the plate edge, then feather it gently. */
-  height: 4rem;
+  /* An elongated shadow: the plate's own color for its first inches, then a
+     long falloff, so the heading never ends on an edge over the timeline. */
+  height: 5rem;
   background: linear-gradient(
     to bottom in oklab,
     var(--background) 0%,
-    color-mix(in oklab, var(--background) 90%, transparent) 20%,
-    color-mix(in oklab, var(--background) 60%, transparent) 50%,
-    color-mix(in oklab, var(--background) 20%, transparent) 80%,
+    color-mix(in oklab, var(--background) 78%, transparent) 22%,
+    color-mix(in oklab, var(--background) 45%, transparent) 50%,
+    color-mix(in oklab, var(--background) 16%, transparent) 78%,
     transparent 100%
   );
   content: "";
 }
-/* Under the title bar, once the heading has gone. */
+/* Under the title bar, once the heading has gone. Its top pixel covers the
+   title bar's hairline, so the bar and the content meet in the shadow rather
+   than along a rule. */
 .ws-goal-background::before {
-  top: 0;
-  height: 1.5rem;
+  top: -1px;
+  height: 3rem;
   opacity: var(--ws-fade-below-bar, 0);
 }
 /* Under the expanded plate. */

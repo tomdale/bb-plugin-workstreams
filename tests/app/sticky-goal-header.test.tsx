@@ -6,6 +6,7 @@ import { Profiler, type ProfilerOnRenderCallback } from "react";
 import {
   SUBTITLE_LINE,
   SUBTITLE_SIZE,
+  BAR_FADE_RATIO,
   headingBackdropOpacity,
   headingHeight,
   headingOpacity,
@@ -489,7 +490,7 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
   expect(partialOpacity[1]).toBeCloseTo(expectedOpacity.compact);
   expect(partialOpacity[1]).toBeGreaterThan(0);
   expect(fadeScale()).toBeLessThan(1);
-  expect(fadeScale()).toBeGreaterThan(1.5 / 4);
+  expect(fadeScale()).toBeGreaterThan(BAR_FADE_RATIO);
   expect(
     groups()[0]!.querySelector<HTMLElement>(".ws-sticky-goal__title")!.style
       .fontSize,
@@ -501,7 +502,7 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
   scroller.dispatchEvent(new Event("scroll"));
   await waitFor(() => expect(y(groups()[1]!)).toBe(0));
   expect(groups().map((group) => Number(group.style.opacity))).toEqual([0, 1]);
-  expect(fadeScale()).toBe(1.5 / 4);
+  expect(fadeScale()).toBe(BAR_FADE_RATIO);
   scroller.scrollTop = 590;
   scroller.dispatchEvent(new Event("scroll"));
   await waitFor(() =>

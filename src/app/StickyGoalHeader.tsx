@@ -22,6 +22,7 @@ import {
   headingScroll,
   headingScrollLimit,
   pinnedHeight,
+  plateFadeScale,
   titleExitDistance,
 } from "./goalHeading.ts";
 import { WorkstreamIcon } from "./WorkstreamIcon.tsx";
@@ -728,9 +729,10 @@ export function StickyGoalHeader(): React.ReactElement | null {
             transform: `translate(${placement.background.x}px, ${placement.background.y}px)`,
             width: placement.background.width,
             "--ws-plate-height": `${fadeAnchor}px`,
-            // In scroll mode, the plate's feather matches the 1.5rem bar fade.
+            // In scroll mode, the plate's shadow shrinks to the bar fade's
+            // length, never shorter than that much of its own.
             "--ws-plate-fade-scale":
-              fadeOnly && !pinned ? 1 : 1 - progress * (1 - 1.5 / 4),
+              fadeOnly && !pinned ? 1 : plateFadeScale(progress),
             "--ws-fade-below-plate": fade && plateHeight > 0 ? plateOpacity : 0,
             "--ws-fade-below-bar":
               fade && inBar
