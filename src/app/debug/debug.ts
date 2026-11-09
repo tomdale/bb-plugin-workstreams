@@ -1,10 +1,10 @@
-/** Debug mode: the preference and what an inspector can open. */
+/** The debug UI's preferences, and what an inspector can open. */
 import type { Prefs } from "../../domain/prefs.ts";
 import type { TraceLink } from "../../domain/trace.ts";
 import { usePrefsRealtime, usePrefsSelector } from "../prefs.ts";
 
 /**
- * The diagnostics Debug mode can turn on. Each names one surface: which
+ * The diagnostics the debug UI can show. Each names one surface: which
  * switches exist is a settings question, so this only maps a surface to the
  * preference that guards it.
  */

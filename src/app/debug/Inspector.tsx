@@ -181,8 +181,8 @@ function InspectorBody({
       ) : null}
       {list && list.length === 0 ? (
         <p className="px-4 py-6 text-sm text-muted-foreground">
-          No model calls were recorded for this. Debug mode records calls made
-          while it is on and keeps them for 7 days.
+          No model calls were recorded for this. Record model calls in
+          Workstreams settings keeps them for 7 days.
         </p>
       ) : null}
       {list && list.length > 1 ? (

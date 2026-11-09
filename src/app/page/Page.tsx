@@ -3,7 +3,7 @@
  * user (see `Queue`). Everything else waits behind the dim ⋯ in the corner:
  * Activity (the journal), Topics (the organizer's health, its suggestions,
  * and the topic tree), the Gallery (a specimen of every reply-block part),
- * and, in debug mode, the model calls. Each opens as a full view with Back.
+ * and, with the debug UI on, the model calls. Each opens as a full view.
  */
 import { useLayoutEffect, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";

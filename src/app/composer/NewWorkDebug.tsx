@@ -137,7 +137,7 @@ export function NewWorkDebug({ newWork }: { newWork: NewWork }) {
         )}
         {decision && !traceId ? (
           <p className="mt-3 text-muted-foreground">
-            No model call was recorded: the preview needed none, or Debug mode
+            No model call was recorded: the preview needed none, or recording
             was off when it ran.
           </p>
         ) : null}

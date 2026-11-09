@@ -693,8 +693,7 @@ export function registerCli(
           },
         }),
         trace: cliCommand({
-          summary:
-            "Show recorded model calls (Debug mode): one in full, or the latest",
+          summary: "Show recorded model calls: one in full, or the latest",
           positionals: [
             {
               name: "id",

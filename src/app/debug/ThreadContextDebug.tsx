@@ -4,8 +4,8 @@
  * thread — the settled goal, the context digest, the topic assignment and
  * its provenance, and the latest analysis run's status, model, and age.
  * Related journal events and analysis calls appear below, with the model-call
- * inspector one click away. Debug mode only; the slots are feature-detected,
- * so bb builds without them skip the registrations.
+ * inspector one click away. Shown with the debug UI only; the slots are
+ * feature-detected, so bb builds without them skip the registrations.
  */
 import type { ReactNode } from "react";
 import {

@@ -31,7 +31,7 @@ export type Preview = {
   traceId: string | null;
   /**
    * How the preview was reached, step by step, and how long it took.
-   * Present only in Debug mode.
+   * Present only for the composer's debug disclosure.
    */
   explanation?: { notes: string[]; durationMs: number };
 };

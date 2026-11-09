@@ -6,7 +6,7 @@
  * an organizing run), so every surface can open the calls behind it.
  *
  * Traces hold redacted thread excerpts. They stay in the plugin database for
- * 7 days, at most 1,000 of them, and nothing is recorded while debug mode is
+ * 7 days, at most 1,000 of them, and nothing is recorded while recording is
  * off.
  */
 import { randomUUID } from "node:crypto";
@@ -340,7 +340,7 @@ export class TraceStore {
 
   /**
    * Applies retention (7 days, 1,000 traces). Runs after recording and on the
-   * reconciler's interval, so records age out after Debug mode is turned off.
+   * reconciler's interval, so records age out after recording is turned off.
    */
   prune({ force = false } = {}): void {
     if (!force && this.now() - this.prunedAt < PRUNE_EVERY_MS) return;

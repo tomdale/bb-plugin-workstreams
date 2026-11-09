@@ -118,7 +118,7 @@ function day(at: number): string {
   });
 }
 
-/** The action filter's value for model calls (Debug mode). */
+/** The action filter's value for model calls (debug UI). */
 const MODEL_CALLS = "model-call";
 
 type Item =
@@ -256,7 +256,7 @@ const ActivityEntryRow = memo(function ActivityEntryRow({
 /**
  * The Activity log: every change Workstreams made or observed, and every
  * proposal, with filters by workstream, action, and needs-review.
- * In Debug mode it also lists each model call in place, with what the model
+ * With the debug UI on it also lists each model call in place, with what the
  * decided.
  */
 export function Activity({
@@ -269,7 +269,7 @@ export function Activity({
   rpc: ReturnType<typeof useRpc<RpcContract>>;
   /** An activity entry to highlight. */
   focus?: string | null;
-  /** Show model calls initially (Debug mode links). */
+  /** Show model calls initially (debug UI links). */
   modelCalls?: boolean;
   sections?: readonly PluginSidebarSection[];
   /** A thread's workstream, for filtering model calls by workstream. */

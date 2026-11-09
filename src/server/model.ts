@@ -260,7 +260,7 @@ export class Inference {
 
   /**
    * Builds the prompt for `kind` from `input`, calls the model, and parses
-   * the response. With debug mode on, records the call and returns its trace
+   * the response. With recording on, saves the call and returns its trace
    * id.
    */
   async run<K extends TraceKind>(
@@ -551,7 +551,7 @@ export class Inference {
 
   /**
    * Recording is best effort: a trace store failure never changes what a
-   * model call returns, so Debug mode can't change behavior.
+   * model call returns, so recording can't change behavior.
    */
   private safely<T>(work: () => T): T | null {
     try {

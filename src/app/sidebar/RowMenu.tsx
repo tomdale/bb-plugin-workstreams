@@ -44,7 +44,7 @@ export type RowMenuHandlers = {
    * makes, so the sidebar's own notice is the place to show one.
    */
   reportError: (cause: unknown) => void;
-  /** Debug mode: opens the thread's model calls. */
+  /** The debug UI: opens the thread's model calls. */
   inspect: (thread: PluginSidebarThread) => void;
   assignIdentity?: (thread: PluginSidebarThread, entityId: string) => void;
   reclassifyIdentity?: (thread: PluginSidebarThread) => void;
