@@ -1896,6 +1896,7 @@ function WorkstreamGroup({
       aria-label={group.name}
       data-flip-key={`group:${group.id}`}
       data-prioritized={group.prioritized ? "" : undefined}
+      data-fold-phase={fold.phase === "idle" ? undefined : fold.phase}
       data-drop-target={incoming ? "" : undefined}
       className={cn(
         "rounded-md",
