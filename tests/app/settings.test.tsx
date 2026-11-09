@@ -429,7 +429,7 @@ it("shows the Analysis machine only when more than one machine is connected", as
   );
 });
 
-it("lists what Debug mode turns on, and only while Debug mode is on", async () => {
+it("lists what Debug mode turns on, in its own panel, only while it is on", async () => {
   const slot = await mount("advanced");
   const master = await slot.findByRole("switch", { name: "Debug mode" });
   expect(master.getAttribute("aria-checked")).toBe("false");
@@ -442,6 +442,15 @@ it("lists what Debug mode turns on, and only while Debug mode is on", async () =
     // Turning Debug mode on leaves every diagnostic on.
     expect(toggle.getAttribute("aria-checked")).toBe("true");
   }
+
+  // One panel holds the master switch and the diagnostics it turns on.
+  const panel = master.closest("section")!;
+  const cards = panel.querySelectorAll(".bg-card");
+  expect(cards).toHaveLength(1);
+  for (const label of DIAGNOSTICS)
+    expect(cards[0]!.contains(slot.getByRole("switch", { name: label }))).toBe(
+      true,
+    );
 
   fireEvent.click(slot.getByRole("switch", { name: "Reply diagnostics" }));
   await waitFor(() =>

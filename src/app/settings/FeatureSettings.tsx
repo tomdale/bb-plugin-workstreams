@@ -398,7 +398,7 @@ export function AdvancedSettings() {
       key: "debugRecord",
       label: "Record model calls",
       description:
-        "Records prompts, reasoning, and responses with redacted thread excerpts. Kept for 7 days. Every other diagnostic reads what it records.",
+        "Saves each model call's prompt, reasoning, and response, redacting common secrets, for 7 days. Inspect buttons and Activity model calls show only what it saved.",
     },
     {
       key: "debugInspect",
@@ -467,10 +467,8 @@ export function AdvancedSettings() {
               />
             }
           />
-        </SectionRows>
-        {prefs.advanced.debug ? (
-          <div className="mt-1.5">
-            <SectionRows>
+          {prefs.advanced.debug ? (
+            <div className="space-y-5 border-l border-border pl-4">
               {diagnostics.map((diagnostic) => (
                 <SettingRow
                   key={diagnostic.key}
@@ -489,9 +487,9 @@ export function AdvancedSettings() {
                   }
                 />
               ))}
-            </SectionRows>
-          </div>
-        ) : null}
+            </div>
+          ) : null}
+        </SectionRows>
       </SettingsGroup>
     </div>
   );
