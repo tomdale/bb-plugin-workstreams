@@ -2177,7 +2177,7 @@ function Band({
         style={style}
         className={cn(
           box === "attention"
-            ? "ws-needs mx-2 mt-0 px-1 pt-0.5 pb-2" // slop-ok: 2 the Needs you band, an established product surface
+            ? "ws-needs mx-2 mt-0 px-1 pt-1.5 pb-1" // slop-ok: 2 the Needs you band, an established product surface
             : box === "pinned"
               ? "ws-pinned mx-2 mt-0 px-1 pt-0.5 pb-2" // slop-ok: 2 the Pinned band, the Up Next card's quieter neighbor
               : "ws-band-neutral my-1 px-2 py-1", // slop-ok: 2 the neutral band, an established product surface
