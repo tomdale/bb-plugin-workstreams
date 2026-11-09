@@ -249,6 +249,46 @@ export function useFold(open: boolean, animate = true): FoldState {
 }
 
 /**
+ * Glides the gap below a fold while the fold moves. The gap is the next
+ * sibling's `margin-top`, which changes the instant the fold's state does, so
+ * without this the list below jumps by that gap before the fold has moved.
+ * The gap is remembered while the fold holds still, then animated from it to
+ * the new one over the fold's own duration and curve; a reversal mid-motion
+ * picks the gap up from wherever it is.
+ */
+export function useFoldGap(
+  section: RefObject<HTMLElement | null>,
+  phase: PresencePhase,
+): void {
+  const settled = useRef<string | null>(null);
+  const previous = useRef<PresencePhase>("idle");
+  useLayoutEffect(() => {
+    const next = section.current?.nextElementSibling;
+    const was = previous.current;
+    previous.current = phase;
+    if (!(next instanceof HTMLElement) || !next.style.marginTop) {
+      settled.current = null;
+      return;
+    }
+    const to = next.style.marginTop;
+    if (phase !== was && canAnimate()) {
+      const running =
+        typeof next.getAnimations === "function" &&
+        next
+          .getAnimations()
+          .some((animation) => animation.playState === "running");
+      const from = running ? getComputedStyle(next).marginTop : settled.current;
+      if (from !== null && from !== to)
+        next.animate([{ marginTop: from }, { marginTop: to }], {
+          duration: ENTER_MS,
+          easing: EASE_OUT,
+        });
+    }
+    if (phase === "idle") settled.current = to;
+  });
+}
+
+/**
  * Glides the list's top-level `[data-flip-key]` children from where they
  * were at `capture()` to where they are once `token` changes. Positions are
  * captured across the whole list, so an item that comes out of a fold starts

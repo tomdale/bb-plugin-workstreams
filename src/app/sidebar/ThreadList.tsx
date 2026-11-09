@@ -21,6 +21,7 @@
 import {
   Fragment,
   memo,
+  useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -119,6 +120,7 @@ import {
   presenceProps,
   useFlip,
   useFold,
+  useFoldGap,
   usePresence,
   type PresenceEntry,
 } from "./motion.ts";
@@ -1860,6 +1862,15 @@ function WorkstreamGroup({
   /** A group with threads folds, from a chevron beside its name. */
   const folds = group.total > 0;
   const fold = useFold(!collapsed);
+  /** The section, for the gap the fold moves below it (see `useFoldGap`). */
+  const section = useRef<HTMLElement>(null);
+  const refSection = useRef(sectionRef);
+  refSection.current = sectionRef;
+  const setSection = useCallback((element: HTMLElement | null) => {
+    section.current = element;
+    refSection.current?.(element);
+  }, []);
+  useFoldGap(section, fold.phase);
   const headingClass = "flex min-w-0 flex-1 items-center gap-1";
   const heading = (
     <WorkstreamName
@@ -1892,11 +1903,10 @@ function WorkstreamGroup({
   ) : null;
   return (
     <section
-      ref={sectionRef}
+      ref={setSection}
       aria-label={group.name}
       data-flip-key={`group:${group.id}`}
       data-prioritized={group.prioritized ? "" : undefined}
-      data-fold-phase={fold.phase === "idle" ? undefined : fold.phase}
       data-drop-target={incoming ? "" : undefined}
       className={cn(
         "rounded-md",
