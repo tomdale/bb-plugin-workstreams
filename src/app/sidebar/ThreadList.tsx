@@ -1075,8 +1075,8 @@ export function WorkstreamsThreadList({
         style={{
           paddingLeft: SIDEBAR_GEOMETRY.container.paddingX,
           paddingRight: SIDEBAR_GEOMETRY.container.paddingX,
-          paddingTop: SIDEBAR_GEOMETRY.container.paddingY,
-          paddingBottom: SIDEBAR_GEOMETRY.container.paddingY,
+          paddingTop: SIDEBAR_GEOMETRY.container.paddingTop,
+          paddingBottom: SIDEBAR_GEOMETRY.container.paddingBottom,
         }}
       >
         {error ? (

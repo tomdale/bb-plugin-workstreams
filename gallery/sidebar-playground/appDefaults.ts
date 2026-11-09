@@ -129,7 +129,7 @@ export function appSidebarDefaults(): Record<string, string> {
         childStatusGap: statusGap,
         catChildStatusGap: statusGap,
         sideX: container.paddingX,
-        sideY: container.paddingY,
+        sideY: container.paddingBottom,
         sectionHeight: sectionHeading.height,
         sectionTop: sectionHeading.topMargin,
         sectionGap: sectionHeading.bottomMargin,
