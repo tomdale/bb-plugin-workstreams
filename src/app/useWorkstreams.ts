@@ -6,7 +6,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { useStableSidebarThreads } from "./useStableSidebarThreads.ts";
-import { projectWorkstreams, type Projection } from "../domain/project.ts";
+import {
+  nextDormancyDeadline,
+  projectWorkstreams,
+  type Projection,
+} from "../domain/project.ts";
 import type { Recap } from "../domain/recap.ts";
 import { needsAttention, upNextKind, workView } from "../domain/status.ts";
 import { nextUpNextDeadline } from "../domain/upNext.ts";
