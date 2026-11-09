@@ -252,6 +252,12 @@ it("lists analysis and journal events and opens every transcript behind an event
   const rows = within(activity as HTMLElement).getAllByRole("button");
   expect(rows[0]?.textContent).not.toContain("·");
   expect(rows[0]?.textContent).toContain("Work status: done");
+  const chevrons = (activity as HTMLElement).querySelectorAll(
+    "[data-activity-chevron]",
+  );
+  expect(chevrons).toHaveLength(rows.length);
+  for (const chevron of chevrons)
+    expect(chevron.getAttribute("aria-hidden")).toBe("true");
   expect(rows.map((row) => row.textContent)).toEqual([
     expect.stringContaining("Full analysis"),
     expect.stringContaining("Updated title"),

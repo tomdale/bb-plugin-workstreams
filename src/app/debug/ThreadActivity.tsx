@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import { cn } from "@/lib/utils";
+import { Icon } from "@/components/ui/icon";
 import { relativeAge } from "../../domain/presentation.ts";
 import { TRACE_KIND_TITLE, type TraceSummary } from "../../domain/trace.ts";
 import type { RpcContract } from "../../server/contract.ts";
@@ -199,7 +200,7 @@ export function ThreadActivity({
                   setSelected(item);
                   setOpen(true);
                 }}
-                className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-sm py-2 pl-2 pr-1 text-left hover:bg-state-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="group/activity grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-sm py-2 pl-2 pr-1 text-left hover:bg-state-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <span className="min-w-0">
                   <span className="block truncate text-xs font-medium">
@@ -214,13 +215,21 @@ export function ThreadActivity({
                     {item.detail}
                   </span>
                 </span>
-                <time
-                  dateTime={date.toISOString()}
-                  aria-label={date.toLocaleString()}
-                  className="min-w-7 pt-0.5 text-right text-[11px] tabular-nums text-muted-foreground"
-                >
-                  {relativeAge(item.at, now)}
-                </time>
+                <span className="relative min-w-7 pt-0.5 text-right">
+                  <time
+                    dateTime={date.toISOString()}
+                    aria-label={date.toLocaleString()}
+                    className="block text-[11px] tabular-nums text-muted-foreground group-hover/activity:invisible group-focus-visible/activity:invisible"
+                  >
+                    {relativeAge(item.at, now)}
+                  </time>
+                  <Icon
+                    name="ChevronRight"
+                    aria-hidden
+                    data-activity-chevron
+                    className="absolute right-0 top-0 hidden size-3.5 text-muted-foreground group-hover/activity:block group-focus-visible/activity:block"
+                  />
+                </span>
               </button>
             </li>
           );
