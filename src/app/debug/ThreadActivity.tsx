@@ -199,7 +199,7 @@ export function ThreadActivity({
                   setSelected(item);
                   setOpen(true);
                 }}
-                className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-sm px-1 py-2 text-left hover:bg-state-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-sm py-2 pl-2 pr-1 text-left hover:bg-state-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <span className="min-w-0">
                   <span className="block truncate text-xs font-medium">
