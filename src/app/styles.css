@@ -347,10 +347,11 @@
     border-color: var(--ws-needs-tone);
   }
 }
-/* The card's section label keeps the sidebar's uppercase label style, tinted
-   in the card's own Needs you tone so the title reads as part of it. */
+/* The card's section label keeps the sidebar's uppercase label style. It uses
+   the softened Needs you tone, not the card's band tone: the same amber pulled
+   toward the foreground, so the title sits on the card rather than glowing. */
 .ws-needs-heading {
-  color: var(--ws-needs-tone);
+  color: var(--ws-needs-you-soft);
   letter-spacing: 0.06em;
 }
 /* The waiting-thread count, as a Geist badge in the Needs you color. */
