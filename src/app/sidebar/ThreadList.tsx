@@ -1049,6 +1049,7 @@ export function WorkstreamsThreadList({
           paddingRight: SIDEBAR_GEOMETRY.container.paddingX,
           paddingTop: SIDEBAR_GEOMETRY.container.paddingTop,
           paddingBottom: SIDEBAR_GEOMETRY.container.paddingBottom,
+          ["--ws-list-pad-top" as string]: `${SIDEBAR_GEOMETRY.container.paddingTop}px`,
         }}
       >
         {error ? (
