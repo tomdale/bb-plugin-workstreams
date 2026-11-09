@@ -1,3 +1,4 @@
+import { SIDEBAR_GEOMETRY } from "../../src/app/sidebar/tokens.ts";
 import { mountWithBands } from "./sidebar-fixture.tsx";
 // @vitest-environment jsdom
 import {
@@ -35,6 +36,52 @@ it("applies the hover timestamp preference without hiding band context", async (
       expect(age.getAttribute("data-timestamp")).toBe(timestamps);
   });
   expect(within(upNext).getByText("Alpha")).toBeTruthy();
+  slot.lifecycle.unmount();
+});
+
+it("separates the workstreams from Archived and Snoozed without splitting those bands", async () => {
+  const slot = await mount(
+    [
+      sidebarThread("active", { title: "Active task" }),
+      sidebarThread("archived", {
+        title: "Archived task",
+        isArchived: true,
+        archivedAt: 100,
+      }),
+      sidebarThread("nap", { title: "Snoozed task" }),
+    ],
+    {
+      snoozes: {
+        nap: { until: Date.now() + 3_600_000, attentionAt: 0, at: 0 },
+      },
+    },
+  );
+  await waitFor(() => {
+    expect(slot.getByRole("region", { name: "Archived" })).toBeTruthy();
+    expect(slot.getByRole("region", { name: "Snoozed" })).toBeTruthy();
+  });
+  const archived = slot.getByRole("region", { name: "Archived" });
+  const snoozed = slot.getByRole("region", { name: "Snoozed" });
+  expect(archived.style.marginTop).toBe(
+    `${SIDEBAR_GEOMETRY.gaps.inlineBoundary}px`,
+  );
+  expect(snoozed.style.marginTop).toBe("");
+  slot.lifecycle.unmount();
+});
+
+it("keeps the boundary gap before Snoozed when Archived is hidden", async () => {
+  const slot = await mount([sidebarThread("nap", { title: "Snoozed task" })], {
+    settings: { showArchived: false },
+    snoozes: {
+      nap: { until: Date.now() + 3_600_000, attentionAt: 0, at: 0 },
+    },
+  });
+  await waitFor(() =>
+    expect(slot.getByRole("region", { name: "Snoozed" })).toBeTruthy(),
+  );
+  expect(slot.getByRole("region", { name: "Snoozed" }).style.marginTop).toBe(
+    `${SIDEBAR_GEOMETRY.gaps.inlineBoundary}px`,
+  );
   slot.lifecycle.unmount();
 });
 

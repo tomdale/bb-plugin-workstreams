@@ -141,6 +141,12 @@ describe.skipIf(browserUnavailable)(
         expect(after).toEqual(before);
 
         const hoverFill = await fill(first);
+        expect(
+          await first.evaluate((row) => getComputedStyle(row).zIndex),
+        ).toBe("1");
+        expect(
+          await selected.evaluate((row) => getComputedStyle(row).zIndex),
+        ).toBe("auto");
         for (const current of [hoverFill, selectedFill]) {
           expect(current).toMatchObject({
             position: "absolute",

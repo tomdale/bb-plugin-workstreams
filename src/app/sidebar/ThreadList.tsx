@@ -1053,6 +1053,14 @@ export function WorkstreamsThreadList({
       </p>
     );
 
+  const showArchivedBand =
+    ws.showArchived &&
+    archived.experimental_archived?.status !== "error" &&
+    (archivedThreads.length > 0 ||
+      archived.experimental_archived?.status === "loading" ||
+      archived.experimental_archived?.hasNextPage);
+  const showSnoozedBand = ws.showSnoozed && projection.snoozed.length > 0;
+
   return (
     <DndContext {...contextProps}>
       <div
@@ -1217,14 +1225,11 @@ export function WorkstreamsThreadList({
               recentBlock,
             ]
           : [recentBlock, workstreamsHeading, ...lowerBlock]}
-        {ws.showArchived &&
-        archived.experimental_archived?.status !== "error" &&
-        (archivedThreads.length > 0 ||
-          archived.experimental_archived?.status === "loading" ||
-          archived.experimental_archived?.hasNextPage) ? (
+        {showArchivedBand ? (
           <Band
             title="Archived"
             flipKey="archived"
+            style={{ marginTop: SIDEBAR_GEOMETRY.gaps.inlineBoundary }}
             count={archivedThreads.length}
             collapsed={isCollapsed("__archived", true)}
             toggle={() => toggle("__archived", true)}
@@ -1300,10 +1305,15 @@ export function WorkstreamsThreadList({
             ) : null}
           </Band>
         ) : null}
-        {ws.showSnoozed && projection.snoozed.length > 0 ? (
+        {showSnoozedBand ? (
           <Band
             title="Snoozed"
             flipKey="snoozed"
+            style={
+              showArchivedBand
+                ? undefined
+                : { marginTop: SIDEBAR_GEOMETRY.gaps.inlineBoundary }
+            }
             count={projection.snoozed.filter((row) => row.depth === 0).length}
             collapsed={isCollapsed("__snoozed", true)}
             toggle={() => toggle("__snoozed", true)}
@@ -1552,6 +1562,7 @@ function Band({
   toggle,
   menu,
   flipKey,
+  style,
   children,
 }: {
   title: string;
@@ -1570,6 +1581,7 @@ function Band({
   menu?: ReactNode;
   /** Glides the band when a focus change moves it (see `useFlip`). */
   flipKey?: string;
+  style?: CSSProperties;
   children: ReactNode;
 }) {
   const fold = useFold(collapsed === undefined || !collapsed);
@@ -1596,6 +1608,7 @@ function Band({
       <section
         aria-label={title}
         data-flip-key={flipKey}
+        style={style}
         className={cn(
           box === "attention"
             ? "ws-needs mx-2 mt-0 px-1 pt-0.5 pb-2" // slop-ok: 2 the Needs you band, an established product surface
@@ -1624,7 +1637,12 @@ function Band({
     );
   }
   return (
-    <section aria-label={title} data-flip-key={flipKey} className="px-1">
+    <section
+      aria-label={title}
+      data-flip-key={flipKey}
+      style={style}
+      className="px-1"
+    >
       <div className="flex items-center gap-1">
         <button
           type="button"
