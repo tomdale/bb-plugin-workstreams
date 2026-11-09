@@ -9,12 +9,18 @@ const styles = readFileSync(
 
 const longText = "A long sidebar label that should truncate ".repeat(8);
 
-/** True for a color carrying no hue of its own, in either serialization. */
-function isNeutral(color: string): boolean {
-  const oklab = /^oklab\(\S+ (\S+) (\S+)/.exec(color);
-  if (oklab) return Math.hypot(Number(oklab[1]), Number(oklab[2])) < 0.001;
-  const rgb = /^rgba?\((\d+), (\d+), (\d+)/.exec(color);
-  return rgb !== null && rgb[1] === rgb[2] && rgb[2] === rgb[3];
+/** An oklab color's chroma, hue, and alpha; null for another serialization. */
+function oklab(color: string) {
+  const match = /^oklab\(\S+ (\S+) (\S+)(?: \/ (\S+))?\)$/.exec(color);
+  if (!match) return null;
+  const a = Number(match[1]);
+  const b = Number(match[2]);
+  const alpha = match[3] === undefined ? 1 : Number(match[3]);
+  return {
+    chroma: Math.hypot(a, b),
+    hue: ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360,
+    alpha,
+  };
 }
 
 describe.skipIf(browserUnavailable)(
@@ -28,7 +34,9 @@ describe.skipIf(browserUnavailable)(
           <div style="--ws-hue: 47; --ws-color-light: oklch(42% .1 47); --ws-color-dark: oklch(75% .1 47); --muted-foreground: rgb(130, 130, 130); color: rgb(130, 130, 130)">
             <span class="ws-mark ws-mark-unread"></span>
             <span class="ws-mark ws-spin ws-spin-dots"></span>
-            <span class="ws-text-prefix">Prefix</span>
+            <span style="--ws-color-light: oklch(58% .12 200); --ws-color-dark: oklch(72% .12 200)">
+              <span class="ws-text-prefix">Prefix</span>
+            </span>
             <span class="ws-workstream-name">Workstream</span>
             <h4 class="ws-category-label">Category</h4>
             <span class="thread-title">Thread title</span>
@@ -60,9 +68,13 @@ describe.skipIf(browserUnavailable)(
           expect(colors.category).not.toBe(colors.name);
           expect(colors.category).not.toBe("rgb(130, 130, 130)");
           expect(colors.prefix).not.toBe(colors.name);
-          // The parent in an "Owner: Area" name wears the theme's muted ink,
-          // one color under every area, never a tint of the area's hue.
-          expect(isNeutral(colors.prefix), colors.prefix).toBe(true);
+          // The parent in an "Owner: Area" name wears its container's own
+          // hue, dimmed, rather than the area's, so every area of one parent
+          // shows the same parent color.
+          const prefix = oklab(colors.prefix)!;
+          expect(prefix.alpha).toBeCloseTo(0.65, 2);
+          expect(prefix.chroma).toBeCloseTo(0.12, 2);
+          expect(prefix.hue).toBeCloseTo(200, 0);
           expect(colors.title).toBe("rgb(130, 130, 130)");
           expect(colors.name).toBe(
             dark ? "oklch(0.75 0.1 47)" : "oklch(0.42 0.1 47)",

@@ -52,6 +52,12 @@ export type WorkstreamNode<T extends WorkstreamThread> = Group<T> & {
    * The topic name with its first-level container as a dimmed prefix.
    */
   readonly label: string;
+  /**
+   * The container topic whose name that prefix shows, when the label has one.
+   * Its color identifies the parent wherever its areas appear, so one parent
+   * reads the same under each of them.
+   */
+  readonly parentTopicId: string | null;
   /** False for a header that only heads subgroups, which no BB section backs. */
   readonly hasSection: boolean;
   readonly subgroups: readonly WorkstreamNode<T>[];
@@ -137,10 +143,12 @@ const leaf = <T extends WorkstreamThread>(
   group: Group<T>,
   topicId: string | null,
   label = group.name,
+  parentTopicId: string | null = null,
 ): WorkstreamNode<T> => ({
   ...group,
   topicId,
   label,
+  parentTopicId,
   hasSection: true,
   subgroups: [],
   sectionIds: [group.id],
@@ -229,15 +237,22 @@ export function nestGroups<T extends WorkstreamThread>(
 
   const build = (node: LayoutNode): WorkstreamNode<T> | null => {
     const label = layoutLabel(node);
+    /** The container the label's prefix names, which is the topic's parent. */
+    const parentTopicId =
+      node.prefix.length > 0
+        ? (byId.get(node.topicId)?.parentId ?? null)
+        : null;
     const own = node.lists ? (sectionsOf.get(node.topicId) ?? []) : [];
     for (const group of own) used.add(group.id);
     const stray = (strays.get(node.topicId) ?? []).map((group) => {
       used.add(group.id);
       const topicId = topics!.bindings[group.id]!;
+      const ownTopic = topicId === node.topicId;
       return leaf(
         group,
         topicId,
-        topicId === node.topicId ? label : relative(topicId, node.topicId),
+        ownTopic ? label : relative(topicId, node.topicId),
+        ownTopic ? parentTopicId : null,
       );
     });
     const children = [
@@ -250,7 +265,7 @@ export function nestGroups<T extends WorkstreamThread>(
     // its replacement, so none of its threads disappear.
     const [section, ...extra] = own;
     const subgroups = [
-      ...extra.map((group) => leaf(group, node.topicId, label)),
+      ...extra.map((group) => leaf(group, node.topicId, label, parentTopicId)),
       ...children,
     ];
     if (!section && subgroups.length === 0) return null;
@@ -273,6 +288,7 @@ export function nestGroups<T extends WorkstreamThread>(
         subgroups.some((sub) => sub.prioritized),
       topicId: node.topicId,
       label,
+      parentTopicId,
       hasSection: section !== undefined,
       subgroups,
       sectionIds: [

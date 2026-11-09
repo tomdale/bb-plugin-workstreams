@@ -657,6 +657,18 @@ export function WorkstreamsThreadList({
    */
   const colorOf = (group: ThreadNode) =>
     colorForWorkstream(group.id, ws.server.catalog, group.topicId);
+  /**
+   * The container above the workstream, in the color the organizer gave that
+   * container, so every area of one parent shows the same parent color.
+   */
+  const prefixColorOf = (group: ThreadNode) =>
+    group.parentTopicId
+      ? colorForWorkstream(
+          group.parentTopicId,
+          ws.server.catalog,
+          group.parentTopicId,
+        )
+      : undefined;
   const renderCategorizedTrees = (group: ThreadNode, label?: string) =>
     categoryRows(group.rows, group.categories).map((category, index) => (
       <Fragment key={category.id ?? "unplaced"}>
@@ -711,6 +723,7 @@ export function WorkstreamsThreadList({
           <WorkstreamGroup
             group={sub}
             color={colorOf(sub)}
+            prefixColor={prefixColorOf(sub)}
             nested
             sectionRef={ref}
             collapsed={groupCollapsed(sub.id, false, sub.topicId)}
@@ -749,6 +762,7 @@ export function WorkstreamsThreadList({
           {...props}
           group={group}
           color={colorOf(group)}
+          prefixColor={prefixColorOf(group)}
           snooze={groupSnoozeOf(group)}
           sectionRef={ref}
           style={{ ...sortableStyle, ...style }}
@@ -1805,6 +1819,8 @@ type GroupProps = {
   /** Drag-and-drop wiring: the section moves, the header drags it. */
   sectionRef?: (element: HTMLElement | null) => void;
   color?: TopicColor;
+  /** The color of the container the label's prefix names, when it has one. */
+  prefixColor?: TopicColor;
   style?: CSSProperties;
   handle?: DragHandle;
   children: ReactNode;
@@ -1821,6 +1837,7 @@ function WorkstreamGroup({
   muted,
   sectionRef,
   color,
+  prefixColor,
   style,
   handle,
   children,
@@ -1844,6 +1861,7 @@ function WorkstreamGroup({
   const heading = (
     <WorkstreamName
       name={label}
+      prefixColor={prefixColor}
       muted={muted || nested}
       accent={isWorkstream}
       className={

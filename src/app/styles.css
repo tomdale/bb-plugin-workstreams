@@ -647,11 +647,22 @@
   font-size: 13px;
 }
 
-/* The parent in an "Owner: Area" name wears the theme's muted ink, the same
-   color on every surface, so a parent reads alike under each of its areas
-   however the area's own hue differs. */
+/* The parent in an "Owner: Area" name wears its container's own color,
+   dimmed, so one parent reads alike under every area in the color the
+   organizer gave that container, and stays quieter than the area's. */
 .ws-text-prefix {
-  color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+  color: color-mix(
+    in oklab,
+    var(--ws-color-light, var(--muted-foreground)) 65%,
+    transparent
+  );
+}
+.dark .ws-text-prefix {
+  color: color-mix(
+    in oklab,
+    var(--ws-color-dark, var(--muted-foreground)) 65%,
+    transparent
+  );
 }
 /* A category inherits its workstream hue, tempered by the theme's muted ink. */
 .ws-workstream-name {

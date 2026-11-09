@@ -344,6 +344,11 @@ function GroupSection({
           )}
           <WorkstreamName
             name={"label" in group ? group.label : group.name}
+            prefixColor={
+              "parentTopicId" in group && group.parentTopicId
+                ? env.colorOf(group.parentTopicId, group.parentTopicId)
+                : undefined
+            }
             muted={muted}
             className="ws-home-group-name"
           />

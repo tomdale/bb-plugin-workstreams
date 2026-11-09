@@ -23,14 +23,33 @@ describe("WorkstreamName", () => {
     expect(container.textContent).toBe("Workstreams: Recaps");
   });
 
-  it("accents only the workstream name, leaving the parent in its one color", () => {
+  it("accents only the workstream name, leaving the parent to its own color", () => {
     const { getByText } = render(
       <WorkstreamName name="Vercel Agent: Automations" accent />,
     );
-    // The owner carries only the prefix role, whose muted color does not
-    // depend on the area's hue, so one parent reads alike under every area.
+    // The owner carries only the prefix role, and its color comes from the
+    // container rather than the area's hue, so one parent reads alike under
+    // every area.
     expect(getByText("Vercel Agent").className).toBe("ws-text-prefix");
+    expect(getByText("Vercel Agent").style.color).toBe("");
     expect(getByText("Automations").className).toContain("ws-workstream-name");
+  });
+
+  it("gives the parent the container's color, or the muted ink without one", () => {
+    const { getByText } = render(
+      <WorkstreamName
+        name="Vercel Agent: Automations"
+        accent
+        prefixColor={{ hue: 200, level: 0 }}
+      />,
+    );
+    const vars = getByText("Vercel Agent").style;
+    expect(vars.getPropertyValue("--ws-hue")).toBe("200");
+    expect(vars.getPropertyValue("--ws-color-light")).toContain("oklch");
+    const plain = render(<WorkstreamName name="Workstreams: Recaps" />);
+    expect(
+      plain.getByText("Workstreams").style.getPropertyValue("--ws-color-light"),
+    ).toBe("var(--muted-foreground)");
   });
 
   it("lets the caller's classes replace its default type", () => {

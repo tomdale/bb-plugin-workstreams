@@ -106,6 +106,34 @@ describe("nestGroups", () => {
     expect(nodes[0]!.sectionIds).toEqual(["sec_auto", "sec_alerts"]);
   });
 
+  it("names the container whose color the label's prefix shows", () => {
+    const projection = projectWorkstreams(
+      [
+        thread("a1", { sectionId: "sec_auto" }),
+        thread("i1", { sectionId: "sec_alerts" }),
+        thread("w1", { sectionId: "sec_ws" }),
+      ],
+      [
+        { id: "sec_auto", name: "Beacon: Automations" },
+        {
+          id: "sec_alerts",
+          name: "Beacon: Automations: Alert Investigations",
+        },
+        { id: "sec_ws", name: "Workstreams" },
+      ],
+      { now },
+    );
+    const nodes = nestGroups(
+      projection.all,
+      topics({ sec_auto: "auto", sec_alerts: "alerts", sec_ws: "ws" }),
+    );
+    // "Beacon: Automations" wears Beacon's color, and the area nested under
+    // it and the parentless workstream name no container at all.
+    expect(nodes[0]!.parentTopicId).toBe("va");
+    expect(nodes[0]!.subgroups[0]!.parentTopicId).toBeNull();
+    expect(nodes[1]!.parentTopicId).toBeNull();
+  });
+
   it("heads subgroups with a topic no section backs", () => {
     const projection = projectWorkstreams(
       [
