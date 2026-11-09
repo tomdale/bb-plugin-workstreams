@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { useComposer } from "@get-bb/plugin-sdk/app";
 import { cleanup, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +8,7 @@ import {
   QuestionAnchor,
   QuestionInteraction,
 } from "../../../src/app/question/QuestionCard.tsx";
+import { sidebarThread } from "../fixtures.ts";
 import type {
   InteractionPayload,
   InteractionResponse,
@@ -104,6 +106,22 @@ function render(
   );
 }
 
+/** The banner plus a host send button, which submits the way Enter does. */
+function AnchorWithHostSend() {
+  const composer = useComposer();
+  return (
+    <>
+      <QuestionAnchor />
+      <button
+        type="button"
+        onClick={() => void composer.submit({ experimental_data: null })}
+      >
+        Host send
+      </button>
+    </>
+  );
+}
+
 function getButtonByText(
   slot: ReturnType<typeof render>,
   text: string,
@@ -158,6 +176,86 @@ describe("question interaction adapter", () => {
         dismiss: false,
       }),
     ]);
+    sessionStorage.clear();
+  });
+
+  it("closes a recovered question when the user sends their own message instead", async () => {
+    sessionStorage.clear();
+    let open: {
+      id: string;
+      recoverable: boolean;
+      payload: InteractionPayload;
+    } | null = {
+      id: "passed-over",
+      recoverable: true,
+      payload: singleSelect,
+    };
+    const recover = vi.fn(async () => {
+      open = null;
+      return { ok: true } as const;
+    });
+    const slot = renderSlot(
+      { component: AnchorWithHostSend },
+      {},
+      {
+        composer: {
+          text: "Use SQLite and move on",
+          scope: { kind: "thread", threadId: "thr_test" },
+        },
+        rpc: { question_pending: () => open, question_recover: recover },
+      },
+    );
+    expect(
+      await slot.findByRole("region", { name: "Question needs your answer" }),
+    ).toBeTruthy();
+
+    fireEvent.click(slot.getByRole("button", { name: "Host send" }));
+
+    await vi.waitFor(() => expect(recover).toHaveBeenCalledOnce());
+    expect(recover.mock.calls[0]).toEqual([
+      {
+        threadId: "thr_test",
+        id: "passed-over",
+        value: null,
+        dismiss: true,
+      },
+    ]);
+    await slot.emitRealtime("changed", {});
+    await vi.waitFor(() =>
+      expect(
+        slot.queryByRole("region", { name: "Question needs your answer" }),
+      ).toBeNull(),
+    );
+    sessionStorage.clear();
+  });
+
+  it("leaves a question alone while its own interaction holds the composer", async () => {
+    sessionStorage.clear();
+    const recover = vi.fn(async () => ({ ok: true }));
+    const slot = renderSlot(
+      { component: AnchorWithHostSend },
+      {},
+      {
+        composer: {
+          text: "Use SQLite and move on",
+          scope: { kind: "thread", threadId: "thr_test" },
+        },
+        sidebarThreads: {
+          threads: [sidebarThread("thr_test", { hasPendingInteraction: true })],
+        },
+        rpc: {
+          question_pending: () => ({
+            id: "still-live",
+            recoverable: true,
+            payload: singleSelect,
+          }),
+          question_recover: recover,
+        },
+      },
+    );
+    fireEvent.click(await slot.findByRole("button", { name: "Host send" }));
+    await Promise.resolve();
+    expect(recover).not.toHaveBeenCalled();
     sessionStorage.clear();
   });
 

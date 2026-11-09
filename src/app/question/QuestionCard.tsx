@@ -11,7 +11,13 @@ import { QUESTION_CARD_CLASS } from "./question-presentation.tsx";
  * marker). Without an anchor, as in a composer that shows no banners, the
  * form renders inside the shell as usual.
  */
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   useComposer,
@@ -50,9 +56,14 @@ function useAnchor(threadId: string): HTMLElement | null {
 /**
  * The composer banner that holds the card. It goes first in the stack, in
  * the recap card's place; the recap hides while a question is pending.
+ *
+ * A card outlives its turn so an interrupted question stays answerable. It
+ * does not outlive the user writing their own message instead, which
+ * supersedes the question; that send closes the card.
  */
 export function QuestionAnchor() {
-  const { scope } = useComposer();
+  const composer = useComposer();
+  const { scope } = composer;
   const threadId = scope.kind === "thread" ? scope.threadId : null;
   const pending = usePendingQuestion(threadId);
   const { threads } = experimental_useSidebarThreads();
@@ -81,6 +92,23 @@ export function QuestionAnchor() {
       setBusy(false);
     }
   };
+  const showsCard = Boolean(pending?.recoverable) && !native;
+  useEffect(() => {
+    if (!showsCard || !pending) return;
+    // Only a recovered card leaves the composer free to send, so a submission
+    // here is the user answering the thread in their own words instead.
+    return composer.onSubmitted(() => {
+      void rpc
+        .call("question_recover", {
+          threadId: pending.threadId,
+          id: pending.id,
+          value: null,
+          dismiss: true,
+        })
+        // A question resolved elsewhere simply closes on the next poll.
+        .catch(() => undefined);
+    });
+  }, [composer, pending, rpc, showsCard]);
   const anchorRef = useCallback(
     (node: HTMLElement | null) => {
       if (!threadId) return;
@@ -91,7 +119,7 @@ export function QuestionAnchor() {
   );
   return (
     <div ref={anchorRef} className="contents">
-      {pending?.recoverable && !native ? (
+      {showsCard && pending ? (
         <div
           className={QUESTION_CARD_CLASS}
           role="region"

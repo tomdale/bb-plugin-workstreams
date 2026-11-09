@@ -706,6 +706,9 @@ above the composer:
   inserts a newline. Answers remain while the viewport or pointer mode changes.
 - Draft answers save automatically to `sessionStorage` (`250 ms` debounce) and
   recover across page reloads or interrupted turns.
+- A question outlives its turn when the turn is interrupted, so it stays
+  answerable above the composer until you answer or dismiss it. Sending a
+  message of your own from the composer closes it instead.
 - Submitted questions remain inline as read-only cards, collapsed by default to
   a compact summary of each question and answer. Expand a card to see the
   original question text, details, all options and previews, selected answers,
