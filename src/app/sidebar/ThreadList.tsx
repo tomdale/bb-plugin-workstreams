@@ -118,6 +118,7 @@ import { WorkstreamName } from "../WorkstreamName.tsx";
 import {
   presenceProps,
   useFlip,
+  useFold,
   usePresence,
   type PresenceEntry,
 } from "./motion.ts";
@@ -1265,47 +1266,26 @@ export function WorkstreamsThreadList({
                   const collapsed = isCollapsed(key, true);
                   return (
                     <li key={key} className="list-none">
-                      <section
-                        aria-label={`Archived ${group.name}`}
-                        className="px-1"
+                      <ArchivedWorkstreamGroup
+                        name={group.name}
+                        count={group.threads.length}
+                        collapsed={collapsed}
+                        onToggle={() => toggle(key, true)}
                       >
-                        <button
-                          type="button"
-                          aria-expanded={!collapsed}
-                          onClick={() => toggle(key, true)}
-                          className="flex w-full cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-left text-[12px] font-medium text-muted-foreground hover:bg-sidebar-accent/60"
-                        >
-                          <Icon
-                            name={collapsed ? "ChevronRight" : "ChevronDown"}
-                            className="size-3"
-                          />
-                          <WorkstreamName
-                            name={group.name}
-                            muted
-                            className="flex-1 text-[12px]"
-                          />
-                          <span className="tabular-nums">
-                            {group.threads.length}
-                          </span>
-                        </button>
-                        {collapsed ? null : (
-                          <ul className="mt-0.5">
-                            {sortedBandRows(
-                              group.threads.map((thread) => ({
-                                thread,
-                                depth: 0,
-                                hasChildren: false,
-                                workstreamId: archivedWorkstreamOf(thread),
-                                needsYou: false,
-                              })),
-                              bandOptions.archived.sort,
-                              ws.snoozeOf,
-                            ).map((row) =>
-                              renderRow(row, "archived", undefined, false),
-                            )}
-                          </ul>
+                        {sortedBandRows(
+                          group.threads.map((thread) => ({
+                            thread,
+                            depth: 0,
+                            hasChildren: false,
+                            workstreamId: archivedWorkstreamOf(thread),
+                            needsYou: false,
+                          })),
+                          bandOptions.archived.sort,
+                          ws.snoozeOf,
+                        ).map((row) =>
+                          renderRow(row, "archived", undefined, false),
                         )}
-                      </section>
+                      </ArchivedWorkstreamGroup>
                     </li>
                   );
                 })
@@ -1513,6 +1493,48 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
 const UP_NEXT = "Up Next";
 
 /**
+ * A workstream's archived threads, under a compact header that carries its
+ * name and count.
+ */
+function ArchivedWorkstreamGroup({
+  name,
+  count,
+  collapsed,
+  onToggle,
+  children,
+}: {
+  name: string;
+  count: number;
+  collapsed: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  const fold = useFold(!collapsed);
+  return (
+    <section aria-label={`Archived ${name}`} className="px-1">
+      <button
+        type="button"
+        aria-expanded={!collapsed}
+        onClick={onToggle}
+        className="flex w-full cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-left text-[12px] font-medium text-muted-foreground hover:bg-sidebar-accent/60"
+      >
+        <Icon
+          name={collapsed ? "ChevronRight" : "ChevronDown"}
+          className="size-3"
+        />
+        <WorkstreamName name={name} muted className="flex-1 text-[12px]" />
+        <span className="tabular-nums">{count}</span>
+      </button>
+      {fold.render ? (
+        <div className="ws-presence" {...presenceProps(fold.phase)}>
+          <ul className="mt-0.5">{children}</ul>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
  * An overlay band. A plain band collapses from its header. A boxed band is an
  * always-open block spanning the column, with its header inside: `attention`
  * is the Up Next card (`.ws-needs`), `neutral` the
@@ -1549,6 +1571,7 @@ function Band({
   flipKey?: string;
   children: ReactNode;
 }) {
+  const fold = useFold(collapsed === undefined || !collapsed);
   const heading = (
     <>
       <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
@@ -1616,7 +1639,11 @@ function Band({
         </button>
         {menu}
       </div>
-      {collapsed ? null : <ul className="mt-0.5">{children}</ul>}
+      {fold.render ? (
+        <div className="ws-presence" {...presenceProps(fold.phase)}>
+          <ul className="mt-0.5">{children}</ul>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -1821,6 +1848,7 @@ function WorkstreamGroup({
   const counts = headerCounts(group, collapsed, prefs?.sidebar);
   /** A group with threads folds, from a chevron beside its name. */
   const folds = group.total > 0;
+  const fold = useFold(!collapsed);
   const headingClass = "flex min-w-0 flex-1 items-center gap-1";
   const heading = (
     <WorkstreamName
@@ -1963,7 +1991,11 @@ function WorkstreamGroup({
           </span>
         </div>
       </HeaderMenu>
-      {collapsed ? null : <ul className="list-none">{children}</ul>}
+      {fold.render ? (
+        <div className="ws-presence" {...presenceProps(fold.phase)}>
+          <ul className="list-none">{children}</ul>
+        </div>
+      ) : null}
     </section>
   );
 }

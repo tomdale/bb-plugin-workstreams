@@ -1,8 +1,8 @@
 /**
  * Sidebar motion that keeps changes the user didn't make from jolting the
- * list: rows and bands open and close their height instead of popping, so
- * everything below slides, and workstreams glide to their new place when a
- * priority change reorders them.
+ * list: rows, bands, and group folds open and close their height instead of
+ * popping, so everything below slides, and workstreams glide to their new
+ * place when a priority change reorders them.
  *
  * Motion is skipped where Web Animations are unavailable (tests, old
  * engines) and under reduced motion; there every change applies at once.
@@ -165,6 +165,87 @@ export function presenceProps(phase: PresencePhase) {
     "aria-hidden": phase === "leave" ? true : undefined,
     inert: phase === "leave" ? true : undefined,
   } as const;
+}
+
+/**
+ * A fold's contents, and the phase they are in: `render` stays true through
+ * `leave` so the contents can close their height before they unmount, and
+ * `open` is the state the phase is moving toward, which is where it settles.
+ */
+export type FoldState = {
+  readonly render: boolean;
+  readonly phase: PresencePhase;
+  readonly open: boolean;
+};
+
+/**
+ * The fold's next state when `open` changes: opening contents enter, closing
+ * ones leave, and both stay rendered until they have finished moving.
+ * Without motion, or before the first render, the fold is simply `open`.
+ */
+export function foldState(
+  state: FoldState,
+  open: boolean,
+  animate: boolean,
+): FoldState {
+  if (!animate) return { render: open, phase: "idle", open };
+  if (open === state.open) return state;
+  return { render: true, phase: open ? "enter" : "leave", open };
+}
+
+/** Where a finished phase settles: an open fold idles, a closed one unmounts. */
+export function settleFold(state: FoldState): FoldState {
+  return { render: state.open, phase: "idle", open: state.open };
+}
+
+/**
+ * Whether a fold's contents render, and in which phase (see {@link foldState}).
+ * Like `usePresence`, the first render enters nothing, so a group that starts
+ * folded stays unmounted, and each phase ends on a timer rather than an
+ * animation event, so a missed event never strands the contents.
+ */
+export function useFold(open: boolean, animate = true): FoldState {
+  const committed = useRef<FoldState | null>(null);
+  const timer = useRef<{
+    phase: PresencePhase;
+    id: ReturnType<typeof setTimeout>;
+  } | null>(null);
+  const [, settle] = useReducer((n: number) => n + 1, 0);
+  const state = foldState(
+    committed.current ?? { render: open, phase: "idle", open },
+    open,
+    animate && committed.current !== null && canAnimate(),
+  );
+  useLayoutEffect(() => {
+    committed.current = state;
+  });
+  useEffect(() => {
+    if (state.phase === "idle") {
+      if (timer.current) clearTimeout(timer.current.id);
+      timer.current = null;
+      return;
+    }
+    if (timer.current?.phase === state.phase) return;
+    if (timer.current) clearTimeout(timer.current.id);
+    const phase = state.phase;
+    timer.current = {
+      phase,
+      id: setTimeout(
+        () => {
+          timer.current = null;
+          committed.current = settleFold(committed.current ?? state);
+          settle();
+        },
+        phase === "enter" ? ENTER_MS : LEAVE_MS,
+      ),
+    };
+  });
+  useEffect(() => {
+    return () => {
+      if (timer.current) clearTimeout(timer.current.id);
+    };
+  }, []);
+  return state;
 }
 
 /**
