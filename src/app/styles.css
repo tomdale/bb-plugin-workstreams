@@ -270,17 +270,42 @@
    sidebar's own scroll container, so this sticky presence wrapper stays at its
    top edge without covering the list's controls. */
 .ws-up-next-sticky {
+  --ws-up-next-card-gap: 10px;
+  --ws-up-next-heading-gap: 8px;
   position: sticky;
-  top: 0;
   z-index: 1;
-  background: var(--sidebar, var(--background));
   /* Stick where the card already rests, not at the scrollport's edge: the
      list's top padding scrolls away, so a plain `top: 0` would let the card
      travel that distance before sticking. The shadow bleeds over the same
      strip so rows scrolling beneath stay covered. */
   top: var(--ws-list-pad-top, 0);
+  /* The opaque plate ends at the card. Its bottom margin and the Workstreams
+     heading's top margin hold a fade that softens scrolled rows without
+     dimming the heading at rest or adding layout height. */
+  background: linear-gradient(
+    /* slop-ok: 1 user requested a scroll-under fade */ to bottom,
+    var(--sidebar, var(--background)) calc(100% - var(--ws-up-next-card-gap)),
+    transparent calc(100% - var(--ws-up-next-card-gap))
+  );
   box-shadow: 0 calc(-1 * var(--ws-list-pad-top, 0px)) 0 0
     var(--sidebar, var(--background));
+}
+.ws-up-next-sticky .ws-needs {
+  margin-bottom: var(--ws-up-next-card-gap);
+}
+.ws-up-next-sticky::after {
+  content: "";
+  position: absolute;
+  top: calc(100% - var(--ws-up-next-card-gap));
+  right: 0;
+  left: 0;
+  height: calc(var(--ws-up-next-card-gap) + var(--ws-up-next-heading-gap));
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    var(--sidebar, var(--background)),
+    transparent
+  ); /* slop-ok: 1 user requested a scroll-under fade */
 }
 
 /* The Up Next block: the threads waiting on Tom, and the sidebar's most

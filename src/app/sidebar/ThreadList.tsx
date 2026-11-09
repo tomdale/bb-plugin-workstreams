@@ -1598,7 +1598,7 @@ function Band({
         data-flip-key={flipKey}
         className={cn(
           box === "attention"
-            ? "ws-needs mx-2 mb-2.5 mt-0 px-1 pt-0.5 pb-2" // slop-ok: 2 the Needs you band, an established product surface
+            ? "ws-needs mx-2 mt-0 px-1 pt-0.5 pb-2" // slop-ok: 2 the Needs you band, an established product surface
             : "ws-band-neutral my-1 px-2 py-1", // slop-ok: 2 the neutral band, an established product surface
         )}
       >

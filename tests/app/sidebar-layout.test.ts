@@ -221,5 +221,68 @@ describe.skipIf(browserUnavailable)(
         }
       },
     );
+
+    browserTest(
+      "fades rows below Up Next without moving the card or blocking the list",
+      async ({ page }) => {
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await page.setContent(`<style>${styles}
+          * { box-sizing: border-box; }
+          body { margin: 0; }
+          .scroller { width: 260px; height: 140px; overflow: auto; --sidebar: #0a0a0a; --background: #0a0a0a; background: #0a0a0a; color: white; }
+          .ws-list { display: flex; flex-direction: column; padding: 4px 8px 12px; --ws-list-pad-top: 4px; }
+          .ws-needs { height: 60px; margin-right: 8px; margin-left: 8px; padding: 0; }
+          .heading { height: 13px; margin: 8px 0 0; }
+          .row { height: 20px; flex: 0 0 20px; }
+        </style>
+        <div class="scroller"><div class="ws-list">
+          <div class="ws-presence ws-up-next-sticky"><div><section class="ws-needs"></section></div></div>
+          <h2 class="heading">Workstreams</h2>
+          ${'<div class="row">Thread</div>'.repeat(10)}
+        </div></div>`);
+
+        const geometry = await page.evaluate(() => {
+          const sticky = document.querySelector(".ws-up-next-sticky")!;
+          const card = sticky.querySelector(".ws-needs")!;
+          const heading = document.querySelector(".heading")!;
+          const fade = getComputedStyle(sticky, "::after");
+          return {
+            card: card.getBoundingClientRect().toJSON(),
+            sticky: sticky.getBoundingClientRect().toJSON(),
+            heading: heading.getBoundingClientRect().toJSON(),
+            fade: {
+              top: Number.parseFloat(fade.top),
+              height: Number.parseFloat(fade.height),
+              pointerEvents: fade.pointerEvents,
+              backgroundImage: fade.backgroundImage,
+            },
+          };
+        });
+        expect(geometry.card.top).toBe(4);
+        expect(geometry.sticky.bottom).toBe(geometry.card.bottom + 10);
+        expect(geometry.heading.top).toBe(geometry.sticky.bottom + 8);
+        expect(geometry.fade).toEqual({
+          top: geometry.card.bottom - geometry.sticky.top,
+          height: geometry.heading.top - geometry.card.bottom,
+          pointerEvents: "none",
+          backgroundImage: geometry.fade.backgroundImage,
+        });
+        expect(geometry.fade.backgroundImage).toContain("linear-gradient");
+
+        await page.locator(".scroller").evaluate((el) => {
+          el.scrollTop = 24;
+        });
+        const scrolled = await page.evaluate(() => {
+          const sticky = document.querySelector(".ws-up-next-sticky")!;
+          const card = sticky.querySelector(".ws-needs")!;
+          const hit = document.elementFromPoint(20, 78);
+          return {
+            cardTop: card.getBoundingClientRect().top,
+            hitIsSticky: hit?.closest(".ws-up-next-sticky") != null,
+          };
+        });
+        expect(scrolled).toEqual({ cardTop: 4, hitIsSticky: false });
+      },
+    );
   },
 );

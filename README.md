@@ -353,15 +353,16 @@ organizing suggestions does not disable automatic categories.
 Select **Workstreams** as your sidebar thread list to organize threads into:
 
 1. **Up Next:** A sticky amber card at the top of the sidebar with the few root
-   threads most worth your attention. Every root that isn't archived, snoozed,
-   or running is a candidate; a running thread joins only while it has a
-   question card or approval pending, and otherwise returns, unread, when its
-   turn ends. A thread with a question for you (`AskUserQuestion` or approval
-   pending, or a `needs_decision` status) or a turn ready for review is _blocked
-   on you_; anything else (complete, waiting, failed) is not. A review or
-   decision whose turn ended more than `7` days ago ages out and counts as not
-   blocked; a pending question card or approval never ages out. Candidates rank
-   in six tiers, each newest first by latest turn end:
+   threads most worth your attention. The list fades into the sidebar background
+   as it scrolls beneath the card. Every root that isn't archived, snoozed, or
+   running is a candidate; a running thread joins only while it has a question
+   card or approval pending, and otherwise returns, unread, when its turn ends.
+   A thread with a question for you (`AskUserQuestion` or approval pending, or a
+   `needs_decision` status) or a turn ready for review is _blocked on you_;
+   anything else (complete, waiting, failed) is not. A review or decision whose
+   turn ended more than `7` days ago ages out and counts as not blocked; a
+   pending question card or approval never ages out. Candidates rank in six
+   tiers, each newest first by latest turn end:
    1. Unread threads
    2. Read questions
    3. Read reviews
@@ -436,15 +437,15 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    - Drag a root thread to another workstream to set its **Topic** to that
      workstream's topic; its delegates follow it. Drop on a row to place it
      before or after that root, or on a header to place it first, including a
-     collapsed workstream. Drop in **Unfiled** to clear its
-     topic. When the destination represents several topics, Workstreams uses the
-     Placement model to choose an existing topic within that group. It shows
-     **Choosing a topic in the destination workstream…** while choosing, then
-     saves the choice as a manual topic. The same action works on a parent
-     group's header, including groups whose topics list inline; when that header
-     has no thread list of its own, the chosen subgroup's order applies. If the
-     call fails, returns an invalid topic, or the thread or topic tree changes
-     while it runs, the thread keeps its topic and the sidebar shows an error.
+     collapsed workstream. Drop in **Unfiled** to clear its topic. When the
+     destination represents several topics, Workstreams uses the Placement model
+     to choose an existing topic within that group. It shows **Choosing a topic
+     in the destination workstream…** while choosing, then saves the choice as a
+     manual topic. The same action works on a parent group's header, including
+     groups whose topics list inline; when that header has no thread list of its
+     own, the chosen subgroup's order applies. If the call fails, returns an
+     invalid topic, or the thread or topic tree changes while it runs, the
+     thread keeps its topic and the sidebar shows an error.
    - Drag root threads within a workstream to set manual thread order (newly
      created roots appear at the top of their workstream; newly created
      workstreams appear at the bottom).
@@ -481,8 +482,8 @@ weight. Unread titles use medium weight.
   **New work**, **Snooze**, then **Focus**. A focused workstream's **Focus**
   mark always shows, at the trailing edge so revealing other actions doesn't
   move it. Touch screens, which can't hover, show only that mark; the rest stay
-  in the row's long-press menu. Section **⋯**
-  menus always show, dimmed until used.
+  in the row's long-press menu. Section **⋯** menus always show, dimmed until
+  used.
 - **Right-click context menu:** **Open in split**, **Open parent** (for
   delegates), **Topic** (switch to **Automatic** or assign any topic in the
   tree), **Rename…**, **Pin / Unpin**, **Mark read / Mark unread**, **Inspect
@@ -1291,11 +1292,11 @@ tests exercise the real loader with full pages. Sidebar row presentation, count
 preferences, archive ancestry, band sorting, tree folding, and batch snooze
 membership run headlessly through `src/app/sidebar/{presentation,rows}.ts`.
 Grouping policy matrices live in
-`tests/domain/{groups,nested-groups,project}.test.ts`;
-sidebar integration tests keep representative rendering and interaction cases.
-Native row shortcuts, Archive, disclosure, and realtime preferences are tested
-on a single real row through the SDK harness, without mounting the whole
-sidebar. Keep these tests in `npm test`, not a separate fast suite.
+`tests/domain/{groups,nested-groups,project}.test.ts`; sidebar integration tests
+keep representative rendering and interaction cases. Native row shortcuts,
+Archive, disclosure, and realtime preferences are tested on a single real row
+through the SDK harness, without mounting the whole sidebar. Keep these tests in
+`npm test`, not a separate fast suite.
 
 Run `npm run test:benchmark -- --runs 5 --output-dir /tmp/workstreams-benchmark`
 to measure full-suite wall-clock time, including npm and Vitest startup. The
