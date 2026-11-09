@@ -173,7 +173,8 @@ it("lists analysis and journal events and opens every transcript behind an event
   const analysis = trace("analysis", {
     at: now - 1_000,
     label: "Evaluate rename guidance",
-    summary: "done",
+    summary:
+      "done · title “Evaluate rename guidance” · goal “Keep titles current”",
     threads: ["t1"],
   });
   const placement = trace("placement", {
@@ -244,6 +245,7 @@ it("lists analysis and journal events and opens every transcript behind an event
     "[data-ws-thread-activity]",
   )!;
   const rows = within(activity as HTMLElement).getAllByRole("button");
+  expect(rows[0]?.textContent).not.toContain("·");
   expect(rows.map((row) => row.textContent)).toEqual([
     expect.stringContaining("Full analysis"),
     expect.stringContaining("Updated title"),

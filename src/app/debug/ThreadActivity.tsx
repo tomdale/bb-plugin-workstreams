@@ -56,7 +56,7 @@ function itemsOf(result: ActivityResult | null): ActivityItem[] {
       key: `trace:${trace.id}`,
       at: trace.at,
       label: TRACE_KIND_TITLE[trace.kind],
-      detail: trace.error ?? trace.summary ?? trace.label,
+      detail: trace.error ?? trace.summary?.split(" · ")[0] ?? trace.label,
       failed: trace.status !== "ok",
       target: { traceIds: [trace.id] } satisfies InspectTarget,
     })),
