@@ -1,10 +1,10 @@
 /**
- * The Workstreams sidebar thread list: the Up Next section, the focused
- * workstreams, and the Recent band, then one group per remaining workstream
- * (BB section, in the user's drag-and-drop order, else BB's) that holds a
- * visible thread, Unfiled, a Dormant fold, and a Snoozed fold. Up Next and
- * Recent are overlays: every visible thread appears in exactly one group, or
- * in Snoozed.
+ * The Workstreams sidebar thread list: the Up Next and Pinned bands, the
+ * focused workstreams, and the Recent band, then one group per remaining
+ * workstream (BB section, in the user's drag-and-drop order, else BB's) that
+ * holds a visible thread, Unfiled, a Dormant fold, and a Snoozed fold. Up
+ * Next, Pinned, and Recent are overlays: every visible thread appears in
+ * exactly one group, or in Snoozed.
  *
  * Workstreams nest by topic (see `nestGroups`): a group lists its own
  * threads, then the threads of subgroups too small for headers, each
@@ -18,6 +18,10 @@
  * a toggle below the focused ones. Focused workstreams are stored as
  * `prioritized`. Up Next never moves the open thread's row out from under
  * the user, and rows open and close rather than pop (see `motion.ts`).
+ *
+ * Pinned lists the roots the user pinned, in BB's pin order, directly under
+ * Up Next. The two bands share one sticky plate at the top of the list, so
+ * both stay in reach while the workstreams scroll beneath them.
  */
 import {
   cloneElement,
@@ -524,7 +528,21 @@ export function WorkstreamsThreadList({
   );
   const rowKey = (row: ThreadRow) => row.thread.id;
   const showBand = ws.showForYou && shownNeedsRows.length > 0;
+  const pinnedRows = projection.pinnedThreads;
+  const pinnedMarks = useMemo(
+    () => anyMark(pinnedRows, "pinned"),
+    [pinnedRows, ws.server.analysis, ws.server.recaps],
+  );
+  const showPinned = pinnedRows.length > 0;
+  // The sticky plate holds both bands: it enters and leaves as one, while each
+  // band inside opens and closes on its own.
+  const stackPresence = usePresence(
+    showBand || showPinned ? ["stack"] : [],
+    String,
+  );
   const bandPresence = usePresence(showBand ? ["band"] : [], String);
+  const pinnedBandPresence = usePresence(showPinned ? ["pinned"] : [], String);
+  const pinnedRowPresence = usePresence(pinnedRows, rowKey);
   const needsPresence = usePresence(shownNeedsRows, rowKey);
   const needsControls = usePresence(
     showMore || moreCount > 0 ? ["more"] : [],
@@ -1123,56 +1141,97 @@ export function WorkstreamsThreadList({
             Choosing a topic in the destination workstream…
           </p>
         ) : null}
-        {bandPresence.map((band) => (
+        {stackPresence.map((stack) => (
           <div
-            key={band.key}
+            key={stack.key}
             data-flip-key="up-next"
             className="ws-presence ws-up-next-sticky [--ws-presence-gap:0.5rem]"
-            {...presenceProps(band.phase)}
+            {...presenceProps(stack.phase)}
           >
-            <div>
-              <Band
-                title={UP_NEXT}
-                box="attention"
-                markless={!needsMarks}
-                badge={
-                  focus.active ? (
-                    <Hint label="Showing focused workstreams">
-                      <span
-                        role="img"
-                        aria-label="Showing focused workstreams"
-                        className="inline-flex"
-                      >
-                        <FocusIcon className="size-3" />
-                      </span>
-                    </Hint>
-                  ) : null
-                }
-              >
-                {needsPresence.map((entry) =>
-                  present(
-                    entry,
-                    renderOverlayTree(entry.item, "needs-you", needsMarks),
-                  ),
-                )}
-                {needsControls.map((entry) =>
-                  present(
-                    entry,
-                    <li>
-                      <button
-                        type="button"
-                        aria-expanded={showMore}
-                        onClick={() => setShowMore((more) => !more)}
-                        className={bandControlClass("ws-needs-you-text")}
-                      >
-                        {showMore
-                          ? "Show less"
-                          : `Show ${Math.max(1, moreCount)} more`}
-                      </button>
-                    </li>,
-                  ),
-                )}
-              </Band>
+            <div className="flex flex-col gap-[10px]">
+              {bandPresence.map((band) => (
+                <div
+                  key={band.key}
+                  className="ws-presence [--ws-presence-gap:0.5rem]"
+                  {...presenceProps(band.phase)}
+                >
+                  <div>
+                    <Band
+                      title={UP_NEXT}
+                      box="attention"
+                      markless={!needsMarks}
+                      badge={
+                        focus.active ? (
+                          <Hint label="Showing focused workstreams">
+                            <span
+                              role="img"
+                              aria-label="Showing focused workstreams"
+                              className="inline-flex"
+                            >
+                              <FocusIcon className="size-3" />
+                            </span>
+                          </Hint>
+                        ) : null
+                      }
+                    >
+                      {needsPresence.map((entry) =>
+                        present(
+                          entry,
+                          renderOverlayTree(
+                            entry.item,
+                            "needs-you",
+                            needsMarks,
+                          ),
+                        ),
+                      )}
+                      {needsControls.map((entry) =>
+                        present(
+                          entry,
+                          <li>
+                            <button
+                              type="button"
+                              aria-expanded={showMore}
+                              onClick={() => setShowMore((more) => !more)}
+                              className={bandControlClass("ws-needs-you-text")}
+                            >
+                              {showMore
+                                ? "Show less"
+                                : `Show ${Math.max(1, moreCount)} more`}
+                            </button>
+                          </li>,
+                        ),
+                      )}
+                    </Band>
+                  </div>
+                </div>
+              ))}
+              {pinnedBandPresence.map((band) => (
+                <div
+                  key={band.key}
+                  className="ws-presence [--ws-presence-gap:0.5rem]"
+                  {...presenceProps(band.phase)}
+                >
+                  <div>
+                    <Band
+                      title={PINNED}
+                      box="pinned"
+                      markless={!pinnedMarks}
+                      badge={
+                        <span className="inline-flex items-center">
+                          <Icon name="Pin" className="size-3" />
+                        </span>
+                      }
+                    >
+                      {pinnedRowPresence.map((entry) =>
+                        present(
+                          entry,
+                          renderOverlayTree(entry.item, "pinned", pinnedMarks),
+                        ),
+                      )}
+                    </Band>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ))}
@@ -1993,6 +2052,7 @@ function sameSidebarThreadRow(
 
 /** The band of threads most worth the user's attention (see `selectUpNext`). */
 const UP_NEXT = "Up Next";
+const PINNED = "Pinned";
 
 /**
  * A fold's chevron: one arrow that turns a quarter turn as the fold opens,
@@ -2053,8 +2113,9 @@ function ArchivedWorkstreamGroup({
 /**
  * An overlay band. A plain band collapses from its header. A boxed band is an
  * always-open block spanning the column, with its header inside: `attention`
- * is the Up Next card (`.ws-needs`), `neutral` the
- * quieter Recent block (`.ws-band-neutral`). Both set their rows apart from
+ * is the Up Next card (`.ws-needs`), `pinned` the quiet card of the threads
+ * kept in reach (`.ws-pinned`), and `neutral` the
+ * quieter Recent block (`.ws-band-neutral`). Each sets its rows apart from
  * the workstream list below.
  */
 function Band({
@@ -2073,7 +2134,7 @@ function Band({
   title: string;
   /** Row total, shown only while the band is collapsed. */
   count?: number;
-  box?: "attention" | "neutral";
+  box?: "attention" | "pinned" | "neutral";
   /** A small mark after the title. */
   badge?: ReactNode;
   /**
@@ -2117,16 +2178,18 @@ function Band({
         className={cn(
           box === "attention"
             ? "ws-needs mx-2 mt-0 px-1 pt-0.5 pb-2" // slop-ok: 2 the Needs you band, an established product surface
-            : "ws-band-neutral my-1 px-2 py-1", // slop-ok: 2 the neutral band, an established product surface
+            : box === "pinned"
+              ? "ws-pinned mx-2 mt-0 px-1 pt-0.5 pb-2" // slop-ok: 2 the Pinned band, the Up Next card's quieter neighbor
+              : "ws-band-neutral my-1 px-2 py-1", // slop-ok: 2 the neutral band, an established product surface
         )}
       >
         <div className="flex items-center gap-1">
           <h2
             className={cn(
               "flex min-w-0 flex-1 items-center gap-1 pr-1.5",
-              box === "attention"
-                ? "pb-1 text-[12px] font-medium"
-                : "py-0.5 text-[11px] font-semibold uppercase tracking-wide", // slop-ok: 1 the product's section-label style
+              box === "neutral"
+                ? "py-0.5 text-[11px] font-semibold uppercase tracking-wide" // slop-ok: 1 the product's section-label style
+                : "pb-1 text-[12px] font-medium",
               markless ? "pl-3.5" : "pl-1.5",
               box === "attention"
                 ? "ws-needs-heading"

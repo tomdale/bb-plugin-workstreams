@@ -20,6 +20,7 @@ import { colorForWorkstream } from "../../domain/workstreamColor.ts";
 import { usePrefs } from "../prefs.ts";
 import { useWorkstreams } from "../useWorkstreams.ts";
 import { WorkstreamGroups, type HomeEnv } from "./Groups.tsx";
+import { PinnedBlock } from "./PinnedBlock.tsx";
 import { UpNextBlock } from "./UpNextBlock.tsx";
 import { HIDDEN_NOW } from "./HomeRow.tsx";
 import { detectPlacement, homeMode, type Placement } from "./layout.ts";
@@ -156,6 +157,30 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
               rows={plan.upNext.rows}
               more={plan.upNext.more}
               focused={plan.focus.active}
+              work={ws.work}
+              analysis={server.analysis}
+              recaps={server.recaps}
+              workstreamOf={(row) => {
+                const name = row.workstreamId
+                  ? nameOf.get(row.workstreamId)
+                  : undefined;
+                return row.workstreamId && name
+                  ? {
+                      name,
+                      color: colorForWorkstream(
+                        row.workstreamId,
+                        ws.server.catalog,
+                      ),
+                    }
+                  : null;
+              }}
+              now={env.showAge ? ws.displayNow : HIDDEN_NOW}
+              showAge={env.showAge}
+            />
+          ) : null}
+          {plan.pinnedThreads.length > 0 ? (
+            <PinnedBlock
+              rows={plan.pinnedThreads}
               work={ws.work}
               analysis={server.analysis}
               recaps={server.recaps}

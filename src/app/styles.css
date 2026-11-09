@@ -282,22 +282,24 @@
     color-mix(in oklab, var(--muted-foreground) 55%, transparent);
 }
 
-/* Keep Up Next visible while workstreams scroll beneath it. The list is the
-   sidebar's own scroll container, so this sticky presence wrapper stays at its
-   top edge without covering the list's controls. */
+/* Keep the top bands — Up Next, then Pinned — visible while the workstreams
+   scroll beneath them. The list is the sidebar's own scroll container, so this
+   sticky presence wrapper stays at its top edge without covering the list's
+   controls. */
 .ws-up-next-sticky {
   --ws-up-next-card-gap: 10px;
   --ws-up-next-heading-gap: 8px;
   position: sticky;
   z-index: 1;
-  /* Stick where the card already rests, not at the scrollport's edge: the
-     list's top padding scrolls away, so a plain `top: 0` would let the card
+  /* Stick where the cards already rest, not at the scrollport's edge: the
+     list's top padding scrolls away, so a plain `top: 0` would let the cards
      travel that distance before sticking. The shadow bleeds over the same
      strip so rows scrolling beneath stay covered. */
   top: var(--ws-list-pad-top, 0);
-  /* The opaque plate ends at the card. Its bottom margin and the Workstreams
-     heading's top margin hold a fade that softens scrolled rows without
-     dimming the heading at rest or adding layout height. */
+  /* The opaque plate ends below the last card. The bottom padding is the fade
+     strip: scrolled rows soften there without dimming the heading at rest or
+     adding layout height inside the cards. */
+  padding-bottom: var(--ws-up-next-card-gap);
   background: linear-gradient(
     /* slop-ok: 1 user requested a scroll-under fade */ to bottom,
     var(--sidebar, var(--background)) calc(100% - var(--ws-up-next-card-gap)),
@@ -305,9 +307,6 @@
   );
   box-shadow: 0 calc(-1 * var(--ws-list-pad-top, 0px)) 0 0
     var(--sidebar, var(--background));
-}
-.ws-up-next-sticky .ws-needs {
-  margin-bottom: var(--ws-up-next-card-gap);
 }
 .ws-up-next-sticky::after {
   content: "";
@@ -424,6 +423,27 @@
   .ws-needs::after {
     display: none;
   }
+}
+
+/* The Pinned block: the threads the user keeps in reach, directly under Up
+   Next in the same floating plate. A quiet card, so the Needs you tint above
+   stays the one thing shouting, drawn with the workstream list's own rows so
+   a pinned thread reads the same here and in its workstream. */
+.ws-pinned {
+  border: 1px solid
+    color-mix(in oklab, var(--sidebar-border, var(--border)) 100%, transparent);
+  border-radius: 8px;
+  background-color: color-mix(
+    in oklab,
+    var(--sidebar-accent, var(--accent)) 45%,
+    var(--sidebar, transparent)
+  );
+}
+.ws-pinned .ws-row:not(.ws-row-active):hover::before {
+  background-color: color-mix(in oklab, var(--foreground) 7%, transparent);
+}
+.ws-pinned .ws-row.ws-row-active::before {
+  background-color: color-mix(in oklab, var(--foreground) 10%, transparent);
 }
 
 /* The Recent block: a quiet wash in the foreground color, without the Up

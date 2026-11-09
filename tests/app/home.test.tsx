@@ -297,6 +297,27 @@ describe("Home screen", () => {
       expect(within(alpha).getByLabelText("Pinned")).toBeTruthy();
     });
 
+    it("lists pinned threads under Up Next, without a pin marker in the Pinned list", async () => {
+      const slot = await mountHome({
+        threads: [
+          ...sample(),
+          sidebarThread("pinned", {
+            sectionId: "sec_b",
+            title: "Pinned task",
+            isPinned: true,
+            pinnedAt: 1,
+            latestAttentionAt: minutes(4),
+          }),
+        ],
+      });
+      const pinned = await slot.findByRole("region", { name: "Pinned" });
+      expect(links(pinned)).toEqual(["Pinned task"]);
+      // The heading already says Pinned.
+      expect(within(pinned).queryByLabelText("Pinned")).toBeNull();
+      // Between Up Next and the workstreams.
+      expect(regionNames(slot).slice(0, 2)).toEqual(["Up Next", "Pinned"]);
+    });
+
     it("remembers what was opened on this device", async () => {
       const first = await mountHome({ threads: sample() });
       await first.findByRole("region", { name: "Workstreams" });

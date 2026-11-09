@@ -353,8 +353,9 @@ organizing suggestions does not disable automatic categories.
 Select **Workstreams** as your sidebar thread list to organize threads into:
 
 1. **Up Next:** A sticky amber card at the top of the sidebar with the few root
-   threads most worth your attention. The list fades into the sidebar background
-   as it scrolls beneath the card. Every root that isn't archived, snoozed, or
+   threads most worth your attention. Up Next and **Pinned** share one sticky
+   plate at the top of the list, and the list fades into the sidebar background
+   as it scrolls beneath them. Every root that isn't archived, snoozed, or
    running is a candidate; a running thread joins only while it has a question
    card or approval pending, and otherwise returns, unread, when its turn ends.
    A thread with a question for you (`AskUserQuestion` or approval pending, or a
@@ -388,7 +389,14 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      applies these rules to focused workstreams' threads only and marks its
      header with the focus icon.
 
-2. **Workstreams (focused and other tiers):**
+2. **Pinned:** The threads you pinned in BB, in a quiet card directly under Up
+   Next and inside the same sticky plate. Rows keep BB's pin order: pins you
+   reordered lead, then the pins never reordered, newest first. Pinning is a
+   second way to see a thread, not a move: the thread also stays in its
+   workstream, and a pinned delegate stays under its root. A snoozed pin waits
+   in **Snoozed** until it wakes, and a pin's delegates list under it, hidden
+   until you open them, as in Up Next.
+3. **Workstreams (focused and other tiers):**
    - **Topics and categories:** Each leaf topic has its own workstream header,
      with its first-level container dimmed before its name when present
      (**Vercel Agent** Automations). The container reads in its own color,
@@ -449,10 +457,10 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    - Drag root threads within a workstream to set manual thread order (newly
      created roots appear at the top of their workstream; newly created
      workstreams appear at the bottom).
-3. **Unfiled:** Roots with no topic assignment.
-4. **Dormant:** Unfocused workstreams with no activity in the last `30` days and
+4. **Unfiled:** Roots with no topic assignment.
+5. **Dormant:** Unfocused workstreams with no activity in the last `30` days and
    nothing waiting on you.
-5. **Recent, Snoozed, and Archived bands:**
+6. **Recent, Snoozed, and Archived bands:**
    - **Recent** lists the most recently active root threads (`1–20`, default
      `5`) that Up Next isn't showing, so it carries on where Up Next stops.
      Snoozed threads stay out.
@@ -497,7 +505,7 @@ weight. Unread titles use medium weight.
 On compact viewports (when **Sidebar → Up next and workstreams on phones** is
 enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
 
-- The **Up Next** card at the top.
+- The **Up Next** card at the top, with the **Pinned** card directly under it.
 - **Workstreams** sections with topic color dots, waiting/total badges, an
   **Expand all / Collapse all** toggle, and per-parent delegate fold controls.
   Focused workstreams (or a single active workstream) start expanded.

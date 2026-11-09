@@ -254,6 +254,55 @@ describe("needs-you folding", () => {
   });
 });
 
+describe("pinned threads", () => {
+  const pinned = (id: string, overrides = {}) =>
+    thread(id, { sectionId: "sec_a", isPinned: true, ...overrides });
+
+  it("lists pinned roots in BB's pin order without leaving their groups", () => {
+    const p = projectWorkstreams(
+      [
+        pinned("newer", { pinnedAt: 300, latestAttentionAt: now - 3 }),
+        pinned("keyed", {
+          pinnedAt: 100,
+          pinSortKey: "0A",
+          latestAttentionAt: now - 2,
+        }),
+        pinned("older", { pinnedAt: 200, latestAttentionAt: now - 1 }),
+        thread("plain", { sectionId: "sec_a", latestAttentionAt: now }),
+      ],
+      sections,
+      { now },
+    );
+    expect(p.pinnedThreads.map((row) => row.thread.id)).toEqual([
+      "keyed",
+      "newer",
+      "older",
+    ]);
+    expect(p.pinnedThreads.every((row) => row.depth === 0)).toBe(true);
+    // Overlay, like Up Next: every pinned row is still a row of its group.
+    expect(rowIds(p.groups[0]!)).toEqual(["keyed", "newer", "older", "plain"]);
+  });
+
+  it("leaves out a pinned child and a pinned thread that is hidden, archived, or snoozed", () => {
+    const p = projectWorkstreams(
+      [
+        thread("root", { sectionId: "sec_a" }),
+        pinned("child", { parentThreadId: "root" }),
+        pinned("hidden", { isHidden: true }),
+        pinned("archived", { isArchived: true }),
+        pinned("snoozed", { parentThreadId: "root" }),
+      ],
+      sections,
+      {
+        now,
+        snoozedUntil: (candidate) =>
+          candidate.id === "snoozed" ? now + DAY_MS : undefined,
+      },
+    );
+    expect(p.pinnedThreads).toEqual([]);
+  });
+});
+
 describe("snoozed threads", () => {
   const threads = () => [
     thread("root", { sectionId: "sec_a", latestAttentionAt: now }),

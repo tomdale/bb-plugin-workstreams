@@ -315,6 +315,34 @@ section:has(> [data-bb-plugin-root] > [data-ws-home="hidden"]) {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
+/* Pinned: a quiet card under Up Next holding the threads kept in reach. */
+.ws-home-pinned {
+  padding: 4px;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  border-radius: 12px;
+  background-color: color-mix(
+    in oklab,
+    var(--accent) 40%,
+    var(--background, transparent)
+  );
+}
+.ws-home-pinned-head {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  font-size: var(--text-sm, 0.8125rem);
+  font-weight: 600;
+  line-height: var(--text-sm--line-height, 1.25rem);
+  color: var(--muted-foreground);
+}
+.ws-home-pinned-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--muted-foreground);
+}
 .ws-home-more {
   display: flex;
   width: 100%;

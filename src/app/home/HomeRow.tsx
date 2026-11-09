@@ -41,6 +41,7 @@ export const HomeThreadRow = memo(function HomeThreadRow({
   workstreamName,
   workstreamHue,
   workstreamLevel,
+  showPin,
   trailing,
   disclosureId,
   disclosureOpen,
@@ -58,6 +59,8 @@ export const HomeThreadRow = memo(function HomeThreadRow({
   workstreamName?: string;
   workstreamHue?: number;
   workstreamLevel?: TopicColor["level"];
+  /** False in a list of pinned threads, whose heading already says so. */
+  showPin?: boolean;
   trailing?: string;
   disclosureId?: string;
   disclosureOpen?: boolean;
@@ -89,6 +92,7 @@ export const HomeThreadRow = memo(function HomeThreadRow({
           ? work.analysis.needsYou
           : null
       }
+      showPin={showPin}
       trailing={trailing}
       disclosure={
         disclosureId &&
@@ -124,6 +128,7 @@ export function HomeRow({
   showAge,
   workstream,
   ask,
+  showPin = true,
   trailing,
   disclosure,
 }: {
@@ -141,6 +146,8 @@ export function HomeRow({
   workstream?: { name: string; color: TopicColor } | null;
   /** What the thread asks of the user, from its current analysis. */
   ask?: string | null;
+  /** Whether the row marks a pinned thread; on unless the list is Pinned. */
+  showPin?: boolean;
   /**
    * Replaces the age: a snoozed thread's wake time, or the name of the group
    * a row lists for when that group has no header of its own.
@@ -186,7 +193,7 @@ export function HomeRow({
             ) : null}
           </span>
         ) : null}
-        {thread.isPinned ? (
+        {thread.isPinned && showPin ? (
           <span className="ws-home-pin" role="img" aria-label="Pinned">
             <Icon name="Pin" className="ws-home-pin-icon" />
           </span>

@@ -6,9 +6,9 @@
  * each tree under its root's section. Every visible, non-archived
  * thread appears in exactly one group row, or in Snoozed: a snoozed
  * thread leaves its group, with its descendants, until it wakes. Up Next and
- * Recent (see `upNext.ts`) are overlays that reference the group rows; they
- * never replace them, and never show snoozed threads. Focused workstreams
- * (`prioritized`) lead the groups and never go dormant.
+ * Recent (see `upNext.ts`), and Pinned, are overlays that reference the group
+ * rows; they never replace them, and never show snoozed threads. Focused
+ * workstreams (`prioritized`) lead the groups and never go dormant.
  */
 import { applyOrder, type ManualOrder } from "./order.ts";
 import {
@@ -23,6 +23,7 @@ export type WorkstreamThread = TreeThread & {
   readonly isHidden: boolean;
   readonly isArchived: boolean;
   readonly isPinned: boolean;
+  readonly pinnedAt?: number | null;
   readonly pinSortKey?: string | null;
   readonly hasPendingInteraction: boolean;
   readonly latestAttentionAt: number;
@@ -55,6 +56,13 @@ export type Group<T extends WorkstreamThread> = {
 
 export type Projection<T extends WorkstreamThread> = {
   readonly needsYou: readonly Row<T>[];
+  /**
+   * Pinned roots in BB's pin order, for the Pinned band under Up Next. An
+   * overlay like `needsYou`: each row's thread also stays in its group. A
+   * pinned thread that is snoozed waits in Snoozed until it wakes, and a
+   * pinned child thread stays under its root rather than appearing alone.
+   */
+  readonly pinnedThreads: readonly Row<T>[];
   /**
    * Active workstreams: focused ones first, each tier in the manual
    * order, else BB's section order.
@@ -110,13 +118,29 @@ type ProjectionOptions<T extends WorkstreamThread> = {
   readonly snoozedUntil?: (thread: T) => number | null | undefined;
 };
 
-const pinOrder = (a: WorkstreamThread, b: WorkstreamThread) =>
-  (a.pinSortKey ?? "").localeCompare(b.pinSortKey ?? "");
+/**
+ * BB's order among pinned threads: the ones the user has reordered come
+ * first, by their stored sort key, then the pins never reordered, most
+ * recent pin first. The id keeps the order stable between equal pins.
+ */
+export function comparePinned(
+  a: WorkstreamThread,
+  b: WorkstreamThread,
+): number {
+  const aKey = a.pinSortKey ?? null;
+  const bKey = b.pinSortKey ?? null;
+  if (aKey !== null && bKey !== null) {
+    const byKey = aKey.localeCompare(bKey);
+    if (byKey) return byKey;
+  } else if (aKey !== null) return -1;
+  else if (bKey !== null) return 1;
+  return (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0) || a.id.localeCompare(b.id);
+}
 
-/** Pinned roots first in manual order, then most recent attention first. */
+/** Pinned roots first in pin order, then most recent attention first. */
 function compareRoots(a: WorkstreamThread, b: WorkstreamThread): number {
   if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-  if (a.isPinned) return pinOrder(a, b) || a.id.localeCompare(b.id);
+  if (a.isPinned) return comparePinned(a, b);
   return b.latestAttentionAt - a.latestAttentionAt || a.id.localeCompare(b.id);
 }
 
@@ -312,6 +336,10 @@ export function projectWorkstreams<T extends WorkstreamThread>(
     a.thread.id.localeCompare(b.thread.id);
   const all = [...rowOf.values()];
   const needsYouRows = all.filter(counts).sort(byAttention);
+  const pinnedThreads = activeRoots
+    .filter((root) => root.thread.isPinned)
+    .map((root) => rowOf.get(root.thread.id)!)
+    .sort((a, b) => comparePinned(a.thread, b.thread));
 
   const wakeRank = (node: TreeNode<T>) =>
     wakeOf(node.thread) ?? Number.POSITIVE_INFINITY;
@@ -336,6 +364,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
 
   return {
     needsYou: needsYouRows,
+    pinnedThreads,
     groups: [...pinned, ...groups],
     all: allGroups,
     unsorted: group(UNSORTED_ID, UNFILED_NAME),

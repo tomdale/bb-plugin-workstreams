@@ -5,7 +5,7 @@ import type { BandSort } from "./useBandOptions.ts";
 
 export type ThreadRow = Row<PluginSidebarThread>;
 export type Placement =
-  "group" | "needs-you" | "recent" | "snoozed" | "archived";
+  "group" | "needs-you" | "pinned" | "recent" | "snoozed" | "archived";
 type SnoozeOf = (
   thread: PluginSidebarThread,
 ) => { until: number | null } | undefined;
@@ -14,7 +14,7 @@ type SnoozeOf = (
 export const foldKey = (placement: Placement, id: string) =>
   placement === "group" ? `thread:${id}` : `${placement}:thread:${id}`;
 export const foldDefault = (placement: Placement) =>
-  placement === "needs-you" || placement === "recent";
+  placement === "needs-you" || placement === "pinned" || placement === "recent";
 
 export function treesOf(rows: readonly ThreadRow[]): ThreadRow[][] {
   const trees: ThreadRow[][] = [];

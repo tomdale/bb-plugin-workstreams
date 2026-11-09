@@ -36,6 +36,8 @@ export type HomePlan<T extends WorkstreamThread> = {
     readonly rows: readonly Row<T>[];
     readonly more: readonly Row<T>[];
   } | null;
+  /** The pinned roots, in BB's pin order, under Up Next (see `Projection`). */
+  readonly pinnedThreads: readonly Row<T>[];
   /**
    * Focus, which holds whether or not Up Next shows: while a focused
    * workstream has a thread blocked on the user, Up Next lists only focused
@@ -110,6 +112,7 @@ export function planHome<T extends UpNextThread>(
   const populatedCount = pinned.length + others.length + (unfiled ? 1 : 0);
   return {
     upNext,
+    pinnedThreads: projection.pinnedThreads,
     focus: { active: selection.focused },
     pinned,
     populated: others,
@@ -122,6 +125,7 @@ export function planHome<T extends UpNextThread>(
     populatedCount,
     isEmpty:
       !upNext &&
+      projection.pinnedThreads.length === 0 &&
       populatedCount === 0 &&
       dormant.length === 0 &&
       !snoozed.length,
