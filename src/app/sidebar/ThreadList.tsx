@@ -1493,6 +1493,23 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
 const UP_NEXT = "Up Next";
 
 /**
+ * A fold's chevron: one arrow that turns a quarter turn as the fold opens,
+ * over the 150ms BB's own sidebar uses, so the state reads without the icon
+ * swapping out from under the pointer.
+ */
+function FoldChevron({ open }: { open: boolean }) {
+  return (
+    <Icon
+      name="ChevronRight"
+      className={cn(
+        "size-3 transition-transform duration-150 motion-reduce:transition-none",
+        open && "rotate-90",
+      )}
+    />
+  );
+}
+
+/**
  * A workstream's archived threads, under a compact header that carries its
  * name and count.
  */
@@ -1518,10 +1535,7 @@ function ArchivedWorkstreamGroup({
         onClick={onToggle}
         className="flex w-full cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-left text-[12px] font-medium text-muted-foreground hover:bg-sidebar-accent/60"
       >
-        <Icon
-          name={collapsed ? "ChevronRight" : "ChevronDown"}
-          className="size-3"
-        />
+        <FoldChevron open={!collapsed} />
         <WorkstreamName name={name} muted className="flex-1 text-[12px]" />
         <span className="tabular-nums">{count}</span>
       </button>
@@ -1631,10 +1645,7 @@ function Band({
           onClick={toggle}
           className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-sidebar-accent/60" // slop-ok: 1 the product's section-label style
         >
-          <Icon
-            name={collapsed ? "ChevronRight" : "ChevronDown"}
-            className="size-3"
-          />
+          <FoldChevron open={!collapsed} />
           {heading}
         </button>
         {menu}
@@ -1939,10 +1950,7 @@ function WorkstreamGroup({
                 }}
                 className={cn(rowActionClass, "size-5")}
               >
-                <Icon
-                  name={collapsed ? "ChevronRight" : "ChevronDown"}
-                  className="size-3"
-                />
+                <FoldChevron open={!collapsed} />
               </button>
             ) : null}
           </span>

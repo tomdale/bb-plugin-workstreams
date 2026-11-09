@@ -644,9 +644,13 @@ describe("small groups", () => {
     expect(studioAppRow.style.height).toBe("22px");
     expect(studioAppRow.className).not.toContain("hover:bg-sidebar-accent");
     expect(studioAppHeader.className).toContain("size-5");
-    expect(
-      studioAppHeader.querySelector('[data-icon="ChevronDown"]')?.parentElement,
-    ).toBe(studioAppHeader);
+    // One arrow that turns as the group opens, like BB's own sidebar, rather
+    // than an icon swapped for another.
+    const chevron = studioAppHeader.querySelector(
+      '[data-icon="ChevronRight"]',
+    ) as HTMLElement;
+    expect(chevron.className).toContain("transition-transform");
+    expect(chevron.className).toContain("rotate-90");
 
     // Thread row heights: root thread is 21px, child thread is 28px (h-7)
     const rootRow = within(studioApp)

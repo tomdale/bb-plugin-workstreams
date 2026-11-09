@@ -261,7 +261,7 @@ it("shows Unfiled, then recent empty workstreams; empty ones get a scoped New wo
   expect(
     within(slot.getByRole("region", { name: "Beta" }))
       .getByRole("button", { name: "Collapse Beta" })
-      .querySelector('[data-icon="ChevronDown"]'),
+      .querySelector('[data-icon="ChevronRight"].rotate-90'),
   ).not.toBeNull();
   expect(
     within(slot.getByRole("region", { name: "Beta" })).queryByText("1"),
