@@ -434,116 +434,76 @@ export function AdvancedSettings() {
   const surfaces: {
     key: keyof Omit<Prefs["advanced"], "hostId" | "debugRecord" | "debugUi">;
     label: string;
-    description: string;
   }[] = [
-    {
-      key: "debugInspect",
-      label: "Inspect buttons",
-      description:
-        "The bug button on rows and banners that opens the recorded calls behind a decision.",
-    },
-    {
-      key: "debugActivity",
-      label: "Activity model calls",
-      description:
-        "Lists recorded calls in Activity, with kinds, failures, cost, and Clear traces.",
-    },
-    {
-      key: "debugComposer",
-      label: "Composer routing diagnostics",
-      description:
-        "A Debug disclosure under the new-thread composer: confidence, inputs, and the server's notes on each routing step.",
-    },
-    {
-      key: "debugReplies",
-      label: "Reply diagnostics",
-      description:
-        "Raw agent output and reply syntax diagnosis on assistant replies.",
-    },
-    {
-      key: "debugThreadInfo",
-      label: "Thread Info and context card",
-      description:
-        "A Workstreams Debug section listing the metadata Workstreams accumulated for a thread.",
-    },
+    { key: "debugInspect", label: "Inspect buttons" },
+    { key: "debugActivity", label: "Activity model calls" },
+    { key: "debugComposer", label: "Composer routing diagnostics" },
+    { key: "debugReplies", label: "Reply diagnostics" },
+    { key: "debugThreadInfo", label: "Thread Info and context card" },
   ];
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <SettingsSaveError error={error} />
-      {machines && machines.length > 1 ? (
-        <SettingsGroup title="Analysis">
-          <SectionRows>
-            <SettingRow
-              label="Analysis machine"
-              description="Machine whose Pi key is used for AI Gateway calls."
-              control={
-                <SettingsPicker
-                  label="Analysis machine"
-                  value={prefs.advanced.hostId}
-                  options={machineOptions}
-                  placeholder="Use any connected machine"
-                  onChange={(hostId) => update({ advanced: { hostId } })}
-                  className="w-56"
-                />
-              }
-            />
-          </SectionRows>
-        </SettingsGroup>
-      ) : null}
-      <SettingsGroup title="What gets recorded">
-        <SectionRows>
+      <SectionRows>
+        {machines && machines.length > 1 ? (
           <SettingRow
-            label="Record model calls"
-            description="Saves each model call's prompt, reasoning, and response, redacting common secrets, for 7 days. Recording keeps running while the debug UI is hidden."
+            label="Analysis machine"
+            description="Machine whose Pi key is used for AI Gateway calls."
             control={
-              <SettingSwitch
-                label="Record model calls"
-                checked={prefs.advanced.debugRecord}
-                onChange={(debugRecord) =>
-                  update({ advanced: { debugRecord } })
+              <SettingsPicker
+                label="Analysis machine"
+                value={prefs.advanced.hostId}
+                options={machineOptions}
+                placeholder="Use any connected machine"
+                onChange={(hostId) => update({ advanced: { hostId } })}
+                className="w-56"
+              />
+            }
+          />
+        ) : null}
+        <SettingRow
+          label="Record model calls"
+          description="Saves each model call's prompt, reasoning, and response, redacting common secrets, for 7 days. Hiding the debug UI doesn't stop it."
+          control={
+            <SettingSwitch
+              label="Record model calls"
+              checked={prefs.advanced.debugRecord}
+              onChange={(debugRecord) => update({ advanced: { debugRecord } })}
+            />
+          }
+        />
+        <SettingRow
+          label="Debug UI"
+          control={
+            <SettingSwitch
+              label="Debug UI"
+              checked={prefs.advanced.debugUi}
+              onChange={(debugUi) => update({ advanced: { debugUi } })}
+            />
+          }
+        />
+        {prefs.advanced.debugUi ? (
+          <div className="space-y-5 pl-4">
+            {surfaces.map((surface) => (
+              <SettingRow
+                key={surface.key}
+                label={surface.label}
+                control={
+                  <SettingSwitch
+                    label={surface.label}
+                    checked={prefs.advanced[surface.key]}
+                    onChange={(checked) =>
+                      update({
+                        advanced: { [surface.key]: checked },
+                      })
+                    }
+                  />
                 }
               />
-            }
-          />
-        </SectionRows>
-      </SettingsGroup>
-      <SettingsGroup title="What the UI shows">
-        <SectionRows>
-          <SettingRow
-            label="Debug UI"
-            description="Shows the surfaces below. The toggle debug UI command and its shortcut flip this without touching recording, and each surface can be turned off on its own."
-            control={
-              <SettingSwitch
-                label="Debug UI"
-                checked={prefs.advanced.debugUi}
-                onChange={(debugUi) => update({ advanced: { debugUi } })}
-              />
-            }
-          />
-          {prefs.advanced.debugUi ? (
-            <div className="space-y-5 border-l border-border pl-4">
-              {surfaces.map((surface) => (
-                <SettingRow
-                  key={surface.key}
-                  label={surface.label}
-                  description={surface.description}
-                  control={
-                    <SettingSwitch
-                      label={surface.label}
-                      checked={prefs.advanced[surface.key]}
-                      onChange={(checked) =>
-                        update({
-                          advanced: { [surface.key]: checked },
-                        })
-                      }
-                    />
-                  }
-                />
-              ))}
-            </div>
-          ) : null}
-        </SectionRows>
-      </SettingsGroup>
+            ))}
+          </div>
+        ) : null}
+      </SectionRows>
     </div>
   );
 }

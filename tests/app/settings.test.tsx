@@ -531,16 +531,15 @@ it("records on its own, and shows the debug UI only while its switch is on", asy
     expect(toggle.getAttribute("aria-checked")).toBe("true");
   }
 
-  // One panel holds the master switch and the surfaces it turns on.
-  const panel = master.closest("section")!;
-  const cards = panel.querySelectorAll(".bg-card");
-  expect(cards).toHaveLength(1);
+  // One panel holds recording, the debug UI, and the surfaces it turns on.
+  const panel = recording.closest(".bg-card")!;
+  expect(
+    slot.getByRole("switch", { name: "Debug UI" }).closest(".bg-card"),
+  ).toBe(panel);
   for (const label of SURFACES)
-    expect(cards[0]!.contains(slot.getByRole("switch", { name: label }))).toBe(
+    expect(panel.contains(slot.getByRole("switch", { name: label }))).toBe(
       true,
     );
-  // Recording keeps its own panel, so hiding the UI never hides it.
-  expect(panel.contains(recording)).toBe(false);
 
   fireEvent.click(slot.getByRole("switch", { name: "Reply diagnostics" }));
   await waitFor(() =>
