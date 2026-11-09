@@ -15,10 +15,11 @@
  * Candidates rank by tier, then by latest attention (BB's turn-end time,
  * the one unread compares against), newest first:
  *
- * 1. unread questions  2. unread reviews  3. read questions
- * 4. read reviews      5. other unread    6. other read
- * 7. unread waiting    8. read waiting
+ * 1. unread            2. read questions  3. read reviews
+ * 4. other read        5. unread waiting  6. read waiting
  *
+ * Unread threads always come first, newest first: an unread thread has
+ * an outcome the user hasn't seen, whatever its turn was blocked on.
  * "Waiting" threads are still waiting on something else (a subagent, a
  * timer), so they come after every other thread, even read ones.
  *
@@ -124,9 +125,10 @@ type UpNextSelection<T extends WorkstreamThread> = {
 
 /** Tier rank, 0 most urgent; see the module comment. */
 function tierOf(kind: UpNextKind, unread: boolean): number {
-  if (kind === "other") return unread ? 4 : 5;
-  if (kind === "waiting") return unread ? 6 : 7;
-  return (unread ? 0 : 2) + (kind === "review" ? 1 : 0);
+  if (kind === "waiting") return unread ? 4 : 5;
+  if (unread) return 0;
+  if (kind === "other") return 3;
+  return kind === "question" ? 1 : 2;
 }
 
 const byAttention = (a: Row<WorkstreamThread>, b: Row<WorkstreamThread>) =>

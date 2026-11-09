@@ -86,9 +86,10 @@ it("leaves running threads out unless they ask for input and admits completed tu
     isUnread: true,
     latestAttentionAt: now,
   };
+  // Unread ranks above the read question, however long it has waited.
   expect(ids(view(threads, null, before.state).rows)).toEqual([
-    "asking",
     "running",
+    "asking",
     "done",
   ]);
 });

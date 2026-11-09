@@ -64,8 +64,9 @@ function upNext(
 }
 
 describe("selectUpNext", () => {
-  it("ranks by tier, then newest first within a tier", () => {
-    // A read question outranks no unread one, however recent.
+  it("ranks unread threads first, newest first, whatever their kind", () => {
+    // A read question outranks no unread one, however recent, and among
+    // unread threads only recency counts, not question versus review.
     expect(
       upNext([
         t("rr1", 700),
@@ -74,13 +75,13 @@ describe("selectUpNext", () => {
         t("qu1", 100),
         t("qu2", 200),
       ]),
-    ).toEqual(["qu2", "qu1", "ru1", "qr1", "rr1"]);
+    ).toEqual(["ru1", "qu2", "qu1", "qr1", "rr1"]);
   });
 
-  it("ranks threads not blocked on you last, unread before read", () => {
-    expect(upNext([t("or1", 900), t("ou1", 800), t("rr1", 1)])).toEqual([
-      "rr1",
+  it("ranks an unread thread above a read question blocked on you", () => {
+    expect(upNext([t("or1", 900), t("ou1", 800), t("qr1", 1)])).toEqual([
       "ou1",
+      "qr1",
       "or1",
     ]);
   });
@@ -102,7 +103,7 @@ describe("selectUpNext", () => {
         t("or2", 4),
         t("or3", 2),
       ]),
-    ).toEqual(["qu1", "ou1", "or1", "or2", "or3"]);
+    ).toEqual(["ou1", "qu1", "or1", "or2", "or3"]);
     expect(
       upNext([
         ...[1, 2, 3, 4, 5].map((n) => t(`ou${n}`, 10 - n)),
@@ -154,7 +155,7 @@ describe("selectUpNext", () => {
         t("ou2", 6),
         t("ou3", 5),
       ]),
-    ).toEqual(["qu1", "qr1", "rr1", "ou1", "ou2"]);
+    ).toEqual(["qu1", "ou1", "ou2", "qr1", "rr1"]);
   });
 
   it("grows past five for threads blocked on you, read ones included", () => {
@@ -193,21 +194,22 @@ describe("selectUpNext", () => {
   });
 
   it("keeps only the ten most recently active once unread blocked threads alone exceed ten", () => {
-    // Older unread questions leave even though they outrank newer reviews.
+    // Unread threads rank newest first, so the newer reviews lead and the
+    // oldest questions leave.
     const questions = Array.from({ length: 8 }, (_, i) => t(`qu${i}`, 100 + i));
     const reviews = Array.from({ length: 4 }, (_, i) => t(`ru${i}`, 200 + i));
     const shown = upNext([...questions, ...reviews, t("qr1", 999)]);
     expect(shown).toEqual([
+      "ru3",
+      "ru2",
+      "ru1",
+      "ru0",
       "qu7",
       "qu6",
       "qu5",
       "qu4",
       "qu3",
       "qu2",
-      "ru3",
-      "ru2",
-      "ru1",
-      "ru0",
     ]);
   });
 
@@ -324,7 +326,7 @@ describe("selectUpNext", () => {
       prioritized: new Set(["sec_b"]),
     });
     expect(selection.focused).toBe(false);
-    expect(ids(selection.rows)).toEqual(["qr1", "ou1"]);
+    expect(ids(selection.rows)).toEqual(["ou1", "qr1"]);
   });
 
   describe("Show more", () => {
@@ -398,7 +400,7 @@ describe("selectUpNext", () => {
             t("rr2", now - 2),
           ]).rows,
         ),
-      ).toEqual(["rr2", "ou1", "ru1", "rr1", "qr1"]);
+      ).toEqual(["ou1", "ru1", "rr2", "rr1", "qr1"]);
     });
 
     it("holds a stale unread review behind Show more, but not a stale read one", () => {
@@ -412,14 +414,16 @@ describe("selectUpNext", () => {
     });
 
     it("never ages a pending question card or approval", () => {
+      // A stale question with a live card still ranks as a question: it
+      // leads a fresh read review, which an aged-out decision would not.
       expect(
         ids(
           select([
             t("qr1", now - 30 * DAY_MS, { hasPendingInteraction: true }),
-            t("ou1", now - 1),
+            t("rr1", now - 1),
           ]).rows,
         ),
-      ).toEqual(["qr1", "ou1"]);
+      ).toEqual(["qr1", "rr1"]);
     });
 
     it("lets go of more than ten stale threads without a recency cut", () => {

@@ -73,14 +73,15 @@ async function mount(
             sectionId: "sec_a",
             title: "Alpha work",
             isUnread: true,
-            latestAttentionAt: now,
+            latestAttentionAt: now - 3_600_000,
           }),
           sidebarThread("a2", { parentThreadId: "a1", title: "Alpha child" }),
           sidebarThread("b1", {
             sectionId: "sec_b",
             title: "Beta question",
             hasPendingInteraction: true,
-            latestAttentionAt: now - 3_600_000,
+            isUnread: true,
+            latestAttentionAt: now,
           }),
           sidebarThread("run", {
             sectionId: "sec_b",

@@ -153,7 +153,7 @@ describe("Home screen", () => {
   });
 
   describe("Up Next", () => {
-    it("renders questions and unread completion in priority order with accessible context", async () => {
+    it("renders unread threads first, then questions, with accessible context", async () => {
       const threads = [
         ...sample(),
         sidebarThread("done", {
@@ -172,13 +172,13 @@ describe("Home screen", () => {
       });
       const band = await slot.findByRole("region", { name: "Up Next" });
       expect(links(band)).toEqual([
+        "Finished work",
         "Asking task",
         "Alpha one",
-        "Finished work",
         "Beta one",
         "Loose task",
       ]);
-      const row = within(band).getAllByRole("link")[0]!;
+      const row = within(band).getByRole("link", { name: /Asking task/ });
       expect(row.getAttribute("href")).toBe("/projects/proj_1/threads/ask");
       expect(row.textContent).toContain("Alpha");
       expect(row.textContent).toContain("3m");
