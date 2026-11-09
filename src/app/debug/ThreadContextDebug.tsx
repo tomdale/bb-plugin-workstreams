@@ -8,6 +8,7 @@
  */
 import type { ReactNode } from "react";
 import {
+  experimental_DetailRow as DetailRow,
   experimental_InfoSection as InfoSection,
   type ExperimentalThreadContextCardProps,
 } from "@get-bb/plugin-sdk/app";
@@ -15,12 +16,21 @@ import { relativeAge } from "../../domain/presentation.ts";
 import { useSharedServerStateSelector } from "../serverState.ts";
 import { useDebugMode } from "./debug.ts";
 
-function Entry({ label, children }: { label: string; children: ReactNode }) {
+function Entry({
+  label,
+  icon,
+  children,
+}: {
+  label: string;
+  icon: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="py-0.5 text-xs" data-ws-context-debug-entry={label}>
-      <span className="text-muted-foreground">{label}: </span>
-      <span className="break-words">{children}</span>
-    </div>
+    <DetailRow label={label} icon={icon} align="start">
+      <span className="block break-words" data-ws-context-debug-entry={label}>
+        {children}
+      </span>
+    </DetailRow>
   );
 }
 
@@ -31,29 +41,46 @@ const PROVENANCE_TITLE: Record<string, string> = {
   quick: "guessed by Quick analysis",
 };
 
-function DebugEntries({ threadId }: { threadId: string }) {
+function DebugEntries({
+  threadId,
+  surface,
+}: {
+  threadId: string;
+  surface: "card" | "info";
+}) {
   const analysis = useSharedServerStateSelector(
     (server) => server.analysis[threadId],
   );
   const assignment = useSharedServerStateSelector(
     (server) => server.catalog?.assignments?.[threadId],
   );
+  const className = `flex min-w-0 flex-col gap-1.5${
+    surface === "card" ? " px-2" : ""
+  }`;
+  // The Info tab's DetailCard supplies the dl; the context card does not.
+  const Container = surface === "card" ? "dl" : "div";
   if (!analysis && !assignment)
     return (
-      <div className="py-0.5 text-xs text-muted-foreground">
-        No analysis recorded for this thread.
-      </div>
+      <Container className={className} data-ws-context-debug>
+        <Entry label="Analysis" icon="Info">
+          No analysis recorded for this thread.
+        </Entry>
+      </Container>
     );
   return (
-    <div data-ws-context-debug>
+    <Container className={className} data-ws-context-debug>
       {analysis?.threadGoal ? (
-        <Entry label="Goal">{analysis.threadGoal}</Entry>
+        <Entry label="Goal" icon="Target">
+          {analysis.threadGoal}
+        </Entry>
       ) : null}
       {analysis?.digest ? (
-        <Entry label="Digest">{analysis.digest}</Entry>
+        <Entry label="Digest" icon="FileText">
+          {analysis.digest}
+        </Entry>
       ) : null}
       {assignment ? (
-        <Entry label="Topic">
+        <Entry label="Topic" icon="Folder">
           {assignment.status === "unresolved"
             ? "Unresolved"
             : (assignment.label ?? "No topic")}
@@ -63,24 +90,28 @@ function DebugEntries({ threadId }: { threadId: string }) {
         </Entry>
       ) : null}
       {analysis?.goal ? (
-        <Entry label="Settled title">{analysis.goal}</Entry>
+        <Entry label="Settled title" icon="Edit">
+          {analysis.goal}
+        </Entry>
       ) : null}
       {analysis ? (
-        <Entry label="Status">
+        <Entry label="Status" icon="ChartColumn">
           {analysis.state}
           {analysis.needsYou ? ` — ${analysis.needsYou}` : ""} (
           {analysis.reported ? "reported by the agent" : "inferred"})
         </Entry>
       ) : null}
       {analysis ? (
-        <Entry label="Analyzed">
+        <Entry label="Analyzed" icon="Clock">
           {relativeAge(analysis.at, Date.now())} by {analysis.model}
         </Entry>
       ) : null}
       {analysis?.topicError ? (
-        <Entry label="Topic error">{analysis.topicError}</Entry>
+        <Entry label="Topic error" icon="AlertTriangle">
+          {analysis.topicError}
+        </Entry>
       ) : null}
-    </div>
+    </Container>
   );
 }
 
@@ -90,7 +121,8 @@ export function ThreadContextDebugSection({
 }: ExperimentalThreadContextCardProps) {
   const debug = useDebugMode();
   if (!debug) return null;
-  return <DebugEntries threadId={threadId} />;
+  // Core card rows and the host-drawn section heading both use px-2.
+  return <DebugEntries threadId={threadId} surface="card" />;
 }
 
 /** The Info tab's sections render their own chrome. */
@@ -101,7 +133,7 @@ export function ThreadInfoDebugSection({
   if (!debug) return null;
   return (
     <InfoSection label="Workstreams Debug">
-      <DebugEntries threadId={threadId} />
+      <DebugEntries threadId={threadId} surface="info" />
     </InfoSection>
   );
 }

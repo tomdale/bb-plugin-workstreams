@@ -63,6 +63,17 @@ declare module "@get-bb/plugin-sdk/app" {
   }
   export const experimental_InfoSection: ComponentType<ExperimentalInfoSectionProps>;
 
+  /** One label and value pair in bb's details block. */
+  export interface ExperimentalDetailRowProps {
+    label: ReactNode;
+    /** Icon drawn before the label, any name `experimental_Icon` accepts. */
+    icon?: string;
+    /** Vertical alignment of label and value; defaults to `center`. */
+    align?: "center" | "start";
+    children: ReactNode;
+  }
+  export const experimental_DetailRow: ComponentType<ExperimentalDetailRowProps>;
+
   export interface PluginAppSlots {
     /** Absent on bb builds that predate the thread Info tab slots. */
     experimental_threadInfoSection?: (
