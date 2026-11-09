@@ -512,7 +512,9 @@ it("retains an expanded group's body without leaving focus or menus hidden in it
     { settings: { showRecent: false, showForYou: false } },
   );
   const region = slot.getByRole("region", { name: "Alpha" });
-  const header = within(region).getByRole("button", { name: "Alpha" });
+  const header = within(region).getByRole("button", {
+    name: /^(Collapse|Expand) Alpha$/,
+  });
   const body = region.querySelector<HTMLUListElement>(":scope > ul")!;
   const link = within(region).getByRole("link", { name: "Root task" });
   link.focus();

@@ -10,6 +10,8 @@ import { Icon } from "../../components/ui/icon.tsx";
 import { installGalleryHost } from "../host.tsx";
 import { Row } from "../../src/app/sidebar/Row.tsx";
 import { FocusIcon } from "../../src/app/sidebar/FocusIcon.tsx";
+import { rowActionClass } from "../../src/app/sidebar/HoverActions.tsx";
+import { cn } from "../../lib/utils.ts";
 import {
   HoverAction,
   RowActions,
@@ -186,37 +188,28 @@ function ProfileWorkstream({ groupIndex }: { groupIndex: number }) {
       }
     >
       <div
-        className="group/row relative flex items-center gap-1.5 rounded-md pr-2 hover:bg-sidebar-accent/60"
+        className="group/row relative flex items-center gap-1.5 rounded-md pr-2"
         style={{
           height: SIDEBAR_GEOMETRY.workstreamHeader.height,
           paddingLeft: SIDEBAR_GEOMETRY.workstreamHeader.indent,
         }}
       >
-        <button
-          type="button"
-          aria-label={name}
-          aria-expanded={!collapsed}
-          data-profile-heading=""
-          onClick={() => setCollapsed((value) => !value)}
-          className="group/heading relative flex min-w-0 flex-1 cursor-pointer items-center text-left"
-        >
-          <span
-            aria-hidden="true"
-            className="absolute top-1/2 flex h-3.5 -translate-y-1/2 items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100"
-            style={{
-              left:
-                -SIDEBAR_GEOMETRY.workstreamHeader.chevronWidth -
-                SIDEBAR_GEOMETRY.workstreamHeader.chevronGap,
-              width: SIDEBAR_GEOMETRY.workstreamHeader.chevronWidth,
-            }}
+        <span className="flex min-w-0 flex-1 items-center gap-1">
+          <WorkstreamName name={name} accent className="ws-text-workstream" />
+          <button
+            type="button"
+            aria-label={collapsed ? `Expand ${name}` : `Collapse ${name}`}
+            aria-expanded={!collapsed}
+            data-profile-heading=""
+            onClick={() => setCollapsed((value) => !value)}
+            className={cn(rowActionClass, "size-5")}
           >
             <Icon
               name={collapsed ? "ChevronRight" : "ChevronDown"}
               className="size-3"
             />
-          </span>
-          <WorkstreamName name={name} accent className="ws-text-workstream" />
-        </button>
+          </button>
+        </span>
         <RowActions>
           <HoverAction
             compact
@@ -227,7 +220,7 @@ function ProfileWorkstream({ groupIndex }: { groupIndex: number }) {
             <FocusIcon className="size-3.5" />
           </HoverAction>
         </RowActions>
-        <span className="text-[11px] tabular-nums text-muted-foreground/70">
+        <span className="text-[11px] tabular-nums text-muted-foreground">
           {rows[groupIndex]!.length}
         </span>
       </div>
