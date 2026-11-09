@@ -1134,10 +1134,10 @@ What the UI shows:
   a **Workstreams Debug** section listing the metadata Workstreams accumulated
   for the thread: the settled goal, the context digest, the topic assignment and
   its provenance, the settled title, and the latest analysis run's status,
-  model, and age. The activity list below the metadata combines the thread's
-  analysis calls and related Activity events. Click an event to open every
-  recorded model call behind it, including the exact prompt, reasoning, raw
-  response, and parsed result.
+  model, and age. The activity list below the metadata combines related Activity
+  events with the thread's Quick analysis, Full analysis, and Placement calls.
+  Click an event to open every recorded model call behind it, including the
+  exact prompt, reasoning, raw response, and parsed result.
 - **Activity model calls:** Filter the **Activity** tab by **Model calls**
   (`quick-analysis`, `full-analysis`, `placement`, `categories`, `split`, or
   `tidy`) and **Failures only**, view total reported cost for the filtered

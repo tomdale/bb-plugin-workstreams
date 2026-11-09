@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { fakeWorld, type FakeCompletion } from "./fake-bb.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { Journal } from "../../src/server/journal.ts";
+import { TraceStore } from "../../src/server/trace.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 let world: World | null = null;
@@ -212,6 +213,32 @@ describe("debug mode on", () => {
     w.converse("t2", ["Work on the other thread"]);
     await analyze(w, "t2");
     expect((await traces(w)).length).toBeGreaterThan(relatedTraceIds.length);
+    const store = new TraceStore(w.bb.storage.database());
+    store.add(
+      {
+        at: Date.now(),
+        kind: "categories",
+        status: "ok",
+        label: "Collection-wide categories",
+        model: "test",
+        durationMs: 1,
+        replayOf: null,
+        provider: "test",
+        thinking: "off",
+        system: "",
+        prompt: "Assess the whole collection",
+        input: {},
+        response: "{}",
+        reasoning: null,
+        stopReason: null,
+        parsed: {},
+        outcome: null,
+        usage: null,
+        error: null,
+        summary: "kept categories",
+      },
+      [{ kind: "thread", ref: "t1" }],
+    );
     const journal = new Journal(w.bb.storage.database());
     for (const [rationale, threadId, source] of [
       ["Related automatic event", "t1", "auto"],
@@ -233,6 +260,11 @@ describe("debug mode on", () => {
         .map((entry) => entry.rationale),
     ).toEqual(["Related outside event"]);
 
+    expect(
+      (await traces(w, { link: { kind: "thread", ref: "t1" } })).some(
+        (trace) => trace.kind === "categories",
+      ),
+    ).toBe(true);
     const activity = await rpc<{
       entries: { rationale: string }[];
       traces: Summary[];

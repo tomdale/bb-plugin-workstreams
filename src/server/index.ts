@@ -1453,6 +1453,7 @@ export default async function plugin(bb: BbPluginApi) {
         entries,
         traces: traces.list({
           link: { kind: "thread", ref: threadId },
+          kinds: ["quick-analysis", "full-analysis", "placement"],
           limit: 200,
         }),
       };

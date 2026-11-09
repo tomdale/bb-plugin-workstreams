@@ -193,6 +193,8 @@ export class TraceStore {
       ids?: readonly string[];
       link?: TraceLink;
       kind?: TraceKind;
+      /** Keep several kinds in one query, such as a thread's own analyses. */
+      kinds?: readonly TraceKind[];
       limit?: number;
       /** Page cursor: the last trace of the previous page. */
       before?: { at: number; id: string };
@@ -220,6 +222,10 @@ export class TraceStore {
     if (options.kind) {
       where.push("t.kind = @kind");
       params.kind = options.kind;
+    }
+    if (options.kinds) {
+      where.push("t.kind IN (SELECT value FROM json_each(@kinds))");
+      params.kinds = JSON.stringify(options.kinds);
     }
     if (options.ids) {
       if (options.ids.length === 0) return [];
