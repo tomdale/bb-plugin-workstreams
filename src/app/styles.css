@@ -667,13 +667,15 @@
 .dark .ws-sticky-goal__workstream {
   color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
 }
-/* Centered headings (Settings → Workstreams → Threads → Title alignment) put the
-   workstream line, title, and goal on the pane's center line. The wave icon's
+/* A centered minimized title (Settings → Workstreams → Threads → Title
+   alignment) sits on the title bar's middle line: the workstream line spans the
+   bar to center its contents, scaling about that center, and the wave icon's
    optical nudge only serves a left edge, so it goes. */
 .ws-goal-overlay__group[data-ws-align="center"] .ws-sticky-goal__workstream {
   right: 0;
   left: 0;
   justify-content: center;
+  transform-origin: 50% 0;
 }
 .ws-goal-overlay__group[data-ws-align="center"] .ws-sticky-goal__title,
 .ws-goal-overlay__group[data-ws-align="center"] .ws-sticky-goal__subtitle {

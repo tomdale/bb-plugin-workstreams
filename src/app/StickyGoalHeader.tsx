@@ -23,6 +23,7 @@ import {
   headingScrollLimit,
   pinnedHeight,
   plateFadeScale,
+  titleBarSlot,
   titleExitDistance,
 } from "./goalHeading.ts";
 import { WorkstreamIcon } from "./WorkstreamIcon.tsx";
@@ -55,10 +56,6 @@ function messageColumn(scroller: HTMLElement): HTMLElement | null {
       ));
   return column instanceof HTMLElement ? column : null;
 }
-
-/** Smallest title-bar gap worth drawing the heading into. */
-const MIN_TITLE_BAR_WIDTH = 140;
-const TITLE_BAR_GAP = 16;
 
 /** Below this scroller width the title may wrap to a second line. */
 const NARROW_PX = 560;
@@ -302,7 +299,11 @@ type Placement = {
   bar: { x: number; centerY: number; width: number } | null;
 };
 
-function measurePlacement(mount: Mount, base: number): Placement {
+function measurePlacement(
+  mount: Mount,
+  base: number,
+  centered: boolean,
+): Placement {
   // Everything is relative to the overlay's own origin. The overlay sits in
   // the same sliding surface as the pane, so these coordinates do not change
   // while the surface moves.
@@ -352,13 +353,17 @@ function measurePlacement(mount: Mount, base: number): Placement {
     const actions = cluster.parentElement?.nextElementSibling;
     if (actions && cluster.parentElement) {
       const headerRect = header.getBoundingClientRect();
-      const x = cluster.getBoundingClientRect().right + TITLE_BAR_GAP;
-      const width = actions.getBoundingClientRect().left - TITLE_BAR_GAP - x;
-      if (width >= MIN_TITLE_BAR_WIDTH) {
+      const slot = titleBarSlot(
+        headerRect,
+        cluster.getBoundingClientRect().right,
+        actions.getBoundingClientRect().left,
+        centered,
+      );
+      if (slot) {
         bar = {
-          x: x - origin.left,
+          x: headerRect.left + slot.x - origin.left,
           centerY: (headerRect.top + headerRect.bottom) / 2 - origin.top,
-          width,
+          width: slot.width,
         };
       }
     }
@@ -394,7 +399,11 @@ const samePlacement = (a: Placement | null, b: Placement): boolean =>
       Math.abs(a.bar.width - b.bar.width) < 0.5));
 
 /** Keeps the heading's two resting places current as the layout moves. */
-function usePlacement(mount: Mount | null, base: number): Placement | null {
+function usePlacement(
+  mount: Mount | null,
+  base: number,
+  centered: boolean,
+): Placement | null {
   const [placement, setPlacement] = useState<Placement | null>(null);
   useEffect(() => {
     if (!mount) {
@@ -408,7 +417,7 @@ function usePlacement(mount: Mount | null, base: number): Placement | null {
     const measure = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const next = measurePlacement(mount, base);
+        const next = measurePlacement(mount, base, centered);
         setPlacement((prev) => (samePlacement(prev, next) ? prev : next));
       });
     };
@@ -434,7 +443,7 @@ function usePlacement(mount: Mount | null, base: number): Placement | null {
       mutations.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [mount, base]);
+  }, [mount, base, centered]);
   return placement;
 }
 
@@ -469,7 +478,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const mount = useMessageScroller(threadId);
   const settled = useSettled(mount);
   const base = mount?.baseFontSize ?? 14;
-  const placement = usePlacement(mount, base);
+  const placement = usePlacement(mount, base, centered);
   const hasEyebrow = !!context?.workstream;
   const phone = useMediaQuery(PHONE_QUERY);
   const eyebrow = hasEyebrow ? eyebrowMetrics(base, phone) : null;
@@ -642,7 +651,6 @@ export function StickyGoalHeader(): React.ReactElement | null {
       >
         <div
           className="ws-goal-overlay__group"
-          data-ws-align={centered ? "center" : undefined}
           style={{
             transform: `translateY(${base * PAD_TOP - (fadeOnly ? 0 : moved)}px)`,
             opacity: opacity.expanded,
@@ -708,6 +716,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
       >
         <div
           className="ws-goal-overlay__group"
+          data-ws-align={centered ? "center" : undefined}
           style={{
             transform: `translateY(${fadeOnly ? 0 : remaining}px)`,
             opacity: opacity.compact,

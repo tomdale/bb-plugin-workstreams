@@ -172,8 +172,9 @@ export function WorkingIndicatorSettings() {
 export function ThreadsSettings() {
   const { prefs, update, error } = useFeaturePrefs();
   if (!prefs) return <Loading />;
-  // A floating heading never hands over to the compact title, so the transition
-  // between the two has nothing to do.
+  // A floating heading never becomes the compact title, so the two settings
+  // that shape that copy (how it takes over, and where it sits) appear only
+  // while the title minimizes.
   const minimizing = prefs.threads.headingScroll === "minimize";
   return (
     <div className="space-y-3">
@@ -213,39 +214,44 @@ export function ThreadsSettings() {
             />
           }
         />
-        <SettingRow
-          label="Title transition"
-          description="While the heading minimizes, fade the compact title into place, or scroll both copies as they cross."
-          control={
-            <SegmentedControl
-              label="Title transition"
-              value={prefs.threads.headingTransition}
-              options={[
-                { value: "fade", label: "Fade" },
-                { value: "scroll", label: "Scroll" },
-              ]}
-              disabled={!minimizing}
-              onChange={(headingTransition) =>
-                update({ threads: { headingTransition } })
-              }
-            />
-          }
-        />
-        <SettingRow
-          label="Title alignment"
-          description="Align the heading with the messages, or center it in the thread."
-          control={
-            <SegmentedControl
-              label="Title alignment"
-              value={prefs.threads.headingAlign}
-              options={[
-                { value: "left", label: "Left" },
-                { value: "center", label: "Centered" },
-              ]}
-              onChange={(headingAlign) => update({ threads: { headingAlign } })}
-            />
-          }
-        />
+        {minimizing ? (
+          <SettingRow
+            label="Title transition"
+            description="Fade the compact title into place, or scroll both copies as they cross."
+            control={
+              <SegmentedControl
+                label="Title transition"
+                value={prefs.threads.headingTransition}
+                options={[
+                  { value: "fade", label: "Fade" },
+                  { value: "scroll", label: "Scroll" },
+                ]}
+                onChange={(headingTransition) =>
+                  update({ threads: { headingTransition } })
+                }
+              />
+            }
+          />
+        ) : null}
+        {minimizing ? (
+          <SettingRow
+            label="Title alignment"
+            description="Put the minimized title at the left of the title bar, or in the middle of it."
+            control={
+              <SegmentedControl
+                label="Title alignment"
+                value={prefs.threads.headingAlign}
+                options={[
+                  { value: "left", label: "Left" },
+                  { value: "center", label: "Centered" },
+                ]}
+                onChange={(headingAlign) =>
+                  update({ threads: { headingAlign } })
+                }
+              />
+            }
+          />
+        ) : null}
         <SettingRow
           label="Show parent thread link"
           description="Add a link to the parent thread in child thread headers."

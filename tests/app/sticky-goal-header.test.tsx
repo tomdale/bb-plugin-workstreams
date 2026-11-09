@@ -426,36 +426,87 @@ it("falls back to the first column when BB does not mark it", async () => {
   slot.lifecycle.unmount();
 });
 
-it("centers the heading's text when the alignment preference says so", async () => {
+it("centers the minimized title in the title bar when asked to", async () => {
   paneFixture({ recap: false });
+  const scroller = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, value: 1000 },
+    clientHeight: { configurable: true, value: 400 },
+    scrollTop: { configurable: true, writable: true, value: 600 },
+  });
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 48, 900, 672),
+  );
+  const header = document.querySelector("header")!;
+  vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 900, 48),
+  );
+  vi.spyOn(
+    header.querySelector(".bb-thread-title")!,
+    "getBoundingClientRect",
+  ).mockReturnValue(new DOMRect(0, 0, 80, 48));
+  vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(700, 0, 100, 48),
+  );
   const slot = await mountHeading("fade", null, undefined, {
     headingAlign: "center",
   });
   const groups = () => ({
-    expanded: overlay()!.querySelector(
+    expanded: overlay()!.querySelector<HTMLElement>(
       '[data-ws-heading="expanded"] .ws-goal-overlay__group',
     ),
-    compact: overlay()!.querySelector(
+    compact: overlay()!.querySelector<HTMLElement>(
       '[data-ws-heading="compact"] .ws-goal-overlay__group',
     ),
   });
-  await waitFor(() => expect(groups().expanded).not.toBeNull());
-  expect(groups().expanded!.getAttribute("data-ws-align")).toBe("center");
-  // The compact copy keeps the title bar's own alignment: the bar, not the
-  // pane, decides where a minimized title sits.
-  expect(groups().compact!.hasAttribute("data-ws-align")).toBe(false);
+  await waitFor(() => expect(groups().compact).not.toBeNull());
+  // The expanded heading stays with the messages; only the minimized copy
+  // moves to the bar's middle.
+  expect(groups().expanded!.hasAttribute("data-ws-align")).toBe(false);
+  expect(groups().compact!.getAttribute("data-ws-align")).toBe("center");
+  expect(groups().compact!.style.width).toBe("468px");
+  expect(
+    overlay()!.querySelector<HTMLElement>('[data-ws-heading="compact"]')!.style
+      .transform,
+  ).toContain("translate(216px");
   slot.lifecycle.unmount();
 });
 
-it("leaves the heading left aligned by default", async () => {
+it("leaves the minimized title in the bar's gap by default", async () => {
   paneFixture({ recap: false });
+  const scroller = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, value: 1000 },
+    clientHeight: { configurable: true, value: 400 },
+    scrollTop: { configurable: true, writable: true, value: 600 },
+  });
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 48, 900, 672),
+  );
+  const header = document.querySelector("header")!;
+  vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 900, 48),
+  );
+  vi.spyOn(
+    header.querySelector(".bb-thread-title")!,
+    "getBoundingClientRect",
+  ).mockReturnValue(new DOMRect(0, 0, 80, 48));
+  vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(700, 0, 100, 48),
+  );
   const slot = await mountHeading();
-  const expanded = () =>
-    overlay()!.querySelector(
-      '[data-ws-heading="expanded"] .ws-goal-overlay__group',
+  const compact = () =>
+    overlay()!.querySelector<HTMLElement>(
+      '[data-ws-heading="compact"] .ws-goal-overlay__group',
     );
-  await waitFor(() => expect(expanded()).not.toBeNull());
-  expect(expanded()!.hasAttribute("data-ws-align")).toBe(false);
+  await waitFor(() => expect(compact()).not.toBeNull());
+  expect(compact()!.hasAttribute("data-ws-align")).toBe(false);
+  // Between the thread's controls and the actions, as before.
+  expect(compact()!.style.width).toBe("588px");
   slot.lifecycle.unmount();
 });
 

@@ -148,6 +148,38 @@ export function plateFadeScale(progress: number): number {
   return 1 - progress * (1 - BAR_FADE_RATIO);
 }
 
+/** Smallest title-bar slot worth drawing the compact heading into. */
+export const MIN_TITLE_BAR_WIDTH = 140;
+/** Clearance between the compact heading and the bar's controls. */
+export const TITLE_BAR_GAP = 16;
+
+/**
+ * Where the compact heading sits in the title bar, in px from the bar's left
+ * edge. Left alignment takes the span between the title cluster and the
+ * actions; centering takes an even span around the bar's middle, bounded by the
+ * nearer control. Null when neither span is wide enough, which leaves the
+ * compact copy in the timeline instead of the bar.
+ */
+export function titleBarSlot(
+  bar: { left: number; right: number },
+  clusterRight: number,
+  actionsLeft: number,
+  centered: boolean,
+): { x: number; width: number } | null {
+  if (centered) {
+    const center = (bar.left + bar.right) / 2;
+    const half = Math.min(
+      center - clusterRight - TITLE_BAR_GAP,
+      actionsLeft - TITLE_BAR_GAP - center,
+    );
+    if (half * 2 < MIN_TITLE_BAR_WIDTH) return null;
+    return { x: center - half - bar.left, width: half * 2 };
+  }
+  const x = clusterRight + TITLE_BAR_GAP;
+  const width = actionsLeft - TITLE_BAR_GAP - x;
+  return width >= MIN_TITLE_BAR_WIDTH ? { x: x - bar.left, width } : null;
+}
+
 /** The collapsed text block (workstream over title) in px. */
 export function compactBlock(base: number, eyebrow: Eyebrow | null): number {
   return (

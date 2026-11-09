@@ -9,7 +9,9 @@ import {
   headingHeight,
   headingOpacity,
   headingScroll,
+  MIN_TITLE_BAR_WIDTH,
   pinnedHeight,
+  titleBarSlot,
   titleExitDistance,
 } from "../../src/app/goalHeading.ts";
 
@@ -129,4 +131,28 @@ it("accounts for a two-line phone title before finishing the reveal", () => {
 
 it("uses BB's own phone condition", () => {
   expect(PHONE_QUERY).toBe("(max-width: 767px) and (pointer: coarse)");
+});
+
+const BAR = { left: 0, right: 900 };
+
+it("fills the title bar's gap when the minimized title is left aligned", () => {
+  // Between the thread's own controls on the left and the actions on the right.
+  expect(titleBarSlot(BAR, 80, 700, false)).toEqual({ x: 96, width: 588 });
+});
+
+it("takes an even span around the bar's middle when centered", () => {
+  // The nearer control decides the span, so the title stays centered.
+  expect(titleBarSlot(BAR, 80, 700, true)).toEqual({ x: 216, width: 468 });
+  // A leading control that reaches further inwards shortens both sides.
+  expect(titleBarSlot(BAR, 300, 700, true)).toEqual({ x: 316, width: 268 });
+});
+
+it("leaves the compact title in the timeline when the bar is too narrow", () => {
+  const tight = { left: 0, right: MIN_TITLE_BAR_WIDTH + 60 };
+  expect(titleBarSlot(tight, 60, tight.right, false)).toBeNull();
+  expect(titleBarSlot(tight, 60, tight.right, true)).toBeNull();
+  // Centering loses room to both sides, so a bar with a wide leading cluster
+  // has no middle span left even though its gap fits the title.
+  expect(titleBarSlot(BAR, 400, 700, false)).toEqual({ x: 416, width: 268 });
+  expect(titleBarSlot(BAR, 400, 700, true)).toBeNull();
 });

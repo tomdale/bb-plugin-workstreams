@@ -316,33 +316,26 @@ it("chooses between minimizing the title and letting it float", async () => {
   ).toEqual({ patch: { threads: { headingScroll: "minimize" } } });
 });
 
-it("only offers a title transition while the title minimizes", async () => {
+it("shows the minimized title's settings only while the title minimizes", async () => {
   const slot = await mount("threads");
-  const transition = await slot.findByRole("radiogroup", {
-    name: "Title transition",
-  });
-  const fade = within(transition).getByRole("radio", {
-    name: "Fade",
-  }) as HTMLInputElement;
-  expect(fade.disabled).toBe(false);
-  expect(transition.getAttribute("aria-disabled")).toBeNull();
-  fireEvent.click(
-    within(slot.getByRole("radiogroup", { name: "Title on scroll" })).getByRole(
-      "radio",
-      { name: "Float" },
-    ),
-  );
-  await waitFor(() => expect(fade.disabled).toBe(true));
-  expect(transition.getAttribute("aria-disabled")).toBe("true");
-  // Its stored choice survives: floating only makes it inactive.
-  expect(fade.checked).toBe(true);
-  fireEvent.click(
-    within(slot.getByRole("radiogroup", { name: "Title on scroll" })).getByRole(
-      "radio",
-      { name: "Minimize" },
-    ),
-  );
-  await waitFor(() => expect(fade.disabled).toBe(false));
+  const scrollRow = () =>
+    slot.getByRole("radiogroup", { name: "Title on scroll" });
+  const row = (name: string) => slot.queryAllByRole("radiogroup", { name });
+  await slot.findByRole("radiogroup", { name: "Title on scroll" });
+  await waitFor(() => expect(row("Title transition")).toHaveLength(1));
+  expect(row("Title alignment")).toHaveLength(1);
+  fireEvent.click(within(scrollRow()).getByRole("radio", { name: "Float" }));
+  await waitFor(() => expect(row("Title transition")).toHaveLength(0));
+  expect(row("Title alignment")).toHaveLength(0);
+  // Their stored choices survive: floating only hides the settings.
+  fireEvent.click(within(scrollRow()).getByRole("radio", { name: "Minimize" }));
+  await waitFor(() => expect(row("Title transition")).toHaveLength(1));
+  expect(row("Title alignment")).toHaveLength(1);
+  expect(
+    within(row("Title transition")[0]!).getByRole<HTMLInputElement>("radio", {
+      name: "Fade",
+    }).checked,
+  ).toBe(true);
 });
 
 it("chooses between left aligned and centered titles", async () => {

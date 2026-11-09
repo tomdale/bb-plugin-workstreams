@@ -148,36 +148,39 @@ browserTest.skipIf(browserUnavailable)(
 );
 
 browserTest.skipIf(browserUnavailable)(
-  "centers the heading's workstream line, title, and goal when the group asks for it",
+  "centers the minimized title's workstream line and text when the group asks for it",
   { timeout: 30_000 },
   async ({ page }) => {
     await page.setViewportSize({ width: 400, height: 200 });
     await page.setContent(`
       <style>${styles}
         body { margin: 0; }
-        .ws-goal-overlay__group { position: relative; width: 300px; height: 120px; }
+        .ws-goal-overlay__group { position: relative; width: 300px; height: 60px; }
       </style>
       <div class="ws-goal-overlay__group">
-        <div class="ws-sticky-goal__workstream"><i></i><span>Workstream</span></div>
-        <h2 class="ws-sticky-goal__title">A title</h2>
-        <div class="ws-sticky-goal__subtitle">Its goal</div>
+        <div class="ws-sticky-goal__workstream" style="transform: scale(0.82)"><i></i><span>Workstream</span></div>
+        <div class="ws-sticky-goal__title">A title</div>
       </div>`);
-    // The wave icon's optical nudge leaves the line where left alignment puts
-    // it; centering moves the line itself, so compare the two.
     const measure = () =>
       page.evaluate(() => {
         const group = document.querySelector(".ws-goal-overlay__group")!;
         const line = document.querySelector(".ws-sticky-goal__workstream")!;
         const title = document.querySelector(".ws-sticky-goal__title")!;
-        const subtitle = document.querySelector(".ws-sticky-goal__subtitle")!;
         const groupRect = group.getBoundingClientRect();
         const lineRect = line.getBoundingClientRect();
+        const lineStyle = getComputedStyle(line);
         return {
           titleAlign: getComputedStyle(title).textAlign,
-          subtitleAlign: getComputedStyle(subtitle).textAlign,
-          inset: Math.round(lineRect.left - groupRect.left),
-          width: Math.round(lineRect.width),
+          lineLeft: Math.round(lineRect.left),
+          lineRight: Math.round(lineRect.right),
           groupWidth: Math.round(groupRect.width),
+          justify: lineStyle.justifyContent,
+          lineInset: `${lineStyle.left}/${lineStyle.right}`,
+          offsetFromMiddle: Math.round(
+            lineRect.left +
+              lineRect.width / 2 -
+              (groupRect.left + groupRect.width / 2),
+          ),
         };
       });
     const left = await measure();
@@ -189,10 +192,15 @@ browserTest.skipIf(browserUnavailable)(
     const centered = await measure();
     expect(left.titleAlign).toBe("start");
     expect(centered.titleAlign).toBe("center");
-    expect(centered.subtitleAlign).toBe("center");
-    // The line spans the group to center its contents, starting at its edge
-    // rather than the icon's optical inset.
-    expect(centered.inset - left.inset).toBe(2);
-    expect(centered.width).toBe(centered.groupWidth);
+    // The line spans the group so its contents can center, instead of sitting
+    // at the icon's optical inset.
+    expect(left.justify).toBe("normal");
+    expect(centered.justify).toBe("center");
+    expect(left.lineInset.startsWith("-2px/")).toBe(true);
+    expect(centered.lineInset).toBe("0px/0px");
+    // Scaling the compact line shrinks it about its own middle, not its left
+    // edge, so the middle stays on the bar's middle.
+    expect(Math.abs(centered.offsetFromMiddle)).toBeLessThanOrEqual(1);
+    expect(left.offsetFromMiddle).toBeLessThan(-50);
   },
 );
