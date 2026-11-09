@@ -223,12 +223,13 @@ export function ThreadActivity({
                   >
                     {relativeAge(item.at, now)}
                   </time>
-                  <Icon
-                    name="ChevronRight"
+                  <span
                     aria-hidden
                     data-activity-chevron
                     className="absolute right-0 top-0 hidden size-3.5 text-muted-foreground group-hover/activity:block group-focus-visible/activity:block"
-                  />
+                  >
+                    <Icon name="ChevronRight" className="size-3.5" />
+                  </span>
                 </span>
               </button>
             </li>
