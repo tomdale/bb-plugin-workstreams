@@ -1136,8 +1136,10 @@ What the UI shows:
   its provenance, the settled title, and the latest analysis run's status,
   model, and age. The activity list below the metadata combines related Activity
   events with the thread's Quick analysis, Full analysis, and Placement calls.
-  Click an event to open every recorded model call behind it, including the
-  exact prompt, reasoning, raw response, and parsed result.
+  Full analysis rows label their historical assessment as **Work status** so it
+  is distinct from the call's completion. Click an event to open every recorded
+  model call behind it, including the exact prompt, reasoning, raw response, and
+  parsed result.
 - **Activity model calls:** Filter the **Activity** tab by **Model calls**
   (`quick-analysis`, `full-analysis`, `placement`, `categories`, `split`, or
   `tidy`) and **Failures only**, view total reported cost for the filtered

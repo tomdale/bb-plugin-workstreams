@@ -244,8 +244,14 @@ it("lists analysis and journal events and opens every transcript behind an event
   const activity = (await slot.findByText("Activity")).closest(
     "[data-ws-thread-activity]",
   )!;
+  expect(
+    within(activity as HTMLElement).getByRole("list", {
+      name: "Thread activity",
+    }),
+  ).toBeTruthy();
   const rows = within(activity as HTMLElement).getAllByRole("button");
   expect(rows[0]?.textContent).not.toContain("·");
+  expect(rows[0]?.textContent).toContain("Work status: done");
   expect(rows.map((row) => row.textContent)).toEqual([
     expect.stringContaining("Full analysis"),
     expect.stringContaining("Updated title"),

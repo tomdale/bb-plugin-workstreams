@@ -39,6 +39,26 @@ type ActivityItem = {
   target: InspectTarget;
 };
 
+const FULL_ANALYSIS_OUTCOMES: Record<string, string> = {
+  review: "ready for review",
+  "needs decision": "needs your decision",
+  blocked: "blocked",
+  "in progress": "in progress",
+  reported: "reported by the agent",
+  done: "done",
+};
+
+function traceDetail(trace: TraceSummary): string {
+  if (trace.error) return trace.error;
+  const summary = trace.summary?.split(" · ")[0];
+  if (!summary) return trace.label;
+  const outcome =
+    trace.kind === "full-analysis"
+      ? FULL_ANALYSIS_OUTCOMES[summary]
+      : undefined;
+  return outcome ? `Work status: ${outcome}` : summary;
+}
+
 function itemsOf(result: ActivityResult | null): ActivityItem[] {
   if (!result) return [];
   return [
@@ -56,7 +76,7 @@ function itemsOf(result: ActivityResult | null): ActivityItem[] {
       key: `trace:${trace.id}`,
       at: trace.at,
       label: TRACE_KIND_TITLE[trace.kind],
-      detail: trace.error ?? trace.summary?.split(" · ")[0] ?? trace.label,
+      detail: traceDetail(trace),
       failed: trace.status !== "ok",
       target: { traceIds: [trace.id] } satisfies InspectTarget,
     })),
@@ -162,7 +182,10 @@ export function ThreadActivity({
           No activity recorded for this thread.
         </p>
       ) : null}
-      <ul>
+      <ul
+        aria-label="Thread activity"
+        className="mt-1 divide-y divide-border/60"
+      >
         {items.map((item) => {
           const date = new Date(item.at);
           return (
@@ -176,7 +199,7 @@ export function ThreadActivity({
                   setSelected(item);
                   setOpen(true);
                 }}
-                className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-md px-1 py-1.5 text-left hover:bg-state-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-sm px-1 py-2 text-left hover:bg-state-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <span className="min-w-0">
                   <span className="block truncate text-xs font-medium">
@@ -194,7 +217,7 @@ export function ThreadActivity({
                 <time
                   dateTime={date.toISOString()}
                   aria-label={date.toLocaleString()}
-                  className="pt-0.5 text-[11px] tabular-nums text-muted-foreground"
+                  className="min-w-7 pt-0.5 text-right text-[11px] tabular-nums text-muted-foreground"
                 >
                   {relativeAge(item.at, now)}
                 </time>
