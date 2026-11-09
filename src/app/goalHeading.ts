@@ -102,23 +102,58 @@ export function titleExitDistance(
   );
 }
 
-// Both copies travel the same distance over 2.5 times as much timeline scroll.
+// The sliding copies travel over 2.5 times their exit distance. The fade's
+// smaller gestures need a longer handoff to remain legible: 3.5 times.
 const HEADING_SCROLL_RATIO = 0.4;
+const HEADING_FADE_SCROLL_RATIO = 1 / 3.5;
 
-export function headingScrollLimit(exitDistance: number): number {
-  return exitDistance / HEADING_SCROLL_RATIO;
+type HeadingTransition = "fade" | "scroll";
+
+export function headingScrollLimit(
+  exitDistance: number,
+  transition: HeadingTransition = "scroll",
+): number {
+  return (
+    exitDistance /
+    (transition === "fade" ? HEADING_FADE_SCROLL_RATIO : HEADING_SCROLL_RATIO)
+  );
 }
 
 /** The compact copy starts one exit distance below its final position. */
-export function headingScroll(fromBottom: number, exitDistance: number) {
-  const t = Math.min(
-    Math.max(0, fromBottom) / headingScrollLimit(exitDistance),
-    1,
-  );
+export function headingScroll(
+  fromBottom: number,
+  exitDistance: number,
+  transition: HeadingTransition = "scroll",
+  scrollLimit = headingScrollLimit(exitDistance, transition),
+) {
+  const t =
+    scrollLimit <= 0 ? 1 : Math.min(Math.max(0, fromBottom) / scrollLimit, 1);
   // Start responsively and ease to zero velocity at the shared endpoint.
   const progress = t * (0.5 + t * (2 - 1.5 * t));
   const moved = exitDistance * progress;
   return { moved, remaining: exitDistance - moved, progress };
+}
+
+/**
+ * The fixed layout's scroll-linked handoff. Both titles share one eased
+ * crossfade while the large title retreats and the compact title rises; only
+ * their transforms and opacity change, so the timeline never reflows.
+ */
+export function headingFade(progress: number, motion = true) {
+  const eased = progress * progress * (3 - 2 * progress);
+  const retreat = -8 * eased;
+  return {
+    expanded: {
+      opacity: 1 - eased,
+      y: motion ? retreat || 0 : 0,
+      scale: motion ? 1 - 0.04 * eased : 1,
+    },
+    compact: {
+      opacity: eased,
+      y: motion ? 10 * (1 - eased) : 0,
+      scale: motion ? 0.98 + 0.02 * eased : 1,
+    },
+  };
 }
 
 /** Keep the outgoing heading readable longer and let the incoming one brighten early. */

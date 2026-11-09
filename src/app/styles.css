@@ -563,9 +563,9 @@
 /* A zero-height anchor reserves the heading's space in the message column.
    The plate, fades, and text share a layer in BB's sliding app surface, so
    they stay together as the timeline scrolls or a phone's pane slides aside.
-   Scrolling away from the newest message moves the two fixed-size headings
-   together without reflow; the feathered fade follows the plate or sits
-   below the bar. */
+   Scrolling away from the newest message hands off between the two fixed-size
+   headings without reflow; the feathered fade follows the plate or sits below
+   the bar. */
 .ws-sticky-goal-root {
   position: sticky;
   top: 0;
@@ -638,6 +638,7 @@
   position: absolute;
   top: 0;
   left: 0;
+  transform-origin: 0 0;
 }
 .ws-goal-overlay__clip {
   overflow: hidden;
@@ -671,6 +672,9 @@
    alignment) sits on the title bar's middle line: the workstream line spans the
    bar to center its contents, scaling about that center, and the wave icon's
    optical nudge only serves a left edge, so it goes. */
+.ws-goal-overlay__group[data-ws-align="center"] {
+  transform-origin: 50% 0;
+}
 .ws-goal-overlay__group[data-ws-align="center"] .ws-sticky-goal__workstream {
   right: 0;
   left: 0;

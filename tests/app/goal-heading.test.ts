@@ -6,9 +6,11 @@ import {
   compactBlock,
   eyebrowMetrics,
   headingBackdropOpacity,
+  headingFade,
   headingHeight,
   headingOpacity,
   headingScroll,
+  headingScrollLimit,
   MIN_TITLE_BAR_WIDTH,
   pinnedHeight,
   titleBarSlot,
@@ -104,6 +106,42 @@ it("slows to a stop at the shared endpoint without overshooting", () => {
     expect(state.progress).toBeLessThanOrEqual(1);
     expect(state.moved + state.remaining).toBeCloseTo(distance);
   }
+});
+
+it("gives the fade a longer scroll handoff than the slide", () => {
+  const distance = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 1);
+  const halfway = headingScrollLimit(distance, "fade") / 2;
+  expect(headingScrollLimit(distance, "fade")).toBeCloseTo(distance * 3.5);
+  expect(headingScroll(halfway, distance, "fade").progress).toBeCloseTo(
+    headingScroll(headingScrollLimit(distance) / 2, distance).progress,
+  );
+  expect(headingScroll(halfway, distance, "fade").progress).toBeLessThan(1);
+  expect(headingScroll(100, distance, "fade", 100).progress).toBe(1);
+  expect(headingScroll(0, distance, "fade", 0).progress).toBe(1);
+});
+
+it("eases a small retreat and rise through the fade", () => {
+  expect(headingFade(0)).toEqual({
+    expanded: { opacity: 1, y: 0, scale: 1 },
+    compact: { opacity: 0, y: 10, scale: 0.98 },
+  });
+  expect(headingFade(0.5)).toEqual({
+    expanded: { opacity: 0.5, y: -4, scale: 0.98 },
+    compact: { opacity: 0.5, y: 5, scale: 0.99 },
+  });
+  expect(headingFade(1)).toEqual({
+    expanded: { opacity: 0, y: -8, scale: 0.96 },
+    compact: { opacity: 1, y: 0, scale: 1 },
+  });
+  expect(headingFade(0.25).compact.opacity).toBeLessThan(0.25);
+  expect(headingFade(0.75).compact.opacity).toBeGreaterThan(0.75);
+});
+
+it("keeps the eased fade but removes spatial motion when asked", () => {
+  expect(headingFade(0.5, false)).toEqual({
+    expanded: { opacity: 0.5, y: 0, scale: 1 },
+    compact: { opacity: 0.5, y: 0, scale: 1 },
+  });
 });
 
 it("eases the outgoing and incoming opacity independently", () => {

@@ -7,6 +7,7 @@ import {
   SUBTITLE_LINE,
   SUBTITLE_SIZE,
   BAR_FADE_RATIO,
+  compactBlock,
   headingBackdropOpacity,
   headingHeight,
   headingOpacity,
@@ -17,6 +18,7 @@ import {
   StickyGoalHeader,
   useMessageScroller,
 } from "../../src/app/StickyGoalHeader.tsx";
+import { REDUCED_MOTION_QUERY } from "@/components/ui/hooks/use-media-query";
 import { parsePrefs, type Prefs } from "../../src/domain/prefs.ts";
 import { emptyState, sidebarThread } from "./fixtures.ts";
 
@@ -542,7 +544,7 @@ it("keeps the large heading floating over the timeline when asked to", async () 
     )!;
   await waitFor(() => expect(expanded().style.opacity).toBe("1"));
   expect(compact().style.opacity).toBe("0");
-  expect(expanded().style.transform).toBe("translateY(11.9px)");
+  expect(expanded().style.transform).toBe("translateY(11.9px) scale(1)");
   // The timeline keeps its reserved room, and the heading still shadows it.
   expect(scroller.style.scrollPaddingTop).toBe(
     `${headingHeight(14, false, 1, 0)}px`,
@@ -651,7 +653,7 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
   slot.lifecycle.unmount();
 });
 
-it("crossfades stationary headings and switches modes on preference changes", async () => {
+it("eases fixed headings through a gentle handoff and switches modes", async () => {
   paneFixture({ recap: false });
   const scroller = document.querySelector<HTMLElement>(
     '[data-test="messages"]',
@@ -683,36 +685,60 @@ it("crossfades stationary headings and switches modes on preference changes", as
   ];
   await waitFor(() => expect(groups()).toHaveLength(2));
   await new Promise((resolve) => setTimeout(resolve, 550));
-  const transforms = groups().map((group) => group.style.transform);
-  expect(transforms[1]).toBe("translateY(0px)");
-  scroller.scrollTop = 550;
-  scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() =>
-    expect(Number(groups()[1]!.style.opacity)).toBeGreaterThan(0),
-  );
-  expect(groups().map((group) => group.style.transform)).toEqual(transforms);
+  const readMotion = () =>
+    groups().map((group) => {
+      const match = group.style.transform.match(
+        /translateY\(([-\d.]+)px\) scale\(([-\d.]+)\)/,
+      )!;
+      return {
+        y: Number(match[1]),
+        scale: Number(match[2]),
+        opacity: Number(group.style.opacity),
+      };
+    });
+  expect(readMotion()).toEqual([
+    { y: 11.9, scale: 1, opacity: 1 },
+    { y: 10, scale: 0.98, opacity: 0 },
+  ]);
   const distance = titleExitDistance(14, null, 1);
+  let previousDistance = 0;
+  let previous = readMotion();
+  let first50: ReturnType<typeof readMotion> | null = null;
   for (const fromBottom of [20, 50, 80, 50]) {
-    const progress = headingScroll(fromBottom, distance).progress;
     scroller.scrollTop = 600 - fromBottom;
     scroller.dispatchEvent(new Event("scroll"));
     await waitFor(() =>
-      expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(progress),
+      expect(Number(groups()[1]!.style.opacity)).not.toBe(previous[1]!.opacity),
     );
-    expect(Number(groups()[0]!.style.opacity)).toBeCloseTo(1 - progress);
+    const current = readMotion();
+    const direction = Math.sign(fromBottom - previousDistance);
+    expect(current[0]!.opacity + current[1]!.opacity).toBeCloseTo(1);
     expect(
-      Number(groups()[0]!.style.opacity) + Number(groups()[1]!.style.opacity),
-    ).toBeCloseTo(1);
-    expect(groups().map((group) => group.style.transform)).toEqual(transforms);
+      (current[0]!.opacity - previous[0]!.opacity) * direction,
+    ).toBeLessThan(0);
+    expect((current[0]!.y - previous[0]!.y) * direction).toBeLessThan(0);
+    expect((current[0]!.scale - previous[0]!.scale) * direction).toBeLessThan(
+      0,
+    );
+    expect(
+      (current[1]!.opacity - previous[1]!.opacity) * direction,
+    ).toBeGreaterThan(0);
+    expect((current[1]!.y - previous[1]!.y) * direction).toBeLessThan(0);
+    expect(
+      (current[1]!.scale - previous[1]!.scale) * direction,
+    ).toBeGreaterThan(0);
+    if (fromBottom === 50 && first50) expect(current).toEqual(first50);
+    if (fromBottom === 50) first50 = current;
+    previous = current;
+    previousDistance = fromBottom;
   }
-  expect(Number(groups()[0]!.style.opacity)).toBeLessThan(0.65);
-  expect(Number(groups()[1]!.style.opacity)).toBeLessThan(0.65);
+  const fadeAt50 = groups().map((group) => group.style.transform);
   const plate = overlay()!.querySelector<HTMLElement>(
     ".ws-sticky-goal__plate",
   )!;
   expect(Number(plate.style.opacity)).toBeCloseTo(
     headingBackdropOpacity(
-      headingScroll(50, titleExitDistance(14, null, 1)).progress,
+      headingScroll(50, titleExitDistance(14, null, 1), "fade").progress,
     ),
   );
   expect(Number(plate.style.opacity)).toBeGreaterThan(0.95);
@@ -721,9 +747,9 @@ it("crossfades stationary headings and switches modes on preference changes", as
     prefs: parsePrefs({ threads: { headingTransition: "scroll" } }),
   });
   await waitFor(() =>
-    expect(groups()[0]!.style.transform).not.toBe(transforms[0]),
+    expect(groups()[0]!.style.transform).not.toBe(fadeAt50[0]),
   );
-  expect(groups()[1]!.style.transform).not.toBe(transforms[1]);
+  expect(groups()[1]!.style.transform).not.toBe(fadeAt50[1]);
   const scrollOpacity = headingOpacity(headingScroll(50, distance).progress);
   expect(Number(groups()[0]!.style.opacity)).toBeCloseTo(
     scrollOpacity.expanded,
@@ -734,7 +760,7 @@ it("crossfades stationary headings and switches modes on preference changes", as
     prefs: parsePrefs({ threads: { headingTransition: "fade" } }),
   });
   await waitFor(() =>
-    expect(groups().map((group) => group.style.transform)).toEqual(transforms),
+    expect(groups().map((group) => group.style.transform)).toEqual(fadeAt50),
   );
   scroller.scrollTop = 450;
   scroller.dispatchEvent(new Event("scroll"));
@@ -746,6 +772,116 @@ it("crossfades stationary headings and switches modes on preference changes", as
       .querySelector<HTMLElement>(".ws-goal-background")!
       .style.getPropertyValue("--ws-fade-below-bar"),
   ).toBe("1");
+  await slot.behavior.emitRealtime("prefs", {
+    prefs: parsePrefs({ threads: { headingTransition: "scroll" } }),
+  });
+  await nextFrame();
+  await nextFrame();
+  await slot.behavior.emitRealtime("prefs", {
+    prefs: parsePrefs({ threads: { headingTransition: "fade" } }),
+  });
+  expect(Number(groups()[1]!.style.opacity)).toBe(1);
+  expect(Number(groups()[0]!.style.opacity)).toBe(0);
+  slot.lifecycle.unmount();
+});
+
+it("finishes the fade at a short thread's oldest message without clipping the rise", async () => {
+  paneFixture({ recap: false });
+  const scroller = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, value: 500 },
+    clientHeight: { configurable: true, value: 400 },
+    scrollTop: { configurable: true, writable: true, value: 0 },
+  });
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 48, 900, 672),
+  );
+  const slot = await mountHeading("fade");
+  const groups = () => [
+    ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
+  ];
+  await waitFor(() => expect(groups()).toHaveLength(2));
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  await waitFor(() => expect(Number(groups()[1]!.style.opacity)).toBe(1));
+  expect(Number(groups()[0]!.style.opacity)).toBe(0);
+
+  scroller.scrollTop = 50;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => {
+    const opacity = Number(groups()[1]!.style.opacity);
+    expect(opacity).toBeGreaterThan(0);
+    expect(opacity).toBeLessThan(1);
+  });
+  const compact = groups()[1]!;
+  const match = compact.style.transform.match(
+    /translateY\(([-\d.]+)px\) scale\(([-\d.]+)\)/,
+  )!;
+  const clip = overlay()!.querySelector<HTMLElement>(
+    '[data-ws-heading="compact"]',
+  )!;
+  const drawnBottom =
+    Number(match[1]) + compactBlock(14, null) * Number(match[2]);
+  expect(drawnBottom).toBeLessThanOrEqual(
+    Number.parseFloat(clip.style.height) + 0.001,
+  );
+  slot.lifecycle.unmount();
+});
+
+it("keeps fixed title positions under reduced motion while fading", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === REDUCED_MOTION_QUERY,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+  paneFixture({ recap: false });
+  const scroller = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, value: 1000 },
+    clientHeight: { configurable: true, value: 400 },
+    scrollTop: { configurable: true, writable: true, value: 600 },
+  });
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 48, 900, 672),
+  );
+  const header = document.querySelector("header")!;
+  vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 900, 48),
+  );
+  vi.spyOn(
+    header.querySelector(".bb-thread-title")!,
+    "getBoundingClientRect",
+  ).mockReturnValue(new DOMRect(0, 0, 80, 48));
+  vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(700, 0, 100, 48),
+  );
+  const slot = await mountHeading("fade");
+  const groups = () => [
+    ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
+  ];
+  await waitFor(() => expect(groups()).toHaveLength(2));
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  const transforms = groups().map((group) => group.style.transform);
+  expect(transforms).toEqual([
+    "translateY(11.9px) scale(1)",
+    "translateY(0px) scale(1)",
+  ]);
+  scroller.scrollTop = 550;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => {
+    const opacity = Number(groups()[1]!.style.opacity);
+    expect(opacity).toBeGreaterThan(0);
+    expect(opacity).toBeLessThan(1);
+  });
+  expect(groups().map((group) => group.style.transform)).toEqual(transforms);
   slot.lifecycle.unmount();
 });
 

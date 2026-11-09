@@ -1,7 +1,10 @@
 import { useBbContext } from "@get-bb/plugin-sdk/app";
 import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useMediaQuery } from "@/components/ui/hooks/use-media-query";
+import {
+  useMediaQuery,
+  usePrefersReducedMotion,
+} from "@/components/ui/hooks/use-media-query";
 import { useGoalContext } from "./goalContext.ts";
 import { workstreamColorStyle } from "../domain/workstreamColor.ts";
 import { usePrefs } from "./prefs.ts";
@@ -17,6 +20,7 @@ import {
   compactBlock,
   eyebrowMetrics,
   headingBackdropOpacity,
+  headingFade,
   headingHeight,
   headingOpacity,
   headingScroll,
@@ -236,17 +240,33 @@ function useScrollState(
   scrollLimit: number,
 ): {
   fromBottom: number;
+  /** The handoff ends at the oldest reachable message, even on short threads. */
+  limit: number;
   // BB's own overflow fades appear only once content has scrolled out of view,
   // so the fade beneath the heading is on exactly when the timeline is
   // detached from its top.
   fade: boolean;
 } {
-  const [state, setState] = useState({ fromBottom: 0, fade: false });
-  const latest = useRef(state);
+  type ScrollMeasurement = {
+    fromBottom: number;
+    range: number | null;
+    fade: boolean;
+  };
+  // The raw position lets a preference change apply its new limit in the same
+  // render. Only changes visible under the current limit commit a render, so
+  // scrolling beyond a collapsed heading stays idle.
+  const latest = useRef<ScrollMeasurement>({
+    fromBottom: 0,
+    range: null,
+    fade: false,
+  });
+  const rendered = useRef(latest.current);
+  const [, setRendered] = useState(rendered.current);
   useEffect(() => {
     // A new scroller (another thread) starts expanded until it is measured.
-    latest.current = { fromBottom: 0, fade: false };
-    setState(latest.current);
+    latest.current = { fromBottom: 0, range: null, fade: false };
+    rendered.current = latest.current;
+    setRendered(latest.current);
   }, [scroller]);
   useEffect(() => {
     if (!scroller) return;
@@ -254,19 +274,29 @@ function useScrollState(
     const update = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const range = scroller.scrollHeight - scroller.clientHeight;
+        const range = Math.max(
+          0,
+          scroller.scrollHeight - scroller.clientHeight,
+        );
         const fromBottom = Math.min(
-          scrollLimit,
+          range,
           Math.max(0, range - scroller.scrollTop),
         );
         const fade = scroller.scrollTop > 1;
+        latest.current = { fromBottom, range, fade };
+        const next = {
+          fromBottom: Math.min(fromBottom, scrollLimit, range),
+          range,
+          fade,
+        };
         if (
-          latest.current.fromBottom === fromBottom &&
-          latest.current.fade === fade
+          rendered.current.fromBottom === next.fromBottom &&
+          rendered.current.range === range &&
+          rendered.current.fade === fade
         )
           return;
-        latest.current = { fromBottom, fade };
-        setState(latest.current);
+        rendered.current = next;
+        setRendered(next);
       });
     };
     update();
@@ -279,7 +309,13 @@ function useScrollState(
       resize.disconnect();
     };
   }, [scroller, scrollLimit]);
-  return state;
+  const { range } = latest.current;
+  const limit = range === null ? scrollLimit : Math.min(scrollLimit, range);
+  return {
+    fromBottom: Math.min(latest.current.fromBottom, limit),
+    limit,
+    fade: latest.current.fade,
+  };
 }
 
 /**
@@ -481,6 +517,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const placement = usePlacement(mount, base, centered);
   const hasEyebrow = !!context?.workstream;
   const phone = useMediaQuery(PHONE_QUERY);
+  const reduceMotion = usePrefersReducedMotion();
   const eyebrow = hasEyebrow ? eyebrowMetrics(base, phone) : null;
   // On a phone the title may take two lines; it is measured, once placed.
   const measureRef = useRef<HTMLHeadingElement>(null);
@@ -532,22 +569,32 @@ export function StickyGoalHeader(): React.ReactElement | null {
     goal ? goalLines : 0,
   );
   const exitDistance = titleExitDistance(base, eyebrow, titleLines);
-  const { fromBottom, fade } = useScrollState(
+  const { fromBottom, limit, fade } = useScrollState(
     mount?.scroller ?? null,
-    headingScrollLimit(exitDistance),
+    headingScrollLimit(exitDistance, fadeOnly ? "fade" : "scroll"),
   );
   const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
   // A floating heading never makes the move to the compact copy: it stays at
   // rest over the timeline, which scrolls beneath its shadow. A pane too short
   // to spare the room still compacts, so a phone with the keyboard up keeps a
   // readable timeline.
-  const { moved, remaining, progress } =
-    !floating && placement?.short
+  const { moved, remaining, progress } = floating
+    ? { moved: 0, remaining: exitDistance, progress: 0 }
+    : placement?.short
       ? { moved: exitDistance, remaining: 0, progress: 1 }
-      : headingScroll(floating ? 0 : settled ? fromBottom : 0, exitDistance);
+      : headingScroll(
+          settled ? fromBottom : 0,
+          exitDistance,
+          fadeOnly ? "fade" : "scroll",
+          limit,
+        );
   const collapsed = progress === 1;
+  const fadeMotion = headingFade(progress, !reduceMotion);
   const opacity = fadeOnly
-    ? { expanded: 1 - progress, compact: progress }
+    ? {
+        expanded: fadeMotion.expanded.opacity,
+        compact: fadeMotion.compact.opacity,
+      }
     : headingOpacity(progress);
   // When the title bar has no room, the compact copy sits in the timeline.
   const pinned = !!placement && placement.bar === null;
@@ -636,8 +683,8 @@ export function StickyGoalHeader(): React.ReactElement | null {
       </div>
     );
 
-  // The scroll transition moves both copies together; the fade transition
-  // keeps them in place.
+  // The scroll transition carries both copies through the full exit distance;
+  // the fade uses a small retreat and rise within their fixed layouts.
   const text = (
     <>
       <div
@@ -652,7 +699,9 @@ export function StickyGoalHeader(): React.ReactElement | null {
         <div
           className="ws-goal-overlay__group"
           style={{
-            transform: `translateY(${base * PAD_TOP - (fadeOnly ? 0 : moved)}px)`,
+            transform: fadeOnly
+              ? `translateY(${base * PAD_TOP + fadeMotion.expanded.y}px) scale(${fadeMotion.expanded.scale})`
+              : `translateY(${base * PAD_TOP - moved}px)`,
             opacity: opacity.expanded,
             width: placement.pane.width,
           }}
@@ -709,16 +758,19 @@ export function StickyGoalHeader(): React.ReactElement | null {
         style={{
           transform: `translate(${compactSpot.x}px, ${compactSpot.y}px)`,
           width: compactSpot.width,
-          height: inBar
-            ? Math.max(barBlock, paneTop - compactSpot.y)
-            : barBlock,
+          height: Math.max(
+            inBar ? Math.max(barBlock, paneTop - compactSpot.y) : barBlock,
+            fadeOnly ? barBlock + 10 : 0,
+          ),
         }}
       >
         <div
           className="ws-goal-overlay__group"
           data-ws-align={centered ? "center" : undefined}
           style={{
-            transform: `translateY(${fadeOnly ? 0 : remaining}px)`,
+            transform: fadeOnly
+              ? `translateY(${fadeMotion.compact.y}px) scale(${fadeMotion.compact.scale})`
+              : `translateY(${remaining}px)`,
             opacity: opacity.compact,
             width: compactSpot.width,
           }}
