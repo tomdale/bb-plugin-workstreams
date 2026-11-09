@@ -830,6 +830,14 @@ export const rpcContract = defineRpcContract({
     input: z.object({ id: z.string().min(1), entryId: z.string().optional() }),
     output: z.object({ state: suggestionsStateSchema }),
   },
+  /** Analysis calls and journal events for one thread, newest first. */
+  threadActivity: {
+    input: z.object({ threadId: z.string().min(1) }),
+    output: z.object({
+      entries: z.array(entrySchema),
+      traces: z.array(traceSummarySchema),
+    }),
+  },
   journal: {
     input: z
       .object({

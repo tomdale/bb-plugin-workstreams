@@ -3,8 +3,9 @@
  * section: the metadata Workstreams generated and accumulated for the
  * thread — the settled goal, the context digest, the topic assignment and
  * its provenance, and the latest analysis run's status, model, and age.
- * Debug mode only; the slots are feature-detected, so bb builds without
- * them skip the registrations.
+ * Related journal events and analysis calls appear below, with the model-call
+ * inspector one click away. Debug mode only; the slots are feature-detected,
+ * so bb builds without them skip the registrations.
  */
 import type { ReactNode } from "react";
 import {
@@ -15,6 +16,7 @@ import {
 import { relativeAge } from "../../domain/presentation.ts";
 import { useSharedServerStateSelector } from "../serverState.ts";
 import { useDebugMode } from "./debug.ts";
+import { ThreadActivity } from "./ThreadActivity.tsx";
 
 function Entry({
   label,
@@ -97,7 +99,7 @@ function DebugEntries({
       {analysis ? (
         <Entry label="Status" icon="ChartColumn">
           {analysis.state}
-          {analysis.needsYou ? ` — ${analysis.needsYou}` : ""} (
+          {analysis.needsYou ? `: ${analysis.needsYou}` : ""} (
           {analysis.reported ? "reported by the agent" : "inferred"})
         </Entry>
       ) : null}
@@ -122,7 +124,12 @@ export function ThreadContextDebugSection({
   const debug = useDebugMode("threadInfo");
   if (!debug) return null;
   // Core card rows and the host-drawn section heading both use px-2.
-  return <DebugEntries threadId={threadId} surface="card" />;
+  return (
+    <>
+      <DebugEntries threadId={threadId} surface="card" />
+      <ThreadActivity key={threadId} threadId={threadId} surface="card" />
+    </>
+  );
 }
 
 /** The Info tab's sections render their own chrome. */
@@ -134,6 +141,7 @@ export function ThreadInfoDebugSection({
   return (
     <InfoSection label="Workstreams Debug">
       <DebugEntries threadId={threadId} surface="info" />
+      <ThreadActivity key={threadId} threadId={threadId} surface="info" />
     </InfoSection>
   );
 }

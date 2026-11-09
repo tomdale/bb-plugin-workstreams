@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { fakeWorld, type FakeCompletion } from "./fake-bb.ts";
 import { openDatabase } from "../../src/server/db.ts";
+import { Journal } from "../../src/server/journal.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 let world: World | null = null;
@@ -201,6 +202,49 @@ describe("debug mode on", () => {
       title: "applied",
       storedForRevision: expect.any(Number),
     });
+  });
+
+  it("returns only the journal events and model calls related to a thread", async () => {
+    const w = await setup(true);
+    await analyze(w, "t1");
+    const relatedTraceIds = (await traces(w)).map((trace) => trace.id);
+    w.addThread("t2", { title: "Other thread" });
+    w.converse("t2", ["Work on the other thread"]);
+    await analyze(w, "t2");
+    expect((await traces(w)).length).toBeGreaterThan(relatedTraceIds.length);
+    const journal = new Journal(w.bb.storage.database());
+    for (const [rationale, threadId, source] of [
+      ["Related automatic event", "t1", "auto"],
+      ["Related outside event", "t1", "external"],
+      ["Unrelated event", "t2", "auto"],
+    ] as const)
+      journal.add({
+        action: "move",
+        source,
+        rationale,
+        threads: [{ id: threadId, name: threadId }],
+        workstreams: [],
+        undo: null,
+      });
+
+    expect(
+      journal
+        .list({ threadId: "t1", external: true, limit: 1 })
+        .map((entry) => entry.rationale),
+    ).toEqual(["Related outside event"]);
+
+    const activity = await rpc<{
+      entries: { rationale: string }[];
+      traces: Summary[];
+    }>(w, "threadActivity", { threadId: "t1" });
+    expect(activity.entries.map((entry) => entry.rationale)).toEqual([
+      "Related outside event",
+      "Related automatic event",
+    ]);
+    expect(activity.traces.map((trace) => trace.id)).toEqual(relatedTraceIds);
+    expect(activity.traces.every((trace) => trace.threads.includes("t1"))).toBe(
+      true,
+    );
   });
 
   it("replays a stored prompt without changing anything", async () => {

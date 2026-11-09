@@ -128,6 +128,15 @@ export type JournalEntry = z.infer<typeof entrySchema>;
 export type NewEntry = Omit<JournalEntry, "id" | "at" | "detail" | "status"> &
   Partial<Pick<JournalEntry, "detail" | "status">>;
 
+type JournalQuery = {
+  limit?: number;
+  before?: number;
+  external?: boolean;
+  since?: number;
+  /** Keep entries that name this thread in their subject, before limiting. */
+  threadId?: string;
+};
+
 const RATIONALE_MAX = 120;
 const RETAIN_MS = 90 * 24 * 60 * 60 * 1000;
 const RETAIN_ENTRIES = 2000;
@@ -208,37 +217,35 @@ export class Journal {
     return row ? fromRow(row) : null;
   }
 
-  list(
-    options: {
-      limit?: number;
-      before?: number;
-      external?: boolean;
-      since?: number;
-    } = {},
-  ): JournalEntry[] {
+  list(options: JournalQuery = {}): JournalEntry[] {
     return this.window(options).entries;
   }
 
-  window(
-    options: {
-      limit?: number;
-      before?: number;
-      external?: boolean;
-      since?: number;
-    } = {},
-  ): { entries: JournalEntry[]; hasMore: boolean; limit: number } {
+  window(options: JournalQuery = {}): {
+    entries: JournalEntry[];
+    hasMore: boolean;
+    limit: number;
+  } {
     const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
+    const threadFilter = options.threadId
+      ? `AND EXISTS (
+           SELECT 1 FROM json_each(ws_journal.subject, '$.threads') AS thread
+           WHERE json_extract(thread.value, '$.id') = @threadId
+         )`
+      : "";
     const rows = this.db
       .prepare(
         `SELECT * FROM ws_journal
          WHERE at < @before AND at >= @since
            AND (@external = 1 OR source <> 'external')
+           ${threadFilter}
          ORDER BY at DESC, rowid DESC LIMIT @limitPlusOne`,
       )
       .all({
         before: options.before ?? Number.MAX_SAFE_INTEGER,
         since: options.since ?? 0,
         external: options.external ? 1 : 0,
+        threadId: options.threadId ?? null,
         limitPlusOne: limit + 1,
       }) as Row[];
     const hasMore = rows.length > limit;

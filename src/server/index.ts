@@ -1443,6 +1443,20 @@ export default async function plugin(bb: BbPluginApi) {
       }
       return { state: organizerInstance.state() };
     },
+    threadActivity: async ({ threadId }) => {
+      const entries = journal.list({
+        threadId,
+        external: true,
+        limit: 200,
+      });
+      return {
+        entries,
+        traces: traces.list({
+          link: { kind: "thread", ref: threadId },
+          limit: 200,
+        }),
+      };
+    },
     journal: async (input) => {
       const entries = journal.list({
         limit: input?.limit,
