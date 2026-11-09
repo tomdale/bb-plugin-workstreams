@@ -172,6 +172,9 @@ export function WorkingIndicatorSettings() {
 export function ThreadsSettings() {
   const { prefs, update, error } = useFeaturePrefs();
   if (!prefs) return <Loading />;
+  // A floating heading never hands over to the compact title, so the transition
+  // between the two has nothing to do.
+  const minimizing = prefs.threads.headingScroll === "minimize";
   return (
     <div className="space-y-3">
       <SettingsSaveError error={error} />
@@ -195,7 +198,7 @@ export function ThreadsSettings() {
         />
         <SettingRow
           label="Title on scroll"
-          description="Minimize the heading into the title bar as you scroll, or keep it over the thread at full size."
+          description="Minimize the heading into the title bar as you scroll, or float it over the thread."
           control={
             <SegmentedControl
               label="Title on scroll"
@@ -212,7 +215,7 @@ export function ThreadsSettings() {
         />
         <SettingRow
           label="Title transition"
-          description="How the large heading changes to the compact title as you scroll, while it minimizes."
+          description="While the heading minimizes, fade the compact title into place, or scroll both copies as they cross."
           control={
             <SegmentedControl
               label="Title transition"
@@ -221,6 +224,7 @@ export function ThreadsSettings() {
                 { value: "fade", label: "Fade" },
                 { value: "scroll", label: "Scroll" },
               ]}
+              disabled={!minimizing}
               onChange={(headingTransition) =>
                 update({ threads: { headingTransition } })
               }
@@ -229,7 +233,7 @@ export function ThreadsSettings() {
         />
         <SettingRow
           label="Title alignment"
-          description="Line the heading's text up with the messages, or center it in the thread."
+          description="Align the heading with the messages, or center it in the thread."
           control={
             <SegmentedControl
               label="Title alignment"

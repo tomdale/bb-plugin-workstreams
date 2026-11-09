@@ -372,18 +372,24 @@ export function SegmentedControl<V extends string>({
   value,
   options,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: V;
   options: readonly { value: V; label: string }[];
   onChange(value: V): void;
+  disabled?: boolean;
 }) {
   const name = useId();
   return (
     <div
       role="radiogroup"
       aria-label={label}
-      className="inline-flex h-7 items-center rounded-md border border-border bg-background p-0.5"
+      aria-disabled={disabled || undefined}
+      className={cn(
+        "inline-flex h-7 items-center rounded-md border border-border bg-background p-0.5",
+        disabled && "opacity-60",
+      )}
     >
       {options.map((option) => {
         const selected = option.value === value;
@@ -391,10 +397,12 @@ export function SegmentedControl<V extends string>({
           <label
             key={option.value}
             className={cn(
-              "relative flex h-full min-w-16 cursor-pointer items-center justify-center rounded px-2 text-xs transition-colors has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-ring",
+              "relative flex h-full min-w-16 items-center justify-center rounded px-2 text-xs transition-colors has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-ring",
+              disabled ? "cursor-not-allowed" : "cursor-pointer",
               selected
                 ? "bg-accent font-medium text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
+                : "text-muted-foreground",
+              !disabled && !selected && "hover:text-foreground",
             )}
           >
             <input
@@ -402,6 +410,7 @@ export function SegmentedControl<V extends string>({
               name={name}
               value={option.value}
               checked={selected}
+              disabled={disabled}
               onChange={() => onChange(option.value)}
               className="sr-only"
             />

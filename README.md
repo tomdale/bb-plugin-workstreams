@@ -521,13 +521,13 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
   As you scroll away from the newest message, the large heading fades out over a
   feathered background while a compact copy fades into the top bar (or stays
   pinned in the timeline when the bar is too narrow). In **Settings →
-  Workstreams → Threads**, choose **Title transition → Scroll** to have both
-  headings slide as they fade, **Title on scroll → Float** to keep the large
-  heading over the thread and let the timeline move beneath its shadow, or
-  **Title alignment → Centered** to put the heading's workstream, title, and
-  goal on the pane's center line. Switching threads preserves your reading
-  position. When you follow the newest message, the view stays attached to it as
-  the heading loads.
+  Workstreams → Threads**, choose **Title on scroll → Float** to leave the
+  heading over the thread and let the timeline move beneath its shadow, **Title
+  transition → Scroll** to slide both copies as they cross while the heading
+  minimizes, or **Title alignment → Centered** to put the heading's workstream,
+  title, and goal on the pane's center line. Switching threads preserves your
+  reading position. When you follow the newest message, the view stays attached
+  to it as the heading loads.
 - **Thread header actions:**
   - **Parent thread** (optional, off by default): Opens the parent thread from a
     delegate's header.
@@ -927,8 +927,8 @@ Open **Settings → Workstreams** to configure:
 | **Colors**            | **Default colors**, then six colors                | `Workstreams`                               | **Default colors** picks Workstreams' own shades or matching bb theme colors; each color's swatches can override it with a theme color or a custom `#rrggbb`.                                           |
 | **Threads**           | **Full analysis model**                            | `openai/gpt-6-sol-fast`                     | Model used at turn end to settle goals and fallback status.                                                                                                                                             |
 | **Threads**           | **Keep titles current**                            | `On`                                        | Automatically titles new threads and updates titles as focus evolves. Outside manual title edits stay locked until cleared.                                                                             |
-| **Threads**           | **Title on scroll**                                | `Minimize`                                  | Minimize shrinks the heading into the title bar as you scroll; `Float` keeps it at full size over the thread, which moves beneath its shadow.                                                           |
-| **Threads**           | **Title transition**                               | `Fade`                                      | How the large heading gives way to the compact title while it minimizes: `Fade` crossfades the two in place, `Scroll` slides them together as they cross.                                               |
+| **Threads**           | **Title on scroll**                                | `Minimize`                                  | Minimize shrinks the heading into the title bar as you scroll; `Float` leaves it over the thread, which moves beneath its shadow.                                                                       |
+| **Threads**           | **Title transition**                               | `Fade`                                      | While the heading minimizes, `Fade` crossfades the heading and the compact title in place, and `Scroll` slides both as they cross. Inactive while the title floats.                                     |
 | **Threads**           | **Title alignment**                                | `Left`                                      | `Left` lines the heading's workstream, title, and goal up with the messages; `Centered` puts them on the pane's center line.                                                                            |
 | **Threads**           | **Show parent thread link**                        | `Off`                                       | Shows a parent-thread pill in delegate thread headers.                                                                                                                                                  |
 | **Threads**           | **Show archive button**                            | `On`                                        | Shows an Archive button in thread headers.                                                                                                                                                              |

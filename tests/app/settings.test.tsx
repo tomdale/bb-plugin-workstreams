@@ -316,6 +316,35 @@ it("chooses between minimizing the title and letting it float", async () => {
   ).toEqual({ patch: { threads: { headingScroll: "minimize" } } });
 });
 
+it("only offers a title transition while the title minimizes", async () => {
+  const slot = await mount("threads");
+  const transition = await slot.findByRole("radiogroup", {
+    name: "Title transition",
+  });
+  const fade = within(transition).getByRole("radio", {
+    name: "Fade",
+  }) as HTMLInputElement;
+  expect(fade.disabled).toBe(false);
+  expect(transition.getAttribute("aria-disabled")).toBeNull();
+  fireEvent.click(
+    within(slot.getByRole("radiogroup", { name: "Title on scroll" })).getByRole(
+      "radio",
+      { name: "Float" },
+    ),
+  );
+  await waitFor(() => expect(fade.disabled).toBe(true));
+  expect(transition.getAttribute("aria-disabled")).toBe("true");
+  // Its stored choice survives: floating only makes it inactive.
+  expect(fade.checked).toBe(true);
+  fireEvent.click(
+    within(slot.getByRole("radiogroup", { name: "Title on scroll" })).getByRole(
+      "radio",
+      { name: "Minimize" },
+    ),
+  );
+  await waitFor(() => expect(fade.disabled).toBe(false));
+});
+
 it("chooses between left aligned and centered titles", async () => {
   const slot = await mount("threads");
   const group = await slot.findByRole("radiogroup", {
