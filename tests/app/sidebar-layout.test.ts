@@ -92,45 +92,54 @@ describe.skipIf(browserUnavailable)(
     );
 
     browserTest(
-      "extends the thread hover fill by 3px vertically without changing row layout",
+      "extends hover and selected fills by 3px vertically without changing row layout",
       async ({ page }) => {
         await page.setContent(`<style>${styles}</style>
           <style>
             .ws-row { position: relative; display: flex; height: 21px; }
           </style>
           <div class="ws-row" style="--sidebar-accent: rgb(100, 100, 100)">First</div>
-          <div class="ws-row second">Second</div>`);
+          <div class="ws-row selected ws-row-active" style="--sidebar-accent: rgb(100, 100, 100)">Selected</div>
+          <div class="ws-row neighbor">Neighbor</div>`);
         const first = page.locator(".ws-row").first();
-        const second = page.locator(".second");
+        const selected = page.locator(".selected");
+        const neighbor = page.locator(".neighbor");
         const geometry = async () => ({
           first: await first.boundingBox(),
-          second: await second.boundingBox(),
+          selected: await selected.boundingBox(),
+          neighbor: await neighbor.boundingBox(),
         });
+        const fill = async (row: typeof first) =>
+          row.evaluate((el) => {
+            const style = getComputedStyle(el, "::before");
+            return {
+              position: style.position,
+              top: style.top,
+              bottom: style.bottom,
+              height: style.height,
+              pointerEvents: style.pointerEvents,
+              backgroundColor: style.backgroundColor,
+            };
+          });
         const before = await geometry();
+        const selectedFill = await fill(selected);
 
         await first.hover();
         const after = await geometry();
         expect(after).toEqual(before);
 
-        const fill = await first.evaluate((row) => {
-          const style = getComputedStyle(row, "::before");
-          return {
-            position: style.position,
-            top: style.top,
-            bottom: style.bottom,
-            height: style.height,
-            pointerEvents: style.pointerEvents,
-            backgroundColor: style.backgroundColor,
-          };
-        });
-        expect(fill).toMatchObject({
-          position: "absolute",
-          top: "-3px",
-          bottom: "-3px",
-          height: "27px",
-          pointerEvents: "none",
-        });
-        expect(fill.backgroundColor).toContain("0.6");
+        const hoverFill = await fill(first);
+        for (const current of [hoverFill, selectedFill]) {
+          expect(current).toMatchObject({
+            position: "absolute",
+            top: "-3px",
+            bottom: "-3px",
+            height: "27px",
+            pointerEvents: "none",
+          });
+        }
+        expect(hoverFill.backgroundColor).toContain("0.6");
+        expect(selectedFill.backgroundColor).toBe("rgb(100, 100, 100)");
       },
     );
 

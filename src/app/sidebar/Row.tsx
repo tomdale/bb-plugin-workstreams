@@ -134,7 +134,7 @@ export function Row({
         subtitle
           ? "items-start py-1.5 [&>.ws-row-aside]:h-5 [&>.ws-status-slot]:mt-[3px]"
           : heightClass,
-        active && "bg-sidebar-accent",
+        active && "ws-row-active",
       )}
       style={{ paddingLeft }}
     >

@@ -1,5 +1,6 @@
-/* Grow only the hover fill beyond the thread row. The pseudo-element does
-   not participate in layout or intercept pointers meant for adjacent rows. */
+/* Grow only the hover or selected fill beyond the thread row. The
+   pseudo-element does not participate in layout or intercept pointers meant
+   for adjacent rows. */
 .ws-row::before {
   content: "";
   position: absolute;
@@ -7,8 +8,11 @@
   border-radius: 6px;
   pointer-events: none;
 }
-.ws-row:not(.bg-sidebar-accent):hover::before {
+.ws-row:not(.ws-row-active):hover::before {
   background-color: color-mix(in oklab, var(--sidebar-accent) 60%, transparent);
+}
+.ws-row.ws-row-active::before {
+  background-color: var(--sidebar-accent);
 }
 
 .ws-row [data-timestamp="hover"] {
@@ -322,10 +326,10 @@
 .ws-needs .ws-row {
   animation: ws-needs-row-arrive 240ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.ws-needs .ws-row:not(.bg-sidebar-accent):hover::before {
+.ws-needs .ws-row:not(.ws-row-active):hover::before {
   background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
 }
-.ws-needs .ws-row.bg-sidebar-accent {
+.ws-needs .ws-row.ws-row-active::before {
   background-color: color-mix(in oklab, var(--foreground) 9%, transparent);
 }
 @keyframes ws-needs-row-arrive {
