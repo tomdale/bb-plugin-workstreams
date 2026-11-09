@@ -8,7 +8,8 @@
  * Workstreams nest by topic (see `nestGroups`): a group lists its own
  * threads, then the threads of subgroups too small for headers, each
  * labeled with its subgroup, then its other subgroups. Each group's contents
- * sit one step (`INDENT_PX`) in, with a guide below its disclosure chevron.
+ * sit one step (`INDENT_PX`) in. A header folds from the chevron beside its
+ * name, and only from there: the row itself drags the workstream.
  * Top-level workstreams always keep their own headers (see `arrangeGroups`).
  *
  * Up Next's rows come from `selectUpNext`, including its focus on the
@@ -1818,10 +1819,9 @@ function WorkstreamGroup({
   const label = "label" in group ? group.label : group.name;
   const isWorkstream = "hasSection" in group && group.hasSection;
   const counts = headerCounts(group, collapsed, prefs?.sidebar);
-  /** A group with threads folds, so only its header is a button. */
+  /** A group with threads folds, from a chevron beside its name. */
   const folds = group.total > 0;
-  const headingClass =
-    "group/heading relative flex min-w-0 flex-1 items-center text-left";
+  const headingClass = "flex min-w-0 flex-1 items-center gap-1";
   const heading = (
     <WorkstreamName
       name={label}
@@ -1882,7 +1882,7 @@ function WorkstreamGroup({
         <div
           ref={handle?.ref}
           {...handle?.listeners}
-          className="group/row relative flex items-center gap-1.5 rounded-md pr-2 hover:bg-sidebar-accent/60"
+          className="group/row relative flex items-center gap-1.5 rounded-md pr-2"
           style={{
             height: SIDEBAR_GEOMETRY.workstreamHeader.height,
             paddingLeft: nested
@@ -1890,35 +1890,34 @@ function WorkstreamGroup({
               : SIDEBAR_GEOMETRY.workstreamHeader.indent,
           }}
         >
-          {folds ? (
-            <button
-              type="button"
-              aria-expanded={!collapsed}
-              onClick={toggle}
-              className={cn(headingClass, "cursor-pointer")}
-            >
-              <span
-                aria-hidden="true"
-                className="absolute top-1/2 flex h-3.5 -translate-y-1/2 items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-has-[:focus-visible]/row:opacity-100"
-                style={{
-                  left:
-                    -SIDEBAR_GEOMETRY.workstreamHeader.chevronWidth -
-                    SIDEBAR_GEOMETRY.workstreamHeader.chevronGap,
-                  width: SIDEBAR_GEOMETRY.workstreamHeader.chevronWidth,
+          <span className={headingClass}>
+            {heading}
+            {folds ? (
+              // The chevron is the header's only press: the row stays the
+              // workstream's drag handle, and a press on the name does
+              // nothing. An empty workstream has nothing to fold, so it has
+              // no chevron to take focus and do nothing.
+              <button
+                type="button"
+                aria-expanded={!collapsed}
+                aria-label={collapsed ? `Expand ${label}` : `Collapse ${label}`}
+                onPointerDown={(event) => event.stopPropagation()}
+                onMouseDown={(event) => event.stopPropagation()}
+                onTouchStart={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  toggle();
                 }}
+                className={cn(rowActionClass, "size-5")}
               >
                 <Icon
                   name={collapsed ? "ChevronRight" : "ChevronDown"}
                   className="size-3"
                 />
-              </span>
-              {heading}
-            </button>
-          ) : (
-            // An empty workstream has nothing to fold: a button here would
-            // take focus and a press that do nothing.
-            <div className={headingClass}>{heading}</div>
-          )}
+              </button>
+            ) : null}
+          </span>
           {/* Keep the always-visible action at the trailing edge so revealing
             other actions cannot move it underneath the pointer. */}
           <RowActions>

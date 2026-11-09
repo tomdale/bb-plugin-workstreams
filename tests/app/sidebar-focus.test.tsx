@@ -145,7 +145,7 @@ describe("focused workstreams", () => {
     const alpha = within(slot.getByRole("region", { name: "Alpha" }));
     expect(
       alpha
-        .getByRole("button", { name: "Alpha" })
+        .getByRole("button", { name: "Expand Alpha" })
         .getAttribute("aria-expanded"),
     ).toBe("false");
     const waiting = alpha.getByTitle("1 waiting on you");
@@ -243,7 +243,9 @@ describe("focused workstreams", () => {
     expect(regions(slot)).toEqual(["Zeta", "Alpha", "Unfiled", "Beta"]);
     const alpha = slot.getByRole("region", { name: "Alpha" });
     expect(within(alpha).queryAllByRole("link")).toHaveLength(0);
-    fireEvent.click(within(alpha).getByRole("button", { name: "Alpha" }));
+    fireEvent.click(
+      within(alpha).getByRole("button", { name: "Expand Alpha" }),
+    );
     expect(groupRows(slot, "Alpha")).toEqual(["Alpha task"]);
 
     // Hiding and revealing again starts every one collapsed.

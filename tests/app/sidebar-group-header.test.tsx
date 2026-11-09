@@ -118,18 +118,39 @@ describe("workstream headers", () => {
     }
   });
 
-  it("draws an empty workstream's header without a fold button", async () => {
+  it("draws an empty workstream's header without a fold chevron", async () => {
     const slot = await mount(threads(), {
       settings: { showRecent: false, showForYou: false },
     });
     const empty = within(await slot.findByRole("region", { name: "Zeta" }));
-    expect(empty.queryByRole("button", { name: "Zeta" })).toBeNull();
+    expect(
+      empty.queryByRole("button", { name: /^(Expand|Collapse) Zeta$/ }),
+    ).toBeNull();
     expect(empty.getByText("Zeta")).toBeTruthy();
     // A workstream with threads keeps the control that folds it.
     const toggle = within(
       slot.getByRole("region", { name: "Alpha" }),
-    ).getByRole("button", { name: "Alpha" });
+    ).getByRole("button", { name: "Collapse Alpha" });
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    slot.lifecycle.unmount();
+  });
+
+  it("folds a workstream only from the chevron beside its name", async () => {
+    const slot = await mount(threads(), {
+      settings: { showRecent: false, showForYou: false },
+    });
+    const alpha = within(await slot.findByRole("region", { name: "Alpha" }));
+    // The row is the workstream's drag handle, so a press on the name is
+    // not a fold.
+    fireEvent.click(alpha.getByText("Alpha"));
+    expect(alpha.getByRole("link", { name: "Alpha task" })).toBeTruthy();
+    fireEvent.click(alpha.getByRole("button", { name: "Collapse Alpha" }));
+    expect(alpha.queryAllByRole("link")).toHaveLength(0);
+    expect(
+      alpha
+        .getByRole("button", { name: "Expand Alpha" })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
     slot.lifecycle.unmount();
   });
 });

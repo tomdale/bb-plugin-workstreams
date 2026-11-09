@@ -5,7 +5,7 @@
 export const SIDEBAR_GEOMETRY = {
   container: { paddingX: 8, paddingY: 12 },
   sectionHeading: { height: 13, topMargin: 8, bottomMargin: 9, leftInset: 10 },
-  workstreamHeader: { height: 22, indent: 10, chevronWidth: 8, chevronGap: 6 },
+  workstreamHeader: { height: 22, indent: 10 },
   row: { rootHeight: 21, childHeight: 28, rootInset: 5, childIndent: 20 },
   category: {
     height: 14,

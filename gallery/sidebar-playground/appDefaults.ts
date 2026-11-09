@@ -105,8 +105,11 @@ export function appSidebarDefaults(): Record<string, string> {
         catChildRowHeight: row.childHeight,
         headerHeight: workstreamHeader.height,
         topWorkstreamIndent: workstreamHeader.indent,
-        chevronWidth: workstreamHeader.chevronWidth,
-        headerGap: workstreamHeader.chevronGap,
+        // The playground still offers a chevron hanging beside the name, so
+        // its slot and gap are the playground's own; the sidebar keeps its
+        // chevron inline, after the name.
+        chevronWidth: 8,
+        headerGap: 6,
         rowInset: root,
         rowInsetReference: "content",
         categoryIndent: category.indent,

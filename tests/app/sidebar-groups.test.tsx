@@ -145,7 +145,9 @@ describe("nested workstreams", () => {
     );
     // Collapsing a subgroup leaves its parent's other threads showing.
     fireEvent.click(
-      within(alerts()).getByRole("button", { name: "Alert Investigations" }),
+      within(alerts()).getByRole("button", {
+        name: "Collapse Alert Investigations",
+      }),
     );
     await waitFor(() =>
       expect(groupRows(slot, "Beacon: Automations")).toEqual([
@@ -501,13 +503,13 @@ describe("small groups", () => {
     await slot.findByRole("heading", { name: "Reply Block" });
     const group = slot.getByRole("region", { name: "bb: Workstreams Plugin" });
     const header = within(group).getByRole("button", {
-      name: "bb: Workstreams Plugin",
+      name: "Collapse bb: Workstreams Plugin",
     });
-    expect(header.querySelector(".ws-workstream-name")?.textContent).toBe(
+    expect(group.querySelector(".ws-workstream-name")?.textContent).toBe(
       "Workstreams Plugin",
     );
     expect(
-      header.querySelector(".text-muted-foreground\\/60")?.textContent,
+      group.querySelector(".text-muted-foreground\\/60")?.textContent,
     ).toBe("bb");
     expect(
       Number((group as HTMLElement).style.getPropertyValue("--ws-hue")),
@@ -633,17 +635,18 @@ describe("small groups", () => {
     expect(heading.parentElement?.style.marginBottom).toBe("9px");
     expect(heading.parentElement?.style.paddingLeft).toBe("10px");
 
-    // Workstream header: 22px tall, hanging chevron 14px left of its name
+    // Workstream header: 22px tall, its chevron a 20px target after the name
     const studioApp = slot.getByRole("region", { name: "Studio: App" });
     const studioAppHeader = within(studioApp).getByRole("button", {
-      name: "Studio: App",
+      name: "Collapse Studio: App",
     });
-    expect(studioAppHeader.parentElement?.style.height).toBe("22px");
-    const chev = studioAppHeader.querySelector('[data-icon="ChevronDown"]')
-      ?.parentElement as HTMLElement;
-    expect(chev.style.left).toBe("-14px");
-    expect(chev.style.width).toBe("8px");
-    expect(chev.className).toContain("opacity-0");
+    const studioAppRow = studioAppHeader.closest(".group\\/row") as HTMLElement;
+    expect(studioAppRow.style.height).toBe("22px");
+    expect(studioAppRow.className).not.toContain("hover:bg-sidebar-accent");
+    expect(studioAppHeader.className).toContain("size-5");
+    expect(
+      studioAppHeader.querySelector('[data-icon="ChevronDown"]')?.parentElement,
+    ).toBe(studioAppHeader);
 
     // Thread row heights: root thread is 21px, child thread is 28px (h-7)
     const rootRow = within(studioApp)
@@ -680,7 +683,7 @@ describe("small groups", () => {
 
     // Collapse Studio: Workstreams and verify Tools: CLI gap drops to 4px (collapsed inline boundary)
     const studioWsHeader = within(studioWs).getByRole("button", {
-      name: "Studio: Workstreams",
+      name: "Collapse Studio: Workstreams",
     });
     fireEvent.click(studioWsHeader);
     await waitFor(() =>

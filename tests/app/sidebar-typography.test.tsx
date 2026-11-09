@@ -314,25 +314,34 @@ describe.skipIf(browserUnavailable)(
           },
         );
         fireEvent.click(slot.getByRole("button", { name: /^Archived\d*$/ }));
-        const header = (region: string, name: string) =>
-          within(slot.getByRole("region", { name: region })).getByRole(
-            "button",
-            { name: new RegExp(`^${name}`) },
-          );
+        const group = (region: string) =>
+          slot.getByRole("region", { name: region }) as HTMLElement;
+        // A live group folds from the chevron beside its name, so the name
+        // sits in the chevron's parent.
+        const heading = (region: string, name: string) =>
+          within(group(region)).getByRole("button", {
+            name: new RegExp(`^(Collapse|Expand) ${name}`),
+          }).parentElement as HTMLElement;
+        // An archived group folds from one compact row button that carries
+        // its name and count.
+        const archivedHeading = (region: string, name: string) =>
+          within(group(region)).getByRole("button", {
+            name: new RegExp(`^${name}`),
+          }) as HTMLElement;
         const type = await measure(page, {
-          headerPlain: byText(header("Prompting", "Prompting"), "Prompting"),
-          headerOwner: byText(header("Studio: App", "Studio: App"), "Studio"),
-          headerArea: byText(header("Studio: App", "Studio: App"), "App"),
+          headerPlain: byText(heading("Prompting", "Prompting"), "Prompting"),
+          headerOwner: byText(heading("Studio: App", "Studio: App"), "Studio"),
+          headerArea: byText(heading("Studio: App", "Studio: App"), "App"),
           archivedPlain: byText(
-            header("Archived Prompting", "Prompting"),
+            archivedHeading("Archived Prompting", "Prompting"),
             "Prompting",
           ),
           archivedOwner: byText(
-            header("Archived Studio: App", "Studio: App"),
+            archivedHeading("Archived Studio: App", "Studio: App"),
             "Studio",
           ),
           archivedArea: byText(
-            header("Archived Studio: App", "Studio: App"),
+            archivedHeading("Archived Studio: App", "Studio: App"),
             "App",
           ),
         });

@@ -130,7 +130,7 @@ it("profiles parent updates and preserves row interactions", async () => {
   measure("collapse", () => {
     fireEvent.click(
       within(slot.getByRole("region", { name: "Alpha" })).getByRole("button", {
-        name: "Alpha",
+        name: "Collapse Alpha",
       }),
     );
   });

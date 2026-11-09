@@ -160,7 +160,7 @@ it.each(["collapsed", "empty"])(
         fireEvent.click(
           within(slot.getByRole("region", { name: "Beta" })).getByRole(
             "button",
-            { name: "Beta" },
+            { name: "Collapse Beta" },
           ),
         );
       const row = slot.container
@@ -188,7 +188,7 @@ it.each(["collapsed", "empty"])(
       slot.selectThread("alpha");
       const header = within(
         slot.getByRole("region", { name: "Beta" }),
-      ).getByRole("button", { name: "Beta" });
+      ).getByRole("button", { name: /^(Collapse|Expand) Beta$/ });
       if (header.getAttribute("aria-expanded") === "false")
         fireEvent.click(header);
       await waitFor(() =>

@@ -59,7 +59,7 @@ it("updates header counts when the group is collapsed", async () => {
     alpha.queryAllByText("1", { selector: "span" }).length,
   ];
   await waitFor(() => expect(counts()).toEqual([expanded, expanded ? 2 : 0]));
-  fireEvent.click(alpha.getByRole("button", { name: "Alpha" }));
+  fireEvent.click(alpha.getByRole("button", { name: "Collapse Alpha" }));
   expect(counts()).toEqual([collapsed, collapsed ? 2 : 0]);
   slot.lifecycle.unmount();
 });
@@ -254,16 +254,13 @@ it("shows Unfiled, then recent empty workstreams; empty ones get a scoped New wo
   expect(slot.queryByRole("button", { name: /Dormant/ })).toBeNull();
   const empty = within(slot.getByRole("region", { name: "Zeta" }));
   expect(empty.queryByText("0")).toBeNull();
-  // An empty workstream has nothing to fold, so its header is not a button.
-  expect(empty.queryByRole("button", { name: "Zeta" })).toBeNull();
+  // An empty workstream has nothing to fold, so its header has no chevron.
   expect(
-    slot
-      .getByRole("region", { name: "Zeta" })
-      .querySelector('.group\\/heading [data-icon^="Chevron"]'),
+    empty.queryByRole("button", { name: /^(Expand|Collapse) Zeta$/ }),
   ).toBeNull();
   expect(
     within(slot.getByRole("region", { name: "Beta" }))
-      .getByRole("button", { name: "Beta" })
+      .getByRole("button", { name: "Collapse Beta" })
       .querySelector('[data-icon="ChevronDown"]'),
   ).not.toBeNull();
   expect(
@@ -387,10 +384,10 @@ it("shows Up Next and Recent as overlays without removing group rows", async () 
   const alpha = within(slot.getByRole("region", { name: "Alpha" }));
   expect(alpha.queryByTitle("1 waiting on you")).toBeNull();
   expect(alpha.queryByText("1", { selector: "span" })).toBeNull();
-  fireEvent.click(alpha.getByRole("button", { name: "Alpha" }));
+  fireEvent.click(alpha.getByRole("button", { name: "Collapse Alpha" }));
   expect(alpha.getByTitle("1 waiting on you")).toBeTruthy();
   expect(alpha.getAllByText("1", { selector: "span" })).toHaveLength(2);
-  fireEvent.click(alpha.getByRole("button", { name: "Alpha" }));
+  fireEvent.click(alpha.getByRole("button", { name: "Expand Alpha" }));
   expect(alpha.queryByTitle("1 waiting on you")).toBeNull();
   slot.lifecycle.unmount();
 });
@@ -439,7 +436,7 @@ it("persists collapse state per group", async () => {
   const first = await mount(undefined, { settings: { showRecent: false } });
   fireEvent.click(
     within(first.getByRole("region", { name: "Alpha" })).getByRole("button", {
-      name: "Alpha",
+      name: "Collapse Alpha",
     }),
   );
   expect(

@@ -36,7 +36,9 @@ describe("dormant workstream spacing", () => {
     );
     const group = (name: string) => slot.getByRole("region", { name });
     const toggle = async (name: string) => {
-      const header = within(group(name)).getByRole("button", { name });
+      const header = within(group(name)).getByRole("button", {
+        name: new RegExp(`^(Collapse|Expand) ${name}$`),
+      });
       const folded = header.getAttribute("aria-expanded");
       fireEvent.click(header);
       await waitFor(() =>
