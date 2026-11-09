@@ -42,7 +42,6 @@ type TopicButtonProps = {
   provenance?: TopicAssignment["provenance"];
   isFork?: boolean;
   isClassifying?: boolean;
-  isCompact?: boolean;
   onClick?: () => void;
   disabled?: boolean;
 };
@@ -53,7 +52,6 @@ function TopicButton({
   provenance = null,
   isFork = false,
   isClassifying = false,
-  isCompact = false,
   onClick,
   disabled = false,
 }: TopicButtonProps) {
@@ -77,7 +75,7 @@ function TopicButton({
       title={`Topic: ${displayLabel} (${source})`}
       className={`ws-task-identity ${
         label ? "" : "ws-task-identity-unresolved"
-      } ${isCompact ? "ws-task-identity-compact" : ""}`}
+      }`}
     >
       <Icon
         name={isClassifying ? "Spinner" : TAG_ICON}
@@ -260,13 +258,9 @@ function TopicPicker({
 
 type TaskIdentityProps = {
   threadId: string;
-  isCompactViewport?: boolean;
 };
 
-export function TaskIdentity({
-  threadId,
-  isCompactViewport = false,
-}: TaskIdentityProps) {
+export function TaskIdentity({ threadId }: TaskIdentityProps) {
   const { server, rpc, refresh } = useSharedServerState();
   const [open, setOpen] = useState(false);
   const [classifying, setClassifying] = useState(false);
@@ -306,7 +300,6 @@ export function TaskIdentity({
       provenance={assignment?.provenance ?? null}
       isFork={isFork}
       isClassifying={classifying}
-      isCompact={isCompactViewport}
       {...props}
     />
   );

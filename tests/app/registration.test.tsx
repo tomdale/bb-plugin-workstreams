@@ -29,8 +29,6 @@ it("binds UI surfaces to the components exercised by the SDK harness", async () 
     await import("../../src/app/header/ArchiveHeaderAction.tsx");
   const { ParentThreadLink } =
     await import("../../src/app/header/ParentLink.tsx");
-  const { TaskIdentityHeader } =
-    await import("../../src/app/header/TaskIdentityHeader.tsx");
   const { SnoozeHeaderAction } =
     await import("../../src/app/snooze/SnoozeHeaderAction.tsx");
   const { ColorTokenStyle } =
@@ -104,7 +102,6 @@ it("binds UI surfaces to the components exercised by the SDK harness", async () 
   for (const [id, component] of [
     ["archive", ArchiveHeaderAction],
     ["parent-thread", ParentThreadLink],
-    ["task-identity", TaskIdentityHeader],
     ["snooze", SnoozeHeaderAction],
   ] as const) {
     expect(

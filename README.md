@@ -64,8 +64,8 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
    CLI.
 3. **Topic provenance priority.** Topic sources follow
    `manual > inherited > full > quick`:
-   - `manual` (chosen by you in the composer, thread header, sidebar,
-     Workstreams page, or CLI) is never overwritten by automatic analysis.
+   - `manual` (chosen by you in the composer, sidebar, Workstreams page, or CLI)
+     is never overwritten by automatic analysis.
    - `inherited` (from a parent/source thread or a workstream's **＋** button)
      changes automatically only when placement reports a scope shift or settles
      a more specific topic beneath it, or when you explicitly apply a reviewed
@@ -516,9 +516,6 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
 - **Thread header actions:**
   - **Parent thread** (optional, off by default): Opens the parent thread from a
     delegate's header.
-  - **Topic:** Shows the root's current topic path (or _No topic_ /
-    _Classifying…_) and provenance on hover. Click to search and assign a topic
-    (`manual`) or choose **Automatic** to reclassify with Full analysis.
   - **Snooze:** Split button on desktop (one-click default snooze + chevron menu
     for all presets and **Custom…**) or menu button on phones; shows **Snoozed
     \<time\>** with a **Wake now** option while snoozed.

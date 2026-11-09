@@ -78,7 +78,7 @@ export function RowMenu({
   const { rpc, refresh } = useSharedServerActions();
   const catalog = useSharedServerStateSelector((server) => server.catalog);
 
-  // Topic submenu: the same choices as the thread header's Topic control.
+  // Topic submenu: the same choices as the composer's topic picker.
   const entities = useMemo(() => catalog?.entities ?? [], [catalog?.entities]);
   const assignment = catalog?.assignments[thread.id] ?? null;
   const currentEntity = assignment?.entityId

@@ -2,7 +2,7 @@
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { TaskIdentityHeader } from "../../src/app/header/TaskIdentityHeader.tsx";
+import { TaskIdentity } from "../../src/app/task/TaskIdentity.tsx";
 import type { Topic, TopicState } from "../../src/domain/topics.ts";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 
@@ -94,7 +94,12 @@ const catalogState: TopicState = {
   revision: 5,
 };
 
-async function mountTaskIdentityHeader(
+/** Mounts the topic control as the Workstreams page renders it. */
+function TopicControl({ threadId }: { threadId: string }) {
+  return <TaskIdentity threadId={threadId} />;
+}
+
+async function mountTaskIdentity(
   threadId: string,
   options: {
     threads?: ReturnType<typeof sidebarThread>[];
@@ -102,7 +107,7 @@ async function mountTaskIdentityHeader(
     rpcCalls?: { method: string; args: unknown }[];
   } = {},
 ) {
-  const headerAction = { component: TaskIdentityHeader };
+  const topicControl = { component: TopicControl };
 
   const currentCatalog = options.catalog ?? catalogState;
   const threads = options.threads ?? [
@@ -124,8 +129,8 @@ async function mountTaskIdentityHeader(
   ];
 
   return renderSlot(
-    headerAction,
-    { threadId, projectId: "proj_1", isCompactViewport: false },
+    topicControl,
+    { threadId },
     {
       sidebarThreads: {
         threads,
@@ -188,7 +193,7 @@ async function mountTaskIdentityHeader(
 
 describe("Topic control", () => {
   it("shows a topic the user chose", async () => {
-    const slot = await mountTaskIdentityHeader("t-root");
+    const slot = await mountTaskIdentity("t-root");
     const button = await slot.findByRole("button", {
       name: "Topic: Platform › Auth (chosen by you)",
     });
@@ -203,7 +208,7 @@ describe("Topic control", () => {
   });
 
   it("defaults to Automatic and shows the classifier result below it", async () => {
-    const slot = await mountTaskIdentityHeader("t-auto");
+    const slot = await mountTaskIdentity("t-auto");
     const button = await slot.findByRole("button", {
       name: "Topic: Platform › Auth (automatic)",
     });
@@ -220,7 +225,7 @@ describe("Topic control", () => {
   });
 
   it("shows No topic when Workstreams found none", async () => {
-    const slot = await mountTaskIdentityHeader("t-unresolved-in-workstream");
+    const slot = await mountTaskIdentity("t-unresolved-in-workstream");
     const button = await slot.findByRole("button", {
       name: "Topic: No topic (automatic)",
     });
@@ -232,7 +237,7 @@ describe("Topic control", () => {
   });
 
   it("shows a fork's parent topic without letting it change", async () => {
-    const slot = await mountTaskIdentityHeader("t-child");
+    const slot = await mountTaskIdentity("t-child");
     const button = (await slot.findByRole("button", {
       name: "Topic: Platform › Auth (same as parent thread)",
     })) as HTMLButtonElement;
@@ -243,7 +248,7 @@ describe("Topic control", () => {
 
   it("picking a topic saves it as the user's choice", async () => {
     const rpcCalls: { method: string; args: unknown }[] = [];
-    const slot = await mountTaskIdentityHeader("t-auto", { rpcCalls });
+    const slot = await mountTaskIdentity("t-auto", { rpcCalls });
     fireEvent.click(
       await slot.findByRole("button", { name: /^Topic: Platform › Auth/ }),
     );
@@ -264,7 +269,7 @@ describe("Topic control", () => {
 
   it("choosing Automatic hands the thread back to the classifier", async () => {
     const rpcCalls: { method: string; args: unknown }[] = [];
-    const slot = await mountTaskIdentityHeader("t-root", { rpcCalls });
+    const slot = await mountTaskIdentity("t-root", { rpcCalls });
     fireEvent.click(
       await slot.findByRole("button", { name: /^Topic: Platform › Auth/ }),
     );
@@ -278,7 +283,7 @@ describe("Topic control", () => {
   });
 
   it("Automatic can't be chosen again while it's already on", async () => {
-    const slot = await mountTaskIdentityHeader("t-auto");
+    const slot = await mountTaskIdentity("t-auto");
     fireEvent.click(
       await slot.findByRole("button", { name: /^Topic: Platform › Auth/ }),
     );
