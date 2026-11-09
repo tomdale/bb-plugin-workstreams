@@ -104,7 +104,7 @@ describe.skipIf(browserUnavailable)(
     );
 
     browserTest(
-      "extends hover and selected fills by 3px vertically without changing row layout",
+      "extends only the hover fill without changing row or selected-fill layout",
       async ({ page }) => {
         await page.setContent(`<style>${styles}</style>
           <style>
@@ -147,15 +147,20 @@ describe.skipIf(browserUnavailable)(
         expect(
           await selected.evaluate((row) => getComputedStyle(row).zIndex),
         ).toBe("auto");
-        for (const current of [hoverFill, selectedFill]) {
-          expect(current).toMatchObject({
-            position: "absolute",
-            top: "-3px",
-            bottom: "-3px",
-            height: "27px",
-            pointerEvents: "none",
-          });
-        }
+        expect(hoverFill).toMatchObject({
+          position: "absolute",
+          top: "-3px",
+          bottom: "-3px",
+          height: "27px",
+          pointerEvents: "none",
+        });
+        expect(selectedFill).toMatchObject({
+          position: "absolute",
+          top: "0px",
+          bottom: "0px",
+          height: "21px",
+          pointerEvents: "none",
+        });
         expect(hoverFill.backgroundColor).toContain("0.6");
         expect(selectedFill.backgroundColor).toBe("rgb(100, 100, 100)");
       },

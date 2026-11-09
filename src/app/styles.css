@@ -1,6 +1,6 @@
-/* Grow only the hover or selected fill beyond the thread row. The
-   pseudo-element does not participate in layout or intercept pointers meant
-   for adjacent rows. */
+/* Grow the hover fill beyond the thread row while the selected fill stays
+   inside it. The pseudo-element does not participate in layout or intercept
+   pointers meant for adjacent rows. */
 .ws-row:hover {
   z-index: 1;
 }
@@ -15,6 +15,7 @@
   background-color: color-mix(in oklab, var(--sidebar-accent) 60%, transparent);
 }
 .ws-row.ws-row-active::before {
+  inset: 0;
   background-color: var(--sidebar-accent);
 }
 
