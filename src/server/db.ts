@@ -489,6 +489,9 @@ const MIGRATIONS = [
     hue INTEGER NOT NULL,
     level INTEGER NOT NULL
   )`,
+  // A workstream's last visible-thread time kept an emptied one on the list;
+  // an empty workstream now leaves at once, and nothing reads it.
+  "DELETE FROM ws_meta WHERE key = 'last-populated-workstreams'",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

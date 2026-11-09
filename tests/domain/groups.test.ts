@@ -29,7 +29,6 @@ function project(prioritized: string[] = []) {
     sections,
     {
       now,
-      lastPopulatedAt: { sec_empty: now - 1 },
       order: { workstreams: [], threads: {}, prioritized },
     },
   );
@@ -55,13 +54,20 @@ describe("arrangeGroups", () => {
     ]);
   });
 
-  it("puts empty workstreams after populated ones and Dormant apart", () => {
+  it("leaves a workstream with no visible thread out entirely, and Dormant apart", () => {
     const arranged = arrangeGroups(project(), "alphabetical");
-    expect(names(arranged.empty)).toEqual(["Empty"]);
+    expect(names(arranged.populated)).toEqual(["Alpha", "Beta", "Charlie"]);
     expect(names(arranged.dormant)).toEqual(["Old"]);
     expect(arranged.unfiled.total).toBe(1);
     expect(arranged.tiered).toBe(false);
     expect(arranged.hasLower).toBe(true);
+  });
+
+  it("draws nothing for a focused workstream that holds no visible thread", () => {
+    const arranged = arrangeGroups(project(["sec_empty"]), "alphabetical");
+    expect(arranged.pinned).toEqual([]);
+    expect(names(arranged.populated)).toEqual(["Alpha", "Beta", "Charlie"]);
+    expect(arranged.tiered).toBe(false);
   });
 
   it("tiers the groups once any workstream is prioritized", () => {
@@ -137,7 +143,7 @@ describe("arrangeGroups", () => {
         },
       ],
     });
-    expect(arranged.other[0]?.subgroups).toHaveLength(1);
+    expect(arranged.populated[0]?.subgroups).toHaveLength(1);
     expect(arranged.dormant.map((group) => group.name)).toEqual(["Old"]);
     expect(arranged.lowerCounts).toEqual({ needsYou: 3, total: 5 });
   });

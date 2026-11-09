@@ -24,7 +24,6 @@ function emptyState(): ServerState {
     analysis: {},
     recaps: {},
     dismissedRecaps: [],
-    lastPopulatedAt: {},
     order: { workstreams: [], threads: {}, prioritized: [] },
     snoozes: {},
     snoozePrefs: DEFAULT_SNOOZE_PREFS,

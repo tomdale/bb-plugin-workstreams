@@ -62,11 +62,8 @@ describe("snoozing", () => {
     );
     expect(groupRows(slot, "Up Next")).toEqual(["Other task"]);
     expect(slot.queryByRole("region", { name: "Recent" })).toBeNull();
-    expect(
-      within(slot.getByRole("region", { name: "Alpha" })).queryAllByRole(
-        "link",
-      ),
-    ).toEqual([]);
+    // Nothing visible is left in it, so its header goes with them.
+    expect(slot.queryByRole("region", { name: "Alpha" })).toBeNull();
     const fold = slot.getByRole("button", { name: /^Snoozed\d*$/ });
     expect(fold.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(fold);
@@ -207,11 +204,7 @@ describe("snoozing a workstream row", () => {
       }),
     );
     await waitFor(() =>
-      expect(
-        within(slot.getByRole("region", { name: "Alpha" })).queryAllByRole(
-          "link",
-        ),
-      ).toEqual([]),
+      expect(slot.queryByRole("region", { name: "Alpha" })).toBeNull(),
     );
     const [call, ...rest] = snoozeCalls(slot);
     expect(rest).toEqual([]);
@@ -259,7 +252,7 @@ describe("snoozing a workstream row", () => {
     slot.lifecycle.unmount();
   });
 
-  it("snoozes Unfiled, and has no button on a workstream with no threads", async () => {
+  it("snoozes Unfiled, and draws no header for a workstream with no threads", async () => {
     const slot = await mount(
       [
         sidebarThread("ask", { sectionId: "sec_a", title: "Asking task" }),
@@ -275,10 +268,10 @@ describe("snoozing a workstream row", () => {
         ],
       },
     );
-    const zeta = await waitFor(() =>
-      slot.getByRole("region", { name: "Zeta" }),
+    await waitFor(() =>
+      expect(slot.getByRole("region", { name: "Alpha" })).toBeTruthy(),
     );
-    expect(within(zeta).queryByRole("button", { name: /^Snooze/ })).toBeNull();
+    expect(slot.queryByRole("region", { name: "Zeta" })).toBeNull();
     fireEvent.click(
       within(slot.getByRole("region", { name: "Unfiled" })).getByRole(
         "button",

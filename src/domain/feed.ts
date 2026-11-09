@@ -70,7 +70,7 @@ export function planFeed<T extends UpNextThread>(
   const sectionPlace = new Map<string, FeedPlace>();
   const tops: WorkstreamNode<T>[] = [
     ...arranged.pinned,
-    ...arranged.other,
+    ...arranged.populated,
     ...arranged.dormant,
   ];
   const walk = (

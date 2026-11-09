@@ -36,9 +36,7 @@ describe("focused workstreams", () => {
         settings: { showRecent: false, showForYou: false },
       },
     );
-    await waitFor(() =>
-      expect(regions(slot)).toEqual(["Alpha", "Beta", "Zeta"]),
-    );
+    await waitFor(() => expect(regions(slot)).toEqual(["Alpha", "Beta"]));
     fireEvent.click(slot.getByRole("button", { name: "Focus on Beta" }));
     await waitFor(() => expect(regions(slot)).toEqual(["Beta"]));
     const off = slot.getByRole("button", { name: "Stop focusing on Beta" });
@@ -46,9 +44,7 @@ describe("focused workstreams", () => {
     // The click stays on the button: the group doesn't collapse.
     expect(groupRows(slot, "Beta")).toEqual(["Beta task"]);
     fireEvent.click(off);
-    await waitFor(() =>
-      expect(regions(slot)).toEqual(["Alpha", "Beta", "Zeta"]),
-    );
+    await waitFor(() => expect(regions(slot)).toEqual(["Alpha", "Beta"]));
     expect(slot.queryByRole("button", { name: "Focus on Unfiled" })).toBeNull();
     const focus = slot.getByRole("button", { name: "Focus on Alpha" });
     const newWork = slot.getByRole("button", { name: "New work in Alpha" });
@@ -240,7 +236,7 @@ describe("focused workstreams", () => {
     });
     expect(show.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(show);
-    expect(regions(slot)).toEqual(["Zeta", "Alpha", "Unfiled", "Beta"]);
+    expect(regions(slot)).toEqual(["Zeta", "Alpha", "Unfiled"]);
     const alpha = slot.getByRole("region", { name: "Alpha" });
     expect(within(alpha).queryAllByRole("link")).toHaveLength(0);
     fireEvent.click(
@@ -267,7 +263,7 @@ describe("focused workstreams", () => {
       slot.getByRole("button", { name: "Stop focusing on Zeta" }),
     );
     await waitFor(() =>
-      expect(regions(slot)).toEqual(["Alpha", "Zeta", "Unfiled", "Beta"]),
+      expect(regions(slot)).toEqual(["Alpha", "Zeta", "Unfiled"]),
     );
     expect(groupRows(slot, "Alpha")).toEqual(["Alpha task"]);
     expect(

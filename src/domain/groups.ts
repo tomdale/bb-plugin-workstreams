@@ -15,8 +15,8 @@
  * Subgroups keep their headers together or all list inline (see `GROUP_MIN`),
  * so a parent shows threads or subgroup headers, never both. Top-level groups
  * always keep their own headers. Rows listed outside their own group's header
- * carry its name. Empty subgroups and their empty ancestors disappear
- * immediately.
+ * carry its name. A workstream with no visible thread disappears at once, at
+ * any depth.
  */
 import type { CategoryGeneration } from "./categories.ts";
 import { layoutLabel, type LayoutNode } from "./layout.ts";
@@ -324,10 +324,8 @@ export function groupRoots<T extends WorkstreamThread>(
 type GroupArrangement<T extends WorkstreamThread> = {
   /** Focused workstreams, which pin below Up Next. */
   readonly pinned: readonly WorkstreamNode<T>[];
-  /** Every other active workstream: populated ones, then empty ones. */
-  readonly other: readonly WorkstreamNode<T>[];
+  /** Every other workstream shown: the ones holding a visible thread. */
   readonly populated: readonly WorkstreamNode<T>[];
-  readonly empty: readonly WorkstreamNode<T>[];
   /** Workstreams with no recent activity, in the projection's order. */
   readonly dormant: readonly WorkstreamNode<T>[];
   /** The virtual group of threads in no workstream. */
@@ -350,7 +348,7 @@ export function focusedSections<T extends WorkstreamThread>(
   prioritized: ReadonlySet<string>,
 ): Set<string> {
   return new Set(
-    [...arrangement.pinned, ...arrangement.other, ...arrangement.dormant]
+    [...arrangement.pinned, ...arrangement.populated, ...arrangement.dormant]
       .filter((node) => node.sectionIds.some((id) => prioritized.has(id)))
       .flatMap((node) => node.sectionIds),
   );
@@ -363,24 +361,15 @@ export function arrangeGroups<T extends WorkstreamThread>(
 ): GroupArrangement<T> {
   // The projection decides dormancy per section from the clock; a nested
   // group is dormant only when nothing in it is still active.
-  const active = new Set(
-    projection.groups.filter((group) => group.total > 0).map((g) => g.id),
-  );
-  const retained = new Set(projection.groups.map((group) => group.id));
-  // Nest before pruning so focus and topic identity still cover hidden sections.
-  // Only standalone top-level workstreams get the empty grace period; an empty
-  // subgroup must not keep its own header or an ancestor's header on screen.
+  const active = new Set(projection.groups.map((group) => group.id));
+  // A workstream with no visible thread draws nothing, at any depth, so it can
+  // never keep its own header or an ancestor's header on screen.
   const prune = (node: WorkstreamNode<T>): WorkstreamNode<T> => ({
     ...node,
     subgroups: node.subgroups.filter((sub) => sub.total > 0).map(prune),
   });
   const nodes = nestGroups(projection.all, topics)
-    .filter(
-      (node) =>
-        node.total > 0 ||
-        (node.subgroups.length === 0 &&
-          node.sectionIds.some((id) => retained.has(id))),
-    )
+    .filter((node) => node.total > 0)
     .map(prune)
     .map(foldSmall);
   const pinnedNodes: WorkstreamNode<T>[] = [];
@@ -388,10 +377,7 @@ export function arrangeGroups<T extends WorkstreamThread>(
   const dormant: WorkstreamNode<T>[] = [];
   for (const node of nodes) {
     if (node.prioritized) pinnedNodes.push(node);
-    else if (
-      node.total > 0 &&
-      !node.sectionIds.some((sectionId) => active.has(sectionId))
-    )
+    else if (!node.sectionIds.some((sectionId) => active.has(sectionId)))
       dormant.push(node);
     else otherNodes.push(node);
   }
@@ -406,9 +392,7 @@ export function arrangeGroups<T extends WorkstreamThread>(
   );
   return {
     pinned,
-    other,
-    populated: other.filter((group) => group.total > 0),
-    empty: other.filter((group) => group.total === 0),
+    populated: other,
     dormant: sortTree(dormant, "manual"),
     unfiled: projection.unsorted,
     tiered: pinned.length > 0,

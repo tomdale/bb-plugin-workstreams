@@ -404,14 +404,12 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      version of the workstream color and have no independent focus, project, or
      New work identity. Roots can be reordered within a category; dragging
      between workstreams changes topic, not category membership.
-   - **Empty workstreams:** Workstreams can briefly keep **New work** available:
-     at most `3` recently emptied workstreams are retained, and only while they
-     had a visible, non-archived, unsnoozed thread within the last `10` minutes.
-     The most recently populated win, whether focused or not. Hiding an empty
-     group never deletes threads or topics. An automatically created section
-     whose topic binding was removed has no New work target and is not retained.
-     The grace period survives reloads and is shared across windows; polling an
-     empty workstream never extends it.
+   - **Empty workstreams:** A workstream shows only while it holds a visible,
+     non-archived, unsnoozed thread. The moment its last one is archived or
+     snoozed, its group, header and **New work** action leave the sidebar, and
+     its empty section is deleted on the next organizing pass. Threads and
+     topics are kept, so a later thread on that topic gets a workstream again.
+     Focusing an empty workstream keeps it no longer than any other.
    - Press the chevron beside a workstream's name to collapse or expand its
      threads. The group closes and opens its height over `260 ms` with a fade,
      like rows and bands, so what follows slides rather than jumps, and the
@@ -439,7 +437,7 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    - Drag a root thread to another workstream to set its **Topic** to that
      workstream's topic; its delegates follow it. Drop on a row to place it
      before or after that root, or on a header to place it first, including a
-     collapsed or recently emptied workstream. Drop in **Unfiled** to clear its
+     collapsed workstream. Drop in **Unfiled** to clear its
      topic. When the destination represents several topics, Workstreams uses the
      Placement model to choose an existing topic within that group. It shows
      **Choosing a topic in the destination workstream…** while choosing, then
@@ -466,10 +464,10 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
 
 #### Row indicators and actions
 
-Thread ages refresh once a minute. Snoozes wake at their expiry time, and empty
-workstreams leave the list when their grace period ends. Active rows use a
-highlighted background and foreground text without changing title weight. Unread
-titles use medium weight.
+Thread ages refresh once a minute, and snoozes wake at their expiry time. An
+empty workstream leaves the list as soon as its last visible thread does. Active
+rows use a highlighted background and foreground text without changing title
+weight. Unread titles use medium weight.
 
 - **Status marks:** Live BB runtime indicators (customizable working spinner,
   `?` waiting, `!` error, `✎` unsent draft, unread dot) and Workstreams status
@@ -482,9 +480,9 @@ titles use medium weight.
   holds keyboard focus, or has a menu open, and take no room otherwise. Thread
   rows show **Archive** then **Snooze** or **Wake now**; workstream headers show
   **New work**, **Snooze**, then **Focus**. A focused workstream's **Focus**
-  mark and an empty workstream's `＋` always show, at the trailing edge so
-  revealing other actions doesn't move them. Touch screens, which can't hover,
-  show only those two; the rest stay in the row's long-press menu. Section **⋯**
+  mark always shows, at the trailing edge so revealing other actions doesn't
+  move it. Touch screens, which can't hover, show only that mark; the rest stay
+  in the row's long-press menu. Section **⋯**
   menus always show, dimmed until used.
 - **Right-click context menu:** **Open in split**, **Open parent** (for
   delegates), **Topic** (switch to **Automatic** or assign any topic in the
@@ -1294,7 +1292,7 @@ tests exercise the real loader with full pages. Sidebar row presentation, count
 preferences, archive ancestry, band sorting, tree folding, and batch snooze
 membership run headlessly through `src/app/sidebar/{presentation,rows}.ts`.
 Grouping policy matrices live in
-`tests/domain/{groups,nested-groups,project, empty-workstreams}.test.ts`;
+`tests/domain/{groups,nested-groups,project}.test.ts`;
 sidebar integration tests keep representative rendering and interaction cases.
 Native row shortcuts, Archive, disclosure, and realtime preferences are tested
 on a single real row through the SDK harness, without mounting the whole

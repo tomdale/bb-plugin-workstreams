@@ -226,7 +226,7 @@ describe("nestGroups", () => {
         { id: "sec_alerts", name: "Beacon: Automations: Alert Investigations" },
         { id: "sec_cli", name: "Beacon: Automations: CLI" },
       ],
-      { now, lastPopulatedAt: { sec_cli: now } },
+      { now },
     );
     expect(
       outline(
@@ -536,11 +536,13 @@ describe("small groups", () => {
     ]);
   });
 
-  it("removes a recently emptied subgroup and folds the remaining siblings", () => {
+  it("removes an emptied subgroup and folds the remaining siblings", () => {
     const projection = projectWorkstreams(
       threads({ sec_alerts: 1 }),
       sections,
-      { now, lastPopulatedAt: { sec_cli: now - 1 } },
+      {
+        now,
+      },
     );
     expect(
       shape(arrangeGroups(projection, "alphabetical", nested).populated),
@@ -627,4 +629,53 @@ describe("small groups", () => {
       ]);
     });
   });
+});
+
+describe("a workstream with no visible thread", () => {
+  const chain: WorkstreamTopics = {
+    entities: [
+      { id: "product", name: "Product", parentId: null },
+      { id: "family", name: "Family", parentId: "product" },
+      { id: "child", name: "Child", parentId: "family" },
+    ],
+    bindings: { sec_leaf: "child" },
+    layout: [
+      node("product", "Product", [
+        node("family", "Family", [node("child", "Child")]),
+      ]),
+    ],
+  };
+  const list = [
+    { id: "sec_leaf", name: "Product: Family: Child" },
+    { id: "sec_other", name: "Other" },
+  ];
+
+  it.each(["archived", "snoozed"])(
+    "takes itself and its ancestors off the list the moment its last thread is %s",
+    (last) => {
+      const live = thread("live", {
+        sectionId: "sec_leaf",
+        latestAttentionAt: now,
+      });
+      const shown = arrangeGroups(
+        projectWorkstreams([live], list, { now }),
+        "manual",
+        chain,
+      );
+      expect(shown.populated.map((group) => group.total)).toEqual([1]);
+      const projection = projectWorkstreams(
+        [{ ...live, isArchived: last === "archived" }],
+        list,
+        {
+          now,
+          snoozedUntil: () => (last === "snoozed" ? now + DAY_MS : undefined),
+        },
+      );
+      const arranged = arrangeGroups(projection, "manual", chain);
+      expect(arranged.populated).toEqual([]);
+      expect(arranged.pinned).toEqual([]);
+      expect(arranged.dormant).toEqual([]);
+      expect(projection.snoozed).toHaveLength(last === "snoozed" ? 1 : 0);
+    },
+  );
 });

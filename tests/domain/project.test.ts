@@ -39,7 +39,7 @@ describe("projectWorkstreams", () => {
     expect(p.rowOf.get("child")?.depth).toBe(1);
   });
 
-  it("keeps populated sections first even when empty sections have manual priority", () => {
+  it("lists only workstreams with a visible thread, keeping empty ones for nesting", () => {
     const p = projectWorkstreams(
       [
         thread("b1", { sectionId: "sec_b", latestAttentionAt: now }),
@@ -48,7 +48,6 @@ describe("projectWorkstreams", () => {
       sections,
       {
         now,
-        lastPopulatedAt: { sec_empty: now - 1 },
         order: {
           workstreams: ["sec_empty", "sec_b", "sec_a"],
           threads: {},
@@ -56,7 +55,8 @@ describe("projectWorkstreams", () => {
         },
       },
     );
-    expect(p.groups.map((g) => g.id)).toEqual(["sec_b", "sec_a", "sec_empty"]);
+    expect(p.groups.map((g) => g.id)).toEqual(["sec_b", "sec_a"]);
+    expect(p.all.map((g) => g.id)).toEqual(["sec_empty", "sec_b", "sec_a"]);
     expect(p.dormant).toEqual([]);
   });
 

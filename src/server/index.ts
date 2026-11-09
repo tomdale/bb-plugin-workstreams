@@ -90,10 +90,6 @@ export default async function plugin(bb: BbPluginApi) {
     notify,
     Date.now,
     () => loadPrefs(db).threads.autoTitle,
-    (thread, now) => {
-      const snooze = snoozes.get(thread.id);
-      return isSnoozed(snooze, now) ? snooze!.until : undefined;
-    },
     () => triggerOrganizer(10),
   );
   const markUnread = async (threadIds: readonly string[]) => {
@@ -1290,7 +1286,6 @@ export default async function plugin(bb: BbPluginApi) {
     taskReclassify: ({ threadId }) =>
       userFacing(async () => reclassifyTask({ threadId })),
     state: async () => ({
-      lastPopulatedAt: service.lastPopulatedAt(),
       analysis: analyzer.all(),
       recaps: recaps.all(),
       dismissedRecaps: recaps.dismissedIds(),
@@ -1336,10 +1331,7 @@ export default async function plugin(bb: BbPluginApi) {
             };
         if (!Object.keys(stored).length)
           throw new UserError("Only active threads can be snoozed.");
-        // Record the visible state before hiding rows, even before the first poll.
-        await service.reconcile();
         snoozes.set(stored);
-        service.observePopulation();
         notify();
         // Records each new snooze's pull request state right away, so a
         // change soon after counts.

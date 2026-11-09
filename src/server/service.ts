@@ -11,12 +11,7 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { Database } from "./db.ts";
 import { getMeta, setMeta } from "./db.ts";
 import { buildForest } from "../domain/tree.ts";
-import { projectWorkstreams, type Section } from "../domain/project.ts";
-import {
-  EMPTY_WORKSTREAM_GRACE_MS,
-  retainedEmptyWorkstreams,
-  type LastPopulatedAt,
-} from "../domain/empty-workstreams.ts";
+import type { Section } from "../domain/project.ts";
 import {
   displayTitle,
   listActiveThreads,
@@ -45,10 +40,6 @@ export class WorkstreamService {
     private readonly onChange: () => void,
     private readonly now: () => number = Date.now,
     private readonly titlesEnabled: () => boolean = () => true,
-    private readonly snoozedUntil: (
-      thread: InventoryThread,
-      now: number,
-    ) => number | null | undefined = () => undefined,
     /** Undo put the topic tree back, so workstreams must follow it. */
     private readonly onTopicsRestored: () => void = () => {},
   ) {}
@@ -485,88 +476,9 @@ export class WorkstreamService {
       this.lastReconciledAt = at;
       this.lastThreads = threads;
       this.lastSections = sections;
-      const populationChanged = this.observePopulation();
-      if (changed || populationChanged) this.onChange();
+      if (changed) this.onChange();
       return changed;
     });
-  }
-
-  /** Durable last-visible times, not thread attention or title-update times. */
-  lastPopulatedAt(): LastPopulatedAt {
-    try {
-      const value: unknown = JSON.parse(
-        getMeta(this.db, "last-populated-workstreams") ?? "{}",
-      );
-      if (!value || typeof value !== "object" || Array.isArray(value))
-        return {};
-      const orphaned = new Set(
-        (
-          this.db
-            .prepare(
-              `
-        SELECT w.section_id FROM ws_workstream w
-        WHERE w.created_by = 'workstreams' AND NOT EXISTS (
-          SELECT 1 FROM ws_corpus_group g JOIN ws_corpus_entity e ON e.id = g.entity_id
-          WHERE g.section_id = w.section_id
-        )`,
-            )
-            .all() as { section_id: string }[]
-        ).map((row) => row.section_id),
-      );
-      return Object.fromEntries(
-        Object.entries(value).filter(
-          ([id, at]) =>
-            !orphaned.has(id) &&
-            typeof at === "number" &&
-            Number.isFinite(at) &&
-            at >= 0,
-        ),
-      );
-    } catch {
-      return {};
-    }
-  }
-
-  /** Also used by section cleanup, so a new-thread target survives archival. */
-  retainedEmptyWorkstreams(): Set<string> {
-    const now = this.now();
-    const projection = projectWorkstreams(this.lastThreads, this.lastSections, {
-      now,
-      snoozedUntil: (thread) => this.snoozedUntil(thread, now),
-    });
-    return retainedEmptyWorkstreams(
-      projection.all
-        .filter((group) => group.total === 0)
-        .map((group) => group.id),
-      this.lastPopulatedAt(),
-      now,
-    );
-  }
-
-  /** Observes actual visible rows, including snooze pruning, without reviving old empties. */
-  observePopulation(): boolean {
-    const now = this.now();
-    const previous = this.lastPopulatedAt();
-    const projection = projectWorkstreams(this.lastThreads, this.lastSections, {
-      now,
-      snoozedUntil: (thread) => this.snoozedUntil(thread, now),
-    });
-    const next: Record<string, number> = {};
-    for (const group of projection.all) {
-      if (group.total > 0) next[group.id] = now;
-      else if (
-        previous[group.id] !== undefined &&
-        now - previous[group.id]! < EMPTY_WORKSTREAM_GRACE_MS
-      )
-        next[group.id] = previous[group.id]!;
-    }
-    if (
-      JSON.stringify(next) ===
-      (getMeta(this.db, "last-populated-workstreams") ?? "{}")
-    )
-      return false;
-    setMeta(this.db, "last-populated-workstreams", JSON.stringify(next));
-    return true;
   }
 
   /** The BB section's name as of the last reconcile, or null when it is gone. */

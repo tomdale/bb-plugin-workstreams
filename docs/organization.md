@@ -37,11 +37,11 @@ collapse preferences use topic IDs across windows and section recreation. Focus,
 manual order, Dormant, and Up Next retain workstream identity; categories create
 no additional section or workstream hue.
 
-At most three recently emptied workstreams remain visible, and only while each
-had an unsnoozed visible thread within the last ten minutes. Population
-timestamps survive reloads and are not renewed by empty reads. Cleanup retains
-their sections so New work still starts in the right topic. While any workstream
-is focused, revealing other workstreams is temporary per-view state; hiding and
+A workstream stays on the list only while it holds a visible, non-archived,
+unsnoozed thread. An emptied one leaves at once, at any depth, and cleanup
+deletes its section on the next pass; the topic and its threads remain, so a
+later thread on that topic gets a workstream again. While any workstream is
+focused, revealing other workstreams is temporary per-view state; hiding and
 revealing that block starts it collapsed.
 
 ## Categories

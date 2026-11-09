@@ -7,10 +7,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { useStableSidebarThreads } from "./useStableSidebarThreads.ts";
 import { projectWorkstreams, type Projection } from "../domain/project.ts";
-import {
-  EMPTY_WORKSTREAM_GRACE_MS,
-  type LastPopulatedAt,
-} from "../domain/empty-workstreams.ts";
 import type { Recap } from "../domain/recap.ts";
 import { needsAttention, upNextKind, workView } from "../domain/status.ts";
 import type { ManualOrder } from "../domain/order.ts";
@@ -44,7 +40,6 @@ export type ServerState = {
   recaps: Record<string, Recap>;
   /** Ids of the recaps above whose docked card is dismissed. */
   dismissedRecaps?: string[];
-  lastPopulatedAt?: LastPopulatedAt;
   order: ManualOrder;
   snoozes: Record<string, ThreadSnooze>;
   snoozePrefs: SnoozePrefs;
@@ -84,11 +79,8 @@ export function useWorkstreams() {
   const { prefs } = usePrefs();
   const { rpc, server, refresh, reorder, setSnoozes } = useServerState();
 
-  const { analysis, recaps, order, snoozes, catalog, lastPopulatedAt } = server;
+  const { analysis, recaps, order, snoozes, catalog } = server;
   const deadline = Math.min(
-    ...Object.values(lastPopulatedAt ?? {})
-      .map((at) => at + EMPTY_WORKSTREAM_GRACE_MS)
-      .filter((at) => at > Date.now()),
     ...Object.values(snoozes)
       .map((snooze) => snooze.until)
       .filter((until): until is number => until !== null && until > Date.now()),
@@ -101,17 +93,7 @@ export function useWorkstreams() {
   // new projection input samples the current time for time-sensitive updates.
   const now = useMemo(
     () => Math.max(clock, Date.now()),
-    [
-      clock,
-      threads,
-      sections,
-      analysis,
-      recaps,
-      order,
-      snoozes,
-      lastPopulatedAt,
-      deadline,
-    ],
+    [clock, threads, sections, analysis, recaps, order, snoozes, deadline],
   );
   /** What nests the workstreams (see `nestGroups`). */
   const topics: WorkstreamTopics | undefined = useMemo(
@@ -135,13 +117,12 @@ export function useWorkstreams() {
           return needsAttention(thread, work);
         },
         order,
-        lastPopulatedAt,
         snoozedUntil: (thread) => {
           const snooze = snoozes[thread.id];
           return isSnoozed(snooze, now) ? snooze!.until : undefined;
         },
       }),
-    [threads, sections, now, analysis, recaps, order, snoozes, lastPopulatedAt],
+    [threads, sections, now, analysis, recaps, order, snoozes],
   );
   /**
    * What Up Next ranks threads by (see `selectUpNext`), less the focused

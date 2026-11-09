@@ -242,34 +242,7 @@ describe("row hover buttons", () => {
     },
   );
 
-  it.each([false, true])(
-    "keeps an empty workstream's New work after Focus (focused: %s)",
-    async (focused) => {
-      const slot = await mount([], {
-        settings: { showRecent: false, showForYou: false },
-        sections: [sidebarSection("sec_z", "Zeta")],
-        order: {
-          workstreams: [],
-          threads: {},
-          prioritized: focused ? ["sec_z"] : [],
-        },
-      });
-      const section = await slot.findByRole("region", { name: "Zeta" });
-      const header = section.querySelector(".group\\/row")!;
-      // An empty workstream keeps no fold control, so its actions lead.
-      const actions = within(header as HTMLElement).getAllByRole("button");
-      expect(
-        actions.map((button) => button.getAttribute("aria-label")),
-      ).toEqual([
-        focused ? "Stop focusing on Zeta" : "Focus on Zeta",
-        "New work in Zeta",
-      ]);
-      expect(actions[1]!.hasAttribute("data-revealed")).toBe(true);
-      slot.lifecycle.unmount();
-    },
-  );
-
-  it("keeps only a focused workstream's Focus and a recent empty one's New work in view", async () => {
+  it("keeps only a focused workstream's Focus in view, and draws no workstream without threads", async () => {
     const slot = await mount(
       [
         sidebarThread("alpha", { sectionId: "sec_a", title: "Alpha task" }),
@@ -282,7 +255,6 @@ describe("row hover buttons", () => {
           sidebarSection("sec_b", "Beta"),
           sidebarSection("sec_z", "Zeta"),
         ],
-        lastPopulatedAt: { sec_z: Date.now() },
         order: { workstreams: [], threads: {}, prioritized: ["sec_b"] },
       },
     );
@@ -294,9 +266,10 @@ describe("row hover buttons", () => {
     fireEvent.click(
       slot.getByRole("button", { name: /^Show other workstreams/ }),
     );
-    await waitFor(() =>
-      expect(revealed()).toEqual(["Stop focusing on Beta", "New work in Zeta"]),
-    );
+    await slot.findByRole("region", { name: "Alpha" });
+    // Nothing among the revealed workstreams stays in view on its own.
+    expect(revealed()).toEqual(["Stop focusing on Beta"]);
+    expect(slot.queryByRole("region", { name: "Zeta" })).toBeNull();
     slot.lifecycle.unmount();
   });
 

@@ -110,29 +110,12 @@ describe("workstream headers", () => {
       );
       expect(
         slot.getAllByRole("region").map((r) => r.getAttribute("aria-label")),
-      ).toEqual(["Alpha", "Beta", "Zeta"]);
+      ).toEqual(["Alpha", "Beta"]);
       await dragGuardRemoved();
       slot.lifecycle.unmount();
     } finally {
       restore();
     }
-  });
-
-  it("draws an empty workstream's header without a fold chevron", async () => {
-    const slot = await mount(threads(), {
-      settings: { showRecent: false, showForYou: false },
-    });
-    const empty = within(await slot.findByRole("region", { name: "Zeta" }));
-    expect(
-      empty.queryByRole("button", { name: /^(Expand|Collapse) Zeta$/ }),
-    ).toBeNull();
-    expect(empty.getByText("Zeta")).toBeTruthy();
-    // A workstream with threads keeps the control that folds it.
-    const toggle = within(
-      slot.getByRole("region", { name: "Alpha" }),
-    ).getByRole("button", { name: "Collapse Alpha" });
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    slot.lifecycle.unmount();
   });
 
   it("folds a workstream only from the chevron beside its name", async () => {

@@ -367,7 +367,6 @@ export function registerCli(
         now,
         needsYou: (thread) => needsAttention(thread, work.get(thread.id)!),
         order: arrangement.load(),
-        lastPopulatedAt: service.lastPopulatedAt(),
       }),
     };
   };

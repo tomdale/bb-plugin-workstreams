@@ -17,7 +17,6 @@ import { projectWorkstreams } from "../../src/domain/project.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
 import { parseSpinner, type SpinnerStyle } from "../../src/domain/spinner.ts";
 import { DEFAULT_SNOOZE_PREFS } from "../../src/domain/snooze.ts";
-import { EMPTY_WORKSTREAM_GRACE_MS } from "../../src/domain/empty-workstreams.ts";
 import { section, sidebarThread } from "./fixtures.ts";
 
 const harness = vi.hoisted(() => ({
@@ -96,7 +95,6 @@ function state(): ServerState {
     analysis: {},
     recaps: {},
     dismissedRecaps: [],
-    lastPopulatedAt: {},
     order: { workstreams: [], threads: {}, prioritized: [] },
     snoozes: {},
     snoozePrefs: DEFAULT_SNOOZE_PREFS,
@@ -605,17 +603,13 @@ it("measures projection work for an unchanged rerender and a thread update", asy
   );
 });
 
-it("projects due snooze and grace deadlines on a parent rerender", async () => {
+it("projects a due snooze deadline on a parent rerender", async () => {
   vi.useFakeTimers();
   const at = 1_000_000;
   vi.setSystemTime(at);
   const until = at + 50;
-  const graceDeadline = at + 100;
   const expiring = state();
   expiring.snoozes.t1 = { until, attentionAt: 1, at: 1 };
-  expiring.lastPopulatedAt = {
-    sec_empty: graceDeadline - EMPTY_WORKSTREAM_GRACE_MS,
-  };
   harness.sidebar.current = {
     status: "ready",
     threads: [sidebarThread("t1")],
@@ -645,7 +639,8 @@ it("projects due snooze and grace deadlines on a parent rerender", async () => {
   await act(async () => {});
   const clock = () => within(slot.container).getByTestId("clock");
   expect(clock().dataset.snoozed).toBe("1");
-  expect(clock().dataset.empty).toBe("true");
+  // A workstream whose thread is snoozed keeps no row of its own.
+  expect(clock().dataset.empty).toBe("false");
   expect(clock().dataset.display).toBe(String(at));
 
   // Advancing wall time does not run the pending timer. The parent rerender
@@ -653,14 +648,8 @@ it("projects due snooze and grace deadlines on a parent rerender", async () => {
   vi.setSystemTime(until);
   slot.lifecycle.rerender(<Suite />);
   expect(clock().dataset.snoozed).toBe("0");
-  expect(clock().dataset.empty).toBe("true");
-  expect(clock().textContent).toBe(String(until));
-  expect(clock().dataset.display).toBe(String(at));
-
-  vi.setSystemTime(graceDeadline);
-  slot.lifecycle.rerender(<Suite />);
   expect(clock().dataset.empty).toBe("false");
-  expect(clock().textContent).toBe(String(graceDeadline));
+  expect(clock().textContent).toBe(String(until));
   expect(clock().dataset.display).toBe(String(at));
 });
 

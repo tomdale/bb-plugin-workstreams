@@ -5,7 +5,7 @@ import { useNow } from "../../src/app/useWorkstreams.ts";
 
 afterEach(() => vi.useRealTimers());
 
-it("refreshes at the empty-workstream deadline without a thread event", () => {
+it("refreshes at a deadline without a thread event", () => {
   vi.useFakeTimers();
   const at = 1_000_000;
   vi.setSystemTime(at);

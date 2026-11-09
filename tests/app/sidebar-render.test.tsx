@@ -211,7 +211,7 @@ it("sorts workstreams alphabetically by default and lets the view menu change so
   await waitFor(() =>
     expect(
       slot.getAllByRole("region").map((r) => r.getAttribute("aria-label")),
-    ).toEqual(["Alpha", "Beta", "Unfiled", "Zeta"]),
+    ).toEqual(["Alpha", "Beta", "Unfiled"]),
   );
   // The sort lives on the heading over the workstreams.
   expect(slot.getByRole("heading", { name: "Workstreams" })).toBeTruthy();
@@ -229,7 +229,7 @@ it("sorts workstreams alphabetically by default and lets the view menu change so
   await waitFor(() =>
     expect(
       slot.getAllByRole("region").map((r) => r.getAttribute("aria-label")),
-    ).toEqual(["Alpha", "Beta", "Unfiled", "Zeta"]),
+    ).toEqual(["Alpha", "Beta", "Unfiled"]),
   );
   expect(slot.inspection.rpcCalls).toContainEqual(
     expect.objectContaining({
@@ -240,24 +240,19 @@ it("sorts workstreams alphabetically by default and lets the view menu change so
   slot.lifecycle.unmount();
 });
 
-it("shows Unfiled, then recent empty workstreams; empty ones get a scoped New work action and no zero count", async () => {
+it("shows Unfiled after the populated workstreams, and nothing for an emptied one", async () => {
   const slot = await mount(undefined, {
     settings: { showRecent: false, showForYou: false, groupSort: "manual" },
     order: { workstreams: ["sec_z", "sec_b", "sec_a"], threads: {} },
-    lastPopulatedAt: { sec_z: Date.now() },
   });
   await waitFor(() =>
     expect(
       slot.getAllByRole("region").map((r) => r.getAttribute("aria-label")),
-    ).toEqual(["Beta", "Alpha", "Unfiled", "Zeta"]),
+    ).toEqual(["Beta", "Alpha", "Unfiled"]),
   );
   expect(slot.queryByRole("button", { name: /Dormant/ })).toBeNull();
-  const empty = within(slot.getByRole("region", { name: "Zeta" }));
-  expect(empty.queryByText("0")).toBeNull();
-  // An empty workstream has nothing to fold, so its header has no chevron.
-  expect(
-    empty.queryByRole("button", { name: /^(Expand|Collapse) Zeta$/ }),
-  ).toBeNull();
+  // A workstream with no visible thread draws no header at all.
+  expect(slot.queryByRole("region", { name: "Zeta" })).toBeNull();
   expect(
     within(slot.getByRole("region", { name: "Beta" }))
       .getByRole("button", { name: "Collapse Beta" })
@@ -266,9 +261,7 @@ it("shows Unfiled, then recent empty workstreams; empty ones get a scoped New wo
   expect(
     within(slot.getByRole("region", { name: "Beta" })).queryByText("1"),
   ).toBeNull();
-  const newWork = empty.getByRole("button", { name: "New work in Zeta" });
-  expect(newWork.classList.contains("opacity-0")).toBe(false);
-  fireEvent.click(newWork);
+  fireEvent.click(slot.getByRole("button", { name: "New work in Beta" }));
   // New work happens in BB's own New thread view.
   expect(slot.inspection.navigateCalls).toEqual([
     { method: "toCompose", options: { focusPrompt: true } },

@@ -1,9 +1,10 @@
 /**
  * The Workstreams sidebar thread list: the Up Next section, the focused
  * workstreams, and the Recent band, then one group per remaining workstream
- * (BB section, in the user's drag-and-drop order, else BB's), Unfiled, a
- * Dormant fold, and a Snoozed fold. Up Next and Recent are overlays: every
- * visible thread appears in exactly one group, or in Snoozed.
+ * (BB section, in the user's drag-and-drop order, else BB's) that holds a
+ * visible thread, Unfiled, a Dormant fold, and a Snoozed fold. Up Next and
+ * Recent are overlays: every visible thread appears in exactly one group, or
+ * in Snoozed.
  *
  * Workstreams nest by topic (see `nestGroups`): a group lists its own
  * threads, then the threads of subgroups too small for headers, each
@@ -223,10 +224,9 @@ export function WorkstreamsThreadList({
    * rows drag under every sort.
    */
   const headersDrag = groupSort === "manual" && !choosingTopic;
-  // Unfiled, a group only while it has threads, sits between the populated
-  // workstreams and the empty ones. With any workstream focused, the rest
-  // (with Unfiled and Dormant) sit hidden behind a toggle below the focused
-  // ones.
+  // Unfiled, a group only while it has threads, follows the populated
+  // workstreams. With any workstream focused, the rest (with Unfiled and
+  // Dormant) sit hidden behind a toggle below the focused ones.
   const arrangement = useMemo(
     () => arrangeGroups(projection, groupSort, ws.topics),
     [projection, groupSort, ws.topics],
@@ -234,7 +234,6 @@ export function WorkstreamsThreadList({
   const {
     pinned: pinnedGroups,
     populated: populatedGroups,
-    empty: emptyGroups,
     dormant: dormantGroups,
     tiered,
     hasLower,
@@ -870,7 +869,6 @@ export function WorkstreamsThreadList({
   const hasWorkstreams =
     pinnedGroups.length +
       populatedGroups.length +
-      emptyGroups.length +
       dormantGroups.length +
       projection.unsorted.total >
     0;
@@ -987,34 +985,6 @@ export function WorkstreamsThreadList({
             }}
           </DropTarget>
         ) : null}
-        <SortableContext
-          items={emptyGroups.map((group) => groupKey(group.id))}
-          strategy={verticalListSortingStrategy}
-        >
-          {emptyGroups.map((group, index) => {
-            const prev =
-              index > 0
-                ? emptyGroups[index - 1]!
-                : projection.unsorted.total > 0
-                  ? projection.unsorted
-                  : (populatedGroups[populatedGroups.length - 1] ?? null);
-            const prevCollapsed = prev
-              ? lowerCollapsed(
-                  prev.id,
-                  false,
-                  "topicId" in prev
-                    ? (prev.topicId as string | null)
-                    : undefined,
-                )
-              : false;
-            const marginTop = workstreamGap(prev, group, prevCollapsed);
-            return renderSortableGroup(
-              group,
-              activeGroupProps(group),
-              marginTop ? { marginTop } : undefined,
-            );
-          })}
-        </SortableContext>
         {dormantGroups.length > 0 ? (
           <Band
             title="Dormant"
@@ -1859,8 +1829,6 @@ function WorkstreamGroup({
   const label = "label" in group ? group.label : group.name;
   const isWorkstream = "hasSection" in group && group.hasSection;
   const counts = headerCounts(group, collapsed, prefs?.sidebar);
-  /** A group with threads folds, from a chevron beside its name. */
-  const folds = group.total > 0;
   const fold = useFold(!collapsed);
   /** The section, for the gap the fold moves below it (see `useFoldGap`). */
   const section = useRef<HTMLElement>(null);
@@ -1942,38 +1910,32 @@ function WorkstreamGroup({
         >
           <span className={headingClass}>
             {heading}
-            {folds ? (
-              // The chevron is the header's only press: the row stays the
-              // workstream's drag handle, and a press on the name does
-              // nothing. An empty workstream has nothing to fold, so it has
-              // no chevron to take focus and do nothing.
-              <button
-                type="button"
-                aria-expanded={!collapsed}
-                aria-label={collapsed ? `Expand ${label}` : `Collapse ${label}`}
-                onPointerDown={(event) => event.stopPropagation()}
-                onMouseDown={(event) => event.stopPropagation()}
-                onTouchStart={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  toggle();
-                }}
-                className={cn(rowActionClass, "size-5")}
-              >
-                <FoldChevron open={!collapsed} />
-              </button>
-            ) : null}
+            {/* The chevron is the header's only press: the row stays the
+              workstream's drag handle, and a press on the name does
+              nothing. */}
+            <button
+              type="button"
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? `Expand ${label}` : `Collapse ${label}`}
+              onPointerDown={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+              onTouchStart={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                toggle();
+              }}
+              className={cn(rowActionClass, "size-5")}
+            >
+              <FoldChevron open={!collapsed} />
+            </button>
           </span>
           {/* Keep the always-visible action at the trailing edge so revealing
             other actions cannot move it underneath the pointer. */}
           <RowActions>
-            {group.total === 0 ? focusAction : null}
             {onNewThread ? (
-              // An empty workstream has nothing else to offer, so it shows.
               <HoverAction
                 compact
-                revealed={group.total === 0}
                 label={`New work in ${group.name}`}
                 onClick={onNewThread}
               >
@@ -1990,7 +1952,7 @@ function WorkstreamGroup({
                 <SnoozeIcon className="size-3.5" />
               </HoverMenuButton>
             ) : null}
-            {group.total > 0 ? focusAction : null}
+            {focusAction}
           </RowActions>
           {/* The header's details, as a thread row's age. */}
           <span className="flex shrink-0 items-center gap-1 empty:hidden">

@@ -659,8 +659,6 @@ export const rpcContract = defineRpcContract({
       recaps: z.record(z.string(), recapSchema).default({}),
       /** Ids of the recaps above whose docked card is dismissed. */
       dismissedRecaps: z.array(z.string()).default([]),
-      /** Recent visible population, shared across clients and reloads. */
-      lastPopulatedAt: z.record(z.string(), z.number()).default({}),
       /** The sidebar's drag-and-drop order. */
       order: orderSchema,
       /** Snoozed threads, by id (see domain/snooze.ts). */

@@ -234,7 +234,7 @@ it("counts descendants in a snooze label but sends roots, including Unfiled", ()
   ).toBeUndefined();
 });
 
-it("retains the grouping policy without mounting rows: empty grace, manual order, and snoozed exclusion", () => {
+it("keeps the grouping policy without mounting rows: manual order, no empty workstream, and snoozed exclusion", () => {
   const now = Date.now();
   const projection = projectWorkstreams(
     [
@@ -252,14 +252,13 @@ it("retains the grouping policy without mounting rows: empty grace, manual order
         threads: { b: ["b3", "b1"] },
         prioritized: [],
       },
-      lastPopulatedAt: { empty: now },
       snoozedUntil: (t) => (t.id === "nap" ? null : undefined),
     },
   );
   const groups = arrangeGroups(projection, "manual");
   expect(groups.populated.map((g) => g.id)).toEqual(["b", "a"]);
   expect(ids(groups.populated[0]!.rows)).toEqual(["b2", "b3", "b1"]);
-  expect(groups.empty.map((g) => g.id)).toEqual(["empty"]);
+  expect(groups.populated.map((g) => g.id)).not.toContain("empty");
   expect(ids(projection.snoozed)).toEqual(["nap"]);
   expect(ids(groups.populated.flatMap((g) => g.rows))).not.toContain("nap");
 });

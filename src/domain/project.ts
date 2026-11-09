@@ -12,10 +12,6 @@
  */
 import { applyOrder, type ManualOrder } from "./order.ts";
 import {
-  retainedEmptyWorkstreams,
-  type LastPopulatedAt,
-} from "./empty-workstreams.ts";
-import {
   buildForest,
   flatten,
   type TreeNode,
@@ -65,12 +61,12 @@ export type Projection<T extends WorkstreamThread> = {
    */
   readonly groups: readonly Group<T>[];
   /**
-   * Every workstream in the manual order, else BB's section order, before
-   * focus, emptiness, and dormancy split them into `groups` and `dormant`.
+   * Every workstream in the manual order, else BB's section order, empty ones
+   * included; `groups` and `dormant` draw their non-empty ones from it.
    */
   readonly all: readonly Group<T>[];
   readonly unsorted: Group<T>;
-  /** Workstreams with no visible threads, or none active within the window. */
+  /** Workstreams with nothing active within the window and nothing waiting. */
   readonly dormant: readonly Group<T>[];
   /**
    * Snoozed subtrees, soonest to wake first (activity snoozes last). Depths
@@ -100,8 +96,6 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 type ProjectionOptions<T extends WorkstreamThread> = {
   readonly now: number;
   readonly dormantAfterMs?: number;
-  /** Empty rows survive briefly after their last visible thread leaves. */
-  readonly lastPopulatedAt?: LastPopulatedAt;
   /** Whether a thread needs Tom. Defaults to a live pending interaction. */
   readonly needsYou?: (thread: T) => boolean;
   /**
@@ -245,7 +239,6 @@ export function projectWorkstreams<T extends WorkstreamThread>(
 
   const pinned: Group<T>[] = [];
   const groups: Group<T>[] = [];
-  const empty: Group<T>[] = [];
   const dormant: Group<T>[] = [];
   const allGroups: Group<T>[] = [];
   const orderedSections = applyOrder(
@@ -256,20 +249,15 @@ export function projectWorkstreams<T extends WorkstreamThread>(
   );
   for (const section of orderedSections)
     allGroups.push(group(section.id, section.name));
-  const retained = retainedEmptyWorkstreams(
-    allGroups.filter((g) => g.total === 0).map((g) => g.id),
-    options.lastPopulatedAt ?? {},
-    options.now,
-  );
+  // A workstream shows only while it holds a visible thread: the moment its
+  // last one is archived or snoozed, its row leaves the list.
   for (const g of allGroups) {
-    if (g.total === 0 && !retained.has(g.id)) continue;
+    if (g.total === 0) continue;
     const quiet = options.now - g.lastActiveAt > dormantAfterMs;
     if (g.prioritized) pinned.push(g);
-    else if (g.total === 0) empty.push(g);
     else if (quiet && g.needsYou === 0) dormant.push(g);
     else groups.push(g);
   }
-  groups.push(...empty);
 
   const byAttention = (a: Row<T>, b: Row<T>) =>
     b.thread.latestAttentionAt - a.thread.latestAttentionAt ||

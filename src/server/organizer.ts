@@ -224,9 +224,6 @@ export class Organizer {
         JSON.stringify({
           catalogRevision: this.deps.topics.revision(),
           layout: this.storedLayout().nodes,
-          retainedEmpty: [
-            ...this.deps.service.retainedEmptyWorkstreams(),
-          ].sort(),
           roots: roots.map((root) => [
             root.id,
             root.title,
@@ -480,15 +477,10 @@ export class Organizer {
 
           // Clean up unused empty sections that belonged to Workstreams
           const activeSectionIds = new Set(entityToSection.values());
-          const retainedEmpty = this.deps.service.retainedEmptyWorkstreams();
 
           for (const section of liveSections) {
             // Selected sections retain their bindings.
-            if (
-              activeSectionIds.has(section.id) ||
-              retainedEmpty.has(section.id)
-            )
-              continue;
+            if (activeSectionIds.has(section.id)) continue;
 
             const boundEntityId = groupBindings.get(section.id);
             if (boundEntityId && !selectedEntityIds.includes(boundEntityId)) {

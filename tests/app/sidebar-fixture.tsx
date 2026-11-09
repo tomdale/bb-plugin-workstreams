@@ -65,7 +65,6 @@ export async function mount(
     onRender?: ProfilerOnRenderCallback;
     analysis?: Record<string, unknown>;
     recaps?: Record<string, unknown>;
-    lastPopulatedAt?: Record<string, number>;
     pendingSuggestions?: number;
     assignmentError?: string;
     moveWait?: Promise<void>;
@@ -112,13 +111,6 @@ export async function mount(
     prioritized: [] as string[],
     ...(options.order ?? { workstreams: [], threads: {} }),
   };
-  // The default fixture includes recently emptied sections; expiry tests supply
-  // their own history rather than relying on permanent empty rows.
-  const lastPopulatedAt =
-    options.lastPopulatedAt ??
-    Object.fromEntries(
-      (options.sections ?? sections).map((section) => [section.id, Date.now()]),
-    );
   const list = { component: WorkstreamsThreadList };
   const props = {
     activeThreadId:
@@ -199,7 +191,6 @@ export async function mount(
         analysis: options.analysis ?? {},
         pendingSuggestions: options.pendingSuggestions ?? 0,
         recaps: options.recaps ?? {},
-        lastPopulatedAt,
         order: {
           workstreams: [...order.workstreams],
           threads: { ...order.threads },

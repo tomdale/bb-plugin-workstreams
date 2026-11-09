@@ -110,28 +110,24 @@ it("does not highlight another workstream until its topic binding is known", asy
   }
 });
 
-it.each(["collapsed", "empty"])(
-  "moves a root onto a %s workstream header",
-  async (target) => {
-    const restore = layoutByRows();
-    const rowBounds = Element.prototype.getBoundingClientRect;
-    Element.prototype.getBoundingClientRect = function () {
-      if (
-        this.tagName === "SECTION" &&
-        this.getAttribute("aria-label") === "Beta"
-      )
-        return new DOMRect(0, 28, 200, 28);
-      return rowBounds.call(this);
-    };
-    try {
-      const threads = [
+it("moves a root onto a collapsed workstream header", async () => {
+  const restore = layoutByRows();
+  const rowBounds = Element.prototype.getBoundingClientRect;
+  Element.prototype.getBoundingClientRect = function () {
+    if (
+      this.tagName === "SECTION" &&
+      this.getAttribute("aria-label") === "Beta"
+    )
+      return new DOMRect(0, 28, 200, 28);
+    return rowBounds.call(this);
+  };
+  try {
+    const slot = await mount(
+      [
         sidebarThread("alpha", { sectionId: "sec_a", title: "Alpha task" }),
-      ];
-      if (target === "collapsed")
-        threads.push(
-          sidebarThread("beta", { sectionId: "sec_b", title: "Beta task" }),
-        );
-      const slot = await mount(threads, {
+        sidebarThread("beta", { sectionId: "sec_b", title: "Beta task" }),
+      ],
+      {
         settings: { showRecent: false, showForYou: false },
         catalog: {
           entities: [
@@ -152,56 +148,53 @@ it.each(["collapsed", "empty"])(
           ],
           groups: { sec_a: "a", sec_b: "b" },
         },
-      });
-      await waitFor(() =>
-        expect(groupRows(slot, "Alpha")).toEqual(["Alpha task"]),
-      );
-      if (target === "collapsed")
-        fireEvent.click(
-          within(slot.getByRole("region", { name: "Beta" })).getByRole(
-            "button",
-            { name: "Collapse Beta" },
-          ),
-        );
-      const row = slot.container
-        .querySelector('[data-sidebar-thread-id="alpha"]')!
-        .closest("li")!;
-      fireEvent.mouseDown(row, { button: 0, clientX: 10, clientY: 14 });
-      fireEvent.mouseMove(document, { clientX: 10, clientY: 24 });
-      fireEvent.mouseMove(document, { clientX: 10, clientY: 42 });
+      },
+    );
+    await waitFor(() =>
+      expect(groupRows(slot, "Alpha")).toEqual(["Alpha task"]),
+    );
+    fireEvent.click(
+      within(slot.getByRole("region", { name: "Beta" })).getByRole("button", {
+        name: "Collapse Beta",
+      }),
+    );
+    const row = slot.container
+      .querySelector('[data-sidebar-thread-id="alpha"]')!
+      .closest("li")!;
+    fireEvent.mouseDown(row, { button: 0, clientX: 10, clientY: 14 });
+    fireEvent.mouseMove(document, { clientX: 10, clientY: 24 });
+    fireEvent.mouseMove(document, { clientX: 10, clientY: 42 });
+    expect(
+      slot
+        .getByRole("region", { name: "Beta" })
+        .hasAttribute("data-drop-target"),
+    ).toBe(true);
+    fireEvent.mouseUp(document, { clientX: 10, clientY: 42 });
+    await waitFor(() =>
       expect(
-        slot
-          .getByRole("region", { name: "Beta" })
-          .hasAttribute("data-drop-target"),
-      ).toBe(true);
-      fireEvent.mouseUp(document, { clientX: 10, clientY: 42 });
-      await waitFor(() =>
-        expect(
-          slot.inspection.rpcCalls.find((c) => c.method === "reorder")?.input,
-        ).toEqual({
-          kind: "threads",
-          groupId: "sec_b",
-          ids: target === "collapsed" ? ["alpha", "beta"] : ["alpha"],
-        }),
-      );
-      await dragGuardRemoved();
-      slot.selectThread("alpha");
-      const header = within(
-        slot.getByRole("region", { name: "Beta" }),
-      ).getByRole("button", { name: /^(Collapse|Expand) Beta$/ });
-      if (header.getAttribute("aria-expanded") === "false")
-        fireEvent.click(header);
-      await waitFor(() =>
-        expect(groupRows(slot, "Beta")).toEqual(
-          target === "collapsed" ? ["Alpha task", "Beta task"] : ["Alpha task"],
-        ),
-      );
-      slot.lifecycle.unmount();
-    } finally {
-      restore();
-    }
-  },
-);
+        slot.inspection.rpcCalls.find((c) => c.method === "reorder")?.input,
+      ).toEqual({
+        kind: "threads",
+        groupId: "sec_b",
+        ids: ["alpha", "beta"],
+      }),
+    );
+    await dragGuardRemoved();
+    slot.selectThread("alpha");
+    const header = within(slot.getByRole("region", { name: "Beta" })).getByRole(
+      "button",
+      { name: /^(Collapse|Expand) Beta$/ },
+    );
+    if (header.getAttribute("aria-expanded") === "false")
+      fireEvent.click(header);
+    await waitFor(() =>
+      expect(groupRows(slot, "Beta")).toEqual(["Alpha task", "Beta task"]),
+    );
+    slot.lifecycle.unmount();
+  } finally {
+    restore();
+  }
+});
 
 it.each([false, true])(
   "chooses a topic inside a parent group and moves its delegates (failure: %s)",
@@ -308,11 +301,8 @@ it.each([false, true])(
             "Delegate",
           ]),
         );
-        expect(
-          within(slot.getByRole("region", { name: "Alpha" })).queryAllByRole(
-            "link",
-          ),
-        ).toEqual([]);
+        // Its workstream holds nothing now, so it draws no header.
+        expect(slot.queryByRole("region", { name: "Alpha" })).toBeNull();
         expect(
           slot.inspection.rpcCalls.find((c) => c.method === "reorder")?.input,
         ).toEqual({
