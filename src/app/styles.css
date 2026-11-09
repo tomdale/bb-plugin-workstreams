@@ -347,8 +347,11 @@
     border-color: var(--ws-needs-tone);
   }
 }
+/* The card's section label keeps the sidebar's uppercase label style, tinted
+   in the card's own Needs you tone so the title reads as part of it. */
 .ws-needs-heading {
-  color: var(--foreground);
+  color: var(--ws-needs-tone);
+  letter-spacing: 0.06em;
 }
 /* The waiting-thread count, as a Geist badge in the Needs you color. */
 .ws-needs-count {

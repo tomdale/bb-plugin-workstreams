@@ -2187,9 +2187,11 @@ function Band({
           <h2
             className={cn(
               "flex min-w-0 flex-1 items-center gap-1 pr-1.5",
-              box === "neutral"
-                ? "py-0.5 text-[11px] font-semibold uppercase tracking-wide" // slop-ok: 1 the product's section-label style
-                : "pb-1 text-[12px] font-medium",
+              box === "attention"
+                ? "pb-1 text-[11px] font-semibold uppercase tracking-wide" // slop-ok: 1 the product's section-label style
+                : box === "neutral"
+                  ? "py-0.5 text-[11px] font-semibold uppercase tracking-wide" // slop-ok: 1 the product's section-label style
+                  : "pb-1 text-[12px] font-medium",
               markless ? "pl-3.5" : "pl-1.5",
               box === "attention"
                 ? "ws-needs-heading"
