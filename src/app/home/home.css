@@ -33,7 +33,8 @@
   )
   :is(
     [data-root-compose-mobile-recents],
-    [data-testid="root-compose-compact-recents-offset"]
+    [data-testid="root-compose-compact-recents-offset"],
+    [data-testid="root-compose-compact-leading-spacer"]
   ) {
   display: none;
 }
