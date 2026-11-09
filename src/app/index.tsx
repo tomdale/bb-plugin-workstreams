@@ -43,6 +43,7 @@ import {
   openNextUpThread,
 } from "./upNext/NextUpCommand.tsx";
 import { DebugCommandBridge, toggleDebugMode } from "./debug/DebugCommand.tsx";
+import { ThreadContextDebugSection } from "./debug/ThreadContextDebug.tsx";
 import { WORKSTREAM_ICON } from "./workstream-icon.ts";
 import "./theme/tokens.css";
 import "./styles.css";
@@ -63,6 +64,13 @@ export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({
     id: "assistant-reply-debug",
     component: AssistantReplyDebug,
+  });
+  // Absent on bb builds that predate the thread context card slots.
+  app.slots.experimental_threadContextCardSection?.({
+    id: "workstreams-debug",
+    title: "Workstreams Debug",
+    group: "4_debug",
+    component: ThreadContextDebugSection,
   });
   app.slots.experimental_timelineRenderer({
     kind: "workstreams/ask-user-question",

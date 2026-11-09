@@ -1095,6 +1095,10 @@ recording and unlocks diagnostic tools across the UI:
   state. Replays use the recorded output schema when available; older traces
   without one replay without a schema. The current parser interprets the reply,
   so a comparison can also differ when the output contract has changed.
+- **Thread context card:** Each thread's context card gains a **Workstreams
+  Debug** section listing the metadata Workstreams accumulated for the thread:
+  the settled goal, the context digest, the topic assignment and its provenance,
+  the settled title, and the latest analysis run's status, model, and age.
 - **Activity model calls:** Filter the **Activity** tab by **Model calls**
   (`quick-analysis`, `full-analysis`, `placement`, `categories`, `split`, or
   `tidy`) and **Failures only**, view total reported cost for the filtered

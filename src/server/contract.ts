@@ -34,6 +34,7 @@ const analysisSchema = z.object({
   // The title last settled by analysis, separate from the outcome below it.
   goal: z.string().nullable().default(null),
   threadGoal: z.string().nullable().default(null),
+  digest: z.string().nullable().default(null),
   topicError: z.string().optional(),
   revision: z.number(),
   at: z.number(),
