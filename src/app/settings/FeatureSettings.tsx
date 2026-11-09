@@ -194,8 +194,25 @@ export function ThreadsSettings() {
           }
         />
         <SettingRow
+          label="Title on scroll"
+          description="Minimize the heading into the title bar as you scroll, or keep it over the thread at full size."
+          control={
+            <SegmentedControl
+              label="Title on scroll"
+              value={prefs.threads.headingScroll}
+              options={[
+                { value: "minimize", label: "Minimize" },
+                { value: "float", label: "Float" },
+              ]}
+              onChange={(headingScroll) =>
+                update({ threads: { headingScroll } })
+              }
+            />
+          }
+        />
+        <SettingRow
           label="Title transition"
-          description="How the large heading changes to the compact title as you scroll."
+          description="How the large heading changes to the compact title as you scroll, while it minimizes."
           control={
             <SegmentedControl
               label="Title transition"
@@ -207,6 +224,21 @@ export function ThreadsSettings() {
               onChange={(headingTransition) =>
                 update({ threads: { headingTransition } })
               }
+            />
+          }
+        />
+        <SettingRow
+          label="Title alignment"
+          description="Line the heading's text up with the messages, or center it in the thread."
+          control={
+            <SegmentedControl
+              label="Title alignment"
+              value={prefs.threads.headingAlign}
+              options={[
+                { value: "left", label: "Left" },
+                { value: "center", label: "Centered" },
+              ]}
+              onChange={(headingAlign) => update({ threads: { headingAlign } })}
             />
           }
         />

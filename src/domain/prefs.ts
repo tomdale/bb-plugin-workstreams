@@ -127,6 +127,10 @@ const GROUPS = {
     autoTitle: [z.boolean(), true],
     /** How the large and compact goal headings change as the timeline scrolls. */
     headingTransition: [z.enum(["fade", "scroll"]), "fade"],
+    /** Whether the heading minimizes into the title bar on scroll or stays over the thread. */
+    headingScroll: [z.enum(["minimize", "float"]), "minimize"],
+    /** Where the heading's text sits: aligned with the messages, or centered. */
+    headingAlign: [z.enum(["left", "center"]), "left"],
     /** A link to the parent thread in child threads' headers. */
     showParentLink: [z.boolean(), false],
     /** An icon-only Archive button in thread headers. */

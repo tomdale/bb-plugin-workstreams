@@ -463,6 +463,9 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const context = useGoalContext(threadId);
   const { prefs } = usePrefs();
   const fadeOnly = (prefs?.threads.headingTransition ?? "fade") === "fade";
+  // Floating keeps the large heading over the thread instead of minimizing it.
+  const floating = (prefs?.threads.headingScroll ?? "minimize") === "float";
+  const centered = (prefs?.threads.headingAlign ?? "left") === "center";
   const mount = useMessageScroller(threadId);
   const settled = useSettled(mount);
   const base = mount?.baseFontSize ?? 14;
@@ -525,9 +528,14 @@ export function StickyGoalHeader(): React.ReactElement | null {
     headingScrollLimit(exitDistance),
   );
   const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
-  const { moved, remaining, progress } = placement?.short
-    ? { moved: exitDistance, remaining: 0, progress: 1 }
-    : headingScroll(settled ? fromBottom : 0, exitDistance);
+  // A floating heading never makes the move to the compact copy: it stays at
+  // rest over the timeline, which scrolls beneath its shadow. A pane too short
+  // to spare the room still compacts, so a phone with the keyboard up keeps a
+  // readable timeline.
+  const { moved, remaining, progress } =
+    !floating && placement?.short
+      ? { moved: exitDistance, remaining: 0, progress: 1 }
+      : headingScroll(floating ? 0 : settled ? fromBottom : 0, exitDistance);
   const collapsed = progress === 1;
   const opacity = fadeOnly
     ? { expanded: 1 - progress, compact: progress }
@@ -634,6 +642,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
       >
         <div
           className="ws-goal-overlay__group"
+          data-ws-align={centered ? "center" : undefined}
           style={{
             transform: `translateY(${base * PAD_TOP - (fadeOnly ? 0 : moved)}px)`,
             opacity: opacity.expanded,

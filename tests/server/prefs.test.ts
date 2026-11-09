@@ -83,6 +83,42 @@ describe("Workstreams prefs", () => {
     await world.harness.lifecycle.dispose();
   });
 
+  it("keeps the heading's alignment and scroll behavior to their own validated choices", async () => {
+    expect(parsePrefs({}).threads).toMatchObject({
+      headingScroll: "minimize",
+      headingAlign: "left",
+    });
+    expect(
+      parsePrefs({
+        threads: {
+          headingScroll: "pin",
+          headingAlign: "justify",
+          showParentLink: true,
+        },
+      }).threads,
+    ).toMatchObject({
+      headingScroll: "minimize",
+      headingAlign: "left",
+      showParentLink: true,
+    });
+    for (const threads of [
+      { headingScroll: "pin" },
+      { headingAlign: "justify" },
+    ]) {
+      expect(prefsPatchSchema.safeParse({ threads }).success).toBe(false);
+    }
+    const world = await fakeWorld();
+    const db = openDatabase(world.bb);
+    for (const threads of [
+      { headingScroll: "float" as const, headingAlign: "center" as const },
+      { headingScroll: "minimize" as const, headingAlign: "left" as const },
+    ]) {
+      savePrefs(db, { threads });
+      expect(loadPrefs(db).threads).toMatchObject(threads);
+    }
+    await world.harness.lifecycle.dispose();
+  });
+
   it("shows the header Archive button unless it is turned off", async () => {
     expect(parsePrefs({}).threads.showArchiveButton).toBe(true);
     // Preferences stored before the button existed carry no value for it.

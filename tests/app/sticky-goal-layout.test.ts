@@ -146,3 +146,53 @@ browserTest.skipIf(browserUnavailable)(
     }
   },
 );
+
+browserTest.skipIf(browserUnavailable)(
+  "centers the heading's workstream line, title, and goal when the group asks for it",
+  { timeout: 30_000 },
+  async ({ page }) => {
+    await page.setViewportSize({ width: 400, height: 200 });
+    await page.setContent(`
+      <style>${styles}
+        body { margin: 0; }
+        .ws-goal-overlay__group { position: relative; width: 300px; height: 120px; }
+      </style>
+      <div class="ws-goal-overlay__group">
+        <div class="ws-sticky-goal__workstream"><i></i><span>Workstream</span></div>
+        <h2 class="ws-sticky-goal__title">A title</h2>
+        <div class="ws-sticky-goal__subtitle">Its goal</div>
+      </div>`);
+    // The wave icon's optical nudge leaves the line where left alignment puts
+    // it; centering moves the line itself, so compare the two.
+    const measure = () =>
+      page.evaluate(() => {
+        const group = document.querySelector(".ws-goal-overlay__group")!;
+        const line = document.querySelector(".ws-sticky-goal__workstream")!;
+        const title = document.querySelector(".ws-sticky-goal__title")!;
+        const subtitle = document.querySelector(".ws-sticky-goal__subtitle")!;
+        const groupRect = group.getBoundingClientRect();
+        const lineRect = line.getBoundingClientRect();
+        return {
+          titleAlign: getComputedStyle(title).textAlign,
+          subtitleAlign: getComputedStyle(subtitle).textAlign,
+          inset: Math.round(lineRect.left - groupRect.left),
+          width: Math.round(lineRect.width),
+          groupWidth: Math.round(groupRect.width),
+        };
+      });
+    const left = await measure();
+    await page.evaluate(() =>
+      document
+        .querySelector(".ws-goal-overlay__group")!
+        .setAttribute("data-ws-align", "center"),
+    );
+    const centered = await measure();
+    expect(left.titleAlign).toBe("start");
+    expect(centered.titleAlign).toBe("center");
+    expect(centered.subtitleAlign).toBe("center");
+    // The line spans the group to center its contents, starting at its edge
+    // rather than the icon's optical inset.
+    expect(centered.inset - left.inset).toBe(2);
+    expect(centered.width).toBe(centered.groupWidth);
+  },
+);

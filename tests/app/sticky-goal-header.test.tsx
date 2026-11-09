@@ -17,7 +17,7 @@ import {
   StickyGoalHeader,
   useMessageScroller,
 } from "../../src/app/StickyGoalHeader.tsx";
-import { parsePrefs } from "../../src/domain/prefs.ts";
+import { parsePrefs, type Prefs } from "../../src/domain/prefs.ts";
 import { emptyState, sidebarThread } from "./fixtures.ts";
 
 afterEach(() => {
@@ -73,6 +73,7 @@ async function mountHeading(
   headingTransition: "fade" | "scroll" = "scroll",
   goal: string | null = null,
   onRender?: ProfilerOnRenderCallback,
+  threads: Partial<Prefs["threads"]> = {},
 ) {
   stubResizeObserver();
   const heading = {
@@ -112,7 +113,7 @@ async function mountHeading(
             : {},
         }),
         prefs: () => ({
-          prefs: parsePrefs({ threads: { headingTransition } }),
+          prefs: parsePrefs({ threads: { headingTransition, ...threads } }),
         }),
       },
     },
@@ -422,6 +423,84 @@ it("falls back to the first column when BB does not mark it", async () => {
   expect(document.querySelector('[data-test="column"]')!.contains(root())).toBe(
     true,
   );
+  slot.lifecycle.unmount();
+});
+
+it("centers the heading's text when the alignment preference says so", async () => {
+  paneFixture({ recap: false });
+  const slot = await mountHeading("fade", null, undefined, {
+    headingAlign: "center",
+  });
+  const groups = () => ({
+    expanded: overlay()!.querySelector(
+      '[data-ws-heading="expanded"] .ws-goal-overlay__group',
+    ),
+    compact: overlay()!.querySelector(
+      '[data-ws-heading="compact"] .ws-goal-overlay__group',
+    ),
+  });
+  await waitFor(() => expect(groups().expanded).not.toBeNull());
+  expect(groups().expanded!.getAttribute("data-ws-align")).toBe("center");
+  // The compact copy keeps the title bar's own alignment: the bar, not the
+  // pane, decides where a minimized title sits.
+  expect(groups().compact!.hasAttribute("data-ws-align")).toBe(false);
+  slot.lifecycle.unmount();
+});
+
+it("leaves the heading left aligned by default", async () => {
+  paneFixture({ recap: false });
+  const slot = await mountHeading();
+  const expanded = () =>
+    overlay()!.querySelector(
+      '[data-ws-heading="expanded"] .ws-goal-overlay__group',
+    );
+  await waitFor(() => expect(expanded()).not.toBeNull());
+  expect(expanded()!.hasAttribute("data-ws-align")).toBe(false);
+  slot.lifecycle.unmount();
+});
+
+it("keeps the large heading floating over the timeline when asked to", async () => {
+  paneFixture({ recap: false });
+  const scroller = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, value: 1000 },
+    clientHeight: { configurable: true, value: 400 },
+    scrollTop: { configurable: true, writable: true, value: 600 },
+  });
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 900, 672),
+  );
+  const slot = await mountHeading("fade", null, undefined, {
+    headingScroll: "float",
+  });
+  await waitFor(() => expect(overlay()).not.toBeNull());
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  // Far from the newest message, where minimizing would have swapped in the
+  // compact copy.
+  scroller.scrollTop = 300;
+  scroller.dispatchEvent(new Event("scroll"));
+  const expanded = () =>
+    overlay()!.querySelector<HTMLElement>(
+      '[data-ws-heading="expanded"] .ws-goal-overlay__group',
+    )!;
+  const compact = () =>
+    overlay()!.querySelector<HTMLElement>(
+      '[data-ws-heading="compact"] .ws-goal-overlay__group',
+    )!;
+  await waitFor(() => expect(expanded().style.opacity).toBe("1"));
+  expect(compact().style.opacity).toBe("0");
+  expect(expanded().style.transform).toBe("translateY(11.9px)");
+  // The timeline keeps its reserved room, and the heading still shadows it.
+  expect(scroller.style.scrollPaddingTop).toBe(
+    `${headingHeight(14, false, 1, 0)}px`,
+  );
+  const background = overlay()!.querySelector<HTMLElement>(
+    ".ws-goal-background",
+  )!;
+  expect(background.style.getPropertyValue("--ws-fade-below-plate")).toBe("1");
+  expect(background.style.getPropertyValue("--ws-fade-below-bar")).toBe("0");
   slot.lifecycle.unmount();
 });
 

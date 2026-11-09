@@ -280,6 +280,67 @@ it("chooses between fade and scroll title transitions", async () => {
   expect(within(group).getAllByRole("radio")).toHaveLength(2);
 });
 
+it("chooses between minimizing the title and letting it float", async () => {
+  const slot = await mount("threads");
+  const group = await slot.findByRole("radiogroup", {
+    name: "Title on scroll",
+  });
+  const minimize = within(group).getByRole("radio", {
+    name: "Minimize",
+  }) as HTMLInputElement;
+  const float = within(group).getByRole("radio", {
+    name: "Float",
+  }) as HTMLInputElement;
+  expect(minimize.checked).toBe(true);
+  fireEvent.click(float);
+  await waitFor(() => expect(float.checked).toBe(true));
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
+    ).toHaveLength(1),
+  );
+  expect(
+    slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs")[0]
+      ?.input,
+  ).toEqual({ patch: { threads: { headingScroll: "float" } } });
+  fireEvent.click(minimize);
+  await waitFor(() => expect(minimize.checked).toBe(true));
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
+    ).toHaveLength(2),
+  );
+  expect(
+    slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs")[1]
+      ?.input,
+  ).toEqual({ patch: { threads: { headingScroll: "minimize" } } });
+});
+
+it("chooses between left aligned and centered titles", async () => {
+  const slot = await mount("threads");
+  const group = await slot.findByRole("radiogroup", {
+    name: "Title alignment",
+  });
+  const left = within(group).getByRole("radio", {
+    name: "Left",
+  }) as HTMLInputElement;
+  const centered = within(group).getByRole("radio", {
+    name: "Centered",
+  }) as HTMLInputElement;
+  expect(left.checked).toBe(true);
+  fireEvent.click(centered);
+  await waitFor(() => expect(centered.checked).toBe(true));
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
+    ).toHaveLength(1),
+  );
+  expect(
+    slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs")[0]
+      ?.input,
+  ).toEqual({ patch: { threads: { headingAlign: "center" } } });
+});
+
 it("saves the Titles and parent-link switches", async () => {
   const slot = await mount("threads");
   fireEvent.click(
