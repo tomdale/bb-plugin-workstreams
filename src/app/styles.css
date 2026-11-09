@@ -275,10 +275,12 @@
   z-index: 1;
   background: var(--sidebar, var(--background));
   /* Stick where the card already rests, not at the scrollport's edge: the
-     list's top padding scrolls away, so without this the card would travel
-     that distance before sticking. The padding is opaque, so rows scrolling
-     beneath stay covered. */
-  padding-top: var(--ws-list-pad-top, 0);
+     list's top padding scrolls away, so a plain `top: 0` would let the card
+     travel that distance before sticking. The shadow bleeds over the same
+     strip so rows scrolling beneath stay covered. */
+  top: var(--ws-list-pad-top, 0);
+  box-shadow: 0 calc(-1 * var(--ws-list-pad-top, 0px)) 0 0
+    var(--sidebar, var(--background));
 }
 
 /* The Up Next block: the threads waiting on Tom, and the sidebar's most
