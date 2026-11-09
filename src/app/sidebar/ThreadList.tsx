@@ -1512,7 +1512,7 @@ function ArchivedWorkstreamGroup({
         <span className="tabular-nums">{count}</span>
       </button>
       {fold.render ? (
-        <div className="ws-presence" {...presenceProps(fold.phase)}>
+        <div className="ws-fold" ref={fold.ref} {...presenceProps(fold.phase)}>
           <ul className="mt-0.5">{children}</ul>
         </div>
       ) : null}
@@ -1623,7 +1623,7 @@ function Band({
         {menu}
       </div>
       {fold.render ? (
-        <div className="ws-presence" {...presenceProps(fold.phase)}>
+        <div className="ws-fold" ref={fold.ref} {...presenceProps(fold.phase)}>
           <ul className="mt-0.5">{children}</ul>
         </div>
       ) : null}
@@ -1973,7 +1973,7 @@ function WorkstreamGroup({
         </div>
       </HeaderMenu>
       {fold.render ? (
-        <div className="ws-presence" {...presenceProps(fold.phase)}>
+        <div className="ws-fold" ref={fold.ref} {...presenceProps(fold.phase)}>
           <ul className="list-none">{children}</ul>
         </div>
       ) : null}

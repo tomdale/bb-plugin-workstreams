@@ -16,7 +16,7 @@ const threads = () => [
 
 /** The workstream's contents, which a closed fold unmounts. */
 const contents = (slot: Awaited<ReturnType<typeof mount>>, name: string) =>
-  slot.getByRole("region", { name }).querySelector(".ws-presence");
+  slot.getByRole("region", { name }).querySelector(".ws-fold");
 
 beforeEach(() => {
   window.localStorage.clear();

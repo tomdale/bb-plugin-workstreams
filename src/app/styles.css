@@ -403,12 +403,6 @@
 .ws-presence > * {
   min-height: 0;
 }
-/* Both the wrapper and its contents clip while the fold moves. The contents'
-   own box trails the wrapper's height as it opens, by more the taller they
-   are, so clipping only there would leave the tail of a long fold empty. */
-.ws-presence[data-presence] {
-  overflow: hidden;
-}
 .ws-presence[data-presence] > * {
   overflow: hidden;
 }

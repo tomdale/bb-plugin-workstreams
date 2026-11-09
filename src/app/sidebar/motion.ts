@@ -199,12 +199,20 @@ export function settleFold(state: FoldState): FoldState {
 }
 
 /**
- * Whether a fold's contents render, and in which phase (see {@link foldState}).
+ * A fold's state (see {@link foldState}) and the ref its contents take. The
+ * contents are one element whose height the fold animates in pixels, so the
+ * space it gives up and the part of its contents still showing are the same
+ * edge; a grid track, by contrast, shrinks ahead of the box inside it and
+ * leaves a group's tail empty while it closes.
+ *
  * Like `usePresence`, the first render enters nothing, so a group that starts
  * folded stays unmounted, and each phase ends on a timer rather than an
  * animation event, so a missed event never strands the contents.
  */
-export function useFold(open: boolean, animate = true): FoldState {
+export function useFold(
+  open: boolean,
+  animate = true,
+): FoldState & { readonly ref: (element: HTMLElement | null) => void } {
   const committed = useRef<FoldState | null>(null);
   const timer = useRef<{
     phase: PresencePhase;
@@ -245,7 +253,55 @@ export function useFold(open: boolean, animate = true): FoldState {
       if (timer.current) clearTimeout(timer.current.id);
     };
   }, []);
-  return state;
+  /** The contents, and the phase they were last drawn in. */
+  const element = useRef<HTMLElement | null>(null);
+  const drawn = useRef<PresencePhase>("idle");
+  useLayoutEffect(() => {
+    const el = element.current;
+    const phase = state.phase;
+    if (el === null || phase === drawn.current) return;
+    const was = drawn.current;
+    drawn.current = phase;
+    if (phase === "idle") {
+      el.style.height = "";
+      el.style.overflow = "";
+      el.style.opacity = "";
+      return;
+    }
+    // The contents are still at their natural height here, so that is what
+    // the fold opens to and closes from.
+    const natural = el.scrollHeight;
+    const open = phase === "enter";
+    // Opening starts from nothing unless the fold is still closing, in which
+    // case its contents are partway out and it picks them up there.
+    const from = open
+      ? was === "leave"
+        ? el.getBoundingClientRect().height
+        : 0
+      : natural;
+    const to = open ? natural : 0;
+    el.style.overflow = "hidden";
+    el.style.height = `${to}px`;
+    el.style.opacity = open ? "" : "0";
+    if (!canAnimate() || from === to) return;
+    el.animate(
+      [
+        { height: `${from}px`, opacity: open ? 0 : 1 },
+        { height: `${to}px`, opacity: open ? 1 : 0 },
+      ],
+      {
+        duration: open ? ENTER_MS : LEAVE_MS,
+        easing: EASE_OUT,
+      },
+    );
+  });
+  const ref = useCallback((next: HTMLElement | null) => {
+    element.current = next;
+    // The contents unmount once they finish closing; a fold opened later
+    // starts from nothing rather than from where the last one ended.
+    if (next === null) drawn.current = "idle";
+  }, []);
+  return { ...state, ref };
 }
 
 /**
