@@ -372,11 +372,11 @@
   );
 }
 
-/* Rows and bands that open and close (see sidebar/motion.ts). The element
-   is a one-row grid whose track animates between its content height and
-   zero, so whatever sits below slides instead of jumping. Set
+/* Rows, bands, and group folds that open and close (see sidebar/motion.ts).
+   The element is a one-row grid whose track animates between its content
+   height and zero, so whatever sits below slides instead of jumping. Set
    --ws-presence-gap to the flex gap after the element so the gap closes
-   with it; the property doesn't inherit, so nested rows close no gap. */
+   with it; the property doesn't inherit, so nested folds close no gap. */
 @property --ws-presence-gap {
   syntax: "<length>";
   inherits: false;
@@ -389,6 +389,12 @@
 }
 .ws-presence > * {
   min-height: 0;
+}
+/* Both the wrapper and its contents clip while the fold moves. The contents'
+   own box trails the wrapper's height as it opens, by more the taller they
+   are, so clipping only there would leave the tail of a long fold empty. */
+.ws-presence[data-presence] {
+  overflow: hidden;
 }
 .ws-presence[data-presence] > * {
   overflow: hidden;
