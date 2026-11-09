@@ -43,7 +43,10 @@ import {
   openNextUpThread,
 } from "./upNext/NextUpCommand.tsx";
 import { DebugCommandBridge, toggleDebugMode } from "./debug/DebugCommand.tsx";
-import { ThreadContextDebugSection } from "./debug/ThreadContextDebug.tsx";
+import {
+  ThreadContextDebugSection,
+  ThreadInfoDebugSection,
+} from "./debug/ThreadContextDebug.tsx";
 import { WORKSTREAM_ICON } from "./workstream-icon.ts";
 import "./theme/tokens.css";
 import "./styles.css";
@@ -65,7 +68,12 @@ export default definePluginApp((app) => {
     id: "assistant-reply-debug",
     component: AssistantReplyDebug,
   });
-  // Absent on bb builds that predate the thread context card slots.
+  // Absent on bb builds that predate the thread info and context card slots.
+  app.slots.experimental_threadInfoSection?.({
+    id: "workstreams-debug",
+    group: "4_debug",
+    component: ThreadInfoDebugSection,
+  });
   app.slots.experimental_threadContextCardSection?.({
     id: "workstreams-debug",
     title: "Workstreams Debug",

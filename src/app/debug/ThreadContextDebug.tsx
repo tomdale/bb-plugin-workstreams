@@ -1,12 +1,16 @@
 /**
- * The thread context card's "Workstreams Debug" section: the metadata
- * Workstreams generated and accumulated for the thread — the settled goal,
- * the context digest, the topic assignment and its provenance, and the
- * latest analysis run's status, model, and age. Debug mode only; the slot
- * is feature-detected, so bb builds without it skip the registration.
+ * The thread Info tab and thread context card's "Workstreams Debug"
+ * section: the metadata Workstreams generated and accumulated for the
+ * thread — the settled goal, the context digest, the topic assignment and
+ * its provenance, and the latest analysis run's status, model, and age.
+ * Debug mode only; the slots are feature-detected, so bb builds without
+ * them skip the registrations.
  */
 import type { ReactNode } from "react";
-import type { ExperimentalThreadContextCardProps } from "@get-bb/plugin-sdk/app";
+import {
+  experimental_InfoSection as InfoSection,
+  type ExperimentalThreadContextCardProps,
+} from "@get-bb/plugin-sdk/app";
 import { relativeAge } from "../../domain/presentation.ts";
 import { useSharedServerStateSelector } from "../serverState.ts";
 import { useDebugMode } from "./debug.ts";
@@ -27,17 +31,13 @@ const PROVENANCE_TITLE: Record<string, string> = {
   quick: "guessed by Quick analysis",
 };
 
-export function ThreadContextDebugSection({
-  threadId,
-}: ExperimentalThreadContextCardProps) {
-  const debug = useDebugMode();
+function DebugEntries({ threadId }: { threadId: string }) {
   const analysis = useSharedServerStateSelector(
     (server) => server.analysis[threadId],
   );
   const assignment = useSharedServerStateSelector(
     (server) => server.catalog?.assignments?.[threadId],
   );
-  if (!debug) return null;
   if (!analysis && !assignment)
     return (
       <div className="py-0.5 text-xs text-muted-foreground">
@@ -81,5 +81,27 @@ export function ThreadContextDebugSection({
         <Entry label="Topic error">{analysis.topicError}</Entry>
       ) : null}
     </div>
+  );
+}
+
+/** The thread context card draws the section title itself. */
+export function ThreadContextDebugSection({
+  threadId,
+}: ExperimentalThreadContextCardProps) {
+  const debug = useDebugMode();
+  if (!debug) return null;
+  return <DebugEntries threadId={threadId} />;
+}
+
+/** The Info tab's sections render their own chrome. */
+export function ThreadInfoDebugSection({
+  threadId,
+}: ExperimentalThreadContextCardProps) {
+  const debug = useDebugMode();
+  if (!debug) return null;
+  return (
+    <InfoSection label="Workstreams Debug">
+      <DebugEntries threadId={threadId} />
+    </InfoSection>
   );
 }
