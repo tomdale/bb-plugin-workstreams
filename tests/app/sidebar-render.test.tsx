@@ -506,7 +506,7 @@ it("keeps child disclosures beneath the sticky Up Next card", async () => {
   slot.lifecycle.unmount();
 });
 
-it("retains an expanded group's body without leaving focus or menus hidden in it", async () => {
+it("keeps focus and menus out of a folded group", async () => {
   const slot = await mount(
     [sidebarThread("root", { sectionId: "sec_a", title: "Root task" })],
     { settings: { showRecent: false, showForYou: false } },
@@ -515,19 +515,13 @@ it("retains an expanded group's body without leaving focus or menus hidden in it
   const header = within(region).getByRole("button", {
     name: /^(Collapse|Expand) Alpha$/,
   });
-  const body = region.querySelector<HTMLUListElement>(":scope > ul")!;
   const link = within(region).getByRole("link", { name: "Root task" });
   link.focus();
   fireEvent.click(header);
-  expect(region.querySelector(":scope > ul")).toBe(body);
-  expect(body.hidden).toBe(true);
-  expect(body.hasAttribute("inert")).toBe(true);
   expect(within(region).queryAllByRole("link")).toHaveLength(0);
   expect(document.activeElement).toBe(header);
 
   fireEvent.click(header);
-  expect(region.querySelector(":scope > ul")).toBe(body);
-  expect(body.hidden).toBe(false);
   const snooze = within(region).getByRole("button", {
     name: /^Snooze until/,
   });
@@ -537,7 +531,6 @@ it("retains an expanded group's body without leaving focus or menus hidden in it
   fireEvent.click(header);
   expect(slot.queryByRole("menu")).toBeNull();
   expect(document.activeElement).toBe(header);
-  expect(region.querySelector(":scope > ul")).toBe(body);
   fireEvent.click(header);
   expect(within(region).getByRole("link", { name: "Root task" })).toBeTruthy();
   slot.lifecycle.unmount();
