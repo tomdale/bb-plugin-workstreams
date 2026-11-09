@@ -22,7 +22,7 @@ export function InspectButton({
   label?: string;
   className?: string;
 }) {
-  const debug = useDebugMode();
+  const debug = useDebugMode("inspect");
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   if (!debug) return null;

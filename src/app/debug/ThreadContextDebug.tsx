@@ -119,7 +119,7 @@ function DebugEntries({
 export function ThreadContextDebugSection({
   threadId,
 }: ExperimentalThreadContextCardProps) {
-  const debug = useDebugMode();
+  const debug = useDebugMode("threadInfo");
   if (!debug) return null;
   // Core card rows and the host-drawn section heading both use px-2.
   return <DebugEntries threadId={threadId} surface="card" />;
@@ -129,7 +129,7 @@ export function ThreadContextDebugSection({
 export function ThreadInfoDebugSection({
   threadId,
 }: ExperimentalThreadContextCardProps) {
-  const debug = useDebugMode();
+  const debug = useDebugMode("threadInfo");
   if (!debug) return null;
   return (
     <InfoSection label="Workstreams Debug">

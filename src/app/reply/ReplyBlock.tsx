@@ -78,7 +78,7 @@ export function ReplyBlock({
   const docked = useDockedTurn(threadId, message.turnId ?? null);
   const workspace = useReplyWorkspace(threadId);
   const workstream = useGoalContext(threadId)?.workstream ?? null;
-  const debug = useDebugMode();
+  const debug = useDebugMode("replies");
   const fullMessage = useAssistantMessageText(
     debug && status !== "streaming" ? message.id : null,
   );

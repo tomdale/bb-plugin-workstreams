@@ -113,7 +113,7 @@ const VIEW_TITLES: Record<View["kind"], string> = {
 /** The dim ⋯ in the corner, for everything that isn't the queue. */
 function PageMenu({ onOpen }: { onOpen: (view: View) => void }) {
   const portalScope = usePortalScopeProps();
-  const debug = useDebugMode();
+  const debug = useDebugMode("activity");
   const item = cn(menuItemClass, MENU_ITEM_HIGHLIGHT_TEXT_CLASS);
   return (
     <DropdownMenu.Root>

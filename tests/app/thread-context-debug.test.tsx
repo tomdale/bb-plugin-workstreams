@@ -10,7 +10,7 @@ import {
   ThreadContextDebugSection,
   ThreadInfoDebugSection,
 } from "../../src/app/debug/ThreadContextDebug.tsx";
-import { mergePrefs, parsePrefs } from "../../src/domain/prefs.ts";
+import { mergePrefs, parsePrefs, type Prefs } from "../../src/domain/prefs.ts";
 
 vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
   const sdk = await importOriginal<typeof import("@get-bb/plugin-sdk/app")>();
@@ -42,8 +42,10 @@ vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
 
 afterEach(cleanup);
 
-const debugPrefs = (debug: boolean) =>
-  mergePrefs(parsePrefs({}), { advanced: { debug } });
+const debugPrefs = (debug: boolean | Partial<Prefs["advanced"]>) =>
+  mergePrefs(parsePrefs({}), {
+    advanced: typeof debug === "boolean" ? { debug } : debug,
+  });
 
 const stateWith = (threadId: string) => ({
   analysis: {
@@ -80,7 +82,7 @@ const stateWith = (threadId: string) => ({
 });
 
 const renderSection = (
-  debug: boolean,
+  debug: boolean | Partial<Prefs["advanced"]>,
   state: unknown,
   component: typeof ThreadContextDebugSection = ThreadContextDebugSection,
 ) =>
@@ -158,6 +160,21 @@ it("uses bb's section and detail-row primitives in the Info tab", async () => {
 
 it("renders nothing outside Debug mode", async () => {
   const slot = await renderSection(false, stateWith("t1"));
+  await waitFor(() => {
+    expect(
+      slot.inspection.rpcCalls.some((call) => call.method === "prefs"),
+    ).toBe(true);
+  });
+  expect(slot.baseElement.textContent ?? "").not.toContain(
+    "Evaluate rename guidance across models.",
+  );
+});
+
+it("renders nothing when its own switch is off under Debug mode", async () => {
+  const slot = await renderSection(
+    { debug: true, debugThreadInfo: false },
+    stateWith("t1"),
+  );
   await waitFor(() => {
     expect(
       slot.inspection.rpcCalls.some((call) => call.method === "prefs"),

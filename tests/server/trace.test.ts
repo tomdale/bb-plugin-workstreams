@@ -42,9 +42,12 @@ const QUICK = { goal: "Alpha parser tabs", subjectId: null, proposed: null };
 const isQuick = (prompt: string) =>
   prompt.includes("You name one new agent thread");
 
-async function setup(debug: boolean, complete?: FakeCompletion) {
+async function setup(
+  debug: boolean | { debug: boolean; debugRecord?: boolean },
+  complete?: FakeCompletion,
+) {
   world = await fakeWorld({
-    prefs: { advanced: { debug } },
+    prefs: { advanced: typeof debug === "boolean" ? { debug } : debug },
     complete:
       complete ??
       (({ prompt }) =>
@@ -88,6 +91,18 @@ describe("debug mode off", () => {
     const result = await w.harness.behavior.runCli(["trace"]);
     expect(result.stdout).toBe(
       "No model calls recorded. Turn on Debug mode in Workstreams settings to record them.",
+    );
+  });
+});
+
+describe("debug mode on without recording", () => {
+  it("records nothing and names the switch the CLI needs", async () => {
+    const w = await setup({ debug: true, debugRecord: false });
+    await analyze(w, "t1");
+    expect(await traces(w)).toEqual([]);
+    const result = await w.harness.behavior.runCli(["trace"]);
+    expect(result.stdout).toBe(
+      "No model calls recorded. Turn on Record model calls under Debug mode in Workstreams settings to record them.",
     );
   });
 });

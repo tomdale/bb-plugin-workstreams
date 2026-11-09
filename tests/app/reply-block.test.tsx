@@ -108,6 +108,8 @@ function draw(
     streaming?: boolean;
     docked?: { turnId: string; dismissed?: boolean };
     debug?: boolean;
+    /** Debug mode's switches, when a test needs one of them off. */
+    advanced?: Record<string, boolean>;
     sectionId?: string;
   } = {},
 ) {
@@ -125,8 +127,19 @@ function draw(
         }
       : {}),
     rpc: {
-      ...(options.debug !== undefined
-        ? { prefs: () => ({ prefs: { advanced: { debug: options.debug } } }) }
+      ...(options.debug !== undefined || options.advanced
+        ? {
+            prefs: () => ({
+              prefs: {
+                advanced: {
+                  ...(options.debug !== undefined
+                    ? { debug: options.debug }
+                    : {}),
+                  ...options.advanced,
+                },
+              },
+            }),
+          }
         : {}),
       state: () => ({
         recaps: options.docked
@@ -848,6 +861,17 @@ it("shows the raw agent output before parsing only in Debug mode", async () => {
   await waitFor(() =>
     expect(on.container.querySelector("[data-reply-raw]")).toBeNull(),
   );
+});
+
+it("keeps raw agent output out of replies when its own switch is off", async () => {
+  const source = `:::reply\n# Parsed heading\n\n${componentFence(COMPONENT_EXAMPLES.context)}\n:::\n`;
+  const view = draw(source, {
+    advanced: { debug: true, debugReplies: false },
+  });
+  // The reply still parses; only the Debug disclosure is gone.
+  await view.findByRole("heading", { name: "Parsed heading" });
+  expect(view.container.querySelector("[data-reply-raw]")).toBeNull();
+  expect(view.queryByLabelText("Raw agent output")).toBeNull();
 });
 
 it("shows syntax issues and raw output on an unclosed reply in Debug mode", async () => {

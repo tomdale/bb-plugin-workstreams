@@ -175,8 +175,23 @@ const GROUPS = {
   advanced: {
     /** The machine whose Pi key runs gateway calls; "" picks the only one. */
     hostId: [z.string(), ""],
-    /** Record every model call and show inspect buttons. */
+    /**
+     * Every diagnostic below. The `debug*` switches pick which of them Debug
+     * mode turns on; all default to on so Debug mode alone is the whole set.
+     */
     debug: [z.boolean(), false],
+    /** Record each model call's prompt, reasoning, and response as a trace. */
+    debugRecord: [z.boolean(), true],
+    /** The bug buttons that open a decision's recorded calls. */
+    debugInspect: [z.boolean(), true],
+    /** Recorded calls listed in Activity, with their filters and cost. */
+    debugActivity: [z.boolean(), true],
+    /** The composer's routing disclosure for a new thread. */
+    debugComposer: [z.boolean(), true],
+    /** Raw agent output and syntax diagnosis on assistant replies. */
+    debugReplies: [z.boolean(), true],
+    /** The Workstreams Debug section in a thread's Info tab and context card. */
+    debugThreadInfo: [z.boolean(), true],
   },
 } as const satisfies Record<
   string,

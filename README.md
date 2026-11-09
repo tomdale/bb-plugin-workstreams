@@ -936,10 +936,17 @@ update independently. | | **Organization** | **Organization model** |
 `anthropic/claude-sonnet-5.5` (`medium`) | Model that categorizes current thread
 collections and writes reviewed topic suggestions. | | **Advanced** | **Analysis
 machine** | Automatic | Enrolled BB machine used for gateway model calls when
-multiple machines are connected. | | **Advanced** | **Debug mode** | `Off` |
-Records redacted model traces (`7` days / `1,000` records) and reveals
-**Inspect** buttons, composer diagnostics, raw reply-block output, and Activity
-model-call rows. |
+multiple machines are connected. |
+
+| Section      | Setting                          | Default | Details                                                                                                                  |
+| ------------ | -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **Advanced** | **Debug mode**                   | `Off`   | Turns on the diagnostics listed below. Each one can be turned off on its own.                                            |
+| **Advanced** | **Record model calls**           | `On`    | Records redacted model traces (`7` days / `1,000` records). Every other diagnostic reads what it records.                |
+| **Advanced** | **Inspect buttons**              | `On`    | The bug button on rows and banners that opens the recorded calls behind a decision.                                      |
+| **Advanced** | **Activity model calls**         | `On`    | Recorded calls listed in Activity, with kind and failure filters, reported cost, and **Clear traces…**.                  |
+| **Advanced** | **Composer routing diagnostics** | `On`    | The **Debug** disclosure under the new-thread composer: confidence, inputs, and the server's notes on each routing step. |
+| **Advanced** | **Reply diagnostics**            | `On`    | **Raw agent output** and reply syntax diagnosis on assistant replies.                                                    |
+| **Advanced** | **Thread Info and context card** | `On`    | The **Workstreams Debug** section listing the metadata Workstreams accumulated for a thread.                             |
 
 ### Gateway vs. provider worker models
 

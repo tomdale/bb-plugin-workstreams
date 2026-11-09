@@ -211,7 +211,7 @@ export function NewThreadRouting() {
 
 /** New work's Debug section, mounted only once the banner is active. */
 function DebugSection({ newWork }: { newWork: NewWorkModel }) {
-  return useDebugMode() ? <NewWorkDebug newWork={newWork} /> : null;
+  return useDebugMode("composer") ? <NewWorkDebug newWork={newWork} /> : null;
 }
 
 function emptySubscribe() {

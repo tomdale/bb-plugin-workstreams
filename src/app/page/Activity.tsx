@@ -127,15 +127,16 @@ type Item =
 
 const ActivityEntryRow = memo(function ActivityEntryRow({
   entry,
-  debug,
   focused,
   undo,
 }: {
   entry: JournalEntry;
-  debug: boolean;
   focused: boolean;
   undo: (entry: JournalEntry) => Promise<void>;
 }) {
+  // An entry's technical details and the calls behind it are the inspect
+  // surface, which Activity's own model-call list does not depend on.
+  const inspect = useDebugMode("inspect");
   const time = useMemo(() => {
     const date = new Date(entry.at);
     const localized = date.toLocaleString();
@@ -192,7 +193,7 @@ const ActivityEntryRow = memo(function ActivityEntryRow({
               {entry.detail}
             </span>
           ) : null}
-          {debug ? (
+          {inspect ? (
             <details className="mt-1 text-xs text-muted-foreground [&:not([open])]:opacity-0 focus-within:opacity-100 group-hover/entry:opacity-100">
               <summary className="w-fit cursor-pointer rounded hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
                 Technical details
@@ -274,7 +275,7 @@ export function Activity({
   /** A thread's workstream, for filtering model calls by workstream. */
   workstreamOf?: (threadId: string) => string | null;
 }) {
-  const debug = useDebugMode();
+  const debug = useDebugMode("activity");
   const [external, setExternal] = useState(false);
   const [workstream, setWorkstream] = useState("");
   const [action, setAction] = useState("");
@@ -587,7 +588,6 @@ export function Activity({
                 <ActivityEntryRow
                   key={item.entry.id}
                   entry={item.entry}
-                  debug={debug}
                   focused={focus !== null && item.entry.id === focus}
                   undo={undo}
                 />

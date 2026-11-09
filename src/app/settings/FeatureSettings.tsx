@@ -1,7 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { experimental_useSidebarThreads, useRpc } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../../server/contract.ts";
-import { RECENT_LIMIT, type PrefsPatch } from "../../domain/prefs.ts";
+import {
+  RECENT_LIMIT,
+  type Prefs,
+  type PrefsPatch,
+} from "../../domain/prefs.ts";
 import { usePrefs } from "../prefs.ts";
 import { ModelField } from "./ModelField.tsx";
 import { SpinnerSettings } from "./SpinnerSettings.tsx";
@@ -380,38 +384,115 @@ export function AdvancedSettings() {
       label: machine.name,
     })) ?? []),
   ];
+  /**
+   * What Debug mode turns on, one row per diagnostic. Each switch is a
+   * `debug*` preference beside `debug`; only this list decides which of them
+   * exists, so a diagnostic that is retired leaves the settings here.
+   */
+  const diagnostics: {
+    key: keyof Omit<Prefs["advanced"], "hostId" | "debug">;
+    label: string;
+    description: string;
+  }[] = [
+    {
+      key: "debugRecord",
+      label: "Record model calls",
+      description:
+        "Records prompts, reasoning, and responses with redacted thread excerpts. Kept for 7 days. Every other diagnostic reads what it records.",
+    },
+    {
+      key: "debugInspect",
+      label: "Inspect buttons",
+      description:
+        "The bug button on rows and banners that opens the recorded calls behind a decision.",
+    },
+    {
+      key: "debugActivity",
+      label: "Activity model calls",
+      description:
+        "Lists recorded calls in Activity, with kinds, failures, cost, and Clear traces.",
+    },
+    {
+      key: "debugComposer",
+      label: "Composer routing diagnostics",
+      description:
+        "A Debug disclosure under the new-thread composer: confidence, inputs, and the server's notes on each routing step.",
+    },
+    {
+      key: "debugReplies",
+      label: "Reply diagnostics",
+      description:
+        "Raw agent output and reply syntax diagnosis on assistant replies.",
+    },
+    {
+      key: "debugThreadInfo",
+      label: "Thread Info and context card",
+      description:
+        "A Workstreams Debug section listing the metadata Workstreams accumulated for a thread.",
+    },
+  ];
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <SettingsSaveError error={error} />
-      <SectionRows>
-        {machines && machines.length > 1 ? (
+      {machines && machines.length > 1 ? (
+        <SettingsGroup title="Analysis">
+          <SectionRows>
+            <SettingRow
+              label="Analysis machine"
+              description="Machine whose Pi key is used for AI Gateway calls."
+              control={
+                <SettingsPicker
+                  label="Analysis machine"
+                  value={prefs.advanced.hostId}
+                  options={machineOptions}
+                  placeholder="Use any connected machine"
+                  onChange={(hostId) => update({ advanced: { hostId } })}
+                  className="w-56"
+                />
+              }
+            />
+          </SectionRows>
+        </SettingsGroup>
+      ) : null}
+      <SettingsGroup title="Debug mode">
+        <SectionRows>
           <SettingRow
-            label="Analysis machine"
-            description="Machine whose Pi key is used for AI Gateway calls."
+            label="Debug mode"
+            description="Turns the diagnostics below on. Each one can be turned off on its own."
             control={
-              <SettingsPicker
-                label="Analysis machine"
-                value={prefs.advanced.hostId}
-                options={machineOptions}
-                placeholder="Use any connected machine"
-                onChange={(hostId) => update({ advanced: { hostId } })}
-                className="w-56"
+              <SettingSwitch
+                label="Debug mode"
+                checked={prefs.advanced.debug}
+                onChange={(debug) => update({ advanced: { debug } })}
               />
             }
           />
+        </SectionRows>
+        {prefs.advanced.debug ? (
+          <div className="mt-1.5">
+            <SectionRows>
+              {diagnostics.map((diagnostic) => (
+                <SettingRow
+                  key={diagnostic.key}
+                  label={diagnostic.label}
+                  description={diagnostic.description}
+                  control={
+                    <SettingSwitch
+                      label={diagnostic.label}
+                      checked={prefs.advanced[diagnostic.key]}
+                      onChange={(checked) =>
+                        update({
+                          advanced: { [diagnostic.key]: checked },
+                        })
+                      }
+                    />
+                  }
+                />
+              ))}
+            </SectionRows>
+          </div>
         ) : null}
-        <SettingRow
-          label="Debug mode"
-          description="Records prompts, reasoning, and responses with redacted thread excerpts. Kept for 7 days."
-          control={
-            <SettingSwitch
-              label="Debug mode"
-              checked={prefs.advanced.debug}
-              onChange={(debug) => update({ advanced: { debug } })}
-            />
-          }
-        />
-      </SectionRows>
+      </SettingsGroup>
     </div>
   );
 }

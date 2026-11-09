@@ -20,6 +20,15 @@ import {
 import { ColorTokenStyle } from "../../src/app/theme/ColorTokenStyle.tsx";
 import { mergePrefs, parsePrefs } from "../../src/domain/prefs.ts";
 
+const DIAGNOSTICS = [
+  "Record model calls",
+  "Inspect buttons",
+  "Activity model calls",
+  "Composer routing diagnostics",
+  "Reply diagnostics",
+  "Thread Info and context card",
+];
+
 afterEach(cleanup);
 
 async function mount(
@@ -418,6 +427,44 @@ it("shows the Analysis machine only when more than one machine is connected", as
       ),
     ).toBe(true),
   );
+});
+
+it("lists what Debug mode turns on, and only while Debug mode is on", async () => {
+  const slot = await mount("advanced");
+  const master = await slot.findByRole("switch", { name: "Debug mode" });
+  expect(master.getAttribute("aria-checked")).toBe("false");
+  for (const label of DIAGNOSTICS)
+    expect(slot.queryByRole("switch", { name: label })).toBeNull();
+
+  fireEvent.click(master);
+  for (const label of DIAGNOSTICS) {
+    const toggle = await slot.findByRole("switch", { name: label });
+    // Turning Debug mode on leaves every diagnostic on.
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+  }
+
+  fireEvent.click(slot.getByRole("switch", { name: "Reply diagnostics" }));
+  await waitFor(() =>
+    expect(
+      slot
+        .getByRole("switch", { name: "Reply diagnostics" })
+        .getAttribute("aria-checked"),
+    ).toBe("false"),
+  );
+  expect(
+    slot.inspection.rpcCalls
+      .filter((call) => call.method === "setPrefs")
+      .map((call) => call.input),
+  ).toEqual([
+    { patch: { advanced: { debug: true } } },
+    { patch: { advanced: { debugReplies: false } } },
+  ]);
+  // The other diagnostics keep the Debug mode they were given.
+  expect(
+    slot
+      .getByRole("switch", { name: "Record model calls" })
+      .getAttribute("aria-checked"),
+  ).toBe("true");
 });
 
 it("lists every color token with what it draws with now", async () => {

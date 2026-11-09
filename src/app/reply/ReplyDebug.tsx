@@ -364,6 +364,6 @@ function ActiveAssistantReplyDebug() {
  * was omitted or its opener was malformed).
  */
 export function AssistantReplyDebug() {
-  const debug = useDebugMode();
+  const debug = useDebugMode("replies");
   return debug ? <ActiveAssistantReplyDebug /> : null;
 }

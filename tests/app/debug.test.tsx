@@ -26,7 +26,9 @@ const summary = (id: string, overrides: Record<string, unknown> = {}) => ({
 });
 
 it("opens Activity for debug links and shows debug controls only in Debug mode", async () => {
-  const page = (debug: boolean) =>
+  const page = (
+    advanced: boolean | { debug: boolean; debugActivity?: boolean },
+  ) =>
     renderSlot(
       { component: WorkstreamsPage },
       { subPath: "debug" },
@@ -47,7 +49,10 @@ it("opens Activity for debug links and shows debug controls only in Debug mode",
                 suggestionsModel: { kind: "gateway", model: "m" },
               },
               organize: { model: { kind: "gateway", model: "m" } },
-              advanced: { hostId: "", debug },
+              advanced:
+                typeof advanced === "boolean"
+                  ? { hostId: "", debug: advanced }
+                  : { hostId: "", ...advanced },
             },
           }),
           state: () => emptyState(),
@@ -74,6 +79,36 @@ it("opens Activity for debug links and shows debug controls only in Debug mode",
   expect(await on.findByText("Response not usable")).toBeTruthy();
   expect(on.getByRole("checkbox", { name: "Failures only" })).toBeTruthy();
   expect(on.queryByText("No activity yet.")).toBeNull();
+});
+
+it("keeps recorded calls out of Activity when their own switch is off", async () => {
+  const slot = renderSlot(
+    { component: WorkstreamsPage },
+    { subPath: "debug" },
+    {
+      settings: {},
+      rpc: {
+        prefs: () => ({
+          prefs: {
+            sidebar: { showForYou: true, showRecent: true, recentLimit: 5 },
+            threads: { autoTitle: true },
+            newWork: { homeProjectId: "", suggestions: true },
+            advanced: { hostId: "", debug: true, debugActivity: false },
+          },
+        }),
+        state: () => emptyState(),
+        journal: () => ({ entries: [] }),
+        traces: () => ({ traces: [summary("tr1")] }),
+      } as never,
+    },
+  );
+  await slot.findByText("No activity yet.");
+  // Debug mode is on, but nothing here lists or fetches recorded calls.
+  expect(slot.queryByRole("checkbox", { name: "Failures only" })).toBeNull();
+  expect(slot.queryByRole("button", { name: "Clear traces…" })).toBeNull();
+  expect(
+    slot.inspection.rpcCalls.some((call) => call.method === "traces"),
+  ).toBe(false);
 });
 
 it("lists model calls in the Activity log in Debug mode", async () => {

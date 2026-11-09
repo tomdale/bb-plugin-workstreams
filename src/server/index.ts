@@ -234,7 +234,10 @@ export default async function plugin(bb: BbPluginApi) {
         { hostId: await analysisHost(), timeoutMs: 25_000, signal },
       ),
     traces,
-    debug: async () => currentPrefs().advanced.debug,
+    debug: async () => {
+      const advanced = currentPrefs().advanced;
+      return advanced.debug && advanced.debugRecord;
+    },
     log: (message) => bb.log.warn(message),
   });
   // Retention also applies while Debug mode is off and nothing is recorded.
@@ -1000,7 +1003,7 @@ export default async function plugin(bb: BbPluginApi) {
               subject: null,
               traceId: null,
             };
-          const debug = prefs.advanced.debug;
+          const debug = prefs.advanced.debug && prefs.advanced.debugComposer;
           const notes: string[] = [];
           const started = Date.now();
           const decision = await previewer.preview(prompt, {

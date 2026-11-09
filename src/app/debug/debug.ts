@@ -1,11 +1,43 @@
 /** Debug mode: the preference and what an inspector can open. */
+import type { Prefs } from "../../domain/prefs.ts";
 import type { TraceLink } from "../../domain/trace.ts";
 import { usePrefsRealtime, usePrefsSelector } from "../prefs.ts";
 
-/** Whether debug is on; inspect buttons and debug disclosures render only then. */
-export function useDebugMode(): boolean {
+/**
+ * The diagnostics Debug mode can turn on. Each names one surface: which
+ * switches exist is a settings question, so this only maps a surface to the
+ * preference that guards it.
+ */
+export type DebugSurface =
+  /** Recorded calls listed in Activity. */
+  | "activity"
+  /** The bug buttons that open a decision's recorded calls. */
+  | "inspect"
+  /** The composer's routing disclosure. */
+  | "composer"
+  /** Raw agent output and syntax diagnosis on assistant replies. */
+  | "replies"
+  /** The Workstreams Debug section in a thread's Info tab and context card. */
+  | "threadInfo";
+
+const SWITCHES = {
+  activity: "debugActivity",
+  inspect: "debugInspect",
+  composer: "debugComposer",
+  replies: "debugReplies",
+  threadInfo: "debugThreadInfo",
+} as const satisfies Record<DebugSurface, keyof Prefs["advanced"]>;
+
+/**
+ * Whether Debug mode shows `surface`: the master switch governs every
+ * surface, and that surface's own switch can narrow it further.
+ */
+export function useDebugMode(surface: DebugSurface): boolean {
   usePrefsRealtime();
-  return usePrefsSelector((prefs) => prefs?.advanced.debug ?? false);
+  return usePrefsSelector((prefs) => {
+    const advanced = prefs?.advanced;
+    return advanced ? advanced.debug && advanced[SWITCHES[surface]] : false;
+  });
 }
 
 /**

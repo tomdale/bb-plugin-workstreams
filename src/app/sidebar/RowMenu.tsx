@@ -112,7 +112,7 @@ function RowMenuContent({
 }) {
   const actions = experimental_useSidebarThreadActions();
   const portalScope = usePortalScopeProps();
-  const debug = useDebugMode();
+  const debug = useDebugMode("inspect");
   const { rpc, refresh } = useSharedServerActions();
   const entities = useSharedServerStateSelector(
     (server) => server.catalog?.entities ?? NO_TOPICS,
