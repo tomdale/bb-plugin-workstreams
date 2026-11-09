@@ -4,7 +4,7 @@ import { cleanup, waitFor } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import {
   DebugCommandBridge,
-  toggleDebugMode,
+  toggleDebugUi,
 } from "../../src/app/debug/DebugCommand.tsx";
 import {
   mergePrefs,
@@ -14,7 +14,7 @@ import {
 
 afterEach(cleanup);
 
-it("flips the Debug mode preference through the prefs RPC", async () => {
+it("flips the debug UI preference through the prefs RPC", async () => {
   let prefs = parsePrefs({});
   const slot = await renderSlot(
     { component: DebugCommandBridge },
@@ -35,20 +35,58 @@ it("flips the Debug mode preference through the prefs RPC", async () => {
       slot.inspection.rpcCalls.some((call) => call.method === "prefs"),
     ).toBe(true),
   );
-  toggleDebugMode();
-  await waitFor(() => expect(prefs.advanced.debug).toBe(true));
-  toggleDebugMode();
-  await waitFor(() => expect(prefs.advanced.debug).toBe(false));
+  toggleDebugUi();
+  await waitFor(() => expect(prefs.advanced.debugUi).toBe(true));
+  toggleDebugUi();
+  await waitFor(() => expect(prefs.advanced.debugUi).toBe(false));
   expect(
     slot.inspection.rpcCalls
       .filter((call) => call.method === "setPrefs")
       .map((call) => call.input),
   ).toEqual([
-    { patch: { advanced: { debug: true } } },
-    { patch: { advanced: { debug: false } } },
+    { patch: { advanced: { debugUi: true } } },
+    { patch: { advanced: { debugUi: false } } },
+  ]);
+});
+
+it("leaves recording alone when the UI is toggled", async () => {
+  let prefs = parsePrefs({});
+  const slot = await renderSlot(
+    { component: DebugCommandBridge },
+    {},
+    {
+      settings: {},
+      rpc: {
+        prefs: () => ({ prefs }),
+        setPrefs: (input: unknown) => {
+          prefs = mergePrefs(prefs, (input as { patch: PrefsPatch }).patch);
+          return { prefs };
+        },
+      } as never,
+    },
+  );
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.some((call) => call.method === "prefs"),
+    ).toBe(true),
+  );
+  expect(prefs.advanced.debugRecord).toBe(true);
+  toggleDebugUi();
+  await waitFor(() => expect(prefs.advanced.debugUi).toBe(true));
+  toggleDebugUi();
+  await waitFor(() => expect(prefs.advanced.debugUi).toBe(false));
+  // Recording never rides along with showing and hiding the debug UI.
+  expect(prefs.advanced.debugRecord).toBe(true);
+  expect(
+    slot.inspection.rpcCalls
+      .filter((call) => call.method === "setPrefs")
+      .map((call) => call.input),
+  ).toEqual([
+    { patch: { advanced: { debugUi: true } } },
+    { patch: { advanced: { debugUi: false } } },
   ]);
 });
 
 it("is a no-op before the bridge mounts", () => {
-  expect(() => toggleDebugMode()).not.toThrow();
+  expect(() => toggleDebugUi()).not.toThrow();
 });

@@ -247,8 +247,8 @@ export class Inference {
       complete: Complete;
       evaluate: Evaluate;
       traces: TraceStore;
-      /** Whether debug mode is on; read before every call. */
-      debug: () => Promise<boolean>;
+      /** Whether calls are recorded; read before every call. */
+      record: () => Promise<boolean>;
       log?: (message: string) => void;
       now?: () => number;
     },
@@ -295,7 +295,7 @@ export class Inference {
       label: options.label ?? TRACE_KIND_TITLE[kind],
       links: options.links ?? [],
       replayOf: null,
-      record: await this.deps.debug(),
+      record: await this.deps.record(),
       signal: options.signal,
       timeoutMs: options.timeoutMs,
       outputSchema: spec.schema?.(input),
@@ -332,7 +332,7 @@ export class Inference {
           label: options.label ?? TRACE_KIND_TITLE[kind],
           links: options.links ?? [],
           replayOf: result.traceId,
-          record: await this.deps.debug(),
+          record: await this.deps.record(),
           signal: options.signal,
           timeoutMs: remaining,
         });
@@ -379,7 +379,7 @@ export class Inference {
     // A provider pick needs a worker thread, which can't answer typed questions.
     if (model === null) return null;
     const started = this.now();
-    const record = await this.deps.debug();
+    const record = await this.deps.record();
     const save = (
       status: TraceStatus,
       answers: Record<string, EvaluationAnswer> | null,

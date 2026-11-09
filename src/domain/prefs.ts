@@ -176,12 +176,13 @@ const GROUPS = {
     /** The machine whose Pi key runs gateway calls; "" picks the only one. */
     hostId: [z.string(), ""],
     /**
-     * Every diagnostic below. The `debug*` switches pick which of them Debug
-     * mode turns on; all default to on so Debug mode alone is the whole set.
+     * Record each model call's prompt, reasoning, and response as a trace.
+     * Independent of the debug UI, so toggling what the app shows keeps the
+     * record running.
      */
-    debug: [z.boolean(), false],
-    /** Record each model call's prompt, reasoning, and response as a trace. */
     debugRecord: [z.boolean(), true],
+    /** The debug UI's master switch: the `debug*` surfaces below appear while it is on. */
+    debugUi: [z.boolean(), false],
     /** The bug buttons that open a decision's recorded calls. */
     debugInspect: [z.boolean(), true],
     /** Recorded calls listed in Activity, with their filters and cost. */
@@ -249,6 +250,14 @@ export function parsePrefs(raw: unknown): Prefs {
       quickModel: field("newWork", "suggestionsModel"),
       fullModel: field("organize", "model"),
     };
+  }
+  // Debug mode used to be one switch, which also recorded. Recording now has
+  // its own switch, and the old value carried the debug UI.
+  const advanced = groups.advanced;
+  if (advanced && typeof advanced === "object") {
+    const saved = advanced as Record<string, unknown>;
+    if (saved.debug !== undefined && saved.debugUi === undefined)
+      groups.advanced = { ...saved, debugUi: saved.debug };
   }
   const parsed = prefsSchema.parse(
     Object.fromEntries(

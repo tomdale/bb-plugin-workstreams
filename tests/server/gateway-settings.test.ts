@@ -164,7 +164,7 @@ it("forwards saved Pi Gateway controls through host RPC and traces the direct pr
     world.addThread("analysis");
     const db = world.bb.storage.database();
     savePrefs(db, {
-      advanced: { debug: true },
+      advanced: { debugRecord: true },
       analysis: {
         fullModel: {
           kind: "provider",

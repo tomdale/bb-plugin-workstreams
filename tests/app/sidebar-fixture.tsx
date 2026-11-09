@@ -183,7 +183,7 @@ export async function mount(
           organize: {
             model: { kind: "gateway", model: "openai/gpt-6-sol-fast" },
           },
-          advanced: { hostId: "", debug: false },
+          advanced: { hostId: "", debugUi: false },
         },
       }),
       state: () => ({
@@ -326,7 +326,7 @@ export async function mount(
               model: { kind: "gateway", model: "openai/gpt-6-sol-fast" },
               collapseAt: 3,
             },
-            advanced: { hostId: "", debug: false },
+            advanced: { hostId: "", debugUi: false },
           },
         };
       },

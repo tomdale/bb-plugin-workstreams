@@ -131,6 +131,30 @@ describe("Workstreams prefs", () => {
     await world.harness.lifecycle.dispose();
   });
 
+  it("records by default, shows the debug UI only when asked, and carries the old switch over", () => {
+    expect(parsePrefs({}).advanced).toMatchObject({
+      debugRecord: true,
+      debugUi: false,
+    });
+    // Debug mode used to record and show the UI together; its value now shows
+    // the UI, leaving recording on.
+    expect(parsePrefs({ advanced: { debug: true } }).advanced).toMatchObject({
+      debugRecord: true,
+      debugUi: true,
+    });
+    expect(parsePrefs({ advanced: { debug: false } }).advanced).toMatchObject({
+      debugRecord: true,
+      debugUi: false,
+    });
+    // A saved pair wins over the retired switch.
+    expect(
+      parsePrefs({ advanced: { debug: true, debugUi: false } }).advanced,
+    ).toMatchObject({ debugUi: false });
+    expect(
+      prefsPatchSchema.safeParse({ advanced: { debug: true } }).success,
+    ).toBe(false);
+  });
+
   it("moves the models of preferences saved before the two analyses", () => {
     const prefs = parsePrefs({
       newWork: {

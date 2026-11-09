@@ -234,13 +234,10 @@ export default async function plugin(bb: BbPluginApi) {
         { hostId: await analysisHost(), timeoutMs: 25_000, signal },
       ),
     traces,
-    debug: async () => {
-      const advanced = currentPrefs().advanced;
-      return advanced.debug && advanced.debugRecord;
-    },
+    record: async () => currentPrefs().advanced.debugRecord,
     log: (message) => bb.log.warn(message),
   });
-  // Retention also applies while Debug mode is off and nothing is recorded.
+  // Retention also applies while recording is off and nothing new arrives.
   traces.prune({ force: true });
   /**
    * Gives a thread its goal as its title, when the retitle policy and the
@@ -1003,7 +1000,7 @@ export default async function plugin(bb: BbPluginApi) {
               subject: null,
               traceId: null,
             };
-          const debug = prefs.advanced.debug && prefs.advanced.debugComposer;
+          const debug = prefs.advanced.debugUi && prefs.advanced.debugComposer;
           const notes: string[] = [];
           const started = Date.now();
           const decision = await previewer.preview(prompt, {

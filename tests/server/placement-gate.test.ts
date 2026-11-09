@@ -50,7 +50,7 @@ async function dispatch(
           ? { placementGateModel: options.placementGateModel }
           : {}),
       },
-      ...(options.debug ? { advanced: { debug: true } } : {}),
+      ...(options.debug ? { advanced: { debugRecord: true } } : {}),
     },
   });
   const topics = new TopicStore(openDatabase(world.bb));

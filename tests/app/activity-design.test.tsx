@@ -50,7 +50,7 @@ async function page(
       ),
     },
     { trace },
-    { rpc: { prefs: () => ({ prefs: { advanced: { debug: true } } }) } },
+    { rpc: { prefs: () => ({ prefs: { advanced: { debugUi: true } } }) } },
   );
 }
 
@@ -155,7 +155,7 @@ it("does not rerender settled terms and call rows for an unrelated disclosure", 
   const slot = renderSlot(
     { component: Rows },
     {},
-    { rpc: { prefs: () => ({ prefs: { advanced: { debug: true } } }) } },
+    { rpc: { prefs: () => ({ prefs: { advanced: { debugUi: true } } }) } },
   );
   await slot.findByRole("button", { name: "Inspect this model call" });
   termRender.mockClear();

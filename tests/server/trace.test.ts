@@ -43,11 +43,15 @@ const isQuick = (prompt: string) =>
   prompt.includes("You name one new agent thread");
 
 async function setup(
-  debug: boolean | { debug: boolean; debugRecord?: boolean },
+  debug: boolean | { debugRecord: boolean },
   complete?: FakeCompletion,
 ) {
   world = await fakeWorld({
-    prefs: { advanced: typeof debug === "boolean" ? { debug } : debug },
+    prefs: {
+      advanced: {
+        debugRecord: typeof debug === "boolean" ? debug : debug.debugRecord,
+      },
+    },
     complete:
       complete ??
       (({ prompt }) =>
@@ -90,19 +94,19 @@ describe("debug mode off", () => {
     const w = await setup(false);
     const result = await w.harness.behavior.runCli(["trace"]);
     expect(result.stdout).toBe(
-      "No model calls recorded. Turn on Debug mode in Workstreams settings to record them.",
+      "No model calls recorded. Turn on Record model calls in Workstreams settings to record them.",
     );
   });
 });
 
 describe("debug mode on without recording", () => {
   it("records nothing and names the switch the CLI needs", async () => {
-    const w = await setup({ debug: true, debugRecord: false });
+    const w = await setup({ debugRecord: false });
     await analyze(w, "t1");
     expect(await traces(w)).toEqual([]);
     const result = await w.harness.behavior.runCli(["trace"]);
     expect(result.stdout).toBe(
-      "No model calls recorded. Turn on Record model calls under Debug mode in Workstreams settings to record them.",
+      "No model calls recorded. Turn on Record model calls in Workstreams settings to record them.",
     );
   });
 });

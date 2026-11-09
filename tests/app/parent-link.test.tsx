@@ -42,7 +42,7 @@ async function mount({
               suggestionsModel: { kind: "gateway", model: "m" },
             },
             organize: { model: { kind: "gateway", model: "m" } },
-            advanced: { hostId: "", debug: false },
+            advanced: { hostId: "", debugUi: false },
           },
         }),
       },

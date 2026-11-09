@@ -40,7 +40,7 @@ async function page(rpc: Record<string, unknown>) {
               suggestionsModel: { kind: "gateway", model: "m" },
             },
             organize: { model: { kind: "gateway", model: "m" } },
-            advanced: { hostId: "", debug: true },
+            advanced: { hostId: "", debugUi: true },
           },
         }),
         state: () => emptyState(),
@@ -224,7 +224,7 @@ it("clears hidden debug-only filters when Debug mode turns off", async () => {
   fireEvent.click(slot.getByRole("checkbox", { name: "Failures only" }));
   expect(slot.queryByText("Moved a thread")).toBeNull();
   await slot.behavior.emitRealtime("prefs", {
-    prefs: { advanced: { debug: false } },
+    prefs: { advanced: { debugUi: false } },
   });
   await waitFor(() =>
     expect(slot.queryByRole("checkbox", { name: "Failures only" })).toBeNull(),

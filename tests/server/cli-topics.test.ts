@@ -13,7 +13,7 @@ afterEach(async () => {
 async function setup(options: { onPrompt?: (prompt: string) => void } = {}) {
   let shelvesId = "";
   world = await fakeWorld({
-    prefs: { advanced: { debug: true } },
+    prefs: { advanced: { debugRecord: true } },
     complete: ({ prompt }) => {
       options.onPrompt?.(prompt);
       return JSON.stringify({

@@ -51,7 +51,7 @@ it("opens Activity for debug links and shows debug controls only in Debug mode",
               organize: { model: { kind: "gateway", model: "m" } },
               advanced:
                 typeof advanced === "boolean"
-                  ? { hostId: "", debug: advanced }
+                  ? { hostId: "", debugUi: advanced }
                   : { hostId: "", ...advanced },
             },
           }),
@@ -93,7 +93,7 @@ it("keeps recorded calls out of Activity when their own switch is off", async ()
             sidebar: { showForYou: true, showRecent: true, recentLimit: 5 },
             threads: { autoTitle: true },
             newWork: { homeProjectId: "", suggestions: true },
-            advanced: { hostId: "", debug: true, debugActivity: false },
+            advanced: { hostId: "", debugUi: true, debugActivity: false },
           },
         }),
         state: () => emptyState(),
@@ -147,7 +147,7 @@ it("lists model calls in the Activity log in Debug mode", async () => {
                 suggestionsModel: { kind: "gateway", model: "m" },
               },
               organize: { model: { kind: "gateway", model: "m" } },
-              advanced: { hostId: "", debug },
+              advanced: { hostId: "", debugUi: debug },
             },
           }),
           state: () => emptyState(),

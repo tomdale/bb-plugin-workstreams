@@ -29,7 +29,7 @@ it("uses the worker path only when gatewayModel returns null", async () => {
   const db = w.bb.storage.database();
   const { savePrefs } = await import("../../src/server/prefs.ts");
   savePrefs(db, {
-    advanced: { debug: true },
+    advanced: { debugRecord: true },
     analysis: {
       fullModel: {
         kind: "provider",

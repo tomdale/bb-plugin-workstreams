@@ -385,21 +385,15 @@ export function AdvancedSettings() {
     })) ?? []),
   ];
   /**
-   * What Debug mode turns on, one row per diagnostic. Each switch is a
-   * `debug*` preference beside `debug`; only this list decides which of them
-   * exists, so a diagnostic that is retired leaves the settings here.
+   * What the debug UI shows, one row per surface. Each switch is a `debug*`
+   * preference beside `debugUi`; only this list decides which of them exists,
+   * so a surface that is retired leaves the settings here.
    */
-  const diagnostics: {
-    key: keyof Omit<Prefs["advanced"], "hostId" | "debug">;
+  const surfaces: {
+    key: keyof Omit<Prefs["advanced"], "hostId" | "debugRecord" | "debugUi">;
     label: string;
     description: string;
   }[] = [
-    {
-      key: "debugRecord",
-      label: "Record model calls",
-      description:
-        "Saves each model call's prompt, reasoning, and response, redacting common secrets, for 7 days. Inspect buttons and Activity model calls show only what it saved.",
-    },
     {
       key: "debugInspect",
       label: "Inspect buttons",
@@ -454,33 +448,50 @@ export function AdvancedSettings() {
           </SectionRows>
         </SettingsGroup>
       ) : null}
-      <SettingsGroup title="Debug mode">
+      <SettingsGroup title="What gets recorded">
         <SectionRows>
           <SettingRow
-            label="Debug mode"
-            description="Turns the diagnostics below on. Each one can be turned off on its own."
+            label="Record model calls"
+            description="Saves each model call's prompt, reasoning, and response, redacting common secrets, for 7 days. Recording keeps running while the debug UI is hidden."
             control={
               <SettingSwitch
-                label="Debug mode"
-                checked={prefs.advanced.debug}
-                onChange={(debug) => update({ advanced: { debug } })}
+                label="Record model calls"
+                checked={prefs.advanced.debugRecord}
+                onChange={(debugRecord) =>
+                  update({ advanced: { debugRecord } })
+                }
               />
             }
           />
-          {prefs.advanced.debug ? (
+        </SectionRows>
+      </SettingsGroup>
+      <SettingsGroup title="What the UI shows">
+        <SectionRows>
+          <SettingRow
+            label="Debug UI"
+            description="Shows the surfaces below. The toggle debug UI command and its shortcut flip this without touching recording, and each surface can be turned off on its own."
+            control={
+              <SettingSwitch
+                label="Debug UI"
+                checked={prefs.advanced.debugUi}
+                onChange={(debugUi) => update({ advanced: { debugUi } })}
+              />
+            }
+          />
+          {prefs.advanced.debugUi ? (
             <div className="space-y-5 border-l border-border pl-4">
-              {diagnostics.map((diagnostic) => (
+              {surfaces.map((surface) => (
                 <SettingRow
-                  key={diagnostic.key}
-                  label={diagnostic.label}
-                  description={diagnostic.description}
+                  key={surface.key}
+                  label={surface.label}
+                  description={surface.description}
                   control={
                     <SettingSwitch
-                      label={diagnostic.label}
-                      checked={prefs.advanced[diagnostic.key]}
+                      label={surface.label}
+                      checked={prefs.advanced[surface.key]}
                       onChange={(checked) =>
                         update({
-                          advanced: { [diagnostic.key]: checked },
+                          advanced: { [surface.key]: checked },
                         })
                       }
                     />

@@ -42,7 +42,7 @@ import {
   NextUpCommandBridge,
   openNextUpThread,
 } from "./upNext/NextUpCommand.tsx";
-import { DebugCommandBridge, toggleDebugMode } from "./debug/DebugCommand.tsx";
+import { DebugCommandBridge, toggleDebugUi } from "./debug/DebugCommand.tsx";
 import {
   ThreadContextDebugSection,
   ThreadInfoDebugSection,
@@ -159,10 +159,12 @@ export default definePluginApp((app) => {
     defaultShortcut: { key: "j", mod: true, alt: true },
     run: ({ threadId }) => openNextUpThread(threadId),
   });
+  // The id stays `toggle-debug-mode` so existing keyboard bindings keep
+  // working; the command now shows and hides the debug UI only.
   app.commands.register({
     id: "toggle-debug-mode",
-    title: "Workstreams: toggle Debug mode",
-    run: () => toggleDebugMode(),
+    title: "Workstreams: toggle debug UI",
+    run: () => toggleDebugUi(),
   });
   app.commands.register({
     id: "wake-thread",

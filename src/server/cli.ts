@@ -753,12 +753,10 @@ export function registerCli(
                   ? { kind: "entry", ref: options.entry }
                   : undefined,
             });
-            const advanced = currentPrefs?.().advanced;
-            const noCalls = !advanced?.debug
-              ? "No model calls recorded. Turn on Debug mode in Workstreams settings to record them."
-              : advanced.debugRecord
-                ? "No model calls recorded yet."
-                : "No model calls recorded. Turn on Record model calls under Debug mode in Workstreams settings to record them.";
+            const noCalls =
+              currentPrefs?.().advanced.debugRecord === false
+                ? "No model calls recorded. Turn on Record model calls in Workstreams settings to record them."
+                : "No model calls recorded yet.";
             return {
               exitCode: 0,
               stdout: options.json

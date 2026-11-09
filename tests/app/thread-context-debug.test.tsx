@@ -44,7 +44,7 @@ afterEach(cleanup);
 
 const debugPrefs = (debug: boolean | Partial<Prefs["advanced"]>) =>
   mergePrefs(parsePrefs({}), {
-    advanced: typeof debug === "boolean" ? { debug } : debug,
+    advanced: typeof debug === "boolean" ? { debugUi: debug } : debug,
   });
 
 const stateWith = (threadId: string) => ({
@@ -172,7 +172,7 @@ it("renders nothing outside Debug mode", async () => {
 
 it("renders nothing when its own switch is off under Debug mode", async () => {
   const slot = await renderSection(
-    { debug: true, debugThreadInfo: false },
+    { debugUi: true, debugThreadInfo: false },
     stateWith("t1"),
   );
   await waitFor(() => {

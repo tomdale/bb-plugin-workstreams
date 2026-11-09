@@ -20,8 +20,8 @@ import {
 import { ColorTokenStyle } from "../../src/app/theme/ColorTokenStyle.tsx";
 import { mergePrefs, parsePrefs } from "../../src/domain/prefs.ts";
 
-const DIAGNOSTICS = [
-  "Record model calls",
+/** What the debug UI shows, each with its own switch. */
+const SURFACES = [
   "Inspect buttons",
   "Activity model calls",
   "Composer routing diagnostics",
@@ -405,7 +405,7 @@ it("shows the Analysis machine only when more than one machine is connected", as
   const alone = await mount("advanced", {
     machines: [{ id: "m1", name: "Laptop" }],
   });
-  await alone.findByRole("switch", { name: "Debug mode" });
+  await alone.findByRole("switch", { name: "Debug UI" });
   expect(alone.queryByRole("button", { name: "Analysis machine" })).toBeNull();
   alone.lifecycle.unmount();
   const several = await mount("advanced", {
@@ -417,40 +417,47 @@ it("shows the Analysis machine only when more than one machine is connected", as
   expect(
     await several.findByRole("button", { name: "Analysis machine" }),
   ).toBeTruthy();
-  fireEvent.click(several.getByRole("switch", { name: "Debug mode" }));
+  fireEvent.click(several.getByRole("switch", { name: "Debug UI" }));
   await waitFor(() =>
     expect(
       several.inspection.rpcCalls.some(
         (call) =>
           call.method === "setPrefs" &&
-          JSON.stringify(call.input).includes('"debug":true'),
+          JSON.stringify(call.input).includes('"debugUi":true'),
       ),
     ).toBe(true),
   );
 });
 
-it("lists what Debug mode turns on, in its own panel, only while it is on", async () => {
+it("records on its own, and shows the debug UI only while its switch is on", async () => {
   const slot = await mount("advanced");
-  const master = await slot.findByRole("switch", { name: "Debug mode" });
+  // Recording is separate from the UI, and on by default.
+  const recording = await slot.findByRole("switch", {
+    name: "Record model calls",
+  });
+  expect(recording.getAttribute("aria-checked")).toBe("true");
+  const master = slot.getByRole("switch", { name: "Debug UI" });
   expect(master.getAttribute("aria-checked")).toBe("false");
-  for (const label of DIAGNOSTICS)
+  for (const label of SURFACES)
     expect(slot.queryByRole("switch", { name: label })).toBeNull();
 
   fireEvent.click(master);
-  for (const label of DIAGNOSTICS) {
+  for (const label of SURFACES) {
     const toggle = await slot.findByRole("switch", { name: label });
-    // Turning Debug mode on leaves every diagnostic on.
+    // Turning the UI on leaves every surface on.
     expect(toggle.getAttribute("aria-checked")).toBe("true");
   }
 
-  // One panel holds the master switch and the diagnostics it turns on.
+  // One panel holds the master switch and the surfaces it turns on.
   const panel = master.closest("section")!;
   const cards = panel.querySelectorAll(".bg-card");
   expect(cards).toHaveLength(1);
-  for (const label of DIAGNOSTICS)
+  for (const label of SURFACES)
     expect(cards[0]!.contains(slot.getByRole("switch", { name: label }))).toBe(
       true,
     );
+  // Recording keeps its own panel, so hiding the UI never hides it.
+  expect(panel.contains(recording)).toBe(false);
 
   fireEvent.click(slot.getByRole("switch", { name: "Reply diagnostics" }));
   await waitFor(() =>
@@ -465,13 +472,13 @@ it("lists what Debug mode turns on, in its own panel, only while it is on", asyn
       .filter((call) => call.method === "setPrefs")
       .map((call) => call.input),
   ).toEqual([
-    { patch: { advanced: { debug: true } } },
+    { patch: { advanced: { debugUi: true } } },
     { patch: { advanced: { debugReplies: false } } },
   ]);
-  // The other diagnostics keep the Debug mode they were given.
+  // The other surfaces keep the debug UI they were given.
   expect(
     slot
-      .getByRole("switch", { name: "Record model calls" })
+      .getByRole("switch", { name: "Inspect buttons" })
       .getAttribute("aria-checked"),
   ).toBe("true");
 });

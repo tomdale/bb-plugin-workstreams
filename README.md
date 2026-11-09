@@ -244,9 +244,8 @@ and turns without a new request never re-place a thread.
   the placement call is skipped. Everything else — a lower probability, an
   unfiled answer, a tree too large to ask about, a failed call — is asked of the
   placement model as usual, so a pick that needs a new topic or a scope shift
-  still gets one. Each gate call is recorded in Debug mode with its probability,
-  and it is not replayable, since the placement model answers the equivalent
-  question.
+  still gets one. Each gate call is recorded with its probability, and it is not
+  replayable, since the placement model answers the equivalent question.
 - **Provenance:** placement writes `full` topics under the priority above, and
   every update re-validates live thread evidence, assignment state, and
   topic-tree freshness before writing. An answer that supplies both an existing
@@ -495,9 +494,9 @@ weight. Unread titles use medium weight.
 - **Right-click context menu:** **Open in split**, **Open parent** (for
   delegates), **Topic** (switch to **Automatic** or assign any topic in the
   tree), **Rename…**, **Pin / Unpin**, **Mark read / Mark unread**, **Inspect
-  model calls…** (when Debug mode is on), **Snooze / Change snooze / Wake now**,
-  **Archive**, and **Delete…**. A workstream header's menu holds its hover
-  actions: **Focus / Stop focusing**, **New work**, and **Snooze \<N\>
+  model calls…** (when the debug UI is on), **Snooze / Change snooze / Wake
+  now**, **Archive**, and **Delete…**. A workstream header's menu holds its
+  hover actions: **Focus / Stop focusing**, **New work**, and **Snooze \<N\>
   threads**. On touch screens, a long press opens either menu.
 
 ### Phone Home screen
@@ -811,7 +810,7 @@ The **⋯** menu in the corner opens:
   minutes and skip manual assignments and threads whose evidence changed. In
   Topics, `j`/`k` move between suggestions and `a`/`d`/`u` accept, decline, and
   undo.
-- **Model calls** (Debug mode only): the traces behind Workstreams' model calls.
+- **Model calls** (debug UI only): the traces behind Workstreams' model calls.
 
 Each opens as its own view with **Back**. Deep links still work:
 `/plugins/workstreams/home/activity`, `/debug`, and `/topics` (also
@@ -826,7 +825,7 @@ Each opens as its own view with **Back**. Deep links still work:
 | `Workstreams: next Up Next thread` (`Cmd+Alt+J` / `Ctrl+Alt+J`) | Global command palette / shortcut | Opens the next thread in Up Next, wrapping to the top.                                                                             |
 | `Workstreams: snooze this thread`                               | Command palette (active thread)   | Snoozes the current thread using your configured **Click to snooze** default preset.                                               |
 | `Workstreams: wake this snoozed thread`                         | Command palette (snoozed thread)  | Wakes the current snoozed thread immediately.                                                                                      |
-| `Workstreams: toggle Debug mode`                                | Global command palette            | Turns Debug mode on or off; bind a shortcut in **Settings → Keyboard** (unbound by default).                                       |
+| `Workstreams: toggle debug UI`                                  | Global command palette            | Shows or hides the debug UI without touching recording; bind a shortcut in **Settings → Keyboard** (unbound by default).           |
 | `1`–`3`, `Shift`, `R`, `S`, `E`, `O`, `U`, `↑`/`↓`/`←`/`→`      | Workstreams page                  | Sends a reply (`Shift` edits it first), replies, snoozes, archives, opens, undoes, or skips (`↓`/`→`/`J` ahead, `↑`/`←`/`K` back). |
 | `Shift+Click`                                                   | Recap card **Next action** button | Copies the suggested prompt into the composer for editing instead of sending immediately.                                          |
 | `Shift`+pick                                                    | Recap card **Next actions** menu  | Copies the chosen prompt into the composer; holding `Shift` shows the **Edit in composer** hint.                                   |
@@ -951,8 +950,8 @@ multiple machines are connected. |
 
 | Section      | Setting                          | Default | Details                                                                                                                  |
 | ------------ | -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **Advanced** | **Debug mode**                   | `Off`   | Turns on the diagnostics listed below. Each one can be turned off on its own.                                            |
-| **Advanced** | **Record model calls**           | `On`    | Records redacted model traces (`7` days / `1,000` records). Every other diagnostic reads what it records.                |
+| **Advanced** | **Record model calls**           | `On`    | Records redacted model traces (`7` days / `1,000` records), whether or not the debug UI is showing.                      |
+| **Advanced** | **Debug UI**                     | `Off`   | Shows the surfaces below. The **toggle debug UI** command flips it without touching recording.                           |
 | **Advanced** | **Inspect buttons**              | `On`    | The bug button on rows and banners that opens the recorded calls behind a decision.                                      |
 | **Advanced** | **Activity model calls**         | `On`    | Recorded calls listed in Activity, with kind and failure filters, reported cost, and **Clear traces…**.                  |
 | **Advanced** | **Composer routing diagnostics** | `On`    | The **Debug** disclosure under the new-thread composer: confidence, inputs, and the server's notes on each routing step. |
@@ -1087,10 +1086,20 @@ bb workstreams thread reclassify <thread-id> [--json]
 
 ---
 
-## Debug mode and observability
+## Recording and the debug UI
 
-Enabling **Settings → Workstreams → Advanced → Debug mode** turns on trace
-recording and unlocks diagnostic tools across the UI:
+Recording and the debug UI are separate settings under **Settings → Workstreams
+→ Advanced**:
+
+- **What gets recorded** holds **Record model calls**, on by default. Traces
+  accumulate whether or not the debug UI is showing, so hiding the UI for a
+  screen share keeps the record for later.
+- **What the UI shows** holds **Debug UI**, off by default, with one switch per
+  surface beside it. The **Workstreams: toggle debug UI** command and its
+  keyboard shortcut flip **Debug UI** without touching recording, and the
+  surface switches keep their own choices across those toggles.
+
+What gets recorded:
 
 - **Trace recording & redaction:** Every Quick analysis, Full analysis,
   placement, category, split, and tidy model call records its redacted input,
@@ -1102,7 +1111,11 @@ recording and unlocks diagnostic tools across the UI:
   boundary; do not put secrets in requests or assume diagnostics are safe to
   share without inspection. Conversation excerpts go to your selected model
   provider under that provider's policies. Traces are retained for `7` days or
-  `1,000` records and pruned automatically even after Debug mode is turned off.
+  `1,000` records and pruned automatically, and they keep arriving whether or
+  not the debug UI is showing.
+
+What the UI shows:
+
 - **Thread Inspector:** Click the bug (`Inspect`) button on an Overview row,
   Activity row, or trace entry to open the side-pane inspector. Inspect every
   recorded call for a thread, copy the full trace JSON, or click **Run again**

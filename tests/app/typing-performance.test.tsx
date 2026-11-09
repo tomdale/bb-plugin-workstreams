@@ -56,7 +56,10 @@ it.each([1, 2] as const)(
       },
       rpc: {
         prefs: () => ({
-          prefs: { advanced: { debug: false }, newWork: { suggestions: true } },
+          prefs: {
+            advanced: { debugUi: false },
+            newWork: { suggestions: true },
+          },
         }),
         state: () => emptyState(),
         catalog: () => ({

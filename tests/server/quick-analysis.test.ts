@@ -404,7 +404,7 @@ describe("naming a thread from its opening request", () => {
               }),
             )
           : analysis("Speed up the monorepo build"),
-      { advanced: { debug: true } },
+      { advanced: { debugRecord: true } },
     );
     newThread(w);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -634,7 +634,7 @@ describe("naming a thread from its opening request", () => {
 
   it("records the call on the trace, linked to the title it wrote", async () => {
     const w = await setup(models({ opening: ["Fix stale build cache"] }), {
-      advanced: { debug: true },
+      advanced: { debugRecord: true },
     });
     newThread(w);
     await firstMessage(w);
@@ -677,7 +677,7 @@ describe("naming a thread from its opening request", () => {
     const pending = gate();
     const w = await setup(
       ({ prompt }) => (isOpening(prompt) ? pending.answer : analysis(null)),
-      { advanced: { debug: true } },
+      { advanced: { debugRecord: true } },
     );
     newThread(w);
     await firstMessage(w);

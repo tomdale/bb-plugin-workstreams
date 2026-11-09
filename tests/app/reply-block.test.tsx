@@ -133,7 +133,7 @@ function draw(
               prefs: {
                 advanced: {
                   ...(options.debug !== undefined
-                    ? { debug: options.debug }
+                    ? { debugUi: options.debug }
                     : {}),
                   ...options.advanced,
                 },
@@ -856,7 +856,7 @@ it("shows the raw agent output before parsing only in Debug mode", async () => {
   expect(on.getByLabelText("Raw agent output").textContent).toBe(source);
 
   await on.behavior.emitRealtime("prefs", {
-    prefs: { advanced: { debug: false } },
+    prefs: { advanced: { debugUi: false } },
   });
   await waitFor(() =>
     expect(on.container.querySelector("[data-reply-raw]")).toBeNull(),
@@ -866,7 +866,7 @@ it("shows the raw agent output before parsing only in Debug mode", async () => {
 it("keeps raw agent output out of replies when its own switch is off", async () => {
   const source = `:::reply\n# Parsed heading\n\n${componentFence(COMPONENT_EXAMPLES.context)}\n:::\n`;
   const view = draw(source, {
-    advanced: { debug: true, debugReplies: false },
+    advanced: { debugUi: true, debugReplies: false },
   });
   // The reply still parses; only the Debug disclosure is gone.
   await view.findByRole("heading", { name: "Parsed heading" });
@@ -941,7 +941,7 @@ it("attaches raw output and syntax diagnostics to assistant rows without a Reply
         },
       },
       rpc: {
-        prefs: () => ({ prefs: { advanced: { debug: true } } }),
+        prefs: () => ({ prefs: { advanced: { debugUi: true } } }),
       },
     },
   );

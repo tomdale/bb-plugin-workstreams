@@ -3,7 +3,7 @@ import type { PrefsPatch } from "../../domain/prefs.ts";
 import { usePrefs } from "../prefs.ts";
 
 let current: {
-  debug: boolean;
+  shown: boolean;
   save: (patch: PrefsPatch) => Promise<void>;
 } | null = null;
 
@@ -11,7 +11,7 @@ let current: {
 export function DebugCommandBridge(): null {
   const { prefs, save } = usePrefs();
   const bridge = useMemo(
-    () => ({ debug: prefs?.advanced.debug ?? false, save }),
+    () => ({ shown: prefs?.advanced.debugUi ?? false, save }),
     [prefs, save],
   );
   current = bridge;
@@ -23,8 +23,12 @@ export function DebugCommandBridge(): null {
   return null;
 }
 
-/** Flips the Debug mode preference; a no-op until the bridge mounts. */
-export function toggleDebugMode(): void {
+/**
+ * Shows or hides the debug UI. Recording is a separate preference, so this
+ * never stops traces: what was recorded while the UI was hidden is there when
+ * it comes back.
+ */
+export function toggleDebugUi(): void {
   if (!current) return;
-  void current.save({ advanced: { debug: !current.debug } });
+  void current.save({ advanced: { debugUi: !current.shown } });
 }

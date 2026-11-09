@@ -29,14 +29,15 @@ const SWITCHES = {
 } as const satisfies Record<DebugSurface, keyof Prefs["advanced"]>;
 
 /**
- * Whether Debug mode shows `surface`: the master switch governs every
- * surface, and that surface's own switch can narrow it further.
+ * Whether the debug UI shows `surface`: its master switch governs every
+ * surface, and that surface's own switch can narrow it further. Recording is
+ * a separate preference, so turning the UI off keeps traces coming.
  */
 export function useDebugMode(surface: DebugSurface): boolean {
   usePrefsRealtime();
   return usePrefsSelector((prefs) => {
     const advanced = prefs?.advanced;
-    return advanced ? advanced.debug && advanced[SWITCHES[surface]] : false;
+    return advanced ? advanced.debugUi && advanced[SWITCHES[surface]] : false;
   });
 }
 

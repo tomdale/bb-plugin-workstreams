@@ -117,7 +117,7 @@ it("registers an Archive action in the thread header", async () => {
   ).toBe("Archive");
 });
 
-it("registers a Debug mode command with no default shortcut", async () => {
+it("registers the debug UI command under its long-standing id", async () => {
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   // CapturedPluginApp's declared type lags the harness, which collects
   // commands.register registrations (bb-plugins docs/bb-sdk-wishlist.md).
@@ -131,9 +131,11 @@ it("registers a Debug mode command with no default shortcut", async () => {
       }[];
     }
   ).commandPaletteActions;
+  // The id predates the split between recording and the UI, and keyboard
+  // bindings name it, so it keeps saying what it said.
   expect(commands).toContainEqual({
     id: "toggle-debug-mode",
-    title: "Workstreams: toggle Debug mode",
+    title: "Workstreams: toggle debug UI",
     defaultShortcut: null,
     run: expect.any(Function),
   });
