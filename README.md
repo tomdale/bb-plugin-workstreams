@@ -201,9 +201,9 @@ Full analysis settles:
   catch-up. Until a goal is available, the subtitle is omitted.
 - **Context digest:** Two or three short sentences recording what the work is,
   what it has established, and the product or area that owns it. Each settled
-  turn revises the digest in place, so established facts survive later
-  sub-step requests. Placement reads the digest when choosing a topic, so
-  ownership decisions rest on the thread's accumulated context.
+  turn revises the digest in place, so established facts survive later sub-step
+  requests. Placement reads the digest when choosing a topic, so ownership
+  decisions rest on the thread's accumulated context.
 - **Fallback recap and status:** Only when the agent did not call
   `WorkstreamsRecap`, Full analysis supplies a one-line recap, work state
   (`needs_decision`, `review`, `blocked`, `in_progress`, or `done`), and a short
@@ -411,6 +411,12 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      whose topic binding was removed has no New work target and is not retained.
      The grace period survives reloads and is shared across windows; polling an
      empty workstream never extends it.
+   - Press the chevron beside a workstream's name to collapse or expand its
+     threads. The group closes and opens its height over `260 ms` with a fade,
+     like rows and bands, so what follows slides rather than jumps, and the
+     chevron turns a quarter turn. **Dormant**, **Archived**, **Snoozed**, and
+     each archived workstream's group fold the same way. Under reduced motion
+     they change at once.
    - Click the **Focus** button (viewfinder icon) on any workstream header to
      pin it to the top tier. When at least one workstream is focused, the other
      workstreams, **Unfiled**, and **Dormant** collapse behind **Show/Hide other
