@@ -14,7 +14,6 @@ type Sdk = ReturnType<typeof useSdk>;
 
 /** One structurally shared snapshot for every consumer of an SDK sidebar view. */
 class SidebarThreadsStore {
-  private input: SidebarThreads | null = null;
   private value: SidebarThreads | null = null;
   private dirty = false;
   private sourceCount = 0;
@@ -47,11 +46,12 @@ class SidebarThreadsStore {
     // Only the lease holder publishes. Another surface's older host snapshot
     // must not roll back a newer snapshot supplied by the current lease.
     if (source !== this.publisher) return;
-    // Consumers under the same host provider see the same snapshot object.
-    // Avoid walking its full thread array once for every ReplyBlock.
-    if (Object.is(this.input, next)) return;
-    this.input = next;
-    const shared = this.value === null ? next : shareJson(this.value, next);
+    // Never retain the host's object: a host (or test double) that mutates
+    // its snapshot in place would corrupt the shared value. Share against
+    // our own copy; an unchanged snapshot collapses to it by identity per
+    // key, so repeat publishes cost one shallow walk.
+    const shared =
+      this.value === null ? { ...next } : shareJson(this.value, next);
     if (Object.is(shared, this.value)) return;
     this.value = shared;
     this.dirty = true;
