@@ -1,9 +1,6 @@
-import {
-  ThreadTitle,
-  UrlLink,
-  experimental_useSidebarThreads,
-} from "@get-bb/plugin-sdk/app";
+import { ThreadTitle, UrlLink } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
+import { useSidebarThread } from "../useStableSidebarThreads.ts";
 
 /**
  * A thread rendered like BB's timeline thread mentions: the person glyph and
@@ -19,8 +16,7 @@ export function ActivityThreadLink({
   fallback?: string;
   href?: string;
 }) {
-  const { threads } = experimental_useSidebarThreads();
-  const thread = threads.find((thread) => thread.id === threadId);
+  const thread = useSidebarThread(threadId);
   const href =
     !thread && fallbackHref
       ? fallbackHref
