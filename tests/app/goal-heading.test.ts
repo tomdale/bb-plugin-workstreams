@@ -123,14 +123,14 @@ it("gives the fade a longer scroll handoff than the slide", () => {
 it("eases a small retreat and rise through the fade", () => {
   expect(headingFade(0)).toEqual({
     expanded: { opacity: 1, y: 0, scale: 1 },
-    compact: { opacity: 0, y: 10, scale: 0.98 },
+    compact: { opacity: 0, y: 14, scale: 0.96 },
   });
   expect(headingFade(0.5)).toEqual({
-    expanded: { opacity: 0.5, y: -4, scale: 0.98 },
-    compact: { opacity: 0.5, y: 5, scale: 0.99 },
+    expanded: { opacity: 0.5, y: -6, scale: 0.97 },
+    compact: { opacity: 0.5, y: 7, scale: 0.98 },
   });
   expect(headingFade(1)).toEqual({
-    expanded: { opacity: 0, y: -8, scale: 0.96 },
+    expanded: { opacity: 0, y: -12, scale: 0.94 },
     compact: { opacity: 1, y: 0, scale: 1 },
   });
   expect(headingFade(0.25).compact.opacity).toBeLessThan(0.25);

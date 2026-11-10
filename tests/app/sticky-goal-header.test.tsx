@@ -698,7 +698,7 @@ it("eases fixed headings through a gentle handoff and switches modes", async () 
     });
   expect(readMotion()).toEqual([
     { y: 11.9, scale: 1, opacity: 1 },
-    { y: 10, scale: 0.98, opacity: 0 },
+    { y: 14, scale: 0.96, opacity: 0 },
   ]);
   const distance = titleExitDistance(14, null, 1);
   let previousDistance = 0;
@@ -814,6 +814,9 @@ it("finishes the fade at a short thread's oldest message without clipping the ri
     expect(opacity).toBeGreaterThan(0);
     expect(opacity).toBeLessThan(1);
   });
+  expect(Number(groups()[1]!.style.opacity)).toBeLessThan(
+    Number(groups()[0]!.style.opacity),
+  );
   const compact = groups()[1]!;
   const match = compact.style.transform.match(
     /translateY\(([-\d.]+)px\) scale\(([-\d.]+)\)/,

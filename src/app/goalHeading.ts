@@ -139,19 +139,21 @@ export function headingScroll(
  * crossfade while the large title retreats and the compact title rises; only
  * their transforms and opacity change, so the timeline never reflows.
  */
+export const FADE_COMPACT_RISE = 14;
+
 export function headingFade(progress: number, motion = true) {
   const eased = progress * progress * (3 - 2 * progress);
-  const retreat = -8 * eased;
+  const retreat = -12 * eased;
   return {
     expanded: {
       opacity: 1 - eased,
       y: motion ? retreat || 0 : 0,
-      scale: motion ? 1 - 0.04 * eased : 1,
+      scale: motion ? 1 - 0.06 * eased : 1,
     },
     compact: {
       opacity: eased,
-      y: motion ? 10 * (1 - eased) : 0,
-      scale: motion ? 0.98 + 0.02 * eased : 1,
+      y: motion ? FADE_COMPACT_RISE * (1 - eased) : 0,
+      scale: motion ? 0.96 + 0.04 * eased : 1,
     },
   };
 }

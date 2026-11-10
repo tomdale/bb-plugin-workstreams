@@ -9,6 +9,7 @@ import { useGoalContext } from "./goalContext.ts";
 import { workstreamColorStyle } from "../domain/workstreamColor.ts";
 import { usePrefs } from "./prefs.ts";
 import {
+  FADE_COMPACT_RISE,
   PAD_TOP,
   PHONE_QUERY,
   PINNED_PAD,
@@ -598,6 +599,10 @@ export function StickyGoalHeader(): React.ReactElement | null {
     : headingOpacity(progress);
   // When the title bar has no room, the compact copy sits in the timeline.
   const pinned = !!placement && placement.bar === null;
+  // Pinned copies occupy the same text region. Let the large title clear
+  // before bringing in the compact one so their words never compete.
+  const compactOpacity =
+    fadeOnly && pinned ? Math.max(0, opacity.compact * 2 - 1) : opacity.compact;
   const platePinnedHeight = pinnedHeight(base, eyebrow);
   // A pinned compact heading needs a solid plate; in the bar the full-size
   // plate can instead fade away without moving under the large heading.
@@ -760,7 +765,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
           width: compactSpot.width,
           height: Math.max(
             inBar ? Math.max(barBlock, paneTop - compactSpot.y) : barBlock,
-            fadeOnly ? barBlock + 10 : 0,
+            fadeOnly ? barBlock + FADE_COMPACT_RISE : 0,
           ),
         }}
       >
@@ -771,7 +776,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
             transform: fadeOnly
               ? `translateY(${fadeMotion.compact.y}px) scale(${fadeMotion.compact.scale})`
               : `translateY(${remaining}px)`,
-            opacity: opacity.compact,
+            opacity: compactOpacity,
             width: compactSpot.width,
           }}
         >
