@@ -1495,6 +1495,77 @@ export class TopicStore {
     };
   }
 
+  /**
+   * The assignments of visible, non-archived threads (`ws_seen_thread`), one
+   * for each, for client snapshots. Filing plans and stored-assignment checks
+   * use `assignments()`, which also covers archived subjects; clients read an
+   * archived thread's assignment on demand.
+   */
+  visibleAssignments(): Record<string, TopicAssignment> {
+    const entities = this.list();
+    const byId = new Map(entities.map((e) => [e.id, e]));
+    const parents = new Map(
+      (
+        this.db
+          .prepare("SELECT thread_id, parent_thread_id FROM ws_seen_thread")
+          .all() as { thread_id: string; parent_thread_id: string | null }[]
+      ).map((row) => [row.thread_id, row.parent_thread_id]),
+    );
+    // A root is a seen thread or the unseen parent a seen chain stops at.
+    const subjects = new Map(
+      (
+        this.db
+          .prepare(
+            `SELECT thread_id, entity_id, evidence, source FROM ws_corpus_subject
+             WHERE thread_id IN (SELECT thread_id FROM ws_seen_thread
+               UNION SELECT parent_thread_id FROM ws_seen_thread)`,
+          )
+          .all() as {
+          thread_id: string;
+          entity_id: string | null;
+          evidence: string | null;
+          source: string;
+        }[]
+      ).map((row) => [row.thread_id, row]),
+    );
+    const result: Record<string, TopicAssignment> = {};
+    for (const threadId of parents.keys()) {
+      let rootId = threadId;
+      const visited = new Set<string>();
+      while (!visited.has(rootId)) {
+        visited.add(rootId);
+        const parent = parents.get(rootId);
+        if (!parent) break;
+        rootId = parent;
+      }
+      const inheritedFrom = rootId !== threadId ? rootId : null;
+      const subject = subjects.get(rootId);
+      const entity = subject?.entity_id ? byId.get(subject.entity_id) : null;
+      result[threadId] = entity
+        ? {
+            threadId,
+            entityId: entity.id,
+            status: "assigned",
+            provenance: readSource(subject!.source),
+            label: topicPath(entity.id, entities),
+            ancestorIds: topicAncestors(entity.id, entities),
+            evidence: subject!.evidence ?? null,
+            inheritedFrom,
+          }
+        : {
+            threadId,
+            entityId: null,
+            status: "unresolved",
+            provenance: subject ? readSource(subject.source) : null,
+            label: null,
+            ancestorIds: [],
+            evidence: subject?.evidence ?? null,
+            inheritedFrom,
+          };
+    }
+    return result;
+  }
+
   private assertParentChainAcyclic(parentId: string | null): void {
     const visited = new Set<string>();
     let currentId = parentId;

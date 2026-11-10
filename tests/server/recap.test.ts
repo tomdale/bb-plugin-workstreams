@@ -521,6 +521,8 @@ describe("agent recaps", () => {
         latest: ["Moved the recap tool into Workstreams"],
       },
     });
+    // The snapshot covers threads the reconciler has seen.
+    await s.w.harness.behavior.callRpc("refresh", null);
     const state = (await s.w.harness.behavior.callRpc("state", null)) as {
       recaps: Record<string, unknown>;
     };
@@ -835,6 +837,7 @@ describe("agent recaps", () => {
       threadId: "t1",
       recapId: recap!.id,
     });
+    await s.w.harness.behavior.callRpc("refresh", null);
     const state = (await s.w.harness.behavior.callRpc("state", null)) as {
       recaps: Record<string, unknown>;
     };
@@ -980,6 +983,7 @@ describe("shared state", () => {
     s.w.turn("t1");
     await s.report();
     const { recap } = await s.card();
+    await s.w.harness.behavior.callRpc("refresh", null);
     const state = () =>
       s.w.harness.behavior.callRpc("state", null) as Promise<{
         recaps: Record<string, { id: string }>;
@@ -993,6 +997,35 @@ describe("shared state", () => {
     expect(await state()).toMatchObject({
       recaps: { t1: { id: recap!.id } },
       dismissedRecaps: [recap!.id],
+    });
+  });
+
+  it("leaves archived threads' recaps out of the snapshot and serves them on demand", async () => {
+    const s = await world();
+    s.w.turn("t1");
+    await s.report();
+    const { recap } = await s.card();
+    await s.w.harness.behavior.callRpc("recap_dismiss", {
+      threadId: "t1",
+      recapId: recap!.id,
+    });
+    await s.w.harness.behavior.callRpc("refresh", null);
+    s.w.threads.set("t1", { ...s.thread(), archivedAt: Date.now() });
+    await s.w.harness.behavior.callRpc("refresh", null);
+    const state = (await s.w.harness.behavior.callRpc("state", null)) as {
+      recaps: Record<string, unknown>;
+      dismissedRecaps: string[];
+      catalog: { assignments: Record<string, unknown> };
+    };
+    expect(state.recaps).toEqual({});
+    expect(state.dismissedRecaps).toEqual([]);
+    expect(state.catalog.assignments.t1).toBeUndefined();
+    expect(
+      await s.w.harness.behavior.callRpc("recap_get", { threadId: "t1" }),
+    ).toMatchObject({
+      recap: { id: recap!.id },
+      dismissed: true,
+      assignment: { threadId: "t1", status: "unresolved" },
     });
   });
 });

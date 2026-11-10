@@ -115,7 +115,8 @@ export class AgentRecaps {
       prefs: () => RecapPrefs;
       /** See `recapToolSince` in recapPrefs.ts. */
       since: () => number;
-      onChange: () => void;
+      /** A thread's recap record changed. */
+      onChange: (threadId: string) => void;
     },
   ) {
     this.messageBlocks = loadClientReport(deps.db).messageBlocks;
@@ -127,7 +128,7 @@ export class AgentRecaps {
         deps.db
           .prepare("UPDATE ws_agent_recap SET capped = 1 WHERE thread_id = ?")
           .run(threadId);
-        deps.onChange();
+        deps.onChange(threadId);
       },
     });
   }
@@ -174,7 +175,7 @@ export class AgentRecaps {
             "The conversation changed; report the recap for the current turn.",
           );
         this.scheduleWaiting(ctx.threadId, recap);
-        this.deps.onChange();
+        this.deps.onChange(ctx.threadId);
         return recapMarkdown(recap);
       },
     });
@@ -247,7 +248,7 @@ export class AgentRecaps {
           message: "Waiting check cancelled because the conversation changed.",
         } as const;
       this.reset(ctx.thread.id, null);
-      this.deps.onChange();
+      this.deps.onChange(ctx.thread.id);
       return { action: "proceed" } as const;
     }
     const queued =
@@ -294,7 +295,7 @@ export class AgentRecaps {
         ? ctx.queuedMessages.map((row) => row.id).join(",")
         : null,
     );
-    this.deps.onChange();
+    this.deps.onChange(ctx.thread.id);
     return null;
   }
 
@@ -315,7 +316,7 @@ export class AgentRecaps {
         () => null,
       ));
     if (turnId) this.accept(threadId, epoch, turnId, null);
-    this.deps.onChange();
+    this.deps.onChange(threadId);
   }
 
   /** Coalesces idle events per thread; a repeat during a check runs again. */
@@ -323,6 +324,8 @@ export class AgentRecaps {
     const recap = this.get(threadId)?.recap;
     if (recap) this.scheduleWaiting(threadId, recap);
     this.loopGuard.forget(threadId);
+    // A capped turn's notice shows only once the thread is idle.
+    if (this.row(threadId).capped) this.deps.onChange(threadId);
     const running = this.pending.get(threadId);
     if (running) {
       this.repeat.add(threadId);
@@ -384,32 +387,51 @@ export class AgentRecaps {
       : null;
   }
 
-  /** Every stored recap, for the sidebar's work state. */
+  /** Every stored recap, archived threads' included. */
   all(): Record<string, Recap> {
-    const rows = this.deps.db
-      .prepare(
-        "SELECT thread_id, recap FROM ws_agent_recap WHERE recap IS NOT NULL",
-      )
-      .all() as Pick<Row, "thread_id" | "recap">[];
+    return this.read(
+      "SELECT thread_id, recap FROM ws_agent_recap WHERE recap IS NOT NULL",
+    );
+  }
+
+  /**
+   * The stored recaps of visible, non-archived threads (`ws_seen_thread`),
+   * for client snapshots. Clients read any other thread's recap on demand.
+   */
+  visible(): Record<string, Recap> {
+    return this.read(
+      `SELECT r.thread_id, r.recap FROM ws_agent_recap r
+       JOIN ws_seen_thread t ON t.thread_id = r.thread_id
+       WHERE r.recap IS NOT NULL`,
+    );
+  }
+
+  /** Ids of the `visible()` recaps whose card is dismissed. */
+  visibleDismissedIds(): string[] {
+    return (
+      this.deps.db
+        .prepare(
+          `SELECT json_extract(r.recap, '$.id') AS id FROM ws_agent_recap r
+           JOIN ws_seen_thread t ON t.thread_id = r.thread_id
+           WHERE r.dismissed = 1 AND r.recap IS NOT NULL`,
+        )
+        .all() as { id: string | null }[]
+    )
+      .map((row) => row.id)
+      .filter((id): id is string => typeof id === "string");
+  }
+
+  private read(sql: string): Record<string, Recap> {
+    const rows = this.deps.db.prepare(sql).all() as Pick<
+      Row,
+      "thread_id" | "recap"
+    >[];
     const out: Record<string, Recap> = {};
     for (const row of rows) {
       const recap = parse(row.recap);
       if (recap) out[row.thread_id] = recap;
     }
     return out;
-  }
-
-  /** Ids of stored recaps whose card is dismissed. */
-  dismissedIds(): string[] {
-    return (
-      this.deps.db
-        .prepare(
-          "SELECT json_extract(recap, '$.id') AS id FROM ws_agent_recap WHERE dismissed = 1 AND recap IS NOT NULL",
-        )
-        .all() as { id: string | null }[]
-    )
-      .map((row) => row.id)
-      .filter((id): id is string => typeof id === "string");
   }
 
   /** Whether corrections ran out for this thread's latest turn. */
@@ -477,7 +499,7 @@ export class AgentRecaps {
     this.deps.db
       .prepare("UPDATE ws_agent_recap SET dismissed = ? WHERE thread_id = ?")
       .run(dismissed ? 1 : 0, threadId);
-    this.deps.onChange();
+    this.deps.onChange(threadId);
   }
 
   async dispose() {
@@ -743,10 +765,10 @@ export class AgentRecaps {
           "UPDATE ws_agent_recap SET capped = 1, checked_seq = ? WHERE thread_id = ? AND epoch = ? AND intercepts >= ?",
         )
         .run(completed.seq, threadId, row.epoch, corrections);
-      this.deps.onChange();
+      this.deps.onChange(threadId);
       return;
     }
-    this.deps.onChange();
+    this.deps.onChange(threadId);
     await sdk.threads.send({
       threadId,
       mode: "start",

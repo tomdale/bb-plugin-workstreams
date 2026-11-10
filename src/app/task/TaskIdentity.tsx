@@ -6,7 +6,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-import { useSharedServerState } from "../serverState.ts";
+import {
+  useSharedServerState,
+  useThreadRecordSelector,
+} from "../serverState.ts";
 import {
   takesThreads,
   type TopicAssignment,
@@ -42,6 +45,8 @@ type TopicButtonProps = {
   provenance?: TopicAssignment["provenance"];
   isFork?: boolean;
   isClassifying?: boolean;
+  /** The topic is still being read; the button holds its place unseen. */
+  isLoading?: boolean;
   onClick?: () => void;
   disabled?: boolean;
 };
@@ -52,6 +57,7 @@ function TopicButton({
   provenance = null,
   isFork = false,
   isClassifying = false,
+  isLoading = false,
   onClick,
   disabled = false,
 }: TopicButtonProps) {
@@ -71,11 +77,12 @@ function TopicButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      aria-label={`Topic: ${displayLabel} (${source})`}
-      title={`Topic: ${displayLabel} (${source})`}
+      aria-label={isLoading ? "Topic" : `Topic: ${displayLabel} (${source})`}
+      title={isLoading ? undefined : `Topic: ${displayLabel} (${source})`}
+      aria-busy={isLoading || undefined}
       className={`ws-task-identity ${
         label ? "" : "ws-task-identity-unresolved"
-      }`}
+      }${isLoading ? " invisible" : ""}`}
     >
       <Icon
         name={isClassifying ? "Spinner" : TAG_ICON}
@@ -266,7 +273,11 @@ export function TaskIdentity({ threadId }: TaskIdentityProps) {
   const [classifying, setClassifying] = useState(false);
 
   const entities = server.catalog?.entities ?? [];
-  const assignment = server.catalog?.assignments[threadId] ?? null;
+  const record = useThreadRecordSelector(
+    threadId,
+    (thread) => thread.assignment,
+  );
+  const assignment = record ?? null;
   const currentEntity = assignment?.entityId
     ? (entities.find((e) => e.id === assignment.entityId) ?? null)
     : null;
@@ -304,6 +315,7 @@ export function TaskIdentity({ threadId }: TaskIdentityProps) {
     />
   );
 
+  if (record === undefined) return button({ disabled: true, isLoading: true });
   if (isFork) return button({ disabled: true });
 
   return (
