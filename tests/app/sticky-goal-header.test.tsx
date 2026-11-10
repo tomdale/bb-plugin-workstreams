@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { Profiler, type ProfilerOnRenderCallback } from "react";
 import {
   PAD_TOP,
+  PINNED_FADE_RATIO,
   PINNED_PAD,
   SUBTITLE_LINE,
   SUBTITLE_SIZE,
@@ -905,7 +906,7 @@ it.each(["fade", "scroll"] as const)(
       expect(Number(match[1])).toBeCloseTo(finalY);
       expect(Number(match[2])).toBeCloseTo(pinnedTitleScale(1));
     });
-    expect(fadeScale()).toBe(BAR_FADE_RATIO);
+    expect(fadeScale()).toBe(PINNED_FADE_RATIO);
     expect(groups().map((group) => Number(group.style.opacity))).toEqual([
       1, 0,
     ]);
@@ -1177,7 +1178,9 @@ it.each([false, true])(
       `scaleY(${compactHeight / expandedHeight})`,
     );
     expect(scroller.style.scrollPaddingTop).toBe(`${compactHeight}px`);
-    expect(fadeScale()).toBe(String(BAR_FADE_RATIO));
+    // The compact block ends where the timeline resumes, so its feather is
+    // the short one, half the title bar's.
+    expect(fadeScale()).toBe(String(PINNED_FADE_RATIO));
     slot.lifecycle.unmount();
   },
 );

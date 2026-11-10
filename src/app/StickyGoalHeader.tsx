@@ -13,6 +13,7 @@ import {
   FADE_COMPACT_RISE,
   PAD_TOP,
   PHONE_QUERY,
+  PINNED_FADE_RATIO,
   PINNED_PAD,
   SUBTITLE_SIZE,
   SUBTITLE_LINE,
@@ -855,9 +856,12 @@ export function StickyGoalHeader(): React.ReactElement | null {
             // is a solid band the timeline runs under, with no title bar's
             // hairline to meet, so it keeps the short feather at both heights
             // rather than laying the large heading's long one over the messages
-            // a narrow pane has little room for.
+            // a narrow pane has little room for, and half of that once it
+            // compacts, where the messages resume directly under it.
             "--ws-plate-fade-scale": pinned
-              ? BAR_FADE_RATIO
+              ? collapsed
+                ? PINNED_FADE_RATIO
+                : BAR_FADE_RATIO
               : fadeOnly
                 ? 1
                 : plateFadeScale(progress),

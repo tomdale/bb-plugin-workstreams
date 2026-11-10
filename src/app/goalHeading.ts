@@ -20,8 +20,13 @@ const PAD_BOTTOM = 0.65;
 const EYEBROW_BLOCK = 1.25;
 /** In the title bar the title is set at this multiple of body size. */
 export const TITLE_BAR_TITLE_SIZE = 0.95;
-/** Padding above and below a heading that stays pinned in the timeline. */
+/** Padding above a heading that stays pinned in the timeline. */
 export const PINNED_PAD = 0.5;
+/**
+ * Padding below it, tighter than the padding above: the timeline resumes just
+ * under the compact block, so a matching pad reads as a gap.
+ */
+export const PINNED_PAD_BOTTOM = 0.25;
 
 /**
  * BB's own phone condition: a viewport under its `md` breakpoint driven by a
@@ -192,6 +197,13 @@ export function headingBackdropOpacity(progress: number): number {
 export const BAR_FADE_RATIO = 3 / 12;
 
 /**
+ * Feather under a heading pinned in the timeline once it compacts: half the
+ * title bar's, because the messages resume directly under the block, so a
+ * longer one leaves the next row looking like empty space.
+ */
+export const PINNED_FADE_RATIO = BAR_FADE_RATIO / 2;
+
+/**
  * Fraction of the plate's shadow still drawn as the heading collapses in the
  * title bar's scroll handoff.
  */
@@ -258,6 +270,6 @@ export function pinnedHeight(
   return Math.round(
     compactBlock(base, eyebrow) +
       base * TITLE_BAR_TITLE_SIZE * TITLE_LINE * (titleLines - 1) +
-      base * PINNED_PAD * 2,
+      base * (PINNED_PAD + PINNED_PAD_BOTTOM),
   );
 }

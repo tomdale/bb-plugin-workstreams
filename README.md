@@ -547,17 +547,17 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
   minimized title in the title bar over a feathered background. When the bar is
   too narrow, the heading stays in the timeline: it keeps its expanded size
   until you have scrolled back past it, then steps down to the minimized block
-  in one move over the title bar's short feather; **Fade** and **Scroll** do not
-  apply. Pinned titles and their workstream names stay left aligned. In
-  **Settings → Workstreams → Threads**, choose **Title on scroll → Float** to
-  leave the heading over the thread and let the timeline move beneath its
-  shadow, **Title transition → Scroll** to slide both copies as they cross while
-  the heading minimizes, or **Title alignment → Centered** to put the minimized
-  title in the bar's middle. Those last two appear only while the title
-  minimizes. Reduced motion uses the stationary crossfade in the title bar and
-  removes the animation from a pinned heading's step. Switching threads
-  preserves your reading position. When you follow the newest message, the view
-  stays attached to it as the heading loads.
+  in one move, on a short feather that lets the timeline resume right
+  underneath; **Fade** and **Scroll** do not apply. Pinned titles and their
+  workstream names stay left aligned. In **Settings → Workstreams → Threads**,
+  choose **Title on scroll → Float** to leave the heading over the thread and
+  let the timeline move beneath its shadow, **Title transition → Scroll** to
+  slide both copies as they cross while the heading minimizes, or **Title
+  alignment → Centered** to put the minimized title in the bar's middle. Those
+  last two appear only while the title minimizes. Reduced motion uses the
+  stationary crossfade in the title bar and removes the animation from a pinned
+  heading's step. Switching threads preserves your reading position. When you
+  follow the newest message, the view stays attached to it as the heading loads.
 - **Thread header actions:**
   - **Parent thread** (optional, off by default): Opens the parent thread from a
     delegate's header.
