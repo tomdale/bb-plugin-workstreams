@@ -284,6 +284,43 @@
 .dark .ws-preview-accent {
   --ws-preview-accent: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
 }
+/* The tree connector of a run of nested rows: each row draws the trunk from
+   its top to its middle and a short arm there, and every row but the last
+   carries the trunk on to its bottom, so the pieces meet end to end on whole
+   pixels in one solid color. The first row's trunk starts under the parent's
+   text. */
+.ws-preview-run {
+  --ws-preview-guide: color-mix(
+    in oklab,
+    var(--muted-foreground) 40%,
+    var(--popover)
+  );
+}
+.ws-preview-run > * {
+  position: relative;
+}
+.ws-preview-run > *::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 0;
+  width: 8px;
+  height: 9px;
+  border-left: 1px solid var(--ws-preview-guide);
+  border-bottom: 1px solid var(--ws-preview-guide);
+}
+.ws-preview-run > :first-child::before {
+  top: -2px;
+  height: 11px;
+}
+.ws-preview-run > :not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 9px;
+  bottom: 0;
+  border-left: 1px solid var(--ws-preview-guide);
+}
 .ws-preview-ring {
   display: inline-block;
   width: 6px;

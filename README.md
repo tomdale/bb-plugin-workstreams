@@ -464,17 +464,17 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      suggestion starts with a dimmed line saying what it does ("Merge Payments
      into Billing") beside **Decline** (`×`) and **Accept** (`✓`), then draws
      the sidebar rows it touches as they are, an arrow, and as they would be.
-     Workstreams are bold and threads have a ring; nested rows are indented
-     beside a guide line. Rows that leave are dimmed and crossed out; rows that
-     land or are new take their workstream's color, and numbers are thread
-     counts. Click a landing row's count to list the threads arriving there.
-     Parents show no count, since threads sit in the topics under them. Archived
-     threads move with their topic without being counted, and a topic with no
-     threads to count shows no number. A decision applies at once and leaves
-     **Undo** in its place for a few seconds; Activity keeps Undo after that.
-     The foot counts suggestions the tree has since outgrown ("1 out of date")
-     beside **Open Topics**, where you can dismiss them. **Close**, `Esc`, or a
-     click outside closes the list and leaves the rest waiting.
+     Workstreams are bold and threads have a ring; nested rows hang from their
+     parent on a tree connector. Rows that leave are dimmed and crossed out;
+     rows that land or are new take their workstream's color, and numbers are
+     thread counts. Click a landing row's count to list the threads arriving
+     there. Parents show no count, since threads sit in the topics under them.
+     Archived threads move with their topic without being counted, and a topic
+     with no threads to count shows no number. A decision applies at once and
+     leaves **Undo** in its place for a few seconds; Activity keeps Undo after
+     that. The foot counts suggestions the tree has since outgrown ("1 out of
+     date") beside **Open Topics**, where you can dismiss them. **Close**,
+     `Esc`, or a click outside closes the list and leaves the rest waiting.
    - Drag a root thread to another workstream to set its **Topic** to that
      workstream's topic; its delegates follow it. Drop on a row to place it
      before or after that root, or on a header to place it first, including a

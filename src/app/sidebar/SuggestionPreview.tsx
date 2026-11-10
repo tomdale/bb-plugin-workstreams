@@ -2,7 +2,7 @@
  * A suggestion drawn as the sidebar rows it touches: as they are, an arrow,
  * and as they would be after accepting (`suggestionPreview` in the domain).
  * Workstreams are bold and threads wear a ring, as in the sidebar; nested
- * rows are indented beside a guide line. A row that leaves is dimmed and
+ * rows hang from their parent on a tree connector. A row that leaves is dimmed and
  * crossed out; one that lands, appears or changes takes its workstream's
  * color, as the sidebar draws that workstream, and counts are visible
  * threads, in muted text, left off when there are none. A landing row's count opens the threads that
@@ -50,9 +50,8 @@ export function SuggestionPreview({
 
 /**
  * One side of the drawing. Consecutive nested rows sit in one indented run
- * with a single 1px guide down its left edge, like an editor's indent guide
- * or the line joining a block's rows on Topics, so nesting never depends on
- * per-row connectors meeting up.
+ * that draws a tree connector: a trunk down from the parent and a short arm
+ * into each row, ending at the last (see `.ws-preview-run`).
  */
 function Side({
   rows,
@@ -73,7 +72,7 @@ function Side({
         run.depth === 1 ? (
           <div
             key={run.rows[0]!.key}
-            className="ml-[5px] min-w-0 border-l border-border pl-3"
+            className="ws-preview-run ml-[5px] min-w-0 pl-3"
           >
             {run.rows.map(({ row, key }) => (
               <Row key={key} row={row} colors={colors} />
