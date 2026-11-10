@@ -4,6 +4,7 @@ import { act, cleanup, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { usePendingQuestion } from "../../src/app/question/pending.ts";
 import { useRecapPrefs } from "../../src/app/recap/prefs.ts";
+import { questionChannel } from "../../src/domain/changes.ts";
 import { payload } from "./question/submission-fixture.ts";
 
 vi.mock("@get-bb/plugin-sdk/app", async (importOriginal) => {
@@ -83,7 +84,11 @@ it("measures duplicate requests and timers for 16 consumers", async () => {
     activeTimers,
   };
   renders.fill(0);
+  // Only the thread's question channel concerns its pending question.
   await slot.behavior.emitRealtime("changed", {});
+  await act(async () => {});
+  const afterGlobal = questionPending.mock.calls.length;
+  await slot.behavior.emitRealtime(questionChannel("thr_shared"), {});
   await act(async () => {});
   const afterChanged = questionPending.mock.calls.length;
   await act(async () => {
@@ -104,7 +109,8 @@ it("measures duplicate requests and timers for 16 consumers", async () => {
   );
   const measured = {
     ...initial,
-    changedQuestionRpc: afterChanged - initial.questionRpc,
+    globalChangedQuestionRpc: afterGlobal - initial.questionRpc,
+    changedQuestionRpc: afterChanged - afterGlobal,
     pollQuestionRpc: afterPoll - afterChanged,
     unchangedQuestionRenders,
     finalActiveTimers: activeTimers,
@@ -113,11 +119,12 @@ it("measures duplicate requests and timers for 16 consumers", async () => {
   expect(measured).toEqual({
     questionRpc: 1,
     prefsRpc: 1,
-    activeTimers: 1,
+    activeTimers: 0,
+    globalChangedQuestionRpc: 0,
     changedQuestionRpc: 1,
-    pollQuestionRpc: 1,
+    pollQuestionRpc: 0,
     unchangedQuestionRenders: 0,
-    finalActiveTimers: 1,
+    finalActiveTimers: 0,
   });
   slot.lifecycle.unmount();
   expect(activeTimers).toBe(0);

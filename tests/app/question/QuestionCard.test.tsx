@@ -220,7 +220,7 @@ describe("question interaction adapter", () => {
         dismiss: true,
       },
     ]);
-    await slot.emitRealtime("changed", {});
+    await slot.emitRealtime("question:thr_test", {});
     await vi.waitFor(() =>
       expect(
         slot.queryByRole("region", { name: "Question needs your answer" }),

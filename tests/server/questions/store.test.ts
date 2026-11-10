@@ -49,6 +49,29 @@ function setup() {
 }
 
 describe("durable questions", () => {
+  it("signals only the question's thread, including when its waiter stops and after a restart", async () => {
+    const { host, store } = setup();
+    const signals = () =>
+      host.harness.inspection.realtimeSignals.map((signal) => signal.channel);
+    const payload = buildInteractionPayload(input);
+    const id = store().open("thread", payload);
+    store().open("other", payload);
+    expect(signals()).toEqual(["question:thread", "question:other"]);
+    store().interrupted(id);
+    expect(signals().at(-1)).toBe("question:thread");
+    expect(store().pending("thread")?.recoverable).toBe(true);
+    expect(signals()).not.toContain("changed");
+    // A new process signals every thread whose question it can no longer
+    // answer through a waiter.
+    const before = signals().length;
+    new QuestionStore(openDatabase(host.bb), host.bb);
+    expect(signals().slice(before).sort()).toEqual([
+      "question:other",
+      "question:thread",
+    ]);
+    await host.harness.lifecycle.dispose();
+  });
+
   it.each([false, true])(
     "answers the active native waiter from the queue (dismiss: %s)",
     async (dismiss) => {

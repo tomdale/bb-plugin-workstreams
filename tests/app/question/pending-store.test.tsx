@@ -6,7 +6,10 @@ import { usePendingQuestion } from "../../../src/app/question/pending.ts";
 import { payload } from "./submission-fixture.ts";
 
 beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  vi.useFakeTimers({
+    toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout"],
+    shouldAdvanceTime: true,
+  });
 });
 
 afterEach(() => {
@@ -27,11 +30,15 @@ function question(id: string) {
   return { id, recoverable: false, payload };
 }
 
+/** Intervals at the old poll's period; fake timers keep their own. */
+const polls = (interval: { mock: { calls: unknown[][] } }) =>
+  interval.mock.calls.filter(([, delay]) => delay === 2000).length;
+
 async function flushRead() {
   await act(async () => {});
 }
 
-it("does not read or poll for a null thread and ignores an old thread's late read", async () => {
+it("does not read or poll for a thread and ignores an old thread's late read", async () => {
   const first = deferred<ReturnType<typeof question>>();
   const read = vi.fn((input: unknown) => {
     const { threadId } = input as { threadId: string };
@@ -49,13 +56,13 @@ it("does not read or poll for a null thread and ignores an old thread's late rea
     { rpc: { question_pending: read } },
   );
   expect(read).not.toHaveBeenCalled();
-  expect(interval).not.toHaveBeenCalled();
+  expect(polls(interval)).toBe(0);
 
   threadId = "first";
   slot.rerender(<Current />);
   await flushRead();
   await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
-  expect(interval).toHaveBeenCalledWith(expect.any(Function), 2000);
+  expect(polls(interval)).toBe(0);
 
   threadId = "second";
   slot.rerender(<Current />);
@@ -69,7 +76,7 @@ it("does not read or poll for a null thread and ignores an old thread's late rea
   slot.lifecycle.unmount();
 });
 
-it("stops polling after the last unmount and reads again on remount", async () => {
+it("stops reading after the last unmount and reads again on remount", async () => {
   const read = vi.fn(async () => null);
   let mounted = true;
   function Current() {
@@ -119,8 +126,8 @@ it("keeps one in-flight read and publishes only the latest revalidation", async 
   );
   await flushRead();
   await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
-  await slot.behavior.emitRealtime("changed", {});
-  await slot.behavior.emitRealtime("changed", {});
+  await slot.behavior.emitRealtime("question:thread", {});
+  await slot.behavior.emitRealtime("question:thread", {});
   expect(read).toHaveBeenCalledTimes(1);
 
   await act(async () => {
@@ -138,7 +145,7 @@ it("keeps one in-flight read and publishes only the latest revalidation", async 
   slot.lifecycle.unmount();
 });
 
-it("polls away a stopped waiter and revalidates after reconnecting", async () => {
+it("reads its thread's question signals, not others, and revalidates after reconnecting", async () => {
   let value: ReturnType<typeof question> | null = question("waiting");
   const read = vi.fn(async () => value);
   function Current() {
@@ -153,9 +160,15 @@ it("polls away a stopped waiter and revalidates after reconnecting", async () =>
   await flushRead();
   await waitFor(() => expect(slot.getByText("waiting")).toBeTruthy());
   value = null;
+  // Nothing polls: without a signal the store keeps its value.
   await act(async () => {
-    vi.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(10_000);
   });
+  await slot.behavior.emitRealtime("question:other", {});
+  await slot.behavior.emitRealtime("changed", {});
+  expect(read).toHaveBeenCalledTimes(1);
+  // The server signals the thread when the waiter stops.
+  await slot.behavior.emitRealtime("question:thread", {});
   await waitFor(() => expect(slot.getByText("No question")).toBeTruthy());
   expect(read).toHaveBeenCalledTimes(2);
 
@@ -197,10 +210,40 @@ it("shares work within each thread without combining different threads", async (
     expect(slot.getByTestId("second").textContent).toBe("second"),
   );
   expect(read).toHaveBeenCalledTimes(2);
-  expect(
-    interval.mock.calls.filter(([, delay]) => delay === 2000),
-  ).toHaveLength(2);
-  await slot.behavior.emitRealtime("changed", {});
-  await waitFor(() => expect(read).toHaveBeenCalledTimes(4));
+  expect(polls(interval)).toBe(0);
+  await slot.behavior.emitRealtime("question:first", {});
+  await waitFor(() => expect(read).toHaveBeenCalledTimes(3));
+  expect(read).toHaveBeenLastCalledWith({ threadId: "first" });
+  slot.lifecycle.unmount();
+});
+
+it("tries a failed read once more", async () => {
+  const read = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValue(question("recovered"));
+  function Current() {
+    const pending = usePendingQuestion("thread");
+    return <p>{pending?.id ?? "No question"}</p>;
+  }
+  const slot = renderSlot(
+    { component: Current },
+    {},
+    { rpc: { question_pending: read } },
+  );
+  await flushRead();
+  await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    vi.advanceTimersByTime(2000);
+  });
+  await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+  // Only once: the next signal reads it after that.
+  await act(async () => {
+    vi.advanceTimersByTime(10_000);
+  });
+  expect(read).toHaveBeenCalledTimes(2);
+  await slot.behavior.emitRealtime("question:thread", {});
+  await waitFor(() => expect(slot.getByText("recovered")).toBeTruthy());
   slot.lifecycle.unmount();
 });

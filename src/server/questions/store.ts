@@ -17,6 +17,7 @@ import {
   questionResultSchema,
   type QuestionHistory,
 } from "./history.ts";
+import { questionChannel } from "../../domain/changes.ts";
 
 export class QuestionStore {
   private live = new Set<string>();
@@ -35,6 +36,25 @@ export class QuestionStore {
       bb.log.warn(
         "Recovered an unacknowledged question answer; retry may duplicate a delivered message",
       );
+    // A new process has no waiters, so every open question became
+    // recoverable; views that stayed connected learn it here.
+    for (const { thread_id } of db
+      .prepare(
+        "SELECT DISTINCT thread_id FROM ws_question WHERE status IN ('pending', 'sending')",
+      )
+      .all() as { thread_id: string }[])
+      this.changed(thread_id);
+  }
+
+  private changed(threadId: string) {
+    this.bb.realtime.publish(questionChannel(threadId), {});
+  }
+
+  private changedQuestion(id: string) {
+    const row = this.db
+      .prepare("SELECT thread_id FROM ws_question WHERE id = ?")
+      .get(id) as { thread_id: string } | undefined;
+    if (row) this.changed(row.thread_id);
   }
 
   open(threadId: string, payload: InteractionPayload) {
@@ -45,7 +65,7 @@ export class QuestionStore {
       )
       .run(id, threadId, JSON.stringify(payload), Date.now());
     this.live.add(id);
-    this.bb.realtime.publish("changed", {});
+    this.changed(threadId);
     return id;
   }
 
@@ -70,6 +90,7 @@ export class QuestionStore {
         "UPDATE ws_question SET interaction_id = ? WHERE thread_id = ? AND status = 'pending'",
       )
       .run(interactionId, threadId);
+    this.changed(threadId);
   }
 
   async atInteraction(
@@ -153,8 +174,10 @@ export class QuestionStore {
     return null;
   }
 
+  /** The question's waiter stopped; its card becomes recoverable. */
   interrupted(id: string) {
     this.live.delete(id);
+    this.changedQuestion(id);
   }
 
   finish(
@@ -168,7 +191,7 @@ export class QuestionStore {
         "UPDATE ws_question SET status = 'resolved', result = ?, outcome = ? WHERE id = ?",
       )
       .run(result ? JSON.stringify(result) : null, outcome, id);
-    this.bb.realtime.publish("changed", {});
+    this.changedQuestion(id);
   }
 
   async history(threadId: string): Promise<QuestionHistory[]> {
@@ -313,7 +336,7 @@ export class QuestionStore {
       if (!dismissed.changes)
         throw new Error("This answer is already being sent");
       this.live.delete(id);
-      this.bb.realtime.publish("changed", {});
+      this.changed(threadId);
       return;
     }
     const submitted = interactionResponseSchema.parse(value);
