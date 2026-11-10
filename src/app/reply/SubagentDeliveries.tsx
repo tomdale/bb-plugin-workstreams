@@ -15,6 +15,7 @@ import {
   type SubagentDelivery,
 } from "../../domain/subagentDelivery.ts";
 import { ReplyBlock } from "./ReplyBlock.tsx";
+import { workspaceStore } from "./workspace.ts";
 import {
   changedSubtreesMatch,
   mutationTargetElement,
@@ -66,16 +67,19 @@ async function readDelivery(
     input: { threadId },
     outputSchema: runsSchema,
   });
-  return records.runs.some(
+  const verified = records.runs.some(
     (run) =>
       run.id === delivery.runId &&
       run.ownerThreadId === threadId &&
       run.threadId === delivery.threadId &&
       run.title === delivery.title &&
       run.output === delivery.output,
-  )
-    ? delivery
-    : null;
+  );
+  if (!verified) return null;
+  // The card's reply resolves links in the worker's workspace. Knowing it
+  // before the card mounts lets the card draw once, complete.
+  await workspaceStore(sdk).load(delivery.threadId);
+  return delivery;
 }
 
 type Target = {

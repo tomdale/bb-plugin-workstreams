@@ -1,14 +1,7 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ComponentProps,
-} from "react";
-import { Markdown, useSdk, useBbNavigate } from "@get-bb/plugin-sdk/app";
+import { useCallback, useMemo, useRef } from "react";
+import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import type { ExperimentalMessageBlockProps } from "@get-bb/plugin-sdk/app";
-import { fileTarget, type RecapFiles } from "../../domain/recap.ts";
+import { fileTarget } from "../../domain/recap.ts";
 import { recapHostFileLink } from "../../domain/recapFileLinks.ts";
 import { replySchema, type Reply } from "../../domain/reply.ts";
 import { useDebugMode } from "../debug/debug.ts";
@@ -20,51 +13,7 @@ import { ReplyDebug, useAssistantMessageText } from "./ReplyDebug.tsx";
 import { useDockedTurn } from "./useDockedTurn.ts";
 import { LegacyCard, legacyStateWord } from "./LegacyCard.tsx";
 import { BODY_CLASS } from "./type.ts";
-
-type Document = ComponentProps<typeof Markdown>["experimental_document"];
-
-/** File references resolve in the message's workspace, not the plugin package. */
-function useReplyWorkspace(threadId: string | null) {
-  const sdk = useSdk();
-  const [loaded, setLoaded] = useState<{
-    threadId: string;
-    document: Document;
-    files: RecapFiles;
-  } | null>(null);
-  useEffect(() => {
-    if (!threadId) return;
-    let live = true;
-    void sdk.threads
-      .get({ threadId, include: "environment" })
-      .then((thread) => {
-        const environment = "environment" in thread ? thread.environment : null;
-        if (!live || !environment || typeof environment.path !== "string")
-          return;
-        setLoaded({
-          threadId,
-          files: {
-            environmentId: environment.id,
-            root: environment.path,
-            hostId: environment.hostId ?? null,
-          },
-          document: {
-            threadId,
-            rootPath: environment.path,
-            target: {
-              kind: "workspace",
-              environmentId: environment.id,
-              path: "__reply__.md",
-            },
-          },
-        });
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [threadId, sdk]);
-  return loaded?.threadId === threadId ? loaded : null;
-}
+import { useReplyWorkspace } from "./workspace.ts";
 
 export function ReplyBlock({
   data,
@@ -117,6 +66,10 @@ export function ReplyBlock({
       <ReplyDebug source={rawSource} status={status} error={error} />
     ) : null;
   }
+  // BB's Markdown renders a different element once it has a document, so a
+  // body drawn before the workspace is known would remount when it arrives.
+  // Only a thread's first block waits; later blocks read the cached value.
+  if (workspace === undefined) return null;
   const { card, headline, body } = reply;
   const showCard = !!card && docked === false;
   const title = headline ?? (showCard ? card?.headline : undefined);

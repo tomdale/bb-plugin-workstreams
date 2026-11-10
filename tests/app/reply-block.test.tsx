@@ -7,6 +7,7 @@ import type {
 import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -102,7 +103,10 @@ function props(
     Original,
   };
 }
-function draw(
+/** Let the thread's workspace lookup settle, as a reply waits for it. */
+const settle = () =>
+  act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+async function draw(
   message: string,
   options: {
     streaming?: boolean;
@@ -114,7 +118,7 @@ function draw(
   } = {},
 ) {
   const block = registration();
-  return renderSlot(block, props(block, message, options.streaming), {
+  const view = renderSlot(block, props(block, message, options.streaming), {
     sdk: SDK,
     openFilePreview: () => true,
     ...(options.sectionId
@@ -149,6 +153,8 @@ function draw(
       }),
     },
   });
+  await settle();
+  return view;
 }
 const body = (
   component: (typeof COMPONENT_EXAMPLES)[keyof typeof COMPONENT_EXAMPLES],
@@ -157,12 +163,12 @@ type Checks = Extract<ReplyComponent, { type: "checks" }>;
 const checksWithEvidence = (items: Checks["items"]): Checks =>
   ({ ...COMPONENT_EXAMPLES.checks, type: "checks", items }) as Checks;
 
-it("prints only the test counts the reply reported", () => {
+it("prints only the test counts the reply reported", async () => {
   const partial = {
     ...COMPONENT_EXAMPLES.checks,
     testTotals: { passed: 44, failed: 0 },
   } as Checks;
-  const view = draw(body(partial));
+  const view = await draw(body(partial));
   const totals = view.container.querySelector(
     '[aria-label="Reported test totals"]',
   );
@@ -177,7 +183,7 @@ it("prints only the test counts the reply reported", () => {
 it("renders directives with message context while prose keeps workspace routing", async () => {
   const directive =
     '::inline-vis{source="thread-storage" file="sidebar-section-labels.html"}';
-  const view = draw(`:::reply\nBefore.\n\n${directive}\n\nAfter.\n:::\n`);
+  const view = await draw(`:::reply\nBefore.\n\n${directive}\n\nAfter.\n:::\n`);
   await waitFor(() => {
     const prose = view.container.querySelector('[data-markdown="Before."]');
     expect(JSON.parse(prose!.getAttribute("data-document")!)).toMatchObject({
@@ -195,13 +201,13 @@ it("renders directives with message context while prose keeps workspace routing"
   expect(markdown[2]!.hasAttribute("data-document")).toBe(true);
 });
 
-it("registers version 1 and the existing readable text view", () => {
+it("registers version 1 and the existing readable text view", async () => {
   const block = registration();
   expect(block.versions).toEqual([1]);
   expect(block.toText({ body: [{ type: "text", body: "PASS" }] })).toBe("PASS");
 });
 
-it("renders every component as readable Markdown and native links in one reply", () => {
+it("renders every component as readable Markdown and native links in one reply", async () => {
   const examples = Object.entries(COMPONENT_EXAMPLES);
   const marker = (name: string) => "Component example: " + name;
   const source = examples
@@ -209,7 +215,7 @@ it("renders every component as readable Markdown and native links in one reply",
       ([name, component]) => marker(name) + "\n\n" + componentFence(component),
     )
     .join("\n\n");
-  const view = draw(":::reply\n" + source + "\n:::\n");
+  const view = await draw(":::reply\n" + source + "\n:::\n");
   const block = view.container.querySelector("[data-reply-block]")!;
   const nodes = [...block.children];
   for (const [index, [name]] of examples.entries()) {
@@ -255,11 +261,13 @@ it("renders every component as readable Markdown and native links in one reply",
   expect(block.className).toContain("leading-[21px]");
 });
 
-it("sets no reply text larger than its own body size", () => {
+it("sets no reply text larger than its own body size", async () => {
   const source = Object.values(COMPONENT_EXAMPLES)
     .map(componentFence)
     .join("\n\n");
-  const view = draw(`:::reply\n# A headline\n\nProse.\n\n${source}\n:::\n`);
+  const view = await draw(
+    `:::reply\n# A headline\n\nProse.\n\n${source}\n:::\n`,
+  );
   const sized = [
     ...view.container.querySelectorAll<HTMLElement>("[data-reply-block] *"),
   ].flatMap((node) => {
@@ -271,8 +279,8 @@ it("sets no reply text larger than its own body size", () => {
     expect(size, node.outerHTML.slice(0, 120)).toBeLessThanOrEqual(13);
 });
 
-it("draws a waiting part's placeholder as small muted text", () => {
-  const view = draw(
+it("draws a waiting part's placeholder as small muted text", async () => {
+  const view = await draw(
     ':::reply\nAn explanation.\n\n```workstreams\n{"type":"x"',
     {
       streaming: true,
@@ -283,8 +291,8 @@ it("draws a waiting part's placeholder as small muted text", () => {
   expect(placeholder.className).toContain("text-muted-foreground");
 });
 
-it("preserves source order rather than moving context above prose", () => {
-  const view = draw(
+it("preserves source order rather than moving context above prose", async () => {
+  const view = await draw(
     `:::reply\nOpening explanation.\n\n${componentFence({ type: "context", topic: "Reported task", where: "Reported location" })}\n\nClosing explanation.\n:::\n`,
   );
   const paragraphs = [...view.container.querySelectorAll("p")].map(
@@ -300,7 +308,7 @@ it("preserves source order rather than moving context above prose", () => {
     screen.queryByRole("button", { name: "Show current workspace" }),
   ).toBeNull();
 });
-it("keeps supporting detail, all checks, and comparison details visible", () => {
+it("keeps supporting detail, all checks, and comparison details visible", async () => {
   const source = [
     COMPONENT_EXAMPLES.details,
     COMPONENT_EXAMPLES.checks,
@@ -308,7 +316,7 @@ it("keeps supporting detail, all checks, and comparison details visible", () => 
   ]
     .map(componentFence)
     .join("\n\n");
-  const view = draw(`:::reply\n${source}\n:::\n`);
+  const view = await draw(`:::reply\n${source}\n:::\n`);
   expect(view.container.querySelector("pre code")?.textContent).toContain(
     "1000 * (10 / 100)",
   );
@@ -330,8 +338,8 @@ it("keeps supporting detail, all checks, and comparison details visible", () => 
   expect(view.container.textContent).toContain("100-cent discount");
   expect(view.container.querySelector("button, [hidden]")).toBeNull();
 });
-it("renders grouped component lists without losing their narrative or sources", () => {
-  const view = draw(
+it("renders grouped component lists without losing their narrative or sources", async () => {
+  const view = await draw(
     body({
       type: "group",
       relationship: "supporting",
@@ -357,8 +365,8 @@ it("renders grouped component lists without losing their narrative or sources", 
 });
 it.each(["    ", "        ", "\t", "  \t"])(
   "preserves indented code after prose (%j)",
-  (indent) => {
-    const view = draw(
+  async (indent) => {
+    const view = await draw(
       `:::reply\nAn introduction.\n\n${indent}git show abc1234\n:::\n`,
     );
     expect(view.container.querySelector("pre code")?.textContent).toContain(
@@ -369,8 +377,8 @@ it.each(["    ", "        ", "\t", "  \t"])(
     ).toBeNull();
   },
 );
-it("keeps a Markdown reference definition in the same document as its use", () => {
-  const view = draw(
+it("keeps a Markdown reference definition in the same document as its use", async () => {
+  const view = await draw(
     ":::reply\nAn [explanation][source].\n\n[source]: https://example.com/evidence\n:::\n",
   );
   expect(
@@ -379,7 +387,7 @@ it("keeps a Markdown reference definition in the same document as its use", () =
   expect(view.container.querySelectorAll("[data-markdown]")).toHaveLength(1);
 });
 it("routes workspace evidence through native file previews", async () => {
-  const view = draw(
+  const view = await draw(
     body(
       checksWithEvidence([
         {
@@ -420,7 +428,7 @@ it("routes workspace evidence through native file previews", async () => {
 it.each(["/tmp/Rendered Notes.md", "/tmp/Review #draft? 100%.md"])(
   "preserves literal external evidence paths: %s",
   async (path) => {
-    const view = draw(
+    const view = await draw(
       body(
         checksWithEvidence([
           {
@@ -450,7 +458,7 @@ it.each(["/tmp/Rendered Notes.md", "/tmp/Review #draft? 100%.md"])(
 it.each(["/tmp/Plan#draft.md", "/tmp/Plan#L2", "/tmp/Question?.md"])(
   "preserves literal evidence without an explicit range: %s",
   async (path) => {
-    const view = draw(
+    const view = await draw(
       body(
         checksWithEvidence([
           {
@@ -478,7 +486,7 @@ it.each(["/tmp/Plan#draft.md", "/tmp/Plan#L2", "/tmp/Question?.md"])(
   },
 );
 
-it("keeps block Markdown intact within change, sequence, and evidence fields", () => {
+it("keeps block Markdown intact within change, sequence, and evidence fields", async () => {
   const source = [
     componentFence({
       type: "change",
@@ -509,7 +517,7 @@ it("keeps block Markdown intact within change, sequence, and evidence fields", (
       ]),
     ),
   ].join("\n\n");
-  const view = draw(`:::reply\n${source}\n:::\n`);
+  const view = await draw(`:::reply\n${source}\n:::\n`);
   const code = [...view.container.querySelectorAll("pre code")].map(
     (e) => e.textContent,
   );
@@ -525,8 +533,8 @@ it("keeps block Markdown intact within change, sequence, and evidence fields", (
   expect(screen.getByText("The second explanation.")).toBeDefined();
 });
 
-it("isolates unterminated Markdown in a field from subsequent content", () => {
-  const view = draw(
+it("isolates unterminated Markdown in a field from subsequent content", async () => {
+  const view = await draw(
     `:::reply\n${componentFence({ type: "details", title: "An excerpt", body: "```text\nAn unfinished code fence" })}\n\n[Subsequent target](https://example.com/after)\n:::\n`,
   );
   expect(view.container.querySelector("pre")?.textContent).toContain(
@@ -536,7 +544,7 @@ it("isolates unterminated Markdown in a field from subsequent content", () => {
 });
 
 it("keeps an escaping relative evidence path inert", async () => {
-  const view = draw(
+  const view = await draw(
     body(
       checksWithEvidence([
         {
@@ -562,7 +570,7 @@ it("keeps an escaping relative evidence path inert", async () => {
   expect(view.container.textContent).toContain("Outside relative path");
 });
 it("normalizes a relative prose link and supplies its workspace context", async () => {
-  const view = draw(":::reply\nRead [the plan](docs/My Plan.md).\n:::\n");
+  const view = await draw(":::reply\nRead [the plan](docs/My Plan.md).\n:::\n");
   const link = screen.getByRole("link", { name: "the plan" });
   expect(link.getAttribute("href")).toBe("docs/My%20Plan.md");
   await waitFor(() =>
@@ -588,8 +596,8 @@ it("normalizes a relative prose link and supplies its workspace context", async 
   });
 });
 
-it("keeps sequence markers and leads check rows with status marks", () => {
-  const view = draw(body(COMPONENT_EXAMPLES.sequence));
+it("keeps sequence markers and leads check rows with status marks", async () => {
+  const view = await draw(body(COMPONENT_EXAMPLES.sequence));
   const steps = view.container.querySelectorAll("ol > li");
   expect(steps).toHaveLength(3);
   // Each step leads with its number in the mark column.
@@ -600,7 +608,7 @@ it("keeps sequence markers and leads check rows with status marks", () => {
     ),
   ).toEqual(["1", "2", "3"]);
   view.lifecycle.unmount();
-  const checks = draw(body(COMPONENT_EXAMPLES.checks));
+  const checks = await draw(body(COMPONENT_EXAMPLES.checks));
   expect(
     checks.container.querySelector('[aria-label="Reported test totals"]'),
   ).not.toBeNull();
@@ -623,7 +631,9 @@ it("keeps sequence markers and leads check rows with status marks", () => {
 });
 
 it("opens ordinary Markdown file URLs through the public file-preview API", async () => {
-  const view = draw(":::reply\n[Notes](file:///tmp/Notes%20File.md#L3)\n:::\n");
+  const view = await draw(
+    ":::reply\n[Notes](file:///tmp/Notes%20File.md#L3)\n:::\n",
+  );
   await waitFor(() =>
     expect(
       view.container
@@ -640,8 +650,8 @@ it("opens ordinary Markdown file URLs through the public file-preview API", asyn
     },
   });
 });
-it("preserves malformed component source and the surrounding explanation", () => {
-  const view = draw(
+it("preserves malformed component source and the surrounding explanation", async () => {
+  const view = await draw(
     ':::reply\nBefore.\n\n```workstreams\n{"type":"does-not-exist"}\n```\n\nAfter.\n:::\n',
   );
   expect(view.container.textContent).toContain("Before.");
@@ -652,7 +662,7 @@ it("preserves malformed component source and the surrounding explanation", () =>
   );
 });
 it("isolates an unterminated component from historical recap fields", async () => {
-  const view = draw(
+  const view = await draw(
     ':::reply{state="review"}\n# Saved work\n- [x] The work is saved\n\n### Review\n- [Review target](https://example.com/review)\n\n### Explanation\nAn explanation.\n\n```workstreams\n{"type":"retiredComponent"}\n:::\n',
   );
   await screen.findByRole("link", { name: "Review target" });
@@ -665,8 +675,8 @@ it("isolates an unterminated component from historical recap fields", async () =
   );
 });
 
-it("defers partial JSON without hiding the explanation", () => {
-  const view = draw(
+it("defers partial JSON without hiding the explanation", async () => {
+  const view = await draw(
     ':::reply\nExplanation.\n\n```workstreams\n{"type":"retiredComponent"',
     { streaming: true },
   );
@@ -674,13 +684,13 @@ it("defers partial JSON without hiding the explanation", () => {
   expect(screen.getByRole("status").textContent).toBe("Receiving information…");
   expect(view.container.querySelector("pre")).toBeNull();
 });
-it("uses host rendering for an unclosed reply", () => {
-  const view = draw(":::reply\nUnfinished reply");
+it("uses host rendering for an unclosed reply", async () => {
+  const view = await draw(":::reply\nUnfinished reply");
   expect(view.container.querySelector("[data-original]")).not.toBeNull();
   expect(view.container.querySelector("[data-reply-block]")).toBeNull();
 });
-it("keeps unchecked reported work visible without marking it completed", () => {
-  const view = draw(
+it("keeps unchecked reported work visible without marking it completed", async () => {
+  const view = await draw(
     ':::reply{state="review"}\n# The change awaits a push\n- [ ] Push the branch\n\n### Review\n- Inspect the diff\n:::\n',
   );
   expect(screen.getByRole("heading", { name: "Not done" })).toBeDefined();
@@ -696,7 +706,7 @@ it.each([
   async (_name, docked, shown) => {
     const source =
       ':::reply{state="complete"}\n# Work is saved\n- [x] A concrete result\n\nA full explanation.\n\n### Next\n- Act: Do the next thing\n:::\n';
-    const view = draw(source, { docked });
+    const view = await draw(source, { docked });
     await waitFor(() =>
       expect(
         Boolean(screen.queryByRole("heading", { name: "Work is saved" })),
@@ -721,7 +731,7 @@ it.each([
 ] as const)(
   "keeps %s state visible in a historical or dismissed recap",
   async (state, label, docked) => {
-    draw(
+    await draw(
       `:::reply{state="${state}" timeout="30"}\n# The work state\n\nAn explanation.\n:::\n`,
       { docked },
     );
@@ -733,7 +743,7 @@ const legacy =
   ':::reply{state="review"}\n# The queue cap holds at two cards\n- [x] Held keys move one card per press\n- [ ] Check the settle timing on a display\n\nAn explanation of the change.\n\n### Review\n- Hold ↓ on a queue of four\n\n### Waiting on\n- The staging server\n\n### Links\n- [Motion fixture](https://example.com/motion.test.ts)\n\n### Next\n- Try it on your display\n:::\n';
 
 it("draws an old reply's card fields as labelled rows, with no card", async () => {
-  const view = draw(legacy);
+  const view = await draw(legacy);
   await screen.findByText("Ready for review");
   // The state is a small muted line, above everything the reply says.
   const state = view.container.querySelector("[data-reply-legacy-state]")!;
@@ -766,12 +776,14 @@ it.each([
   ["waiting", "Waiting"],
   ["ready", "ready"],
 ] as const)("reads a %s card state as its own words", async (state, word) => {
-  draw(`:::reply{state="${state}"}\n# A headline\n\nAn explanation.\n:::\n`);
+  await draw(
+    `:::reply{state="${state}"}\n# A headline\n\nAn explanation.\n:::\n`,
+  );
   expect(await screen.findByText(word)).toBeDefined();
 });
 
 it("does not duplicate a headline-only answer while its card is docked", async () => {
-  const view = draw(
+  const view = await draw(
     ':::reply{state="complete"}\n# Python 3.9 or newer\n:::\n',
     { docked: { turnId: "turn1" } },
   );
@@ -779,10 +791,11 @@ it("does not duplicate a headline-only answer while its card is docked", async (
     expect(view.container.querySelector("[data-reply-block]")).toBeNull(),
   );
 });
-it("keeps the last good parse during a malformed streaming update", () => {
+it("keeps the last good parse during a malformed streaming update", async () => {
   const block = registration(),
     base = props(block, ":::reply\nAn explanation.\n", true);
   const view = renderSlot(block, base, { sdk: SDK });
+  await settle();
   view.lifecycle.rerender(
     <block.component {...base} data={null} error="pending" />,
   );
@@ -792,15 +805,12 @@ it("keeps the last good parse during a malformed streaming update", () => {
   );
   expect(view.container.querySelector("[data-reply-block]")).toBeNull();
 });
-it("skips reply bodies for identical closed data, even across a fresh parse", () => {
+it("skips reply bodies for identical closed data, even across a fresh parse", async () => {
   const block = registration();
   const source = body(COMPONENT_EXAMPLES.context);
   const base = props(block, source);
-  const sdk = {
-    ...SDK,
-    threads: { ...SDK.threads, get: () => new Promise<never>(() => {}) },
-  };
-  const view = renderSlot(block, base, { sdk });
+  const view = renderSlot(block, base, { sdk: SDK });
+  await settle();
   const renders = replyRenders.context;
 
   view.lifecycle.rerender(<block.component {...base} />);
@@ -812,15 +822,12 @@ it("skips reply bodies for identical closed data, even across a fresh parse", ()
   expect(view.container.textContent).toContain("Coupon calculation");
 });
 
-it("retains unchanged body identity across successive valid streaming parses", () => {
+it("retains unchanged body identity across successive valid streaming parses", async () => {
   const block = registration();
   const context = componentFence(COMPONENT_EXAMPLES.context);
   const base = props(block, `:::reply\nBefore.\n\n${context}\n:::\n`, true);
-  const sdk = {
-    ...SDK,
-    threads: { ...SDK.threads, get: () => new Promise<never>(() => {}) },
-  };
-  const view = renderSlot(block, base, { sdk });
+  const view = renderSlot(block, base, { sdk: SDK });
+  await settle();
   const renders = replyRenders.context;
   const next = props(
     block,
@@ -848,6 +855,7 @@ it("withholds recap fields while server ownership is unknown", async () => {
         }),
     },
   });
+  await settle();
   expect(view.container.textContent).toContain("A full explanation.");
   expect(view.container.textContent).not.toContain("Work is saved");
   expect(view.container.textContent).not.toContain("A concrete result");
@@ -858,12 +866,12 @@ it("withholds recap fields while server ownership is unknown", async () => {
 
 it("shows the raw agent output before parsing only in Debug mode", async () => {
   const source = `:::reply\n# Parsed heading\n\n${componentFence(COMPONENT_EXAMPLES.context)}\n:::\n`;
-  const off = draw(source, { debug: false });
+  const off = await draw(source, { debug: false });
   expect(off.container.querySelector("[data-reply-raw]")).toBeNull();
   expect(off.queryByLabelText("Raw agent output")).toBeNull();
   off.lifecycle.unmount();
 
-  const on = draw(source, { debug: true });
+  const on = await draw(source, { debug: true });
   const summary = await on.findByText("Raw agent output");
   const details = summary.closest("details")!;
   expect(details.hasAttribute("data-reply-raw")).toBe(true);
@@ -882,7 +890,7 @@ it("shows the raw agent output before parsing only in Debug mode", async () => {
 
 it("keeps raw agent output out of replies when its own switch is off", async () => {
   const source = `:::reply\n# Parsed heading\n\n${componentFence(COMPONENT_EXAMPLES.context)}\n:::\n`;
-  const view = draw(source, {
+  const view = await draw(source, {
     advanced: { debugUi: true, debugReplies: false },
   });
   // The reply still parses; only the Debug disclosure is gone.
@@ -901,7 +909,7 @@ it("shows syntax issues and raw output on an unclosed reply in Debug mode", asyn
     "Final paragraph.",
     ":::reply",
   ].join("\n");
-  const view = draw(source, { debug: true });
+  const view = await draw(source, { debug: true });
   expect(view.container.querySelector("[data-original]")).not.toBeNull();
   const summary = await view.findByText("Raw agent output");
   const details = summary.closest("details")!;
@@ -977,8 +985,8 @@ it("attaches raw output and syntax diagnostics to assistant rows without a Reply
   row.unmount();
 });
 
-it("leads delivery stages with status marks in their order", () => {
-  const view = draw(body(COMPONENT_EXAMPLES.delivery));
+it("leads delivery stages with status marks in their order", async () => {
+  const view = await draw(body(COMPONENT_EXAMPLES.delivery));
   const list = view.container.querySelector("[data-reply-delivery-stages]");
   expect(list?.tagName).toBe("OL");
   const stages = [
@@ -999,7 +1007,9 @@ it("leads delivery stages with status marks in their order", () => {
 });
 
 it("accents Change labels with the thread's workstream color", async () => {
-  const filed = draw(body(COMPONENT_EXAMPLES.change), { sectionId: "sec_a" });
+  const filed = await draw(body(COMPONENT_EXAMPLES.change), {
+    sectionId: "sec_a",
+  });
   const block =
     filed.container.querySelector<HTMLElement>("[data-reply-block]")!;
   expect(block.classList).toContain("ws-reply-accent");
@@ -1010,7 +1020,7 @@ it("accents Change labels with the thread's workstream color", async () => {
   expect(label?.className).toContain("--ws-reply-accent");
   filed.lifecycle.unmount();
   // An unfiled thread sets no identity color, so labels fall back to muted.
-  const unfiled = draw(body(COMPONENT_EXAMPLES.change));
+  const unfiled = await draw(body(COMPONENT_EXAMPLES.change));
   expect(
     unfiled.container
       .querySelector<HTMLElement>("[data-reply-block]")!
