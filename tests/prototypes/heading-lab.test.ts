@@ -127,3 +127,15 @@ it("steps the pinned heading rather than tracking the scroll", () => {
   expect(page).toContain("const pinnedStep = (fromBottom, exitDistance) =>");
   expect(threshold).toContain("fromBottom >= exitDistance");
 });
+
+/**
+ * The band has to start exactly where the scroller does. Measuring from the
+ * pane's own rect instead puts the plate one border width low, which shows a
+ * sliver of timeline above it; the page measures from the overlay, the way the
+ * plugin measures from BB's inset surface.
+ */
+it("starts the band where the timeline does", () => {
+  expect(page).toContain("const originRect = overlay.getBoundingClientRect();");
+  expect(page).toContain("y: scrollerRect.top - originRect.top,");
+  expect(page).toContain("x: scrollerRect.left - originRect.left,");
+});

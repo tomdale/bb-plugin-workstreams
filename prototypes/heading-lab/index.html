@@ -970,7 +970,11 @@
         const visibleGoalLines = state.goal ? Math.min(3, 3) : 0;
 
         // --- geometry the component measures from BB's DOM -----------------
-        const originRect = pane.getBoundingClientRect();
+        // The overlay is the origin, the way the product measures from BB's
+        // inset surface: the pane's own rect is its border box, and one border
+        // width of difference leaves the plate a pixel short of the scroller's
+        // top, showing a sliver of timeline above the band.
+        const originRect = overlay.getBoundingClientRect();
         const scrollerRect = scroller.getBoundingClientRect();
         const messagesRect = messages.getBoundingClientRect();
         const messagesStyle = getComputedStyle(messages);
