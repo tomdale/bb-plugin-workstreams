@@ -55,6 +55,7 @@ function upNext(
     shown?: number;
     unreadFirst?: boolean;
     freshWithinMs?: number;
+    fill?: boolean;
   } = {},
 ) {
   const projection = projectWorkstreams(threads, sections, {
@@ -69,6 +70,7 @@ function upNext(
       shown: options.shown,
       unreadFirst: options.unreadFirst,
       freshWithinMs: options.freshWithinMs,
+      fill: options.fill,
     }).rows,
   );
 }
@@ -139,6 +141,39 @@ describe("selectUpNext", () => {
       "or2",
       "or1",
     ]);
+  });
+
+  it("fills only with threads that are unread or blocked on you", () => {
+    const threads = [
+      t("ou1", 9),
+      t("qr1", 8),
+      t("or1", 7),
+      t("or2", 6),
+      t("wr1", 5),
+    ];
+    expect(upNext(threads, { fill: false })).toEqual(["ou1", "qr1"]);
+    // The read threads the fill would have shown stay out of Show more too.
+    const projection = projectWorkstreams(threads, sections, { now });
+    expect(
+      ids(selectUpNext(projection, { kindOf, now: clock, fill: false }).more),
+    ).toEqual([]);
+  });
+
+  it("shows nothing rather than a read thread when nothing needs you", () => {
+    const projection = projectWorkstreams(
+      [t("or1", 1), t("wr1", 2)],
+      sections,
+      {
+        now,
+      },
+    );
+    const selection = selectUpNext(projection, {
+      kindOf,
+      now: clock,
+      fill: false,
+    });
+    expect(ids(selection.rows)).toEqual([]);
+    expect(ids(selection.more)).toEqual([]);
   });
 
   it("drops read threads not blocked on you first, least urgent first", () => {

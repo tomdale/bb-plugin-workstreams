@@ -40,7 +40,11 @@
  * tier. So Up Next always holds a few threads, grows only for threads
  * blocked on the user, and stays short enough to act on. The trimmed
  * threads that are unread or blocked on the user wait behind Show more,
- * whether or not unread threads lead.
+ * whether or not unread threads lead. A thread that is read and not blocked
+ * on the user therefore only fills a row nothing more urgent wants, and with
+ * `fill` off ("Fill with recent threads" in settings) none of them fills one:
+ * Up Next lists just the threads that are unread or blocked on the user, and
+ * can be empty.
  *
  * Nested threads never appear on their own (BB doesn't mark a delegate
  * unread when its turn ends); they show under their root's row. Parent
@@ -128,6 +132,13 @@ export type UpNextOptions<T extends UpNextThread> = {
    * milliseconds. `0`, the default, ranks by tier alone.
    */
   readonly freshWithinMs?: number;
+  /**
+   * Whether read threads that aren't blocked on the user top up the rows the
+   * unread and blocked-on-you threads leave, as the most recently active of
+   * them. False lists only threads that are unread or blocked on the user, so
+   * Up Next can hold fewer than `shown` rows, or none. True when absent.
+   */
+  readonly fill?: boolean;
 };
 
 /** A question or review: the thread is blocked on the user. */
@@ -232,6 +243,7 @@ export function selectUpNext<T extends UpNextThread>(
   );
   const unreadFirst = options.unreadFirst ?? true;
   const freshWithinMs = options.freshWithinMs ?? 0;
+  const fill = options.fill ?? true;
   const ranked = [
     ...projection.groups,
     projection.unsorted,
@@ -287,7 +299,13 @@ export function selectUpNext<T extends UpNextThread>(
     }
     shown = kept.reverse();
   };
-  trim(shownCount, (entry) => !entry.onYou);
+  // What the user has to act on: everything else is filler, and with `fill`
+  // off none of it fills a row, so Up Next may stop short of `shown`.
+  const actionable = pool.filter((entry) => entry.onYou || entry.unread).length;
+  trim(
+    fill ? shownCount : Math.min(shownCount, actionable),
+    (entry) => !entry.onYou,
+  );
   trim(UP_NEXT_MAX, (entry) => entry.onYou && !entry.unread);
   if (shown.length > UP_NEXT_MAX) {
     const newest = new Set(

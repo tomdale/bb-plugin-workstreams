@@ -160,9 +160,9 @@ export function SidebarSettings() {
 }
 
 /**
- * How many rows Up Next shows before Show more, and what leads it. The same
- * order draws the sidebar, the phone Home screen, the queue, and the next
- * Up Next command (see `selectUpNext`).
+ * Which threads Up Next lists, how many rows it shows before Show more, and
+ * what leads them. The same order draws the sidebar, the phone Home screen,
+ * the queue, and the next Up Next command (see `selectUpNext`).
  */
 export function UpNextSettings() {
   const { prefs, update, error } = useFeaturePrefs();
@@ -190,6 +190,17 @@ export function UpNextSettings() {
               min={UP_NEXT_SHOWN.min}
               max={UP_NEXT_SHOWN.max}
               onChange={(shown) => update({ upNext: { shown } })}
+            />
+          }
+        />
+        <SettingRow
+          label="Fill with recent threads"
+          description="Top up Up Next with the most recently active threads after the ones that are unread or blocked on you. Turned off, Up Next shows only threads that are unread or blocked on you, so it can be empty."
+          control={
+            <SettingSwitch
+              label="Fill with recent threads"
+              checked={prefs.upNext.fill}
+              onChange={(fill) => update({ upNext: { fill } })}
             />
           }
         />

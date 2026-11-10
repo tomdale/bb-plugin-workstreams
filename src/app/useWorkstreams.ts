@@ -176,6 +176,7 @@ export function useWorkstreams() {
       now,
       shown: upNextPrefs?.shown ?? UP_NEXT_SHOWN.fallback,
       unreadFirst: upNextPrefs?.unreadFirst ?? true,
+      fill: upNextPrefs?.fill ?? true,
       freshWithinMs: UP_NEXT_FRESH_WINDOWS[upNextPrefs?.freshWindow ?? "off"],
     }),
     [analysis, recaps, now, upNextPrefs],

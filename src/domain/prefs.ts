@@ -153,6 +153,12 @@ const GROUPS = {
     /** Rank unread threads above every other thread. */
     unreadFirst: [z.boolean(), true],
     /**
+     * Top up Up Next's rows with recently active threads that are read and not
+     * blocked on the user. Off, it lists only threads that are unread or
+     * blocked on the user (see `selectUpNext`).
+     */
+    fill: [z.boolean(), true],
+    /**
      * Rank threads whose turn ended within this window above older ones; off
      * ranks by tier and attention alone.
      */

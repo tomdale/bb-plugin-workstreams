@@ -167,10 +167,11 @@ describe("Workstreams prefs", () => {
     await world.harness.lifecycle.dispose();
   });
 
-  it("defaults Up Next's row count, unread order, and recent window", () => {
+  it("defaults Up Next's row count, fill, unread order, and recent window", () => {
     expect(parsePrefs({}).upNext).toEqual({
       shown: 5,
       unreadFirst: true,
+      fill: true,
       freshWindow: "off",
     });
     // Each field falls back on its own and clamps to Up Next's range.
@@ -178,7 +179,12 @@ describe("Workstreams prefs", () => {
       parsePrefs({
         upNext: { shown: 99, unreadFirst: false, freshWindow: "2h" },
       }).upNext,
-    ).toEqual({ shown: 10, unreadFirst: false, freshWindow: "off" });
+    ).toEqual({
+      shown: 10,
+      unreadFirst: false,
+      fill: true,
+      freshWindow: "off",
+    });
     expect(parsePrefs({ upNext: { shown: 0 } }).upNext.shown).toBe(1);
     expect(
       prefsPatchSchema.safeParse({ upNext: { freshWindow: "2h" } }).success,

@@ -236,7 +236,7 @@ it("clamps the Recent stepper to 1–20 and hides it when Recent is off", async 
   ).toBe(true);
 });
 
-it("saves Up Next's row count, unread order, and recent window", async () => {
+it("saves Up Next's row count, fill, unread order, and recent window", async () => {
   const slot = await mount("up-next");
   const shown = await slot.findByLabelText("threads shown", {
     selector: "output",
@@ -244,6 +244,9 @@ it("saves Up Next's row count, unread order, and recent window", async () => {
   expect(shown.textContent).toBe("5");
   fireEvent.click(slot.getByRole("button", { name: "Increase threads shown" }));
   await waitFor(() => expect(shown.textContent).toBe("6"));
+  fireEvent.click(
+    slot.getByRole("switch", { name: "Fill with recent threads" }),
+  );
   fireEvent.click(
     slot.getByRole("switch", { name: "Always show unread first" }),
   );
@@ -254,7 +257,7 @@ it("saves Up Next's row count, unread order, and recent window", async () => {
   await waitFor(() =>
     expect(
       slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
-    ).toHaveLength(3),
+    ).toHaveLength(4),
   );
   expect(
     slot.inspection.rpcCalls
@@ -262,6 +265,7 @@ it("saves Up Next's row count, unread order, and recent window", async () => {
       .map((call) => call.input),
   ).toEqual([
     { patch: { upNext: { shown: 6 } } },
+    { patch: { upNext: { fill: false } } },
     { patch: { upNext: { unreadFirst: false } } },
     { patch: { upNext: { freshWindow: "1d" } } },
   ]);
