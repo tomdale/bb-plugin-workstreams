@@ -1,4 +1,10 @@
-import type { ReactNode, Ref } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { presenceProps, type FoldState, type PresencePhase } from "./motion.ts";
@@ -18,6 +24,23 @@ export function FoldChevron({ open }: { open: boolean }) {
       )}
     />
   );
+}
+
+/** The phase of the fold a row sits in, so its open menus can close with it. */
+const FoldPhase = createContext<PresencePhase>("idle");
+
+/**
+ * Closes a menu the moment the fold around it starts closing. The contents
+ * stay mounted, inert, until the fold finishes, and a menu left open over
+ * them would outlive the row it belongs to.
+ */
+export function useCloseOnFoldLeave(open: boolean, close: () => void) {
+  const leaving = useContext(FoldPhase) === "leave";
+  useEffect(() => {
+    if (leaving && open) close();
+    // `close` only has to be current when the fold starts leaving.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaving, open]);
 }
 
 /**
@@ -40,7 +63,7 @@ export function FoldBody({
   return (
     <div className="ws-fold" ref={fold.ref} {...presenceProps(fold.phase)}>
       <ul ref={listRef} className={listClassName}>
-        {children}
+        <FoldPhase.Provider value={fold.phase}>{children}</FoldPhase.Provider>
       </ul>
     </div>
   );

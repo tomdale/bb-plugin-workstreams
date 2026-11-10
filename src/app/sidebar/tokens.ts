@@ -6,7 +6,13 @@ export const SIDEBAR_GEOMETRY = {
   container: { paddingX: 8, paddingTop: 4, paddingBottom: 12 },
   sectionHeading: { height: 13, topMargin: 8, bottomMargin: 9, leftInset: 10 },
   workstreamHeader: { height: 22, indent: 10 },
-  row: { rootHeight: 21, childHeight: 28, rootInset: 5 },
+  row: {
+    rootHeight: 21,
+    childHeight: 28,
+    rootInset: 5,
+    /** A row's left padding in a band over the workstream list. */
+    overlayInset: 6,
+  },
   category: {
     height: 14,
     indent: 20,
@@ -14,6 +20,8 @@ export const SIDEBAR_GEOMETRY = {
     /** Top margin for subsequent categories: 4px catGap + 9px categoryBetween = 13px. */
     betweenGap: 13,
     afterGap: 3,
+    /** A categorized root's sortable tree container pads in by this much (`pl-3`). */
+    treeInset: 12,
   },
   gaps: {
     item: 9,

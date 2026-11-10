@@ -24,23 +24,26 @@
  * Pinned lists the roots the user pinned, in BB's pin order, directly under
  * Up Next. The two bands share one sticky plate at the top of the list, so
  * both stay in reach while the workstreams scroll beneath them.
+ *
+ * This file arranges the list and owns its state. The pieces it draws live
+ * beside it: `Bands.tsx` (band headers, menus, the lower toggle),
+ * `WorkstreamGroup.tsx` (a workstream's header and fold), `GroupBody.tsx` (a
+ * group's trees, categories, and nested groups), `SidebarThreadRow.tsx` (a
+ * thread row and what its placement offers), and `Row.tsx` (the row itself).
+ * `rows.ts` holds the placement table and row planning, `useGroupCollapse.ts`
+ * every group fold, and `useSidebarSnooze.tsx` the snoozing.
  */
 import {
   cloneElement,
-  Fragment,
-  memo,
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type ComponentProps,
   type CSSProperties,
   type ReactElement,
   type ReactNode,
 } from "react";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { DndContext } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -54,50 +57,25 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
-import {
-  MENU_ITEM_CLASS,
-  MENU_LABEL_CLASS,
-  MENU_SEPARATOR_CLASS,
-  menuSurfaceClass,
-} from "../primitives/menu.ts";
-import { CountPill } from "../primitives/CountPill.tsx";
-import {
-  UNFILED_NAME,
-  type Group,
-  type Row as RowModel,
-} from "../../domain/project.ts";
-import {
-  arrangeGroups,
-  focusedSections,
-  type WorkstreamNode,
-} from "../../domain/groups.ts";
+
+import { UNFILED_NAME } from "../../domain/project.ts";
+import { arrangeGroups, focusedSections } from "../../domain/groups.ts";
 import { selectRecent } from "../../domain/upNext.ts";
 import { initialUpNextState, planSidebarUpNext } from "./upNextState.ts";
-import { useWorkstreams, type ServerState } from "../useWorkstreams.ts";
+import { useWorkstreams } from "../useWorkstreams.ts";
 import { useStableSidebarThreads } from "../useStableSidebarThreads.ts";
-import { shareJson } from "../structuralSharing.ts";
-import { workView } from "../../domain/status.ts";
-import { relativeAge } from "../../domain/presentation.ts";
-import { useClock } from "../clock.ts";
-import { useLatest, useStableCallback } from "../useLatest.ts";
+import { useLatest } from "../useLatest.ts";
+import { useSidebarSnooze } from "./useSidebarSnooze.tsx";
 import { useGroupCollapse } from "./useGroupCollapse.ts";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
 import { workstreamGap } from "./workstreamGap.ts";
-import {
-  useBandOptions,
-  type BandId,
-  type BandOptions,
-  type BandSort,
-  type BandSortOption,
-} from "./useBandOptions.ts";
+import { useBandOptions, type BandId } from "./useBandOptions.ts";
 import { NameDialog, type NameRequest } from "./NameDialog.tsx";
 import { SuggestionsFlyaway } from "./SuggestionsFlyaway.tsx";
-import { Row, type RowSnoozeAction } from "./Row.tsx";
 import { headerCounts } from "./presentation.ts";
 import {
   FULL_SLOT_PX,
   bandTitleInset,
-  childIndent,
   slotWidthOf as slotWidthOfRows,
 } from "./statusSlot.ts";
 import { useSpinner } from "../spinner.ts";
@@ -107,138 +85,55 @@ import {
   foldKey,
   foldDefault,
   PLACEMENT_TRAITS,
-  treesOf,
-  unfoldedRows,
   visibleEntries,
   planBandRows,
   planArchived,
-  groupSnoozeRequest,
   type Placement,
-  type RowEntry,
 } from "./rows.ts";
-import { HeaderMenu, RowMenu, type RowMenuHandlers } from "./RowMenu.tsx";
+import { type RowMenuHandlers } from "./RowMenu.tsx";
 import { TraceInspector } from "../debug/Inspector.tsx";
 import {
   DropTarget,
-  IncomingThread,
   Sortable,
   useSidebarDnd,
-  type DragHandle,
   type Drop,
+  groupKey,
 } from "./dnd.tsx";
 import { acceptsThreadDrop, planDrop } from "./drop.ts";
 import { setComposerPreset } from "../composer/preset.ts";
-import {
-  defaultPreset,
-  describeWake,
-  isSnoozed,
-  presetWhen,
-  shortWake,
-  type SnoozeWhen,
-  type ThreadSnooze,
-} from "../../domain/snooze.ts";
-import { snoozeThreads, wakeThreads } from "../snooze/actions.ts";
+import { isSnoozed } from "../../domain/snooze.ts";
+import { wakeThreads } from "../snooze/actions.ts";
 import { CustomSnoozeDialog } from "../snooze/CustomSnoozeDialog.tsx";
-import { SnoozeMenuItems, plainMenuKit } from "../snooze/SnoozeMenuItems.tsx";
-import { SnoozeIcon } from "../snooze/icons.tsx";
-import { WorkstreamName } from "../WorkstreamName.tsx";
+
 import {
   presenceProps,
   useFlip,
-  useFold,
-  useFoldGap,
   usePresence,
   useSlotList,
   type PresenceEntry,
 } from "./motion.ts";
 import { FocusIcon } from "./FocusIcon.tsx";
-import { FoldBody, FoldChevron, Presence } from "./Fold.tsx";
-import { RadioMenuGroup, CheckSlot } from "../primitives/RadioMenuGroup.tsx";
-import {
-  HoverAction,
-  HoverMenuButton,
-  RowActions,
-  RowPressButton,
-  rowActionClass,
-} from "./HoverActions.tsx";
-import { categoryRows } from "../../domain/categoryRows.ts";
-import {
-  colorForWorkstream,
-  workstreamColorStyle,
-  type TopicColor,
-} from "../../domain/workstreamColor.ts";
+import { Presence } from "./Fold.tsx";
+import { colorForWorkstream } from "../../domain/workstreamColor.ts";
 import { Hint } from "../Hint.tsx";
 import { usePrefs } from "../prefs.ts";
-
+import { RenderRow, ThreadNode, ThreadRow } from "./types.ts";
+import { SidebarThreadRow } from "./SidebarThreadRow.tsx";
+import { GroupBody } from "./GroupBody.tsx";
+import {
+  Band,
+  BandGroup,
+  BandOptionsMenu,
+  SidebarViewOptionsMenu,
+  LowerToggle,
+} from "./Bands.tsx";
+import { GroupProps, WorkstreamGroup } from "./WorkstreamGroup.tsx";
 /** The Dormant band folds with the lower workstreams, closed until opened. */
 const DORMANT_BAND = { id: "__dormant" };
 const DORMANT_SCOPE = { byDefault: true, lower: true };
 
 /** Which list of the arrangement a group sits in (see `arrangeGroups`). */
 type GroupList = "pinned" | "populated" | "dormant" | "unfiled";
-type ThreadNode = WorkstreamNode<PluginSidebarThread>;
-
-/** The groups drawn inline under `group`, in order, theirs included. */
-function inlineGroups(group: ThreadNode): ThreadNode[] {
-  return group.subgroups
-    .filter((sub) => sub.inline)
-    .flatMap((sub) => [sub, ...inlineGroups(sub)]);
-}
-
-/** A group's own name, for its rows' label: "Walkthrough Plugin" for "bb: Walkthrough Plugin". */
-const shortLabel = (label: string) => label.split(/:\s*/).at(-1) ?? label;
-type ThreadRow = RowModel<PluginSidebarThread>;
-type RowRenderOptions = {
-  placement: Placement;
-  /**
-   * The projection's clock, which decides whether a stored snooze still
-   * holds. Passed per call, not captured, so a new projection does not
-   * remake every row's renderer.
-   */
-  projectionNow: number;
-  /** The drag handle, for a root row that drags its tree. */
-  handle?: DragHandle;
-  /** The width its rows reserve for the status slot (see `slotWidthOf`). */
-  slotWidth?: number;
-  /** Its group's name, for a row listed outside that group's header. */
-  label?: string;
-  categorized?: boolean;
-};
-type RenderRow = (entry: RowEntry, options: RowRenderOptions) => ReactNode;
-
-/** Snooze menus sample the clock when their portal actually renders. */
-function CurrentSnoozeMenuItems(
-  props: Omit<ComponentProps<typeof SnoozeMenuItems>, "now">,
-) {
-  return <SnoozeMenuItems {...props} now={Date.now()} />;
-}
-
-/**
- * Threads to snooze together, from a thread row or a workstream row.
- * `subject` names them in the toast ("4 threads in Alpha").
- */
-type SnoozeRequest = {
-  readonly threads: readonly PluginSidebarThread[];
-  readonly subject?: string;
-};
-/** A workstream row's snooze button (see `WorkstreamGroup`). */
-type GroupSnooze = {
-  /** Names the batch: "Snooze 3 threads". */
-  label: string;
-  /** What a click does: "Snooze 3 threads in Alpha until …". */
-  title: string;
-  run: () => void;
-  /** The hover menu's choices. */
-  menu: ReactNode;
-  /** Snoozes the batch until a time, a wake event, or whichever is first. */
-  snooze: (when: SnoozeWhen) => void;
-  /** Opens the Custom… snooze dialog for the batch. */
-  custom: () => void;
-};
-
-const groupKey = (id: string) => `ws:${id}`;
-const treeKey = (id: string) => `t:${id}`;
-
 export function WorkstreamsThreadList({
   activeThreadId,
   onNavigate,
@@ -251,6 +146,14 @@ export function WorkstreamsThreadList({
   const actions = experimental_useSidebarThreadActions();
   const navigate = useBbNavigate();
   const { bandOptions, updateBandOptions } = useBandOptions();
+  const {
+    snoozePrefs,
+    applySnooze,
+    wakeByDefault,
+    groupSnoozeOf,
+    customSnooze,
+    setCustomSnooze,
+  } = useSidebarSnooze(ws);
   const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [choosingTopic, setChoosingTopic] = useState(false);
@@ -264,7 +167,6 @@ export function WorkstreamsThreadList({
   const [inspecting, setInspecting] = useState<PluginSidebarThread | null>(
     null,
   );
-  const [customSnooze, setCustomSnooze] = useState<SnoozeRequest | null>(null);
   const { projection, sections, now: projectionNow } = ws;
   const nameOf = useMemo(
     () => new Map(sections.map((section) => [section.id, section.name])),
@@ -433,13 +335,6 @@ export function WorkstreamsThreadList({
     acceptsThread: (from, to) => acceptsThreadDrop(from, to, ws.topics),
   });
 
-  const applySnooze = useStableCallback(
-    (request: SnoozeRequest, when: SnoozeWhen) =>
-      snoozeThreads(ws.setSnoozes, request.threads, when, {
-        previous: ws.snoozeOf,
-        subject: request.subject,
-      }),
-  );
   const currentRowActions = useLatest({
     actions,
     navigate,
@@ -471,43 +366,6 @@ export function WorkstreamsThreadList({
     }),
     [],
   );
-  const snoozePrefs = ws.snoozePrefs;
-  const preset = defaultPreset(snoozePrefs);
-  /** When the default preset wakes, from the moment of the click. */
-  const defaultWake = () => presetWhen(preset, Date.now());
-  const wakeByDefault = useStableCallback(defaultWake);
-  /**
-   * A workstream row's snooze button, while the row lists threads: it
-   * snoozes every one of them (see `groupRoots`) with the default preset,
-   * and its menu offers every preset and Custom….
-   */
-  const groupSnoozeOf = useCallback(
-    (group: ThreadNode): GroupSnooze | undefined => {
-      const request = groupSnoozeRequest(group);
-      if (!request) return undefined;
-      const snooze = (when: SnoozeWhen) => applySnooze(request, when);
-      const custom = () => setCustomSnooze(request);
-      const wake = wakeByDefault();
-      return {
-        label: request.label,
-        title: `Snooze ${request.subject} ${describeWake(wake.until, Date.now(), wake.events)}`,
-        run: () => snooze(wakeByDefault()),
-        menu: (
-          <CurrentSnoozeMenuItems
-            kit={plainMenuKit}
-            heading={request.label}
-            prefs={snoozePrefs}
-            onSnooze={snooze}
-            onCustom={custom}
-          />
-        ),
-        snooze,
-        custom,
-      };
-    },
-    [applySnooze, wakeByDefault, snoozePrefs],
-  );
-
   /** The status slot width these rows share (see `slotWidthOf`). */
   const { shape: spinnerShape } = useSpinner();
   const slotWidthOf = (rows: readonly ThreadRow[]) =>
@@ -1163,59 +1021,13 @@ export function WorkstreamsThreadList({
               </SortableContext>,
               ...(hasLower
                 ? [
-                    <button
+                    <LowerToggle
                       key="lower-toggle"
-                      type="button"
-                      data-flip-key="lower-toggle"
-                      aria-expanded={showLower}
-                      aria-label={
-                        !showLower
-                          ? [
-                              "Show other workstreams",
-                              ...(lowerWaiting
-                                ? [`${lowerCounts.needsYou} waiting on you`]
-                                : []),
-                              ...(lowerTotal
-                                ? [
-                                    `${lowerCounts.total} ${lowerCounts.total === 1 ? "thread" : "threads"}`,
-                                  ]
-                                : []),
-                            ].join(", ")
-                          : undefined
-                      }
-                      onClick={toggleLower}
-                      // A quiet link-style toggle, not a section header:
-                      // the workstreams it reveals keep their own headers.
-                      className="group/lower flex items-center gap-1.5 self-stretch rounded-sm text-left text-[12px] font-normal leading-[1.2] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
-                      style={{
-                        marginLeft: SIDEBAR_GEOMETRY.lowerToggle.inset,
-                        marginRight: SIDEBAR_GEOMETRY.lowerToggle.inset,
-                        marginTop: SIDEBAR_GEOMETRY.lowerToggle.topMargin,
-                        marginBottom: SIDEBAR_GEOMETRY.lowerToggle.bottomMargin,
-                        height: SIDEBAR_GEOMETRY.lowerToggle.height,
-                      }}
-                    >
-                      <span className="underline-offset-2 group-hover/lower:underline">
-                        {showLower
-                          ? "Hide other workstreams"
-                          : "Show other workstreams"}
-                      </span>
-                      {!showLower && (lowerWaiting || lowerTotal) ? (
-                        <span
-                          className="ml-auto flex shrink-0 items-center gap-1"
-                          aria-hidden="true"
-                        >
-                          {lowerWaiting ? (
-                            <CountPill>{lowerCounts.needsYou}</CountPill> // slop-ok: 2 the product's waiting-count pill, an established header pattern
-                          ) : null}
-                          {lowerTotal ? (
-                            <span className="text-[11px] tabular-nums text-muted-foreground">
-                              {lowerCounts.total}
-                            </span>
-                          ) : null}
-                        </span>
-                      ) : null}
-                    </button>,
+                      open={showLower}
+                      waiting={lowerWaiting ? lowerCounts.needsYou : 0}
+                      total={lowerTotal ? lowerCounts.total : 0}
+                      onToggle={toggleLower}
+                    />,
                   ]
                 : []),
               ...lowerBlock,
@@ -1314,503 +1126,6 @@ export function WorkstreamsThreadList({
   );
 }
 
-type ThreadTreesProps = {
-  rows: readonly ThreadRow[];
-  groupId: string;
-  label?: string;
-  categorized?: boolean;
-  renderRow: RenderRow;
-  projectionNow: number;
-  collapsed?: boolean;
-  slotWidth: number;
-  choosingTopic: boolean;
-  isCollapsed: (id: string, byDefault?: boolean) => boolean;
-};
-
-function sameThread(before: PluginSidebarThread, after: PluginSidebarThread) {
-  return before === after || shareJson(before, after) === before;
-}
-
-function sameRows(before: readonly ThreadRow[], after: readonly ThreadRow[]) {
-  return (
-    before.length === after.length &&
-    before.every((row, index) => {
-      const next = after[index]!;
-      return (
-        sameThread(row.thread, next.thread) &&
-        row.depth === next.depth &&
-        row.hasChildren === next.hasChildren &&
-        row.workstreamId === next.workstreamId &&
-        row.needsYou === next.needsYou
-      );
-    })
-  );
-}
-
-function useStableRows(rows: readonly ThreadRow[]) {
-  const previous = useRef(rows);
-  return useMemo(() => {
-    if (!sameRows(previous.current, rows)) previous.current = rows;
-    return previous.current;
-  }, [rows]);
-}
-
-/** A sortable root and its visible descendants, with drag-only surface updates. */
-function SortableThreadTree({
-  tree,
-  groupId,
-  label,
-  categorized = false,
-  renderRow,
-  projectionNow,
-  slotWidth,
-  choosingTopic,
-  isCollapsed,
-}: Omit<ThreadTreesProps, "rows"> & {
-  tree: readonly ThreadRow[];
-}) {
-  const visible = useMemo(
-    () =>
-      visibleEntries(tree, "group", (id) =>
-        isCollapsed(foldKey("group", id), foldDefault("group")),
-      ),
-    [tree, isCollapsed],
-  );
-  const content = useCallback(
-    ({ handle }: { handle: DragHandle }) => (
-      <ul>
-        {visible.map((entry, index) =>
-          renderRow(entry, {
-            placement: "group",
-            projectionNow,
-            handle: index === 0 ? handle : undefined,
-            slotWidth,
-            label,
-            categorized,
-          }),
-        )}
-      </ul>
-    ),
-    [visible, renderRow, projectionNow, slotWidth, label, categorized],
-  );
-  const root = tree[0]!.thread;
-  return (
-    <Sortable
-      id={treeKey(root.id)}
-      data={{ type: "thread", threadId: root.id, groupId }}
-      disabled={choosingTopic}
-      className={cn("list-none", categorized && "pl-3")}
-    >
-      {content}
-    </Sortable>
-  );
-}
-
-/**
- * A group's rows as sortable trees; the root row drags the whole tree.
- * Every group decides its status slot together, so titles line up from
- * one group to the next.
- */
-const ThreadTrees = memo(
-  function ThreadTrees({
-    rows,
-    groupId,
-    label,
-    categorized = false,
-    renderRow,
-    projectionNow,
-    slotWidth,
-    choosingTopic,
-    isCollapsed,
-  }: ThreadTreesProps) {
-    const stableRows = useStableRows(rows);
-    const trees = useMemo(() => treesOf(stableRows), [stableRows]);
-    const items = useMemo(
-      () => trees.map((tree) => treeKey(tree[0]!.thread.id)),
-      [trees],
-    );
-    return (
-      <SortableContext items={items} strategy={verticalListSortingStrategy}>
-        {trees.map((tree) => (
-          <SortableThreadTree
-            key={tree[0]!.thread.id}
-            tree={tree}
-            groupId={groupId}
-            label={label}
-            categorized={categorized}
-            renderRow={renderRow}
-            projectionNow={projectionNow}
-            slotWidth={slotWidth}
-            choosingTopic={choosingTopic}
-            isCollapsed={isCollapsed}
-          />
-        ))}
-      </SortableContext>
-    );
-  },
-  (before, after) =>
-    (before.collapsed && after.collapsed) ||
-    (before.collapsed === after.collapsed &&
-      sameRows(before.rows, after.rows) &&
-      before.groupId === after.groupId &&
-      before.label === after.label &&
-      before.categorized === after.categorized &&
-      before.renderRow === after.renderRow &&
-      before.slotWidth === after.slotWidth &&
-      before.choosingTopic === after.choosingTopic &&
-      before.isCollapsed === after.isCollapsed),
-);
-
-type GroupBodyProps = {
-  group: ThreadNode;
-  collapsed: boolean;
-  renderRow: RenderRow;
-  projectionNow: number;
-  groupSlot: number;
-  choosingTopic: boolean;
-  colorOf: (group: ThreadNode) => TopicColor;
-  newThreadIn: (group: ThreadNode) => () => void;
-  groupSnoozeOf: (group: ThreadNode) => GroupSnooze | undefined;
-  isCollapsed: (id: string, byDefault?: boolean) => boolean;
-  groupCollapsed: (group: ThreadNode) => boolean;
-  toggleGroup: (group: ThreadNode) => void;
-};
-
-function CategorizedTrees({
-  group,
-  label,
-  renderRow,
-  projectionNow,
-  collapsed,
-  groupSlot,
-  choosingTopic,
-  colorOf,
-  isCollapsed,
-}: Pick<
-  GroupBodyProps,
-  | "group"
-  | "renderRow"
-  | "projectionNow"
-  | "collapsed"
-  | "groupSlot"
-  | "choosingTopic"
-  | "colorOf"
-  | "isCollapsed"
-> & { label?: string }) {
-  const rows = useStableRows(group.rows);
-  const categories = useMemo(
-    () => categoryRows(rows, group.categories),
-    [rows, group.categories],
-  );
-  const color = useMemo(
-    () => workstreamColorStyle(colorOf(group)) as CSSProperties,
-    [colorOf, group.id, group.topicId],
-  );
-  return categories.map((category, index) => (
-    <Fragment key={category.id ?? "unplaced"}>
-      {category.name ? (
-        <li
-          className="list-none"
-          style={{
-            marginTop:
-              index === 0
-                ? SIDEBAR_GEOMETRY.category.firstTopGap
-                : SIDEBAR_GEOMETRY.category.betweenGap,
-            marginBottom: SIDEBAR_GEOMETRY.category.afterGap,
-            height: SIDEBAR_GEOMETRY.category.height,
-            paddingLeft: SIDEBAR_GEOMETRY.category.indent,
-          }}
-        >
-          <h4
-            className="ws-text-category ws-category-label m-0 truncate"
-            style={color}
-          >
-            {label ? (
-              <>
-                {label}
-                <span className="sr-only">:</span> {category.name}
-              </>
-            ) : (
-              category.name
-            )}
-          </h4>
-        </li>
-      ) : null}
-      <ThreadTrees
-        rows={category.rows}
-        groupId={group.id}
-        label={label}
-        categorized={Boolean(category.name)}
-        renderRow={renderRow}
-        projectionNow={projectionNow}
-        collapsed={collapsed}
-        slotWidth={groupSlot}
-        choosingTopic={choosingTopic}
-        isCollapsed={isCollapsed}
-      />
-    </Fragment>
-  ));
-}
-
-function NestedGroup(
-  props: GroupBodyProps & {
-    sectionRef?: (element: HTMLElement | null) => void;
-  },
-) {
-  const {
-    group,
-    groupCollapsed,
-    toggleGroup,
-    colorOf,
-    newThreadIn,
-    groupSnoozeOf,
-    sectionRef,
-  } = props;
-  const collapsed = groupCollapsed(group);
-  const toggleThis = useCallback(
-    () => toggleGroup(group),
-    [toggleGroup, group],
-  );
-  const onNewThread = useMemo(() => newThreadIn(group), [newThreadIn, group]);
-  return (
-    <WorkstreamGroup
-      group={group}
-      color={colorOf(group)}
-      nested
-      nestedIndent={childIndent(props.groupSlot)}
-      sectionRef={sectionRef}
-      collapsed={collapsed}
-      toggle={toggleThis}
-      onNewThread={onNewThread}
-      snooze={groupSnoozeOf(group)}
-    >
-      <GroupBody {...props} collapsed={collapsed} />
-    </WorkstreamGroup>
-  );
-}
-
-/** A group's own rows and nested groups, isolated from header and drag updates. */
-const GroupBody = memo(
-  function GroupBody(props: GroupBodyProps) {
-    const { group } = props;
-    return (
-      <>
-        <CategorizedTrees {...props} />
-        {inlineGroups(group).map((sub) => (
-          <CategorizedTrees
-            {...props}
-            key={`inline:${sub.id}`}
-            group={sub}
-            label={shortLabel(sub.label)}
-          />
-        ))}
-        {group.subgroups
-          .filter((sub) => !sub.inline)
-          .map((sub) => (
-            <li key={sub.id} className="list-none">
-              <DropTarget
-                id={groupKey(sub.id)}
-                data={{ type: "target", groupId: sub.id }}
-              >
-                {(ref) => (
-                  <NestedGroup {...props} group={sub} sectionRef={ref} />
-                )}
-              </DropTarget>
-            </li>
-          ))}
-      </>
-    );
-  },
-  (before, after) =>
-    (before.collapsed && after.collapsed) ||
-    (before.collapsed === after.collapsed &&
-      sameGroupData(before.group, after.group) &&
-      before.renderRow === after.renderRow &&
-      before.groupSlot === after.groupSlot &&
-      before.choosingTopic === after.choosingTopic &&
-      before.colorOf === after.colorOf &&
-      before.newThreadIn === after.newThreadIn &&
-      before.groupSnoozeOf === after.groupSnoozeOf &&
-      before.isCollapsed === after.isCollapsed &&
-      before.groupCollapsed === after.groupCollapsed &&
-      before.toggleGroup === after.toggleGroup),
-);
-
-function sameGroupData(before: ThreadNode, after: ThreadNode): boolean {
-  return (
-    before.id === after.id &&
-    before.name === after.name &&
-    before.label === after.label &&
-    before.total === after.total &&
-    before.needsYou === after.needsYou &&
-    before.lastActiveAt === after.lastActiveAt &&
-    before.prioritized === after.prioritized &&
-    before.topicId === after.topicId &&
-    before.hasSection === after.hasSection &&
-    before.inline === after.inline &&
-    before.categories === after.categories &&
-    sameRows(before.rows, after.rows) &&
-    before.sectionIds.length === after.sectionIds.length &&
-    before.sectionIds.every((id, index) => id === after.sectionIds[index]) &&
-    before.subgroups.length === after.subgroups.length &&
-    before.subgroups.every((sub, index) =>
-      sameGroupData(sub, after.subgroups[index]!),
-    )
-  );
-}
-
-type SidebarThreadRowProps = {
-  handleRef?: DragHandle["ref"];
-  handleListeners?: DragHandle["listeners"];
-  thread: PluginSidebarThread;
-  depth: number;
-  active: boolean;
-  context?: string;
-  placement: Placement;
-  analysis?: ServerState["analysis"][string];
-  recap?: ServerState["recaps"][string];
-  slotWidth: number;
-  snooze?: ThreadSnooze;
-  snoozePrefs: ServerState["snoozePrefs"];
-  defaultWake: () => SnoozeWhen;
-  handlers: RowMenuHandlers;
-  disclosureExpanded?: boolean;
-  categorized: boolean;
-  onNavigate: () => void;
-  toggleDisclosure: (id: string, byDefault?: boolean) => void;
-};
-
-/**
- * A list row with stable action identities. Its memo compares every prop,
- * including callbacks, so an unrelated thread update skips the SDK hooks and
- * presentation work in `Row` without retaining stale actions.
- */
-const SidebarThreadRow = memo(function SidebarThreadRow({
-  thread,
-  depth,
-  active,
-  context,
-  placement,
-  analysis,
-  recap,
-  slotWidth,
-  snooze,
-  snoozePrefs,
-  defaultWake,
-  handlers,
-  disclosureExpanded,
-  categorized,
-  onNavigate,
-  toggleDisclosure,
-  handleRef,
-  handleListeners,
-}: SidebarThreadRowProps) {
-  const work = workView(thread, analysis, recap);
-  // A snoozed row's wake time follows the clock, so the row reads it itself.
-  const wakeTime = useClock((now) =>
-    snooze ? shortWake(snooze.until, now) : undefined,
-  );
-  const wakeTitle = useClock((now) =>
-    snooze ? describeWake(snooze.until, now, snooze.events) : "",
-  );
-  const traits = PLACEMENT_TRAITS[placement];
-  let snoozeAction: RowSnoozeAction | undefined;
-  if (traits.snooze && (traits.snooze !== "wake" || snooze !== undefined)) {
-    const wake = defaultWake();
-    const menu = (
-      <CurrentSnoozeMenuItems
-        kit={plainMenuKit}
-        prefs={snoozePrefs}
-        snooze={snooze}
-        onSnooze={(when) => handlers.snooze(thread, when)}
-        onWake={() => handlers.wake(thread)}
-        onCustom={() => handlers.customSnooze(thread)}
-      />
-    );
-    snoozeAction =
-      traits.snooze === "wake"
-        ? {
-            kind: "wake",
-            title: `Wake now (snoozed ${wakeTitle})`,
-            run: () => handlers.wake(thread),
-            menu,
-          }
-        : {
-            kind: "snooze",
-            title: `Snooze ${describeWake(wake.until, Date.now(), wake.events)}`,
-            run: () => handlers.snooze(thread, defaultWake()),
-            menu,
-          };
-  }
-  return (
-    <RowMenu
-      thread={thread}
-      handlers={handlers}
-      snooze={snooze}
-      snoozePrefs={snoozePrefs}
-      showArchive={traits.showArchive}
-    >
-      <li ref={handleRef} {...handleListeners} className="list-none">
-        <Row
-          thread={thread}
-          depth={depth}
-          active={active}
-          context={placement === "snoozed" ? wakeTime : context}
-          placement={placement}
-          work={work}
-          slotWidth={slotWidth}
-          subtitle={
-            traits.subtitle && work.kind === "current"
-              ? work.analysis.needsYou
-              : null
-          }
-          snoozeAction={snoozeAction}
-          disclosure={
-            disclosureExpanded === undefined
-              ? undefined
-              : {
-                  expanded: disclosureExpanded,
-                  toggle: () =>
-                    toggleDisclosure(
-                      foldKey(placement, thread.id),
-                      foldDefault(placement),
-                    ),
-                }
-          }
-          categorized={categorized}
-          onNavigate={onNavigate}
-        />
-      </li>
-    </RowMenu>
-  );
-}, sameSidebarThreadRow);
-
-function sameSidebarThreadRow(
-  before: SidebarThreadRowProps,
-  after: SidebarThreadRowProps,
-) {
-  return (
-    sameThread(before.thread, after.thread) &&
-    before.depth === after.depth &&
-    before.active === after.active &&
-    before.context === after.context &&
-    before.placement === after.placement &&
-    before.analysis === after.analysis &&
-    before.recap === after.recap &&
-    before.slotWidth === after.slotWidth &&
-    before.snooze === after.snooze &&
-    before.snoozePrefs === after.snoozePrefs &&
-    before.defaultWake === after.defaultWake &&
-    before.handlers === after.handlers &&
-    before.disclosureExpanded === after.disclosureExpanded &&
-    before.categorized === after.categorized &&
-    before.onNavigate === after.onNavigate &&
-    before.toggleDisclosure === after.toggleDisclosure &&
-    before.handleRef === after.handleRef &&
-    before.handleListeners === after.handleListeners
-  );
-}
-
 /** The band of threads most worth the user's attention (see `selectUpNext`). */
 const UP_NEXT = "Up Next";
 
@@ -1826,506 +1141,3 @@ const UP_NEXT_MORE_KEY = ":more";
 const upNextItemKey = (item: UpNextItem) =>
   item.kind === "row" ? item.row.thread.id : UP_NEXT_MORE_KEY;
 const PINNED = "Pinned";
-
-/**
- * One workstream's threads in Recent, Snoozed, or Archived when the band
- * groups by workstream: a compact header that folds the group and carries its
- * name and count. `label` is the band's name, for the region's accessible
- * name.
- */
-function BandGroup({
-  label,
-  name,
-  count,
-  collapsed,
-  onToggle,
-  children,
-}: {
-  label: string;
-  name: string;
-  count: number;
-  collapsed: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
-  const fold = useFold(!collapsed);
-  return (
-    <section aria-label={`${label} ${name}`} className="px-1">
-      <button
-        type="button"
-        aria-expanded={!collapsed}
-        onClick={onToggle}
-        className="flex w-full cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-left text-[12px] font-medium text-muted-foreground hover:bg-sidebar-accent/60"
-      >
-        <FoldChevron open={!collapsed} />
-        <WorkstreamName name={name} muted className="flex-1 text-[12px]" />
-        <span className="tabular-nums">{count}</span>
-      </button>
-      <FoldBody fold={fold}>{children}</FoldBody>
-    </section>
-  );
-}
-
-/**
- * An overlay band. A plain band collapses from its header. A boxed band is an
- * always-open block spanning the column, with its header inside: `attention`
- * is the Up Next card (`.ws-needs`), `pinned` the quiet card of the threads
- * kept in reach (`.ws-pinned`), and `neutral` the
- * quieter Recent block (`.ws-band-neutral`). Each sets its rows apart from
- * the workstream list below.
- */
-const BOX_STYLES = {
-  attention: {
-    section: "ws-needs mx-2 mt-0 px-1 pt-1.5 pb-2", // slop-ok: 2 the Up Next band, an established product surface
-    heading:
-      "ws-needs-heading py-0.5 text-[11px] font-semibold uppercase tracking-wide", // slop-ok: 1 the product's section-label style
-  },
-  pinned: {
-    section: "ws-pinned mx-2 mt-0 px-1 pt-1.5 pb-2", // slop-ok: 2 the Pinned band, the Up Next card's quieter neighbor
-    heading: "pb-1 text-[12px] font-medium text-muted-foreground",
-  },
-  neutral: {
-    section: "ws-band-neutral my-1 px-2 py-1", // slop-ok: 2 the neutral band, an established product surface
-    heading:
-      "py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground", // slop-ok: 1 the product's section-label style
-  },
-} as const;
-
-function Band({
-  title,
-  count,
-  box,
-  badge,
-  markless,
-  collapsed,
-  toggle,
-  menu,
-  flipKey,
-  style,
-  children,
-}: {
-  title: string;
-  /** Row total, shown only while the band is collapsed. */
-  count?: number;
-  box?: "attention" | "pinned" | "neutral";
-  /** A small mark after the title. */
-  badge?: ReactNode;
-  /**
-   * No row in a boxed band draws a status mark, so titles sit at the
-   * collapsed slot's 14px indent; the header indents to match.
-   */
-  markless?: boolean;
-  collapsed?: boolean;
-  toggle?: () => void;
-  menu?: ReactNode;
-  /** Glides the band when a focus change moves it (see `useFlip`). */
-  flipKey?: string;
-  style?: CSSProperties;
-  children: ReactNode;
-}) {
-  const fold = useFold(collapsed === undefined || !collapsed);
-  const heading = (
-    <>
-      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-        {title}
-        {badge}
-      </span>
-      {count !== undefined && collapsed ? (
-        <span
-          className={cn(
-            "tabular-nums",
-            box === "attention" && "ws-needs-count",
-          )}
-        >
-          {count}
-        </span>
-      ) : null}
-    </>
-  );
-  if (box) {
-    const styles = BOX_STYLES[box];
-    return (
-      <section
-        aria-label={title}
-        data-flip-key={flipKey}
-        style={style}
-        className={styles.section}
-      >
-        <div className="flex items-center gap-1">
-          <h2
-            className={cn(
-              "flex min-w-0 flex-1 items-center gap-1 pr-1.5",
-              styles.heading,
-              markless ? "pl-3.5" : "pl-1.5",
-            )}
-          >
-            {heading}
-          </h2>
-          {menu}
-        </div>
-        <ul className="mt-0.5">{children}</ul>
-      </section>
-    );
-  }
-  return (
-    <section
-      aria-label={title}
-      data-flip-key={flipKey}
-      style={style}
-      className="px-1"
-    >
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          aria-expanded={!collapsed}
-          onClick={toggle}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-sidebar-accent/60" // slop-ok: 1 the product's section-label style
-        >
-          <FoldChevron open={!collapsed} />
-          {heading}
-        </button>
-        {menu}
-      </div>
-      <FoldBody fold={fold}>{children}</FoldBody>
-    </section>
-  );
-}
-
-/**
- * The ⋯ button that opens a section's options, such as its sort. It looks
- * like a row action (`rowActionClass`), but stays in view, dimmed until used,
- * because it is the only way to those options, on touch screens too.
- */
-function SectionMenuTrigger({ label }: { label: string }) {
-  return (
-    <DropdownMenu.Trigger asChild>
-      <Hint label={label}>
-        <button
-          type="button"
-          aria-label={label}
-          onClick={(event) => event.stopPropagation()}
-          className={cn(
-            rowActionClass,
-            "opacity-50 hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
-          )}
-        >
-          <Icon name="MoreHorizontal" className="size-3.5" />
-        </button>
-      </Hint>
-    </DropdownMenu.Trigger>
-  );
-}
-
-function SidebarViewOptionsMenu({
-  sort,
-  onChange,
-}: {
-  sort: "alphabetical" | "activity" | "manual";
-  onChange: (sort: "alphabetical" | "activity" | "manual") => void;
-}) {
-  const options = [
-    ["alphabetical", "Name A–Z"],
-    ["activity", "Recent activity"],
-    ["manual", "Manual order"],
-  ] as const;
-  return (
-    <DropdownMenu.Root>
-      <SectionMenuTrigger label="Sort workstreams" />
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align="end"
-          sideOffset={4}
-          aria-label="Sort workstreams"
-          className={menuSurfaceClass("48")}
-        >
-          <DropdownMenu.Label className={MENU_LABEL_CLASS}>
-            Sort workstreams
-          </DropdownMenu.Label>
-          <RadioMenuGroup value={sort} options={options} onChange={onChange} />
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
-  );
-}
-
-function BandOptionsMenu({
-  section,
-  options,
-  onChange,
-}: {
-  section: BandId;
-  options: BandOptions[BandId];
-  onChange: (change: Partial<BandOptions[BandId]>) => void;
-}) {
-  const label = section[0]!.toUpperCase() + section.slice(1);
-  const sortOptions: readonly BandSortOption[] =
-    section === "recent"
-      ? [
-          ["activity", "Recent activity"],
-          ["title", "Title A–Z"],
-        ]
-      : section === "snoozed"
-        ? [
-            ["wake", "Soonest to wake"],
-            ["activity", "Recent activity"],
-            ["title", "Title A–Z"],
-          ]
-        : [
-            ["archived", "Archive date"],
-            ["activity", "Recent activity"],
-            ["title", "Title A–Z"],
-          ];
-  return (
-    <DropdownMenu.Root>
-      <SectionMenuTrigger label={`${label} options`} />
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align="end"
-          sideOffset={4}
-          className={menuSurfaceClass("48")}
-        >
-          <DropdownMenu.Label className={MENU_LABEL_CLASS}>
-            Sort by
-          </DropdownMenu.Label>
-          <RadioMenuGroup
-            value={options.sort}
-            options={sortOptions}
-            onChange={(sort) => onChange({ sort })}
-          />
-          <DropdownMenu.Separator className={MENU_SEPARATOR_CLASS} />
-          <DropdownMenu.CheckboxItem
-            checked={options.grouped}
-            onCheckedChange={(checked) =>
-              onChange({ grouped: checked === true })
-            }
-            className={cn(MENU_ITEM_CLASS, "gap-2")}
-          >
-            <CheckSlot />
-            Group by workstream
-          </DropdownMenu.CheckboxItem>
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
-  );
-}
-
-type GroupProps = {
-  group: ThreadNode;
-  /**
-   * A subgroup: its block starts one step in, where its parent's name does,
-   * and its name reads as a label, smaller and muted.
-   */
-  nested?: boolean;
-  /** A nested header's left padding: the step its parent's rows indent by. */
-  nestedIndent?: number;
-  collapsed: boolean;
-  toggle: () => void;
-  onNewThread?: () => void;
-  onToggleFocus?: () => void;
-  /** Snoozes every thread the group lists; absent while it lists none. */
-  snooze?: GroupSnooze;
-  muted?: boolean;
-  /** Drag-and-drop wiring: the section moves, the header drags it. */
-  sectionRef?: (element: HTMLElement | null) => void;
-  color?: TopicColor;
-  /** The color of the container the label's prefix names, when it has one. */
-  prefixColor?: TopicColor;
-  style?: CSSProperties;
-  handle?: DragHandle;
-  children: ReactNode;
-};
-
-function WorkstreamGroup({
-  group,
-  nested = false,
-  nestedIndent = childIndent(FULL_SLOT_PX),
-  collapsed,
-  toggle,
-  onNewThread,
-  onToggleFocus,
-  snooze,
-  muted,
-  sectionRef,
-  color,
-  prefixColor,
-  style,
-  handle,
-  children,
-}: GroupProps) {
-  const { prefs } = usePrefs();
-  const bodyRef = useRef<HTMLUListElement | null>(null);
-  /** The section, for the gap the fold moves below it (see `useFoldGap`). */
-  const section = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (!collapsed) return;
-    const root = section.current;
-    const list = bodyRef.current;
-    if (list) {
-      for (const trigger of list.querySelectorAll("button")) {
-        const leave = new Event("pointerleave");
-        Object.defineProperty(leave, "pointerType", { value: "mouse" });
-        trigger.dispatchEvent(leave);
-      }
-      const open = list.querySelector("[data-state='open']");
-      if (open)
-        (document.activeElement ?? open).dispatchEvent(
-          new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-        );
-    }
-    // Focus that was inside the fold resets to <body> when it unmounts;
-    // move it to the header rather than dropping it from the list.
-    const active = document.activeElement;
-    if ((list && list.contains(active)) || active === document.body)
-      root?.querySelector<HTMLButtonElement>("button")?.focus();
-    // section.current is a ref; only `collapsed` gates the cleanup.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collapsed]);
-  const label = group.label;
-  const isWorkstream = group.hasSection;
-  const counts = headerCounts(group, collapsed, prefs?.sidebar);
-  const fold = useFold(!collapsed);
-  const refSection = useRef(sectionRef);
-  refSection.current = sectionRef;
-  const setSection = useCallback((element: HTMLElement | null) => {
-    section.current = element;
-    refSection.current?.(element);
-  }, []);
-  useFoldGap(section, fold.phase);
-  const headingClass = "flex min-w-0 flex-1 items-center gap-1";
-  const heading = (
-    <WorkstreamName
-      name={label}
-      prefixColor={prefixColor}
-      muted={muted || nested}
-      accent={isWorkstream}
-      className={
-        nested && !isWorkstream
-          ? "text-[11px] font-semibold uppercase tracking-wide" // slop-ok: 1 the product's section-label style
-          : "ws-text-workstream"
-      }
-    />
-  );
-  const focusAction = onToggleFocus ? (
-    <HoverAction
-      compact
-      revealed={group.prioritized}
-      pressed={group.prioritized}
-      label={
-        group.prioritized
-          ? `Stop focusing on ${group.name}`
-          : `Focus on ${group.name}`
-      }
-      hint={group.prioritized ? "Stop focusing" : "Focus"}
-      onClick={onToggleFocus}
-      className={group.prioritized ? "text-foreground/70" : undefined}
-    >
-      <FocusIcon filled={group.prioritized} className="size-3.5" />
-    </HoverAction>
-  ) : null;
-  return (
-    <IncomingThread groupId={group.id}>
-      {(incoming) => (
-        <section
-          ref={setSection}
-          aria-label={group.name}
-          data-flip-key={`group:${group.id}`}
-          data-prioritized={group.prioritized ? "" : undefined}
-          data-drop-target={incoming ? "" : undefined}
-          className={cn(
-            "rounded-md",
-            nested && "pt-1",
-            incoming && "bg-sidebar-accent/60",
-          )}
-          style={
-            {
-              ...style,
-              ...workstreamColorStyle(color ?? colorForWorkstream(group.id)),
-            } as CSSProperties
-          }
-        >
-          <HeaderMenu
-            focus={
-              onToggleFocus
-                ? { focused: group.prioritized, toggle: onToggleFocus }
-                : undefined
-            }
-            onNewWork={onNewThread}
-            snooze={snooze}
-          >
-            <div
-              ref={handle?.ref}
-              {...handle?.listeners}
-              className="group/row relative flex items-center gap-1.5 rounded-md pr-2 transition-[padding] duration-[180ms] ease-out motion-reduce:transition-none"
-              style={{
-                height: SIDEBAR_GEOMETRY.workstreamHeader.height,
-                paddingLeft: nested
-                  ? nestedIndent
-                  : SIDEBAR_GEOMETRY.workstreamHeader.indent,
-              }}
-            >
-              <span className={headingClass}>
-                {heading}
-                {/* The chevron is the header's only press: the row stays the
-              workstream's drag handle, and a press on the name does
-              nothing. */}
-                <RowPressButton
-                  aria-expanded={!collapsed}
-                  aria-label={
-                    collapsed ? `Expand ${label}` : `Collapse ${label}`
-                  }
-                  onClick={toggle}
-                  className={cn(rowActionClass, "size-5")}
-                >
-                  <FoldChevron open={!collapsed} />
-                </RowPressButton>
-              </span>
-              {/* Keep the always-visible action at the trailing edge so revealing
-            other actions cannot move it underneath the pointer. */}
-              <RowActions>
-                {onNewThread ? (
-                  <HoverAction
-                    compact
-                    label={`New work in ${group.name}`}
-                    onClick={onNewThread}
-                  >
-                    <Icon name="Plus" className="size-3.5" />
-                  </HoverAction>
-                ) : null}
-                {snooze ? (
-                  <HoverMenuButton
-                    compact
-                    label={snooze.title}
-                    onClick={snooze.run}
-                    menu={snooze.menu}
-                  >
-                    <SnoozeIcon className="size-3.5" />
-                  </HoverMenuButton>
-                ) : null}
-                {focusAction}
-              </RowActions>
-              {/* The header's details, as a thread row's age. */}
-              <span className="flex shrink-0 items-center gap-1 empty:hidden">
-                {counts.waiting ? (
-                  <CountPill // slop-ok: 2 the product's waiting-count pill, an established header pattern
-                    className="transition-colors duration-300"
-                    title={`${group.needsYou} waiting on you`}
-                  >
-                    {group.needsYou}
-                  </CountPill>
-                ) : null}
-                {counts.total ? (
-                  <span className="text-[11px] tabular-nums text-muted-foreground">
-                    {group.total}
-                  </span>
-                ) : null}
-              </span>
-            </div>
-          </HeaderMenu>
-          <FoldBody fold={fold} listRef={bodyRef} listClassName="list-none">
-            {children}
-          </FoldBody>
-        </section>
-      )}
-    </IncomingThread>
-  );
-}

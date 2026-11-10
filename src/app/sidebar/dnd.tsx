@@ -310,3 +310,8 @@ export function DropTarget({
   const { setNodeRef } = useDroppable({ id, data });
   return children(setNodeRef);
 }
+
+/** The sortable or droppable id of a workstream group. */
+export const groupKey = (id: string) => `ws:${id}`;
+/** The sortable id of a root thread's tree. */
+export const treeKey = (id: string) => `t:${id}`;

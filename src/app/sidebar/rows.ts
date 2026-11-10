@@ -6,6 +6,7 @@ import {
   type Row,
 } from "../../domain/project.ts";
 import { groupRoots, type WorkstreamNode } from "../../domain/groups.ts";
+import { shareJson } from "../structuralSharing.ts";
 import type { BandSort } from "./useBandOptions.ts";
 
 export type ThreadRow = Row<PluginSidebarThread>;
@@ -267,4 +268,12 @@ export function groupSnoozeRequest(
     subject: `${count} in ${group.name}`,
     label: `Snooze ${count}`,
   };
+}
+
+/** Whether two snapshots of a thread are the same data, so a row can skip rendering. */
+export function sameThread(
+  before: PluginSidebarThread,
+  after: PluginSidebarThread,
+) {
+  return before === after || shareJson(before, after) === before;
 }

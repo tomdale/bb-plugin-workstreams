@@ -38,14 +38,14 @@ export function rowGeometry(options: {
 } {
   // Inline groups: a root sits at the workstream header's title inset, and
   // a categorized root indents to the category heading. The category's 20px
-  // indent less the sortable tree container's own 12px (`pl-3`) leaves 8px
-  // here, so a categorized root sits flush under its heading. Overlay bands
-  // give every row a fixed 6px indent.
+  // indent less the sortable tree container's own inset (`treeInset`) leaves
+  // 8px here, so a categorized root sits flush under its heading. Overlay
+  // bands give every row a fixed indent.
   const baseIndent = options.inGroup
     ? options.categorized
-      ? SIDEBAR_GEOMETRY.category.indent - 12
+      ? SIDEBAR_GEOMETRY.category.indent - SIDEBAR_GEOMETRY.category.treeInset
       : SIDEBAR_GEOMETRY.row.rootInset
-    : 6;
+    : SIDEBAR_GEOMETRY.row.overlayInset;
   const paddingLeft =
     baseIndent +
     Math.min(options.depth, MAX_INDENT) *

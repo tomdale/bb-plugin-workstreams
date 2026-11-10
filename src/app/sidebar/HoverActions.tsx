@@ -18,6 +18,7 @@ import { usePortalScopeProps } from "@/lib/portal-scope";
 import { cn } from "@/lib/utils";
 import { menuSurfaceClass } from "../primitives/menu.ts";
 import { Hint } from "../Hint.tsx";
+import { useCloseOnFoldLeave } from "./Fold.tsx";
 
 /** How long the pointer rests on the button before its menu opens. */
 const MENU_OPEN_DELAY_MS = 350;
@@ -154,6 +155,7 @@ export function HoverMenuButton({
     if (byKeyboard.current) button.current?.focus();
     byKeyboard.current = false;
   };
+  useCloseOnFoldLeave(open, close);
   const mouse = (event: { pointerType: string }) =>
     event.pointerType === "mouse";
 

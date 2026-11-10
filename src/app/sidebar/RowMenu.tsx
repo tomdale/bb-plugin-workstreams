@@ -26,6 +26,7 @@ import {
   useSharedServerActions,
   useSharedServerStateSelector,
 } from "../serverState.ts";
+import { useCloseOnFoldLeave } from "./Fold.tsx";
 import { isAutomaticTopic } from "../task/TaskIdentity.tsx";
 import { SnoozeMenuItems, type MenuKit } from "../snooze/SnoozeMenuItems.tsx";
 
@@ -74,6 +75,7 @@ export function RowMenu({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  useCloseOnFoldLeave(open, () => setOpen(false));
   const assignment = useSharedServerStateSelector(
     (server) => server.catalog?.assignments[thread.id] ?? null,
   );

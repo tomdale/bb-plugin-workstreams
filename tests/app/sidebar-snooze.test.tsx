@@ -228,6 +228,27 @@ describe("snoozing a workstream row", () => {
     slot.lifecycle.unmount();
   });
 
+  it("closes a row's open snooze menu when its workstream folds", async () => {
+    const slot = await mount(threads().slice(0, 2), {
+      settings: { showRecent: false, showForYou: false },
+      sections: [section("sec_a", "Alpha")],
+      snoozePrefs: snoozeSettings(thirtyMinutes, untilUpdate),
+    });
+    const alpha = await waitFor(() =>
+      slot.getByRole("region", { name: "Alpha" }),
+    );
+    fireEvent.pointerEnter(
+      within(alpha).getAllByRole("button", { name: /^Snooze until/ })[0]!,
+      { pointerType: "mouse" },
+    );
+    await screen.findByRole("menu", {}, { timeout: 2000 });
+    fireEvent.click(
+      within(alpha).getByRole("button", { name: "Collapse Alpha" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    slot.lifecycle.unmount();
+  });
+
   it("offers the presets under a heading naming the batch", async () => {
     const slot = await mount(threads().slice(0, 3), {
       settings: { showRecent: false, showForYou: false },
