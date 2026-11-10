@@ -163,6 +163,10 @@ export function SidebarSettings() {
  * Which threads Up Next lists, how many rows it shows before Show more, and
  * what leads them. The same order draws the sidebar, the phone Home screen,
  * the queue, and the next Up Next command (see `selectUpNext`).
+ *
+ * Each row's label and description state what the setting is doing now, so the
+ * section reads as a description of the list rather than a list of switches to
+ * decode; the alternatives a row offers live in its control.
  */
 export function UpNextSettings() {
   const { prefs, update, error } = useFeaturePrefs();
@@ -176,13 +180,39 @@ export function UpNextSettings() {
     { value: "3d", label: "Last 3 days" },
     { value: "7d", label: "Last week" },
   ];
+  const fill = prefs.upNext.fill
+    ? {
+        label: "Keeps Up Next full",
+        description: "Adds threads you have read after the ones that need you.",
+      }
+    : {
+        label: "Only what needs you",
+        description:
+          "Leaves out threads you have read that aren't waiting on you, so Up Next can be empty.",
+      };
+  const unread = prefs.upNext.unreadFirst
+    ? {
+        label: "Unread first",
+        description: "Unread threads come before read ones, newest first.",
+      }
+    : {
+        label: "Unread ranks with the rest",
+        description: "A read question can lead an unread review.",
+      };
+  const window = windows.find(
+    (option) => option.value === prefs.upNext.freshWindow,
+  );
+  const freshDescription =
+    window && window.value !== "off"
+      ? `Threads that finished in the ${window.label.toLowerCase()} lead, whatever they are waiting on.`
+      : "Every thread ranks by what it needs from you, however recently it finished.";
   return (
     <div className="space-y-3">
       <SettingsSaveError error={error} />
       <SectionRows>
         <SettingRow
           label="Threads shown"
-          description={`How many rows Up Next shows before Show more. Show more lists the threads it trimmed that are still unread or blocked on you, up to ${UP_NEXT_SHOWN.max}.`}
+          description="How many rows Up Next shows by default."
           control={
             <Stepper
               label="threads shown"
@@ -194,22 +224,22 @@ export function UpNextSettings() {
           }
         />
         <SettingRow
-          label="Fill with recent threads"
-          description="Top up Up Next with the most recently active threads after the ones that are unread or blocked on you. Turned off, Up Next shows only threads that are unread or blocked on you, so it can be empty."
+          label={fill.label}
+          description={fill.description}
           control={
             <SettingSwitch
-              label="Fill with recent threads"
+              label={fill.label}
               checked={prefs.upNext.fill}
-              onChange={(fill) => update({ upNext: { fill } })}
+              onChange={(next) => update({ upNext: { fill: next } })}
             />
           }
         />
         <SettingRow
-          label="Always show unread first"
-          description="Rank unread threads above every other thread. Turned off, they rank with whatever their turn was blocked on, so a read question can lead an unread review."
+          label={unread.label}
+          description={unread.description}
           control={
             <SettingSwitch
-              label="Always show unread first"
+              label={unread.label}
               checked={prefs.upNext.unreadFirst}
               onChange={(unreadFirst) => update({ upNext: { unreadFirst } })}
             />
@@ -217,7 +247,7 @@ export function UpNextSettings() {
         />
         <SettingRow
           label="Prioritize recent threads"
-          description="Move threads whose turn ended within the chosen window above older ones, whatever they are blocked on. Inside each group the usual order holds."
+          description={freshDescription}
           control={
             <SettingsPicker
               label="Prioritize recent threads"

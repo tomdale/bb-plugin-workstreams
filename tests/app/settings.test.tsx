@@ -244,12 +244,8 @@ it("saves Up Next's row count, fill, unread order, and recent window", async () 
   expect(shown.textContent).toBe("5");
   fireEvent.click(slot.getByRole("button", { name: "Increase threads shown" }));
   await waitFor(() => expect(shown.textContent).toBe("6"));
-  fireEvent.click(
-    slot.getByRole("switch", { name: "Fill with recent threads" }),
-  );
-  fireEvent.click(
-    slot.getByRole("switch", { name: "Always show unread first" }),
-  );
+  fireEvent.click(slot.getByRole("switch", { name: "Keeps Up Next full" }));
+  fireEvent.click(slot.getByRole("switch", { name: "Unread first" }));
   fireEvent.click(
     slot.getByRole("button", { name: "Prioritize recent threads" }),
   );
@@ -269,6 +265,52 @@ it("saves Up Next's row count, fill, unread order, and recent window", async () 
     { patch: { upNext: { unreadFirst: false } } },
     { patch: { upNext: { freshWindow: "1d" } } },
   ]);
+});
+
+it("names each Up Next setting by what it is doing now", async () => {
+  const slot = await mount("up-next");
+  expect(
+    await slot.findByText(
+      "Adds threads you have read after the ones that need you.",
+    ),
+  ).toBeTruthy();
+  expect(
+    slot.getByText("Unread threads come before read ones, newest first."),
+  ).toBeTruthy();
+  fireEvent.click(slot.getByRole("switch", { name: "Keeps Up Next full" }));
+  fireEvent.click(slot.getByRole("switch", { name: "Unread first" }));
+  expect(
+    await slot.findByRole("switch", { name: "Only what needs you" }),
+  ).toBeTruthy();
+  expect(
+    await slot.findByRole("switch", { name: "Unread ranks with the rest" }),
+  ).toBeTruthy();
+  expect(
+    slot.getByText(
+      "Leaves out threads you have read that aren't waiting on you, so Up Next can be empty.",
+    ),
+  ).toBeTruthy();
+  expect(
+    slot.getByText("A read question can lead an unread review."),
+  ).toBeTruthy();
+});
+
+it("describes the recent-thread window it is set to", async () => {
+  const slot = await mount("up-next");
+  expect(
+    await slot.findByText(
+      "Every thread ranks by what it needs from you, however recently it finished.",
+    ),
+  ).toBeTruthy();
+  fireEvent.click(
+    slot.getByRole("button", { name: "Prioritize recent threads" }),
+  );
+  fireEvent.click(await slot.findByRole("option", { name: "Last day" }));
+  expect(
+    await slot.findByText(
+      "Threads that finished in the last day lead, whatever they are waiting on.",
+    ),
+  ).toBeTruthy();
 });
 
 it("describes title locking accurately", async () => {
