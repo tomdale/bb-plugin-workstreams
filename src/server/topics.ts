@@ -49,6 +49,74 @@ const cleanAliases = (aliases: readonly string[]) => [
 
 type Row = Record<string, unknown>;
 
+const TOPIC_COLUMNS =
+  "id, name, description, parent_id, aliases, project_id, project_source, project_revision";
+
+type TopicRow = {
+  id: string;
+  name: string;
+  description: string;
+  parent_id: string | null;
+  aliases: string;
+  project_id: string | null;
+  project_source: Topic["projectSource"];
+  project_revision: number;
+};
+
+const toTopic = (row: TopicRow): Topic => ({
+  id: row.id,
+  name: row.name,
+  description: row.description,
+  parentId: row.parent_id,
+  aliases: JSON.parse(row.aliases) as string[],
+  projectId: row.project_id,
+  projectSource: row.project_source,
+  projectRevision: row.project_revision,
+});
+
+type SubjectRow = {
+  entity_id: string | null;
+  evidence: string | null;
+  source: string;
+};
+
+/**
+ * The assignment `threadId` has through its root's subject row. `entities`
+ * holds at least the assigned topic and its ancestors.
+ */
+function resolveAssignment(
+  threadId: string,
+  rootId: string,
+  subject: SubjectRow | undefined,
+  entities: readonly Topic[],
+): TopicAssignment {
+  const inheritedFrom = rootId !== threadId ? rootId : null;
+  const entity = subject?.entity_id
+    ? entities.find((e) => e.id === subject.entity_id)
+    : undefined;
+  if (!subject || !entity)
+    return {
+      threadId,
+      entityId: null,
+      status: "unresolved",
+      provenance: subject ? readSource(subject.source) : null,
+      label: null,
+      ancestorIds: [],
+      evidence: subject?.evidence ?? null,
+      inheritedFrom,
+    };
+  return {
+    threadId,
+    entityId: entity.id,
+    status: "assigned",
+    provenance: readSource(subject.source),
+    label: topicPath(entity.id, entities),
+    ancestorIds: topicAncestors(entity.id, entities),
+    evidence: subject.evidence ?? null,
+    inheritedFrom,
+  };
+}
+
 /** Inserts rows as they were read, by column name. */
 function insertRows(db: Database, table: string, rows: readonly Row[]) {
   for (const row of rows) {
@@ -243,30 +311,33 @@ export class TopicStore {
   }
 
   list(): Topic[] {
-    const rows = this.db
-      .prepare(
-        "SELECT id, name, description, parent_id, aliases, project_id, project_source, project_revision FROM ws_corpus_entity ORDER BY id",
-      )
-      .all() as {
-      id: string;
-      name: string;
-      description: string;
-      parent_id: string | null;
-      aliases: string;
-      project_id: string | null;
-      project_source: Topic["projectSource"];
-      project_revision: number;
-    }[];
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      parentId: row.parent_id,
-      aliases: JSON.parse(row.aliases) as string[],
-      projectId: row.project_id,
-      projectSource: row.project_source,
-      projectRevision: row.project_revision,
-    }));
+    return (
+      this.db
+        .prepare(`SELECT ${TOPIC_COLUMNS} FROM ws_corpus_entity ORDER BY id`)
+        .all() as TopicRow[]
+    ).map(toTopic);
+  }
+
+  /**
+   * A topic and its ancestors, read by id rather than with the whole tree:
+   * enough for its path and ancestry. Empty when the topic is gone.
+   */
+  private lineage(entityId: string): Topic[] {
+    const lookup = this.db.prepare(
+      `SELECT ${TOPIC_COLUMNS} FROM ws_corpus_entity WHERE id = ?`,
+    );
+    const out: Topic[] = [];
+    const seen = new Set<string>();
+    let id: string | null = entityId;
+    while (id !== null && !seen.has(id)) {
+      seen.add(id);
+      const row = lookup.get(id) as TopicRow | undefined;
+      if (!row) break;
+      const topic = toTopic(row);
+      out.push(topic);
+      id = topic.parentId;
+    }
+    return out;
   }
 
   /** How many topics sit directly beneath `entityId`. */
@@ -549,86 +620,56 @@ export class TopicStore {
     return currentId;
   }
 
-  assignment(threadId: string): TopicAssignment {
-    const rootId = this.findRootThread(threadId);
-    const isChild = rootId !== threadId;
-    const row = this.db
+  private subject(rootId: string): SubjectRow | undefined {
+    return this.db
       .prepare(
         "SELECT entity_id, evidence, source FROM ws_corpus_subject WHERE thread_id = ?",
       )
-      .get(rootId) as
-      | { entity_id: string | null; evidence: string | null; source: string }
-      | undefined;
-
-    if (!row) {
-      return {
-        threadId,
-        entityId: null,
-        status: "unresolved",
-        provenance: null,
-        label: null,
-        ancestorIds: [],
-        evidence: null,
-        inheritedFrom: isChild ? rootId : null,
-      };
-    }
-
-    const provenance = readSource(row.source);
-
-    const entities = this.list();
-    const entity = row.entity_id
-      ? entities.find((e) => e.id === row.entity_id)
-      : null;
-    if (!entity) {
-      return {
-        threadId,
-        entityId: null,
-        status: "unresolved",
-        provenance,
-        label: null,
-        ancestorIds: [],
-        evidence: row.evidence ?? null,
-        inheritedFrom: isChild ? rootId : null,
-      };
-    }
-
-    return {
-      threadId,
-      entityId: entity.id,
-      status: "assigned",
-      provenance,
-      label: topicPath(entity.id, entities),
-      ancestorIds: topicAncestors(entity.id, entities),
-      evidence: row.evidence ?? null,
-      inheritedFrom: isChild ? rootId : null,
-    };
+      .get(rootId) as SubjectRow | undefined;
   }
 
+  /**
+   * One thread's assignment. It reads only the thread's root, its subject
+   * row, and the assigned topic's lineage, so callers may use it per thread;
+   * a caller resolving many threads at once uses `assignmentsOf`.
+   */
+  assignment(threadId: string): TopicAssignment {
+    const rootId = this.findRootThread(threadId);
+    const subject = this.subject(rootId);
+    return resolveAssignment(
+      threadId,
+      rootId,
+      subject,
+      subject?.entity_id ? this.lineage(subject.entity_id) : [],
+    );
+  }
+
+  /** The assignments of `threadIds`, from one read of the topic tree. */
+  assignmentsOf(threadIds: Iterable<string>): Map<string, TopicAssignment> {
+    const entities = this.list();
+    const out = new Map<string, TopicAssignment>();
+    for (const threadId of threadIds) {
+      const rootId = this.findRootThread(threadId);
+      out.set(
+        threadId,
+        resolveAssignment(threadId, rootId, this.subject(rootId), entities),
+      );
+    }
+    return out;
+  }
+
+  /** Every seen thread's and every stored subject's assignment. */
   assignments(): Record<string, TopicAssignment> {
     const entities = this.list();
-    const byId = new Map(entities.map((e) => [e.id, e]));
-
-    const subjects = new Map<
-      string,
-      { entityId: string | null; evidence: string | null; source: string }
-    >();
-    const subjectRows = this.db
-      .prepare(
-        "SELECT thread_id, entity_id, evidence, source FROM ws_corpus_subject",
-      )
-      .all() as {
-      thread_id: string;
-      entity_id: string | null;
-      evidence: string | null;
-      source: string;
-    }[];
-    for (const row of subjectRows) {
-      subjects.set(row.thread_id, {
-        entityId: row.entity_id,
-        evidence: row.evidence,
-        source: row.source,
-      });
-    }
+    const subjects = new Map(
+      (
+        this.db
+          .prepare(
+            "SELECT thread_id, entity_id, evidence, source FROM ws_corpus_subject",
+          )
+          .all() as (SubjectRow & { thread_id: string })[]
+      ).map((row) => [row.thread_id, row]),
+    );
 
     const seenRows = this.db
       .prepare("SELECT thread_id, parent_thread_id FROM ws_seen_thread")
@@ -658,46 +699,12 @@ export class TopicStore {
     const result: Record<string, TopicAssignment> = {};
     for (const threadId of threadIds) {
       const rootId = resolveRoot(threadId);
-      const isChild = rootId !== threadId;
-      const subject = subjects.get(rootId);
-      if (!subject) {
-        result[threadId] = {
-          threadId,
-          entityId: null,
-          status: "unresolved",
-          provenance: null,
-          label: null,
-          ancestorIds: [],
-          evidence: null,
-          inheritedFrom: isChild ? rootId : null,
-        };
-        continue;
-      }
-      const entity = subject.entityId ? byId.get(subject.entityId) : null;
-      const provenance = readSource(subject.source);
-      if (!entity) {
-        result[threadId] = {
-          threadId,
-          entityId: null,
-          status: "unresolved",
-          provenance,
-          label: null,
-          ancestorIds: [],
-          evidence: subject.evidence ?? null,
-          inheritedFrom: isChild ? rootId : null,
-        };
-        continue;
-      }
-      result[threadId] = {
+      result[threadId] = resolveAssignment(
         threadId,
-        entityId: entity.id,
-        status: "assigned",
-        provenance,
-        label: topicPath(entity.id, entities),
-        ancestorIds: topicAncestors(entity.id, entities),
-        evidence: subject.evidence ?? null,
-        inheritedFrom: isChild ? rootId : null,
-      };
+        rootId,
+        subjects.get(rootId),
+        entities,
+      );
     }
     return result;
   }

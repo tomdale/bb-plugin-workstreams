@@ -25,11 +25,13 @@ The organizer makes no model calls itself. After relevant facts change, it:
 6. Notifies the category coordinator and checks whether topic suggestions or
    project learning are due.
 
-The plan is fingerprinted and checked before mutations. Section writes run in
-one serial queue with reconciliation; superseded plans schedule a fresh pass.
-Invalid depth or threads beside child topics stops the plan before section
-mutations, preserving the applied layout until a reviewed repair is available.
-Completed roots remain filed and count in organization statistics.
+The plan is fingerprinted. Topics, assignments, and analysis can change only
+while a pass awaits BB, so after each awaited call the plan is checked against
+them again before its next mutation. Section writes run in one serial queue with
+reconciliation; superseded plans schedule a fresh pass. Invalid depth or threads
+beside child topics stops the plan before section mutations, preserving the
+applied layout until a reviewed repair is available. Completed roots remain
+filed and count in organization statistics.
 
 BB sections are flat. The sidebar and phone Home use the applied layout, native
 section rows, and category state to draw the same organization. Workstream
@@ -110,9 +112,10 @@ analysis after a new substantive request. It sees the generated title, first,
 second, and latest substantive requests, the context digest Full analysis
 settled, project, checkout, and continuation/start hints. Full analysis
 maintains the digest across turns: two or three sentences naming what the work
-is, what it has established, and its owner, revised in place as turns settle. A checkout's usual topic is a hint unless at least two of its
-threads point at other repositories. Title edits, model changes,
-topic-definition changes, and control-only requests do not re-place a thread.
+is, what it has established, and its owner, revised in place as turns settle. A
+checkout's usual topic is a hint unless at least two of its threads point at
+other repositories. Title edits, model changes, topic-definition changes, and
+control-only requests do not re-place a thread.
 
 Only leaf topics within the two-level limit can be chosen. A new first-level
 proposal uses the owner's recognizable product name. With a known first-level

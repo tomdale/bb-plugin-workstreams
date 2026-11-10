@@ -579,7 +579,7 @@ export default async function plugin(bb: BbPluginApi) {
     service,
     topics,
     analyzer,
-    recaps: () => recaps.all(),
+    recap: (threadId) => recaps.get(threadId)?.recap,
     members: (sectionId) => sectionMembers(bb.sdk, sectionId),
     journal,
     onChange: notify,

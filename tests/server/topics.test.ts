@@ -377,6 +377,46 @@ describe("TopicStore", () => {
     expect(corpus.assignment("t-grandchild").status).toBe("unresolved");
   });
 
+  it("resolves one thread without reading the topic tree, and many from one read", () => {
+    const { host, corpus } = store();
+    const db = openDatabase(host.bb);
+    for (const [id, parent] of [
+      ["root", null],
+      ["child", "root"],
+      ["bare", null],
+      ["cleared", null],
+    ])
+      db.prepare(
+        "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES (?, NULL, ?, ?)",
+      ).run(id, parent, id);
+    const product = corpus.create("Lantern", "Product");
+    const leaf = corpus.create("Up Next", "Upcoming", product.id);
+    corpus.assign("root", leaf.id, { provenance: "full", evidence: "basis" });
+    corpus.assign("cleared", null);
+    const ids = ["root", "child", "bare", "cleared", "unseen"];
+    const list = vi.spyOn(corpus, "list");
+
+    const single = ids.map((id) => corpus.assignment(id));
+    expect(list).not.toHaveBeenCalled();
+    expect(single[1]).toMatchObject({
+      entityId: leaf.id,
+      label: "Lantern: Up Next",
+      ancestorIds: [leaf.id, product.id],
+      evidence: "basis",
+      inheritedFrom: "root",
+    });
+    expect(single[3]).toMatchObject({
+      status: "unresolved",
+      provenance: "manual",
+    });
+
+    const many = corpus.assignmentsOf(ids);
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(ids.map((id) => many.get(id))).toEqual(single);
+    const all = corpus.assignments();
+    expect(ids.slice(0, 4).map((id) => all[id])).toEqual(single.slice(0, 4));
+  });
+
   it("validates scoped name and alias collisions on rename and reparent", () => {
     const { corpus } = store();
     const root = corpus.create("Root", "");
