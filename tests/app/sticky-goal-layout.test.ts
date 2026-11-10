@@ -64,6 +64,8 @@ browserTest.skipIf(browserUnavailable)(
     expect(result.fade).toContain("linear-gradient");
     expect(result.fadeOpacity).toBe("1");
     // One gradient in two lengths: the bar's shadow is the plate's, shortened.
+    expect(result.plateFadeHeight).toBe(192);
+    expect(result.barFadeHeight).toBe(48);
     expect(result.barFadeHeight / result.plateFadeHeight).toBeCloseTo(
       BAR_FADE_RATIO,
     );
@@ -77,11 +79,11 @@ browserTest.skipIf(browserUnavailable)(
   "feathers the heading background gradually in light and dark themes",
   { timeout: 30_000 },
   async ({ page }) => {
-    await page.setViewportSize({ width: 400, height: 220 });
+    await page.setViewportSize({ width: 400, height: 400 });
     await page.setContent(`
         <style>${styles}
           body { margin: 0; }
-          .surface { position: relative; height: 220px; }
+          .surface { position: relative; height: 400px; }
         </style>
         <div class="surface">
           <div class="ws-goal-overlay">

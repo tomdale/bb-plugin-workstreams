@@ -174,11 +174,11 @@ export function headingBackdropOpacity(progress: number): number {
 /**
  * Length of the shadow under the collapsed title bar, as a fraction of the
  * shadow under the expanded plate. styles.css draws both from one gradient
- * (5rem below the plate, 3rem below the bar), and while the heading collapses
+ * (12rem below the plate, 3rem below the bar), and while the heading collapses
  * the plate's shadow shrinks to this same fraction, so the feather that
  * follows the plate never outlasts the bar's.
  */
-export const BAR_FADE_RATIO = 3 / 5;
+export const BAR_FADE_RATIO = 3 / 12;
 
 /** Fraction of the plate's shadow still drawn as the heading collapses. */
 export function plateFadeScale(progress: number): number {

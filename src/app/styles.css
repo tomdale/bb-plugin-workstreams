@@ -591,15 +591,16 @@
   position: absolute;
   right: 0;
   left: 0;
-  /* An elongated shadow: the plate's own color for its first inches, then a
-     long falloff, so the heading never ends on an edge over the timeline. */
-  height: 5rem;
+  /* A long falloff keeps rows below the heading from snapping to full
+     contrast as they emerge from under the plate. */
+  height: 12rem;
   background: linear-gradient(
     to bottom in oklab,
     var(--background) 0%,
-    color-mix(in oklab, var(--background) 78%, transparent) 22%,
-    color-mix(in oklab, var(--background) 45%, transparent) 50%,
-    color-mix(in oklab, var(--background) 16%, transparent) 78%,
+    color-mix(in oklab, var(--background) 90%, transparent) 20%,
+    color-mix(in oklab, var(--background) 65%, transparent) 40%,
+    color-mix(in oklab, var(--background) 40%, transparent) 60%,
+    color-mix(in oklab, var(--background) 18%, transparent) 80%,
     transparent 100%
   );
   content: "";
