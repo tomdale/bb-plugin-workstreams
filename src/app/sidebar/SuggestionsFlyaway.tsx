@@ -191,8 +191,11 @@ export function SuggestionsFlyaway({
         // headline and both sides of a drawing have room for their names; no
         // narrower than the sidebar's own width, and capped so one long name
         // cannot fill the window.
-        // Room for the caret outside the panel, so no clipping here.
-        className="flex max-h-[min(32rem,var(--radix-popover-content-available-height))] w-max min-w-[360px] max-w-[min(40rem,calc(100vw-1rem))] flex-col p-0 text-[13px]"
+        // Room for the caret outside the panel, so no clipping here. The open
+        // animation scales from the caret, not the panel's centre: scaled
+        // about the centre, a tall panel's near edge, and the caret on it,
+        // would slide several pixels while it opens.
+        className="flex max-h-[min(32rem,var(--radix-popover-content-available-height))] w-max min-w-[360px] max-w-[min(40rem,calc(100vw-1rem))] origin-[var(--radix-popover-content-transform-origin)] flex-col p-0 text-[13px]"
       >
         {/* Points at the count, level with it wherever the flyaway lands. The
             drawer needs none, and no popper context to draw one from. */}
