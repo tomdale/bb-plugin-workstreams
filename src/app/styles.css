@@ -332,8 +332,8 @@
 /* The Up Next block: the threads waiting on Tom, and the sidebar's most
    important element. It follows the Geist warning note: a flat card tinted
    with the Needs you color, and a hairline border in that color. A slow shimmer
-   keeps it alive; on arrival the border brightens
-   once and a new row rises in with a short blur. */
+   keeps it alive, and on arrival the border brightens once. Row motion uses
+   transforms and opacity (see sidebar/motion.ts). */
 .ws-needs {
   --ws-needs-tone: var(--ws-needs-you-band);
   position: relative;
@@ -375,21 +375,11 @@
   font-size: 11px;
   font-weight: 500;
 }
-.ws-needs .ws-row {
-  animation: ws-needs-row-arrive 240ms cubic-bezier(0.23, 1, 0.32, 1);
-}
 .ws-needs .ws-row:not(.ws-row-active):hover::before {
   background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
 }
 .ws-needs .ws-row.ws-row-active::before {
   background-color: color-mix(in oklab, var(--foreground) 9%, transparent);
-}
-@keyframes ws-needs-row-arrive {
-  0% {
-    opacity: 0;
-    transform: translateY(4px);
-    filter: blur(2px);
-  }
 }
 /* The shimmer's gradient is three card widths wide. Translating that layer
    keeps the sweep on the compositor; background-position would repaint it.
@@ -426,7 +416,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .ws-needs,
-  .ws-needs .ws-row,
   .ws-needs::after {
     animation: none;
   }

@@ -309,11 +309,15 @@ describe("focused workstreams", () => {
     slot.lifecycle.unmount();
   });
 
-  it("closes a leaving row before removing it, hidden from assistive technology", async () => {
+  it("removes a leaving row and fades its replacement without animating layout", async () => {
     // jsdom has no Web Animations; motion runs only where they exist.
+    const animations = new Map<HTMLElement, Keyframe[]>();
     Object.defineProperty(Element.prototype, "animate", {
       configurable: true,
-      value: () => ({}),
+      value: function (this: HTMLElement, frames: Keyframe[]) {
+        animations.set(this, frames);
+        return { cancel() {} };
+      },
     });
     try {
       const threads = [asking("a1", "sec_a", 100)];
@@ -330,16 +334,17 @@ describe("focused workstreams", () => {
         expect(groupRows(slot, "Up Next")).toEqual(["Ask z1"]),
       );
       const band = slot.getByRole("region", { name: "Up Next" });
-      const leaving = band.querySelector('[data-presence="leave"]');
-      expect(leaving?.getAttribute("aria-hidden")).toBe("true");
-      expect(leaving?.textContent).toContain("Ask a1");
-      expect(
-        band.querySelector('[data-presence="enter"]')?.textContent,
-      ).toContain("Ask z1");
-      await waitFor(() =>
-        expect(band.querySelector("[data-presence]")).toBeNull(),
-      );
+      expect(band.textContent).toContain("Ask z1");
       expect(band.textContent).not.toContain("Ask a1");
+      expect(band.querySelector("[data-presence]")).toBeNull();
+      const entering = band.querySelector<HTMLElement>(
+        '[data-flip-row="needs-you:z1"]',
+      )!;
+      expect(entering.style.zIndex).toBe("3");
+      expect(
+        entering.firstElementChild &&
+          animations.get(entering.firstElementChild as HTMLElement),
+      ).toEqual([{ opacity: 0 }, { opacity: 1 }]);
       slot.lifecycle.unmount();
     } finally {
       delete (Element.prototype as { animate?: unknown }).animate;

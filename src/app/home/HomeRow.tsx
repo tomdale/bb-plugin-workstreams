@@ -165,6 +165,7 @@ export function HomeRow({
     <li
       className="ws-home-row"
       data-variant={variant}
+      data-flip-row={thread.id}
       data-unread={thread.isUnread || undefined}
       style={{ "--ws-depth": Math.min(depth, 2) } as React.CSSProperties}
     >

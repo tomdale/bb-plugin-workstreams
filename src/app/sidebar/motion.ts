@@ -1,8 +1,8 @@
 /**
- * Sidebar motion that keeps changes the user didn't make from jolting the
- * list: rows, bands, and group folds open and close their height instead of
- * popping, so everything below slides, and workstreams glide to their new
- * place when a priority change reorders them.
+ * Motion for the sidebar and phone Home. Up Next re-ranks glide rows between
+ * positions with transforms. Elsewhere in the sidebar, rows, bands, and group
+ * folds open and close their height so everything below slides, and
+ * workstreams glide to their new place when a priority change reorders them.
  *
  * Motion is skipped where Web Animations are unavailable (tests, old
  * engines) and under reduced motion; there every change applies at once.
@@ -24,9 +24,12 @@ import {
 export const ENTER_MS = 260;
 const LEAVE_MS = 260;
 const FLIP_MS = 320;
+const ROW_FLIP_MIN_MS = 240;
+const ROW_FLIP_MS_PER_PX = 8;
 const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
+const ROW_EASE = "cubic-bezier(0.42, 0, 0.58, 1)";
 
-/** Whether sidebar motion runs here and now. */
+/** Whether this motion runs here and now. */
 function canAnimate(): boolean {
   if (typeof window === "undefined") return false;
   if (typeof Element === "undefined" || !("animate" in Element.prototype))
@@ -35,6 +38,254 @@ function canAnimate(): boolean {
     typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
+}
+
+type RowLayout = {
+  readonly element: HTMLElement;
+  /** Final layout top relative to the list, without this hook's transform. */
+  readonly top: number;
+};
+
+type RowSnapshot = {
+  readonly token: string;
+  readonly rows: ReadonlyMap<string, RowLayout>;
+};
+
+type RunningRow = {
+  readonly element: HTMLElement;
+  readonly animations: Set<Animation>;
+  readonly opacityElement: HTMLElement | null;
+  readonly backgroundColor: string;
+  readonly boxShadow: string;
+  readonly position: string;
+  readonly zIndex: string;
+};
+
+/** The Y translation in a computed CSS matrix, or zero for an untransformed row. */
+function rowTranslateY(element: HTMLElement): number {
+  const transform = getComputedStyle(element).transform;
+  if (!transform || transform === "none") return 0;
+  const values = transform
+    .slice(transform.indexOf("(") + 1, -1)
+    .split(",")
+    .map(Number);
+  const y = transform.startsWith("matrix3d(") ? values[13] : values[5];
+  return y === undefined || !Number.isFinite(y) ? 0 : y;
+}
+
+function flipRows(root: HTMLElement): ReadonlyMap<string, HTMLElement> {
+  return new Map(
+    [...root.querySelectorAll<HTMLElement>("[data-flip-row]")].map(
+      (element) => [element.dataset.flipRow!, element],
+    ),
+  );
+}
+
+/** Row contents fade over the row's opaque surface when they enter. */
+function rowOpacityElements(element: HTMLElement): HTMLElement[] {
+  const children = [...element.children].filter(
+    (child): child is HTMLElement => child instanceof HTMLElement,
+  );
+  return children.length > 0 ? children : [element];
+}
+
+/** The nearest surface that can hide the text beneath a crossing row. */
+function rowMotionBackground(element: HTMLElement): string {
+  for (
+    let current = element.parentElement;
+    current;
+    current = current.parentElement
+  ) {
+    const background = getComputedStyle(current).backgroundColor;
+    if (
+      background &&
+      background !== "transparent" &&
+      !/[,/] 0(?:\.0+)?\)$/.test(background)
+    )
+      return background;
+  }
+  return "var(--sidebar, var(--background))";
+}
+
+/**
+ * Slides keyed rows from their previous visual positions when `token`
+ * changes. The token names the ordering that caused the layout change; other
+ * renders only refresh the measurements. A row with no previous layout fades
+ * in at its destination rather than traveling from outside the viewport.
+ *
+ * Running animations are read before they are canceled, so a reversal starts
+ * at the row's current translation and opacity. The new layout is measured
+ * only after cancellation, which keeps an old inverse transform out of the
+ * next target. Reduced motion applies the new layout without either effect.
+ */
+export function useRowFlip(
+  container: RefObject<HTMLElement | null>,
+  token: string,
+): () => void {
+  const committed = useRef<RowSnapshot | null>(null);
+  const running = useRef(new Map<string, RunningRow>());
+  const cancelRunning = useCallback(() => {
+    for (const active of running.current.values()) {
+      for (const animation of active.animations) animation.cancel();
+      active.element.style.backgroundColor = active.backgroundColor;
+      active.element.style.boxShadow = active.boxShadow;
+      active.element.style.position = active.position;
+      active.element.style.zIndex = active.zIndex;
+    }
+    running.current.clear();
+  }, []);
+
+  /** Capture final layout positions while leaving any visual motion running. */
+  const capture = useCallback(() => {
+    const root = container.current;
+    if (!root) return;
+    if (!canAnimate()) {
+      committed.current = { token, rows: new Map() };
+      return;
+    }
+    const rootTop = root.getBoundingClientRect().top;
+    const rows = new Map<string, RowLayout>();
+    for (const [key, element] of flipRows(root)) {
+      const active = running.current.get(key);
+      const translateY =
+        active?.element === element ? rowTranslateY(element) : 0;
+      rows.set(key, {
+        element,
+        top: element.getBoundingClientRect().top - rootTop - translateY,
+      });
+    }
+    committed.current = { token, rows };
+  }, [container, token]);
+
+  useLayoutEffect(() => {
+    const root = container.current;
+    if (!root) return;
+    if (!canAnimate()) {
+      cancelRunning();
+      committed.current = { token, rows: new Map() };
+      return;
+    }
+    const before = committed.current;
+    const changed = before !== null && before.token !== token;
+    if (!changed) {
+      if (!canAnimate()) cancelRunning();
+      capture();
+      return;
+    }
+
+    const starts = new Map<string, { y: number; opacity: number }>();
+    for (const [key, active] of running.current) {
+      starts.set(key, {
+        y: rowTranslateY(active.element),
+        opacity: active.opacityElement
+          ? Number(getComputedStyle(active.opacityElement).opacity)
+          : 1,
+      });
+    }
+    cancelRunning();
+
+    const rootTop = root.getBoundingClientRect().top;
+    const after = new Map<string, RowLayout>();
+    for (const [key, element] of flipRows(root))
+      after.set(key, {
+        element,
+        top: element.getBoundingClientRect().top - rootTop,
+      });
+
+    if (canAnimate()) {
+      for (const [key, current] of after) {
+        const previous = before.rows.get(key);
+        const start = starts.get(key);
+        const previousTop = previous ? previous.top + (start?.y ?? 0) : 0;
+        const visible = (top: number) =>
+          top >= 0 && top + current.element.offsetHeight <= root.clientHeight;
+        const travel = Boolean(
+          previous && visible(previousTop) && visible(current.top),
+        );
+        const dy = previous ? previousTop - current.top : 0;
+        const opacity = travel ? (start?.opacity ?? 1) : 0;
+        if (travel && Math.abs(dy) < 0.01 && opacity === 1) continue;
+        const opacityElements =
+          opacity < 1 ? rowOpacityElements(current.element) : [];
+        const active: RunningRow = {
+          element: current.element,
+          animations: new Set(),
+          opacityElement: opacityElements[0] ?? null,
+          backgroundColor: current.element.style.backgroundColor,
+          boxShadow: current.element.style.boxShadow,
+          position: current.element.style.position,
+          zIndex: current.element.style.zIndex,
+        };
+        running.current.set(key, active);
+        // Opaque surfaces keep crossings and entering fades from blending two
+        // titles. Paint styles do not affect layout or animation keyframes.
+        const background = rowMotionBackground(current.element);
+        current.element.style.backgroundColor = background;
+        current.element.style.boxShadow = `0 0 0 3px ${background}`;
+        current.element.style.position = "relative";
+        current.element.style.zIndex = travel ? (dy > 0 ? "2" : "1") : "3";
+        const track = (
+          target: HTMLElement,
+          frames: Keyframe[],
+          options: KeyframeAnimationOptions,
+        ) => {
+          const animation = target.animate(frames, options);
+          active.animations.add(animation);
+          animation.onfinish = () => {
+            if (running.current.get(key) !== active) return;
+            active.animations.delete(animation);
+            if (active.animations.size > 0) return;
+            current.element.style.backgroundColor = active.backgroundColor;
+            current.element.style.boxShadow = active.boxShadow;
+            current.element.style.position = active.position;
+            current.element.style.zIndex = active.zIndex;
+            running.current.delete(key);
+          };
+        };
+        if (travel && Math.abs(dy) >= 0.01)
+          track(
+            current.element,
+            [
+              { transform: `translateY(${dy}px)` },
+              { transform: "translateY(0px)" },
+            ],
+            {
+              duration: Math.max(
+                ROW_FLIP_MIN_MS,
+                Math.abs(dy) * ROW_FLIP_MS_PER_PX,
+              ),
+              easing: ROW_EASE,
+              fill: "backwards",
+            },
+          );
+        for (const target of opacityElements)
+          track(target, [{ opacity }, { opacity: 1 }], {
+            duration: ENTER_MS,
+            easing: EASE_OUT,
+            fill: "backwards",
+          });
+      }
+    }
+    committed.current = { token, rows: after };
+  }, [container, token, capture, cancelRunning]);
+
+  useEffect(() => {
+    const root = container.current;
+    if (!root || !canAnimate() || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => capture());
+    observer.observe(root);
+    for (const row of flipRows(root).values()) observer.observe(row);
+    return () => observer.disconnect();
+  }, [container, token, capture]);
+
+  useEffect(
+    () => () => {
+      cancelRunning();
+      committed.current = null;
+    },
+    [cancelRunning],
+  );
+  return capture;
 }
 
 type PresencePhase = "enter" | "idle" | "leave";

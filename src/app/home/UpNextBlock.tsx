@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import type { Row } from "../../domain/project.ts";
 import type { TopicColor } from "../../domain/workstreamColor.ts";
@@ -6,6 +6,7 @@ import type { ServerState, WorkView } from "../useWorkstreams.ts";
 import { hasStatusMark } from "../sidebar/presentation.ts";
 import { FocusIcon } from "../sidebar/FocusIcon.tsx";
 import { HIDDEN_NOW, HomeThreadRow } from "./HomeRow.tsx";
+import { useRowFlip } from "../sidebar/motion.ts";
 
 /**
  * Up Next on Home: the rows `selectUpNext` chose, in the sidebar's Up
@@ -46,6 +47,11 @@ export function UpNextBlock({
   const marks = rows.some((row) =>
     hasStatusMark(row.thread, work(row.thread), true),
   );
+  const listRef = useRef<HTMLUListElement>(null);
+  const captureRows = useRowFlip(
+    listRef,
+    rows.map((row) => row.thread.id).join(" "),
+  );
   return (
     <section aria-label="Up Next" className="ws-home-up-next ws-needs">
       <h2 className="ws-home-up-next-head">
@@ -66,7 +72,12 @@ export function UpNextBlock({
           </span>
         ) : null}
       </h2>
-      <ul className="ws-home-rows" role="list">
+      <ul
+        ref={listRef}
+        onClickCapture={captureRows}
+        className="ws-home-rows"
+        role="list"
+      >
         {rows.map((row) => {
           const workstream = workstreamOf(row);
           return (

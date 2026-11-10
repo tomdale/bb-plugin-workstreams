@@ -17,7 +17,8 @@
  * focused workstreams; while any workstream is focused, the rest hide behind
  * a toggle below the focused ones. Focused workstreams are stored as
  * `prioritized`. Up Next never moves the open thread's row out from under
- * the user, and rows open and close rather than pop (see `motion.ts`).
+ * the user, and its re-ranks glide with transforms. Other overlay rows use
+ * height motion as they open and close (see `motion.ts`).
  *
  * Pinned lists the roots the user pinned, in BB's pin order, directly under
  * Up Next. The two bands share one sticky plate at the top of the list, so
@@ -134,6 +135,7 @@ import {
   useFold,
   useFoldGap,
   usePresence,
+  useRowFlip,
   type PresenceEntry,
 } from "./motion.ts";
 import { FocusIcon } from "./FocusIcon.tsx";
@@ -357,6 +359,10 @@ export function WorkstreamsThreadList({
 
   const listRef = useRef<HTMLDivElement>(null);
   const captureLayout = useFlip(listRef, [...prioritized].sort().join(" "));
+  const captureRows = useRowFlip(
+    listRef,
+    shownNeedsRows.map((row) => row.thread.id).join(" "),
+  );
   /** Focus covers a whole top-level group, so it names every section in it. */
   const toggleFocus = (group: ThreadNode) => {
     setError(null);
@@ -543,7 +549,6 @@ export function WorkstreamsThreadList({
   const bandPresence = usePresence(showBand ? ["band"] : [], String);
   const pinnedBandPresence = usePresence(showPinned ? ["pinned"] : [], String);
   const pinnedRowPresence = usePresence(pinnedRows, rowKey);
-  const needsPresence = usePresence(shownNeedsRows, rowKey);
   const needsControls = usePresence(
     showMore || moreCount > 0 ? ["more"] : [],
     String,
@@ -609,6 +614,7 @@ export function WorkstreamsThreadList({
           categorized={categorized}
           onNavigate={onNavigate}
           toggleDisclosure={toggle}
+          flipKey={`${placement}:${key}`}
         />
       );
     },
@@ -1116,6 +1122,7 @@ export function WorkstreamsThreadList({
     <DndContext {...contextProps}>
       <div
         ref={listRef}
+        onClickCapture={captureRows}
         className="ws-list flex flex-col"
         style={{
           paddingLeft: SIDEBAR_GEOMETRY.container.paddingX,
@@ -1174,16 +1181,13 @@ export function WorkstreamsThreadList({
                         ) : null
                       }
                     >
-                      {needsPresence.map((entry) =>
-                        present(
-                          entry,
-                          renderOverlayTree(
-                            entry.item,
-                            "needs-you",
-                            needsMarks,
-                          ),
-                        ),
-                      )}
+                      {shownNeedsRows.map((row) => (
+                        <li key={row.thread.id} className="list-none">
+                          <ul>
+                            {renderOverlayTree(row, "needs-you", needsMarks)}
+                          </ul>
+                        </li>
+                      ))}
                       {needsControls.map((entry) =>
                         present(
                           entry,
@@ -1882,6 +1886,7 @@ type SidebarThreadRowProps = {
   categorized: boolean;
   onNavigate: () => void;
   toggleDisclosure: (id: string, byDefault?: boolean) => void;
+  flipKey: string;
 };
 
 /**
@@ -1909,6 +1914,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   toggleDisclosure,
   handleRef,
   handleListeners,
+  flipKey,
 }: SidebarThreadRowProps) {
   const work = workView(thread, analysis, recap);
   let snoozeAction:
@@ -1989,6 +1995,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
           }
           categorized={categorized}
           inGroup={placement === "group"}
+          flipKey={flipKey}
           onNavigate={onNavigate}
         />
       </li>
@@ -2018,6 +2025,7 @@ function sameSidebarThreadRow(
     before.categorized === after.categorized &&
     before.onNavigate === after.onNavigate &&
     before.toggleDisclosure === after.toggleDisclosure &&
+    before.flipKey === after.flipKey &&
     before.handleRef === after.handleRef &&
     before.handleListeners === after.handleListeners &&
     (before.now === after.now ||

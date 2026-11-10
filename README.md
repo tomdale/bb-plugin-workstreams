@@ -381,9 +381,13 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    **Show N more** lists the trimmed threads that are unread or blocked on you
    below the rest, and **Show less** collapses them; trimmed read threads not
    blocked on you stay in Recent and their workstreams. It re-ranks as recaps,
-   read state, and activity change. The thread you have open keeps its row and
-   place until you open another thread. Nested delegates do not appear as
-   separate Up Next entries; find them in their workstream's thread tree.
+   read state, and activity change. When the order changes, transforms slide
+   existing rows to their new positions without changing their heights. A row
+   joining Up Next fades in at its destination. With reduced motion enabled, the
+   new order appears without sliding or fading. The thread you have open keeps
+   its row and place until you open another thread. Nested delegates do not
+   appear as separate Up Next entries; find them in their workstream's thread
+   tree.
    - **Focus:** While a focused workstream has a thread blocked on you, Up Next
      applies these rules to focused workstreams' threads only and marks its
      header with the focus icon.
@@ -505,6 +509,7 @@ On compact viewports (when **Sidebar → Up next and workstreams on phones** is
 enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
 
 - The **Up Next** card at the top, with the **Pinned** card directly under it.
+  Its rows use the same motion as the sidebar's Up Next rows.
 - **Workstreams** sections with topic color dots, waiting/total badges, an
   **Expand all / Collapse all** toggle, and per-parent delegate fold controls.
   Focused workstreams (or a single active workstream) start expanded.
