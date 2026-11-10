@@ -149,7 +149,6 @@ export function WorkstreamsThreadList({
   const {
     snoozePrefs,
     applySnooze,
-    wakeByDefault,
     groupSnoozeOf,
     customSnooze,
     setCustomSnooze,
@@ -469,7 +468,6 @@ export function WorkstreamsThreadList({
           slotWidth={slotWidth}
           snooze={snooze}
           snoozePrefs={snoozePrefs}
-          defaultWake={wakeByDefault}
           handlers={handlers}
           disclosureExpanded={
             PLACEMENT_TRAITS[placement].disclosure && row.hasChildren
@@ -492,7 +490,6 @@ export function WorkstreamsThreadList({
       snoozePrefs,
       snoozes,
       toggle,
-      wakeByDefault,
       ws.server.analysis,
       ws.server.recaps,
     ],

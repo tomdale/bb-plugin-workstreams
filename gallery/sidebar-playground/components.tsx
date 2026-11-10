@@ -15,12 +15,7 @@ import { WorkstreamName } from "../../src/app/WorkstreamName.tsx";
 import type { WorkView } from "../../src/domain/status.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
 import { DEFAULT_SPINNER } from "../../src/domain/spinner.ts";
-import {
-  DEFAULT_SNOOZE_PREFS,
-  defaultPreset,
-  describeWake,
-  presetWhen,
-} from "../../src/domain/snooze.ts";
+import { DEFAULT_SNOOZE_PREFS } from "../../src/domain/snooze.ts";
 import {
   SnoozeMenuItems,
   plainMenuKit,
@@ -234,13 +229,13 @@ export function mountThread(
       }
     : undefined;
   const now = Date.now();
-  const wake = presetWhen(defaultPreset(DEFAULT_SNOOZE_PREFS), now);
   const snoozeAction = options.legacy
     ? undefined
     : {
         kind: "snooze" as const,
-        title: `Snooze ${describeWake(wake.until, now, wake.events)}`,
-        run: () => previewAction("snooze", options.title),
+        action: "Snooze",
+        prefs: DEFAULT_SNOOZE_PREFS,
+        onSnooze: () => previewAction("snooze", options.title),
         menu: createElement(SnoozeMenuItems, {
           now,
           prefs: DEFAULT_SNOOZE_PREFS,

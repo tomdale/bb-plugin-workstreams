@@ -1,9 +1,4 @@
 import { useCallback, useState } from "react";
-import {
-  describeWake,
-  defaultPreset,
-  presetWhen,
-} from "../../domain/snooze.ts";
 import type { SnoozeWhen } from "../../domain/snooze.ts";
 import { snoozeThreads } from "../snooze/actions.ts";
 import {
@@ -16,9 +11,8 @@ import { groupSnoozeRequest } from "./rows.ts";
 import type { GroupSnooze, SnoozeRequest, ThreadNode } from "./types.ts";
 
 /**
- * The thread list's snoozing: snooze a request, the default wake, a
- * workstream row's snooze button, and the request the Custom… dialog is
- * collecting a time for.
+ * The thread list's snoozing: snooze a request, a workstream row's snooze
+ * button, and the request the Custom… dialog is collecting a time for.
  */
 export function useSidebarSnooze(ws: ReturnType<typeof useWorkstreams>) {
   const [customSnooze, setCustomSnooze] = useState<SnoozeRequest | null>(null);
@@ -30,13 +24,11 @@ export function useSidebarSnooze(ws: ReturnType<typeof useWorkstreams>) {
         subject: request.subject,
       }),
   );
-  const preset = defaultPreset(snoozePrefs);
-  /** When the default preset wakes, from the moment of the click. */
-  const wakeByDefault = useStableCallback(() => presetWhen(preset, Date.now()));
   /**
    * A workstream row's snooze button, while the row lists threads: it
    * snoozes every one of them (see `groupRoots`) with the default preset,
-   * and its menu offers every preset and Custom….
+   * and its menu offers every preset and Custom…. The button itself works
+   * out the wake time it names (see `SnoozeAction`).
    */
   const groupSnoozeOf = useCallback(
     (group: ThreadNode): GroupSnooze | undefined => {
@@ -44,11 +36,10 @@ export function useSidebarSnooze(ws: ReturnType<typeof useWorkstreams>) {
       if (!request) return undefined;
       const snooze = (when: SnoozeWhen) => applySnooze(request, when);
       const custom = () => setCustomSnooze(request);
-      const wake = wakeByDefault();
       return {
         label: request.label,
-        title: `Snooze ${request.subject} ${describeWake(wake.until, Date.now(), wake.events)}`,
-        run: () => snooze(wakeByDefault()),
+        subject: request.subject,
+        prefs: snoozePrefs,
         menu: (
           <CurrentSnoozeMenuItems
             kit={plainMenuKit}
@@ -62,12 +53,11 @@ export function useSidebarSnooze(ws: ReturnType<typeof useWorkstreams>) {
         custom,
       };
     },
-    [applySnooze, wakeByDefault, snoozePrefs],
+    [applySnooze, snoozePrefs],
   );
   return {
     snoozePrefs,
     applySnooze,
-    wakeByDefault,
     groupSnoozeOf,
     customSnooze,
     setCustomSnooze,

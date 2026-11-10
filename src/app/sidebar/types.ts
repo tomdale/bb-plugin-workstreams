@@ -3,7 +3,7 @@ import { type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { type WorkstreamNode } from "../../domain/groups.ts";
 import { type Placement, type RowEntry } from "./rows.ts";
 import { type DragHandle } from "./dnd.tsx";
-import { type SnoozeWhen } from "../../domain/snooze.ts";
+import { type SnoozePrefs, type SnoozeWhen } from "../../domain/snooze.ts";
 
 export type { ThreadRow } from "./rows.ts";
 
@@ -40,11 +40,12 @@ export type SnoozeRequest = {
 };
 /** A workstream row's snooze button (see `WorkstreamGroup`). */
 export type GroupSnooze = {
-  /** Names the batch: "Snooze 3 threads". */
+  /** Names the batch in the menu: "Snooze 3 threads". */
   label: string;
-  /** What a click does: "Snooze 3 threads in Alpha until …". */
-  title: string;
-  run: () => void;
+  /** What a click snoozes, before the wake time it names: "3 threads in Alpha". */
+  subject: string;
+  /** The presets the menu offers, and the default a click uses. */
+  prefs: SnoozePrefs;
   /** The hover menu's choices. */
   menu: ReactNode;
   /** Snoozes the batch until a time, a wake event, or whichever is first. */

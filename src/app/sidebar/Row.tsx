@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 import {
   ThreadTitle,
   experimental_useSidebarThreadActions,
@@ -19,13 +19,8 @@ import { relativeAge } from "../../domain/presentation.ts";
 import type { WorkView } from "../useWorkstreams.ts";
 import { StatusMark } from "./StatusMark.tsx";
 import { usePrefsSelector } from "../prefs.ts";
-import { SnoozeIcon, WakeIcon } from "../snooze/icons.tsx";
-import {
-  HoverAction,
-  HoverMenuButton,
-  RowActions,
-  RowPressButton,
-} from "./HoverActions.tsx";
+import { HoverAction, RowActions, RowPressButton } from "./HoverActions.tsx";
+import { SnoozeAction, type SnoozeActionSpec } from "./SnoozeAction.tsx";
 import { rowGeometry } from "./rowGeometry.ts";
 import { FULL_SLOT_PX } from "./statusSlot.ts";
 import { PLACEMENT_TRAITS, STANDALONE_TRAITS, type Placement } from "./rows.ts";
@@ -45,15 +40,10 @@ function prTone(pr: PluginSidebarPullRequest): string {
 
 /**
  * The hover button after Archive: snooze with the default choice, or wake a
- * snoozed thread. `title` names what a click does; `menu` holds the other
- * choices, opened by resting the pointer on the button.
+ * snoozed thread. The button draws its own name from the shared clock (see
+ * `SnoozeAction`); the row only says how large it is.
  */
-export type RowSnoozeAction = {
-  kind: "snooze" | "wake";
-  title: string;
-  run: () => void;
-  menu?: ReactNode;
-};
+export type RowSnoozeAction = SnoozeActionSpec;
 
 export function Row({
   thread,
@@ -292,24 +282,7 @@ export function Row({
           </HoverAction>
         ) : null}
         {snoozeAction ? (
-          snoozeAction.menu ? (
-            <HoverMenuButton
-              compact={compactActions}
-              label={snoozeAction.title}
-              onClick={snoozeAction.run}
-              menu={snoozeAction.menu}
-            >
-              {snoozeIcon(snoozeAction.kind)}
-            </HoverMenuButton>
-          ) : (
-            <HoverAction
-              compact={compactActions}
-              label={snoozeAction.title}
-              onClick={snoozeAction.run}
-            >
-              {snoozeIcon(snoozeAction.kind)}
-            </HoverAction>
-          )
+          <SnoozeAction {...snoozeAction} compact={compactActions} />
         ) : null}
       </RowActions>
       {shortcut ? (
@@ -324,10 +297,3 @@ export function Row({
     </div>
   );
 }
-
-const snoozeIcon = (kind: "snooze" | "wake") =>
-  kind === "wake" ? (
-    <WakeIcon className="size-3.5" />
-  ) : (
-    <SnoozeIcon className="size-3.5" />
-  );

@@ -13,12 +13,7 @@ import {
 } from "./rows.ts";
 import { RowMenu, type RowMenuHandlers } from "./RowMenu.tsx";
 import { type DragHandle } from "./dnd.tsx";
-import {
-  describeWake,
-  shortWake,
-  type SnoozeWhen,
-  type ThreadSnooze,
-} from "../../domain/snooze.ts";
+import { shortWake, type ThreadSnooze } from "../../domain/snooze.ts";
 import {
   CurrentSnoozeMenuItems,
   plainMenuKit,
@@ -37,7 +32,6 @@ export type SidebarThreadRowProps = {
   slotWidth: number;
   snooze?: ThreadSnooze;
   snoozePrefs: ServerState["snoozePrefs"];
-  defaultWake: () => SnoozeWhen;
   handlers: RowMenuHandlers;
   disclosureExpanded?: boolean;
   categorized: boolean;
@@ -61,7 +55,6 @@ export const SidebarThreadRow = memo(function SidebarThreadRow({
   slotWidth,
   snooze,
   snoozePrefs,
-  defaultWake,
   handlers,
   disclosureExpanded,
   categorized,
@@ -75,13 +68,11 @@ export const SidebarThreadRow = memo(function SidebarThreadRow({
   const wakeTime = useClock((now) =>
     snooze ? shortWake(snooze.until, now) : undefined,
   );
-  const wakeTitle = useClock((now) =>
-    snooze ? describeWake(snooze.until, now, snooze.events) : "",
-  );
   const traits = PLACEMENT_TRAITS[placement];
   let snoozeAction: RowSnoozeAction | undefined;
-  if (traits.snooze && (traits.snooze !== "wake" || snooze !== undefined)) {
-    const wake = defaultWake();
+  // The button reads the clock itself for the wake time it names, so a
+  // minute passing does not render the row.
+  if (traits.snooze) {
     const menu = (
       <CurrentSnoozeMenuItems
         kit={plainMenuKit}
@@ -92,20 +83,23 @@ export const SidebarThreadRow = memo(function SidebarThreadRow({
         onCustom={() => handlers.customSnooze(thread)}
       />
     );
-    snoozeAction =
-      traits.snooze === "wake"
-        ? {
-            kind: "wake",
-            title: `Wake now (snoozed ${wakeTitle})`,
-            run: () => handlers.wake(thread),
-            menu,
-          }
-        : {
-            kind: "snooze",
-            title: `Snooze ${describeWake(wake.until, Date.now(), wake.events)}`,
-            run: () => handlers.snooze(thread, defaultWake()),
-            menu,
-          };
+    if (traits.snooze === "wake") {
+      if (snooze)
+        snoozeAction = {
+          kind: "wake",
+          snooze,
+          onWake: () => handlers.wake(thread),
+          menu,
+        };
+    } else {
+      snoozeAction = {
+        kind: "snooze",
+        action: "Snooze",
+        prefs: snoozePrefs,
+        onSnooze: (when) => handlers.snooze(thread, when),
+        menu,
+      };
+    }
   }
   return (
     <RowMenu
@@ -165,7 +159,6 @@ export function sameSidebarThreadRow(
     before.slotWidth === after.slotWidth &&
     before.snooze === after.snooze &&
     before.snoozePrefs === after.snoozePrefs &&
-    before.defaultWake === after.defaultWake &&
     before.handlers === after.handlers &&
     before.disclosureExpanded === after.disclosureExpanded &&
     before.categorized === after.categorized &&

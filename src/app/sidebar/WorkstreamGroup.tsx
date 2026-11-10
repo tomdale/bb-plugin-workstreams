@@ -7,14 +7,13 @@ import { headerCounts } from "./presentation.ts";
 import { FULL_SLOT_PX, childIndent } from "./statusSlot.ts";
 import { HeaderMenu } from "./RowMenu.tsx";
 import { IncomingThread, type DragHandle } from "./dnd.tsx";
-import { SnoozeIcon } from "../snooze/icons.tsx";
+import { SnoozeAction } from "./SnoozeAction.tsx";
 import { WorkstreamName } from "../WorkstreamName.tsx";
 import { useFold, useFoldGap } from "./motion.ts";
 import { FocusIcon } from "./FocusIcon.tsx";
 import { FoldBody, FoldChevron, useFoldFocusRestore } from "./Fold.tsx";
 import {
   HoverAction,
-  HoverMenuButton,
   RowActions,
   RowPressButton,
   rowActionClass,
@@ -191,14 +190,14 @@ export function WorkstreamGroup({
                   </HoverAction>
                 ) : null}
                 {snooze ? (
-                  <HoverMenuButton
+                  <SnoozeAction
                     compact
-                    label={snooze.title}
-                    onClick={snooze.run}
+                    kind="snooze"
+                    action={`Snooze ${snooze.subject}`}
+                    prefs={snooze.prefs}
+                    onSnooze={snooze.snooze}
                     menu={snooze.menu}
-                  >
-                    <SnoozeIcon className="size-3.5" />
-                  </HoverMenuButton>
+                  />
                 ) : null}
                 {focusAction}
               </RowActions>

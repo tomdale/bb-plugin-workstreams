@@ -524,10 +524,10 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
 
 #### Row indicators and actions
 
-Thread ages refresh once a minute, and snoozes wake at their expiry time. An
-empty workstream leaves the list as soon as its last visible thread does. Active
-rows use a highlighted background and foreground text without changing title
-weight. Unread titles use medium weight.
+Thread ages and the wake time a snooze button shows refresh once a minute, and
+snoozes wake at their expiry time. An empty workstream leaves the list as soon
+as its last visible thread does. Active rows use a highlighted background and
+foreground text without changing title weight. Unread titles use medium weight.
 
 - **Status marks:** Each row shows at most one mark before its title, in this
   order of precedence: a red exclamation circle for a failed turn, the working

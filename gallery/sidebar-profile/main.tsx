@@ -20,6 +20,7 @@ import {
 import { SIDEBAR_GEOMETRY } from "../../src/app/sidebar/tokens.ts";
 import { WorkstreamName } from "../../src/app/WorkstreamName.tsx";
 import type { WorkView } from "../../src/domain/status.ts";
+import { DEFAULT_SNOOZE_PREFS } from "../../src/domain/snooze.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
 import { DEFAULT_SPINNER } from "../../src/domain/spinner.ts";
 import "../base.css";
@@ -237,8 +238,10 @@ function ProfileWorkstream({ groupIndex }: { groupIndex: number }) {
                 active={false}
                 snoozeAction={{
                   kind: "snooze",
-                  title: "Snooze until later",
-                  run: () => {},
+                  action: "Snooze",
+                  prefs: DEFAULT_SNOOZE_PREFS,
+                  onSnooze: () => {},
+                  menu: null,
                 }}
                 onNavigate={() => {}}
               />
