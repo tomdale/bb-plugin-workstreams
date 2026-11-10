@@ -191,6 +191,17 @@ function compareBandRows(
   return difference || a.thread.id.localeCompare(b.thread.id);
 }
 
+/**
+ * One section of a band's rows: a workstream's trees, or every tree in one
+ * section with no workstream (`id` and `name` null) while the band is not
+ * grouped.
+ */
+export type BandGroupPlan = {
+  readonly id: string | null;
+  readonly name: string | null;
+  readonly trees: ThreadRow[][];
+};
+
 /** Sort entire snoozed trees; their children stay with their roots even when grouped. */
 export function planBandRows(
   rows: readonly ThreadRow[],
@@ -198,7 +209,7 @@ export function planBandRows(
   options: { sort: BandSort; grouped: boolean },
   snoozeOf: SnoozeOf,
   nameOf: ReadonlyMap<string, string>,
-) {
+): BandGroupPlan[] {
   const trees =
     placement === "snoozed" ? treesOf(rows) : rows.map((row) => [row]);
   const ordered = [...trees].sort((a, b) =>

@@ -27,6 +27,7 @@
  *
  * This file arranges the list and owns its state. The pieces it draws live
  * beside it: `Bands.tsx` (band headers, menus, the lower toggle),
+ * `GroupedBand.tsx` (a band's rows, grouped by workstream or not),
  * `WorkstreamGroup.tsx` (a workstream's header and fold), `GroupBody.tsx` (a
  * group's trees, categories, and nested groups), `SidebarThreadRow.tsx` (a
  * thread row and what its placement offers), and `Row.tsx` (the row itself).
@@ -58,7 +59,6 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 
-import { UNFILED_NAME } from "../../domain/project.ts";
 import { arrangeGroups, focusedSections } from "../../domain/groups.ts";
 import { selectRecent } from "../../domain/upNext.ts";
 import { initialUpNextState, planSidebarUpNext } from "./upNextState.ts";
@@ -70,6 +70,7 @@ import { useGroupCollapse } from "./useGroupCollapse.ts";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
 import { workstreamGap } from "./workstreamGap.ts";
 import { useBandOptions, type BandId } from "./useBandOptions.ts";
+import { GroupedBand } from "./GroupedBand.tsx";
 import { NameDialog, type NameRequest } from "./NameDialog.tsx";
 import { SuggestionsFlyaway } from "./SuggestionsFlyaway.tsx";
 import { headerCounts } from "./presentation.ts";
@@ -88,6 +89,7 @@ import {
   visibleEntries,
   planBandRows,
   planArchived,
+  type BandGroupPlan,
   type Placement,
 } from "./rows.ts";
 import { type RowMenuHandlers } from "./RowMenu.tsx";
@@ -122,7 +124,6 @@ import { SidebarThreadRow } from "./SidebarThreadRow.tsx";
 import { GroupBody } from "./GroupBody.tsx";
 import {
   Band,
-  BandGroup,
   BandOptionsMenu,
   SidebarViewOptionsMenu,
   LowerToggle,
@@ -531,50 +532,23 @@ export function WorkstreamsThreadList({
       ),
     [archivedRows, bandOptions.archived, planningSnoozeOf, nameOf],
   );
-  /**
-   * An overlay row followed, when expanded, by its visible descendants,
-   * indented relative to it.
-   */
-  const renderBandRows = (
+  /** A band's rows, drawn in one list or grouped by workstream. */
+  const bandBody = (
+    placement: BandId,
     rows: readonly ThreadRow[],
-    planned: ReturnType<typeof planBandRows>,
-    placement: "recent" | "snoozed" | "archived",
-    section: BandId,
-  ) => {
-    const options = bandOptions[section];
-    const slotWidth = slotWidthOf(rows);
-    const renderTrees = (items: readonly ThreadRow[][]) =>
-      items.flatMap((tree) =>
-        entriesOf(tree, placement).map((entry) =>
-          renderRow(entry, {
-            placement,
-            projectionNow,
-            slotWidth,
-          }),
-        ),
-      );
-    if (!options.grouped) return renderTrees(planned[0]!.trees);
-    const label = `${placement[0]!.toUpperCase()}${placement.slice(1)}`;
-    return planned.map(({ id, name, trees: groupTrees }) => {
-      const key = `${placement}:${id ?? "__unsorted"}`;
-      // Archived threads are many and old, so their groups start closed.
-      const byDefault = placement === "archived";
-      const collapsed = isCollapsed(key, byDefault);
-      return (
-        <li key={key} className="list-none">
-          <BandGroup
-            label={label}
-            name={name ?? UNFILED_NAME}
-            count={groupTrees.length}
-            collapsed={collapsed}
-            onToggle={() => toggle(key, byDefault)}
-          >
-            {renderTrees(groupTrees)}
-          </BandGroup>
-        </li>
-      );
-    });
-  };
+    planned: readonly BandGroupPlan[],
+  ) => (
+    <GroupedBand
+      placement={placement}
+      planned={planned}
+      grouped={bandOptions[placement].grouped}
+      slotWidth={slotWidthOf(rows)}
+      projectionNow={projectionNow}
+      renderRow={renderRow}
+      isCollapsed={isCollapsed}
+      toggle={toggle}
+    />
+  );
   /** An overlay row followed, when expanded, by its visible descendants. */
   const renderOverlayTree = (
     row: ThreadRow,
@@ -762,7 +736,7 @@ export function WorkstreamsThreadList({
           />
         }
       >
-        {renderBandRows(recentRows, recentPlan, "recent", "recent")}
+        {bandBody("recent", recentRows, recentPlan)}
       </Band>
     ) : null;
   const hasWorkstreams =
@@ -1047,7 +1021,7 @@ export function WorkstreamsThreadList({
               />
             }
           >
-            {renderBandRows(archivedRows, archivedPlan, "archived", "archived")}
+            {bandBody("archived", archivedRows, archivedPlan)}
             {archived.experimental_archived?.status === "loading" ? (
               <li className="list-none px-2 py-1 text-xs text-muted-foreground">
                 Loading archived threads…
@@ -1091,12 +1065,7 @@ export function WorkstreamsThreadList({
               />
             }
           >
-            {renderBandRows(
-              projection.snoozed,
-              snoozedPlan,
-              "snoozed",
-              "snoozed",
-            )}
+            {bandBody("snoozed", projection.snoozed, snoozedPlan)}
           </Band>
         ) : null}
         <NameDialog
