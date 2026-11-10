@@ -11,7 +11,10 @@ describe("selected queue motion", () => {
       loose: true,
       vcap: 44 * 60,
       coverFade: 0.25,
-      holdBeat: 250,
+      holdBeats: [
+        { after: 0, beat: 167 },
+        { after: 1200, beat: 111 },
+      ],
       tempo: { ...Drum.config().tempo, kind: "constant", ms: 120 },
     });
   });
@@ -63,7 +66,7 @@ describe("selected queue motion", () => {
     }
   });
 
-  it("holds a key to one card per beat, and presses alone past that beat", () => {
+  it("holds a key to its beats, and presses alone past them", () => {
     const heights = Array.from(
       { length: 24 },
       (_, i) => [284, 73, 218, 96][i % 4]!,
@@ -82,8 +85,8 @@ describe("selected queue motion", () => {
       held.step(1000 / 60);
     }
     held.keyUp();
-    // Twelve cards in three seconds: one per 250 ms beat, not the gate's pace.
-    expect(held.front).toBe(12);
+    // Twenty-two cards in three seconds: about 6 a second, then about 9 after 1.2 s.
+    expect(held.front).toBe(22);
 
     // The beat is the hold's alone: presses a person makes 150 ms apart are taken.
     const tapped = new Drum([200, 180, 220, 160], QUEUE_CFG);

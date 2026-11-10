@@ -10,15 +10,15 @@ and recordings of each model.
 The product runs the drum (`src/app/page/queue/drum.ts`) through
 `src/app/page/queue/stackEngine.ts`, which keeps a short row of cards on the
 drum as the queue's pile changes. The drum's settings as shipped are `QUEUE_CFG`
-in `drum.ts`: the `natural` preset with a 120 ms minimum interval and a 250 ms
-beat while a key is held, a 3 Hz tap spring and 2640 px/s (44 px/frame at 60 Hz)
-top speed, a 0.25 covered-card fade, and loose clearing while held. The page
-offers it as the drum's `shipped` preset. The lab imports both files, so a
-rebuild shows the product on this branch. The cascade (`src/cascade.ts`) is the
-lab's own model, and the product does not run it. [DESIGN.md](DESIGN.md) lists
-the goals the motion must meet, explains how the drum and the cascade work, and
-records what limits the pace of a held key, what the cascade costs, and what is
-still open.
+in `drum.ts`: the `natural` preset with a 120 ms minimum interval and a beat of
+167 ms while a key is held, tightening to 111 ms after 1.2 s, a 3 Hz tap spring
+and 2640 px/s (44 px/frame at 60 Hz) top speed, a 0.25 covered-card fade, and
+loose clearing while held. The page offers it as the drum's `shipped` preset.
+The lab imports both files, so a rebuild shows the product on this branch. The
+cascade (`src/cascade.ts`) is the lab's own model, and the product does not run
+it. [DESIGN.md](DESIGN.md) lists the goals the motion must meet, explains how
+the drum and the cascade work, and records what limits the pace of a held key,
+what the cascade costs, and what is still open.
 
 ## Run the page
 
@@ -290,14 +290,14 @@ can be opened with
 
 The drum's presets:
 
-| Preset              | What changes while a key is held                                                                                           |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `shipped`           | `QUEUE_CFG`: loose clearing after 250 ms, with a 250 ms beat while held. The checker reports its jumps and held swaps.     |
-| `natural`           | Nothing. The pace follows card heights: tall cards slow it, short cards speed it up.                                       |
-| `even`              | Planned pacing: presses are spaced by an interval planned from the heights ahead.                                          |
-| `even + held speed` | The same plan at 0.85×, and speed up while held.                                                                           |
-| `fold`              | Every card folds toward its header line, so trips are short and the pace passes 10 cards/s.                                |
-| `loose`             | Cards stay whole, but a leaving card clears a virtual height, so cards pass over one another. Outside the checker's rules. |
+| Preset              | What changes while a key is held                                                                                                          |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `shipped`           | `QUEUE_CFG`: loose clearing after 250 ms, holding 167 ms per card, then 111 ms after 1.2 s. The checker reports its jumps and held swaps. |
+| `natural`           | Nothing. The pace follows card heights: tall cards slow it, short cards speed it up.                                                      |
+| `even`              | Planned pacing: presses are spaced by an interval planned from the heights ahead.                                                         |
+| `even + held speed` | The same plan at 0.85×, and speed up while held.                                                                                          |
+| `fold`              | Every card folds toward its header line, so trips are short and the pace passes 10 cards/s.                                               |
+| `loose`             | Cards stay whole, but a leaving card clears a virtual height, so cards pass over one another. Outside the checker's rules.                |
 
 The cascade's presets:
 

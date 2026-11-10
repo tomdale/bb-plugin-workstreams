@@ -335,8 +335,8 @@ describe("a held key", () => {
     q.hold("forward", 1500);
     q.run(3000);
     const moved = q.at();
-    expect(moved).toBeGreaterThanOrEqual(5);
-    expect(moved).toBeLessThanOrEqual(8);
+    expect(moved).toBeGreaterThanOrEqual(8);
+    expect(moved).toBeLessThanOrEqual(11);
     expect(q.front()).toBe(KEYS[moved]);
     expect(q.frames.at(-1)!.busy).toBe(false);
   });
@@ -345,8 +345,8 @@ describe("a held key", () => {
     const q = queue(30);
     q.hold("back", 1500);
     q.run(3000);
-    expect(q.at()).toBeLessThanOrEqual(25);
-    expect(q.at()).toBeGreaterThanOrEqual(21);
+    expect(q.at()).toBeLessThanOrEqual(22);
+    expect(q.at()).toBeGreaterThanOrEqual(19);
     expect(q.front()).toBe(KEYS[q.at()]);
   });
 

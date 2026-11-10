@@ -21,8 +21,9 @@
  * - A press is taken once every card in transit has passed its flip (`accepts`), so the rate is whatever the
  *   trips allow: a trip must clear the height of the card it uncovers, at no more than `vcap` px/s on any edge.
  * - `tempo` spaces presses by a planned interval, so the pace does not follow each card's height from step to
- *   step. `holdBeat` is the least interval while a key is held, so a hold repeats at a pace a person can read
- *   and single presses are not held to it.
+ *   step. `holdBeats` is a schedule for a held key: each stage sets the least interval once the key has been held
+ *   for its `after` ms, and the beat glides to the next stage over `BEAT_TAU`, so a long hold tightens rather
+ *   than snapping. Single presses are not held to it.
  * - `ramp` stiffens the springs and raises the edge budget while a key is held. `fold` does the same and also
  *   shrinks every card's drawn height toward `H0` (a level of detail), which removes the height term.
  * - `loose` leaves every card drawn whole but measures the clearing geometry with heights that shrink toward `H0`
@@ -63,6 +64,8 @@ const SHRINK_RATE = 720;
 const COVER_TAU = 50;
 /** The content of a card moving into the front comes back faster than it goes, ms: a card that is nearly in front must not be empty. */
 const CONTENT_BACK_TAU = 20;
+/** Time constant, ms, of a held key's beat as it glides from one stage of `holdBeats` to the next. */
+const BEAT_TAU = 70;
 /** How much of the rising card's way from the tuck to the front it takes for the covered card's fade to reach its target. */
 const COVER_RISE = 0.35;
 const LOOSE_WASH = 0.6;
@@ -77,6 +80,9 @@ export type Tempo = {
   scale: number;
 };
 
+/** One stage of a held key's beat: `beat` ms between presses once the key has been held for `after` ms. */
+export type HoldBeat = { after: number; beat: number };
+
 /** Every setting of a drum. */
 export type DrumConfig = {
   omega0: number;
@@ -88,7 +94,7 @@ export type DrumConfig = {
   ramp: boolean;
   H0: number;
   holdDelay: number;
-  holdBeat: number;
+  holdBeats: readonly HoldBeat[];
   coverFade: number;
   incomingFade: number;
   washTauIn: number;
@@ -144,7 +150,7 @@ export const DEFAULT_CFG: DrumConfig = {
   ramp: false, // while held, ramp the spring rate and edge budget toward their λ = 1 values without folding
   H0: 73, // folded (header) height, or the virtual height `loose` clears, px
   holdDelay: 250, // ms a key is held before λ heads to 1
-  holdBeat: 0, // ms: the least interval between presses while a key is held; 0 leaves the pace to `tempo` and the gate
+  holdBeats: [], // the beat a held key keeps, stage by stage; none leaves the pace to `tempo` and the gate
   incomingFade: 8, // how fast, in shade per second, a card coming back (a ↑) regains its colour from the moment it starts; 0 lets it follow its path
   coverFade: 1, // how far the content of a card a rising card is about to cover fades before the rising card reaches it, 0 to 1
   washTauIn: 40, // ms: the drawn wash of a too-tall card follows its path value, falling
@@ -163,7 +169,11 @@ export const QUEUE_CFG: DrumPatch = {
   loose: true,
   vcap: 44 * 60,
   coverFade: 0.25,
-  holdBeat: 250,
+  // A held key starts at about 6 cards a second and, after 1.2 s, tightens to about 9.
+  holdBeats: [
+    { after: 0, beat: 167 },
+    { after: 1200, beat: 111 },
+  ],
   tempo: { kind: "constant", ms: 120 },
 };
 
@@ -217,6 +227,10 @@ export class Drum {
   lam = 0;
   lamV = 0;
   hold: { dir: 1 | -1; t: number } | null = null;
+  /** The beat a held key is keeping now, ms, gliding toward whichever stage of `holdBeats` the hold has reached. */
+  hb = 0;
+  /** Whether the key was held at the last step, so a new hold starts at its stage's beat rather than gliding. */
+  wasHeld = false;
   /** The one press that may wait for the gate, signed by direction. */
   pending = 0;
   time = 0;
@@ -286,6 +300,8 @@ export class Drum {
     for (let i = 0; i < this.N; i++) this.cf[i] = this.contentTarget(i);
     this.lam = 0;
     this.lamV = 0;
+    this.hb = 0;
+    this.wasHeld = false;
     this.trim.fill(NaN);
   }
   /** Replaces the card heights, keeping every card where it is; the next step moves them toward the new poses. */
@@ -351,7 +367,14 @@ export class Drum {
    * beat a held key keeps. */
   private gapFor(dir: number) {
     const planned = this.tempoGap(dir);
-    return this.hold ? Math.max(planned, this.cfg.holdBeat) : planned;
+    return this.hold ? Math.max(planned, this.hb) : planned;
+  }
+  /** The beat `holdBeats` asks for once a key has been held for `age` ms: the last stage it has reached. */
+  private beatAt(age: number) {
+    let beat = 0;
+    for (const stage of this.cfg.holdBeats)
+      if (age >= stage.after) beat = stage.beat;
+    return beat;
   }
   /** Whether a press may be taken now: the planned interval has passed, and every card in transit has passed its flip. */
   accepts(dir: number) {
@@ -408,6 +431,10 @@ export class Drum {
   tick(dt: number) {
     this.time += dt * 1000;
     if (this.hold) this.hold.t += dt * 1000;
+    const beat = this.hold ? this.beatAt(this.hold.t) : 0;
+    if (this.hold && !this.wasHeld) this.hb = beat;
+    this.hb += (beat - this.hb) * (1 - Math.exp((-dt * 1000) / BEAT_TAU));
+    this.wasHeld = this.hold !== null;
     // the waiting press, once the gate opens
     if (this.pending !== 0 && this.accepts(Math.sign(this.pending))) {
       const nf = this.front + this.pending;

@@ -81,11 +81,14 @@ can take three times as long as the one before it. One press may wait for the
 gate. A press that arrives while another waits is dropped, so a release rests on
 a whole card with at most one more card after it (G9).
 
-`holdBeat` is the least interval between presses while a key is held, so a hold
-repeats at a pace a person can read whatever the card heights do: at 250 ms the
-shipped queue runs 4.0 cards/s with intervals of 250–267 ms, where the gate
-alone would run 10 to 11 cards/s. It is the hold's alone, so presses made one at
-a time are still taken as soon as the previous card clears.
+`holdBeats` is the least interval between presses while a key is held, given
+stage by stage: a stage applies once the key has been held for its `after` ms,
+and the beat glides to a new stage over 70 ms. The shipped queue holds 167 ms
+per card for the first 1.2 s of a hold and then 111 ms, so a hold starts at
+about 6 cards/s and settles at about 9; over a 14-card hold that measures 6.9
+cards/s at 117–183 ms apart, where the gate alone would run 10 to 11. It is the
+hold's alone, so presses made one at a time are still taken as soon as the
+previous card clears.
 
 Faster means moving the same edges farther in the same time, and the edge budget
 caps that. With no tempo, `ramp` or `fold`, raising the tap budget alone lifts
@@ -102,7 +105,7 @@ not where the motion starts to look rushed.
 
 | Preset (60 Hz, `npm run sweep -- presets`) | Held ↑ / ↓, cards/s | Interval range | Worst step-to-step change | Max jump, px/frame | Problems       |
 | ------------------------------------------ | ------------------- | -------------- | ------------------------- | ------------------ | -------------- |
-| `shipped`                                  | 4.0 / 4.0           | 250–267 ms     | 1.07×                     | 44                 | 271 / 123 / 15 |
+| `shipped`                                  | 6.9 / 6.9           | 117–183 ms     | 1.38×                     | 44                 | 271 / 129 / 15 |
 | `natural`                                  | 5.0 / 5.2           | 100–367 ms     | 3.00×                     | 24                 | 0              |
 | `even`                                     | 4.0 / 3.9           | 217–283 ms     | 1.15×                     | 24                 | 0              |
 | `even + held speed`                        | 4.7 / 4.6           | 183–250 ms     | 1.18×                     | 31                 | 0              |
@@ -564,13 +567,13 @@ A port into `stackEngine.ts` and the product page has these parts:
   stage takes a mask on every frame, or cuts at the clip line and shows the
   line, is open, and so is the mask's cost over four shadowed cards in the
   product's DOM.
-- **Pace and tap ↑.** The product spaces a held key's presses by a 250 ms beat
-  (`holdBeat`), on top of the 120 ms floor and loose clearing while held
-  (`QUEUE_CFG`); a hold runs 4.0 cards/s, and presses made one at a time are
-  held only to the gate. The cascade runs 83–117 ms held, which `pace` sets. Its
-  tap ↑ lands in 550 ms against the natural drum's 483, because the card rises
-  from 480 px below. `park` at 360 px lands in 483 ms and shows a card for 7
-  frames against the 10 the rule needs.
+- **Pace and tap ↑.** The product spaces a held key's presses by `holdBeats`, a
+  staged beat (`167 ms`, then `111 ms` after 1.2 s), on top of the 120 ms floor
+  and loose clearing while held (`QUEUE_CFG`); a hold averages 6.9 cards/s, and
+  presses made one at a time are held only to the gate. The cascade runs 83–117
+  ms held, which `pace` sets. Its tap ↑ lands in 550 ms against the natural
+  drum's 483, because the card rises from 480 px below. `park` at 360 px lands
+  in 483 ms and shows a card for 7 frames against the 10 the rule needs.
 - **The budgets' unit.** `QUEUE_CFG` and the cascade keep their budgets in px/s,
   so a 120 Hz display runs the 60 Hz pace with about half the move per frame
   (10.7 cards/s and 18.1 px/frame, above). The suite's 120 Hz table keeps
