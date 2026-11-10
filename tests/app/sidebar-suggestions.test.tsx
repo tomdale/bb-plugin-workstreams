@@ -116,6 +116,50 @@ it("lists each suggestion's change and the threads it moves", async () => {
   ).toBeTruthy();
 });
 
+const reparent = suggestion("reparent", "Move Workforest under bb", {
+  op: "reparent",
+  moves: [
+    {
+      from: place("Workforest"),
+      to: [...place("bb"), ...place("Workforest")],
+      threads: [],
+      carried: 2,
+      carriedThreads: [
+        { id: "w1", title: "Fix worktree cleanup" },
+        { id: "w2", title: "Cache mirrors" },
+      ],
+    },
+  ],
+});
+
+it("lists a group's threads when its count is clicked", async () => {
+  const { flyaway } = await open([reparent]);
+  const line = await flyaway.findByRole("button", { name: "2 threads" });
+  expect(line.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(line);
+  expect(line.getAttribute("aria-expanded")).toBe("true");
+  expect(flyaway.getByText("Fix worktree cleanup")).toBeTruthy();
+  expect(flyaway.getByText("Cache mirrors")).toBeTruthy();
+  fireEvent.click(line);
+  expect(flyaway.getByRole("button", { name: "2 threads" })).toBeTruthy();
+  expect(flyaway.queryByText("Cache mirrors")).toBeNull();
+});
+
+it("lists every thread when the line is cut off", async () => {
+  const widths = vi
+    .spyOn(HTMLElement.prototype, "scrollWidth", "get")
+    .mockReturnValue(400);
+  try {
+    const { flyaway } = await open([merge]);
+    fireEvent.click(
+      await flyaway.findByRole("button", { name: "Refund flow" }),
+    );
+    await flyaway.findByRole("button", { name: "Refund flow", expanded: true });
+  } finally {
+    widths.mockRestore();
+  }
+});
+
 it("leaves suggestions waiting when closed", async () => {
   const decide = vi.fn();
   const { slot, count, flyaway } = await open([merge, rename], {

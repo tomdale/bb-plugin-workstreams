@@ -259,6 +259,9 @@ const suggestionChangeSchema: z.ZodType<SuggestionChange> = z.object({
       to: topicPlaceSchema,
       threads: z.array(z.object({ id: z.string(), title: z.string() })),
       carried: z.number(),
+      carriedThreads: z
+        .array(z.object({ id: z.string(), title: z.string() }))
+        .optional(),
     }),
   ),
 });

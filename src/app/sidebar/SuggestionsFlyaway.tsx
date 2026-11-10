@@ -7,7 +7,8 @@
  * Each suggestion is two lines: what accepting it does ("Merge Payments into
  * Billing") with Decline and Accept, then the threads it moves. The second
  * line stays, empty, when no thread moves, so every suggestion has the same
- * shape. A decision applies at once and leaves a line in its place with Undo
+ * shape. When that line names several threads, counts a group's ("4
+ * threads"), or is cut off, clicking it lists every thread, one per line. A decision applies at once and leaves a line in its place with Undo
  * for a few seconds, as in Topics; Activity keeps Undo after that. Closing
  * (Escape, Close, or a click outside) decides nothing: the rest keep waiting.
  *
@@ -21,6 +22,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactElement,
@@ -38,7 +40,11 @@ import {
 import { cn } from "@/lib/utils";
 import type { SuggestionsStateWire } from "../../server/contract.ts";
 import { keepOrder } from "../../domain/feed.ts";
-import { movingThreadsLine } from "../../domain/suggestion-change.ts";
+import {
+  movingThreadTitles,
+  movingThreadsLine,
+  type SuggestionChange,
+} from "../../domain/suggestion-change.ts";
 import type { useWorkstreams } from "../useWorkstreams.ts";
 import { Hint } from "../Hint.tsx";
 import { rowActionClass } from "./HoverActions.tsx";
@@ -327,14 +333,83 @@ const TEXT_BUTTON =
   "h-6 shrink-0 cursor-pointer rounded-md px-2 text-xs text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring";
 
 /** A suggestion's two lines, shared by its pending and decided forms. */
-function Lines({ top, threads }: { top: ReactNode; threads: string }) {
+function Lines({ top, threads }: { top: ReactNode; threads: ReactNode }) {
   return (
     <>
       <div className="flex min-h-6 items-center gap-2">{top}</div>
-      <p className="m-0 min-h-4 truncate leading-4 text-muted-foreground">
-        {threads}
-      </p>
+      {typeof threads === "string" ? (
+        <p className={THREADS}>{threads}</p>
+      ) : (
+        threads
+      )}
     </>
+  );
+}
+
+const THREADS = "m-0 min-h-4 truncate leading-4 text-muted-foreground";
+
+/**
+ * The threads a suggestion moves, on one line. When it names more than one,
+ * counts a group's threads, or is cut off, it is a button that lists every
+ * thread, one per line, and folds back on a second click.
+ */
+function MovingThreads({ change }: { change: SuggestionChange }) {
+  const line = movingThreadsLine(change);
+  const titles = movingThreadTitles(change);
+  const own = change.moves.reduce((n, m) => n + m.threads.length, 0);
+  const [expanded, setExpanded] = useState(false);
+  const [cut, setCut] = useState(false);
+  const ref = useRef<HTMLElement>(null);
+  // Several threads always expand, one per line. A single title expands
+  // only when cut off, measured again once the flyaway takes the heading's
+  // width and once the font loads, either of which can change the fit.
+  const several = titles.length > 1 || titles.length > own;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || several || expanded) return;
+    let live = true;
+    const measure = () => {
+      if (live) setCut(el.scrollWidth > el.clientWidth);
+    };
+    measure();
+    void document.fonts?.ready.then(measure);
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measure);
+    observer?.observe(el);
+    return () => {
+      live = false;
+      observer?.disconnect();
+    };
+  }, [line, several, expanded]);
+  const expandable = titles.length > 0 && (several || cut);
+  if (!expandable)
+    return (
+      <p ref={ref as React.Ref<HTMLParagraphElement>} className={THREADS}>
+        {line}
+      </p>
+    );
+  return (
+    <button
+      ref={ref as React.Ref<HTMLButtonElement>}
+      type="button"
+      aria-expanded={expanded}
+      onClick={() => setExpanded(!expanded)}
+      className={cn(
+        THREADS,
+        "block w-full cursor-pointer text-left hover:text-foreground",
+        expanded && "whitespace-normal",
+      )}
+    >
+      {expanded
+        ? titles.map((title, index) => (
+            <span key={index} className="block truncate">
+              {title}
+            </span>
+          ))
+        : line}
+    </button>
   );
 }
 
@@ -380,7 +455,7 @@ function SuggestionRow({
             </span>
           </>
         }
-        threads={movingThreadsLine(suggestion.change!)}
+        threads={<MovingThreads change={suggestion.change!} />}
       />
     </li>
   );

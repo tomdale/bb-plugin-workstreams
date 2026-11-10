@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   changeHeadline,
   changeLines,
+  movingThreadTitles,
   movingThreadsLine,
   suggestionChange,
   type ChangeContext,
@@ -162,6 +163,7 @@ describe("suggestionChange", () => {
           to: at("bb", "Todo Plugin", "Alert Investigations"),
           threads: [],
           carried: 1,
+          carriedThreads: listed("t4"),
         },
       ],
     });
@@ -174,7 +176,13 @@ describe("suggestionChange", () => {
         context(),
       )?.moves,
     ).toEqual([
-      { from: at("Agent"), to: at("bb", "Agent"), threads: [], carried: 2 },
+      {
+        from: at("Agent"),
+        to: at("bb", "Agent"),
+        threads: [],
+        carried: 2,
+        carriedThreads: listed("t3", "t4"),
+      },
     ]);
     expect(
       suggestionChange(
@@ -296,6 +304,19 @@ describe("movingThreadsLine", () => {
 
   it("is empty when no thread moves", () => {
     expect(line({ op: "rename", topic: "todo", name: "Todos" })).toBe("");
+  });
+});
+
+describe("movingThreadTitles", () => {
+  it("lists every thread that moves, its own and those moved with a group", () => {
+    expect(
+      movingThreadTitles(
+        suggestionChange(
+          { op: "merge", from: "auto", into: "toolbelt" },
+          context(),
+        )!,
+      ),
+    ).toEqual(["Thread t3", "Thread t4"]);
   });
 });
 

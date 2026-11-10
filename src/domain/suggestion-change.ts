@@ -30,6 +30,11 @@ export type ChangeMove = {
   readonly threads: readonly { readonly id: string; readonly title: string }[];
   /** Further visible threads that move along with a moved topic. */
   readonly carried: number;
+  /** The threads `carried` counts, for review that lists them on request. */
+  readonly carriedThreads?: readonly {
+    readonly id: string;
+    readonly title: string;
+  }[];
 };
 
 /**
@@ -103,24 +108,30 @@ function describe(
       { name: create?.name ?? name, created: true },
     ];
   };
-  /** Visible threads filed in a topic or any topic below it. */
-  const within = (ref: string) =>
-    Object.values(threadTopic).filter(
-      (topic) =>
-        topic !== null &&
-        byId.has(topic) &&
-        topicAncestors(topic, topics).includes(ref),
-    ).length;
   const thread = (id: string) => {
     if (!(id in threadTopic)) throw new Error("That thread is gone.");
     return { id, title: context.title(id) };
   };
+  /** Visible threads filed in a topic or any topic below it. */
+  const within = (ref: string) =>
+    Object.entries(threadTopic)
+      .filter(
+        ([, topic]) =>
+          topic !== null &&
+          byId.has(topic) &&
+          topicAncestors(topic, topics).includes(ref),
+      )
+      .map(([id]) => thread(id));
+  const carry = (threads: ReturnType<typeof thread>[]) => ({
+    carried: threads.length,
+    ...(threads.length ? { carriedThreads: threads } : {}),
+  });
   /** A topic moving from its own path to `to`, with its threads counted. */
   const topicMove = (ref: string, to: TopicPlace): ChangeMove => ({
     from: place(ref),
     to,
     threads: [],
-    carried: within(ref),
+    ...carry(within(ref)),
   });
   const under = (parent: TopicPlace, ref: string): TopicPlace => [
     ...parent,
@@ -276,8 +287,9 @@ const list = (names: readonly string[]) =>
 
 /**
  * The threads accepting a suggestion moves, as one line for the sidebar's
- * suggestions: their titles, then how many more move along with a moved
- * group, whose titles the change only counts. Empty when no thread moves.
+ * suggestions: the titles it moves itself, then how many more move along
+ * with a moved group. Empty when no thread moves. `movingThreadTitles` lists
+ * them all.
  */
 export function movingThreadsLine(change: SuggestionChange): string {
   const titles = change.moves.flatMap((m) => m.threads.map((t) => t.title));
@@ -285,6 +297,16 @@ export function movingThreadsLine(change: SuggestionChange): string {
   if (!carried) return titles.join(", ");
   if (titles.length) return `${titles.join(", ")} and ${carried} more`;
   return carried === 1 ? "1 thread" : `${carried} threads`;
+}
+
+/** Every thread accepting a suggestion moves, by title: its own, then carried. */
+export function movingThreadTitles(change: SuggestionChange): string[] {
+  return [
+    ...change.moves.flatMap((m) => m.threads.map((t) => t.title)),
+    ...change.moves.flatMap((m) =>
+      (m.carriedThreads ?? []).map((t) => t.title),
+    ),
+  ];
 }
 
 /** Whether accepting moves any visible thread, by itself or with its group. */
