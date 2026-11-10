@@ -201,22 +201,16 @@ const SLOT_STYLES = [
 
 /**
  * Drives one list of slots: stacked siblings, each a box around its whole
- * contents, with one CSS margin between neighbors (`li + li`). A slot's
+ * contents, with no margin between them (a slot pads its own row). A slot's
  * height, travel offset, opacity, and clip are written as inline styles while
  * it moves and cleared once it rests, so a resting slot is laid out by CSS
- * alone. While any slot moves, every gap is written too, opening and closing
- * with the slots on either side of it, so the rows below never jump by a
- * gap. Positions come from the slots' heights and gaps in order; nothing is
+ * alone. Positions come from the slots' heights in order; nothing is
  * measured per frame.
  */
 class SlotSprings {
   private readonly slots = new Map<string, Slot>();
   private readonly elements = new Map<string, HTMLElement>();
   private order: string[] = [];
-  /** The CSS margin between neighboring slots, read when slots are measured. */
-  private gap = 0;
-  /** Whether the gaps are written inline. */
-  private gapped = false;
   private frame: number | null = null;
   private last = 0;
   /** A contents height change waiting for its burst to end (see `remeasure`). */
@@ -382,56 +376,30 @@ class SlotSprings {
    * once so the reads share one layout.
    */
   private measure(keys: readonly string[]) {
-    const lifted: [HTMLElement, string, string][] = [];
+    const lifted: [HTMLElement, string][] = [];
     for (const key of keys) {
       const element = this.elements.get(key);
-      if (element && (element.style.height || element.style.marginTop)) {
-        lifted.push([element, element.style.height, element.style.marginTop]);
+      if (element?.style.height) {
+        lifted.push([element, element.style.height]);
         element.style.height = "";
-        element.style.marginTop = "";
       }
     }
     const naturals = new Map<string, number>();
-    let gap = 0;
     for (const key of keys) {
       const element = this.elements.get(key);
-      if (!element) continue;
-      naturals.set(key, element.getBoundingClientRect().height);
-      gap = Math.max(
-        gap,
-        Number.parseFloat(getComputedStyle(element).marginTop) || 0,
-      );
+      if (element) naturals.set(key, element.getBoundingClientRect().height);
     }
-    if (keys.length > 1) this.gap = gap;
-    for (const [element, height, margin] of lifted) {
-      element.style.height = height;
-      element.style.marginTop = margin;
-    }
+    for (const [element, height] of lifted) element.style.height = height;
     return naturals;
   }
 
-  /**
-   * Each slot's layout top, without its travel, and the gap above it. A gap
-   * is as open as the less open of its slot and the most open slot before
-   * it, so a slot opening or closing anywhere, first included, brings its
-   * gap with it.
-   */
+  /** Each slot's layout top, without its travel. */
   private layout() {
-    const out = new Map<string, { top: number; gap: number }>();
+    const out = new Map<string, { top: number }>();
     let y = 0;
-    let before = 0;
     for (const key of this.order) {
-      const slot = this.slots.get(key)!;
-      const open =
-        slot.natural > 0
-          ? Math.min(1, Math.max(0, slot.height.value / slot.natural))
-          : slot.height.value > 0
-            ? 1
-            : 0;
-      const gap = out.size === 0 ? 0 : this.gap * Math.min(open, before);
-      before = Math.max(before, open);
-      out.set(key, { top: y + gap, gap });
-      y += gap + slot.height.value;
+      out.set(key, { top: y });
+      y += this.slots.get(key)!.height.value;
     }
     return out;
   }
@@ -532,18 +500,6 @@ class SlotSprings {
       style.position = "relative";
       style.zIndex = String(stackLevel(offset));
       style.clipPath = clips.get(key) ?? "";
-    }
-    const moving = [...this.slots.values()].some((slot) => slot.styled);
-    if (moving && this.gap > 0) {
-      for (const [key, { gap }] of this.layout()) {
-        const element = this.elements.get(key);
-        if (element) element.style.marginTop = `${gap}px`;
-      }
-      this.gapped = true;
-    } else if (this.gapped) {
-      for (const element of this.elements.values())
-        element.style.marginTop = "";
-      this.gapped = false;
     }
     if (closed.length > 0) this.closed(closed);
   }

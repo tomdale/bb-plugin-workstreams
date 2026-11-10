@@ -91,10 +91,6 @@ beforeEach(() => {
       return { top: 0, height, bottom: height } as DOMRect;
     },
   );
-  vi.stubGlobal(
-    "getComputedStyle",
-    vi.fn(() => ({ marginTop: "0px" })),
-  );
 });
 afterEach(() => {
   cleanup();
@@ -220,27 +216,6 @@ describe("useSlotList", () => {
     step(1000);
     expect(entering.style.height).toBe("");
     expect(entering.style.opacity).toBe("");
-  });
-
-  it("opens the gap above a row that stops being first with the row that enters before it", () => {
-    // The CSS gap sits between neighbors (`li + li`).
-    vi.stubGlobal(
-      "getComputedStyle",
-      vi.fn((element: HTMLElement) => ({
-        marginTop: element.previousElementSibling ? "3px" : "0px",
-      })),
-    );
-    const view = render(<List items={rows("a", "b")} />);
-    view.rerender(<List items={rows("n", "a", "b")} />);
-    step(UP_NEXT_MOTION.burstMs);
-    expect(slot("a")!.style.marginTop).toBe("0px");
-    expect(slot("b")!.style.marginTop).toBe("3px");
-    step(100);
-    const gap = Number.parseFloat(slot("a")!.style.marginTop);
-    expect(gap).toBeGreaterThan(0);
-    expect(gap).toBeLessThan(3);
-    step(1000);
-    expect(slot("a")!.style.marginTop).toBe("");
   });
 
   it("closes and fades a leaving slot, inert, then unmounts it", () => {
