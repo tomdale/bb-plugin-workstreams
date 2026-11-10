@@ -630,21 +630,26 @@ export function StickyGoalHeader(): React.ReactElement | null {
   );
   // A pinned compact heading needs a solid plate; in the bar the full-size
   // plate can instead fade away without moving under the large heading. The
-  // pinned plate and the scroll padding derived from it change in one step,
-  // which styles.css animates.
-  const plateHeight =
+  // pinned plate changes in one step, which styles.css animates.
+  const plateAt = (at: number) =>
     fadeOnly || scalePinned
       ? pinned
-        ? height * (1 - progress) + platePinnedHeight * progress
+        ? height * (1 - at) + platePinnedHeight * at
         : height
-      : Math.max(
-          height * (1 - progress),
-          pinned ? platePinnedHeight * progress : 0,
-        );
+      : Math.max(height * (1 - at), pinned ? platePinnedHeight * at : 0);
+  const plateHeight = plateAt(progress);
   const plateOpacity =
     fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
+  // The padding that scrolling to an element keeps clear of the heading. It
+  // follows the heading's resting states, never its in-between frames: the
+  // scroller is a container, and a style write to it restyles and lays out the
+  // whole message column, so a per-frame write costs tens of milliseconds and
+  // drops the heading's frames while the timeline scrolls smoothly.
+  const restingProgress = Number(collapsed);
   const scrollPadding =
-    fadeOnly && !pinned ? height * (1 - progress) : plateHeight;
+    fadeOnly && !pinned
+      ? height * (1 - restingProgress)
+      : plateAt(restingProgress);
   // Fade holds the expanded heading in place. Start the shadow under the goal
   // instead of leaving a separate solid band below it, without changing the
   // reserved heading height, scroll padding, or the other transition modes.
