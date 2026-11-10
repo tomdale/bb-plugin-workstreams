@@ -315,17 +315,12 @@ describe("useSlotList", () => {
     expect(slot(":more")!.textContent).toBe("Show 2 more");
   });
 
-  it("under reduced motion fades leaving rows in place, then applies the change at once", () => {
+  it("under reduced motion applies a change at once, dropping leaving rows and fading in joining ones", () => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query.includes("reduce"),
     }));
     const view = render(<List items={rows("a", "b")} />);
     view.rerender(<List items={rows("n", "a")} />);
-    expect(order()).toEqual(["a", "b", ":more"]);
-    step(80);
-    expect(Number(slot("b")!.style.opacity)).toBeLessThan(1);
-    expect(slot("b")!.style.height).toBe(`${ROW}px`);
-    step(UP_NEXT_MOTION.reducedFadeMs - 80);
     expect(order()).toEqual(["n", "a", ":more"]);
     const entering = slot("n")!;
     expect(entering.style.height).toBe(`${ROW}px`);

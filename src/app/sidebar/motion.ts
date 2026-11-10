@@ -9,7 +9,7 @@
  *
  * Motion is skipped where Web Animations are unavailable (tests, old
  * engines); there every change applies at once. Under reduced motion,
- * layout changes apply at once, and only Up Next's rows fade.
+ * layout changes apply at once, and only Up Next's joining rows fade in.
  */
 import {
   useCallback,
@@ -47,7 +47,7 @@ export const UP_NEXT_MOTION = {
   leaveMs: 120,
   /** A burst of row changes redraws once, this long after its last change. */
   burstMs: 120,
-  /** Under reduced motion, rows fade in and out over this and nothing moves. */
+  /** Under reduced motion, a joining row fades in over this and nothing moves. */
   reducedFadeMs: 150,
 } as const;
 
@@ -167,8 +167,6 @@ type Slot = {
   /** The contents' fade; none means fully shown. */
   fade: Fade | null;
   leaving: boolean;
-  /** Fading out ahead of a reduced-motion change; its height holds. */
-  holding: boolean;
   /** A leaving slot that has closed, reported once and waiting to unmount. */
   closed: boolean;
   /**
@@ -190,8 +188,6 @@ type SlotCommit = {
   readonly rise: ReadonlySet<string>;
   /** Leaving rows that close without fading, sinking under Show more. */
   readonly sink: ReadonlySet<string>;
-  /** Rows fading out in place before a reduced-motion change applies. */
-  readonly fadeOut: ReadonlySet<string>;
 };
 
 const SLOT_STYLES = [
@@ -305,7 +301,6 @@ class SlotSprings {
           offset: { value: 0, velocity: 0, target: 0 },
           fade: opening ? enter(0) : null,
           leaving: false,
-          holding: false,
           closed: false,
           surface: null,
           styled: false,
@@ -319,22 +314,7 @@ class SlotSprings {
         slot.closed = false;
         slot.fade = enter(opacity);
         arriving.add(key);
-      } else if (change.fadeOut.has(key)) {
-        // It keeps its slot, at the height it had, until it leaves.
-        slot.holding = true;
-        if (!slot.fade || slot.fade.to > 0)
-          slot.fade = {
-            from: opacity,
-            to: 0,
-            start: now,
-            duration: UP_NEXT_MOTION.reducedFadeMs,
-          };
-        continue;
-      } else if (slot.fade && slot.fade.to < 1) {
-        // A fade-out whose change never came: fade back in.
-        slot.fade = enter(opacity);
       }
-      slot.holding = false;
       slot.natural = natural;
       slot.height.target = natural;
       if (!full) {
@@ -395,10 +375,7 @@ class SlotSprings {
    * under reduced motion it applies at once.
    */
   remeasure(mode: Exclude<MotionMode, "none">, now: number) {
-    const keys = this.order.filter((key) => {
-      const slot = this.slots.get(key)!;
-      return !slot.leaving && !slot.holding;
-    });
+    const keys = this.order.filter((key) => !this.slots.get(key)!.leaving);
     const naturals = this.measure(keys);
     let changed = false;
     this.advance(now);
@@ -647,11 +624,7 @@ type ShownSlots<T> = {
   readonly items: ReadonlyMap<string, T>;
   readonly signature: string;
   readonly trimmed: ReadonlySet<string>;
-  /** Rows fading out before a reduced-motion change applies. */
-  readonly fading: ReadonlySet<string>;
 };
-
-const NOTHING: ReadonlySet<string> = new Set();
 
 /**
  * Up Next's rows as slots that open and close on one spring (see
@@ -673,9 +646,9 @@ const NOTHING: ReadonlySet<string> = new Set();
  * `arranged` marks an item whose contents belong to the arrangement, such as
  * Show more's count, so it changes only when the arrangement does.
  *
- * Under reduced motion nothing waits or moves: leaving rows fade out in
- * place, then the new arrangement applies at once and entering rows fade in.
- * Without Web Animations (tests) every change applies at once.
+ * Under reduced motion nothing waits or moves: the new arrangement applies
+ * at once, leaving rows go, and entering rows fade in. Without Web
+ * Animations (tests) every change applies at once.
  */
 export function useSlotList<T>(
   items: readonly T[],
@@ -701,20 +674,14 @@ export function useSlotList<T>(
     items: byKey,
     signature,
     trimmed: options.trimmed,
-    fading: NOTHING,
   };
   let display = shown.current;
   if (
     display === null ||
-    mode === "none" ||
+    mode !== "full" ||
     options.immediate !== immediate.current
   )
     display = live;
-  else if (display.signature !== signature && mode === "reduced") {
-    const present = new Set(keys);
-    const fading = new Set(display.keys.filter((key) => !present.has(key)));
-    display = fading.size > 0 ? { ...display, fading } : live;
-  }
   const displayItems = display.keys.flatMap((key) => {
     const held = display.items.get(key);
     const item =
@@ -774,10 +741,9 @@ export function useSlotList<T>(
       key: entry.key,
       leaving: entry.phase === "leave",
     }));
-    const arrangement = [
-      ...entries.map(({ key, leaving }) => `${leaving ? "-" : ""}${key}`),
-      ...[...display.fading].map((key) => `~${key}`),
-    ].join("\n");
+    const arrangement = entries
+      .map(({ key, leaving }) => `${leaving ? "-" : ""}${key}`)
+      .join("\n");
     const now = performance.now();
     const previous = arranged.current;
     if (previous?.signature === arrangement) {
@@ -807,7 +773,6 @@ export function useSlotList<T>(
         first: previous === null || previous.present === 0,
         rise,
         sink,
-        fadeOut: display.fading,
       },
       now,
     );
@@ -823,32 +788,21 @@ export function useSlotList<T>(
     id: ReturnType<typeof setTimeout>;
   } | null>(null);
   useEffect(() => {
-    if (display.signature === signature && display.fading.size === 0) {
+    if (display.signature === signature) {
       if (timer.current) clearTimeout(timer.current.id);
       timer.current = null;
       return;
     }
-    // A burst restarts the wait on each change; a reduced-motion fade-out
-    // runs its course before the rows it fades leave.
-    if (
-      mode === "reduced"
-        ? timer.current
-        : timer.current?.signature === signature
-    )
-      return;
+    // A burst restarts the wait on each change.
+    if (timer.current?.signature === signature) return;
     if (timer.current) clearTimeout(timer.current.id);
     timer.current = {
       signature,
-      id: setTimeout(
-        () => {
-          timer.current = null;
-          shown.current = latest.current;
-          redraw();
-        },
-        mode === "reduced"
-          ? UP_NEXT_MOTION.reducedFadeMs
-          : UP_NEXT_MOTION.burstMs,
-      ),
+      id: setTimeout(() => {
+        timer.current = null;
+        shown.current = latest.current;
+        redraw();
+      }, UP_NEXT_MOTION.burstMs),
     };
   });
   useEffect(

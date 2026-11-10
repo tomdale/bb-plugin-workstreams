@@ -405,10 +405,10 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    under it into the last slot. The card's edge, **Pinned**, and the workstreams
    below follow the rows. A row's highlight and marks change at once, and **Show
    N more** and **Show less** apply without waiting. With reduced motion
-   enabled, a leaving row fades out in place, then the new order appears at once
-   and a joining row fades in. The thread you have open keeps its row and place
-   until you open another thread. Nested delegates do not appear as separate Up
-   Next entries; find them in their workstream's thread tree.
+   enabled, the new order appears at once and a joining row fades in. The thread
+   you have open keeps its row and place until you open another thread. Nested
+   delegates do not appear as separate Up Next entries; find them in their
+   workstream's thread tree.
    - **Focus:** While a focused workstream has a thread blocked on you, Up Next
      applies these rules to focused workstreams' threads only and marks its
      header with the focus icon.
