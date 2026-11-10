@@ -1166,14 +1166,16 @@
           scalePinned ? lines : 1,
         );
         const plateHeight =
-          fadeOnly || scalePinned
-            ? pinned
-              ? height * (1 - progress) + platePinnedHeight * progress
-              : height
+          pinned && (fadeOnly || scalePinned)
+            ? height * (1 - progress) + platePinnedHeight * progress
             : Math.max(
                 height * (1 - progress),
                 pinned ? platePinnedHeight * progress : 0,
               );
+        // In the title bar the plate and its shadow rise out of the way as
+        // the heading fades, so the shadow never hangs over text that is
+        // still coming into view.
+        const shadowOpacity = fadeOnly && !pinned ? 1 - progress : plateOpacity;
         const plateOpacity =
           fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
         const scrollPadding =
@@ -1203,13 +1205,11 @@
         );
         background.style.setProperty(
           "--ws-plate-fade-scale",
-          String(
-            pinned ? PINNED_FEATHER : fadeOnly ? 1 : plateFadeScale(progress),
-          ),
+          String(pinned ? PINNED_FEATHER : plateFadeScale(progress)),
         );
         background.style.setProperty(
           "--ws-fade-below-plate",
-          String(fade && plateHeight > 0 ? plateOpacity : 0),
+          String(fade && plateHeight > 0 ? shadowOpacity : 0),
         );
         background.toggleAttribute("data-ws-pinned", pinned);
         if (pinned) band.setAttribute("data-ws-edge", "");
@@ -1318,9 +1318,7 @@
           <span>feather</span><b>${
             pinned
               ? `${(PINNED_FEATHER * 192).toFixed(0)}px from half cover`
-              : fadeOnly
-                ? `plate shadow at ${plateOpacity.toFixed(2)}`
-                : `${(plateFadeScale(progress) * 192).toFixed(0)}px`
+              : `${(plateFadeScale(progress) * 192).toFixed(0)}px at ${shadowOpacity.toFixed(2)}`
           }</b>
           <span>scroll padding</span><b>${scrollPadding}px</b>
           <span class="hint">↑ ↓ scroll the timeline · click a control to switch state</span>
