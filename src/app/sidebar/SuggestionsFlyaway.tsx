@@ -42,7 +42,7 @@ import { keepOrder } from "../../domain/feed.ts";
 import type { useWorkstreams } from "../useWorkstreams.ts";
 import { Hint } from "../Hint.tsx";
 import { rowActionClass } from "./HoverActions.tsx";
-import { SuggestionPreview } from "./SuggestionPreview.tsx";
+import { SuggestionPreview, type PreviewColors } from "./SuggestionPreview.tsx";
 
 type Rpc = ReturnType<typeof useWorkstreams>["rpc"];
 type Suggestion = SuggestionsStateWire["suggestions"][number];
@@ -75,11 +75,14 @@ export const suggestionCountLabel = (count: number) =>
  */
 export function SuggestionsFlyaway({
   rpc,
+  colors,
   count,
   onOpenTopics,
   children,
 }: {
   rpc: Rpc;
+  /** The workstream colors landing rows take. */
+  colors?: PreviewColors;
   /** Organizing suggestions waiting for a decision. */
   count: number;
   onOpenTopics: () => void;
@@ -141,6 +144,7 @@ export function SuggestionsFlyaway({
       >
         <SuggestionList
           rpc={rpc}
+          colors={colors}
           onClose={() => setOpen(false)}
           onOpenTopics={() => {
             setOpen(false);
@@ -154,10 +158,12 @@ export function SuggestionsFlyaway({
 
 function SuggestionList({
   rpc,
+  colors,
   onClose,
   onOpenTopics,
 }: {
   rpc: Rpc;
+  colors?: PreviewColors;
   onClose: () => void;
   onOpenTopics: () => void;
 }) {
@@ -277,6 +283,7 @@ function SuggestionList({
           <SuggestionRow
             key={id}
             suggestion={s}
+            colors={colors}
             onDecide={(decision) => void decide(s, decision)}
           />,
         ]
@@ -333,9 +340,11 @@ const ROW = "border-b border-border/60 px-3 last:border-b-0";
 
 function SuggestionRow({
   suggestion,
+  colors,
   onDecide,
 }: {
   suggestion: Suggestion;
+  colors?: PreviewColors;
   onDecide: (decision: Decided["decision"]) => void;
 }) {
   const { headline, preview } = suggestion;
@@ -344,7 +353,7 @@ function SuggestionRow({
       {preview ? (
         <>
           <span className="sr-only">{headline}</span>
-          <SuggestionPreview preview={preview} />
+          <SuggestionPreview preview={preview} colors={colors} />
         </>
       ) : (
         <span className="min-w-0 flex-1 font-medium leading-4">{headline}</span>

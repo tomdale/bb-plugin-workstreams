@@ -941,6 +941,7 @@ export function WorkstreamsThreadList({
     <SuggestionsFlyaway
       key="workstreams-heading"
       rpc={ws.rpc}
+      colors={ws.server.catalog}
       count={ws.server.pendingSuggestions ?? 0}
       onOpenTopics={() => navigate.toPluginPanel("home", { subPath: "topics" })}
     >

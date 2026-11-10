@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ChangeContext } from "../../src/domain/suggestion-change.ts";
-import { suggestionPreview } from "../../src/domain/suggestion-preview.ts";
+import {
+  suggestionPreview,
+  type PreviewRow,
+} from "../../src/domain/suggestion-preview.ts";
 
 const topic = (
   id: string,
@@ -43,8 +46,13 @@ const context = (extra: Partial<ChangeContext> = {}): ChangeContext => ({
   visible: (id) => id !== "t9",
   ...extra,
 });
-const preview = (body: Parameters<typeof suggestionPreview>[0]) =>
-  suggestionPreview(body, context());
+/** The slices without the color each row takes, which one test covers. */
+const preview = (body: Parameters<typeof suggestionPreview>[0]) => {
+  const result = suggestionPreview(body, context());
+  const plain = (rows: readonly PreviewRow[]) =>
+    rows.map(({ colorTopicId: _color, ...row }) => row);
+  return result && { before: plain(result.before), after: plain(result.after) };
+};
 const titled = (...ids: string[]) =>
   ids.map((id) => ({ id, title: `Thread ${id}` }));
 
@@ -276,6 +284,30 @@ describe("suggestionPreview", () => {
         { kind: "thread", name: "Thread t10", depth: 1, mark: "new" },
       ],
     });
+  });
+
+  it("colors each row by its topic, a new one by its parent's", () => {
+    const colors = (body: Parameters<typeof suggestionPreview>[0]) =>
+      suggestionPreview(body, context())!.after.map((row) => row.colorTopicId);
+    expect(
+      colors({
+        topicId: "pay",
+        subgroups: [{ name: "Refunds", description: "", threadIds: ["t1"] }],
+      }),
+    ).toEqual(["pay", "pay"]);
+    expect(colors({ op: "move", thread: "t10", topic: "review" })).toEqual([
+      "review",
+      "review",
+    ]);
+    expect(
+      colors({
+        op: "create",
+        name: "Finance",
+        description: "",
+        parent: null,
+        children: ["pay"],
+      }),
+    ).toEqual([undefined, "pay"]);
   });
 
   it("is null when a topic it names is gone", () => {

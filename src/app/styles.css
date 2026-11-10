@@ -273,41 +273,50 @@
   );
 }
 
-/* A suggestion's before and after (SuggestionPreview). A nested row hangs
-   from the row above on a └ guide; a nested row with another below it runs
-   the guide on down to that one's. Green when the row lands. Threads wear a
-   small ring. */
+/* A suggestion's before and after (SuggestionPreview). A landing row takes
+   its workstream's identity color. A nested row hangs from the row above on
+   a 1px └ guide whose arm meets the row's middle. A nested row below another
+   starts its guide at that row's arm, and a row with another below it
+   branches square (├), so stacked rows share one straight trunk. Each row
+   draws the stretch of trunk leading to it, in its color when it lands. */
+.ws-preview-accent {
+  --ws-preview-accent: var(
+    --ws-color-light,
+    oklch(46% 0.16 var(--ws-hue, 250))
+  );
+}
+.dark .ws-preview-accent {
+  --ws-preview-accent: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
+}
 .ws-preview-nest {
+  --ws-preview-guide: color-mix(
+    in oklab,
+    var(--muted-foreground) 45%,
+    var(--popover)
+  );
   position: relative;
   padding-left: 18px;
+}
+.ws-preview-nest.ws-preview-accent {
+  --ws-preview-guide: var(--ws-preview-accent);
 }
 .ws-preview-nest::before {
   content: "";
   position: absolute;
-  left: 6px;
-  top: -2px;
+  left: 5px;
+  top: -3px;
   width: 7px;
-  height: 11px;
-  border-left: 1.25px solid
-    color-mix(in oklab, var(--muted-foreground) 55%, var(--popover));
-  border-bottom: 1.25px solid
-    color-mix(in oklab, var(--muted-foreground) 55%, var(--popover));
-  border-bottom-left-radius: 4px;
+  height: 12px;
+  border-left: 1px solid var(--ws-preview-guide);
+  border-bottom: 1px solid var(--ws-preview-guide);
+  border-bottom-left-radius: 3px;
 }
-.ws-preview-nest:has(+ .ws-preview-nest)::after {
-  content: "";
-  position: absolute;
-  left: 6px;
-  top: 7px;
-  bottom: 0;
-  border-left: 1.25px solid
-    color-mix(in oklab, var(--muted-foreground) 55%, var(--popover));
+.ws-preview-nest + .ws-preview-nest::before {
+  top: -9px;
+  height: 18px;
 }
-.ws-preview-nest-new:has(+ .ws-preview-nest-new)::after {
-  border-color: var(--ws-complete-text);
-}
-.ws-preview-nest-new::before {
-  border-color: var(--ws-complete-text);
+.ws-preview-nest:has(+ .ws-preview-nest)::before {
+  border-bottom-left-radius: 0;
 }
 .ws-preview-ring {
   display: inline-block;

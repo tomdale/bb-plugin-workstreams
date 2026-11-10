@@ -463,15 +463,16 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      underneath doesn't move. Each suggestion draws the sidebar rows it touches
      as they are, an arrow, and as they would be, with **Decline** (`×`) and
      **Accept** (`✓`) beside it. Workstreams are bold and threads have a ring;
-     nested rows hang from their parent. Red crossed-out rows leave, green rows
-     land or are new (`+`), and numbers are thread counts. Click a green count
-     to list the threads arriving there. Parents show no count, since threads
-     sit in the topics under them, and archived threads move with their topic
-     without being counted. A decision applies at once and leaves **Undo** in
-     its place for a few seconds; Activity keeps Undo after that. The foot
-     counts suggestions the tree has since outgrown ("1 out of date") beside
-     **Open Topics**, where you can dismiss them. **Close**, `Esc`, or a click
-     outside closes the list and leaves the rest waiting.
+     nested rows hang from their parent. Rows that leave are dimmed and crossed
+     out; rows that land or are new (`+`) take their workstream's color, and
+     numbers are thread counts. Click a colored count to list the threads
+     arriving there. Parents show no count, since threads sit in the topics
+     under them, and archived threads move with their topic without being
+     counted. A decision applies at once and leaves **Undo** in its place for a
+     few seconds; Activity keeps Undo after that. The foot counts suggestions
+     the tree has since outgrown ("1 out of date") beside **Open Topics**, where
+     you can dismiss them. **Close**, `Esc`, or a click outside closes the list
+     and leaves the rest waiting.
    - Drag a root thread to another workstream to set its **Topic** to that
      workstream's topic; its delegates follow it. Drop on a row to place it
      before or after that root, or on a header to place it first, including a

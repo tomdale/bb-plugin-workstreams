@@ -10,6 +10,7 @@
  * (after); `same` rows are context. Counts are visible threads: a leaf
  * topic's own, or everything a moving topic takes along. Parents in context
  * carry no count, because a topic with subtopics holds no threads itself.
+ * A landing row names the topic whose color it takes.
  */
 import type { ChangeContext } from "./suggestion-change.ts";
 import type { Split, TidyEdit } from "./tidy.ts";
@@ -31,6 +32,11 @@ export type PreviewRow = {
   readonly within?: string;
   /** The threads that arrive in this row's topic, for listing on request. */
   readonly arriving?: readonly Thread[];
+  /**
+   * The topic whose color the row takes when it lands: its own, a created
+   * topic's nearest existing parent, or a moving thread's destination.
+   */
+  readonly colorTopicId?: string;
 };
 
 export type SuggestionPreview = {
@@ -116,6 +122,12 @@ function describe(
   /** Its own threads for a leaf; nothing for a parent. */
   const leafCount = (n: Node) =>
     n.id === null ? 0 : children(n.id).length ? undefined : own(n.id).length;
+  /** The nearest existing topic at or above `n`, for its color. */
+  const colorOf = (n: Node | null): { colorTopicId?: string } => {
+    for (let at = n; at; at = at.parent)
+      if (at.id) return { colorTopicId: at.id };
+    return {};
+  };
   const topicRow = (
     n: Node,
     depth: 0 | 1,
@@ -126,6 +138,7 @@ function describe(
     name: n.name,
     depth,
     mark,
+    ...colorOf(n),
     ...(n.created ? { created: true } : {}),
     ...(depth === 0 && n.parent ? { within: n.parent.name } : {}),
     ...extra,
@@ -349,6 +362,7 @@ function describe(
         name: moving.title,
         depth: 1,
         mark,
+        ...(mark === "new" ? colorOf(to) : {}),
       });
       return {
         before: [
