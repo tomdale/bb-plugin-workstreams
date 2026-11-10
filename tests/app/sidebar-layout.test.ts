@@ -104,7 +104,7 @@ describe.skipIf(browserUnavailable)(
     );
 
     browserTest(
-      "extends only the hover fill without changing row or selected-fill layout",
+      "extends the hover and selected fills equally without changing row layout",
       async ({ page }) => {
         await page.setContent(`<style>${styles}</style>
           <style>
@@ -156,9 +156,9 @@ describe.skipIf(browserUnavailable)(
         });
         expect(selectedFill).toMatchObject({
           position: "absolute",
-          top: "0px",
-          bottom: "0px",
-          height: "21px",
+          top: "-3px",
+          bottom: "-3px",
+          height: "27px",
           pointerEvents: "none",
         });
         expect(hoverFill.backgroundColor).toContain("0.6");
@@ -184,7 +184,7 @@ describe.skipIf(browserUnavailable)(
 
         const selectedBox = (await selected.boundingBox())!;
         const hoveredBox = (await hovered.boundingBox())!;
-        expect(hoveredBox.y - selectedBox.y).toBe(24);
+        expect(hoveredBox.y - selectedBox.y).toBe(27);
         expect(
           await selected.evaluate(
             (row) => getComputedStyle(row.parentElement!).marginTop,
@@ -194,7 +194,7 @@ describe.skipIf(browserUnavailable)(
           await hovered.evaluate(
             (row) => getComputedStyle(row.parentElement!).marginTop,
           ),
-        ).toBe("3px");
+        ).toBe("6px");
 
         const selectedFill = await selected.evaluate((row) => {
           const style = getComputedStyle(row, "::before");
@@ -205,16 +205,16 @@ describe.skipIf(browserUnavailable)(
           return { top: style.top, bottom: style.bottom, height: style.height };
         });
         expect(selectedFill).toEqual({
-          top: "0px",
-          bottom: "0px",
-          height: "21px",
+          top: "-3px",
+          bottom: "-3px",
+          height: "27px",
         });
         expect(hoverFill).toEqual({
           top: "-3px",
           bottom: "-3px",
           height: "27px",
         });
-        expect(hoveredBox.y - 3).toBe(selectedBox.y + selectedBox.height);
+        expect(hoveredBox.y - 3).toBe(selectedBox.y + selectedBox.height + 3);
       },
     );
 

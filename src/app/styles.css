@@ -1,6 +1,6 @@
-/* Grow the hover fill beyond the thread row while the selected fill stays
-   inside it. The pseudo-element does not participate in layout or intercept
-   pointers meant for adjacent rows. */
+/* Grow the hover and selected fills equally beyond the thread row. The
+   pseudo-element does not participate in layout or intercept pointers meant
+   for adjacent rows. */
 .ws-row:hover {
   z-index: 1;
 }
@@ -30,7 +30,6 @@
   );
 }
 .ws-row.ws-row-active::before {
-  inset: 0;
   background-color: var(--ws-row-active, var(--sidebar-accent));
 }
 
@@ -492,11 +491,11 @@
   font-size: 11px;
   font-weight: 500;
 }
-/* The gap holds the hovered row's 3px outset so it does not paint over an
-   adjacent selected row. Only adjacent items take the gap; the card's outer
+/* The gap holds both rows' 3px outsets so a hovered row's fill does not
+   paint over an adjacent selected row's. Only adjacent items take the gap; the card's outer
    spacing stays unchanged. */
 .ws-needs li + li {
-  margin-top: 3px;
+  margin-top: 6px;
 }
 /* The shimmer's gradient is three card widths wide. Translating that layer
    keeps the sweep on the compositor; background-position would repaint it.
