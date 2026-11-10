@@ -9,6 +9,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { parse } from "../../src/domain/reply.ts";
 import { ReplyBlock } from "../../src/app/reply/ReplyBlock.tsx";
 import { blockInput } from "../domain/replyFixtures.ts";
+import { sidebarThread } from "./fixtures.ts";
 
 const markdown = vi.hoisted(() => ({
   renders: [] as { content: string; document: unknown }[],
@@ -246,4 +247,31 @@ it("draws replies without a workspace when the first lookup does not answer, the
   } finally {
     vi.useRealTimers();
   }
+});
+
+it("draws a listed thread's replies at once from the sidebar's environment", async () => {
+  const host = fakeSdk({ id: "env1", path: "/work/shop", hostId: "host1" });
+  host.defer();
+  const listed = {
+    ...sidebarThread("t1"),
+    environment: {
+      id: "env1",
+      name: "shop",
+      branchName: "main",
+      path: "/work/shop",
+      isWorktree: false,
+      providerId: null,
+      workspaceDisplayKind: null,
+    },
+    host: { id: "host1", name: "Laptop" },
+  };
+  const view = renderSlot({ component: () => <Blocks ids={["a"]} /> }, {}, {
+    sdk: host.sdk,
+    sidebarThreads: { threads: [listed] },
+  } as never);
+  // Nothing waits on a lookup: the sidebar already named the checkout.
+  expect(documents(view.container)).toHaveLength(1);
+  expect(documents(view.container)[0]).toContain('"rootPath":"/work/shop"');
+  expect(host.get).not.toHaveBeenCalled();
+  expect(markdown.renders.every(({ document }) => document)).toBe(true);
 });

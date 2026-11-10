@@ -1,6 +1,11 @@
 import { useCallback, useSyncExternalStore } from "react";
-import { useSdk, type PluginBrowserBbSdk } from "@get-bb/plugin-sdk/app";
+import {
+  useSdk,
+  type PluginBrowserBbSdk,
+  type PluginSidebarThread,
+} from "@get-bb/plugin-sdk/app";
 import type { RecapFiles } from "../../domain/recap.ts";
+import { useSidebarThread } from "../useStableSidebarThreads.ts";
 import type { ReplyDocument } from "./Evidence.tsx";
 
 /** Where a thread's reply links resolve: its environment's checkout. */
@@ -38,6 +43,29 @@ const ROUTINE_ENVIRONMENT_CHANGES = new Set([
   "thread-storage-changed",
 ]);
 
+/** The workspace for a thread in an environment with a known checkout. */
+function workspaceOf(
+  threadId: string,
+  environment: { id: string; path: string; hostId: string | null },
+): ReplyWorkspace {
+  return {
+    files: {
+      environmentId: environment.id,
+      root: environment.path,
+      hostId: environment.hostId,
+    },
+    document: {
+      threadId,
+      rootPath: environment.path,
+      target: {
+        kind: "workspace",
+        environmentId: environment.id,
+        path: "__reply__.md",
+      },
+    },
+  };
+}
+
 function sameWorkspace(a: ReplyWorkspace, b: ReplyWorkspace): boolean {
   return (
     a.document.threadId === b.document.threadId &&
@@ -72,6 +100,19 @@ class WorkspaceStore {
     entry.listeners.add(listener);
     this.ensure(entry, threadId);
     return () => entry.listeners.delete(listener);
+  }
+
+  /**
+   * Takes a thread's workspace from what the sidebar already lists, so its
+   * replies draw at once instead of waiting for a lookup. Only fills a thread
+   * the store knows nothing about; realtime events revalidate it like any
+   * other.
+   */
+  seed(threadId: string, workspace: ReplyWorkspace): void {
+    const entry = this.entry(threadId);
+    if (entry.value !== undefined || entry.reading) return;
+    entry.value = workspace;
+    entry.environmentId = workspace.files.environmentId;
   }
 
   /** Settles once the thread's workspace is known, starting a lookup if needed. */
@@ -151,22 +192,11 @@ class WorkspaceStore {
         entry.environmentId = environment?.id ?? null;
         next =
           environment && typeof environment.path === "string"
-            ? {
-                files: {
-                  environmentId: environment.id,
-                  root: environment.path,
-                  hostId: environment.hostId ?? null,
-                },
-                document: {
-                  threadId,
-                  rootPath: environment.path,
-                  target: {
-                    kind: "workspace",
-                    environmentId: environment.id,
-                    path: "__reply__.md",
-                  },
-                },
-              }
+            ? workspaceOf(threadId, {
+                id: environment.id,
+                path: environment.path,
+                hostId: environment.hostId ?? null,
+              })
             : null;
       } catch {
         // Keep a known workspace through a failed revalidation. A first lookup
@@ -245,6 +275,23 @@ export function workspaceStore(sdk: PluginBrowserBbSdk): WorkspaceStore {
   return store;
 }
 
+/**
+ * A listed thread's workspace, when the sidebar names its checkout and host.
+ * A thread without either is left to the lookup, which can resolve both.
+ */
+function listedWorkspace(
+  threadId: string,
+  thread: PluginSidebarThread | undefined,
+): ReplyWorkspace | null {
+  const environment = thread?.environment;
+  if (!thread?.host || !environment?.id || !environment.path) return null;
+  return workspaceOf(threadId, {
+    id: environment.id,
+    path: environment.path,
+    hostId: thread.host.id,
+  });
+}
+
 const unknownThread = (): WorkspaceSnapshot => null;
 const noSubscription = () => () => {};
 
@@ -254,6 +301,11 @@ const noSubscription = () => () => {};
  */
 export function useReplyWorkspace(threadId: string | null): WorkspaceSnapshot {
   const store = workspaceStore(useSdk());
+  const listed = useSidebarThread(threadId);
+  if (threadId && store.snapshot(threadId) === undefined) {
+    const seed = listedWorkspace(threadId, listed);
+    if (seed) store.seed(threadId, seed);
+  }
   const subscribe = useCallback(
     (listener: () => void) => store.subscribe(threadId!, listener),
     [store, threadId],
