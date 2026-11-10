@@ -72,7 +72,7 @@ function rpc(overrides: Record<string, unknown> = {}) {
   };
 }
 
-it("does not rebuild projection or Up Next options for a display-only minute tick", async () => {
+it("keeps the projection and Up Next options through a minute with no deadline", async () => {
   vi.useFakeTimers();
   const at = 100 * DAY_MS;
   vi.setSystemTime(at);
@@ -85,7 +85,7 @@ it("does not rebuild projection or Up Next options for a display-only minute tic
   let latest!: ReturnType<typeof useWorkstreams>;
   function Suite() {
     latest = useWorkstreams();
-    return <output data-testid="display">{latest.displayNow}</output>;
+    return <output data-testid="now">{latest.now}</output>;
   }
   const slot = renderSlot({ component: Suite }, {}, { rpc: rpc() });
   await act(async () => {});
@@ -94,10 +94,9 @@ it("does not rebuild projection or Up Next options for a display-only minute tic
   const calls = vi.mocked(projectWorkstreams).mock.calls.length;
 
   await act(async () => vi.advanceTimersByTimeAsync(60_000));
-  expect(within(slot.container).getByTestId("display").textContent).toBe(
-    String(at + 60_000),
+  expect(within(slot.container).getByTestId("now").textContent).toBe(
+    String(at),
   );
-  expect(latest.displayNow).toBe(at + 60_000);
   expect(latest.now).toBe(at);
   expect(latest.projection).toBe(projection);
   expect(latest.upNextOptions).toBe(upNextOptions);

@@ -1,3 +1,4 @@
+import { FixedClock } from "../../src/app/clock.ts";
 import {
   createContext,
   createElement,
@@ -251,20 +252,23 @@ export function mountThread(
   mount(
     panel,
     target,
-    createElement(Row, {
-      thread,
-      work,
-      depth: options.depth,
-      categorized: options.categorized,
-      placement: options.legacy ? "archived" : "group",
-      active: false,
-      now: 0,
-      snoozeAction,
-      onNavigate() {},
-      disclosure: options.toggle
-        ? { expanded: options.expanded ?? true, toggle: options.toggle }
-        : undefined,
-    }),
+    createElement(
+      FixedClock.Provider,
+      { value: 0 },
+      createElement(Row, {
+        thread,
+        work,
+        depth: options.depth,
+        categorized: options.categorized,
+        placement: options.legacy ? "archived" : "group",
+        active: false,
+        snoozeAction,
+        onNavigate() {},
+        disclosure: options.toggle
+          ? { expanded: options.expanded ?? true, toggle: options.toggle }
+          : undefined,
+      }),
+    ),
     options.legacy,
   );
 }

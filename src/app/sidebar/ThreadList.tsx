@@ -78,6 +78,8 @@ import { useStableSidebarThreads } from "../useStableSidebarThreads.ts";
 import { shareJson } from "../structuralSharing.ts";
 import { workView } from "../../domain/status.ts";
 import { relativeAge } from "../../domain/presentation.ts";
+import { useClock } from "../clock.ts";
+import { useLatest, useStableCallback } from "../useLatest.ts";
 import { useGroupCollapse } from "./useGroupCollapse.ts";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
 import { workstreamGap } from "./workstreamGap.ts";
@@ -186,10 +188,14 @@ function inlineGroups(group: ThreadNode): ThreadNode[] {
 /** A group's own name, for its rows' label: "Walkthrough Plugin" for "bb: Walkthrough Plugin". */
 const shortLabel = (label: string) => label.split(/:\s*/).at(-1) ?? label;
 type ThreadRow = RowModel<PluginSidebarThread>;
-type RowTimes = { display: number; projection: number };
 type RowRenderOptions = {
   placement: Placement;
-  times: RowTimes;
+  /**
+   * The projection's clock, which decides whether a stored snooze still
+   * holds. Passed per call, not captured, so a new projection does not
+   * remake every row's renderer.
+   */
+  projectionNow: number;
   /** The drag handle, for a root row that drags its tree. */
   handle?: DragHandle;
   /** The width its rows reserve for the status slot (see `slotWidthOf`). */
@@ -259,14 +265,13 @@ export function WorkstreamsThreadList({
     null,
   );
   const [customSnooze, setCustomSnooze] = useState<SnoozeRequest | null>(null);
-  const { projection, sections, displayNow: now, now: projectionNow } = ws;
+  const { projection, sections, now: projectionNow } = ws;
   const nameOf = useMemo(
     () => new Map(sections.map((section) => [section.id, section.name])),
     [sections],
   );
   const prioritizedIds = ws.server.order.prioritized;
   const groupSort = prefs?.sidebar.groupSort ?? "alphabetical";
-  const timestamps = prefs?.sidebar.timestamps ?? "show";
   /**
    * A header drag writes the stored manual order, which the active groups do
    * not show under another sort. Dormant groups are displayed in manual order
@@ -428,26 +433,18 @@ export function WorkstreamsThreadList({
     acceptsThread: (from, to) => acceptsThreadDrop(from, to, ws.topics),
   });
 
-  const applySnooze = (request: SnoozeRequest, when: SnoozeWhen) =>
-    snoozeThreads(ws.setSnoozes, request.threads, when, {
-      previous: ws.snoozeOf,
-      subject: request.subject,
-    });
-  const currentRowActions = useRef({
+  const applySnooze = useStableCallback(
+    (request: SnoozeRequest, when: SnoozeWhen) =>
+      snoozeThreads(ws.setSnoozes, request.threads, when, {
+        previous: ws.snoozeOf,
+        subject: request.subject,
+      }),
+  );
+  const currentRowActions = useLatest({
     actions,
     navigate,
     onNavigate,
-    applySnooze,
     setSnoozes: ws.setSnoozes,
-  });
-  useLayoutEffect(() => {
-    currentRowActions.current = {
-      actions,
-      navigate,
-      onNavigate,
-      applySnooze,
-      setSnoozes: ws.setSnoozes,
-    };
   });
   const handlers = useMemo<RowMenuHandlers>(
     () => ({
@@ -466,8 +463,7 @@ export function WorkstreamsThreadList({
         }
       },
       inspect: (thread) => setInspecting(thread),
-      snooze: (thread, when) =>
-        currentRowActions.current.applySnooze({ threads: [thread] }, when),
+      snooze: (thread, when) => applySnooze({ threads: [thread] }, when),
       customSnooze: (thread) => setCustomSnooze({ threads: [thread] }),
       wake: (thread) =>
         wakeThreads(currentRowActions.current.setSnoozes, [thread]),
@@ -479,16 +475,7 @@ export function WorkstreamsThreadList({
   const preset = defaultPreset(snoozePrefs);
   /** When the default preset wakes, from the moment of the click. */
   const defaultWake = () => presetWhen(preset, Date.now());
-  const currentDefaultWake = useRef(defaultWake);
-  useLayoutEffect(() => {
-    currentDefaultWake.current = defaultWake;
-  });
-  const wakeByDefault = useMemo(() => () => currentDefaultWake.current(), []);
-  const applySnoozeLatest = useCallback(
-    (request: SnoozeRequest, when: SnoozeWhen) =>
-      currentRowActions.current.applySnooze(request, when),
-    [],
-  );
+  const wakeByDefault = useStableCallback(defaultWake);
   /**
    * A workstream row's snooze button, while the row lists threads: it
    * snoozes every one of them (see `groupRoots`) with the default preset,
@@ -498,7 +485,7 @@ export function WorkstreamsThreadList({
     (group: ThreadNode): GroupSnooze | undefined => {
       const request = groupSnoozeRequest(group);
       if (!request) return undefined;
-      const snooze = (when: SnoozeWhen) => applySnoozeLatest(request, when);
+      const snooze = (when: SnoozeWhen) => applySnooze(request, when);
       const custom = () => setCustomSnooze(request);
       const wake = wakeByDefault();
       return {
@@ -518,7 +505,7 @@ export function WorkstreamsThreadList({
         custom,
       };
     },
-    [applySnoozeLatest, wakeByDefault, snoozePrefs],
+    [applySnooze, wakeByDefault, snoozePrefs],
   );
 
   /** The status slot width these rows share (see `slotWidthOf`). */
@@ -586,7 +573,7 @@ export function WorkstreamsThreadList({
       { row, depth, key },
       {
         placement,
-        times,
+        projectionNow,
         handle,
         slotWidth = FULL_SLOT_PX,
         label,
@@ -595,7 +582,7 @@ export function WorkstreamsThreadList({
     ) => {
       const storedSnooze = snoozes[row.thread.id];
       const snooze =
-        storedSnooze && isSnoozed(storedSnooze, times.projection)
+        storedSnooze && isSnoozed(storedSnooze, projectionNow)
           ? storedSnooze
           : undefined;
       let context = label;
@@ -604,14 +591,11 @@ export function WorkstreamsThreadList({
         placement !== "group" &&
         !(placement === "archived" && bandOptions.archived.grouped)
       )
+        // A snoozed row names its wake time itself, which changes with the clock.
         context =
-          placement === "snoozed"
-            ? snooze
-              ? shortWake(snooze.until, times.display)
-              : undefined
-            : row.workstreamId
-              ? nameOf.get(row.workstreamId)
-              : undefined;
+          placement !== "snoozed" && row.workstreamId
+            ? nameOf.get(row.workstreamId)
+            : undefined;
       return (
         <SidebarThreadRow
           key={key}
@@ -620,10 +604,6 @@ export function WorkstreamsThreadList({
           thread={row.thread}
           depth={depth}
           active={row.thread.id === activeThreadId}
-          now={
-            timestamps === "hide" && placement !== "snoozed" ? 0 : times.display
-          }
-          timestamps={timestamps}
           context={context}
           placement={placement}
           analysis={ws.server.analysis[row.thread.id]}
@@ -653,7 +633,6 @@ export function WorkstreamsThreadList({
       onNavigate,
       snoozePrefs,
       snoozes,
-      timestamps,
       toggle,
       wakeByDefault,
       ws.server.analysis,
@@ -714,7 +693,7 @@ export function WorkstreamsThreadList({
         entriesOf(tree, placement).map((entry) =>
           renderRow(entry, {
             placement,
-            times: { display: now, projection: projectionNow },
+            projectionNow,
             slotWidth,
           }),
         ),
@@ -751,7 +730,7 @@ export function WorkstreamsThreadList({
       (entry) =>
         renderRow(entry, {
           placement,
-          times: { display: now, projection: projectionNow },
+          projectionNow,
           slotWidth,
         }),
     );
@@ -794,9 +773,7 @@ export function WorkstreamsThreadList({
       group={group}
       collapsed={collapsed}
       renderRow={renderRow}
-      now={now}
       projectionNow={projectionNow}
-      timestamps={timestamps}
       groupSlot={groupSlot}
       choosingTopic={choosingTopic}
       colorOf={colorOf}
@@ -1343,9 +1320,7 @@ type ThreadTreesProps = {
   label?: string;
   categorized?: boolean;
   renderRow: RenderRow;
-  now: number;
   projectionNow: number;
-  timestamps: "show" | "hover" | "hide";
   collapsed?: boolean;
   slotWidth: number;
   choosingTopic: boolean;
@@ -1380,23 +1355,6 @@ function useStableRows(rows: readonly ThreadRow[]) {
   }, [rows]);
 }
 
-function sameAges(
-  rows: readonly ThreadRow[],
-  timestamps: "show" | "hover" | "hide",
-  before: number,
-  after: number,
-) {
-  return (
-    timestamps === "hide" ||
-    before === after ||
-    rows.every(
-      (row) =>
-        relativeAge(row.thread.latestAttentionAt, before) ===
-        relativeAge(row.thread.latestAttentionAt, after),
-    )
-  );
-}
-
 /** A sortable root and its visible descendants, with drag-only surface updates. */
 function SortableThreadTree({
   tree,
@@ -1404,12 +1362,11 @@ function SortableThreadTree({
   label,
   categorized = false,
   renderRow,
-  now,
   projectionNow,
   slotWidth,
   choosingTopic,
   isCollapsed,
-}: Omit<ThreadTreesProps, "rows" | "timestamps"> & {
+}: Omit<ThreadTreesProps, "rows"> & {
   tree: readonly ThreadRow[];
 }) {
   const visible = useMemo(
@@ -1425,7 +1382,7 @@ function SortableThreadTree({
         {visible.map((entry, index) =>
           renderRow(entry, {
             placement: "group",
-            times: { display: now, projection: projectionNow },
+            projectionNow,
             handle: index === 0 ? handle : undefined,
             slotWidth,
             label,
@@ -1434,7 +1391,7 @@ function SortableThreadTree({
         )}
       </ul>
     ),
-    [visible, renderRow, now, projectionNow, slotWidth, label, categorized],
+    [visible, renderRow, projectionNow, slotWidth, label, categorized],
   );
   const root = tree[0]!.thread;
   return (
@@ -1461,9 +1418,7 @@ const ThreadTrees = memo(
     label,
     categorized = false,
     renderRow,
-    now,
     projectionNow,
-    timestamps,
     slotWidth,
     choosingTopic,
     isCollapsed,
@@ -1484,7 +1439,6 @@ const ThreadTrees = memo(
             label={label}
             categorized={categorized}
             renderRow={renderRow}
-            now={now}
             projectionNow={projectionNow}
             slotWidth={slotWidth}
             choosingTopic={choosingTopic}
@@ -1502,20 +1456,16 @@ const ThreadTrees = memo(
       before.label === after.label &&
       before.categorized === after.categorized &&
       before.renderRow === after.renderRow &&
-      before.timestamps === after.timestamps &&
       before.slotWidth === after.slotWidth &&
       before.choosingTopic === after.choosingTopic &&
-      before.isCollapsed === after.isCollapsed &&
-      sameAges(before.rows, before.timestamps, before.now, after.now)),
+      before.isCollapsed === after.isCollapsed),
 );
 
 type GroupBodyProps = {
   group: ThreadNode;
   collapsed: boolean;
   renderRow: RenderRow;
-  now: number;
   projectionNow: number;
-  timestamps: "show" | "hover" | "hide";
   groupSlot: number;
   choosingTopic: boolean;
   colorOf: (group: ThreadNode) => TopicColor;
@@ -1530,9 +1480,7 @@ function CategorizedTrees({
   group,
   label,
   renderRow,
-  now,
   projectionNow,
-  timestamps,
   collapsed,
   groupSlot,
   choosingTopic,
@@ -1542,9 +1490,7 @@ function CategorizedTrees({
   GroupBodyProps,
   | "group"
   | "renderRow"
-  | "now"
   | "projectionNow"
-  | "timestamps"
   | "collapsed"
   | "groupSlot"
   | "choosingTopic"
@@ -1596,9 +1542,7 @@ function CategorizedTrees({
         label={label}
         categorized={Boolean(category.name)}
         renderRow={renderRow}
-        now={now}
         projectionNow={projectionNow}
-        timestamps={timestamps}
         collapsed={collapsed}
         slotWidth={groupSlot}
         choosingTopic={choosingTopic}
@@ -1682,7 +1626,6 @@ const GroupBody = memo(
     (before.collapsed === after.collapsed &&
       sameGroupData(before.group, after.group) &&
       before.renderRow === after.renderRow &&
-      before.timestamps === after.timestamps &&
       before.groupSlot === after.groupSlot &&
       before.choosingTopic === after.choosingTopic &&
       before.colorOf === after.colorOf &&
@@ -1690,8 +1633,7 @@ const GroupBody = memo(
       before.groupSnoozeOf === after.groupSnoozeOf &&
       before.isCollapsed === after.isCollapsed &&
       before.groupCollapsed === after.groupCollapsed &&
-      before.toggleGroup === after.toggleGroup &&
-      sameGroupAges(before.group, before.timestamps, before.now, after.now)),
+      before.toggleGroup === after.toggleGroup),
 );
 
 function sameGroupData(before: ThreadNode, after: ThreadNode): boolean {
@@ -1717,28 +1659,12 @@ function sameGroupData(before: ThreadNode, after: ThreadNode): boolean {
   );
 }
 
-function sameGroupAges(
-  group: ThreadNode,
-  timestamps: "show" | "hover" | "hide",
-  before: number,
-  after: number,
-): boolean {
-  return (
-    sameAges(group.rows, timestamps, before, after) &&
-    group.subgroups.every((sub) =>
-      sameGroupAges(sub, timestamps, before, after),
-    )
-  );
-}
-
 type SidebarThreadRowProps = {
   handleRef?: DragHandle["ref"];
   handleListeners?: DragHandle["listeners"];
   thread: PluginSidebarThread;
   depth: number;
   active: boolean;
-  now: number;
-  timestamps: "show" | "hover" | "hide";
   context?: string;
   placement: Placement;
   analysis?: ServerState["analysis"][string];
@@ -1763,7 +1689,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   thread,
   depth,
   active,
-  now,
   context,
   placement,
   analysis,
@@ -1781,6 +1706,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   handleListeners,
 }: SidebarThreadRowProps) {
   const work = workView(thread, analysis, recap);
+  // A snoozed row's wake time follows the clock, so the row reads it itself.
+  const wakeTime = useClock((now) =>
+    snooze ? shortWake(snooze.until, now) : undefined,
+  );
+  const wakeTitle = useClock((now) =>
+    snooze ? describeWake(snooze.until, now, snooze.events) : "",
+  );
   const traits = PLACEMENT_TRAITS[placement];
   let snoozeAction: RowSnoozeAction | undefined;
   if (traits.snooze && (traits.snooze !== "wake" || snooze !== undefined)) {
@@ -1799,7 +1731,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
       traits.snooze === "wake"
         ? {
             kind: "wake",
-            title: `Wake now (snoozed ${describeWake(snooze!.until, now, snooze!.events)})`,
+            title: `Wake now (snoozed ${wakeTitle})`,
             run: () => handlers.wake(thread),
             menu,
           }
@@ -1823,8 +1755,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
           thread={thread}
           depth={depth}
           active={active}
-          now={now}
-          context={context}
+          context={placement === "snoozed" ? wakeTime : context}
           placement={placement}
           work={work}
           slotWidth={slotWidth}
@@ -1862,7 +1793,6 @@ function sameSidebarThreadRow(
     sameThread(before.thread, after.thread) &&
     before.depth === after.depth &&
     before.active === after.active &&
-    before.timestamps === after.timestamps &&
     before.context === after.context &&
     before.placement === after.placement &&
     before.analysis === after.analysis &&
@@ -1877,34 +1807,7 @@ function sameSidebarThreadRow(
     before.onNavigate === after.onNavigate &&
     before.toggleDisclosure === after.toggleDisclosure &&
     before.handleRef === after.handleRef &&
-    before.handleListeners === after.handleListeners &&
-    (before.now === after.now ||
-      (before.timestamps === "hide" &&
-        (before.placement !== "snoozed" ||
-          describeWake(
-            before.snooze?.until ?? null,
-            before.now,
-            before.snooze?.events,
-          ) ===
-            describeWake(
-              after.snooze?.until ?? null,
-              after.now,
-              after.snooze?.events,
-            ))) ||
-      (before.timestamps !== "hide" &&
-        relativeAge(before.thread.latestAttentionAt, before.now) ===
-          relativeAge(after.thread.latestAttentionAt, after.now) &&
-        (before.placement !== "snoozed" ||
-          describeWake(
-            before.snooze?.until ?? null,
-            before.now,
-            before.snooze?.events,
-          ) ===
-            describeWake(
-              after.snooze?.until ?? null,
-              after.now,
-              after.snooze?.events,
-            ))))
+    before.handleListeners === after.handleListeners
   );
 }
 

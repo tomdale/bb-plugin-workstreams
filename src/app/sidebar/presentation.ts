@@ -1,9 +1,5 @@
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import {
-  relativeAge,
-  slotMarkFor,
-  type SlotMark,
-} from "../../domain/presentation.ts";
+import { slotMarkFor } from "../../domain/presentation.ts";
 import type { WorkView } from "../../domain/status.ts";
 
 /** Whether the row's leading slot has a mark to show. */
@@ -21,7 +17,8 @@ export function presentRow(
   options: {
     showPin: boolean;
     timestamps: "show" | "hover" | "hide";
-    now: number;
+    /** The thread's age as the row shows it (see `relativeAge`). */
+    age: string;
   },
 ) {
   const slotMark = slotMarkFor(thread, work ?? { kind: "none" });
@@ -40,10 +37,7 @@ export function presentRow(
     timestamp:
       options.timestamps === "hide"
         ? null
-        : {
-            mode: options.timestamps,
-            text: relativeAge(thread.latestAttentionAt, options.now),
-          },
+        : { mode: options.timestamps, text: options.age },
   };
 }
 

@@ -1,3 +1,4 @@
+import { FixedClock } from "../../src/app/clock.ts";
 import {
   Profiler,
   useState,
@@ -234,7 +235,6 @@ function ProfileWorkstream({ groupIndex }: { groupIndex: number }) {
                 depth={0}
                 placement="group"
                 active={false}
-                now={0}
                 snoozeAction={{
                   kind: "snooze",
                   title: "Snooze until later",
@@ -298,7 +298,11 @@ function SidebarProfile() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(<SidebarProfile />);
+createRoot(document.getElementById("root")!).render(
+  <FixedClock.Provider value={0}>
+    <SidebarProfile />
+  </FixedClock.Provider>,
+);
 requestAnimationFrame(() => {
   requestAnimationFrame(() => {
     profileWindow.__sidebarProfile.ready = true;

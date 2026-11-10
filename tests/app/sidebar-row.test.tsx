@@ -28,7 +28,6 @@ async function mountThread(overrides: Parameters<typeof sidebarThread>[1]) {
     thread,
     active: false,
     depth: 0,
-    now: Date.now(),
     context: "Alpha",
     onNavigate: vi.fn(),
     disclosure: { expanded: true, toggle: vi.fn() },

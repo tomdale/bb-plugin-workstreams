@@ -210,7 +210,6 @@ describe.skipIf(browserUnavailable)(
             thread,
             depth: 0,
             active: false,
-            now: Date.now(),
             onNavigate: () => undefined,
           };
           const slot = renderSlot({ component: Row }, props, {

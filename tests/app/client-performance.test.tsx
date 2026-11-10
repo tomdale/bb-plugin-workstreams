@@ -385,7 +385,6 @@ it("skips closed row and menu renders for unrelated preference publishes", async
               thread={thread}
               depth={0}
               active={false}
-              now={Date.now()}
               onNavigate={() => {}}
             />
           </RowMenu>
@@ -704,7 +703,6 @@ it("projects a due snooze deadline on a parent rerender", async () => {
         data-empty={ws.projection.groups.some(
           (group) => group.id === "sec_empty",
         )}
-        data-display={ws.displayNow}
       >
         {ws.now}
       </output>
@@ -720,7 +718,6 @@ it("projects a due snooze deadline on a parent rerender", async () => {
   expect(clock().dataset.snoozed).toBe("1");
   // A workstream whose thread is snoozed keeps no row of its own.
   expect(clock().dataset.empty).toBe("false");
-  expect(clock().dataset.display).toBe(String(at));
 
   // Advancing wall time does not run the pending timer. The parent rerender
   // must nevertheless expire the actual projection, not just sample `now`.
@@ -729,7 +726,6 @@ it("projects a due snooze deadline on a parent rerender", async () => {
   expect(clock().dataset.snoozed).toBe("0");
   expect(clock().dataset.empty).toBe("false");
   expect(clock().textContent).toBe(String(until));
-  expect(clock().dataset.display).toBe(String(at));
 });
 
 it.each(["save-first", "read-first"] as const)(

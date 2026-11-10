@@ -9,7 +9,7 @@ import type { StoredAnalysis } from "../../src/domain/analysis.ts";
 import { sidebarThread } from "./fixtures.ts";
 
 const thread = sidebarThread("t", { title: "Task", latestAttentionAt: 100 });
-const options = { showPin: true, timestamps: "show" as const, now: 60_100 };
+const options = { showPin: true, timestamps: "show" as const, age: "1m" };
 const analysis = (state: StoredAnalysis["state"]): StoredAnalysis => ({
   state,
   recap: "Shipped it",

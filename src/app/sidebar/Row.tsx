@@ -14,6 +14,8 @@ import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { dotMark } from "../../domain/presentation.ts";
 import { presentRow } from "./presentation.ts";
+import { useClock } from "../clock.ts";
+import { relativeAge } from "../../domain/presentation.ts";
 import type { WorkView } from "../useWorkstreams.ts";
 import { StatusMark } from "./StatusMark.tsx";
 import { usePrefsSelector } from "../prefs.ts";
@@ -57,7 +59,6 @@ export function Row({
   thread,
   depth,
   active,
-  now,
   context,
   placement,
   work,
@@ -71,7 +72,6 @@ export function Row({
   thread: PluginSidebarThread;
   depth: number;
   active: boolean;
-  now: number;
   /**
    * Shown after the title in overlay bands and inline groups: the row's
    * workstream or subgroup name, or when a snoozed row wakes.
@@ -105,10 +105,13 @@ export function Row({
   const timestamps = usePrefsSelector(
     (prefs) => prefs?.sidebar.timestamps ?? "show",
   );
+  const age = useClock((now) =>
+    timestamps === "hide" ? "" : relativeAge(thread.latestAttentionAt, now),
+  );
   const { slotMark, recap, pinned, accessibleName, timestamp } = presentRow(
     thread,
     work,
-    { showPin: traits.showPin, timestamps, now },
+    { showPin: traits.showPin, timestamps, age },
   );
   // Unread is never the slot mark: the dots carry it in their fill, other
   // marked rows carry it inline beside the title, markless rows by title

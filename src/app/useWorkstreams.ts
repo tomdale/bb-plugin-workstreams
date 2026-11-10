@@ -124,7 +124,6 @@ export function useWorkstreams() {
       },
     }) ?? Number.POSITIVE_INFINITY,
   );
-  const displayNow = useNow();
   const clock = useNow(null, Number.isFinite(deadline) ? deadline : undefined);
   // Parent rerenders keep the projection's clock stable. A timer deadline or
   // new projection input samples the current time for time-sensitive updates.
@@ -193,7 +192,6 @@ export function useWorkstreams() {
       workView(thread, analysis[thread.id], recaps[thread.id]),
     upNextOptions,
     now,
-    displayNow,
     rpc,
     refresh,
     reorder,

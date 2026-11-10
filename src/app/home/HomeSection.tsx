@@ -18,7 +18,7 @@ import type { PluginHomepageSectionProps } from "@get-bb/plugin-sdk/app";
 import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
 import { colorForWorkstream } from "../../domain/workstreamColor.ts";
 import { usePrefs } from "../prefs.ts";
-import { useWorkstreams } from "../useWorkstreams.ts";
+import { useNow, useWorkstreams } from "../useWorkstreams.ts";
 import { WorkstreamGroups, type HomeEnv } from "./Groups.tsx";
 import { PinnedBlock } from "./PinnedBlock.tsx";
 import { UpNextBlock } from "./UpNextBlock.tsx";
@@ -82,6 +82,7 @@ class HomeBoundary extends Component<
 
 function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
   const ws = useWorkstreams();
+  const displayNow = useNow();
   const { prefs } = usePrefs();
   const state = useHomeState();
   const { server, sections, projection } = ws;
@@ -127,7 +128,7 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
 
   const nameOf = new Map(sections.map((section) => [section.id, section.name]));
   const env: HomeEnv = {
-    now: ws.displayNow,
+    now: displayNow,
     analysis: server.analysis,
     recaps: server.recaps,
     work: ws.work,
@@ -178,7 +179,7 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
                     }
                   : null;
               }}
-              now={env.showAge ? ws.displayNow : HIDDEN_NOW}
+              now={env.showAge ? displayNow : HIDDEN_NOW}
               showAge={env.showAge}
             />
           ) : null}
@@ -202,7 +203,7 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
                     }
                   : null;
               }}
-              now={env.showAge ? ws.displayNow : HIDDEN_NOW}
+              now={env.showAge ? displayNow : HIDDEN_NOW}
               showAge={env.showAge}
             />
           ) : null}
