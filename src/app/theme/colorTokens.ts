@@ -91,15 +91,28 @@ function readPalettes(
   }
 }
 
-/** Where a root's vivid paints live, and the theme they were resolved for. */
-type RootPaint = { epoch: number; dark: boolean; rules: string };
+/**
+ * Where a root's vivid paints live, and the theme they were resolved for. Roots
+ * whose paints are identical share a `key`, and so a style rule.
+ */
+type RootPaint = {
+  epoch: number;
+  dark: boolean;
+  rules: string;
+  key: string;
+};
 
 /** Installs window-local paints; every root resolves its own inherited BB theme. */
 export function installColorTokens(colors: ColorPrefs): () => void {
   const style = document.createElement("style");
   style.dataset.wsColorTokens = "";
   document.head.append(style);
-  const ids = new Map<HTMLElement, string>();
+  // Roots with the same paints share one `data-ws-palette` value and one rule,
+  // so a root joining the page names an existing rule and leaves the style
+  // sheet alone. Rewriting the sheet restyles the whole document, which costs
+  // over a hundred milliseconds on a long thread.
+  const tagged = new Set<HTMLElement>();
+  const paletteIds = new Map<string, string>();
   const paints = new Map<string, string>();
   const painted = new Map<HTMLElement, RootPaint>();
   let sequence = 0;
@@ -116,27 +129,66 @@ export function installColorTokens(colors: ColorPrefs): () => void {
       ? appearance.classList.contains("dark")
       : (media?.matches ?? false);
   };
+  /**
+   * What a style attribute hands down to the colors resolved beneath it: custom
+   * properties, which carry the theme, and the color properties themselves.
+   * Everything else (scroll padding, transforms, sizes) cannot change a palette.
+   */
+  const inheritedStyle = (style: CSSStyleDeclaration): string => {
+    const declared: string[] = [];
+    for (let index = 0; index < style.length; index++) {
+      const name = style.item(index);
+      if (name.startsWith("--") || name === "color" || name === "color-scheme")
+        declared.push(`${name}:${style.getPropertyValue(name)}`);
+    }
+    return declared.sort().join(";");
+  };
+  const setsOwnTheme = (root: HTMLElement) => inheritedStyle(root.style) !== "";
   const update = () => {
     frame = 0;
     const theme = epoch;
     roots = new Set(document.querySelectorAll<HTMLElement>(TOKEN_ROOTS));
-    for (const [root] of ids)
+    for (const root of tagged)
       if (!roots.has(root)) {
         root.removeAttribute("data-ws-palette");
-        ids.delete(root);
+        tagged.delete(root);
       }
     for (const root of painted.keys())
       if (!roots.has(root)) painted.delete(root);
 
-    const requests: PaletteRequest[] = [];
+    // Roots inherit their theme from the scope that holds them, so one read
+    // serves every root in a scope. Reading a root costs a restyle of the page
+    // under it, and a long thread keeps many roots mounting as it scrolls. A
+    // root that sets its own variables is read on its own.
+    const fresh = (paint: RootPaint | undefined, dark: boolean) =>
+      paint && paint.epoch === theme && paint.dark === dark ? paint : null;
+    const scopeOf = (root: HTMLElement) => root.closest(".dark, .light");
+    const donors = new Map<Element | null, RootPaint>();
+    const stale: Array<{ root: HTMLElement; dark: boolean }> = [];
     if (colors.vivid)
       for (const root of roots) {
         const dark = darkFor(root);
-        const current = painted.get(root);
-        if (current && current.epoch === theme && current.dark === dark)
-          continue;
+        const paint = fresh(painted.get(root), dark);
+        if (!paint) stale.push({ root, dark });
+        else if (!setsOwnTheme(root)) donors.set(scopeOf(root), paint);
+      }
+    const requests: PaletteRequest[] = [];
+    const followers: Array<{ root: HTMLElement; scope: Element | null }> = [];
+    const readers = new Map<Element | null, HTMLElement>();
+    for (const { root, dark } of stale) {
+      if (setsOwnTheme(root)) {
+        requests.push({ root, dark });
+        continue;
+      }
+      const scope = scopeOf(root);
+      const donor = donors.get(scope);
+      if (donor && donor.dark === dark) painted.set(root, donor);
+      else if (readers.has(scope)) followers.push({ root, scope });
+      else {
+        readers.set(scope, root);
         requests.push({ root, dark });
       }
+    }
     const palettes = requests.length ? readPalettes(requests) : [];
     requests.forEach(({ root, dark }, index) => {
       const key = JSON.stringify([palettes[index], dark]);
@@ -151,19 +203,41 @@ export function installColorTokens(colors: ColorPrefs): () => void {
         if (paints.size >= 64) paints.clear();
         paints.set(key, rules);
       }
-      painted.set(root, { epoch: theme, dark, rules });
+      painted.set(root, { epoch: theme, dark, rules, key });
     });
+    for (const { root, scope } of followers) {
+      const paint = painted.get(readers.get(scope)!);
+      if (paint) painted.set(root, paint);
+    }
 
-    let css = colorTokenCss(colors);
+    const groups = new Map<
+      string,
+      { id: string; dark: boolean; paint?: RootPaint }
+    >();
     for (const root of roots) {
-      let id = ids.get(root);
-      if (!id) {
-        id = String(++sequence);
-        ids.set(root, id);
-        root.dataset.wsPalette = id;
-      }
       const paint = painted.get(root);
       const dark = paint?.dark ?? darkFor(root);
+      const key = paint?.key ?? `plain:${dark}`;
+      let group = groups.get(key);
+      if (!group) {
+        let id = paletteIds.get(key);
+        if (!id) {
+          id = String(++sequence);
+          paletteIds.set(key, id);
+        }
+        group = { id, dark, paint };
+        groups.set(key, group);
+      }
+      if (root.dataset.wsPalette !== group.id)
+        root.dataset.wsPalette = group.id;
+      tagged.add(root);
+    }
+    for (const key of paletteIds.keys())
+      if (!groups.has(key)) paletteIds.delete(key);
+    let css = colorTokenCss(colors);
+    // In a fixed order, so the sheet's text changes only when its rules do.
+    const ordered = [...groups.values()].sort((a, b) => +a.id - +b.id);
+    for (const { id, dark, paint } of ordered) {
       css += `[data-ws-palette="${id}"] { --ws-text-min-l: ${dark ? 0.78 : 0}; --ws-text-max-l: ${dark ? 1 : 0.55}; }\n`;
       if (paint) css += paint.rules.replaceAll('"PALETTE"', `"${id}"`);
     }
@@ -175,20 +249,6 @@ export function installColorTokens(colors: ColorPrefs): () => void {
   const reschedule = () => {
     epoch++;
     schedule();
-  };
-  /**
-   * What a style attribute hands down to the colors resolved beneath it: custom
-   * properties, which carry the theme, and the color properties themselves.
-   * Everything else (scroll padding, transforms, sizes) cannot change a palette.
-   */
-  const inheritedStyle = (style: CSSStyleDeclaration): string => {
-    const declared: string[] = [];
-    for (let index = 0; index < style.length; index++) {
-      const name = style.item(index);
-      if (name.startsWith("--") || name === "color" || name === "color-scheme")
-        declared.push(`${name}:${style.getPropertyValue(name)}`);
-    }
-    return declared.sort().join(";");
   };
   const scratch = document.createElement("div");
   /**
@@ -293,6 +353,6 @@ export function installColorTokens(colors: ColorPrefs): () => void {
     media?.removeEventListener("change", reschedule);
     document.removeEventListener("load", onLoad, true);
     style.remove();
-    for (const root of ids.keys()) root.removeAttribute("data-ws-palette");
+    for (const root of tagged) root.removeAttribute("data-ws-palette");
   };
 }

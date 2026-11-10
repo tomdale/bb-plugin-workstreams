@@ -39,7 +39,18 @@ async function readsAfter(change: () => void): Promise<number> {
   return reads.mock.calls.length;
 }
 
-it("resolves every root's palette once at install", () => {
+it("resolves one palette for the roots of a theme scope at install", () => {
+  expect(reads.mock.calls.length).toBe(PROBES_PER_ROOT);
+});
+
+it("resolves a palette for each theme scope", () => {
+  uninstall?.();
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    '<div class="dark"><div data-bb-plugin="workstreams"></div></div>',
+  );
+  reads.mockClear();
+  uninstall = installColorTokens({ ...DEFAULT_COLORS, vivid: true });
   expect(reads.mock.calls.length).toBe(2 * PROBES_PER_ROOT);
 });
 
@@ -50,14 +61,14 @@ it("ignores style writes on a root's ancestor that hand down no color", async ()
   ).toBe(0);
 });
 
-it("resolves every palette again when an ancestor hands down a variable", async () => {
+it("resolves the palette again when an ancestor hands down a variable", async () => {
   const scroller = document.getElementById("scroller")!;
   expect(
     await readsAfter(() => scroller.style.setProperty("--background", "red")),
-  ).toBe(2 * PROBES_PER_ROOT);
+  ).toBe(PROBES_PER_ROOT);
 });
 
-it("resolves only a new root's palette when a root joins the page", async () => {
+it("reads nothing when a root joins a scope that is already resolved", async () => {
   const scroller = document.getElementById("scroller")!;
   expect(
     await readsAfter(() => {
@@ -65,14 +76,48 @@ it("resolves only a new root's palette when a root joins the page", async () => 
       root.dataset.bbPlugin = "workstreams";
       scroller.append(root);
     }),
+  ).toBe(0);
+});
+
+it("reads a root that sets its own theme variables separately", async () => {
+  const scroller = document.getElementById("scroller")!;
+  expect(
+    await readsAfter(() => {
+      const root = document.createElement("div");
+      root.dataset.bbPlugin = "workstreams";
+      root.style.setProperty("--background", "red");
+      scroller.append(root);
+    }),
   ).toBe(PROBES_PER_ROOT);
 });
 
-it("resolves every palette again when the theme scope changes", async () => {
+it("leaves the style sheet alone when a root joins with the same paints", async () => {
+  const sheet = document.querySelector("[data-ws-color-tokens]")!;
+  const rewrites = vi.fn();
+  new MutationObserver(rewrites).observe(sheet, {
+    childList: true,
+    characterData: true,
+    subtree: true,
+  });
+  await readsAfter(() => {
+    const root = document.createElement("div");
+    root.dataset.bbPlugin = "workstreams";
+    document.getElementById("scroller")!.append(root);
+  });
+  await settle();
+  expect(rewrites).not.toHaveBeenCalled();
+  const ids = [...document.querySelectorAll<HTMLElement>("[data-bb-plugin]")]
+    .map((root) => root.dataset.wsPalette)
+    .filter(Boolean);
+  expect(ids).toHaveLength(3);
+  expect(new Set(ids).size).toBe(1);
+});
+
+it("resolves the scope's palette again when its theme changes", async () => {
   expect(
     await readsAfter(() => {
       const scope = document.querySelector(".light")!;
       scope.classList.replace("light", "dark");
     }),
-  ).toBe(2 * PROBES_PER_ROOT);
+  ).toBe(PROBES_PER_ROOT);
 });
