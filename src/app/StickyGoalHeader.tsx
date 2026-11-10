@@ -9,11 +9,11 @@ import { useGoalContext } from "./goalContext.ts";
 import { workstreamColorStyle } from "../domain/workstreamColor.ts";
 import { usePrefs } from "./prefs.ts";
 import {
-  BAR_FADE_RATIO,
   FADE_COMPACT_RISE,
   PAD_TOP,
   PHONE_QUERY,
-  PINNED_FADE_RATIO,
+  PINNED_EDGE,
+  PINNED_FEATHER,
   PINNED_PAD,
   SUBTITLE_SIZE,
   SUBTITLE_LINE,
@@ -650,6 +650,8 @@ export function StickyGoalHeader(): React.ReactElement | null {
     fadeOnly && !pinned && !floating ? Math.min(base * 1.5, plateHeight) : 0;
   const solidPlateHeight = plateHeight - plateOverlap;
   const fadeAnchor = solidPlateHeight;
+  // Room the plate's own edge fades out over, kept inside the block's padding.
+  const plateEdge = Math.min(base * PINNED_EDGE, solidPlateHeight);
   useLayoutEffect(() => {
     if (!mount) return;
     if (mount.root.dataset.collapsed !== String(collapsed))
@@ -846,25 +848,15 @@ export function StickyGoalHeader(): React.ReactElement | null {
       <div
         className="ws-goal-background"
         data-ws-pinned={pinned ? "" : undefined}
-        // The compact block's feather is short enough that the row beneath it
-        // needs the softer curve to read as a dissolve.
-        data-ws-feather={pinned && collapsed ? "soft" : undefined}
         style={
           {
             transform: `translate(${placement.background.x}px, ${placement.background.y}px)`,
             width: placement.background.width,
             "--ws-plate-height": `${fadeAnchor}px`,
             // In scroll mode, the plate's shadow shrinks to the bar fade's
-            // length, never shorter than that much of its own. A pinned heading
-            // is a solid band the timeline runs under, with no title bar's
-            // hairline to meet, so it keeps the short feather at both heights
-            // rather than laying the large heading's long one over the messages
-            // a narrow pane has little room for, and half of that once it
-            // compacts, where the messages resume directly under it.
+            // length, never shorter than that much of its own.
             "--ws-plate-fade-scale": pinned
-              ? collapsed
-                ? PINNED_FADE_RATIO
-                : BAR_FADE_RATIO
+              ? PINNED_FEATHER
               : fadeOnly
                 ? 1
                 : plateFadeScale(progress),
@@ -878,7 +870,20 @@ export function StickyGoalHeader(): React.ReactElement | null {
           } as React.CSSProperties
         }
       >
-        <div className="ws-sticky-goal" style={{ height }}>
+        <div
+          className="ws-sticky-goal"
+          // A pinned band dissolves into the timeline over its own last em
+          // instead of ending on a line across the row it covers; the stylesheet
+          // builds that mask from these two lengths.
+          data-ws-edge={pinned ? "" : undefined}
+          style={
+            {
+              height,
+              "--ws-plate-draw": `${solidPlateHeight}px`,
+              "--ws-plate-edge": `${plateEdge}px`,
+            } as React.CSSProperties
+          }
+        >
           <div
             className="ws-sticky-goal__plate"
             style={{

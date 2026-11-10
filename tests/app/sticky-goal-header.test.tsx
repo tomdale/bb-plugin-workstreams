@@ -5,7 +5,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import { Profiler, type ProfilerOnRenderCallback } from "react";
 import {
   PAD_TOP,
-  PINNED_FADE_RATIO,
+  PINNED_EDGE,
+  PINNED_FEATHER,
   PINNED_PAD,
   SUBTITLE_LINE,
   SUBTITLE_SIZE,
@@ -860,6 +861,14 @@ it.each(["fade", "scroll"] as const)(
       overlay()!.querySelector<HTMLElement>(
         '[data-ws-heading="expanded"] .ws-sticky-goal__title',
       )!;
+    // A pinned band hands over to its feather through a mask the stylesheet
+    // builds from these two lengths.
+    const band = () =>
+      overlay()!.querySelector<HTMLElement>(".ws-sticky-goal")!;
+    const drawnPlate = () =>
+      Number(
+        band().style.getPropertyValue("--ws-plate-draw").replace("px", ""),
+      );
     const fadeScale = () =>
       Number(
         overlay()!
@@ -883,8 +892,9 @@ it.each(["fade", "scroll"] as const)(
     expect(groups().map((group) => Number(group.style.opacity))).toEqual([
       1, 0,
     ]);
-    // A pinned heading keeps the short feather at its expanded height too.
-    expect(fadeScale()).toBe(BAR_FADE_RATIO);
+    expect(band().hasAttribute("data-ws-edge")).toBe(true);
+    expect(drawnPlate()).toBe(headingHeight(14, false, 1, 0));
+    expect(fadeScale()).toBe(PINNED_FEATHER);
 
     // Just inside the threshold the heading is still whole: the scroll
     // position picks the state rather than driving the scale.
@@ -893,7 +903,7 @@ it.each(["fade", "scroll"] as const)(
     await nextFrame();
     await nextFrame();
     expect(title().style.transform).toBe("translateY(0px) scale(1)");
-    expect(fadeScale()).toBe(BAR_FADE_RATIO);
+    expect(fadeScale()).toBe(PINNED_FEATHER);
 
     // Past it, the whole move happens at once.
     scroller.scrollTop = 100 - exitDistance;
@@ -906,7 +916,8 @@ it.each(["fade", "scroll"] as const)(
       expect(Number(match[1])).toBeCloseTo(finalY);
       expect(Number(match[2])).toBeCloseTo(pinnedTitleScale(1));
     });
-    expect(fadeScale()).toBe(PINNED_FADE_RATIO);
+    // The dissolve ends where the compact plate does in both states.
+    expect(drawnPlate()).toBe(pinnedHeight(14, null));
     expect(groups().map((group) => Number(group.style.opacity))).toEqual([
       1, 0,
     ]);
@@ -1135,10 +1146,18 @@ it.each([false, true])(
       overlay()!.querySelector<HTMLElement>(
         '[data-ws-heading="expanded"] .ws-sticky-goal__title',
       )!;
+    const band = () =>
+      overlay()!.querySelector<HTMLElement>(".ws-sticky-goal")!;
+    const drawnPlate = () =>
+      Number(
+        band().style.getPropertyValue("--ws-plate-draw").replace("px", ""),
+      );
     const fadeScale = () =>
-      overlay()!
-        .querySelector<HTMLElement>(".ws-goal-background")!
-        .style.getPropertyValue("--ws-plate-fade-scale");
+      Number(
+        overlay()!
+          .querySelector<HTMLElement>(".ws-goal-background")!
+          .style.getPropertyValue("--ws-plate-fade-scale"),
+      );
     const exit = titleExitDistance(14, null, 1);
     await waitFor(() => expect(groups()).toHaveLength(2));
     await new Promise((resolve) => setTimeout(resolve, 550));
@@ -1157,7 +1176,9 @@ it.each([false, true])(
     ]);
     expect(plate().style.transform).toBe("scaleY(1)");
     expect(scroller.style.scrollPaddingTop).toBe(`${expandedHeight}px`);
-    expect(fadeScale()).toBe(String(BAR_FADE_RATIO));
+    expect(band().hasAttribute("data-ws-edge")).toBe(true);
+    expect(drawnPlate()).toBe(expandedHeight);
+    expect(fadeScale()).toBe(PINNED_FEATHER);
 
     scroller.scrollTop = 600 - exit - 1;
     scroller.dispatchEvent(new Event("scroll"));
@@ -1178,9 +1199,11 @@ it.each([false, true])(
       `scaleY(${compactHeight / expandedHeight})`,
     );
     expect(scroller.style.scrollPaddingTop).toBe(`${compactHeight}px`);
-    // The compact block ends where the timeline resumes, so its feather is
-    // the short one, half the title bar's.
-    expect(fadeScale()).toBe(String(PINNED_FADE_RATIO));
+    expect(
+      Number(
+        band().style.getPropertyValue("--ws-plate-draw").replace("px", ""),
+      ),
+    ).toBe(compactHeight);
     slot.lifecycle.unmount();
   },
 );

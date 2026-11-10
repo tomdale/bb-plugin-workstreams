@@ -608,17 +608,28 @@
   transform-origin: top;
   opacity: var(--ws-fade-below-plate, 0);
 }
-/* A compact heading pinned in the timeline ends where the messages resume, so
-   its feather gives up most of its cover in the first third: the row under the
-   block reads as dissolving rather than as cut off. */
-[data-ws-feather="soft"].ws-goal-background::after {
+/* A pinned band dissolves into the timeline over its own last em. The mask
+   leaves the plate at half cover, and the gradient below starts there, so the
+   messages come up through the band's edge instead of being sliced by it. */
+[data-ws-edge] {
+  mask-image: linear-gradient(
+    to bottom,
+    var(--background) 0,
+    var(--background)
+      calc(var(--ws-plate-draw, 0px) - var(--ws-plate-edge, 0px)),
+    color-mix(in oklab, var(--background) 50%, transparent)
+      var(--ws-plate-draw, 0px)
+  );
+}
+/* The feather that picks up where the mask leaves off. */
+[data-ws-pinned].ws-goal-background::after {
   background: linear-gradient(
     to bottom in oklab,
-    var(--background) 0%,
-    color-mix(in oklab, var(--background) 55%, transparent) 12%,
-    color-mix(in oklab, var(--background) 32%, transparent) 25%,
-    color-mix(in oklab, var(--background) 16%, transparent) 45%,
-    color-mix(in oklab, var(--background) 5%, transparent) 70%,
+    color-mix(in oklab, var(--background) 50%, transparent) 0%,
+    color-mix(in oklab, var(--background) 39%, transparent) 18%,
+    color-mix(in oklab, var(--background) 28%, transparent) 36%,
+    color-mix(in oklab, var(--background) 17%, transparent) 58%,
+    color-mix(in oklab, var(--background) 6%, transparent) 80%,
     transparent 100%
   );
 }

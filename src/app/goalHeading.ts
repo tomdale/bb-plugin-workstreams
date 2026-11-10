@@ -10,6 +10,9 @@
  * at the top of the timeline when there is not.
  */
 
+/** The feather styles.css draws below a plate, in rem of the gradient's length. */
+const PLATE_FADE_REM = 12;
+
 export const TITLE_SIZE = 1.5;
 export const SUBTITLE_SIZE = 0.92;
 export const TITLE_LINE = 4 / 3;
@@ -23,10 +26,20 @@ export const TITLE_BAR_TITLE_SIZE = 0.95;
 /** Padding above a heading that stays pinned in the timeline. */
 export const PINNED_PAD = 0.5;
 /**
- * Padding below it, tighter than the padding above: the timeline resumes just
- * under the compact block, so a matching pad reads as a gap.
+ * The plate's own feathered bottom edge, in em of body size. A pinned heading
+ * is a solid band the timeline scrolls under, so the band dissolves into the
+ * messages over this distance instead of ending on a line across the first row
+ * it covers. It doubles as the compact block's padding below its title, since
+ * the fade needs somewhere to happen that is not over text.
  */
-export const PINNED_PAD_BOTTOM = 0.25;
+export const PINNED_EDGE = 0.9;
+
+/**
+ * Feather below a pinned plate, as a fraction of the shadow styles.css draws
+ * under the expanded plate: 1.875rem, long enough to finish the dissolve the
+ * plate's edge starts rather than reading as a band of its own.
+ */
+export const PINNED_FEATHER = 1.875 / PLATE_FADE_REM;
 
 /**
  * BB's own phone condition: a viewport under its `md` breakpoint driven by a
@@ -185,9 +198,6 @@ export function headingBackdropOpacity(progress: number): number {
   return 1 - progress ** 12;
 }
 
-/** The feather styles.css draws below a plate, in rem of the gradient's length. */
-const PLATE_FADE_REM = 12;
-
 /**
  * Length of the short shadow under a minimized heading, as a fraction of the
  * shadow under the expanded plate. styles.css draws both from one gradient
@@ -198,14 +208,6 @@ const PLATE_FADE_REM = 12;
  * scrolls beneath a solid plate rather than meeting a title bar's hairline.
  */
 export const BAR_FADE_RATIO = 3 / PLATE_FADE_REM;
-
-/**
- * Feather under a heading pinned in the timeline once it compacts. Longer than
- * the compact block's own padding but shorter than the title bar's shadow, on
- * a curve that gives up most of its cover early: the messages dissolve out
- * from under the block instead of appearing to be cut off by it.
- */
-export const PINNED_FADE_RATIO = 2.25 / PLATE_FADE_REM;
 
 /**
  * Fraction of the plate's shadow still drawn as the heading collapses in the
@@ -274,6 +276,6 @@ export function pinnedHeight(
   return Math.round(
     compactBlock(base, eyebrow) +
       base * TITLE_BAR_TITLE_SIZE * TITLE_LINE * (titleLines - 1) +
-      base * (PINNED_PAD + PINNED_PAD_BOTTOM),
+      base * (PINNED_PAD + PINNED_EDGE),
   );
 }
