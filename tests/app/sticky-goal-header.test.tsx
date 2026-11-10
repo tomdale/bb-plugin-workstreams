@@ -1307,6 +1307,43 @@ it("does not scan for a scroller after unrelated DOM updates", async () => {
   }
 });
 
+it("does not search streamed message or composer markup for a scroller", async () => {
+  paneFixture({ recap: false });
+  const column = document.querySelector<HTMLElement>('[data-test="column"]')!;
+  const slot = await mountHeading();
+  await waitFor(() => expect(root()).not.toBeNull());
+  const composer = document.querySelector<HTMLElement>("[data-app-composer]")!;
+  const queries = vi.spyOn(Element.prototype, "querySelector");
+  const searches = () =>
+    queries.mock.calls.filter(([selector]) => selector === ".thread-scrollbar")
+      .length;
+  const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
+  await flush();
+  queries.mockClear();
+  try {
+    for (const words of ["Working", "on the", "answer"]) {
+      const paragraph = document.createElement("p");
+      paragraph.innerHTML = `<strong>${words}</strong> <code>x</code>`;
+      column.append(paragraph);
+      const draft = document.createElement("div");
+      draft.innerHTML = `<span>${words}</span>`;
+      composer.append(draft);
+      await flush();
+    }
+    expect(searches()).toBe(0);
+    // A pane added beside the timeline is still searched, and found.
+    const pane = document.createElement("div");
+    pane.innerHTML =
+      "<div data-thread-window><div class='thread-scrollbar'><div><div data-scroll-attached></div></div></div></div>";
+    document.querySelector("main")!.append(pane);
+    await waitFor(() => expect(root()).toBeNull());
+    expect(searches()).toBeGreaterThan(0);
+  } finally {
+    queries.mockRestore();
+    slot.lifecycle.unmount();
+  }
+});
+
 it("coalesces pane replacements before measuring the message scroller", async () => {
   paneFixture({ recap: false });
   const frames = new Map<number, FrameRequestCallback>();

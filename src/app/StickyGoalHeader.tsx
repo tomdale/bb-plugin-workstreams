@@ -210,21 +210,30 @@ export function useMessageScroller(threadId: string | null): Mount | null {
     };
     refresh.current = scheduleAttach;
     scheduleAttach();
+    // Most mutations are message text streaming inside the scroller, typing
+    // in the composer, or this heading's own overlay redrawing. None of them
+    // can add or remove a message scroller, so only changes outside all three
+    // search their subtrees for one.
+    const changesScroller = (record: MutationRecord): boolean => {
+      const target = mutationTargetElement(record);
+      if (!target?.isConnected) return false;
+      const scroller = target.closest<HTMLElement>(SCROLLER);
+      if (scroller)
+        return target === scroller || target === scroller.firstElementChild;
+      if (target.closest(`${COMPOSER}, [data-workstreams-goal-overlay]`))
+        return false;
+      return changedSubtreesMatch(record, ".thread-scrollbar");
+    };
     const observer = new MutationObserver((records) => {
+      // An attachment already scheduled reads the whole pane anyway.
+      if (frame) return;
       const detached =
         current !== null &&
         (!current.scroller.isConnected ||
           !current.column.isConnected ||
           !current.root.isConnected ||
           !current.overlay.isConnected);
-      const lifecycleChanged = records.some((record) => {
-        if (changedSubtreesMatch(record, ".thread-scrollbar")) return true;
-        const target = mutationTargetElement(record);
-        const scroller = target?.closest<HTMLElement>(SCROLLER);
-        if (!scroller) return false;
-        return target === scroller || target === scroller.firstElementChild;
-      });
-      if (detached || lifecycleChanged) scheduleAttach();
+      if (detached || records.some(changesScroller)) scheduleAttach();
     });
     observer.observe(document.body, { childList: true, subtree: true });
     return () => {
