@@ -320,16 +320,17 @@ describe("focused workstreams", () => {
     slot.lifecycle.unmount();
   });
 
-  it("removes a leaving row and fades its replacement without animating layout", async () => {
-    // jsdom has no Web Animations; motion runs only where they exist.
-    const animations = new Map<HTMLElement, Keyframe[]>();
-    Object.defineProperty(Element.prototype, "animate", {
-      configurable: true,
-      value: function (this: HTMLElement, frames: Keyframe[]) {
-        animations.set(this, frames);
-        return { cancel() {} };
-      },
-    });
+  it("waits out a burst, then closes the row focus drops and opens the one it brings", async () => {
+    // jsdom has no Web Animations or layout; lend it both, so motion runs.
+    Element.prototype.animate = () => ({}) as Animation;
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        const height = this.style.height
+          ? Number.parseFloat(this.style.height)
+          : 21;
+        return { top: 0, height, bottom: height } as DOMRect;
+      });
     try {
       const threads = [asking("a1", "sec_a", 100)];
       const slot = await mountWithBands(threads, {
@@ -341,23 +342,26 @@ describe("focused workstreams", () => {
       );
       threads.push(asking("z1", "sec_z", 200));
       slot.selectThread(null);
+      const band = slot.getByRole("region", { name: "Up Next" });
+      // The change waits for its burst to end before anything moves.
+      expect(band.textContent).toContain("Ask a1");
+      expect(band.textContent).not.toContain("Ask z1");
+      await waitFor(() => expect(band.textContent).toContain("Ask z1"));
+      // Each row sits in a slot, the card list's direct child.
+      const slotOf = (id: string) =>
+        band
+          .querySelector(`[data-sidebar-thread-id="${id}"]`)!
+          .closest<HTMLElement>("section > ul > li")!;
+      const leaving = slotOf("a1");
+      expect(leaving.getAttribute("aria-hidden")).toBe("true");
+      expect(leaving.style.overflow).toBe("hidden");
+      expect(slotOf("z1").style.height).not.toBe("");
       await waitFor(() =>
         expect(groupRows(slot, "Up Next")).toEqual(["Ask z1, Needs you"]),
       );
-      const band = slot.getByRole("region", { name: "Up Next" });
-      expect(band.textContent).toContain("Ask z1");
-      expect(band.textContent).not.toContain("Ask a1");
-      expect(band.querySelector("[data-presence]")).toBeNull();
-      const entering = band.querySelector<HTMLElement>(
-        '[data-flip-row="needs-you:z1"]',
-      )!;
-      expect(entering.style.zIndex).toBe("3");
-      expect(
-        entering.firstElementChild &&
-          animations.get(entering.firstElementChild as HTMLElement),
-      ).toEqual([{ opacity: 0 }, { opacity: 1 }]);
       slot.lifecycle.unmount();
     } finally {
+      rect.mockRestore();
       delete (Element.prototype as { animate?: unknown }).animate;
     }
   });

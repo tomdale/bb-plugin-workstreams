@@ -52,6 +52,7 @@ export function planSidebarUpNext<T extends UpNextThread>(
         .find((row) => row.thread.id === activeThreadId)
     : undefined;
   const rows = holdInPlace(listed, openRow, index);
+  const shown = new Set(rows.map((row) => row.thread.id));
   return {
     state: {
       threadId: activeThreadId,
@@ -61,6 +62,12 @@ export function planSidebarUpNext<T extends UpNextThread>(
     rows,
     expanded,
     moreCount: selection.more.filter((row) => !rows.includes(row)).length,
+    /** Ranked threads the row limit keeps out of `rows` (see `selectUpNext`). */
+    trimmed: new Set(
+      selection.trimmed
+        .map((row) => row.thread.id)
+        .filter((id) => !shown.has(id)),
+    ),
     focused: selection.focused,
   };
 }

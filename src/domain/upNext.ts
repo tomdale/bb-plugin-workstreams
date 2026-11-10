@@ -212,6 +212,12 @@ type UpNextSelection<T extends WorkstreamThread> = {
    * blocked on the user stay out; Recent and the groups list them.
    */
   readonly more: readonly Row<T>[];
+  /**
+   * Every ranked thread the row limit kept out, most urgent first: `more`
+   * and the read threads not blocked on the user. Motion reads it to tell a
+   * row the limit pushed out from one that stopped needing the user.
+   */
+  readonly trimmed: readonly Row<T>[];
   /** Up Next lists only focused workstreams' threads. */
   readonly focused: boolean;
 };
@@ -311,13 +317,13 @@ export function selectUpNext<T extends UpNextThread>(
   const actionable = pool.filter((entry) => entry.onYou || entry.unread).length;
   const target = fill ? shownCount : Math.min(shownCount, actionable);
   const shown = pool.slice(0, target);
-  const inUpNext = new Set(shown);
+  const trimmed = pool.slice(target);
   return {
     rows: shown.map((entry) => entry.row),
-    more: pool
-      .slice(target)
+    more: trimmed
       .filter((entry) => entry.unread || entry.onYou)
       .map((entry) => entry.row),
+    trimmed: trimmed.map((entry) => entry.row),
     focused,
   };
 }

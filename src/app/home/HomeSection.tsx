@@ -27,6 +27,7 @@ import { detectPlacement, homeMode, type Placement } from "./layout.ts";
 import { planHome, prioritizedSet } from "./model.ts";
 import { useHomeState } from "./useHomeState.ts";
 import { useSettled } from "./useSettled.ts";
+import { rowsById } from "../sidebar/rows.ts";
 import "./home.css";
 
 export function HomeSection(_props: PluginHomepageSectionProps) {
@@ -89,6 +90,7 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
     [server.order, sections],
   );
   const groupSort = prefs?.sidebar.groupSort ?? "alphabetical";
+  const currentRows = useMemo(() => rowsById(projection), [projection]);
   const plan = useMemo(
     () =>
       planHome(projection, {
@@ -156,6 +158,8 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
             <UpNextBlock
               rows={plan.upNext.rows}
               more={plan.upNext.more}
+              trimmed={plan.upNext.trimmed}
+              current={currentRows}
               focused={plan.focus.active}
               work={ws.work}
               analysis={server.analysis}

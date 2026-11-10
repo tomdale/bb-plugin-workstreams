@@ -173,6 +173,17 @@ describe("selectUpNext", () => {
     expect(ids(selection.more)).toEqual(["ou6"]);
   });
 
+  it("names every thread the limit trims, read filler included", () => {
+    const projection = projectWorkstreams(
+      [...[1, 2, 3, 4, 5, 6].map((n) => t(`ou${n}`, 100 - n)), t("or1", 1)],
+      sections,
+      { now },
+    );
+    const selection = selectUpNext(projection, { kindOf, now: clock });
+    expect(ids(selection.more)).toEqual(["ou6"]);
+    expect(ids(selection.trimmed)).toEqual(["ou6", "or1"]);
+  });
+
   it("lists every thread while there are few", () => {
     expect(upNext([t("or1", 1), t("or2", 2), t("ou1", 3)])).toEqual([
       "ou1",

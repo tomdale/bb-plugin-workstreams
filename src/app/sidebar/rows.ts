@@ -1,5 +1,10 @@
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import { UNFILED_NAME, type Group, type Row } from "../../domain/project.ts";
+import {
+  UNFILED_NAME,
+  type Group,
+  type Projection,
+  type Row,
+} from "../../domain/project.ts";
 import { groupRoots, type WorkstreamNode } from "../../domain/groups.ts";
 import type { BandSort } from "./useBandOptions.ts";
 
@@ -23,6 +28,21 @@ export function treesOf(rows: readonly ThreadRow[]): ThreadRow[][] {
     else trees.at(-1)!.push(row);
   }
   return trees;
+}
+
+/**
+ * Every visible row in the projection's groups by thread id. An animated
+ * list draws a row it still shows, such as one leaving Up Next, from here,
+ * so the row's marks stay current while it moves.
+ */
+export function rowsById<T extends PluginSidebarThread>(
+  projection: Pick<Projection<T>, "groups" | "unsorted" | "dormant">,
+): Map<string, Row<T>> {
+  return new Map(
+    [...projection.groups, projection.unsorted, ...projection.dormant]
+      .flatMap((group) => group.rows)
+      .map((row) => [row.thread.id, row]),
+  );
 }
 
 export function descendantsOf(

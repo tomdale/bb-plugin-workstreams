@@ -372,6 +372,15 @@
     color-mix(in oklab, var(--muted-foreground) 55%, transparent);
 }
 
+/* The list opts out of scroll anchoring. The sticky plate sits above every
+   row in flow, so while the list is scrolled each frame of an Up Next slot
+   opening or closing would otherwise shift scrollTop to hold the rows
+   beneath, rounded to whole pixels, and those rows would wobble. Without it,
+   the rows beneath follow the plate's edge like everything else below. */
+.ws-list {
+  overflow-anchor: none;
+}
+
 /* Keep the top bands — Up Next, then Pinned — visible while the workstreams
    scroll beneath them. The list is the sidebar's own scroll container, so this
    sticky presence wrapper stays at its top edge without covering the list's
@@ -416,8 +425,9 @@
 /* The Up Next block: the threads waiting on Tom, and the sidebar's most
    important element. It follows the Geist warning note: a flat card tinted
    with the Needs you color, and a hairline border in that color. A slow shimmer
-   keeps it alive, and on arrival the border brightens once. Row motion uses
-   transforms and opacity (see sidebar/motion.ts). */
+   keeps it alive, and on arrival the border brightens once. Its rows open and
+   close their slots on a spring, so the card's height follows them (see
+   `useSlotList` in sidebar/motion.ts). */
 .ws-needs {
   --ws-needs-tone: var(--ws-needs-you-band);
   position: relative;

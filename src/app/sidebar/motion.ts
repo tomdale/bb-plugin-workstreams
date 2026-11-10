@@ -1,11 +1,15 @@
 /**
- * Motion for the sidebar and phone Home. Up Next re-ranks glide rows between
- * positions with transforms. Elsewhere in the sidebar, rows, bands, and group
- * folds open and close their height so everything below slides, and
- * workstreams glide to their new place when a priority change reorders them.
+ * Motion for the sidebar and phone Home. Up Next's rows own slots that open
+ * and close on one spring, so the card, Show more, Pinned, and everything
+ * below follow through layout, and a re-ranked row travels to its new slot
+ * on the same spring (see `useSlotList`). Elsewhere in the sidebar, rows,
+ * bands, and group folds open and close their height over a fixed duration
+ * and curve, so everything below slides, and workstreams glide to their new
+ * place when a priority change reorders them.
  *
  * Motion is skipped where Web Animations are unavailable (tests, old
- * engines) and under reduced motion; there every change applies at once.
+ * engines); there every change applies at once. Under reduced motion,
+ * layout changes apply at once, and only Up Next's rows fade.
  */
 import {
   useCallback,
@@ -24,73 +28,119 @@ import {
 export const ENTER_MS = 260;
 const LEAVE_MS = 260;
 const FLIP_MS = 320;
-const ROW_FLIP_MIN_MS = 240;
-const ROW_FLIP_MS_PER_PX = 8;
 const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
-const ROW_EASE = "cubic-bezier(0.42, 0, 0.58, 1)";
+
+/**
+ * Up Next's motion (see `useSlotList`). Every slot height and every travel
+ * runs on one critically damped spring at mass 1: stiffness (2π/response)²
+ * and damping coefficient 4π·damping/response. Travel time therefore does
+ * not depend on distance, and a change that lands mid-flight keeps each
+ * value's velocity. Contents fade on {@link EASE_OUT}.
+ */
+export const UP_NEXT_MOTION = {
+  responseMs: 340,
+  damping: 1,
+  /** An entering row's contents fade in over this, starting after the delay. */
+  enterMs: 180,
+  enterDelayMs: 70,
+  /** A leaving row's contents fade out over this while its slot closes. */
+  leaveMs: 120,
+  /** A burst of row changes redraws once, this long after its last change. */
+  burstMs: 120,
+  /** Under reduced motion, rows fade in and out over this and nothing moves. */
+  reducedFadeMs: 150,
+} as const;
+
+type MotionMode = "none" | "reduced" | "full";
+
+/** How much motion runs here and now. */
+function motionMode(): MotionMode {
+  if (typeof window === "undefined") return "none";
+  if (typeof Element === "undefined" || !("animate" in Element.prototype))
+    return "none";
+  return typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "reduced"
+    : "full";
+}
 
 /** Whether this motion runs here and now. */
 function canAnimate(): boolean {
-  if (typeof window === "undefined") return false;
-  if (typeof Element === "undefined" || !("animate" in Element.prototype))
-    return false;
-  return !(
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
+  return motionMode() === "full";
 }
 
-type RowLayout = {
-  readonly element: HTMLElement;
-  /** Final layout top relative to the list, without this hook's transform. */
-  readonly top: number;
-};
+/** A CSS cubic Bézier timing function, solved for x by bisection. */
+function cubicBezier(x1: number, y1: number, x2: number, y2: number) {
+  const bx = (u: number) =>
+    3 * x1 * u * (1 - u) ** 2 + 3 * x2 * u * u * (1 - u) + u ** 3;
+  const by = (u: number) =>
+    3 * y1 * u * (1 - u) ** 2 + 3 * y2 * u * u * (1 - u) + u ** 3;
+  return (t: number) => {
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+    let lo = 0;
+    let hi = 1;
+    let u = t;
+    for (let i = 0; i < 40; i++) {
+      u = (lo + hi) / 2;
+      if (bx(u) < t) lo = u;
+      else hi = u;
+    }
+    return by(u);
+  };
+}
+const easeOut = cubicBezier(0.23, 1, 0.32, 1);
 
-type RowSnapshot = {
-  readonly token: string;
-  readonly rows: ReadonlyMap<string, RowLayout>;
-};
+/** One sprung number, in pixels. */
+export type Spring = { value: number; velocity: number; target: number };
 
-type RunningRow = {
-  readonly element: HTMLElement;
-  readonly animations: Set<Animation>;
-  readonly opacityElement: HTMLElement | null;
-  readonly backgroundColor: string;
-  readonly boxShadow: string;
-  readonly position: string;
-  readonly zIndex: string;
-};
+const RESPONSE_S = UP_NEXT_MOTION.responseMs / 1000;
+const STIFFNESS = ((2 * Math.PI) / RESPONSE_S) ** 2;
+const DAMPING = (4 * Math.PI * UP_NEXT_MOTION.damping) / RESPONSE_S;
 
-/** The Y translation in a computed CSS matrix, or zero for an untransformed row. */
-function rowTranslateY(element: HTMLElement): number {
-  const transform = getComputedStyle(element).transform;
-  if (!transform || transform === "none") return 0;
-  const values = transform
-    .slice(transform.indexOf("(") + 1, -1)
-    .split(",")
-    .map(Number);
-  const y = transform.startsWith("matrix3d(") ? values[13] : values[5];
-  return y === undefined || !Number.isFinite(y) ? 0 : y;
+const springMoving = (spring: Spring) =>
+  spring.value !== spring.target || spring.velocity !== 0;
+
+/**
+ * Advances `spring` by `ms` in 1ms steps of semi-implicit Euler, snapping it
+ * to its target once it is within `epsilon` pixels and nearly still. Returns
+ * whether it is still moving.
+ */
+export function stepSpring(spring: Spring, ms: number, epsilon: number) {
+  for (let left = ms; left > 0 && springMoving(spring); left -= 1) {
+    const h = Math.min(1, left) / 1000;
+    spring.velocity +=
+      (-STIFFNESS * (spring.value - spring.target) -
+        DAMPING * spring.velocity) *
+      h;
+    spring.value += spring.velocity * h;
+    if (
+      Math.abs(spring.value - spring.target) < epsilon &&
+      Math.abs(spring.velocity) < epsilon * 20
+    ) {
+      spring.value = spring.target;
+      spring.velocity = 0;
+    }
+  }
+  return springMoving(spring);
 }
 
-function flipRows(root: HTMLElement): ReadonlyMap<string, HTMLElement> {
-  return new Map(
-    [...root.querySelectorAll<HTMLElement>("[data-flip-row]")].map(
-      (element) => [element.dataset.flipRow!, element],
-    ),
-  );
-}
-
-/** Row contents fade over the row's opaque surface when they enter. */
-function rowOpacityElements(element: HTMLElement): HTMLElement[] {
-  const children = [...element.children].filter(
-    (child): child is HTMLElement => child instanceof HTMLElement,
-  );
-  return children.length > 0 ? children : [element];
+/** An opacity fade on {@link easeOut}, in document time. */
+type Fade = {
+  readonly from: number;
+  readonly to: number;
+  readonly start: number;
+  readonly duration: number;
+};
+function fadeAt(fade: Fade, now: number): number {
+  const progress = (now - fade.start) / fade.duration;
+  if (progress <= 0) return fade.from;
+  if (progress >= 1) return fade.to;
+  return fade.from + (fade.to - fade.from) * easeOut(progress);
 }
 
 /** The nearest surface that can hide the text beneath a crossing row. */
-function rowMotionBackground(element: HTMLElement): string {
+function surfaceBehind(element: HTMLElement): string {
   for (
     let current = element.parentElement;
     current;
@@ -107,185 +157,715 @@ function rowMotionBackground(element: HTMLElement): string {
   return "var(--sidebar, var(--background))";
 }
 
+type Slot = {
+  /** The contents' own height, measured without the slot's inline height. */
+  natural: number;
+  /** The space the slot takes in layout. */
+  height: Spring;
+  /** Travel from the slot's layout position to where the row is drawn. */
+  offset: Spring;
+  /** The contents' fade; none means fully shown. */
+  fade: Fade | null;
+  leaving: boolean;
+  /** Fading out ahead of a reduced-motion change; its height holds. */
+  holding: boolean;
+  /** A leaving slot that has closed, reported once and waiting to unmount. */
+  closed: boolean;
+  /**
+   * The opaque surface a row draws on while it passes over another, so two
+   * titles never show in the same pixels; null when it crosses nothing.
+   */
+  surface: string | null;
+  /** Whether the slot's element carries inline motion styles. */
+  styled: boolean;
+};
+
+/** One commit's decisions about a slot list (see `SlotSprings.commit`). */
+type SlotCommit = {
+  readonly entries: readonly { key: string; leaving: boolean }[];
+  readonly mode: Exclude<MotionMode, "none">;
+  /** The first commit: everything appears at rest. */
+  readonly first: boolean;
+  /** Entering rows that open without fading, rising from under Show more. */
+  readonly rise: ReadonlySet<string>;
+  /** Leaving rows that close without fading, sinking under Show more. */
+  readonly sink: ReadonlySet<string>;
+  /** Rows fading out in place before a reduced-motion change applies. */
+  readonly fadeOut: ReadonlySet<string>;
+};
+
+const SLOT_STYLES = [
+  "height",
+  "overflow",
+  "opacity",
+  "transform",
+  "position",
+  "zIndex",
+  "backgroundColor",
+] as const;
+
 /**
- * Slides keyed rows from their previous visual positions when `token`
- * changes. The token names the ordering that caused the layout change; other
- * renders only refresh the measurements. A row with no previous layout fades
- * in at its destination rather than traveling from outside the viewport.
- *
- * Running animations are read before they are canceled, so a reversal starts
- * at the row's current translation and opacity. The new layout is measured
- * only after cancellation, which keeps an old inverse transform out of the
- * next target. Reduced motion applies the new layout without either effect.
+ * Drives one list of slots: stacked siblings, each a box around its whole
+ * contents, with one CSS margin between neighbors (`li + li`). A slot's
+ * height, travel offset, and opacity are written as inline styles while it
+ * moves and cleared once it rests, so a resting slot is laid out by CSS
+ * alone. While any slot moves, every gap is written too, opening and closing
+ * with the slots on either side of it, so the rows below never jump by a
+ * gap. Positions come from the slots' heights and gaps in order; nothing is
+ * measured per frame.
  */
-export function useRowFlip(
-  container: RefObject<HTMLElement | null>,
-  token: string,
-): () => void {
-  const committed = useRef<RowSnapshot | null>(null);
-  const running = useRef(new Map<string, RunningRow>());
-  const cancelRunning = useCallback(() => {
-    for (const active of running.current.values()) {
-      for (const animation of active.animations) animation.cancel();
-      active.element.style.backgroundColor = active.backgroundColor;
-      active.element.style.boxShadow = active.boxShadow;
-      active.element.style.position = active.position;
-      active.element.style.zIndex = active.zIndex;
-    }
-    running.current.clear();
-  }, []);
+class SlotSprings {
+  private readonly slots = new Map<string, Slot>();
+  private readonly elements = new Map<string, HTMLElement>();
+  private order: string[] = [];
+  /** The CSS margin between neighboring slots, read when slots are measured. */
+  private gap = 0;
+  /** Whether the gaps are written inline. */
+  private gapped = false;
+  private frame: number | null = null;
+  private last = 0;
+  /** A contents height change waiting for its burst to end (see `remeasure`). */
+  private resize: ReturnType<typeof setTimeout> | null = null;
 
-  /** Capture final layout positions while leaving any visual motion running. */
-  const capture = useCallback(() => {
-    const root = container.current;
-    if (!root) return;
-    if (!canAnimate()) {
-      committed.current = { token, rows: new Map() };
-      return;
-    }
-    const rootTop = root.getBoundingClientRect().top;
-    const rows = new Map<string, RowLayout>();
-    for (const [key, element] of flipRows(root)) {
-      const active = running.current.get(key);
-      const translateY =
-        active?.element === element ? rowTranslateY(element) : 0;
-      rows.set(key, {
-        element,
-        top: element.getBoundingClientRect().top - rootTop - translateY,
-      });
-    }
-    committed.current = { token, rows };
-  }, [container, token]);
+  constructor(private readonly closed: (keys: string[]) => void) {}
 
-  useLayoutEffect(() => {
-    const root = container.current;
-    if (!root) return;
-    if (!canAnimate()) {
-      cancelRunning();
-      committed.current = { token, rows: new Map() };
-      return;
-    }
-    const before = committed.current;
-    const changed = before !== null && before.token !== token;
-    if (!changed) {
-      if (!canAnimate()) cancelRunning();
-      capture();
-      return;
-    }
+  attach(key: string, element: HTMLElement | null) {
+    if (element) this.elements.set(key, element);
+    else this.elements.delete(key);
+  }
 
-    const starts = new Map<string, { y: number; opacity: number }>();
-    for (const [key, active] of running.current) {
-      starts.set(key, {
-        y: rowTranslateY(active.element),
-        opacity: active.opacityElement
-          ? Number(getComputedStyle(active.opacityElement).opacity)
-          : 1,
-      });
-    }
-    cancelRunning();
+  /** Whether the slot exists and is still open or opening. */
+  holds(key: string) {
+    const slot = this.slots.get(key);
+    return slot !== undefined && !slot.leaving;
+  }
 
-    const rootTop = root.getBoundingClientRect().top;
-    const after = new Map<string, RowLayout>();
-    for (const [key, element] of flipRows(root))
-      after.set(key, {
-        element,
-        top: element.getBoundingClientRect().top - rootTop,
-      });
-
-    if (canAnimate()) {
-      for (const [key, current] of after) {
-        const previous = before.rows.get(key);
-        const start = starts.get(key);
-        const previousTop = previous ? previous.top + (start?.y ?? 0) : 0;
-        const visible = (top: number) =>
-          top >= 0 && top + current.element.offsetHeight <= root.clientHeight;
-        const travel = Boolean(
-          previous && visible(previousTop) && visible(current.top),
-        );
-        const dy = previous ? previousTop - current.top : 0;
-        const opacity = travel ? (start?.opacity ?? 1) : 0;
-        if (travel && Math.abs(dy) < 0.01 && opacity === 1) continue;
-        const opacityElements =
-          opacity < 1 ? rowOpacityElements(current.element) : [];
-        const active: RunningRow = {
-          element: current.element,
-          animations: new Set(),
-          opacityElement: opacityElements[0] ?? null,
-          backgroundColor: current.element.style.backgroundColor,
-          boxShadow: current.element.style.boxShadow,
-          position: current.element.style.position,
-          zIndex: current.element.style.zIndex,
+  /**
+   * Applies a new arrangement at `now`. Every slot keeps its velocity: an
+   * entering one opens from nothing, a leaving one closes, one whose height
+   * changed retargets, and one that moved starts where it was drawn and
+   * travels to its new place.
+   */
+  commit(change: SlotCommit, now: number) {
+    this.advance(now);
+    if (this.resize !== null) clearTimeout(this.resize);
+    this.resize = null;
+    const full = change.mode === "full";
+    const drawn = new Map<string, number>();
+    for (const [key, { top }] of this.layout())
+      drawn.set(key, top + this.slots.get(key)!.offset.value);
+    const naturals = this.measure(
+      change.entries.filter((entry) => !entry.leaving).map(({ key }) => key),
+    );
+    const placed = new Set<string>();
+    const arriving = new Set<string>();
+    for (const { key, leaving } of change.entries) {
+      let slot = this.slots.get(key);
+      const opacity = slot ? this.opacityOf(slot, now) : 0;
+      if (leaving) {
+        if (!slot) continue;
+        placed.add(key);
+        if (!slot.leaving) {
+          slot.leaving = true;
+          slot.closed = false;
+          slot.height.target = 0;
+          slot.fade = change.sink.has(key)
+            ? null
+            : {
+                from: opacity,
+                to: 0,
+                start: now,
+                duration: UP_NEXT_MOTION.leaveMs,
+              };
+        }
+        continue;
+      }
+      placed.add(key);
+      const natural = naturals.get(key) ?? slot?.natural ?? 0;
+      const enter = (from: number): Fade | null =>
+        full && change.rise.has(key)
+          ? null
+          : {
+              from,
+              to: 1,
+              start: now + (full ? UP_NEXT_MOTION.enterDelayMs : 0),
+              duration: full
+                ? UP_NEXT_MOTION.enterMs
+                : UP_NEXT_MOTION.reducedFadeMs,
+            };
+      if (!slot) {
+        const opening = !change.first;
+        slot = {
+          natural,
+          height: {
+            value: full && opening ? 0 : natural,
+            velocity: 0,
+            target: natural,
+          },
+          offset: { value: 0, velocity: 0, target: 0 },
+          fade: opening ? enter(0) : null,
+          leaving: false,
+          holding: false,
+          closed: false,
+          surface: null,
+          styled: false,
         };
-        running.current.set(key, active);
-        // Opaque surfaces keep crossings and entering fades from blending two
-        // titles. Paint styles do not affect layout or animation keyframes.
-        const background = rowMotionBackground(current.element);
-        current.element.style.backgroundColor = background;
-        current.element.style.boxShadow = `0 0 0 3px ${background}`;
-        current.element.style.position = "relative";
-        current.element.style.zIndex = travel ? (dy > 0 ? "2" : "1") : "3";
-        const track = (
-          target: HTMLElement,
-          frames: Keyframe[],
-          options: KeyframeAnimationOptions,
-        ) => {
-          const animation = target.animate(frames, options);
-          active.animations.add(animation);
-          animation.onfinish = () => {
-            if (running.current.get(key) !== active) return;
-            active.animations.delete(animation);
-            if (active.animations.size > 0) return;
-            current.element.style.backgroundColor = active.backgroundColor;
-            current.element.style.boxShadow = active.boxShadow;
-            current.element.style.position = active.position;
-            current.element.style.zIndex = active.zIndex;
-            running.current.delete(key);
+        this.slots.set(key, slot);
+        arriving.add(key);
+        continue;
+      }
+      if (slot.leaving) {
+        slot.leaving = false;
+        slot.closed = false;
+        slot.fade = enter(opacity);
+        arriving.add(key);
+      } else if (change.fadeOut.has(key)) {
+        // It keeps its slot, at the height it had, until it leaves.
+        slot.holding = true;
+        if (!slot.fade || slot.fade.to > 0)
+          slot.fade = {
+            from: opacity,
+            to: 0,
+            start: now,
+            duration: UP_NEXT_MOTION.reducedFadeMs,
           };
-        };
-        if (travel && Math.abs(dy) >= 0.01)
-          track(
-            current.element,
-            [
-              { transform: `translateY(${dy}px)` },
-              { transform: "translateY(0px)" },
-            ],
-            {
-              duration: Math.max(
-                ROW_FLIP_MIN_MS,
-                Math.abs(dy) * ROW_FLIP_MS_PER_PX,
-              ),
-              easing: ROW_EASE,
-              fill: "backwards",
-            },
-          );
-        for (const target of opacityElements)
-          track(target, [{ opacity }, { opacity: 1 }], {
-            duration: ENTER_MS,
-            easing: EASE_OUT,
-            fill: "backwards",
-          });
+        continue;
+      } else if (slot.fade && slot.fade.to < 1) {
+        // A fade-out whose change never came: fade back in.
+        slot.fade = enter(opacity);
+      }
+      slot.holding = false;
+      slot.natural = natural;
+      slot.height.target = natural;
+      if (!full) {
+        slot.height.value = natural;
+        slot.height.velocity = 0;
       }
     }
-    committed.current = { token, rows: after };
-  }, [container, token, capture, cancelRunning]);
+    for (const key of this.slots.keys())
+      if (!placed.has(key)) this.slots.delete(key);
+    this.order = change.entries
+      .map(({ key }) => key)
+      .filter((key) => this.slots.has(key));
 
+    const tracks: { key: string; from: number; to: number; lift: number }[] =
+      [];
+    for (const [key, { top }] of this.layout()) {
+      const slot = this.slots.get(key)!;
+      slot.surface = null;
+      if (slot.leaving) continue;
+      const from = drawn.get(key);
+      if (!full || arriving.has(key) || from === undefined) {
+        slot.offset = { value: 0, velocity: 0, target: 0 };
+        continue;
+      }
+      const travel = from - top;
+      tracks.push({ key, from, to: top, lift: Math.sign(travel) });
+      if (Math.abs(travel) < 0.01 && !springMoving(slot.offset)) continue;
+      slot.offset.value = travel;
+      slot.offset.target = 0;
+    }
+    // A row that passes another on the way draws an opaque surface: the one
+    // moving up, which is drawn above, or both when they move the same way.
+    for (let i = 0; i < tracks.length; i++)
+      for (let j = i + 1; j < tracks.length; j++) {
+        const a = tracks[i]!;
+        const b = tracks[j]!;
+        if (Math.sign(a.from - b.from) === Math.sign(a.to - b.to)) continue;
+        for (const row of a.lift === b.lift
+          ? [a, b]
+          : a.lift > b.lift
+            ? [a]
+            : [b]) {
+          const slot = this.slots.get(row.key)!;
+          const element = this.elements.get(row.key);
+          if (element && slot.surface === null)
+            slot.surface = surfaceBehind(element);
+        }
+      }
+    this.draw(now);
+    this.schedule();
+  }
+
+  /**
+   * Picks up a change in a slot's contents height, such as a row gaining a
+   * second line, without a change in arrangement. Like an arrangement, the
+   * new height waits until changes have been quiet for `burstMs`, so a row
+   * that loses its second line as it leaves keeps its slot until it closes;
+   * under reduced motion it applies at once.
+   */
+  remeasure(mode: Exclude<MotionMode, "none">, now: number) {
+    const keys = this.order.filter((key) => {
+      const slot = this.slots.get(key)!;
+      return !slot.leaving && !slot.holding;
+    });
+    const naturals = this.measure(keys);
+    let changed = false;
+    this.advance(now);
+    for (const key of keys) {
+      const slot = this.slots.get(key)!;
+      const natural = naturals.get(key);
+      if (natural === undefined || Math.abs(natural - slot.natural) < 0.01)
+        continue;
+      changed = true;
+      slot.natural = natural;
+      if (mode !== "full") {
+        slot.height = { value: natural, velocity: 0, target: natural };
+      }
+    }
+    if (!changed) return;
+    if (mode === "full") {
+      if (this.resize !== null) clearTimeout(this.resize);
+      this.resize = setTimeout(() => {
+        this.resize = null;
+        const at = performance.now();
+        this.advance(at);
+        for (const slot of this.slots.values())
+          if (!slot.leaving) slot.height.target = slot.natural;
+        this.draw(at);
+        this.schedule();
+      }, UP_NEXT_MOTION.burstMs);
+    }
+    // Hold the slot at its height until then.
+    this.draw(now);
+  }
+
+  destroy() {
+    if (this.frame !== null) cancelAnimationFrame(this.frame);
+    this.frame = null;
+    if (this.resize !== null) clearTimeout(this.resize);
+    this.resize = null;
+  }
+
+  /**
+   * Each slot's contents height, read with every inline height lifted at
+   * once so the reads share one layout.
+   */
+  private measure(keys: readonly string[]) {
+    const lifted: [HTMLElement, string, string][] = [];
+    for (const key of keys) {
+      const element = this.elements.get(key);
+      if (element && (element.style.height || element.style.marginTop)) {
+        lifted.push([element, element.style.height, element.style.marginTop]);
+        element.style.height = "";
+        element.style.marginTop = "";
+      }
+    }
+    const naturals = new Map<string, number>();
+    let gap = 0;
+    for (const key of keys) {
+      const element = this.elements.get(key);
+      if (!element) continue;
+      naturals.set(key, element.getBoundingClientRect().height);
+      gap = Math.max(
+        gap,
+        Number.parseFloat(getComputedStyle(element).marginTop) || 0,
+      );
+    }
+    if (keys.length > 1) this.gap = gap;
+    for (const [element, height, margin] of lifted) {
+      element.style.height = height;
+      element.style.marginTop = margin;
+    }
+    return naturals;
+  }
+
+  /**
+   * Each slot's layout top, without its travel, and the gap above it. A gap
+   * is as open as the less open of its slot and the most open slot before
+   * it, so a slot opening or closing anywhere, first included, brings its
+   * gap with it.
+   */
+  private layout() {
+    const out = new Map<string, { top: number; gap: number }>();
+    let y = 0;
+    let before = 0;
+    for (const key of this.order) {
+      const slot = this.slots.get(key)!;
+      const open =
+        slot.natural > 0
+          ? Math.min(1, Math.max(0, slot.height.value / slot.natural))
+          : slot.height.value > 0
+            ? 1
+            : 0;
+      const gap = out.size === 0 ? 0 : this.gap * Math.min(open, before);
+      before = Math.max(before, open);
+      out.set(key, { top: y + gap, gap });
+      y += gap + slot.height.value;
+    }
+    return out;
+  }
+
+  private opacityOf(slot: Slot, now: number) {
+    if (!slot.fade) return 1;
+    const opacity = fadeAt(slot.fade, now);
+    if (opacity >= 1 && now >= slot.fade.start + slot.fade.duration)
+      slot.fade = null;
+    return opacity;
+  }
+
+  /** Steps every spring to `now`; a long gap, such as a hidden tab, ends the motion. */
+  private advance(now: number) {
+    const ms = now - this.last;
+    this.last = now;
+    if (ms <= 0) return;
+    for (const slot of this.slots.values()) {
+      for (const [spring, epsilon] of [
+        [slot.height, 0.01],
+        [slot.offset, 0.02],
+      ] as const) {
+        if (ms > 250) {
+          spring.value = spring.target;
+          spring.velocity = 0;
+        } else stepSpring(spring, ms, epsilon);
+      }
+    }
+  }
+
+  /**
+   * How far each crossing row overlaps the rows it passes, in pixels, from
+   * the slots' heights and offsets in drawn order.
+   */
+  private overlaps() {
+    const boxes: { key: string; top: number; bottom: number }[] = [];
+    for (const [key, laid] of this.layout()) {
+      const slot = this.slots.get(key)!;
+      const top = laid.top + slot.offset.value;
+      if (slot.height.value > 0)
+        boxes.push({ key, top, bottom: top + slot.height.value });
+    }
+    const overlap = new Map<string, number>();
+    for (const box of boxes) {
+      if (this.slots.get(box.key)!.surface === null) continue;
+      let most = 0;
+      for (const other of boxes)
+        if (other !== box)
+          most = Math.max(
+            most,
+            Math.min(box.bottom, other.bottom) - Math.max(box.top, other.top),
+          );
+      overlap.set(box.key, most);
+    }
+    return overlap;
+  }
+
+  private draw(now: number) {
+    const closed: string[] = [];
+    const overlaps = this.overlaps();
+    for (const [key, slot] of this.slots) {
+      const opacity = this.opacityOf(slot, now);
+      const moving =
+        springMoving(slot.height) ||
+        springMoving(slot.offset) ||
+        slot.fade !== null;
+      if (slot.leaving && !springMoving(slot.height) && !slot.closed) {
+        slot.closed = true;
+        closed.push(key);
+      }
+      const element = this.elements.get(key);
+      if (!element) continue;
+      if (!moving && !slot.leaving && slot.height.value === slot.natural) {
+        if (slot.styled)
+          for (const name of SLOT_STYLES) element.style[name] = "";
+        slot.styled = false;
+        slot.surface = null;
+        continue;
+      }
+      slot.styled = true;
+      const offset = slot.offset.value;
+      const traveling = Math.abs(offset) > 0.05;
+      const style = element.style;
+      style.height = `${Math.max(0, slot.height.value)}px`;
+      style.overflow = "hidden";
+      style.opacity = opacity < 1 ? String(opacity) : "";
+      style.transform =
+        Math.abs(offset) >= 0.01 ? `translateY(${offset}px)` : "";
+      style.position = "relative";
+      // A row moving up passes over the rows moving down.
+      style.zIndex = traveling ? (offset > 0 ? "3" : "2") : "1";
+      // The surface comes up as the row starts to cover another and goes as
+      // it clears, before either row's text meets the other's.
+      const cover = Math.min(
+        1,
+        Math.max(0, ((overlaps.get(key) ?? 0) - 1) / 4),
+      );
+      style.backgroundColor =
+        slot.surface === null || cover === 0
+          ? ""
+          : cover === 1
+            ? slot.surface
+            : `color-mix(in srgb, ${slot.surface} ${Math.round(cover * 100)}%, transparent)`;
+    }
+    const moving = [...this.slots.values()].some((slot) => slot.styled);
+    if (moving && this.gap > 0) {
+      for (const [key, { gap }] of this.layout()) {
+        const element = this.elements.get(key);
+        if (element) element.style.marginTop = `${gap}px`;
+      }
+      this.gapped = true;
+    } else if (this.gapped) {
+      for (const element of this.elements.values())
+        element.style.marginTop = "";
+      this.gapped = false;
+    }
+    if (closed.length > 0) this.closed(closed);
+  }
+
+  private busy(now: number) {
+    for (const slot of this.slots.values()) {
+      if (springMoving(slot.height) || springMoving(slot.offset)) return true;
+      if (slot.fade && now < slot.fade.start + slot.fade.duration) return true;
+    }
+    return false;
+  }
+
+  private schedule() {
+    if (this.frame !== null) return;
+    this.frame = requestAnimationFrame(this.tick);
+  }
+
+  private readonly tick = (time: number) => {
+    this.frame = null;
+    this.advance(time);
+    this.draw(time);
+    if (this.busy(time)) this.schedule();
+  };
+}
+
+/** A slot in a {@link useSlotList} list, and the ref its element takes. */
+export type SlotEntry<T> = {
+  readonly key: string;
+  readonly item: T;
+  /** Closing; the element is inert and hidden from assistive technology. */
+  readonly leaving: boolean;
+  readonly ref: (element: HTMLElement | null) => void;
+};
+
+type ShownSlots<T> = {
+  readonly keys: readonly string[];
+  /** Each item as it was when this arrangement was taken. */
+  readonly items: ReadonlyMap<string, T>;
+  readonly signature: string;
+  readonly trimmed: ReadonlySet<string>;
+  /** Rows fading out before a reduced-motion change applies. */
+  readonly fading: ReadonlySet<string>;
+};
+
+const NOTHING: ReadonlySet<string> = new Set();
+
+/**
+ * Up Next's rows as slots that open and close on one spring (see
+ * {@link UP_NEXT_MOTION} and {@link SlotSprings}). Render each entry's
+ * element with its `ref` and `presenceProps`, in order, as stacked siblings
+ * with no style prop of their own: the hook owns their inline styles.
+ *
+ * A change in which rows show, or their order, waits until the burst it
+ * belongs to has been quiet for `burstMs`, then animates once to the newest
+ * state; meanwhile each shown row renders its newest item, so selection and
+ * marks update at once. A change in `immediate`, such as the user toggling
+ * Show more, applies without waiting.
+ *
+ * `trimmed` names the rows the row limit keeps out and `edge` the Show more
+ * entry. A row the limit pushes out closes without fading, so Show more
+ * rises over it, and rows arriving at the end that the limit kept out
+ * before open without fading, rising from under Show more.
+ *
+ * `arranged` marks an item whose contents belong to the arrangement, such as
+ * Show more's count, so it changes only when the arrangement does.
+ *
+ * Under reduced motion nothing waits or moves: leaving rows fade out in
+ * place, then the new arrangement applies at once and entering rows fade in.
+ * Without Web Animations (tests) every change applies at once.
+ */
+export function useSlotList<T>(
+  items: readonly T[],
+  keyOf: (item: T) => string,
+  options: {
+    readonly trimmed: ReadonlySet<string>;
+    readonly edge?: string;
+    readonly immediate?: string;
+    readonly arranged?: (item: T) => boolean;
+  },
+): SlotEntry<T>[] {
+  const mode = motionMode();
+  const keys = items.map(keyOf);
+  const signature = keys.join("\n");
+  const shown = useRef<ShownSlots<T> | null>(null);
+  const latest = useRef<ShownSlots<T> | null>(null);
+  const immediate = useRef(options.immediate);
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+
+  const byKey = new Map(items.map((item) => [keyOf(item), item]));
+  const live: ShownSlots<T> = {
+    keys,
+    items: byKey,
+    signature,
+    trimmed: options.trimmed,
+    fading: NOTHING,
+  };
+  let display = shown.current;
+  if (
+    display === null ||
+    mode === "none" ||
+    options.immediate !== immediate.current
+  )
+    display = live;
+  else if (display.signature !== signature && mode === "reduced") {
+    const present = new Set(keys);
+    const fading = new Set(display.keys.filter((key) => !present.has(key)));
+    display = fading.size > 0 ? { ...display, fading } : live;
+  }
+  const displayItems = display.keys.flatMap((key) => {
+    const held = display.items.get(key);
+    const item =
+      held !== undefined && options.arranged?.(held)
+        ? held
+        : (byKey.get(key) ?? held);
+    return item === undefined ? [] : [item];
+  });
+
+  const committed = useRef<PresenceEntry<T>[] | null>(null);
+  const presence = mergePresence(
+    committed.current ?? [],
+    displayItems,
+    keyOf,
+    mode === "full" && committed.current !== null,
+  );
+
+  const springs = useRef<SlotSprings | null>(null);
+  if (springs.current === null)
+    springs.current = new SlotSprings((closedKeys) => {
+      const gone = new Set(closedKeys);
+      committed.current = (committed.current ?? []).filter(
+        (entry) => entry.phase !== "leave" || !gone.has(entry.key),
+      );
+      redraw();
+    });
+  const engine = springs.current;
+  const refs = useRef(new Map<string, (element: HTMLElement | null) => void>());
+  const refFor = (key: string) => {
+    let ref = refs.current.get(key);
+    if (!ref) {
+      ref = (element) => engine.attach(key, element);
+      refs.current.set(key, ref);
+    }
+    return ref;
+  };
+
+  const arranged = useRef<{
+    signature: string;
+    trimmed: ReadonlySet<string>;
+    /** Rows shown, not counting leaving ones. */
+    present: number;
+  } | null>(null);
+  useLayoutEffect(() => {
+    shown.current = display;
+    latest.current = live;
+    immediate.current = options.immediate;
+    committed.current = presence;
+    for (const key of refs.current.keys())
+      if (!byKey.has(key) && !presence.some((entry) => entry.key === key))
+        refs.current.delete(key);
+    if (mode === "none") {
+      arranged.current = null;
+      return;
+    }
+    const entries = presence.map((entry) => ({
+      key: entry.key,
+      leaving: entry.phase === "leave",
+    }));
+    const arrangement = [
+      ...entries.map(({ key, leaving }) => `${leaving ? "-" : ""}${key}`),
+      ...[...display.fading].map((key) => `~${key}`),
+    ].join("\n");
+    const now = performance.now();
+    const previous = arranged.current;
+    if (previous?.signature === arrangement) {
+      engine.remeasure(mode, now);
+      return;
+    }
+    // Rows arriving at the end that the limit kept out come up from under
+    // Show more; the rows it pushes out go back under it.
+    const rise = new Set<string>();
+    const order = display.keys.filter((key) => key !== options.edge);
+    for (let i = order.length - 1; i >= 0; i--) {
+      const key = order[i]!;
+      if (engine.holds(key) || !previous?.trimmed.has(key)) break;
+      rise.add(key);
+    }
+    const sink = new Set(
+      entries
+        .filter(({ key, leaving }) => leaving && display.trimmed.has(key))
+        .map(({ key }) => key),
+    );
+    engine.commit(
+      {
+        entries,
+        mode,
+        // Rows arriving in an empty list appear with it: the list's own
+        // container opens around them.
+        first: previous === null || previous.present === 0,
+        rise,
+        sink,
+        fadeOut: display.fading,
+      },
+      now,
+    );
+    arranged.current = {
+      signature: arrangement,
+      trimmed: display.trimmed,
+      present: entries.filter((entry) => !entry.leaving).length,
+    };
+  });
+
+  const timer = useRef<{
+    signature: string;
+    id: ReturnType<typeof setTimeout>;
+  } | null>(null);
   useEffect(() => {
-    const root = container.current;
-    if (!root || !canAnimate() || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => capture());
-    observer.observe(root);
-    for (const row of flipRows(root).values()) observer.observe(row);
-    return () => observer.disconnect();
-  }, [container, token, capture]);
-
+    if (display.signature === signature && display.fading.size === 0) {
+      if (timer.current) clearTimeout(timer.current.id);
+      timer.current = null;
+      return;
+    }
+    // A burst restarts the wait on each change; a reduced-motion fade-out
+    // runs its course before the rows it fades leave.
+    if (
+      mode === "reduced"
+        ? timer.current
+        : timer.current?.signature === signature
+    )
+      return;
+    if (timer.current) clearTimeout(timer.current.id);
+    timer.current = {
+      signature,
+      id: setTimeout(
+        () => {
+          timer.current = null;
+          shown.current = latest.current;
+          redraw();
+        },
+        mode === "reduced"
+          ? UP_NEXT_MOTION.reducedFadeMs
+          : UP_NEXT_MOTION.burstMs,
+      ),
+    };
+  });
   useEffect(
     () => () => {
-      cancelRunning();
-      committed.current = null;
+      if (timer.current) clearTimeout(timer.current.id);
+      timer.current = null;
+      engine.destroy();
     },
-    [cancelRunning],
+    [engine],
   );
-  return capture;
+
+  return presence.map((entry) => ({
+    key: entry.key,
+    item: entry.item,
+    leaving: entry.phase === "leave",
+    ref: refFor(entry.key),
+  }));
 }
 
 type PresencePhase = "enter" | "idle" | "leave";

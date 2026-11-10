@@ -58,6 +58,8 @@ it.each([
     threads[0] = { ...threads[0]!, isUnread: false, title: "Updated result" };
     current = view(threads, "result", current.state);
     expect(ids(current.rows)).toEqual(["result", "o1", "o2", "o3", "o4", "o5"]);
+    // The held row is shown, so it isn't trimmed even past the limit.
+    expect([...current.trimmed]).toEqual([]);
     expect(current.rows[0]!.thread.title).toBe("Updated result");
     expect(ids(current.recent)).not.toContain("result");
     current = view(threads, next, current.state);

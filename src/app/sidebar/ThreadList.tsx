@@ -17,8 +17,9 @@
  * focused workstreams; while any workstream is focused, the rest hide behind
  * a toggle below the focused ones. Focused workstreams are stored as
  * `prioritized`. Up Next never moves the open thread's row out from under
- * the user, and its re-ranks glide with transforms. Other overlay rows use
- * height motion as they open and close (see `motion.ts`).
+ * the user. Its rows open and close their slots on a spring, and a re-ranked
+ * row travels to its new slot (see `useSlotList`); other overlay rows open
+ * and close their height over a fixed duration (see `motion.ts`).
  *
  * Pinned lists the roots the user pinned, in BB's pin order, directly under
  * Up Next. The two bands share one sticky plate at the top of the list, so
@@ -93,6 +94,7 @@ import { Row } from "./Row.tsx";
 import { hasStatusMark, headerCounts } from "./presentation.ts";
 import {
   descendantsOf,
+  rowsById,
   foldKey,
   foldDefault,
   treesOf,
@@ -135,7 +137,7 @@ import {
   useFold,
   useFoldGap,
   usePresence,
-  useRowFlip,
+  useSlotList,
   type PresenceEntry,
 } from "./motion.ts";
 import { FocusIcon } from "./FocusIcon.tsx";
@@ -309,7 +311,7 @@ export function WorkstreamsThreadList({
     [projection, ws.upNextOptions, prioritized, activeThreadId, showMore],
   );
   if (showMore !== upNext.expanded) setShowMore(upNext.expanded);
-  const { rows: shownNeedsRows, moreCount } = upNext;
+  const { rows: shownNeedsRows, moreCount, trimmed: trimmedNeeds } = upNext;
   useLayoutEffect(() => {
     upNextState.current = upNext.state;
   });
@@ -346,6 +348,7 @@ export function WorkstreamsThreadList({
       ]),
     [projection],
   );
+  const currentRows = useMemo(() => rowsById(projection), [projection]);
   const folded = useCallback(
     (placement: Placement, id: string) =>
       isCollapsed(foldKey(placement, id), foldDefault(placement)),
@@ -359,10 +362,6 @@ export function WorkstreamsThreadList({
 
   const listRef = useRef<HTMLDivElement>(null);
   const captureLayout = useFlip(listRef, [...prioritized].sort().join(" "));
-  const captureRows = useRowFlip(
-    listRef,
-    shownNeedsRows.map((row) => row.thread.id).join(" "),
-  );
   /** Focus covers a whole top-level group, so it names every section in it. */
   const toggleFocus = (group: ThreadNode) => {
     setError(null);
@@ -527,7 +526,30 @@ export function WorkstreamsThreadList({
     [projection, ws.server.analysis, ws.server.recaps],
   );
   const rowKey = (row: ThreadRow) => row.thread.id;
-  const showBand = ws.showForYou && shownNeedsRows.length > 0;
+  const showMoreControl = showMore || moreCount > 0;
+  const upNextItems = useMemo<UpNextItem[]>(
+    () =>
+      ws.showForYou
+        ? [
+            ...shownNeedsRows.map((row) => ({ kind: "row" as const, row })),
+            ...(showMoreControl
+              ? [{ kind: "more" as const, count: moreCount }]
+              : []),
+          ]
+        : [],
+    [ws.showForYou, shownNeedsRows, showMoreControl, moreCount],
+  );
+  // Up Next's rows and Show more, as drawn: a change in which rows show
+  // waits out its burst, then every slot moves at once (see `useSlotList`).
+  const upNextSlots = useSlotList(upNextItems, upNextItemKey, {
+    trimmed: trimmedNeeds,
+    edge: UP_NEXT_MORE_KEY,
+    immediate: String(showMore),
+    arranged: (item) => item.kind === "more",
+  });
+  const showBand = upNextSlots.some(
+    (slot) => slot.item.kind === "row" && !slot.leaving,
+  );
   const pinnedRows = projection.pinnedThreads;
   const pinnedMarks = useMemo(
     () => anyMark(pinnedRows),
@@ -543,10 +565,6 @@ export function WorkstreamsThreadList({
   const bandPresence = usePresence(showBand ? ["band"] : [], String);
   const pinnedBandPresence = usePresence(showPinned ? ["pinned"] : [], String);
   const pinnedRowPresence = usePresence(pinnedRows, rowKey);
-  const needsControls = usePresence(
-    showMore || moreCount > 0 ? ["more"] : [],
-    String,
-  );
   const snoozes = ws.server.snoozes;
   const renderRow = useCallback<RenderRow>(
     (
@@ -608,7 +626,6 @@ export function WorkstreamsThreadList({
           categorized={categorized}
           onNavigate={onNavigate}
           toggleDisclosure={toggle}
-          flipKey={`${placement}:${key}`}
         />
       );
     },
@@ -1098,7 +1115,6 @@ export function WorkstreamsThreadList({
     <DndContext {...contextProps}>
       <div
         ref={listRef}
-        onClickCapture={captureRows}
         className="ws-list flex flex-col"
         style={{
           paddingLeft: SIDEBAR_GEOMETRY.container.paddingX,
@@ -1157,30 +1173,40 @@ export function WorkstreamsThreadList({
                         ) : null
                       }
                     >
-                      {shownNeedsRows.map((row) => (
-                        <li key={row.thread.id} className="list-none">
+                      {upNextSlots.map((slot) => (
+                        <li
+                          key={slot.key}
+                          ref={slot.ref}
+                          className="list-none rounded-md"
+                          {...presenceProps(slot.leaving ? "leave" : "idle")}
+                        >
                           <ul>
-                            {renderOverlayTree(row, "needs-you", needsMarks)}
+                            {slot.item.kind === "row" ? (
+                              renderOverlayTree(
+                                currentRows.get(slot.item.row.thread.id) ??
+                                  slot.item.row,
+                                "needs-you",
+                                needsMarks,
+                              )
+                            ) : (
+                              <li>
+                                <button
+                                  type="button"
+                                  aria-expanded={showMore}
+                                  onClick={() => setShowMore((more) => !more)}
+                                  className={bandControlClass(
+                                    "ws-needs-you-text",
+                                  )}
+                                >
+                                  {showMore
+                                    ? "Show less"
+                                    : `Show ${Math.max(1, slot.item.count)} more`}
+                                </button>
+                              </li>
+                            )}
                           </ul>
                         </li>
                       ))}
-                      {needsControls.map((entry) =>
-                        present(
-                          entry,
-                          <li>
-                            <button
-                              type="button"
-                              aria-expanded={showMore}
-                              onClick={() => setShowMore((more) => !more)}
-                              className={bandControlClass("ws-needs-you-text")}
-                            >
-                              {showMore
-                                ? "Show less"
-                                : `Show ${Math.max(1, moreCount)} more`}
-                            </button>
-                          </li>,
-                        ),
-                      )}
                     </Band>
                   </div>
                 </div>
@@ -1862,7 +1888,6 @@ type SidebarThreadRowProps = {
   categorized: boolean;
   onNavigate: () => void;
   toggleDisclosure: (id: string, byDefault?: boolean) => void;
-  flipKey: string;
 };
 
 /**
@@ -1890,7 +1915,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   toggleDisclosure,
   handleRef,
   handleListeners,
-  flipKey,
 }: SidebarThreadRowProps) {
   const work = workView(thread, analysis, recap);
   let snoozeAction:
@@ -1971,7 +1995,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
           }
           categorized={categorized}
           inGroup={placement === "group"}
-          flipKey={flipKey}
           onNavigate={onNavigate}
         />
       </li>
@@ -2001,7 +2024,6 @@ function sameSidebarThreadRow(
     before.categorized === after.categorized &&
     before.onNavigate === after.onNavigate &&
     before.toggleDisclosure === after.toggleDisclosure &&
-    before.flipKey === after.flipKey &&
     before.handleRef === after.handleRef &&
     before.handleListeners === after.handleListeners &&
     (before.now === after.now ||
@@ -2036,6 +2058,18 @@ function sameSidebarThreadRow(
 
 /** The band of threads most worth the user's attention (see `selectUpNext`). */
 const UP_NEXT = "Up Next";
+
+/** One of Up Next's slots: a row, or Show more below the rows. */
+type UpNextItem =
+  | { readonly kind: "row"; readonly row: ThreadRow }
+  | {
+      readonly kind: "more";
+      /** The rows Show more holds, counted with the rows shown above it. */
+      readonly count: number;
+    };
+const UP_NEXT_MORE_KEY = ":more";
+const upNextItemKey = (item: UpNextItem) =>
+  item.kind === "row" ? item.row.thread.id : UP_NEXT_MORE_KEY;
 const PINNED = "Pinned";
 
 /**

@@ -396,12 +396,19 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    threads the count pushed out that are unread or blocked on you, below the
    rest, and **Show less** collapses them; trimmed read threads not blocked on
    you stay in Recent and their workstreams. It re-ranks as recaps, read state,
-   and activity change. When the order changes, transforms slide existing rows
-   to their new positions without changing their heights. A row joining Up Next
-   fades in at its destination. With reduced motion enabled, the new order
-   appears without sliding or fading. The thread you have open keeps its row and
-   place until you open another thread. Nested delegates do not appear as
-   separate Up Next entries; find them in their workstream's thread tree.
+   and activity change. A change in its rows waits until changes have been quiet
+   for `120 ms`, so a burst moves once, and then everything moves together on
+   one spring. A row joining Up Next opens its slot and fades in, a row leaving
+   fades as its slot closes, and a row that changes rank travels to its new
+   place over the rows it passes. A row the count pushes out slides under **Show
+   N more** without fading, and a row that **Show N more** held rises out from
+   under it into the last slot. The card's edge, **Pinned**, and the workstreams
+   below follow the rows. A row's highlight and marks change at once, and **Show
+   N more** and **Show less** apply without waiting. With reduced motion
+   enabled, a leaving row fades out in place, then the new order appears at once
+   and a joining row fades in. The thread you have open keeps its row and place
+   until you open another thread. Nested delegates do not appear as separate Up
+   Next entries; find them in their workstream's thread tree.
    - **Focus:** While a focused workstream has a thread blocked on you, Up Next
      applies these rules to focused workstreams' threads only and marks its
      header with the focus icon.

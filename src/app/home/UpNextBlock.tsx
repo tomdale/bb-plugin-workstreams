@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import type { Row } from "../../domain/project.ts";
 import type { TopicColor } from "../../domain/workstreamColor.ts";
@@ -6,16 +6,27 @@ import type { ServerState, WorkView } from "../useWorkstreams.ts";
 import { hasStatusMark } from "../sidebar/presentation.ts";
 import { FocusIcon } from "../sidebar/FocusIcon.tsx";
 import { HIDDEN_NOW, HomeThreadRow } from "./HomeRow.tsx";
-import { useRowFlip } from "../sidebar/motion.ts";
+import { presenceProps, useSlotList } from "../sidebar/motion.ts";
+
+/** One of Up Next's slots on Home: a row, or Show more below the rows. */
+type Item =
+  | { readonly kind: "row"; readonly row: Row<PluginSidebarThread> }
+  | { readonly kind: "more"; readonly count: number };
+const MORE_KEY = ":more";
+const itemKey = (item: Item) =>
+  item.kind === "row" ? item.row.thread.id : MORE_KEY;
 
 /**
  * Up Next on Home: the rows `selectUpNext` chose, in the sidebar's Up
  * Next block, with Show more for the trimmed threads still unread or blocked on
- * the user. Each row names its workstream in the workstream's hue.
+ * the user. Each row names its workstream in the workstream's hue. Rows and
+ * Show more move as in the sidebar (see `useSlotList`).
  */
 export function UpNextBlock({
   rows: kept,
   more,
+  trimmed,
+  current,
   focused,
   work,
   analysis,
@@ -27,6 +38,10 @@ export function UpNextBlock({
   rows: readonly Row<PluginSidebarThread>[];
   /** What Show more reveals below `rows`. */
   more: readonly Row<PluginSidebarThread>[];
+  /** Every thread the row limit kept out, `more` included. */
+  trimmed: readonly Row<PluginSidebarThread>[];
+  /** Each visible row by thread id, for drawing a row on its way out. */
+  current: ReadonlyMap<string, Row<PluginSidebarThread>>;
   /** Focus left other workstreams' threads out. */
   focused: boolean;
   work: (thread: PluginSidebarThread) => WorkView;
@@ -45,11 +60,27 @@ export function UpNextBlock({
   if (showMore && more.length === 0) setShowMore(false);
   const rows = showMore ? [...kept, ...more] : kept;
   const marks = rows.some((row) => hasStatusMark(row.thread, work(row.thread)));
-  const listRef = useRef<HTMLUListElement>(null);
-  const captureRows = useRowFlip(
-    listRef,
-    rows.map((row) => row.thread.id).join(" "),
+  const items = useMemo<Item[]>(
+    () => [
+      ...rows.map((row) => ({ kind: "row" as const, row })),
+      ...(more.length > 0
+        ? [{ kind: "more" as const, count: more.length }]
+        : []),
+    ],
+    [rows, more.length],
   );
+  const hidden = useMemo(() => {
+    const shown = new Set(rows.map((row) => row.thread.id));
+    return new Set(
+      trimmed.map((row) => row.thread.id).filter((id) => !shown.has(id)),
+    );
+  }, [rows, trimmed]);
+  const slots = useSlotList(items, itemKey, {
+    trimmed: hidden,
+    edge: MORE_KEY,
+    immediate: String(showMore),
+    arranged: (item) => item.kind === "more",
+  });
   return (
     <section aria-label="Up Next" className="ws-home-up-next ws-needs">
       <h2 className="ws-home-up-next-head">
@@ -70,17 +101,33 @@ export function UpNextBlock({
           </span>
         ) : null}
       </h2>
-      <ul
-        ref={listRef}
-        onClickCapture={captureRows}
-        className="ws-home-rows"
-        role="list"
-      >
-        {rows.map((row) => {
+      <ul className="ws-home-rows" role="list">
+        {slots.map((slot) => {
+          if (slot.item.kind === "more")
+            return (
+              <li
+                key={slot.key}
+                ref={slot.ref}
+                className="ws-home-more-slot"
+                {...presenceProps(slot.leaving ? "leave" : "idle")}
+              >
+                <button
+                  type="button"
+                  className="ws-home-more ws-needs-you-text"
+                  aria-expanded={showMore}
+                  onClick={() => setShowMore(!showMore)}
+                >
+                  {showMore ? "Show less" : `Show ${slot.item.count} more`}
+                </button>
+              </li>
+            );
+          const row = current.get(slot.item.row.thread.id) ?? slot.item.row;
           const workstream = workstreamOf(row);
           return (
             <HomeThreadRow
-              key={row.thread.id}
+              key={slot.key}
+              slotRef={slot.ref}
+              leaving={slot.leaving}
               thread={row.thread}
               analysis={analysis[row.thread.id]}
               recap={recaps[row.thread.id]}
@@ -95,16 +142,6 @@ export function UpNextBlock({
           );
         })}
       </ul>
-      {more.length > 0 ? (
-        <button
-          type="button"
-          className="ws-home-more ws-needs-you-text"
-          aria-expanded={showMore}
-          onClick={() => setShowMore(!showMore)}
-        >
-          {showMore ? "Show less" : `Show ${more.length} more`}
-        </button>
-      ) : null}
     </section>
   );
 }

@@ -49,7 +49,6 @@ export function Row({
   disclosure,
   categorized = false,
   inGroup = false,
-  flipKey,
   onNavigate,
 }: {
   thread: PluginSidebarThread;
@@ -94,8 +93,6 @@ export function Row({
   disclosure?: { expanded: boolean; toggle: () => void };
   categorized?: boolean;
   inGroup?: boolean;
-  /** Stable identity for transform-only row motion within the sidebar. */
-  flipKey?: string;
   onNavigate: () => void;
 }) {
   const timestamps = usePrefsSelector(
@@ -137,7 +134,6 @@ export function Row({
         active && "ws-row-active",
       )}
       style={{ paddingLeft }}
-      data-flip-row={flipKey}
     >
       {/* Must stay an anchor: BB's thread shortcuts find rows by these
             data attributes, and modifier-click opens a split. */}

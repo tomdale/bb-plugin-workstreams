@@ -29,12 +29,13 @@ import {
 
 export type HomePlan<T extends WorkstreamThread> = {
   /**
-   * Up Next's rows and what Show more reveals below them (see
-   * `selectUpNext`); null when there are no rows.
+   * Up Next's rows, what Show more reveals below them, and every thread the
+   * row limit kept out (see `selectUpNext`); null when there are no rows.
    */
   readonly upNext: {
     readonly rows: readonly Row<T>[];
     readonly more: readonly Row<T>[];
+    readonly trimmed: readonly Row<T>[];
   } | null;
   /** The pinned roots, in BB's pin order, under Up Next (see `Projection`). */
   readonly pinnedThreads: readonly Row<T>[];
@@ -100,7 +101,11 @@ export function planHome<T extends UpNextThread>(
   });
   const upNext =
     options.showUpNext && selection.rows.length > 0
-      ? { rows: selection.rows, more: selection.more }
+      ? {
+          rows: selection.rows,
+          more: selection.more,
+          trimmed: selection.trimmed,
+        }
       : null;
   const populated = (groups: readonly WorkstreamNode<T>[]) =>
     groups.filter((group) => group.total > 0);

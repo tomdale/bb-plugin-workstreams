@@ -314,11 +314,15 @@ section:has(> [data-bb-plugin-root] > [data-ws-home="hidden"]) {
   flex: none;
   color: var(--muted-foreground);
 }
+/* The rule sits inside the row's link, so it fades and clips with the row's
+   contents while its slot opens or closes (see `useSlotList`). */
 .ws-home-up-next .ws-home-row + .ws-home-row {
-  border-top: 1px solid
-    color-mix(in oklab, var(--ws-needs-tone) 14%, transparent);
   border-top-left-radius: 0;
   border-top-right-radius: 0;
+}
+.ws-home-up-next .ws-home-row + .ws-home-row > .ws-home-link {
+  border-top: 1px solid
+    color-mix(in oklab, var(--ws-needs-tone) 14%, transparent);
 }
 /* Pinned: a quiet card under Up Next holding the threads kept in reach. */
 .ws-home-pinned {

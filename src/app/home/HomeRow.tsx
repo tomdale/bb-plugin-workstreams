@@ -18,6 +18,7 @@ import {
 import type { ServerState, WorkView } from "../useWorkstreams.ts";
 import { workView } from "../../domain/status.ts";
 import { StatusMark } from "../sidebar/StatusMark.tsx";
+import { presenceProps } from "../sidebar/motion.ts";
 
 /** Stable clock prop for memoized rows that show neither age nor wake time. */
 export const HIDDEN_NOW = 0;
@@ -46,6 +47,8 @@ export const HomeThreadRow = memo(function HomeThreadRow({
   disclosureOpen,
   disclosureCount,
   toggleDisclosure,
+  slotRef,
+  leaving,
 }: {
   thread: PluginSidebarThread;
   analysis?: ServerState["analysis"][string];
@@ -65,6 +68,10 @@ export const HomeThreadRow = memo(function HomeThreadRow({
   disclosureOpen?: boolean;
   disclosureCount?: number;
   toggleDisclosure?: (id: string, byDefault: boolean) => void;
+  /** The row's slot in an animated list (see `useSlotList`). */
+  slotRef?: (element: HTMLElement | null) => void;
+  /** The row is leaving that list. */
+  leaving?: boolean;
 }) {
   const work = workView(thread, analysis, recap);
   return (
@@ -104,6 +111,8 @@ export const HomeThreadRow = memo(function HomeThreadRow({
             }
           : undefined
       }
+      slotRef={slotRef}
+      leaving={leaving}
     />
   );
 });
@@ -130,6 +139,8 @@ export function HomeRow({
   showPin = true,
   trailing,
   disclosure,
+  slotRef,
+  leaving = false,
 }: {
   thread: PluginSidebarThread;
   work: WorkView | undefined;
@@ -154,6 +165,8 @@ export function HomeRow({
   trailing?: string;
   /** Present on a thread with child threads: shows and hides them. */
   disclosure?: { open: boolean; count: number; toggle: () => void };
+  slotRef?: (element: HTMLElement | null) => void;
+  leaving?: boolean;
 }) {
   const { hasUnsubmittedDraft } = useSidebarThreadDraft(thread.id);
   const slotMark = slotMarkFor(thread, work ?? { kind: "none" });
@@ -161,9 +174,10 @@ export function HomeRow({
     thread.isUnread && slotMark !== null && slotMark.kind !== "needs-you";
   return (
     <li
+      ref={slotRef}
+      {...presenceProps(leaving ? "leave" : "idle")}
       className="ws-home-row"
       data-variant={variant}
-      data-flip-row={thread.id}
       data-unread={thread.isUnread || undefined}
       style={{ "--ws-depth": Math.min(depth, 2) } as React.CSSProperties}
     >
