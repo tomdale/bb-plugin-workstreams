@@ -249,10 +249,9 @@ export function mountThread(
       work,
       depth: options.depth,
       categorized: options.categorized,
-      inGroup: true,
+      placement: options.legacy ? "archived" : "group",
       active: false,
       now: 0,
-      showArchive: !options.legacy,
       snoozeAction,
       onNavigate() {},
       disclosure: options.toggle

@@ -9,6 +9,7 @@ import {
   sortedBandRows,
   treesOf,
   unfoldedRows,
+  visibleEntries,
   type ThreadRow,
 } from "../../src/app/sidebar/rows.ts";
 import { projectWorkstreams } from "../../src/domain/project.ts";
@@ -261,4 +262,18 @@ it("keeps the grouping policy without mounting rows: manual order, no empty work
   expect(groups.populated.map((g) => g.id)).not.toContain("empty");
   expect(ids(projection.snoozed)).toEqual(["nap"]);
   expect(ids(groups.populated.flatMap((g) => g.rows))).not.toContain("nap");
+});
+
+it("draws an overlay tree flat from its root and a group tree at its own depth", () => {
+  const tree = [row("child", {}, 1), row("grandchild", {}, 2)];
+  const entries = (placement: Parameters<typeof visibleEntries>[1]) =>
+    visibleEntries(tree, placement, () => false).map(
+      ({ depth, key }) => `${key}@${depth}`,
+    );
+  expect(entries("needs-you")).toEqual(["child@0", "child/grandchild@1"]);
+  expect(entries("group")).toEqual(["child@1", "grandchild@2"]);
+  expect(visibleEntries(tree, "pinned", (id) => id === "child")).toHaveLength(
+    1,
+  );
+  expect(visibleEntries([], "group", () => false)).toEqual([]);
 });

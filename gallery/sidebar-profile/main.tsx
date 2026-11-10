@@ -232,7 +232,7 @@ function ProfileWorkstream({ groupIndex }: { groupIndex: number }) {
                 thread={thread}
                 work={work}
                 depth={0}
-                inGroup
+                placement="group"
                 active={false}
                 now={0}
                 snoozeAction={{

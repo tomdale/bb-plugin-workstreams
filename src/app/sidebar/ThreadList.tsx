@@ -90,20 +90,23 @@ import {
 } from "./useBandOptions.ts";
 import { NameDialog, type NameRequest } from "./NameDialog.tsx";
 import { SuggestionsFlyaway } from "./SuggestionsFlyaway.tsx";
-import { Row } from "./Row.tsx";
+import { Row, type RowSnoozeAction } from "./Row.tsx";
 import { hasStatusMark, headerCounts } from "./presentation.ts";
 import {
   descendantsOf,
   rowsById,
   foldKey,
   foldDefault,
+  PLACEMENT_TRAITS,
   treesOf,
   unfoldedRows,
+  visibleEntries,
   sortedBandRows,
   planBandRows,
   planArchived,
   groupSnoozeRequest,
   type Placement,
+  type RowEntry,
 } from "./rows.ts";
 import { HeaderMenu, RowMenu, type RowMenuHandlers } from "./RowMenu.tsx";
 import { TraceInspector } from "../debug/Inspector.tsx";
@@ -170,18 +173,18 @@ function inlineGroups(group: ThreadNode): ThreadNode[] {
 const shortLabel = (label: string) => label.split(/:\s*/).at(-1) ?? label;
 type ThreadRow = RowModel<PluginSidebarThread>;
 type RowTimes = { display: number; projection: number };
-type RenderRow = (
-  row: ThreadRow,
-  placement: Placement,
-  times: RowTimes,
-  handle?: DragHandle,
-  showStatusSlot?: boolean,
-  depth?: number,
-  key?: string,
+type RowRenderOptions = {
+  placement: Placement;
+  times: RowTimes;
+  /** The drag handle, for a root row that drags its tree. */
+  handle?: DragHandle;
+  /** Whether the list's rows reserve the status slot (see `anyMark`). */
+  showStatusSlot?: boolean;
   /** Its group's name, for a row listed outside that group's header. */
-  label?: string,
-  categorized?: boolean,
-) => ReactNode;
+  label?: string;
+  categorized?: boolean;
+};
+type RenderRow = (entry: RowEntry, options: RowRenderOptions) => ReactNode;
 
 /** Snooze menus sample the clock when their portal actually renders. */
 function CurrentSnoozeMenuItems(
@@ -215,9 +218,6 @@ type GroupSnooze = {
 
 const groupKey = (id: string) => `ws:${id}`;
 const treeKey = (id: string) => `t:${id}`;
-
-/** Overlays draw a row flat, with its children only when expanded. */
-const isOverlay = foldDefault;
 
 export function WorkstreamsThreadList({
   activeThreadId,
@@ -354,10 +354,11 @@ export function WorkstreamsThreadList({
       isCollapsed(foldKey(placement, id), foldDefault(placement)),
     [isCollapsed],
   );
-  const unfolded = useCallback(
-    (rows: readonly ThreadRow[], placement: Placement) =>
-      unfoldedRows(rows, (id) => descendants.has(id) && folded(placement, id)),
-    [descendants, folded],
+  /** One tree, root first, as `placement` draws it with its folds applied. */
+  const entriesOf = useCallback(
+    (tree: readonly ThreadRow[], placement: Placement) =>
+      visibleEntries(tree, placement, (id) => folded(placement, id)),
+    [folded],
   );
 
   const listRef = useRef<HTMLDivElement>(null);
@@ -568,15 +569,15 @@ export function WorkstreamsThreadList({
   const snoozes = ws.server.snoozes;
   const renderRow = useCallback<RenderRow>(
     (
-      row,
-      placement,
-      times,
-      handle,
-      showStatusSlot = true,
-      depth = isOverlay(placement) ? 0 : row.depth,
-      key = row.thread.id,
-      label,
-      categorized = false,
+      { row, depth, key },
+      {
+        placement,
+        times,
+        handle,
+        showStatusSlot = true,
+        label,
+        categorized = false,
+      },
     ) => {
       const storedSnooze = snoozes[row.thread.id];
       const snooze =
@@ -619,7 +620,7 @@ export function WorkstreamsThreadList({
           defaultWake={wakeByDefault}
           handlers={handlers}
           disclosureExpanded={
-            placement !== "recent" && row.hasChildren
+            PLACEMENT_TRAITS[placement].disclosure && row.hasChildren
               ? !folded(placement, row.thread.id)
               : undefined
           }
@@ -696,14 +697,12 @@ export function WorkstreamsThreadList({
     const marks = anyMark(rows);
     const renderTrees = (items: readonly ThreadRow[][]) =>
       items.flatMap((tree) =>
-        unfolded(tree, placement).map((row) =>
-          renderRow(
-            row,
+        entriesOf(tree, placement).map((entry) =>
+          renderRow(entry, {
             placement,
-            { display: now, projection: projectionNow },
-            undefined,
-            marks,
-          ),
+            times: { display: now, projection: projectionNow },
+            showStatusSlot: marks,
+          }),
         ),
       );
     if (!options.grouped) return renderTrees(planned[0]!.trees);
@@ -723,33 +722,20 @@ export function WorkstreamsThreadList({
       );
     });
   };
+  /** An overlay row followed, when expanded, by its visible descendants. */
   const renderOverlayTree = (
     row: ThreadRow,
     placement: Placement,
     marks: boolean,
-  ) => [
-    renderRow(
-      row,
-      placement,
-      { display: now, projection: projectionNow },
-      undefined,
-      marks,
-    ),
-    ...(folded(placement, row.thread.id)
-      ? []
-      : unfolded(descendants.get(row.thread.id) ?? [], placement).map((child) =>
-          renderRow(
-            child,
-            placement,
-            { display: now, projection: projectionNow },
-            undefined,
-            marks,
-            child.depth - row.depth,
-            // A child can also be a row of its own in the same band.
-            `${row.thread.id}/${child.thread.id}`,
-          ),
-        )),
-  ];
+  ) =>
+    entriesOf([row, ...(descendants.get(row.thread.id) ?? [])], placement).map(
+      (entry) =>
+        renderRow(entry, {
+          placement,
+          times: { display: now, projection: projectionNow },
+          showStatusSlot: marks,
+        }),
+    );
   /** The new thread starts with this workstream's topic. */
   const newThreadIn = useCallback(
     (group: ThreadNode) => () => {
@@ -1374,11 +1360,15 @@ export function WorkstreamsThreadList({
                           ws.snoozeOf,
                         ).map((row) =>
                           renderRow(
-                            row,
-                            "archived",
-                            { display: now, projection: projectionNow },
-                            undefined,
-                            false,
+                            { row, depth: 0, key: row.thread.id },
+                            {
+                              placement: "archived",
+                              times: {
+                                display: now,
+                                projection: projectionNow,
+                              },
+                              showStatusSlot: false,
+                            },
                           ),
                         )}
                       </ArchivedWorkstreamGroup>
@@ -1543,7 +1533,7 @@ function SortableThreadTree({
 }) {
   const visible = useMemo(
     () =>
-      unfoldedRows(tree, (id) =>
+      visibleEntries(tree, "group", (id) =>
         isCollapsed(foldKey("group", id), foldDefault("group")),
       ),
     [tree, isCollapsed],
@@ -1551,18 +1541,15 @@ function SortableThreadTree({
   const content = useCallback(
     ({ handle }: { handle: DragHandle }) => (
       <ul>
-        {visible.map((row, index) =>
-          renderRow(
-            row,
-            "group",
-            { display: now, projection: projectionNow },
-            index === 0 ? handle : undefined,
-            marks,
-            undefined,
-            undefined,
+        {visible.map((entry, index) =>
+          renderRow(entry, {
+            placement: "group",
+            times: { display: now, projection: projectionNow },
+            handle: index === 0 ? handle : undefined,
+            showStatusSlot: marks,
             label,
             categorized,
-          ),
+          }),
         )}
       </ul>
     ),
@@ -1917,18 +1904,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   handleListeners,
 }: SidebarThreadRowProps) {
   const work = workView(thread, analysis, recap);
-  let snoozeAction:
-    | {
-        kind: "snooze" | "wake";
-        title: string;
-        run: () => void;
-        menu: ReactNode;
-      }
-    | undefined;
-  if (
-    placement !== "archived" &&
-    (placement !== "snoozed" || snooze !== undefined)
-  ) {
+  const traits = PLACEMENT_TRAITS[placement];
+  let snoozeAction: RowSnoozeAction | undefined;
+  if (traits.snooze && (traits.snooze !== "wake" || snooze !== undefined)) {
     const wake = defaultWake();
     const menu = (
       <CurrentSnoozeMenuItems
@@ -1941,7 +1919,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
       />
     );
     snoozeAction =
-      placement === "snoozed"
+      traits.snooze === "wake"
         ? {
             kind: "wake",
             title: `Wake now (snoozed ${describeWake(snooze!.until, now, snooze!.events)})`,
@@ -1961,7 +1939,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
       handlers={handlers}
       snooze={snooze}
       snoozePrefs={snoozePrefs}
-      showArchive={placement !== "archived"}
+      showArchive={traits.showArchive}
     >
       <li ref={handleRef} {...handleListeners} className="list-none">
         <Row
@@ -1970,17 +1948,15 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
           active={active}
           now={now}
           context={context}
-          attention={placement === "needs-you"}
+          placement={placement}
           work={work}
           showStatusSlot={showStatusSlot}
-          showPin={placement === "group"}
           subtitle={
-            placement === "needs-you" && work.kind === "current"
+            traits.subtitle && work.kind === "current"
               ? work.analysis.needsYou
               : null
           }
           snoozeAction={snoozeAction}
-          showArchive={placement !== "archived"}
           disclosure={
             disclosureExpanded === undefined
               ? undefined
@@ -1994,7 +1970,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
                 }
           }
           categorized={categorized}
-          inGroup={placement === "group"}
           onNavigate={onNavigate}
         />
       </li>

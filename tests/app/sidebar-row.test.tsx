@@ -91,7 +91,7 @@ it("wires the presented row to native shortcuts, split navigation, disclosure, a
   });
   expect(slot.container.querySelector("[data-timestamp]")).toBeNull();
   expect(slot.getByText("Alpha")).toBeTruthy();
-  slot.rerender(<LiveRow {...props} showPin={false} />);
+  slot.rerender(<LiveRow {...props} placement="recent" />);
   expect(slot.queryByRole("img", { name: "Pinned" })).toBeNull();
   expect(slot.container.querySelector(".ws-status-slot .ws-mark")).toBeNull();
 });

@@ -15,11 +15,104 @@ type SnoozeOf = (
   thread: PluginSidebarThread,
 ) => { until: number | null } | undefined;
 
+/**
+ * What a placement changes about how its rows draw and what they offer. Every
+ * row reads these from here, so a placement's behavior is one table entry
+ * rather than a set of flags set at each call site.
+ */
+export type PlacementTraits = {
+  /**
+   * A flat band over the workstream list: each row is drawn at depth 0 with
+   * its children, when expanded, indented relative to it, and its children
+   * start folded.
+   */
+  readonly overlay: boolean;
+  /** Up Next: every row needs the user, so rows read at full strength. */
+  readonly attention: boolean;
+  /** Up Next rows add a second line saying what the thread asks. */
+  readonly subtitle: boolean;
+  readonly showPin: boolean;
+  readonly showArchive: boolean;
+  /** Rows sit inside a workstream's group and indent from its header. */
+  readonly inGroup: boolean;
+  /** Rows can have child threads to fold. */
+  readonly disclosure: boolean;
+  /** The hover button after Archive: snooze, or wake while snoozed. */
+  readonly snooze: "snooze" | "wake" | null;
+};
+
+const band = {
+  overlay: true,
+  attention: false,
+  subtitle: false,
+  showPin: false,
+  showArchive: true,
+  inGroup: false,
+  disclosure: true,
+  snooze: "snooze",
+} as const satisfies PlacementTraits;
+
+export const PLACEMENT_TRAITS: Record<Placement, PlacementTraits> = {
+  group: {
+    ...band,
+    overlay: false,
+    showPin: true,
+    inGroup: true,
+  },
+  "needs-you": { ...band, attention: true, subtitle: true },
+  pinned: band,
+  recent: { ...band, disclosure: false },
+  snoozed: { ...band, overlay: false, snooze: "wake" },
+  archived: {
+    ...band,
+    overlay: false,
+    showArchive: false,
+    snooze: null,
+  },
+};
+
+/** A row drawn outside any placement, such as a row in isolation. */
+export const STANDALONE_TRAITS: PlacementTraits = {
+  ...PLACEMENT_TRAITS.group,
+  inGroup: false,
+};
+
 /** Overlay copies fold independently of the thread's workstream row. */
 export const foldKey = (placement: Placement, id: string) =>
   placement === "group" ? `thread:${id}` : `${placement}:thread:${id}`;
 export const foldDefault = (placement: Placement) =>
-  placement === "needs-you" || placement === "pinned" || placement === "recent";
+  PLACEMENT_TRAITS[placement].overlay;
+
+/** A row as drawn: how deep it sits in its list, and its list key. */
+export type RowEntry = {
+  readonly row: ThreadRow;
+  readonly depth: number;
+  readonly key: string;
+};
+
+/**
+ * The rows of one tree (its root first, then descendants in tree order) as a
+ * placement draws them, skipping folded rows' descendants. An overlay rebases
+ * depth on the root, and keys children under it because a child can also be a
+ * row of its own in the same band.
+ */
+export function visibleEntries(
+  tree: readonly ThreadRow[],
+  placement: Placement,
+  folded: (id: string) => boolean,
+): RowEntry[] {
+  const root = tree[0];
+  if (!root) return [];
+  const { overlay } = PLACEMENT_TRAITS[placement];
+  return unfoldedRows(tree, folded).map((row) => ({
+    row,
+    depth: overlay ? row.depth - root.depth : row.depth,
+    key:
+      overlay && row !== root
+        ? `${root.thread.id}/${row.thread.id}`
+        : row.thread.id,
+  }));
+}
 
 export function treesOf(rows: readonly ThreadRow[]): ThreadRow[][] {
   const trees: ThreadRow[][] = [];

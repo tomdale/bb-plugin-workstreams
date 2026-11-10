@@ -19,6 +19,7 @@ import { usePrefsSelector } from "../prefs.ts";
 import { SnoozeIcon, WakeIcon } from "../snooze/icons.tsx";
 import { HoverAction, HoverMenuButton, RowActions } from "./HoverActions.tsx";
 import { rowGeometry } from "./rowGeometry.ts";
+import { PLACEMENT_TRAITS, STANDALONE_TRAITS, type Placement } from "./rows.ts";
 
 export { INDENT_PX, MAX_INDENT } from "./rowGeometry.ts";
 
@@ -33,22 +34,31 @@ function prTone(pr: PluginSidebarPullRequest): string {
   return "ws-pr-open";
 }
 
+/**
+ * The hover button after Archive: snooze with the default choice, or wake a
+ * snoozed thread. `title` names what a click does; `menu` holds the other
+ * choices, opened by resting the pointer on the button.
+ */
+export type RowSnoozeAction = {
+  kind: "snooze" | "wake";
+  title: string;
+  run: () => void;
+  menu?: ReactNode;
+};
+
 export function Row({
   thread,
   depth,
   active,
   now,
   context,
-  attention,
+  placement,
   work,
   showStatusSlot = true,
-  showPin = true,
   subtitle,
   snoozeAction,
-  showArchive = true,
   disclosure,
   categorized = false,
-  inGroup = false,
   onNavigate,
 }: {
   thread: PluginSidebarThread;
@@ -61,47 +71,33 @@ export function Row({
    */
   context?: string;
   /**
-   * The row is in the Up Next section. Every row there needs Tom, so the
-   * needs-decision mark is implied and left out, and the title reads at full
+   * Where the row is listed (see `PLACEMENT_TRAITS`); absent for a row on its
+   * own. Up Next rows, for one, all need Tom, so the title reads at full
    * strength.
    */
-  attention?: boolean;
+  placement?: Placement;
   work?: WorkView;
   /**
    * False when no row in this list has a status mark: the slot collapses,
    * animated, so titles sit flush left.
    */
   showStatusSlot?: boolean;
-  /** Whether to show the pin indicator in this placement. */
-  showPin?: boolean;
   /** A second line under the title, such as what the thread asks of Tom. */
   subtitle?: string | null;
-  /**
-   * The hover button after Archive: snooze with the default choice, or wake
-   * a snoozed thread. `title` names what a click does; `menu` holds the other
-   * choices, opened by resting the pointer on the button.
-   */
-  snoozeAction?: {
-    kind: "snooze" | "wake";
-    title: string;
-    run: () => void;
-    menu?: ReactNode;
-  };
-  /** Hide Archive when the row is already in the archived lifecycle. */
-  showArchive?: boolean;
+  snoozeAction?: RowSnoozeAction;
   /** Present when the row has child threads: the expand/collapse toggle. */
   disclosure?: { expanded: boolean; toggle: () => void };
   categorized?: boolean;
-  inGroup?: boolean;
   onNavigate: () => void;
 }) {
+  const traits = placement ? PLACEMENT_TRAITS[placement] : STANDALONE_TRAITS;
   const timestamps = usePrefsSelector(
     (prefs) => prefs?.sidebar.timestamps ?? "show",
   );
   const { slotMark, recap, pinned, accessibleName, timestamp } = presentRow(
     thread,
     work,
-    { showPin, timestamps, now },
+    { showPin: traits.showPin, timestamps, now },
   );
   // Unread is never the slot mark: needs-you carries it by the dot's fill,
   // other marked rows carry it inline beside the title, markless rows by
@@ -117,7 +113,7 @@ export function Row({
   const { paddingLeft, heightClass, leadingClass, compactActions } =
     rowGeometry({
       depth,
-      inGroup,
+      inGroup: traits.inGroup,
       categorized,
       hasSubtitle: Boolean(subtitle),
     });
@@ -208,7 +204,7 @@ export function Row({
         className={cn(
           "pointer-events-none relative flex min-w-0 flex-1 flex-col",
           thread.isUnread && "font-medium",
-          thread.isUnread || active || attention
+          thread.isUnread || active || traits.attention
             ? "text-foreground"
             : "text-muted-foreground group-hover/row:text-foreground",
         )}
@@ -276,7 +272,7 @@ export function Row({
       {/* Archive, then snooze (its menu opens on hover), at the trailing
           end, as on a workstream header. */}
       <RowActions className="ws-row-aside">
-        {showArchive ? (
+        {traits.showArchive ? (
           <HoverAction
             compact={compactActions}
             label="Archive"
