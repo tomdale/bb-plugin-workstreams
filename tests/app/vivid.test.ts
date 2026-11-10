@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect } from "vitest";
-import { THEME_COLORS, TOKEN_ROOTS } from "../../src/domain/colors.ts";
+import { THEME_COLORS } from "../../src/domain/colors.ts";
 import { browserTest, browserUnavailable } from "./browser-fixture.ts";
 import { startGalleryServer, type GalleryServer } from "./gallery-server.ts";
 
@@ -30,17 +30,29 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
         .toBe("false");
       await page.keyboard.press("Space");
       await expect.poll(() => toggle.getAttribute("aria-checked")).toBe("true");
-      const setAppearance = async (dark: boolean) => {
-        await page.evaluate((dark) => {
+      // BB themes arrive as one head style sheet over `:root, .light` and
+      // `.dark`; the appearance is a class on the document element.
+      const setTheme = (css: string) =>
+        page.evaluate((css) => {
+          let theme = document.getElementById("bb-app-theme");
+          if (!theme) {
+            theme = document.createElement("style");
+            theme.id = "bb-app-theme";
+            document.head.append(theme);
+          }
+          theme.textContent = css;
+          // The token sheet follows on the next frame.
+          return new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          );
+        }, css);
+      const setAppearance = (dark: boolean) =>
+        page.evaluate((dark) => {
           document.documentElement.className = dark ? "dark" : "light";
-          document
-            .querySelector<HTMLElement>("main")!
-            .style.setProperty(
-              "--timeline-accent",
-              dark ? "oklch(.72 .09 250)" : "oklch(.55 .1 250)",
-            );
         }, dark);
-      };
+      const blue =
+        ":root, .light { --timeline-accent: oklch(.55 .1 250); } .dark { --timeline-accent: oklch(.72 .09 250); }";
+      await setTheme(blue);
       const text = () =>
         page
           .locator('[data-ws-color-preview="review"]')
@@ -111,6 +123,7 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
       await toggle.click();
       await expect.poll(text).toBe("oklch(0.72 0.09 250)");
       await page.reload();
+      await setTheme(blue);
       await expect
         .poll(() => toggle.getAttribute("aria-checked"))
         .toBe("false");
@@ -142,6 +155,7 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
         )
         .toBe("#123456");
       await page.reload();
+      await setTheme(blue);
       await toggle.waitFor();
       await page.getByRole("button", { name: "Review color" }).click();
       await expect.poll(() => hex.inputValue()).toBe("#123456");
@@ -153,14 +167,11 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
 
       await page.evaluate(() => {
         document.documentElement.className = "light";
-        const main = document.querySelector<HTMLElement>("main")!;
-        main.style.setProperty("--family", "rgb(64 117 170)");
-        main.style.setProperty("--timeline-accent", "var(--family)");
+        // A root that is its own theme scope draws that appearance.
         const other = document.createElement("section");
         other.id = "other-theme";
         other.dataset.bbPlugin = "workstreams";
         other.className = "dark";
-        other.style.setProperty("--timeline-accent", "rgb(121 169 219)");
         const child = document.createElement("span");
         child.style.color = "var(--ws-review-text)";
         other.append(child);
@@ -171,7 +182,6 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
         document.body.append(host);
       });
       await expect.poll(text).toBe("oklch(0.5 0.134 242.749)");
-      // A theme scope on the root itself must also set the text lightness band.
       await expect
         .poll(() =>
           page
@@ -179,22 +189,14 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
             .evaluate((el) => getComputedStyle(el).color),
         )
         .toBe("oklch(0.828 0.111 230.318)");
-      const host = await page.locator("#host").evaluate((el) => ({
-        color: getComputedStyle(el).color,
-        token: getComputedStyle(el).getPropertyValue("--ws-review-text"),
-      }));
-      expect(host.token).toBe("");
-      await page
-        .locator("main")
-        .evaluate((el) =>
-          (el as HTMLElement).style.setProperty("--family", "rgb(121 169 219)"),
-        );
-      await expect.poll(text).not.toBe("oklch(0.5 0.134 242.749)");
+      // BB's own elements never receive the tokens.
       expect(
         await page
           .locator("#host")
-          .evaluate((el) => getComputedStyle(el).color),
-      ).toBe(host.color);
+          .evaluate((el) =>
+            getComputedStyle(el).getPropertyValue("--ws-review-text"),
+          ),
+      ).toBe("");
       for (const dark of [false, true]) {
         await setAppearance(dark);
         const snapshot = () =>
@@ -212,12 +214,9 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
                 ]),
               ),
             );
-        await page.locator("main").evaluate((el) => {
-          const root = el as HTMLElement;
-          root.style.setProperty("--timeline-accent", "rgb(64 117 170)");
-          root.style.setProperty("--success", "rgb(121 169 219)");
-          root.style.setProperty("--success-foreground", "rgb(121 169 219)");
-        });
+        const pair = (accent: string, success: string) =>
+          `:root, .light, .dark { --timeline-accent: ${accent}; --success: ${success}; --success-foreground: ${success}; }`;
+        await setTheme(pair("rgb(64 117 170)", "rgb(121 169 219)"));
         await expect
           .poll(async () => {
             const current = await snapshot();
@@ -227,26 +226,8 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
             );
           })
           .toBe(true);
-        await page.waitForFunction(() =>
-          getComputedStyle(
-            document.querySelector('[data-ws-color-preview="review"]')!,
-          ).color.includes("oklch"),
-        );
-        await page.evaluate(
-          () =>
-            new Promise<void>((resolve) =>
-              requestAnimationFrame(() =>
-                requestAnimationFrame(() => resolve()),
-              ),
-            ),
-        );
         const before = await snapshot();
-        await page.locator("main").evaluate((el) => {
-          const root = el as HTMLElement;
-          root.style.setProperty("--timeline-accent", "rgb(121 169 219)");
-          root.style.setProperty("--success", "rgb(64 117 170)");
-          root.style.setProperty("--success-foreground", "rgb(64 117 170)");
-        });
+        await setTheme(pair("rgb(121 169 219)", "rgb(64 117 170)"));
         await expect
           .poll(async () => (await snapshot()).review)
           .toEqual(before.complete);
@@ -254,25 +235,6 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
           .poll(async () => (await snapshot()).complete)
           .toEqual(before.review);
       }
-      await page.evaluate(() => {
-        document.documentElement.className = "";
-        document
-          .querySelector<HTMLElement>("main")!
-          .style.removeProperty("--timeline-accent");
-        const theme = document.createElement("style");
-        theme.id = "live-theme";
-        theme.textContent = "main { --timeline-accent: rgb(121 169 219); }";
-        document.head.append(theme);
-      });
-      await page.emulateMedia({ colorScheme: "dark" });
-      await expect.poll(text).toBe("oklch(0.828 0.111 230.318)");
-      await page.emulateMedia({ colorScheme: "light" });
-      await expect.poll(text).not.toBe("oklch(0.828 0.111 230.318)");
-      await page.evaluate(() => {
-        document.getElementById("live-theme")!.textContent =
-          "main { --timeline-accent: rgb(64 117 170); }";
-      });
-      await expect.poll(text).toBe("oklch(0.5 0.134 242.749)");
       expect(errors).toEqual([]);
     },
     60_000,
@@ -283,12 +245,9 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
     async ({ page }) => {
       await page.goto(url);
       await page.getByRole("switch", { name: "Use vivid colors" }).waitFor();
-      const paletteRoots = await page.evaluate(
-        (selector) => document.querySelectorAll(selector).length,
-        TOKEN_ROOTS,
-      );
-      // A sweep reads one base and one text color per theme color per root.
-      const readsPerSweep = paletteRoots * Object.keys(THEME_COLORS).length * 2;
+      // A new theme converts one base and one text color per theme color, under
+      // each appearance, however many roots the page holds.
+      const readsPerSweep = Object.keys(THEME_COLORS).length * 2 * 2;
       const reads = () =>
         page.evaluate(
           () => (window as Window & { wsReads?: number }).wsReads ?? 0,
@@ -325,6 +284,13 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
             root.append(row);
             chrome.className = `chrome-${step}`;
             chrome.style.opacity = String(step / 8);
+            // Message blocks mount roots, and the scroller around them takes
+            // style writes, custom properties included, as the heading moves.
+            const mounted = document.createElement("div");
+            mounted.dataset.bbPlugin = "workstreams";
+            document.body.append(mounted);
+            document.body.style.setProperty("--ws-plate-draw", `${step}px`);
+            document.body.style.scrollPaddingTop = `${step}px`;
             await new Promise((resolve) => requestAnimationFrame(resolve));
           }
           chrome.remove();
@@ -336,19 +302,38 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
       await churn();
       expect(await reads()).toBe(0);
 
-      // The theme scope moving is a theme change, and it re-resolves once.
-      await page.evaluate(async () => {
-        document.documentElement.className = "dark";
-        await new Promise((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(resolve)),
-        );
-      });
-      expect(await reads()).toBe(readsPerSweep);
       const text = () =>
         page
           .locator('[data-ws-color-preview="review"]')
           .evaluate((el) => getComputedStyle(el).color);
-      await expect.poll(text).toBe("oklch(0.828 0.111 230.318)");
+      const nextFrames = () =>
+        page.evaluate(
+          () =>
+            new Promise((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(resolve)),
+            ),
+        );
+
+      // Switching appearance is a class change the sheet already covers.
+      await page.evaluate(() => (document.documentElement.className = "dark"));
+      await nextFrames();
+      expect(await reads()).toBe(0);
+      const darkText = await text();
+      await page.evaluate(() => (document.documentElement.className = ""));
+      await expect.poll(text).not.toBe(darkText);
+
+      // A new theme style sheet resolves the theme once for the page.
+      await page.evaluate(() => {
+        const theme = document.createElement("style");
+        theme.id = "bb-app-theme";
+        theme.textContent =
+          ":root, .light, .dark { --timeline-accent: rgb(64 117 170); }";
+        document.head.append(theme);
+      });
+      await nextFrames();
+      expect(await reads()).toBe(readsPerSweep);
+      await page.evaluate(() => (document.documentElement.className = "dark"));
+      await expect.poll(text).not.toBe(darkText);
 
       // Content churn after the theme settles costs no reads either.
       await churn();

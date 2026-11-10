@@ -1,35 +1,82 @@
 import {
+  APPEARANCE_SCOPES,
   colorTokenCss,
   derivedText,
   THEME_COLORS,
-  TOKEN_ROOTS,
+  type Appearance,
   type ColorPrefs,
   type ThemeColor,
+  type ThemePalettes,
 } from "../../domain/colors.ts";
 import { fromRgb, type Color, type Palette } from "../../domain/vivid.ts";
 
-/** A root whose theme colors this sweep resolves, inside that root's scope. */
-type PaletteRequest = { root: HTMLElement; dark: boolean };
+const APPEARANCES = ["light", "dark"] as const;
 
-type Probe = { key: ThemeColor; part: "base" | "text"; element: HTMLElement };
+/** BB's theme colors as computed CSS color strings, per appearance. */
+type ResolvedTheme = Record<
+  Appearance,
+  Partial<Record<ThemeColor, { base: string; text: string }>>
+>;
 
 /**
- * Resolves each root's theme colors through the browser, in the root's own
- * inheritance.
+ * Reads BB's theme colors under each appearance through the browser.
  *
- * Every probe is styled before the sweep reads a computed style, so the page
- * recalculates style once. Styling and reading one color at a time instead
- * forces that recalculation for every color, and each recalculation matches the
- * whole document against the token style sheet.
+ * BB defines its theme variables in document style sheets on `:root, .light`
+ * and `.dark` (see `APPEARANCE_SCOPES`), and never per element. So one probe
+ * per appearance, shaped like a Workstreams root, reads exactly what every root
+ * under that appearance inherits, and the result serves every root on the page
+ * until a style sheet changes. The probes sit in a `display: none` subtree, so
+ * reading them computes style for those few elements and lays nothing out.
  */
-function readPalettes(
-  requests: readonly PaletteRequest[],
-): Array<Partial<Record<ThemeColor, Palette>>> {
+function readTheme(): ResolvedTheme {
+  const container = document.createElement("div");
+  container.dataset.wsColorReader = "";
+  container.style.display = "none";
+  const probes = APPEARANCES.flatMap((appearance) => {
+    const scope = document.createElement("div");
+    scope.className = appearance;
+    const root = document.createElement("div");
+    root.dataset.bbPlugin = "workstreams";
+    const band = appearance === "dark" ? [0.78, 1] : [0, 0.55];
+    root.style.cssText = `--ws-text-min-l:${band[0]};--ws-text-max-l:${band[1]}`;
+    scope.append(root);
+    container.append(scope);
+    return Object.entries(THEME_COLORS).map(([key, theme]) => {
+      const base = document.createElement("span");
+      base.style.setProperty("color", `var(${theme.base})`, "important");
+      const text = document.createElement("span");
+      text.style.setProperty(
+        "color",
+        theme.text ? `var(${theme.text})` : derivedText(`var(${theme.base})`),
+        "important",
+      );
+      root.append(base, text);
+      return { appearance, key: key as ThemeColor, base, text };
+    });
+  });
+  document.body.append(container);
+  try {
+    const theme: ResolvedTheme = { light: {}, dark: {} };
+    // Every probe is styled before the first read, so the reads share one
+    // style update.
+    for (const { appearance, key, base, text } of probes)
+      theme[appearance][key] = {
+        base: getComputedStyle(base).color,
+        text: getComputedStyle(text).color,
+      };
+    return theme;
+  } finally {
+    container.remove();
+  }
+}
+
+/** Converts computed colors to OKLCH by painting each one into a pixel. */
+function palettesFor(theme: ResolvedTheme): ThemePalettes {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = 1;
   const context = canvas.getContext("2d", { willReadFrequently: true });
   const toColor = (css: string): Color | null => {
-    if (!context || !CSS.supports("color", css)) return null;
+    if (!context || !css || !CSS.supports("color", css)) return null;
     context.clearRect(0, 0, 1, 1);
     context.fillStyle = css;
     context.fillRect(0, 0, 1, 1);
@@ -41,318 +88,111 @@ function readPalettes(
     ).data;
     return fromRgb([r / 255, g / 255, b / 255], a / 255);
   };
-
-  const scopes = requests.map(({ root, dark }) => {
-    const reader = document.createElement("span");
-    reader.dataset.wsColorReader = "";
-    reader.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;--ws-text-min-l:${dark ? 0.78 : 0};--ws-text-max-l:${dark ? 1 : 0.55}`;
-    root.append(reader);
-    const probes = Object.entries(THEME_COLORS).flatMap(([key, theme]) => {
-      const base = document.createElement("span");
-      base.style.setProperty("color", `var(${theme.base})`, "important");
-      const text = document.createElement("span");
-      text.style.setProperty(
-        "color",
-        theme.text ? `var(${theme.text})` : derivedText(`var(${theme.base})`),
-        "important",
-      );
-      reader.append(base, text);
-      return [
-        { key: key as ThemeColor, part: "base" as const, element: base },
-        { key: key as ThemeColor, part: "text" as const, element: text },
-      ];
-    });
-    return { reader, probes };
-  });
-
-  try {
-    // All probes are styled, so these reads share one style recalculation.
-    return scopes.map(({ probes }) => {
-      const byKey = new Map<ThemeColor, { base?: Color; text?: Color }>();
-      for (const { key, part, element } of probes) {
-        const color = toColor(getComputedStyle(element).color);
-        if (!color) continue;
-        const entry = byKey.get(key) ?? {};
-        entry[part] = color;
-        byKey.set(key, entry);
-      }
-      const palettes: Partial<Record<ThemeColor, Palette>> = {};
-      for (const [key, entry] of byKey)
-        if (entry.base && entry.text)
-          palettes[key] = {
-            text: entry.text,
-            border: { ...entry.base, alpha: entry.base.alpha * 0.75 },
-            surface: { ...entry.base, alpha: entry.base.alpha * 0.06 },
-          };
-      return palettes;
-    });
-  } finally {
-    for (const { reader } of scopes) reader.remove();
+  const palettes: ThemePalettes = {};
+  for (const appearance of APPEARANCES) {
+    const resolved: Partial<Record<ThemeColor, Palette>> = {};
+    for (const [key, colors] of Object.entries(theme[appearance])) {
+      const base = toColor(colors.base);
+      const text = toColor(colors.text);
+      if (base && text)
+        resolved[key as ThemeColor] = {
+          text,
+          border: { ...base, alpha: base.alpha * 0.75 },
+          surface: { ...base, alpha: base.alpha * 0.06 },
+        };
+    }
+    palettes[appearance] = resolved;
   }
+  return palettes;
 }
 
 /**
- * Where a root's vivid paints live, and the theme they were resolved for. Roots
- * whose paints are identical share a `key`, and so a style rule.
+ * The last theme resolved in this window, keyed by its computed colors. A style
+ * sheet that arrives without changing them, and a reinstall for new
+ * preferences, reuse the palettes instead of converting them again.
  */
-type RootPaint = {
-  epoch: number;
-  dark: boolean;
-  rules: string;
-  key: string;
-};
+let lastTheme: { key: string; palettes: ThemePalettes } | null = null;
 
-/** Installs window-local paints; every root resolves its own inherited BB theme. */
+function themePalettes(): ThemePalettes {
+  const theme = readTheme();
+  const key = JSON.stringify(theme);
+  if (lastTheme?.key !== key) lastTheme = { key, palettes: palettesFor(theme) };
+  return lastTheme.palettes;
+}
+
+/**
+ * Installs the window's token sheet: static rules that every Workstreams root
+ * matches by selector, as a theme's own variables are. Roots mounting,
+ * unmounting, or restyling never touch the sheet or read the page.
+ *
+ * Vivid paints are computed from BB's resolved theme colors, so with vivid on
+ * the sheet is recomputed when the document's style sheets change: BB swaps
+ * themes by rewriting a `<style>` in the head, and loads style sheets as
+ * `<link>`s there. Switching between light and dark only moves the `.dark`
+ * class, which the sheet's appearance scopes already cover.
+ */
 export function installColorTokens(colors: ColorPrefs): () => void {
   const style = document.createElement("style");
   style.dataset.wsColorTokens = "";
   document.head.append(style);
-  // Roots with the same paints share one `data-ws-palette` value and one rule,
-  // so a root joining the page names an existing rule and leaves the style
-  // sheet alone. Rewriting the sheet restyles the whole document, which costs
-  // over a hundred milliseconds on a long thread.
-  const tagged = new Set<HTMLElement>();
-  const paletteIds = new Map<string, string>();
-  const paints = new Map<string, string>();
-  const painted = new Map<HTMLElement, RootPaint>();
-  let sequence = 0;
   let frame = 0;
-  let roots = new Set<HTMLElement>();
-  // Bumped when the theme may have changed. Resolving theme colors costs a
-  // document-wide style recalculation, so it follows theme changes rather than
-  // every mutation the page makes.
-  let epoch = 0;
-  const media = window.matchMedia?.("(prefers-color-scheme: dark)");
-  const darkFor = (root: HTMLElement) => {
-    const appearance = root.closest(".dark, .light");
-    return appearance
-      ? appearance.classList.contains("dark")
-      : (media?.matches ?? false);
-  };
-  /**
-   * What a style attribute hands down to the colors resolved beneath it: custom
-   * properties, which carry the theme, and the color properties themselves.
-   * Everything else (scroll padding, transforms, sizes) cannot change a palette.
-   */
-  const inheritedStyle = (style: CSSStyleDeclaration): string => {
-    const declared: string[] = [];
-    for (let index = 0; index < style.length; index++) {
-      const name = style.item(index);
-      if (name.startsWith("--") || name === "color" || name === "color-scheme")
-        declared.push(`${name}:${style.getPropertyValue(name)}`);
-    }
-    return declared.sort().join(";");
-  };
-  const setsOwnTheme = (root: HTMLElement) => inheritedStyle(root.style) !== "";
-  const update = () => {
+  const write = () => {
     frame = 0;
-    const theme = epoch;
-    roots = new Set(document.querySelectorAll<HTMLElement>(TOKEN_ROOTS));
-    for (const root of tagged)
-      if (!roots.has(root)) {
-        root.removeAttribute("data-ws-palette");
-        tagged.delete(root);
-      }
-    for (const root of painted.keys())
-      if (!roots.has(root)) painted.delete(root);
-
-    // Roots inherit their theme from the scope that holds them, so one read
-    // serves every root in a scope. Reading a root costs a restyle of the page
-    // under it, and a long thread keeps many roots mounting as it scrolls. A
-    // root that sets its own variables is read on its own.
-    const fresh = (paint: RootPaint | undefined, dark: boolean) =>
-      paint && paint.epoch === theme && paint.dark === dark ? paint : null;
-    const scopeOf = (root: HTMLElement) => root.closest(".dark, .light");
-    const donors = new Map<Element | null, RootPaint>();
-    const stale: Array<{ root: HTMLElement; dark: boolean }> = [];
-    if (colors.vivid)
-      for (const root of roots) {
-        const dark = darkFor(root);
-        const paint = fresh(painted.get(root), dark);
-        if (!paint) stale.push({ root, dark });
-        else if (!setsOwnTheme(root)) donors.set(scopeOf(root), paint);
-      }
-    const requests: PaletteRequest[] = [];
-    const followers: Array<{ root: HTMLElement; scope: Element | null }> = [];
-    const readers = new Map<Element | null, HTMLElement>();
-    for (const { root, dark } of stale) {
-      if (setsOwnTheme(root)) {
-        requests.push({ root, dark });
-        continue;
-      }
-      const scope = scopeOf(root);
-      const donor = donors.get(scope);
-      if (donor && donor.dark === dark) painted.set(root, donor);
-      else if (readers.has(scope)) followers.push({ root, scope });
-      else {
-        readers.set(scope, root);
-        requests.push({ root, dark });
-      }
-    }
-    const palettes = requests.length ? readPalettes(requests) : [];
-    requests.forEach(({ root, dark }, index) => {
-      const key = JSON.stringify([palettes[index], dark]);
-      let rules = paints.get(key);
-      if (!rules) {
-        rules = colorTokenCss(
-          colors,
-          palettes[index],
-          dark,
-          '[data-ws-palette="PALETTE"]',
-        );
-        if (paints.size >= 64) paints.clear();
-        paints.set(key, rules);
-      }
-      painted.set(root, { epoch: theme, dark, rules, key });
-    });
-    for (const { root, scope } of followers) {
-      const paint = painted.get(readers.get(scope)!);
-      if (paint) painted.set(root, paint);
-    }
-
-    const groups = new Map<
-      string,
-      { id: string; dark: boolean; paint?: RootPaint }
-    >();
-    for (const root of roots) {
-      const paint = painted.get(root);
-      const dark = paint?.dark ?? darkFor(root);
-      const key = paint?.key ?? `plain:${dark}`;
-      let group = groups.get(key);
-      if (!group) {
-        let id = paletteIds.get(key);
-        if (!id) {
-          id = String(++sequence);
-          paletteIds.set(key, id);
-        }
-        group = { id, dark, paint };
-        groups.set(key, group);
-      }
-      if (root.dataset.wsPalette !== group.id)
-        root.dataset.wsPalette = group.id;
-      tagged.add(root);
-    }
-    for (const key of paletteIds.keys())
-      if (!groups.has(key)) paletteIds.delete(key);
-    let css = colorTokenCss(colors);
-    // In a fixed order, so the sheet's text changes only when its rules do.
-    const ordered = [...groups.values()].sort((a, b) => +a.id - +b.id);
-    for (const { id, dark, paint } of ordered) {
-      css += `[data-ws-palette="${id}"] { --ws-text-min-l: ${dark ? 0.78 : 0}; --ws-text-max-l: ${dark ? 1 : 0.55}; }\n`;
-      if (paint) css += paint.rules.replaceAll('"PALETTE"', `"${id}"`);
-    }
+    const css = colorTokenCss(
+      colors,
+      colors.vivid ? themePalettes() : undefined,
+    );
+    // Rewriting the sheet restyles the whole document, so it happens only when
+    // the rules change.
     if (style.textContent !== css) style.textContent = css;
   };
+  write();
+  if (!colors.vivid) return () => style.remove();
+
   const schedule = () => {
-    if (!frame) frame = requestAnimationFrame(update);
+    if (!frame) frame = requestAnimationFrame(write);
   };
-  const reschedule = () => {
-    epoch++;
-    schedule();
-  };
-  const scratch = document.createElement("div");
-  /**
-   * Whether a style attribute write changed what the element hands down. The
-   * thread's scroller is an ancestor of every message's roots and takes style
-   * writes while the sticky heading moves, so counting each one as a theme
-   * change would resolve every root's palette on each of those frames.
-   */
-  const handsDownNewStyle = (record: MutationRecord, target: Element) => {
-    if (!(target instanceof HTMLElement)) return true;
-    // A null old value is an attribute that was absent, which is no style.
-    scratch.style.cssText = record.oldValue ?? "";
-    return inheritedStyle(scratch.style) !== inheritedStyle(target.style);
-  };
-  /**
-   * How a mutation bears on the paints. A `theme` change can alter any root's
-   * resolved colors. A `roots` change only brings new roots that need their own
-   * paint; painted roots keep theirs. Content churn — rows, messages, hover
-   * fills, scroll fades — changes neither: a root's colors come from its theme
-   * scope and from variables it inherits from its ancestors.
-   */
-  const changeOf = (record: MutationRecord): "theme" | "roots" | null => {
+  // BB also adds `<link rel="modulepreload">`s as threads lazy-load code, and
+  // retitles the page; neither can change a theme.
+  const isStyleSheet = (node: Node | null): node is Element =>
+    node !== style &&
+    node instanceof Element &&
+    node.matches('style, link[rel~="stylesheet" i]');
+  /** Whether a head mutation can change the theme: any style sheet but ours. */
+  const changesStyles = (record: MutationRecord) => {
     const target =
       record.target instanceof Element
         ? record.target
         : record.target.parentElement;
-    if (!target || target === style || target.closest("[data-ws-color-reader]"))
-      return null;
-    if (record.type === "attributes") {
-      const name = record.attributeName;
-      if (name === "href" || name === "media" || name === "disabled")
-        return target.matches("link, style") ? "theme" : null;
-      if (name === "style" && !handsDownNewStyle(record, target)) return null;
-      if (target === document.documentElement || target === document.body)
-        return "theme";
-      // A theme scope sets the appearance band and can carry its own variables.
-      if (
-        target.classList.contains("dark") ||
-        target.classList.contains("light")
-      )
-        return "theme";
-      // A root's own class and style set its scope; everything inside it only
-      // inherits.
-      const scope = target.closest(TOKEN_ROOTS);
-      if (scope) return scope === target ? "theme" : null;
-      // The rest is inherited, so only a root's ancestors can restyle it.
-      for (const root of roots) if (target.contains(root)) return "theme";
-      return null;
-    }
-    if (target.closest("style")) return "theme";
-    const touchesStyles = (node: Node) =>
-      node instanceof Element &&
-      !node.matches("[data-ws-color-reader]") &&
-      (node.matches("style, link") || node.querySelector("style, link"));
-    const touchesRoots = (node: Node) =>
-      node instanceof Element &&
-      !node.matches("[data-ws-color-reader]") &&
-      (node.matches(TOKEN_ROOTS) || node.querySelector(TOKEN_ROOTS));
-    const changed = [...record.addedNodes, ...record.removedNodes];
-    if (changed.some(touchesStyles)) return "theme";
-    return changed.some(touchesRoots) ? "roots" : null;
+    if (record.type === "childList" && target === document.head)
+      return [...record.addedNodes, ...record.removedNodes].some(isStyleSheet);
+    // A `<link>` whose `rel` changes may be leaving the style sheets.
+    if (record.type === "attributes")
+      return target !== style && !!target?.matches("style, link");
+    // Text rewritten inside a `<style>`.
+    return isStyleSheet(target?.closest("style") ?? null);
   };
   const observer = new MutationObserver((records) => {
-    let change: "theme" | "roots" | null = null;
-    for (const record of records) {
-      const next = changeOf(record);
-      if (next === "theme") {
-        change = next;
-        break;
-      }
-      change ??= next;
-    }
-    if (change === "theme") reschedule();
-    else if (change === "roots") schedule();
+    if (records.some(changesStyles)) schedule();
   });
-  update();
-  observer.observe(document.documentElement, {
+  observer.observe(document.head, {
     subtree: true,
     childList: true,
     characterData: true,
     attributes: true,
-    attributeOldValue: true,
-    attributeFilter: ["class", "style", "href", "media", "disabled"],
+    attributeFilter: ["href", "media", "disabled", "rel"],
   });
-  media?.addEventListener("change", reschedule);
-  // A theme arrives with the document's own style sheets, and only those can
-  // change what a root inherits. This style element announces its own writes as
-  // loads, which must not count as a theme change.
+  // A linked style sheet applies when it loads, after the mutation that added
+  // it. A `<style>` applies its text at once, so its load event adds nothing.
   const onLoad = (event: Event) => {
-    const target = event.target;
-    if (target === style) return;
-    if (
-      target === document ||
-      (target instanceof Element && target.matches("link, style"))
-    )
-      reschedule();
+    const target = event.target as Node | null;
+    if (target instanceof HTMLLinkElement && isStyleSheet(target)) schedule();
   };
   document.addEventListener("load", onLoad, true);
   return () => {
     observer.disconnect();
     cancelAnimationFrame(frame);
-    media?.removeEventListener("change", reschedule);
     document.removeEventListener("load", onLoad, true);
     style.remove();
-    for (const root of tagged) root.removeAttribute("data-ws-palette");
   };
 }

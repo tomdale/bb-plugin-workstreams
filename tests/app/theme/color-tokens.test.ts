@@ -3,14 +3,20 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { installColorTokens } from "../../../src/app/theme/colorTokens.ts";
 import { DEFAULT_COLORS, THEME_COLORS } from "../../../src/domain/colors.ts";
 
-const PROBES_PER_ROOT = Object.keys(THEME_COLORS).length * 2;
+/** One base and one text read per theme color, under light and under dark. */
+const READS_PER_THEME = Object.keys(THEME_COLORS).length * 2 * 2;
 
 let uninstall: (() => void) | undefined;
 let reads: ReturnType<typeof vi.spyOn>;
+let theme: HTMLStyleElement;
 
 beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
   reads = vi.spyOn(window, "getComputedStyle");
+  theme = document.createElement("style");
+  theme.id = "bb-app-theme";
+  theme.textContent = ":root, .light { --success: green; }";
+  document.head.append(theme);
   document.body.innerHTML = `
     <div class="light"><div id="scroller">
       <div data-bb-plugin="workstreams" id="first"></div>
@@ -22,6 +28,7 @@ beforeEach(() => {
 afterEach(() => {
   uninstall?.();
   vi.restoreAllMocks();
+  theme.remove();
   document.body.innerHTML = "";
 });
 
@@ -39,85 +46,90 @@ async function readsAfter(change: () => void): Promise<number> {
   return reads.mock.calls.length;
 }
 
-it("resolves one palette for the roots of a theme scope at install", () => {
-  expect(reads.mock.calls.length).toBe(PROBES_PER_ROOT);
+const sheet = () =>
+  document.querySelector<HTMLStyleElement>("[data-ws-color-tokens]")!;
+
+it("resolves the theme once for the whole page at install", () => {
+  expect(reads.mock.calls.length).toBe(READS_PER_THEME);
 });
 
-it("resolves a palette for each theme scope", () => {
+it("reads nothing with vivid colors off", () => {
   uninstall?.();
-  document.body.insertAdjacentHTML(
-    "beforeend",
-    '<div class="dark"><div data-bb-plugin="workstreams"></div></div>',
-  );
   reads.mockClear();
-  uninstall = installColorTokens({ ...DEFAULT_COLORS, vivid: true });
-  expect(reads.mock.calls.length).toBe(2 * PROBES_PER_ROOT);
+  uninstall = installColorTokens({ ...DEFAULT_COLORS, vivid: false });
+  theme.textContent = ":root, .light { --success: blue; }";
+  expect(reads).not.toHaveBeenCalled();
 });
 
-it("ignores style writes on a root's ancestor that hand down no color", async () => {
+it("reads nothing as roots mount, restyle, or change appearance", async () => {
   const scroller = document.getElementById("scroller")!;
-  expect(
-    await readsAfter(() => scroller.style.setProperty("padding-top", "4px")),
-  ).toBe(0);
-});
-
-it("resolves the palette again when an ancestor hands down a variable", async () => {
-  const scroller = document.getElementById("scroller")!;
-  expect(
-    await readsAfter(() => scroller.style.setProperty("--background", "red")),
-  ).toBe(PROBES_PER_ROOT);
-});
-
-it("reads nothing when a root joins a scope that is already resolved", async () => {
-  const scroller = document.getElementById("scroller")!;
-  expect(
-    await readsAfter(() => {
-      const root = document.createElement("div");
-      root.dataset.bbPlugin = "workstreams";
-      scroller.append(root);
-    }),
-  ).toBe(0);
-});
-
-it("reads a root that sets its own theme variables separately", async () => {
-  const scroller = document.getElementById("scroller")!;
+  const first = document.getElementById("first")!;
+  const rewrites = vi.fn();
+  new MutationObserver(rewrites).observe(sheet(), {
+    childList: true,
+    characterData: true,
+    subtree: true,
+  });
   expect(
     await readsAfter(() => {
       const root = document.createElement("div");
       root.dataset.bbPlugin = "workstreams";
       root.style.setProperty("--background", "red");
       scroller.append(root);
+      scroller.style.setProperty("--background", "red");
+      scroller.style.setProperty("scroll-padding-top", "4px");
+      first.className = "dark";
+      document.querySelector(".light")!.classList.replace("light", "dark");
+      document.documentElement.classList.add("dark");
+      document.title = "Another thread";
     }),
-  ).toBe(PROBES_PER_ROOT);
-});
-
-it("leaves the style sheet alone when a root joins with the same paints", async () => {
-  const sheet = document.querySelector("[data-ws-color-tokens]")!;
-  const rewrites = vi.fn();
-  new MutationObserver(rewrites).observe(sheet, {
-    childList: true,
-    characterData: true,
-    subtree: true,
-  });
-  await readsAfter(() => {
-    const root = document.createElement("div");
-    root.dataset.bbPlugin = "workstreams";
-    document.getElementById("scroller")!.append(root);
-  });
-  await settle();
+  ).toBe(0);
   expect(rewrites).not.toHaveBeenCalled();
-  const ids = [...document.querySelectorAll<HTMLElement>("[data-bb-plugin]")]
-    .map((root) => root.dataset.wsPalette)
-    .filter(Boolean);
-  expect(ids).toHaveLength(3);
-  expect(new Set(ids).size).toBe(1);
 });
 
-it("resolves the scope's palette again when its theme changes", async () => {
+it("tags no root: the sheet matches roots by selector", () => {
+  for (const root of document.querySelectorAll("[data-bb-plugin]"))
+    expect(root.getAttributeNames()).toEqual(["data-bb-plugin", "id"]);
+  expect(sheet().textContent).toContain("@scope (.dark)");
+});
+
+it("resolves the theme again when a theme style sheet is rewritten", async () => {
   expect(
     await readsAfter(() => {
-      const scope = document.querySelector(".light")!;
-      scope.classList.replace("light", "dark");
+      theme.textContent = ":root, .light { --success: blue; }";
     }),
-  ).toBe(PROBES_PER_ROOT);
+  ).toBe(READS_PER_THEME);
+});
+
+it("resolves the theme again when a style sheet is added or loads", async () => {
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  expect(await readsAfter(() => document.head.append(link))).toBe(
+    READS_PER_THEME,
+  );
+  expect(await readsAfter(() => link.dispatchEvent(new Event("load")))).toBe(
+    READS_PER_THEME,
+  );
+  link.remove();
+});
+
+it("ignores links that are not style sheets", async () => {
+  const link = document.createElement("link");
+  link.rel = "modulepreload";
+  expect(
+    await readsAfter(() => {
+      document.head.append(link);
+      link.dispatchEvent(new Event("load"));
+    }),
+  ).toBe(0);
+  link.remove();
+});
+
+it("ignores its own writes", async () => {
+  expect(
+    await readsAfter(() => {
+      sheet().textContent += "\n";
+      sheet().dispatchEvent(new Event("load"));
+    }),
+  ).toBe(0);
 });

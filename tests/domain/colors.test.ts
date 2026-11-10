@@ -192,6 +192,28 @@ describe("colorTokenCss", () => {
     expect(css.startsWith('[data-bb-plugin="workstreams"], ')).toBe(true);
   });
 
+  it("scopes each appearance's text band and vivid paints to that appearance", () => {
+    const blue = { L: 0.55, C: 0.1, h: 250, alpha: 1 };
+    const paints = {
+      "timeline-accent": { text: blue, border: blue, surface: blue },
+    };
+    const css = colorTokenCss(defaults, { light: paints, dark: paints });
+    const scopes = [...css.matchAll(/@scope \(([^)]*)\) \{([\s\S]*?)\n\}/g)];
+    expect(scopes.map((scope) => scope[1])).toEqual([":root, .light", ".dark"]);
+    for (const [, , body] of scopes) {
+      // The scope's own root is a root too: BB can set the class on one.
+      expect(body).toContain(":where(:scope, :scope *):is(");
+      expect(body).toMatch(/--ws-review-text: oklch\(/);
+      expect(body).not.toContain("--ws-complete-text");
+    }
+    expect(scopes[0]![2]).toContain("--ws-text-max-l: 0.55;");
+    expect(scopes[1]![2]).toContain("--ws-text-min-l: 0.78;");
+    // Normal colors write no vivid paints.
+    expect(
+      colorTokenCss({ ...defaults, vivid: false }, { light: paints }),
+    ).not.toMatch(/--ws-review-text: oklch\(/);
+  });
+
   it("drops values that bypassed validation instead of writing them", () => {
     const css = colorTokenCss({
       ...defaults,

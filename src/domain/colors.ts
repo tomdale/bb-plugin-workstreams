@@ -167,53 +167,107 @@ function stepDeclarations(name: string, color: string, text: string | null) {
 export const TOKEN_ROOTS =
   '[data-bb-plugin="workstreams"], [data-bb-plugin-root]:not([data-bb-plugin])';
 
+/** BB draws its theme in one of two appearances. */
+export type Appearance = "light" | "dark";
+
 /**
- * Token declarations use validated choices. Resolved theme paints are optional,
- * so normal theme CSS also works before the browser can resolve vivid inputs.
+ * BB's theme colors as the browser resolved them under each appearance. Vivid
+ * paints are computed from these, so they exist only once the page has them.
  */
-function colorTokenDeclarations(
-  colors: ColorPrefs,
-  palettes?: Partial<Record<ThemeColor, Palette>>,
-  dark = false,
-): string[] {
-  const lines: string[] = [];
-  for (const token of COLOR_TOKENS) {
+export type ThemePalettes = Partial<
+  Record<Appearance, Partial<Record<ThemeColor, Palette>>>
+>;
+
+/**
+ * Where BB defines each appearance's theme variables: its stylesheet and every
+ * BB theme declare them on `:root, .light` and on `.dark`.
+ */
+export const APPEARANCE_SCOPES: Record<Appearance, string> = {
+  light: ":root, .light",
+  dark: ".dark",
+};
+
+/** The lightness band for derived text in each appearance. */
+const TEXT_BAND: Record<Appearance, { min: number; max: number }> = {
+  light: { min: 0, max: 0.55 },
+  dark: { min: 0.78, max: 1 },
+};
+
+/** Each token's validated, resolved choice; invalid stored values are skipped. */
+function resolvedTokens(colors: ColorPrefs) {
+  return COLOR_TOKENS.flatMap((token) => {
     const parsed = colorChoiceSchema.safeParse(colors[token]);
-    if (!parsed.success) continue;
-    const resolved = resolveColor(
-      {
-        ...colors,
-        [token]: parsed.data,
-      },
-      token,
-    );
-    const name = COLOR_TOKEN_VAR[token];
+    if (!parsed.success) return [];
+    const resolved = resolveColor({ ...colors, [token]: parsed.data }, token);
+    return [{ name: COLOR_TOKEN_VAR[token], resolved }];
+  });
+}
+
+/** Every step of every token, written in terms of BB's theme variables. */
+function baseDeclarations(colors: ColorPrefs): string[] {
+  return resolvedTokens(colors).flatMap(({ name, resolved }) => {
     if (resolved.kind === "custom")
-      lines.push(...stepDeclarations(name, resolved.color, null));
-    else if (resolved.kind === "theme") {
-      const theme = THEME_COLORS[resolved.color];
-      lines.push(...stepDeclarations(name, `var(${theme.base})`, theme.text));
-      const input = palettes?.[resolved.color];
-      if (colors.vivid && input) {
-        const paints = vividPalette(input, dark);
-        lines.push(`${name}: ${colorCss({ ...paints.border, alpha: 1 })};`);
-        for (const role of ["text", "border", "surface"] as const)
-          lines.push(`${name}-${role}: ${colorCss(paints[role])};`);
-      }
-    }
-  }
-  return lines;
+      return stepDeclarations(name, resolved.color, null);
+    const theme = THEME_COLORS[resolved.color];
+    return stepDeclarations(name, `var(${theme.base})`, theme.text);
+  });
+}
+
+/** Vivid overrides for theme-following tokens whose inputs were resolved. */
+function vividDeclarations(
+  colors: ColorPrefs,
+  palettes: Partial<Record<ThemeColor, Palette>> | undefined,
+  dark: boolean,
+): string[] {
+  if (!colors.vivid || !palettes) return [];
+  return resolvedTokens(colors).flatMap(({ name, resolved }) => {
+    const input = resolved.kind === "theme" ? palettes[resolved.color] : null;
+    if (!input) return [];
+    const paints = vividPalette(input, dark);
+    return [
+      `${name}: ${colorCss({ ...paints.border, alpha: 1 })};`,
+      ...(["text", "border", "surface"] as const).map(
+        (role) => `${name}-${role}: ${colorCss(paints[role])};`,
+      ),
+    ];
+  });
 }
 
 /**
- * Scoped CSS for normal or vivid paints. Custom choices bypass the transform.
+ * Workstreams' roots inside an `@scope`, the scope's own root included: a
+ * scoped selector without `:scope` matches only the scope's descendants.
+ */
+const SCOPED_ROOTS = `:where(:scope, :scope *):is(${TOKEN_ROOTS})`;
+
+const rule = (selector: string, lines: readonly string[], indent = "") =>
+  `${indent}${selector} {\n${indent}  ${lines.join(`\n${indent}  `)}\n${indent}}\n`;
+
+/**
+ * The token sheet: every token's steps on Workstreams' roots, then each
+ * appearance's text band and vivid paints in an `@scope` for that appearance.
+ * Scope proximity lets the nearest `.light` or `.dark` ancestor win, so a root
+ * draws its own appearance's paints wherever it mounts; the rules name no
+ * particular root, and the sheet never changes as roots come and go. Custom
+ * choices bypass the vivid transform.
  */
 export function colorTokenCss(
   colors: ColorPrefs,
-  palettes?: Partial<Record<ThemeColor, Palette>>,
-  dark = false,
-  selector = TOKEN_ROOTS,
+  palettes?: ThemePalettes,
 ): string {
-  const lines = colorTokenDeclarations(colors, palettes, dark);
-  return lines.length ? `${selector} {\n  ${lines.join("\n  ")}\n}\n` : "";
+  const base = baseDeclarations(colors);
+  let css = base.length ? rule(TOKEN_ROOTS, base) : "";
+  for (const appearance of ["light", "dark"] as const) {
+    const band = TEXT_BAND[appearance];
+    const lines = [
+      `--ws-text-min-l: ${band.min};`,
+      `--ws-text-max-l: ${band.max};`,
+      ...vividDeclarations(
+        colors,
+        palettes?.[appearance],
+        appearance === "dark",
+      ),
+    ];
+    css += `@scope (${APPEARANCE_SCOPES[appearance]}) {\n${rule(SCOPED_ROOTS, lines, "  ")}}\n`;
+  }
+  return css;
 }

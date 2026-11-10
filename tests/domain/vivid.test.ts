@@ -124,11 +124,11 @@ describe("vivid colors", () => {
         success: palette(inputs.light),
         "timeline-accent": palette(inputs.dark),
       };
-      const css = colorTokenCss(colors, paints, dark);
+      const palettes = { [dark ? "dark" : "light"]: paints };
+      const css = colorTokenCss(colors, palettes);
       const swapped = colorTokenCss(
         { ...colors, complete: colors.review, review: colors.complete },
-        paints,
-        dark,
+        palettes,
       );
       const declarations = (text: string, token: string) =>
         [
