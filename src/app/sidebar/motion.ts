@@ -217,11 +217,23 @@ const SLOT_STYLES = [
  * it moves and cleared once it rests, so a resting slot is laid out by CSS
  * alone. Positions come from the slots' heights in order; nothing is
  * measured per frame.
+ *
+ * Slots are measured when an arrangement is committed and when a slot's
+ * contents change size. A ResizeObserver watches each slot's contents, its
+ * element's children, rather than the slot, whose height the springs own.
+ * A contents size change seen while slots move is measured once they come
+ * to rest, since a moving slot's contents can follow its height.
  */
 class SlotSprings {
   private readonly slots = new Map<string, Slot>();
   private readonly elements = new Map<string, HTMLElement>();
   private order: string[] = [];
+  private readonly contents =
+    typeof ResizeObserver === "function"
+      ? new ResizeObserver(() => this.resized())
+      : null;
+  /** A contents size change seen while slots moved, measured at rest. */
+  private resizedWhileMoving = false;
   private frame: number | null = null;
   private last = 0;
   /** A contents height change waiting for its burst to end (see `remeasure`). */
@@ -230,8 +242,22 @@ class SlotSprings {
   constructor(private readonly closed: (keys: string[]) => void) {}
 
   attach(key: string, element: HTMLElement | null) {
-    if (element) this.elements.set(key, element);
-    else this.elements.delete(key);
+    const previous = this.elements.get(key);
+    if (previous === element) return;
+    if (previous)
+      for (const child of previous.children) this.contents?.unobserve(child);
+    if (element) {
+      this.elements.set(key, element);
+      for (const child of element.children) this.contents?.observe(child);
+    } else this.elements.delete(key);
+  }
+
+  private resized() {
+    if (this.frame !== null) {
+      this.resizedWhileMoving = true;
+      return;
+    }
+    this.remeasure(performance.now());
   }
 
   /** Whether the slot exists and is still open or opening. */
@@ -347,7 +373,7 @@ class SlotSprings {
    * new height waits until changes have been quiet for `burstMs`, so a row
    * that loses its second line as it leaves keeps its slot until it closes.
    */
-  remeasure(now: number) {
+  private remeasure(now: number) {
     const keys = this.order.filter((key) => !this.slots.get(key)!.leaving);
     const naturals = this.measure(keys);
     let changed = false;
@@ -376,6 +402,7 @@ class SlotSprings {
   }
 
   destroy() {
+    this.contents?.disconnect();
     if (this.frame !== null) cancelAnimationFrame(this.frame);
     this.frame = null;
     if (this.resize !== null) clearTimeout(this.resize);
@@ -533,6 +560,10 @@ class SlotSprings {
     this.advance(time);
     this.draw(time);
     if (this.busy(time)) this.schedule();
+    else if (this.resizedWhileMoving) {
+      this.resizedWhileMoving = false;
+      this.remeasure(time);
+    }
   };
 }
 
@@ -679,10 +710,8 @@ export function useSlotList<T>(
       .join("\n");
     const now = performance.now();
     const previous = arranged.current;
-    if (previous?.signature === arrangement) {
-      engine.remeasure(now);
-      return;
-    }
+    // A slot whose contents changed size reports it (see `SlotSprings`).
+    if (previous?.signature === arrangement) return;
     // Rows arriving at the end that the limit kept out come up from under
     // Show more; the rows it pushes out go back under it.
     const rise = new Set<string>();

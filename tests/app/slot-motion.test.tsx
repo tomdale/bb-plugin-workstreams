@@ -419,3 +419,120 @@ describe("useSlotList", () => {
     expect(slot("n")!.getAttribute("style")).toBeNull();
   });
 });
+
+describe("useSlotList measurement", () => {
+  /** A ResizeObserver whose notifications the test delivers. */
+  function observeResizes() {
+    const observed = new Set<Element>();
+    const callbacks: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          callbacks.push(callback);
+        }
+        observe(element: Element) {
+          observed.add(element);
+        }
+        unobserve(element: Element) {
+          observed.delete(element);
+        }
+        disconnect() {}
+      },
+    );
+    return {
+      observed,
+      notify: () =>
+        act(() => {
+          for (const callback of callbacks) callback([], {} as ResizeObserver);
+        }),
+    };
+  }
+  /** Each slot's contents height, by key; a slot's inline height clips it. */
+  function contentHeights(heights: Record<string, number>) {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        const height = this.style.height
+          ? Number.parseFloat(this.style.height)
+          : (heights[this.dataset.key ?? ""] ?? ROW);
+        return { top: 0, height, bottom: height } as DOMRect;
+      },
+    );
+  }
+
+  it("measures nothing when the list renders with its arrangement unchanged", () => {
+    observeResizes();
+    const view = render(<List items={rows("a", "b")} />);
+    const reads = vi.mocked(HTMLElement.prototype.getBoundingClientRect);
+    const styles = vi.mocked(getComputedStyle);
+    reads.mockClear();
+    styles.mockClear();
+    for (let i = 0; i < 5; i++)
+      view.rerender(
+        <List
+          items={[
+            { id: "a", label: `a, render ${i}` },
+            { id: "b", label: "b" },
+          ]}
+        />,
+      );
+    expect(reads).not.toHaveBeenCalled();
+    expect(styles).not.toHaveBeenCalled();
+  });
+
+  it("reads the gap between slots once, however many arrangements follow", () => {
+    observeResizes();
+    const view = render(<List items={rows("a", "b")} />);
+    view.rerender(<List items={rows("n", "a", "b")} />);
+    step(UP_NEXT_MOTION.burstMs);
+    step(1000);
+    view.rerender(<List items={rows("a", "b")} />);
+    step(UP_NEXT_MOTION.burstMs);
+    step(1000);
+    expect(getComputedStyle).toHaveBeenCalledOnce();
+  });
+
+  it("watches each slot's contents, not the slot, and grows a slot whose contents grew", () => {
+    const resizes = observeResizes();
+    const heights: Record<string, number> = {};
+    contentHeights(heights);
+    render(<List items={rows("a", "b")} />);
+    expect([...resizes.observed].map((element) => element.tagName)).toEqual([
+      "SPAN",
+      "SPAN",
+      "SPAN",
+    ]);
+    step(20);
+    // `a` gains a second line.
+    heights.a = 2 * ROW;
+    resizes.notify();
+    // The slot holds its height until the burst is quiet, then opens.
+    expect(slot("a")!.style.height).toBe(`${ROW}px`);
+    step(UP_NEXT_MOTION.burstMs);
+    step(1000);
+    expect(slot("a")!.style.height).toBe("");
+  });
+
+  it("measures a contents change seen mid-motion once the slots come to rest", () => {
+    const resizes = observeResizes();
+    const heights: Record<string, number> = {};
+    contentHeights(heights);
+    const view = render(<List items={rows("a", "b")} />);
+    view.rerender(<List items={rows("n", "a", "b")} />);
+    step(UP_NEXT_MOTION.burstMs);
+    step(32);
+    heights.b = 2 * ROW;
+    const reads = vi.mocked(HTMLElement.prototype.getBoundingClientRect);
+    reads.mockClear();
+    resizes.notify();
+    // Nothing is measured while the slots move.
+    expect(reads).not.toHaveBeenCalled();
+    step(1000);
+    // At rest the change is measured, and once its burst ends the slot opens
+    // toward the new height.
+    expect(reads).toHaveBeenCalled();
+    expect(Number.parseFloat(slot("b")!.style.height)).toBeGreaterThan(ROW);
+    step(1000);
+    expect(slot("b")!.style.height).toBe("");
+  });
+});
