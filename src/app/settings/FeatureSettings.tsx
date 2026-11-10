@@ -184,14 +184,14 @@ export function UpNextSettings() {
     ? "Threads you have already read fill the rows left after the ones blocked on you."
     : "Skips threads you have read that aren't blocked on you.";
   const unreadDescription = prefs.upNext.unreadFirst
-    ? "Unread threads come before read ones. Among the unread, the ones blocked on you come first."
+    ? "Unread threads come before read ones."
     : "Every thread ranks by what it's blocked on, so a read question can come before an unread review.";
   const window = windows.find(
     (option) => option.value === prefs.upNext.freshWindow,
   );
   const freshDescription =
     window && window.value !== "off"
-      ? `Threads whose turn ended in the ${window.label.toLowerCase()} come first. The usual order holds inside them.`
+      ? `Threads whose turn ended in the ${window.label.toLowerCase()} come before others. The usual order holds inside them.`
       : "Threads keep their place, however recently their turn ended.";
   return (
     <div className="space-y-3">

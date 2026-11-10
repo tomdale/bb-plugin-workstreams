@@ -276,11 +276,7 @@ it("describes each Up Next setting as it is set now", async () => {
       "Threads you have already read fill the rows left after the ones blocked on you.",
     ),
   ).toBeTruthy();
-  expect(
-    slot.getByText(
-      "Unread threads come before read ones. Among the unread, the ones blocked on you come first.",
-    ),
-  ).toBeTruthy();
+  expect(slot.getByText("Unread threads come before read ones.")).toBeTruthy();
   fireEvent.click(slot.getByRole("switch", { name: "Show read threads" }));
   fireEvent.click(
     slot.getByRole("switch", { name: "Prioritize unread threads" }),
@@ -315,7 +311,7 @@ it("describes the recent-thread window it is set to", async () => {
   fireEvent.click(await slot.findByRole("option", { name: "Last day" }));
   expect(
     await slot.findByText(
-      "Threads whose turn ended in the last day come first. The usual order holds inside them.",
+      "Threads whose turn ended in the last day come before others. The usual order holds inside them.",
     ),
   ).toBeTruthy();
 });

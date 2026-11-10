@@ -610,11 +610,12 @@ describe("selectUpNext", () => {
 
     it("ranks by kind alone when unread threads don't lead", () => {
       const threads = [t("ou1", 200), t("ru1", 100), t("qr1", 90)];
-      // Unread leads every read thread by default, and a failed turn or a
-      // thread blocked on you leads the unread ones.
+      // Unread leads every read thread by default, and a thread blocked on you
+      // leads the unread ones.
       expect(upNext(threads)).toEqual(["ru1", "ou1", "qr1"]);
-      // Turned off, a read question leads an unread review, and unread only
-      // breaks a kind's tie. A Waiting thread stays out either way.
+      // Turned off, kind alone decides, so a read question comes before an
+      // unread review and unread only breaks a kind's tie. A Waiting thread
+      // stays out either way.
       expect(
         upNext([...threads, t("wu1", 300)], { unreadFirst: false }),
       ).toEqual(["qr1", "ru1", "ou1"]);
