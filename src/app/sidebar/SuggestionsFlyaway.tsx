@@ -32,8 +32,9 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import { shareJson } from "../structuralSharing.ts";
+import { useUnscopedChanged } from "../useChanged.ts";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { useRealtime } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import {
   Popover,
@@ -95,7 +96,8 @@ function useSuggestionFeed(rpc: Rpc) {
   const read = useCallback(async () => {
     readAt.current = Date.now();
     try {
-      setState((await rpc.call("suggestions", null)).state);
+      const next = (await rpc.call("suggestions", null)).state;
+      setState((previous) => shareJson(previous, next));
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -282,7 +284,7 @@ function SuggestionList({
   useEffect(() => {
     refresh();
   }, [refresh]);
-  useRealtime("changed", () => void read());
+  useUnscopedChanged(() => void read());
   useEffect(
     () => () => {
       for (const timer of timers.current.values()) clearTimeout(timer);

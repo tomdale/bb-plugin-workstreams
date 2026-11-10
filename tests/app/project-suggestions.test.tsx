@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { ProjectSuggestions } from "../../src/app/page/topics/ProjectSuggestions.tsx";
 
@@ -77,4 +83,43 @@ it("reports stale-decision failures without claiming the correction applied", as
     "This project suggestion is out of date.",
   );
   expect(screen.queryByText("Project association updated.")).toBeNull();
+});
+
+it("re-reads only for writes beyond recaps, analysis, snoozes and order", async () => {
+  const call = vi.fn(async (method: string) => {
+    if (method === "projectSuggestions") return { suggestions: [suggestion] };
+    throw new Error(method);
+  });
+  const slot = renderSlot(
+    { component: ProjectSuggestions },
+    { ws: { rpc: { call } } as never },
+  );
+  expect(await screen.findByText("Parser")).toBeTruthy();
+  const reads = () =>
+    call.mock.calls.filter(([method]) => method === "projectSuggestions")
+      .length;
+  const before = reads();
+  const changes = {
+    epoch: "e1",
+    revisions: {
+      analysis: 1,
+      recaps: 1,
+      order: 0,
+      snoozes: 0,
+      catalog: 0,
+      suggestions: 0,
+    },
+  };
+  await act(async () => {
+    await slot.behavior.emitRealtime("changed", {
+      ...changes,
+      threadIds: ["thread"],
+    });
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(reads()).toBe(before);
+  await act(async () => {
+    await slot.behavior.emitRealtime("changed", changes);
+  });
+  await waitFor(() => expect(reads()).toBe(before + 1));
 });

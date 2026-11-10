@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useBbNavigate, useRealtime } from "@get-bb/plugin-sdk/app";
+import { useBbNavigate } from "@get-bb/plugin-sdk/app";
 import { Button } from "@/components/ui/button";
 import type { ProjectSuggestion } from "../../../server/projectAssociations.ts";
 import type { useWorkstreams } from "../../useWorkstreams.ts";
 import { SectionHeading } from "../../primitives/SectionHeading.tsx";
 import { DebugThreadButton } from "../../debug/DebugThreadButton.tsx";
 import { projectSuggestionSubject } from "../../debug/subjects.ts";
+import { shareJson } from "../../structuralSharing.ts";
+import { useUnscopedChanged } from "../../useChanged.ts";
 
 export function ProjectSuggestions({
   ws,
@@ -25,7 +27,8 @@ export function ProjectSuggestions({
     const mine = ++generation.current;
     try {
       const result = await ws.rpc.call("projectSuggestions", null);
-      if (mine === generation.current) setSuggestions(result.suggestions);
+      if (mine === generation.current)
+        setSuggestions((previous) => shareJson(previous, result.suggestions));
     } catch (cause) {
       if (mine === generation.current)
         setError(cause instanceof Error ? cause.message : String(cause));
@@ -44,7 +47,7 @@ export function ProjectSuggestions({
       root.current?.querySelector<HTMLButtonElement>("button") ?? root.current
     )?.focus();
   }, [busy]);
-  useRealtime("changed", () => void read());
+  useUnscopedChanged(() => void read());
   const decide = async (id: string, decision: "accept" | "decline") => {
     needsFocus.current = true;
     setBusy(true);
