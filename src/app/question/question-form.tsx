@@ -24,7 +24,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type KeyboardEvent,
   type RefObject,
 } from "react";
@@ -521,15 +520,11 @@ function isEditableTarget(target: EventTarget): boolean {
   );
 }
 
-// The scroll area's mask reads these two lengths (0 when an edge has nothing
-// beyond it), so the fade is a class, and the hook only reports the edges.
-const FADE_MASK_CLASS =
-  "[mask-image:linear-gradient(to_bottom,transparent,#000_var(--fade-top,0px),#000_calc(100%_-_var(--fade-bottom,0px)),transparent)]";
-
 /**
  * Fades the edges of a scroll area that has content beyond them, since the
- * scrollbar alone is too faint a cue that an option is cut off. A mask fades
- * the content itself, so it works on any card tint.
+ * scrollbar alone is too faint a cue that an option is cut off. Small gradient
+ * overlays preserve the card tint without masking the whole scroll area: a
+ * full-content mask makes every answer edit repaint through an offscreen pass.
  */
 function useScrollFade(ref: RefObject<HTMLElement | null>) {
   const [edges, setEdges] = useState({ top: false, bottom: false });
@@ -556,14 +551,7 @@ function useScrollFade(ref: RefObject<HTMLElement | null>) {
     for (const child of Array.from(node.children)) observer.observe(child);
     return () => observer.disconnect();
   }, [ref, update]);
-  return {
-    active: edges.top || edges.bottom,
-    onScroll: update,
-    style: {
-      "--fade-top": edges.top ? "12px" : undefined,
-      "--fade-bottom": edges.bottom ? "28px" : undefined,
-    } as CSSProperties,
-  };
+  return { ...edges, onScroll: update };
 }
 
 interface QuestionFormProps {
@@ -784,57 +772,77 @@ export function QuestionForm({
           questions={questions}
         />
       ) : null}
-      <div
-        ref={scrollRef}
-        // Extends 8px into the card's padding so an option row's hover fill
-        // and focus outline are not clipped; the bottom padding does the same
-        // for the last row's outline.
-        className={cn(
-          "-mx-2 min-h-0 touch-pan-y overflow-y-auto overscroll-contain px-2 pb-1",
-          scrollFade.active && FADE_MASK_CLASS,
-        )}
-        onScroll={scrollFade.onScroll}
-        style={scrollFade.style}
-        onKeyDown={(event) => {
-          if (
-            event.target !== event.currentTarget &&
-            (event.key === "Enter" || event.key === "Escape")
-          ) {
-            event.stopPropagation();
-          }
-        }}
-      >
-        <QuestionInputBlock
-          disabled={disabled}
-          question={currentQuestion}
-          state={currentState}
-          onToggleOption={(optionValue) =>
-            handleToggleOption(currentQuestion, optionValue)
-          }
-          onSelectOther={() => handleSelectOther(currentQuestion)}
-          onFreeTextChange={(value) =>
-            updateQuestionState(currentQuestion, (state) => ({
-              ...state,
-              otherText: value,
-            }))
-          }
-          onNotesChange={(value) =>
-            updateQuestionState(currentQuestion, (state) => ({
-              ...state,
-              notes: value,
-            }))
-          }
-          onAttachmentsChange={(attachments) =>
-            updateQuestionState(currentQuestion, (state) => ({
-              ...state,
-              otherAttachments: attachments,
-            }))
-          }
-          onShortcutSubmit={handleAdvance}
-          advance={isLast ? "submit" : "next"}
-          shortcuts={shortcuts}
-          projectId={projectId}
-        />
+      <div className="relative flex min-h-0 flex-col">
+        <div
+          ref={scrollRef}
+          // Extends 8px into the card's padding so an option row's hover fill
+          // and focus outline are not clipped; the bottom padding does the same
+          // for the last row's outline.
+          className="-mx-2 min-h-0 touch-pan-y overflow-y-auto overscroll-contain px-2 pb-1"
+          onScroll={scrollFade.onScroll}
+          onKeyDown={(event) => {
+            if (
+              event.target !== event.currentTarget &&
+              (event.key === "Enter" || event.key === "Escape")
+            ) {
+              event.stopPropagation();
+            }
+          }}
+        >
+          <QuestionInputBlock
+            disabled={disabled}
+            question={currentQuestion}
+            state={currentState}
+            onToggleOption={(optionValue) =>
+              handleToggleOption(currentQuestion, optionValue)
+            }
+            onSelectOther={() => handleSelectOther(currentQuestion)}
+            onFreeTextChange={(value) =>
+              updateQuestionState(currentQuestion, (state) => ({
+                ...state,
+                otherText: value,
+              }))
+            }
+            onNotesChange={(value) =>
+              updateQuestionState(currentQuestion, (state) => ({
+                ...state,
+                notes: value,
+              }))
+            }
+            onAttachmentsChange={(attachments) =>
+              updateQuestionState(currentQuestion, (state) => ({
+                ...state,
+                otherAttachments: attachments,
+              }))
+            }
+            onShortcutSubmit={handleAdvance}
+            advance={isLast ? "submit" : "next"}
+            shortcuts={shortcuts}
+            projectId={projectId}
+          />
+        </div>
+        {scrollFade.top ? (
+          <div
+            aria-hidden
+            data-ws-question-fade="top"
+            className="pointer-events-none absolute -inset-x-2 top-0 h-3"
+            style={{
+              background:
+                "linear-gradient(to bottom, var(--ws-needs-you-surface), transparent), linear-gradient(to bottom, var(--background), transparent)",
+            }}
+          />
+        ) : null}
+        {scrollFade.bottom ? (
+          <div
+            aria-hidden
+            data-ws-question-fade="bottom"
+            className="pointer-events-none absolute -inset-x-2 bottom-0 h-7"
+            style={{
+              background:
+                "linear-gradient(to top, var(--ws-needs-you-surface), transparent), linear-gradient(to top, var(--background), transparent)",
+            }}
+          />
+        ) : null}
       </div>
       {/* An edge-to-edge footer strip like the recap card's, offset by the
           card's px-4 py-3 padding; its controls sit on the content's 16px

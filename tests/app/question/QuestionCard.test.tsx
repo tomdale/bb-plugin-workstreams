@@ -745,21 +745,28 @@ describe("question interaction adapter", () => {
     const slot = render(singleSelect);
     const scroller =
       slot.container.querySelector<HTMLElement>(".overflow-y-auto")!;
-    expect(scroller.className).not.toContain("mask-image");
+    expect(slot.container.querySelector("[data-ws-question-fade]")).toBeNull();
     const metrics = { scrollTop: 0, clientHeight: 200, scrollHeight: 500 };
     for (const [key, value] of Object.entries(metrics))
       Object.defineProperty(scroller, key, { configurable: true, value });
     fireEvent.scroll(scroller);
-    expect(scroller.style.getPropertyValue("--fade-bottom")).toBe("28px");
-    expect(scroller.style.getPropertyValue("--fade-top")).toBe("");
+    expect(
+      slot.container.querySelector("[data-ws-question-fade='bottom']"),
+    ).not.toBeNull();
+    expect(
+      slot.container.querySelector("[data-ws-question-fade='top']"),
+    ).toBeNull();
     Object.defineProperty(scroller, "scrollTop", {
       configurable: true,
       value: 300,
     });
     fireEvent.scroll(scroller);
-    expect(scroller.style.getPropertyValue("--fade-bottom")).toBe("");
-    expect(scroller.style.getPropertyValue("--fade-top")).toBe("12px");
-    expect(scroller.className).toContain("mask-image");
+    expect(
+      slot.container.querySelector("[data-ws-question-fade='bottom']"),
+    ).toBeNull();
+    expect(
+      slot.container.querySelector("[data-ws-question-fade='top']"),
+    ).not.toBeNull();
 
     Object.defineProperty(scroller, "scrollTop", {
       configurable: true,
@@ -770,7 +777,7 @@ describe("question interaction adapter", () => {
       value: 200,
     });
     fireEvent.scroll(scroller);
-    expect(scroller.className).not.toContain("mask-image");
+    expect(slot.container.querySelector("[data-ws-question-fade]")).toBeNull();
   });
 
   it("does not read scroll geometry on each freeform edit", () => {
