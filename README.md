@@ -786,22 +786,25 @@ one fades away on its way. A moving card follows a sideways loop and banks
 slightly. Presses are taken one card at a time, at least 120 ms apart and only
 when the previous card clears; a press that arrives while one waits is dropped,
 and a press the other way is always taken. Holding `↓` moves cards on, and
-holding `↑` brings them back. Repeats start after 250 ms and run every 25 ms. As
-a hold continues, the springs stiffen and clearing loosens while cards stay
-whole; letting go rests on a whole card. When a card comes back from behind the
-stack it regains its colour, and the card it is about to cover dims its content
-and shrinks to the size it will have under it, keeping its frame and background.
-Under reduced motion the new item only fades in. To look ahead or back without
-acting, use the footer's arrows, which also show where you are ("2 of 9"), or
-press `↓`, `→` or `J` for the next item and `↑`, `←` or `K` for the previous
-one. The card stack's top edge sits about a quarter of the way down the page,
-and the heading sits in a fixed place just above the stack. The replies and
-actions follow the card and the page grows downward, so opening Reply, holding
-`Shift`, or a receipt appearing above never moves anything. The stack keeps that
-place from item to item and follows the window as you resize it; it only glides
-down when the next item's heading wraps to more lines. The new heading fades in
-place; the receipt line crossfades to the next one with a small drift. Under
-reduced motion the card only fades in and the heading changes in place.
+holding `↑` brings them back. Repeats start after 250 ms and run every 25 ms,
+and a held key moves the stack at most one card every 250 ms, so it goes at a
+pace you can read; presses made one at a time are held only to the card
+clearing. As a hold continues, the springs stiffen and clearing loosens while
+cards stay whole; letting go rests on a whole card. When a card comes back from
+behind the stack it regains its colour, and the card it is about to cover dims
+its content and shrinks to the size it will have under it, keeping its frame and
+background. Under reduced motion the new item only fades in. To look ahead or
+back without acting, use the footer's arrows, which also show where you are ("2
+of 9"), or press `↓`, `→` or `J` for the next item and `↑`, `←` or `K` for the
+previous one. The card stack's top edge sits about a quarter of the way down the
+page, and the heading sits in a fixed place just above the stack. The replies
+and actions follow the card and the page grows downward, so opening Reply,
+holding `Shift`, or a receipt appearing above never moves anything. The stack
+keeps that place from item to item and follows the window as you resize it; it
+only glides down when the next item's heading wraps to more lines. The new
+heading fades in place; the receipt line crossfades to the next one with a small
+drift. Under reduced motion the card only fades in and the heading changes in
+place.
 
 Question cards on this page use the same form as the thread: choose options,
 review previews, add notes, answer in your own words, or attach files and

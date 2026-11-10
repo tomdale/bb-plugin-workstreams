@@ -21,7 +21,8 @@
  * - A press is taken once every card in transit has passed its flip (`accepts`), so the rate is whatever the
  *   trips allow: a trip must clear the height of the card it uncovers, at no more than `vcap` px/s on any edge.
  * - `tempo` spaces presses by a planned interval, so the pace does not follow each card's height from step to
- *   step.
+ *   step. `holdBeat` is the least interval while a key is held, so a hold repeats at a pace a person can read
+ *   and single presses are not held to it.
  * - `ramp` stiffens the springs and raises the edge budget while a key is held. `fold` does the same and also
  *   shrinks every card's drawn height toward `H0` (a level of detail), which removes the height term.
  * - `loose` leaves every card drawn whole but measures the clearing geometry with heights that shrink toward `H0`
@@ -87,6 +88,7 @@ export type DrumConfig = {
   ramp: boolean;
   H0: number;
   holdDelay: number;
+  holdBeat: number;
   coverFade: number;
   incomingFade: number;
   washTauIn: number;
@@ -142,6 +144,7 @@ export const DEFAULT_CFG: DrumConfig = {
   ramp: false, // while held, ramp the spring rate and edge budget toward their λ = 1 values without folding
   H0: 73, // folded (header) height, or the virtual height `loose` clears, px
   holdDelay: 250, // ms a key is held before λ heads to 1
+  holdBeat: 0, // ms: the least interval between presses while a key is held; 0 leaves the pace to `tempo` and the gate
   incomingFade: 8, // how fast, in shade per second, a card coming back (a ↑) regains its colour from the moment it starts; 0 lets it follow its path
   coverFade: 1, // how far the content of a card a rising card is about to cover fades before the rising card reaches it, 0 to 1
   washTauIn: 40, // ms: the drawn wash of a too-tall card follows its path value, falling
@@ -160,6 +163,7 @@ export const QUEUE_CFG: DrumPatch = {
   loose: true,
   vcap: 44 * 60,
   coverFade: 0.25,
+  holdBeat: 250,
   tempo: { kind: "constant", ms: 120 },
 };
 
@@ -343,9 +347,15 @@ export class Drum {
     }
     return sum / n;
   }
+  /** The least interval, ms, since the last press before another may be taken: the planned tempo, and the
+   * beat a held key keeps. */
+  private gapFor(dir: number) {
+    const planned = this.tempoGap(dir);
+    return this.hold ? Math.max(planned, this.cfg.holdBeat) : planned;
+  }
   /** Whether a press may be taken now: the planned interval has passed, and every card in transit has passed its flip. */
   accepts(dir: number) {
-    const gap = this.tempoGap(dir);
+    const gap = this.gapFor(dir);
     if (gap > 0 && this.time - this.lastTake < gap) return false;
     for (let i = 0; i < this.N; i++) {
       const t = this.target(i),

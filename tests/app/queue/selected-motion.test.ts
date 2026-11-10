@@ -11,6 +11,7 @@ describe("selected queue motion", () => {
       loose: true,
       vcap: 44 * 60,
       coverFade: 0.25,
+      holdBeat: 250,
       tempo: { ...Drum.config().tempo, kind: "constant", ms: 120 },
     });
   });
@@ -60,6 +61,40 @@ describe("selected queue motion", () => {
         expect(Math.abs(34 + card.scale * card.y - ref.top)).toBeLessThan(1);
       }
     }
+  });
+
+  it("holds a key to one card per beat, and presses alone past that beat", () => {
+    const heights = Array.from(
+      { length: 24 },
+      (_, i) => [284, 73, 218, 96][i % 4]!,
+    );
+    const held = new Drum(heights, QUEUE_CFG);
+    held.jump(0);
+    held.keyDown(1);
+    // The page's own repeat: every 25 ms from 250 ms on.
+    let next = 250;
+    for (let n = 0; n < 180; n++) {
+      const t = (n * 1000) / 60;
+      while (next <= t + 1e-6) {
+        held.press(1);
+        next += 25;
+      }
+      held.step(1000 / 60);
+    }
+    held.keyUp();
+    // Twelve cards in three seconds: one per 250 ms beat, not the gate's pace.
+    expect(held.front).toBe(12);
+
+    // The beat is the hold's alone: presses a person makes 150 ms apart are taken.
+    const tapped = new Drum([200, 180, 220, 160], QUEUE_CFG);
+    tapped.jump(0);
+    const fronts: number[] = [];
+    for (let n = 0; n < 3; n++) {
+      tapped.press(1);
+      tapped.step(150);
+      fronts.push(tapped.front);
+    }
+    expect(fronts).toEqual([1, 2, 3]);
   });
 
   it("draws a moving card on the selected path and banks about its top", () => {
