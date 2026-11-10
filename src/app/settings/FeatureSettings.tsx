@@ -465,7 +465,7 @@ export function AdvancedSettings() {
         ) : null}
         <SettingRow
           label="Record model calls"
-          description="Saves each model call's prompt, reasoning, and response, redacting common secrets, for 7 days. Hiding the debug UI doesn't stop it."
+          description="Saves each model call's prompt, reasoning, and response, redacting common secrets, for 7 days."
           control={
             <SettingSwitch
               label="Record model calls"
