@@ -1,11 +1,5 @@
+import { FULL_SLOT_PX, childIndent } from "./statusSlot.ts";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
-
-/**
- * One level of nesting: a status slot (14px) and the gap after it (6px), so
- * a child's mark sits where its parent's title starts. Each group's contents
- * in the thread list step in by the same amount.
- */
-export const INDENT_PX = SIDEBAR_GEOMETRY.row.childIndent;
 
 /** Children indent at most this many levels; deeper rows stay put. */
 export const MAX_INDENT = 3;
@@ -31,6 +25,8 @@ const ROW_HEIGHT_CLASS = {
  */
 export function rowGeometry(options: {
   depth: number;
+  /** The width of the list's status slot; children indent past it. */
+  slotWidth?: number;
   inGroup?: boolean;
   categorized?: boolean;
   hasSubtitle?: boolean;
@@ -51,7 +47,9 @@ export function rowGeometry(options: {
       : SIDEBAR_GEOMETRY.row.rootInset
     : 6;
   const paddingLeft =
-    baseIndent + Math.min(options.depth, MAX_INDENT) * INDENT_PX;
+    baseIndent +
+    Math.min(options.depth, MAX_INDENT) *
+      childIndent(options.slotWidth ?? FULL_SLOT_PX);
 
   // A one-line row takes its height token; a two-line row sizes itself from
   // its content, so it carries no height class (the `items-start` layout in

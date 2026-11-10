@@ -9,7 +9,7 @@
  * Workstreams nest by topic (see `nestGroups`): a group lists its own
  * threads, then the threads of subgroups too small for headers, each
  * labeled with its subgroup, then its other subgroups. Each group's contents
- * sit one step (`INDENT_PX`) in. A header folds from the chevron beside its
+ * sit one step (`childIndent`) in. A header folds from the chevron beside its
  * name, and only from there: the row itself drags the workstream.
  * Top-level workstreams always keep their own headers (see `arrangeGroups`).
  *
@@ -91,7 +91,14 @@ import {
 import { NameDialog, type NameRequest } from "./NameDialog.tsx";
 import { SuggestionsFlyaway } from "./SuggestionsFlyaway.tsx";
 import { Row, type RowSnoozeAction } from "./Row.tsx";
-import { hasStatusMark, headerCounts } from "./presentation.ts";
+import { headerCounts } from "./presentation.ts";
+import {
+  FULL_SLOT_PX,
+  bandTitleInset,
+  childIndent,
+  slotWidthOf as slotWidthOfRows,
+} from "./statusSlot.ts";
+import { useSpinner } from "../spinner.ts";
 import {
   descendantsOf,
   rowsById,
@@ -180,8 +187,8 @@ type RowRenderOptions = {
   times: RowTimes;
   /** The drag handle, for a root row that drags its tree. */
   handle?: DragHandle;
-  /** Whether the list's rows reserve the status slot (see `anyMark`). */
-  showStatusSlot?: boolean;
+  /** The width its rows reserve for the status slot (see `slotWidthOf`). */
+  slotWidth?: number;
   /** Its group's name, for a row listed outside that group's header. */
   label?: string;
   categorized?: boolean;
@@ -501,26 +508,24 @@ export function WorkstreamsThreadList({
     [applySnoozeLatest, wakeByDefault, snoozePrefs],
   );
 
-  /** Whether any of these rows draws a status mark (see `hasStatusMark`). */
-  const anyMark = (rows: readonly ThreadRow[]) =>
-    rows.some(
-      (row) =>
-        row.hasChildren || hasStatusMark(row.thread, ws.work(row.thread)),
-    );
-  const needsMarks = useMemo(
-    () => anyMark(shownNeedsRows),
-    [shownNeedsRows, ws.server.analysis, ws.server.recaps],
+  /** The status slot width these rows share (see `slotWidthOf`). */
+  const { shape: spinnerShape } = useSpinner();
+  const slotWidthOf = (rows: readonly ThreadRow[]) =>
+    slotWidthOfRows(rows, ws.work, spinnerShape);
+  const needsSlot = useMemo(
+    () => slotWidthOf(shownNeedsRows),
+    [shownNeedsRows, ws.server.analysis, ws.server.recaps, spinnerShape],
   );
-  const groupMarks = useMemo(
+  const groupSlot = useMemo(
     () =>
-      anyMark(
+      slotWidthOf(
         [
           ...projection.groups,
           projection.unsorted,
           ...projection.dormant,
         ].flatMap((group) => group.rows),
       ),
-    [projection, ws.server.analysis, ws.server.recaps],
+    [projection, ws.server.analysis, ws.server.recaps, spinnerShape],
   );
   const rowKey = (row: ThreadRow) => row.thread.id;
   const showMoreControl = showMore || moreCount > 0;
@@ -548,9 +553,9 @@ export function WorkstreamsThreadList({
     (slot) => slot.item.kind === "row" && !slot.leaving,
   );
   const pinnedRows = projection.pinnedThreads;
-  const pinnedMarks = useMemo(
-    () => anyMark(pinnedRows),
-    [pinnedRows, ws.server.analysis, ws.server.recaps],
+  const pinnedSlot = useMemo(
+    () => slotWidthOf(pinnedRows),
+    [pinnedRows, ws.server.analysis, ws.server.recaps, spinnerShape],
   );
   const showPinned = pinnedRows.length > 0;
   // The sticky plate holds both bands: it enters and leaves as one, while each
@@ -570,7 +575,7 @@ export function WorkstreamsThreadList({
         placement,
         times,
         handle,
-        showStatusSlot = true,
+        slotWidth = FULL_SLOT_PX,
         label,
         categorized = false,
       },
@@ -610,7 +615,7 @@ export function WorkstreamsThreadList({
           placement={placement}
           analysis={ws.server.analysis[row.thread.id]}
           recap={ws.server.recaps[row.thread.id]}
-          showStatusSlot={showStatusSlot}
+          slotWidth={slotWidth}
           snooze={snooze}
           snoozePrefs={snoozePrefs}
           defaultWake={wakeByDefault}
@@ -690,14 +695,14 @@ export function WorkstreamsThreadList({
     section: BandId,
   ) => {
     const options = bandOptions[section];
-    const marks = anyMark(rows);
+    const slotWidth = slotWidthOf(rows);
     const renderTrees = (items: readonly ThreadRow[][]) =>
       items.flatMap((tree) =>
         entriesOf(tree, placement).map((entry) =>
           renderRow(entry, {
             placement,
             times: { display: now, projection: projectionNow },
-            showStatusSlot: marks,
+            slotWidth,
           }),
         ),
       );
@@ -727,14 +732,14 @@ export function WorkstreamsThreadList({
   const renderOverlayTree = (
     row: ThreadRow,
     placement: Placement,
-    marks: boolean,
+    slotWidth: number,
   ) =>
     entriesOf([row, ...(descendants.get(row.thread.id) ?? [])], placement).map(
       (entry) =>
         renderRow(entry, {
           placement,
           times: { display: now, projection: projectionNow },
-          showStatusSlot: marks,
+          slotWidth,
         }),
     );
   /** The new thread starts with this workstream's topic. */
@@ -804,7 +809,7 @@ export function WorkstreamsThreadList({
             now={now}
             projectionNow={projectionNow}
             timestamps={timestamps}
-            groupMarks={groupMarks}
+            groupSlot={groupSlot}
             choosingTopic={choosingTopic}
             colorOf={colorOf}
             newThreadIn={newThreadIn}
@@ -894,14 +899,13 @@ export function WorkstreamsThreadList({
       <ul>{children}</ul>
     </Presence>
   );
-  // Left edge matches the row titles: 26px with the status slot, 14px when
-  // the rows fold it away (see styles.css).
+  // Left edge matches the row titles in Up Next (see `bandTitleInset`).
   const bandControlClass = (tone: string) =>
     cn(
       "w-full cursor-pointer rounded-md py-0.5 pr-2 text-left text-[12px] transition-[padding] duration-[180ms] ease-out hover:bg-sidebar-accent/60 motion-reduce:transition-none",
       tone,
-      needsMarks ? "pl-[26px]" : "pl-[14px]",
     );
+  const bandControlStyle = { paddingLeft: bandTitleInset(needsSlot) };
   const recentBlock =
     ws.showRecent && recentRows.length > 0 ? (
       <Band
@@ -1018,7 +1022,7 @@ export function WorkstreamsThreadList({
                     projectionNow={projectionNow}
                     timestamps={timestamps}
                     collapsed={lowerCollapsed(projection.unsorted.id)}
-                    marks={groupMarks}
+                    slotWidth={groupSlot}
                     choosingTopic={choosingTopic}
                     isCollapsed={isCollapsed}
                   />
@@ -1133,7 +1137,7 @@ export function WorkstreamsThreadList({
                     <Band
                       title={UP_NEXT}
                       box="attention"
-                      markless={!needsMarks}
+                      markless={needsSlot === 0}
                       badge={
                         focus.active ? (
                           <Hint label="Showing focused workstreams">
@@ -1161,7 +1165,7 @@ export function WorkstreamsThreadList({
                                 currentRows.get(slot.item.row.thread.id) ??
                                   slot.item.row,
                                 "needs-you",
-                                needsMarks,
+                                needsSlot,
                               )
                             ) : (
                               <li>
@@ -1172,6 +1176,7 @@ export function WorkstreamsThreadList({
                                   className={bandControlClass(
                                     "ws-needs-you-text",
                                   )}
+                                  style={bandControlStyle}
                                 >
                                   {showMore
                                     ? "Show less"
@@ -1192,7 +1197,7 @@ export function WorkstreamsThreadList({
                     <Band
                       title={PINNED}
                       box="pinned"
-                      markless={!pinnedMarks}
+                      markless={pinnedSlot === 0}
                       badge={
                         <span className="inline-flex items-center">
                           <Icon name="Pin" className="size-3" />
@@ -1202,7 +1207,7 @@ export function WorkstreamsThreadList({
                       {pinnedRowPresence.map((entry) =>
                         present(
                           entry,
-                          renderOverlayTree(entry.item, "pinned", pinnedMarks),
+                          renderOverlayTree(entry.item, "pinned", pinnedSlot),
                         ),
                       )}
                     </Band>
@@ -1396,7 +1401,7 @@ type ThreadTreesProps = {
   projectionNow: number;
   timestamps: "show" | "hover" | "hide";
   collapsed?: boolean;
-  marks: boolean;
+  slotWidth: number;
   choosingTopic: boolean;
   isCollapsed: (id: string, byDefault?: boolean) => boolean;
 };
@@ -1455,7 +1460,7 @@ function SortableThreadTree({
   renderRow,
   now,
   projectionNow,
-  marks,
+  slotWidth,
   choosingTopic,
   isCollapsed,
 }: Omit<ThreadTreesProps, "rows" | "timestamps"> & {
@@ -1476,14 +1481,14 @@ function SortableThreadTree({
             placement: "group",
             times: { display: now, projection: projectionNow },
             handle: index === 0 ? handle : undefined,
-            showStatusSlot: marks,
+            slotWidth,
             label,
             categorized,
           }),
         )}
       </ul>
     ),
-    [visible, renderRow, now, projectionNow, marks, label, categorized],
+    [visible, renderRow, now, projectionNow, slotWidth, label, categorized],
   );
   const root = tree[0]!.thread;
   return (
@@ -1513,7 +1518,7 @@ const ThreadTrees = memo(
     now,
     projectionNow,
     timestamps,
-    marks,
+    slotWidth,
     choosingTopic,
     isCollapsed,
   }: ThreadTreesProps) {
@@ -1535,7 +1540,7 @@ const ThreadTrees = memo(
             renderRow={renderRow}
             now={now}
             projectionNow={projectionNow}
-            marks={marks}
+            slotWidth={slotWidth}
             choosingTopic={choosingTopic}
             isCollapsed={isCollapsed}
           />
@@ -1552,7 +1557,7 @@ const ThreadTrees = memo(
       before.categorized === after.categorized &&
       before.renderRow === after.renderRow &&
       before.timestamps === after.timestamps &&
-      before.marks === after.marks &&
+      before.slotWidth === after.slotWidth &&
       before.choosingTopic === after.choosingTopic &&
       before.isCollapsed === after.isCollapsed &&
       sameAges(before.rows, before.timestamps, before.now, after.now)),
@@ -1565,7 +1570,7 @@ type GroupBodyProps = {
   now: number;
   projectionNow: number;
   timestamps: "show" | "hover" | "hide";
-  groupMarks: boolean;
+  groupSlot: number;
   choosingTopic: boolean;
   colorOf: (group: ThreadNode) => TopicColor;
   newThreadIn: (group: ThreadNode) => () => void;
@@ -1583,7 +1588,7 @@ function CategorizedTrees({
   projectionNow,
   timestamps,
   collapsed,
-  groupMarks,
+  groupSlot,
   choosingTopic,
   colorOf,
   isCollapsed,
@@ -1595,7 +1600,7 @@ function CategorizedTrees({
   | "projectionNow"
   | "timestamps"
   | "collapsed"
-  | "groupMarks"
+  | "groupSlot"
   | "choosingTopic"
   | "colorOf"
   | "isCollapsed"
@@ -1649,7 +1654,7 @@ function CategorizedTrees({
         projectionNow={projectionNow}
         timestamps={timestamps}
         collapsed={collapsed}
-        marks={groupMarks}
+        slotWidth={groupSlot}
         choosingTopic={choosingTopic}
         isCollapsed={isCollapsed}
       />
@@ -1687,6 +1692,7 @@ function NestedGroup(
       group={group}
       color={colorOf(group)}
       nested
+      nestedIndent={childIndent(props.groupSlot)}
       sectionRef={sectionRef}
       collapsed={collapsed}
       toggle={toggleThis}
@@ -1736,7 +1742,7 @@ const GroupBody = memo(
       sameGroupData(before.group, after.group) &&
       before.renderRow === after.renderRow &&
       before.timestamps === after.timestamps &&
-      before.groupMarks === after.groupMarks &&
+      before.groupSlot === after.groupSlot &&
       before.choosingTopic === after.choosingTopic &&
       before.colorOf === after.colorOf &&
       before.newThreadIn === after.newThreadIn &&
@@ -1796,7 +1802,7 @@ type SidebarThreadRowProps = {
   placement: Placement;
   analysis?: ServerState["analysis"][string];
   recap?: ServerState["recaps"][string];
-  showStatusSlot: boolean;
+  slotWidth: number;
   snooze?: ThreadSnooze;
   snoozePrefs: ServerState["snoozePrefs"];
   defaultWake: () => SnoozeWhen;
@@ -1821,7 +1827,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
   placement,
   analysis,
   recap,
-  showStatusSlot,
+  slotWidth,
   snooze,
   snoozePrefs,
   defaultWake,
@@ -1880,7 +1886,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow({
           context={context}
           placement={placement}
           work={work}
-          showStatusSlot={showStatusSlot}
+          slotWidth={slotWidth}
           subtitle={
             traits.subtitle && work.kind === "current"
               ? work.analysis.needsYou
@@ -1920,7 +1926,7 @@ function sameSidebarThreadRow(
     before.placement === after.placement &&
     before.analysis === after.analysis &&
     before.recap === after.recap &&
-    before.showStatusSlot === after.showStatusSlot &&
+    before.slotWidth === after.slotWidth &&
     before.snooze === after.snooze &&
     before.snoozePrefs === after.snoozePrefs &&
     before.defaultWake === after.defaultWake &&
@@ -2266,6 +2272,8 @@ type GroupProps = {
    * and its name reads as a label, smaller and muted.
    */
   nested?: boolean;
+  /** A nested header's left padding: the step its parent's rows indent by. */
+  nestedIndent?: number;
   collapsed: boolean;
   toggle: () => void;
   onNewThread?: () => void;
@@ -2286,6 +2294,7 @@ type GroupProps = {
 function WorkstreamGroup({
   group,
   nested = false,
+  nestedIndent = childIndent(FULL_SLOT_PX),
   collapsed,
   toggle,
   onNewThread,
@@ -2402,11 +2411,11 @@ function WorkstreamGroup({
             <div
               ref={handle?.ref}
               {...handle?.listeners}
-              className="group/row relative flex items-center gap-1.5 rounded-md pr-2"
+              className="group/row relative flex items-center gap-1.5 rounded-md pr-2 transition-[padding] duration-[180ms] ease-out motion-reduce:transition-none"
               style={{
                 height: SIDEBAR_GEOMETRY.workstreamHeader.height,
                 paddingLeft: nested
-                  ? SIDEBAR_GEOMETRY.row.childIndent
+                  ? nestedIndent
                   : SIDEBAR_GEOMETRY.workstreamHeader.indent,
               }}
             >

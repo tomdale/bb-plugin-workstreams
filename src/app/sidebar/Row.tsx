@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   ThreadTitle,
   experimental_useSidebarThreadActions,
@@ -25,9 +25,10 @@ import {
   RowPressButton,
 } from "./HoverActions.tsx";
 import { rowGeometry } from "./rowGeometry.ts";
+import { FULL_SLOT_PX } from "./statusSlot.ts";
 import { PLACEMENT_TRAITS, STANDALONE_TRAITS, type Placement } from "./rows.ts";
 
-export { INDENT_PX, MAX_INDENT } from "./rowGeometry.ts";
+export { MAX_INDENT } from "./rowGeometry.ts";
 
 function prTone(pr: PluginSidebarPullRequest): string {
   if (pr.state === "merged") return "ws-pr-merged";
@@ -60,7 +61,7 @@ export function Row({
   context,
   placement,
   work,
-  showStatusSlot = true,
+  slotWidth = FULL_SLOT_PX,
   subtitle,
   snoozeAction,
   disclosure,
@@ -87,7 +88,11 @@ export function Row({
    * False when no row in this list has a status mark: the slot collapses,
    * animated, so titles sit flush left.
    */
-  showStatusSlot?: boolean;
+  /**
+   * The width its list reserves for the status slot, shared by every row of
+   * the list (see `slotWidthOf`); 0 folds the slot away.
+   */
+  slotWidth?: number;
   /** A second line under the title, such as what the thread asks of Tom. */
   subtitle?: string | null;
   snoozeAction?: RowSnoozeAction;
@@ -119,6 +124,7 @@ export function Row({
   const { paddingLeft, heightClass, leadingClass, compactActions } =
     rowGeometry({
       depth,
+      slotWidth,
       inGroup: traits.inGroup,
       categorized,
       hasSubtitle: Boolean(subtitle),
@@ -174,7 +180,8 @@ export function Row({
           "ws-status-slot",
           disclosure && slotMark && "ws-has-disclosure",
         )}
-        data-collapsed={!showStatusSlot || undefined}
+        data-collapsed={slotWidth === 0 || undefined}
+        style={{ "--ws-slot-width": `${slotWidth}px` } as CSSProperties}
       >
         {slotMark ? (
           <StatusMark mark={slotMark} isUnread={thread.isUnread} />
