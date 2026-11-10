@@ -22,13 +22,13 @@ import { createPortal } from "react-dom";
 import {
   useComposer,
   useRpc,
-  experimental_useSidebarThreads,
   type PluginPendingInteractionProps,
 } from "@get-bb/plugin-sdk/app";
 import { Button } from "@/components/ui/button";
 import { interactionPayloadSchema } from "../../server/questions/contracts.ts";
 import { QuestionForm } from "./question-form.tsx";
 import { usePendingQuestion } from "./pending.ts";
+import { useSidebarThread } from "../useStableSidebarThreads.ts";
 import type { RpcContract } from "../../server/contract.ts";
 import type { JsonValue } from "@get-bb/plugin-sdk";
 
@@ -66,10 +66,7 @@ export function QuestionAnchor() {
   const { scope } = composer;
   const threadId = scope.kind === "thread" ? scope.threadId : null;
   const pending = usePendingQuestion(threadId);
-  const { threads } = experimental_useSidebarThreads();
-  const native = threads.some(
-    (t) => t.id === threadId && t.hasPendingInteraction,
-  );
+  const native = useSidebarThread(threadId)?.hasPendingInteraction === true;
   const rpc = useRpc<RpcContract>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

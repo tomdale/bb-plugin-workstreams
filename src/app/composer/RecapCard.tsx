@@ -22,7 +22,6 @@ import {
   Markdown,
   UrlLink,
   experimental_FileLink as FileLink,
-  experimental_useSidebarThreads,
   useComposer,
   useRealtime,
   useRpc,
@@ -56,6 +55,10 @@ import {
 } from "./recapMotion.ts";
 import { useContinuing } from "./useContinuing.ts";
 import { ActivityThreadLink } from "../page/ActivityThreadLink.tsx";
+import {
+  useSidebarThread,
+  useSidebarThreadsById,
+} from "../useStableSidebarThreads.ts";
 import type { HeldSpace } from "./recapMotion.ts";
 import { Hint } from "../Hint.tsx";
 import {
@@ -368,9 +371,8 @@ function useAgentViews(
   agents: readonly WaitingAgent[],
 ): ReadonlyMap<string, AgentView> {
   const previews = useContext(PreviewAgents);
-  const { threads } = experimental_useSidebarThreads();
   const rpc = useRpc<RpcContract>();
-  const listed = new Map(threads.map((thread) => [thread.id, thread]));
+  const listed = useSidebarThreadsById(agents.map((a) => a.threadId));
   const unlisted = previews
     ? []
     : agents.map((a) => a.threadId).filter((id) => !listed.has(id));
@@ -1616,12 +1618,9 @@ export function RecapCard() {
   }, []);
   const threadId = scope.kind === "thread" ? scope.threadId : null;
   const durableQuestion = usePendingQuestion(threadId);
-  const { threads } = experimental_useSidebarThreads();
-  const hasPendingInteraction =
-    Boolean(durableQuestion) ||
-    threads.some(
-      (thread) => thread.id === threadId && thread.hasPendingInteraction,
-    );
+  const nativeInteraction =
+    useSidebarThread(threadId)?.hasPendingInteraction === true;
+  const hasPendingInteraction = Boolean(durableQuestion) || nativeInteraction;
   // Archive is no suggestion for a thread the user is writing into, but the
   // recap stays readable until the message goes out.
   const continuing = useContinuing({

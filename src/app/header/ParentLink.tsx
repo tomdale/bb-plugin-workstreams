@@ -1,9 +1,13 @@
+import { useCallback } from "react";
 import {
   experimental_useSidebarThreadActions,
-  experimental_useSidebarThreads,
   type PluginThreadHeaderActionProps,
 } from "@get-bb/plugin-sdk/app";
 import { usePrefs } from "../prefs.ts";
+import {
+  threadIndex,
+  useSidebarThreadsSelector,
+} from "../useStableSidebarThreads.ts";
 
 /** Stable per-thread hue, so a parent's disc keeps its color everywhere. */
 function threadHue(id: string): number {
@@ -24,16 +28,18 @@ export function ParentThreadLink({
 }: PluginThreadHeaderActionProps) {
   const { prefs } = usePrefs();
   const enabled = prefs?.threads.showParentLink ?? false;
-  const { threads } = experimental_useSidebarThreads({
-    experimental_lifecycles: ["active"],
-  });
+  const parent = useSidebarThreadsSelector(
+    useCallback(
+      ({ threads }) => {
+        const index = threadIndex(threads);
+        const parentId = index.get(threadId)?.parentThreadId;
+        return parentId ? index.get(parentId) : undefined;
+      },
+      [threadId],
+    ),
+  );
   const actions = experimental_useSidebarThreadActions();
-  if (!enabled) return null;
-  const thread = threads.find((candidate) => candidate.id === threadId);
-  const parent = thread?.parentThreadId
-    ? threads.find((candidate) => candidate.id === thread.parentThreadId)
-    : undefined;
-  if (!parent) return null;
+  if (!enabled || !parent) return null;
 
   const title = parent.displayTitle;
   return (

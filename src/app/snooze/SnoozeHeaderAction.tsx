@@ -7,10 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import {
-  experimental_useSidebarThreads,
-  type PluginThreadHeaderActionProps,
-} from "@get-bb/plugin-sdk/app";
+import { type PluginThreadHeaderActionProps } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { usePortalScopeProps } from "@/lib/portal-scope";
 import { cn } from "@/lib/utils";
@@ -23,6 +20,7 @@ import {
   type SnoozeWhen,
 } from "../../domain/snooze.ts";
 import { useNow, useServerState } from "../useWorkstreams.ts";
+import { useSidebarThread } from "../useStableSidebarThreads.ts";
 import { snoozeThreads, wakeThreads } from "./actions.ts";
 import { CustomSnoozeDialog } from "./CustomSnoozeDialog.tsx";
 import { SnoozeIcon } from "./icons.tsx";
@@ -43,12 +41,9 @@ export function SnoozeHeaderAction({
   isCompactViewport,
 }: PluginThreadHeaderActionProps) {
   const { server, setSnoozes } = useServerState();
-  const { threads } = experimental_useSidebarThreads({
-    experimental_lifecycles: ["active"],
-  });
+  const thread = useSidebarThread(threadId);
   const portalScope = usePortalScopeProps();
   const [custom, setCustom] = useState(false);
-  const thread = threads.find((t) => t.id === threadId);
   const prefs = server.snoozePrefs;
   const preset = defaultPreset(prefs);
   const now = useNow();
