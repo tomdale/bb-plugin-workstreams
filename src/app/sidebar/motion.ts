@@ -139,24 +139,6 @@ function fadeAt(fade: Fade, now: number): number {
   return fade.from + (fade.to - fade.from) * easeOut(progress);
 }
 
-/** The nearest surface that can hide the text beneath a crossing row. */
-function surfaceBehind(element: HTMLElement): string {
-  for (
-    let current = element.parentElement;
-    current;
-    current = current.parentElement
-  ) {
-    const background = getComputedStyle(current).backgroundColor;
-    if (
-      background &&
-      background !== "transparent" &&
-      !/[,/] 0(?:\.0+)?\)$/.test(background)
-    )
-      return background;
-  }
-  return "var(--sidebar, var(--background))";
-}
-
 type Slot = {
   /** The contents' own height, measured without the slot's inline height. */
   natural: number;
@@ -169,11 +151,6 @@ type Slot = {
   leaving: boolean;
   /** A leaving slot that has closed, reported once and waiting to unmount. */
   closed: boolean;
-  /**
-   * The opaque surface a row draws on while it passes over another, so two
-   * titles never show in the same pixels; null when it crosses nothing.
-   */
-  surface: string | null;
   /** Whether the slot's element carries inline motion styles. */
   styled: boolean;
 };
@@ -190,6 +167,38 @@ type SlotCommit = {
   readonly sink: ReadonlySet<string>;
 };
 
+/**
+ * The z-index a slot draws at: a row moving up passes over the rows moving
+ * down, and both pass over the rows at rest. Slots at the same level draw in
+ * list order.
+ */
+function stackLevel(offset: number) {
+  return Math.abs(offset) <= 0.05 ? 1 : offset > 0 ? 3 : 2;
+}
+
+/**
+ * A `clip-path` that shows a slot of `height` pixels except the `covered`
+ * bands, each a pair of pixel offsets from the slot's top. The bands still
+ * showing are one polygon whose seams run along the left edge, where they
+ * enclose nothing.
+ */
+export function clipPathShowing(
+  height: number,
+  covered: readonly (readonly [number, number])[],
+): string {
+  const shown: string[] = [];
+  let at = 0;
+  for (const [from, to] of [
+    ...[...covered].sort((a, b) => a[0] - b[0]),
+    [height, height],
+  ] as const) {
+    if (from > at)
+      shown.push(`0 ${at}px, 100% ${at}px, 100% ${from}px, 0 ${from}px`);
+    at = Math.max(at, to);
+  }
+  return shown.length > 0 ? `polygon(${shown.join(", ")})` : "inset(100%)";
+}
+
 const SLOT_STYLES = [
   "height",
   "overflow",
@@ -197,14 +206,14 @@ const SLOT_STYLES = [
   "transform",
   "position",
   "zIndex",
-  "backgroundColor",
+  "clipPath",
 ] as const;
 
 /**
  * Drives one list of slots: stacked siblings, each a box around its whole
  * contents, with one CSS margin between neighbors (`li + li`). A slot's
- * height, travel offset, and opacity are written as inline styles while it
- * moves and cleared once it rests, so a resting slot is laid out by CSS
+ * height, travel offset, opacity, and clip are written as inline styles while
+ * it moves and cleared once it rests, so a resting slot is laid out by CSS
  * alone. While any slot moves, every gap is written too, opening and closing
  * with the slots on either side of it, so the rows below never jump by a
  * gap. Positions come from the slots' heights and gaps in order; nothing is
@@ -302,7 +311,6 @@ class SlotSprings {
           fade: opening ? enter(0) : null,
           leaving: false,
           closed: false,
-          surface: null,
           styled: false,
         };
         this.slots.set(key, slot);
@@ -328,11 +336,8 @@ class SlotSprings {
       .map(({ key }) => key)
       .filter((key) => this.slots.has(key));
 
-    const tracks: { key: string; from: number; to: number; lift: number }[] =
-      [];
     for (const [key, { top }] of this.layout()) {
       const slot = this.slots.get(key)!;
-      slot.surface = null;
       if (slot.leaving) continue;
       const from = drawn.get(key);
       if (!full || arriving.has(key) || from === undefined) {
@@ -340,29 +345,10 @@ class SlotSprings {
         continue;
       }
       const travel = from - top;
-      tracks.push({ key, from, to: top, lift: Math.sign(travel) });
       if (Math.abs(travel) < 0.01 && !springMoving(slot.offset)) continue;
       slot.offset.value = travel;
       slot.offset.target = 0;
     }
-    // A row that passes another on the way draws an opaque surface: the one
-    // moving up, which is drawn above, or both when they move the same way.
-    for (let i = 0; i < tracks.length; i++)
-      for (let j = i + 1; j < tracks.length; j++) {
-        const a = tracks[i]!;
-        const b = tracks[j]!;
-        if (Math.sign(a.from - b.from) === Math.sign(a.to - b.to)) continue;
-        for (const row of a.lift === b.lift
-          ? [a, b]
-          : a.lift > b.lift
-            ? [a]
-            : [b]) {
-          const slot = this.slots.get(row.key)!;
-          const element = this.elements.get(row.key);
-          if (element && slot.surface === null)
-            slot.surface = surfaceBehind(element);
-        }
-      }
     this.draw(now);
     this.schedule();
   }
@@ -500,41 +486,52 @@ class SlotSprings {
   }
 
   /**
-   * How far each crossing row overlaps the rows it passes, in pixels, from
-   * the slots' heights and offsets in drawn order.
+   * Where a row crossing others hides them. Rows paint in `stackLevel`
+   * order, and each is clipped to the part no solid row above it covers, so
+   * two titles never show in the same pixels and the row on top draws on the
+   * card itself, shimmer included, with no surface of its own. Returns, for
+   * each slot with something above it, a `clip-path` showing the rest, from
+   * the slots' heights and offsets in painting order.
    */
-  private overlaps() {
-    const boxes: { key: string; top: number; bottom: number }[] = [];
-    for (const [key, laid] of this.layout()) {
+  private clips(now: number) {
+    const boxes = [...this.layout()].map(([key, laid], index) => {
       const slot = this.slots.get(key)!;
       const top = laid.top + slot.offset.value;
-      if (slot.height.value > 0)
-        boxes.push({ key, top, bottom: top + slot.height.value });
-    }
-    const overlap = new Map<string, number>();
+      return {
+        key,
+        top,
+        height: Math.max(0, slot.height.value),
+        order: stackLevel(slot.offset.value) * this.order.length + index,
+        // A row fading in or out lets what is beneath it show through.
+        solid: !slot.leaving && this.opacityOf(slot, now) >= 1,
+      };
+    });
+    const clips = new Map<string, string>();
     for (const box of boxes) {
-      if (this.slots.get(box.key)!.surface === null) continue;
-      let most = 0;
-      for (const other of boxes)
-        if (other !== box)
-          most = Math.max(
-            most,
-            Math.min(box.bottom, other.bottom) - Math.max(box.top, other.top),
-          );
-      overlap.set(box.key, most);
+      const covered: [number, number][] = [];
+      for (const above of boxes) {
+        if (!above.solid || above.order <= box.order) continue;
+        const from = Math.max(above.top, box.top) - box.top;
+        const to =
+          Math.min(above.top + above.height, box.top + box.height) - box.top;
+        if (to - from > 0.05) covered.push([from, to]);
+      }
+      if (covered.length > 0)
+        clips.set(box.key, clipPathShowing(box.height, covered));
     }
-    return overlap;
+    return clips;
   }
 
   private draw(now: number) {
     const closed: string[] = [];
-    const overlaps = this.overlaps();
+    const clips = this.clips(now);
     for (const [key, slot] of this.slots) {
       const opacity = this.opacityOf(slot, now);
       const moving =
         springMoving(slot.height) ||
         springMoving(slot.offset) ||
-        slot.fade !== null;
+        slot.fade !== null ||
+        clips.has(key);
       if (slot.leaving && !springMoving(slot.height) && !slot.closed) {
         slot.closed = true;
         closed.push(key);
@@ -545,12 +542,10 @@ class SlotSprings {
         if (slot.styled)
           for (const name of SLOT_STYLES) element.style[name] = "";
         slot.styled = false;
-        slot.surface = null;
         continue;
       }
       slot.styled = true;
       const offset = slot.offset.value;
-      const traveling = Math.abs(offset) > 0.05;
       const style = element.style;
       style.height = `${Math.max(0, slot.height.value)}px`;
       style.overflow = "hidden";
@@ -558,20 +553,8 @@ class SlotSprings {
       style.transform =
         Math.abs(offset) >= 0.01 ? `translateY(${offset}px)` : "";
       style.position = "relative";
-      // A row moving up passes over the rows moving down.
-      style.zIndex = traveling ? (offset > 0 ? "3" : "2") : "1";
-      // The surface comes up as the row starts to cover another and goes as
-      // it clears, before either row's text meets the other's.
-      const cover = Math.min(
-        1,
-        Math.max(0, ((overlaps.get(key) ?? 0) - 1) / 4),
-      );
-      style.backgroundColor =
-        slot.surface === null || cover === 0
-          ? ""
-          : cover === 1
-            ? slot.surface
-            : `color-mix(in srgb, ${slot.surface} ${Math.round(cover * 100)}%, transparent)`;
+      style.zIndex = String(stackLevel(offset));
+      style.clipPath = clips.get(key) ?? "";
     }
     const moving = [...this.slots.values()].some((slot) => slot.styled);
     if (moving && this.gap > 0) {

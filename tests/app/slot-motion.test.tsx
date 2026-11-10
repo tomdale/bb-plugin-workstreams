@@ -6,6 +6,7 @@
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  clipPathShowing,
   presenceProps,
   stepSpring,
   UP_NEXT_MOTION,
@@ -92,7 +93,7 @@ beforeEach(() => {
   );
   vi.stubGlobal(
     "getComputedStyle",
-    vi.fn(() => ({ backgroundColor: "rgb(10, 10, 10)" })),
+    vi.fn(() => ({ marginTop: "0px" })),
   );
 });
 afterEach(() => {
@@ -136,6 +137,35 @@ describe("stepSpring", () => {
     expect(spring.velocity).toBe(velocity);
     stepSpring(spring, 1, 0.02);
     expect(spring.velocity).toBeGreaterThan(velocity * 0.9);
+  });
+});
+
+describe("clipPathShowing", () => {
+  it("shows the bands no covered band touches, top to bottom", () => {
+    expect(clipPathShowing(42, [[10, 20]])).toBe(
+      "polygon(0 0px, 100% 0px, 100% 10px, 0 10px, 0 20px, 100% 20px, 100% 42px, 0 42px)",
+    );
+    expect(clipPathShowing(42, [[0, 12]])).toBe(
+      "polygon(0 12px, 100% 12px, 100% 42px, 0 42px)",
+    );
+    expect(clipPathShowing(42, [[30, 42]])).toBe(
+      "polygon(0 0px, 100% 0px, 100% 30px, 0 30px)",
+    );
+  });
+
+  it("merges covered bands that overlap, in any order", () => {
+    expect(
+      clipPathShowing(42, [
+        [20, 30],
+        [5, 22],
+      ]),
+    ).toBe(
+      "polygon(0 0px, 100% 0px, 100% 5px, 0 5px, 0 30px, 100% 30px, 100% 42px, 0 42px)",
+    );
+  });
+
+  it("hides a slot that is covered end to end", () => {
+    expect(clipPathShowing(21, [[0, 21]])).toBe("inset(100%)");
   });
 });
 
@@ -197,7 +227,6 @@ describe("useSlotList", () => {
     vi.stubGlobal(
       "getComputedStyle",
       vi.fn((element: HTMLElement) => ({
-        backgroundColor: "rgb(10, 10, 10)",
         marginTop: element.previousElementSibling ? "3px" : "0px",
       })),
     );
@@ -262,15 +291,45 @@ describe("useSlotList", () => {
     expect(mover.style.zIndex).toBe("3");
     expect(slot("a")!.style.transform).toBe(`translateY(${-ROW}px)`);
     expect(slot("a")!.style.zIndex).toBe("2");
-    // Drawn where it was, it covers nothing yet.
-    expect(mover.style.backgroundColor).toBe("");
-    step(100);
-    // Passing over the others, it alone draws an opaque surface.
-    expect(mover.style.backgroundColor).toBe("rgb(10, 10, 10)");
-    expect(slot("a")!.style.backgroundColor).toBe("");
+    // Drawn where they were, no row covers another.
+    for (const key of ["a", "b", "c"])
+      expect(slot(key)!.style.clipPath).toBe("");
+  });
+
+  it("hides what a row passes over by clipping it, never by drawing a surface", () => {
+    const view = render(<List items={rows("a", "b")} />);
+    view.rerender(<List items={rows("b", "a")} />);
+    step(UP_NEXT_MOTION.burstMs);
+    // The rows swap places: `b` rises into slot 0 as `a` sinks into slot 1.
+    // Where they overlap, `b` is above, so `a` shows only the rest of itself.
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      step(8);
+      const rise = Number.parseFloat(
+        slot("b")!.style.transform.slice("translateY(".length),
+      );
+      const sink = Number.parseFloat(
+        slot("a")!.style.transform.slice("translateY(".length),
+      );
+      const bTop = Number.isNaN(rise) ? 0 : rise;
+      const aTop = ROW + (Number.isNaN(sink) ? 0 : sink);
+      const covered = Math.min(aTop + ROW, bTop + ROW) - Math.max(aTop, bTop);
+      const clip = slot("a")!.style.clipPath;
+      if (covered > 0.05) {
+        // The covered band is the part of `a` that `b` overlaps.
+        const from = Math.max(aTop, bTop) - aTop;
+        const to = Math.min(aTop + ROW, bTop + ROW) - aTop;
+        expect(clip).toBe(clipPathShowing(ROW, [[from, to]]));
+        seen.add(clip);
+      } else expect(clip).toBe("");
+      expect(slot("b")!.style.clipPath).toBe("");
+      for (const key of ["a", "b"])
+        expect(slot(key)!.style.backgroundColor).toBe("");
+    }
+    expect(seen.size).toBeGreaterThan(3);
     step(1000);
-    expect(mover.style.transform).toBe("");
-    expect(mover.style.backgroundColor).toBe("");
+    expect(slot("a")!.style.clipPath).toBe("");
+    expect(slot("b")!.style.transform).toBe("");
   });
 
   it("retargets from where a row is drawn when a change lands mid-flight", () => {
