@@ -79,6 +79,15 @@ export function DeliveredQuestionCards() {
     let active = true;
     let changed = false;
     const originals = new Map<string, Promise<QuestionHistory | null>>();
+    /**
+     * Rows whose text quotes a transport prefix without hosting a card, by the
+     * text length they were searched at. Searching one walks every descendant,
+     * so a row that only quotes the prefix is searched again only once its
+     * text changes.
+     */
+    const quoting = new WeakMap<HTMLElement, number>();
+    /** Row text the observer already read, for the scan it schedules. */
+    const pendingText = new Map<HTMLElement, string>();
 
     const publish = () => {
       setTargets([...mounted.values()].map((target) => ({ ...target })));
@@ -218,8 +227,10 @@ export function DeliveredQuestionCards() {
       if (!active) return;
       const dirtyRows = [...rows];
       const affected = new Set(scopes);
+      const texts = new Map(pendingText);
       pendingRows.clear();
       pendingScopes.clear();
+      pendingText.clear();
       changed = false;
 
       for (const row of dirtyRows) {
@@ -258,10 +269,11 @@ export function DeliveredQuestionCards() {
           row.querySelector(":scope > [data-ws-delivered-anchor]")
         )
           continue;
-        const rowText = row.textContent ?? "";
+        const rowText = texts.get(row) ?? row.textContent ?? "";
         // Most timeline mutations are ordinary prose. Check the aggregate row
         // before enumerating every descendant looking for a transport host.
-        if (!hasTransport(rowText)) continue;
+        if (!hasTransport(rowText) || quoting.get(row) === rowText.length)
+          continue;
         // Match an element whose own text begins with the transport prefix.
         // The card lives directly in the row, outside clipped message bodies.
         const candidates = Array.from(
@@ -314,6 +326,8 @@ export function DeliveredQuestionCards() {
           changed = true;
           break;
         }
+        if (target) quoting.delete(row);
+        else quoting.set(row, rowText.length);
       }
 
       for (const scope of affected) {
@@ -351,36 +365,34 @@ export function DeliveredQuestionCards() {
     const observer = new MutationObserver((records) => {
       const rows = new Set<HTMLElement>();
       const scopes = new Set<HTMLElement>();
-      const addRow = (row: HTMLElement | null) => {
-        if (!row) return;
-        const target = byRow.get(row);
-        if (target || hasTransport(row.textContent ?? "")) {
-          rows.add(row);
-          if (target?.scope) scopes.add(target.scope);
-        }
-      };
+      const touched = new Set<HTMLElement>();
+      // Duplicate cards and anchors matter only once a card is mounted.
+      const tracking = mounted.size > 0;
       for (const record of records) {
         const element = mutationTargetElement(record);
         if (
-          record.attributeName === "data-ws-question-result" ||
-          element?.closest("[data-ws-question-result]") ||
-          changedSubtreesMatch(record, "[data-ws-question-result]")
+          tracking &&
+          (record.attributeName === "data-ws-question-result" ||
+            element?.closest("[data-ws-question-result]") ||
+            changedSubtreesMatch(record, "[data-ws-question-result]"))
         ) {
           const scope = scopeForElement(element);
           if (scope) scopes.add(scope);
         }
-        addRow(element?.closest<HTMLElement>("[data-timeline-row-id]") ?? null);
+        const row = element?.closest<HTMLElement>("[data-timeline-row-id]");
+        if (row) touched.add(row);
         for (const node of record.addedNodes) {
           if (!(node instanceof Element)) continue;
           if (node.matches("[data-timeline-row-id]")) {
-            addRow(node as HTMLElement);
-          } else if (hasTransport(node.textContent ?? "")) {
+            touched.add(node as HTMLElement);
+          } else if (node.firstElementChild) {
             for (const row of node.querySelectorAll<HTMLElement>(
               "[data-timeline-row-id]",
             ))
-              addRow(row);
+              touched.add(row);
           }
         }
+        if (!tracking) continue;
         for (const node of record.removedNodes) {
           if (!(node instanceof Element)) continue;
           if (node.matches("[data-timeline-row-id]")) {
@@ -407,6 +419,20 @@ export function DeliveredQuestionCards() {
             }
           }
         }
+      }
+      // A streaming row reports one record per chunk. Read each row's text
+      // once per delivery, whatever number of records name it.
+      for (const row of touched) {
+        const target = byRow.get(row);
+        if (target) {
+          rows.add(row);
+          if (target.scope) scopes.add(target.scope);
+          continue;
+        }
+        const text = row.textContent ?? "";
+        if (!hasTransport(text) || quoting.get(row) === text.length) continue;
+        rows.add(row);
+        pendingText.set(row, text);
       }
       if (rows.size || scopes.size) schedule(rows, scopes);
     });

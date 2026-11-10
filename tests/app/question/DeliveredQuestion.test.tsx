@@ -640,3 +640,96 @@ it("does not scan the full timeline for unrelated DOM updates", async () => {
     overlay.lifecycle.unmount();
   }
 });
+
+/** Count reads of `node.textContent`, which serializes the node's subtree. */
+function countTextReads(node: Node) {
+  const descriptor = Object.getOwnPropertyDescriptor(
+    Node.prototype,
+    "textContent",
+  )!;
+  let reads = 0;
+  Object.defineProperty(node, "textContent", {
+    configurable: true,
+    get() {
+      reads++;
+      return descriptor.get!.call(this);
+    },
+    set(value) {
+      descriptor.set!.call(this, value);
+    },
+  });
+  return {
+    reads: () => reads,
+    restore: () => delete (node as { textContent?: unknown }).textContent,
+  };
+}
+
+it("reads a streaming row's text once per delivery, not once per record", async () => {
+  const message = render(
+    <div data-timeline-row-id="thread:assistant">
+      <p>Working</p>
+    </div>,
+  );
+  const row = message.container.querySelector<HTMLElement>(
+    "[data-timeline-row-id]",
+  )!;
+  const stream = row.querySelector("p")!;
+  const overlay = renderSlot({ component: DeliveredQuestionCards }, {});
+  const flush = () =>
+    act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  await flush();
+  const text = countTextReads(row);
+  try {
+    // One host commit appends many chunks: one observer delivery, one record
+    // per chunk.
+    await act(async () => {
+      for (let chunk = 0; chunk < 20; chunk++)
+        stream.append(document.createTextNode(` chunk ${chunk}`));
+    });
+    await flush();
+    expect(text.reads()).toBe(1);
+  } finally {
+    text.restore();
+    overlay.lifecycle.unmount();
+  }
+});
+
+it("searches a row that only quotes the transport prefix again only when its text changes", async () => {
+  const quote = `Agents see "${prefix}" before the JSON.`;
+  const message = render(
+    <div data-timeline-row-id="thread:assistant">
+      <div data-test="body">
+        <p>{quote}</p>
+      </div>
+    </div>,
+  );
+  const row = message.container.querySelector<HTMLElement>(
+    "[data-timeline-row-id]",
+  )!;
+  const body = row.querySelector<HTMLElement>('[data-test="body"]')!;
+  const searches = vi.spyOn(row, "querySelectorAll");
+  const descendantSearches = () =>
+    searches.mock.calls.filter(([selector]) => selector === "*").length;
+  const overlay = renderSlot({ component: DeliveredQuestionCards }, {});
+  const flush = () =>
+    act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  try {
+    await flush();
+    expect(descendantSearches()).toBe(1);
+    // Re-rendering the same text (a highlighter wrapping its words, say)
+    // cannot create a card host.
+    for (let pass = 0; pass < 3; pass++) {
+      const copy = document.createElement("p");
+      copy.append(document.createTextNode(quote));
+      body.replaceChildren(copy);
+      await flush();
+    }
+    expect(descendantSearches()).toBe(1);
+    body.append(document.createTextNode(" More."));
+    await flush();
+    expect(descendantSearches()).toBe(2);
+    expect(row.querySelector("[data-ws-delivered-anchor]")).toBeNull();
+  } finally {
+    overlay.lifecycle.unmount();
+  }
+});
