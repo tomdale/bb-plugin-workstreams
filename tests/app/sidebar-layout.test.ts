@@ -176,7 +176,7 @@ describe.skipIf(browserUnavailable)(
             .slot { overflow: hidden; }
           </style>
           <section class="ws-needs"><ul>
-            <li class="slot"><ul><li><div class="ws-row selected ws-row-active">Selected</div></li></ul></li>
+            <li class="slot"><ul><li><div class="ws-row selected ws-row-active">Selected</div></li><li><div class="ws-row child">Child</div></li></ul></li>
             <li class="slot"><ul><li><div class="ws-row hovered">Hovered</div></li></ul></li>
           </ul></section>`);
         const selected = page.locator(".selected");
@@ -185,7 +185,9 @@ describe.skipIf(browserUnavailable)(
 
         const selectedBox = (await selected.boundingBox())!;
         const hoveredBox = (await hovered.boundingBox())!;
-        expect(hoveredBox.y - selectedBox.y).toBe(27);
+        expect(hoveredBox.y - selectedBox.y).toBe(54);
+        const childBox = (await page.locator(".child").boundingBox())!;
+        expect(childBox.y - selectedBox.y).toBe(27);
 
         const fill = (row: typeof selected) =>
           row.evaluate((el) => {
@@ -208,7 +210,7 @@ describe.skipIf(browserUnavailable)(
         };
         expect(await fill(selected)).toEqual(outset);
         expect(await fill(hovered)).toEqual(outset);
-        expect(hoveredBox.y - 3).toBe(selectedBox.y + selectedBox.height + 3);
+        expect(hoveredBox.y - 3).toBe(childBox.y + childBox.height + 3);
       },
     );
 

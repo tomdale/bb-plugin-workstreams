@@ -497,11 +497,15 @@
    while a slot moves nor jumps when it settles. The pads also keep adjacent
    hover and selected fills from overlapping. The list and card take back
    3px so the card's outer spacing is unchanged. */
-.ws-needs > ul {
+.ws-needs:not(.ws-home-up-next) > ul {
   margin-top: -1px;
 }
 .ws-needs > ul > li > ul {
   padding-block: 3px;
+}
+/* A slot holding an expanded tree spaces its rows as slots are spaced. */
+.ws-needs > ul > li > ul > li + li {
+  margin-top: 6px;
 }
 /* The shimmer's gradient is three card widths wide. Translating that layer
    keeps the sweep on the compositor; background-position would repaint it.
