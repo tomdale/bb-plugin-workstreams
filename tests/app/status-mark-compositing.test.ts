@@ -41,11 +41,14 @@ browserTest.skipIf(browserUnavailable)(
       body { margin: 0; background: white; }
       .ws-mark { margin: 4px; vertical-align: top; }
     </style>${mark("reference")}${Array.from({ length: 8 }, () => mark("candidate")).join("")}`);
-    await page.evaluate(() => {
-      for (const animation of document.getAnimations()) {
-        animation.pause();
-        animation.startTime = 0;
-      }
+    // Setting startTime on a paused animation cancels the pause and starts it
+    // running, so the clock is held through pause() and ready alone. A running
+    // animation keeps advancing between setting currentTime and sampling it,
+    // and a delayed frame moves the sample into the next step.
+    await page.evaluate(async () => {
+      const animations = document.getAnimations();
+      for (const animation of animations) animation.pause();
+      await Promise.all(animations.map((animation) => animation.ready));
     });
 
     const animationProperties = await page.evaluate(() => {
@@ -75,13 +78,24 @@ browserTest.skipIf(browserUnavailable)(
 
     const comparisons = [];
     for (let frame = 0; frame < 10; frame++) {
-      const { samples, boxes } = await page.evaluate(
+      const { drifted, samples, boxes } = await page.evaluate(
         async (time) => {
           for (const animation of document.getAnimations())
             animation.currentTime = time;
           await new Promise<void>((resolve) =>
             requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
           );
+          const drifted = document
+            .getAnimations()
+            .filter(
+              (animation) =>
+                animation.playState !== "paused" ||
+                animation.currentTime !== time,
+            )
+            .map((animation) => ({
+              playState: animation.playState,
+              currentTime: animation.currentTime,
+            }));
           const samples = Array.from(
             document.querySelectorAll(".candidate"),
           ).map((candidate) => {
@@ -111,10 +125,11 @@ browserTest.skipIf(browserUnavailable)(
               height: box.height,
             };
           });
-          return { samples, boxes };
+          return { drifted, samples, boxes };
         },
         frame * 80 + 20,
       );
+      expect(drifted).toEqual([]);
       expect(samples.map((sample) => sample.glyph)).toEqual(
         Array.from({ length: 8 }, () => frame),
       );
