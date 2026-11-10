@@ -189,9 +189,14 @@ export function UpNextSettings() {
   const window = windows.find(
     (option) => option.value === prefs.upNext.freshWindow,
   );
+  // Inside the window the tiers decide, which is the unread setting's order, so
+  // the second sentence follows that setting too.
+  const withinWindow = prefs.upNext.unreadFirst
+    ? "unread threads come first, then the ones blocked on you."
+    : "threads rank by what they're blocked on.";
   const freshDescription =
     window && window.value !== "off"
-      ? `Threads whose turn ended in the ${window.label.toLowerCase()} come before older ones. Inside that group, unread threads come first, then the ones blocked on you.`
+      ? `Threads whose turn ended in the ${window.label.toLowerCase()} come before older ones. Inside that group, ${withinWindow}`
       : "Threads keep their place, however recently their turn ended.";
   return (
     <div className="space-y-3">

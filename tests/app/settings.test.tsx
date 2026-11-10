@@ -314,6 +314,15 @@ it("describes the recent-thread window it is set to", async () => {
       "Threads whose turn ended in the last day come before older ones. Inside that group, unread threads come first, then the ones blocked on you.",
     ),
   ).toBeTruthy();
+  // The order inside the window is the unread setting's to decide.
+  fireEvent.click(
+    slot.getByRole("switch", { name: "Prioritize unread threads" }),
+  );
+  expect(
+    await slot.findByText(
+      "Threads whose turn ended in the last day come before older ones. Inside that group, threads rank by what they're blocked on.",
+    ),
+  ).toBeTruthy();
 });
 
 it("describes title locking accurately", async () => {
