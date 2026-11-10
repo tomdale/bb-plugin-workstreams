@@ -1,7 +1,7 @@
 import {
-  APPEARANCE_SCOPES,
   colorTokenCss,
   derivedText,
+  TEXT_BAND,
   THEME_COLORS,
   type Appearance,
   type ColorPrefs,
@@ -10,7 +10,36 @@ import {
 } from "../../domain/colors.ts";
 import { fromRgb, type Color, type Palette } from "../../domain/vivid.ts";
 
-const APPEARANCES = ["light", "dark"] as const;
+const APPEARANCES = ["light", "dark"] as const satisfies readonly Appearance[];
+const THEME_KEYS = Object.keys(THEME_COLORS) as ThemeColor[];
+
+/**
+ * The probe properties for each theme color. They are registered as typed
+ * colors that do not inherit and start as `none`, so the browser computes each
+ * one to an absolute color, and one that names a missing or non-color BB
+ * variable computes to `none` instead of borrowing a color from its ancestors.
+ */
+const probe = (key: ThemeColor, part: "base" | "text") =>
+  `--ws-probe-${key}-${part}`;
+
+let registered = false;
+function registerProbes() {
+  if (registered) return;
+  registered = true;
+  for (const key of THEME_KEYS)
+    for (const part of ["base", "text"] as const)
+      try {
+        globalThis.CSS?.registerProperty?.({
+          name: probe(key, part),
+          syntax: "<color> | none",
+          inherits: false,
+          initialValue: "none",
+        });
+      } catch {
+        // Already registered by an earlier copy of this module in the window,
+        // with the same definition.
+      }
+}
 
 /** BB's theme colors as computed CSS color strings, per appearance. */
 type ResolvedTheme = Record<
@@ -19,51 +48,52 @@ type ResolvedTheme = Record<
 >;
 
 /**
- * Reads BB's theme colors under each appearance through the browser.
+ * Reads BB's theme colors under both appearances at once.
  *
- * BB defines its theme variables in document style sheets on `:root, .light`
- * and `.dark` (see `APPEARANCE_SCOPES`), and never per element. So one probe
- * per appearance, shaped like a Workstreams root, reads exactly what every root
- * under that appearance inherits, and the result serves every root on the page
- * until a style sheet changes. The probes sit in a `display: none` subtree, so
- * reading them computes style for those few elements and lays nothing out.
+ * BB declares its theme variables only on `:root, .light` and on `.dark`, in
+ * document style sheets, so a host shaped like a Workstreams root inside a
+ * `.light` element, and another inside a `.dark` element, see what every root
+ * under that appearance inherits, whichever appearance the page shows. Each
+ * host carries every probe, so both cost one style update and one computed
+ * style each, however many roots the page holds. They sit in a
+ * `display: none` subtree, so nothing is laid out.
  */
 function readTheme(): ResolvedTheme {
+  registerProbes();
   const container = document.createElement("div");
   container.dataset.wsColorReader = "";
   container.style.display = "none";
-  const probes = APPEARANCES.flatMap((appearance) => {
+  const hosts = APPEARANCES.map((appearance) => {
     const scope = document.createElement("div");
     scope.className = appearance;
-    const root = document.createElement("div");
-    root.dataset.bbPlugin = "workstreams";
-    const band = appearance === "dark" ? [0.78, 1] : [0, 0.55];
-    root.style.cssText = `--ws-text-min-l:${band[0]};--ws-text-max-l:${band[1]}`;
-    scope.append(root);
-    container.append(scope);
-    return Object.entries(THEME_COLORS).map(([key, theme]) => {
-      const base = document.createElement("span");
-      base.style.setProperty("color", `var(${theme.base})`, "important");
-      const text = document.createElement("span");
-      text.style.setProperty(
-        "color",
+    const host = document.createElement("div");
+    host.dataset.bbPlugin = "workstreams";
+    const band = TEXT_BAND[appearance];
+    host.style.setProperty("--ws-text-min-l", String(band.min));
+    host.style.setProperty("--ws-text-max-l", String(band.max));
+    for (const key of THEME_KEYS) {
+      const theme = THEME_COLORS[key];
+      host.style.setProperty(probe(key, "base"), `var(${theme.base})`);
+      host.style.setProperty(
+        probe(key, "text"),
         theme.text ? `var(${theme.text})` : derivedText(`var(${theme.base})`),
-        "important",
       );
-      root.append(base, text);
-      return { appearance, key: key as ThemeColor, base, text };
-    });
+    }
+    scope.append(host);
+    container.append(scope);
+    return { appearance, host };
   });
   document.body.append(container);
   try {
     const theme: ResolvedTheme = { light: {}, dark: {} };
-    // Every probe is styled before the first read, so the reads share one
-    // style update.
-    for (const { appearance, key, base, text } of probes)
-      theme[appearance][key] = {
-        base: getComputedStyle(base).color,
-        text: getComputedStyle(text).color,
-      };
+    for (const { appearance, host } of hosts) {
+      const style = getComputedStyle(host);
+      for (const key of THEME_KEYS)
+        theme[appearance][key] = {
+          base: style.getPropertyValue(probe(key, "base")),
+          text: style.getPropertyValue(probe(key, "text")),
+        };
+    }
     return theme;
   } finally {
     container.remove();
@@ -76,7 +106,10 @@ function palettesFor(theme: ResolvedTheme): ThemePalettes {
   canvas.width = canvas.height = 1;
   const context = canvas.getContext("2d", { willReadFrequently: true });
   const toColor = (css: string): Color | null => {
-    if (!context || !css || !CSS.supports("color", css)) return null;
+    // `none` is a missing BB variable; `currentcolor` would paint the canvas's
+    // own text color.
+    if (!context || !css || css === "none" || css === "currentcolor")
+      return null;
     context.clearRect(0, 0, 1, 1);
     context.fillStyle = css;
     context.fillRect(0, 0, 1, 1);
@@ -123,13 +156,13 @@ function themePalettes(): ThemePalettes {
 /**
  * Installs the window's token sheet: static rules that every Workstreams root
  * matches by selector, as a theme's own variables are. Roots mounting,
- * unmounting, or restyling never touch the sheet or read the page.
+ * unmounting, or restyling never touch the sheet or read the page, and neither
+ * does switching between light and dark, since the sheet holds both.
  *
  * Vivid paints are computed from BB's resolved theme colors, so with vivid on
  * the sheet is recomputed when the document's style sheets change: BB swaps
  * themes by rewriting a `<style>` in the head, and loads style sheets as
- * `<link>`s there. Switching between light and dark only moves the `.dark`
- * class, which the sheet's appearance scopes already cover.
+ * `<link>`s there.
  */
 export function installColorTokens(colors: ColorPrefs): () => void {
   const style = document.createElement("style");
@@ -152,8 +185,8 @@ export function installColorTokens(colors: ColorPrefs): () => void {
   const schedule = () => {
     if (!frame) frame = requestAnimationFrame(write);
   };
-  // BB also adds `<link rel="modulepreload">`s as threads lazy-load code, and
-  // retitles the page; neither can change a theme.
+  // BB also adds `<link rel="preload">` and `<link rel="modulepreload">` as it
+  // loads plugins, and retitles the page; none of them can change a theme.
   const isStyleSheet = (node: Node | null): node is Element =>
     node !== style &&
     node instanceof Element &&
@@ -168,7 +201,11 @@ export function installColorTokens(colors: ColorPrefs): () => void {
       return [...record.addedNodes, ...record.removedNodes].some(isStyleSheet);
     // A `<link>` whose `rel` changes may be leaving the style sheets.
     if (record.type === "attributes")
-      return target !== style && !!target?.matches("style, link");
+      return (
+        isStyleSheet(target) ||
+        (record.attributeName === "rel" &&
+          /(^|\s)stylesheet(\s|$)/i.test(record.oldValue ?? ""))
+      );
     // Text rewritten inside a `<style>`.
     return isStyleSheet(target?.closest("style") ?? null);
   };
@@ -180,6 +217,7 @@ export function installColorTokens(colors: ColorPrefs): () => void {
     childList: true,
     characterData: true,
     attributes: true,
+    attributeOldValue: true,
     attributeFilter: ["href", "media", "disabled", "rel"],
   });
   // A linked style sheet applies when it loads, after the mutation that added
@@ -189,10 +227,15 @@ export function installColorTokens(colors: ColorPrefs): () => void {
     if (target instanceof HTMLLinkElement && isStyleSheet(target)) schedule();
   };
   document.addEventListener("load", onLoad, true);
+  // A style sheet's `prefers-color-scheme` queries change what it declares when
+  // the system appearance changes, with no mutation to observe.
+  const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+  media?.addEventListener("change", schedule);
   return () => {
     observer.disconnect();
     cancelAnimationFrame(frame);
     document.removeEventListener("load", onLoad, true);
+    media?.removeEventListener("change", schedule);
     style.remove();
   };
 }

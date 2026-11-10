@@ -140,23 +140,36 @@ export function derivedText(color: string): string {
   return `oklch(from ${color} clamp(var(--ws-text-min-l), l, var(--ws-text-max-l)) c h)`;
 }
 
-function stepDeclarations(name: string, color: string, text: string | null) {
-  const textColor = derivedText(`var(${name})`);
+/** A token's declarations, by custom property name. */
+type Steps = Record<string, string>;
+
+function steps(name: string, color: string, text: string | null): Steps {
   const mix = (source: string, percent: number) =>
     `color-mix(in oklab, var(${source}) ${percent}%, transparent)`;
-  return [
-    `${name}: ${color};`,
-    `${name}-text: ${text ? `var(${text})` : textColor};`,
-    `${name}-strong: var(${name}-text);`,
-    `${name}-on-strong: var(--canvas);`,
-    `${name}-soft: var(${name}-text);`,
-    `${name}-mark: var(${name}-text);`,
-    `${name}-band: var(${name});`,
-    `${name}-border: ${mix(name, 75)};`,
-    `${name}-surface: ${mix(name, 6)};`,
-    `${name}-footer: ${mix(name, 4)};`,
-    `${name}-rule: ${mix(`${name}-text`, 16)};`,
-  ];
+  return {
+    [name]: color,
+    [`${name}-text`]: text ? `var(${text})` : derivedText(`var(${name})`),
+    [`${name}-strong`]: `var(${name}-text)`,
+    [`${name}-on-strong`]: "var(--canvas)",
+    [`${name}-soft`]: `var(${name}-text)`,
+    [`${name}-mark`]: `var(${name}-text)`,
+    [`${name}-band`]: `var(${name})`,
+    [`${name}-border`]: mix(name, 75),
+    [`${name}-surface`]: mix(name, 6),
+    [`${name}-footer`]: mix(name, 4),
+    [`${name}-rule`]: mix(`${name}-text`, 16),
+  };
+}
+
+/** The steps a vivid palette replaces: the solid paint, text, border, surface. */
+function vividSteps(name: string, input: Palette, dark: boolean): Steps {
+  const paints = vividPalette(input, dark);
+  return {
+    [name]: colorCss({ ...paints.border, alpha: 1 }),
+    [`${name}-text`]: colorCss(paints.text),
+    [`${name}-border`]: colorCss(paints.border),
+    [`${name}-surface`]: colorCss(paints.surface),
+  };
 }
 
 /**
@@ -179,19 +192,23 @@ export type ThemePalettes = Partial<
 >;
 
 /**
- * Where BB defines each appearance's theme variables: its stylesheet and every
- * BB theme declare them on `:root, .light` and on `.dark`.
+ * The lightness band derived text is clamped to in each appearance. `tokens.css`
+ * declares it on Workstreams' roots; the theme reader applies it to its probes.
  */
-export const APPEARANCE_SCOPES: Record<Appearance, string> = {
-  light: ":root, .light",
-  dark: ".dark",
-};
-
-/** The lightness band for derived text in each appearance. */
-const TEXT_BAND: Record<Appearance, { min: number; max: number }> = {
+export const TEXT_BAND: Record<Appearance, { min: number; max: number }> = {
   light: { min: 0, max: 0.55 },
   dark: { min: 0.78, max: 1 },
 };
+
+/**
+ * Workstreams' roots under BB's dark appearance. BB marks dark with a `.dark`
+ * class on the document element and light with no class, so one descendant
+ * selector covers every root, and each one is a class more specific than its
+ * `TOKEN_ROOTS` counterpart.
+ */
+const DARK_ROOTS = TOKEN_ROOTS.split(", ")
+  .map((root) => `.dark ${root}`)
+  .join(", ");
 
 /** Each token's validated, resolved choice; invalid stored values are skipped. */
 function resolvedTokens(colors: ColorPrefs) {
@@ -203,71 +220,44 @@ function resolvedTokens(colors: ColorPrefs) {
   });
 }
 
-/** Every step of every token, written in terms of BB's theme variables. */
-function baseDeclarations(colors: ColorPrefs): string[] {
-  return resolvedTokens(colors).flatMap(({ name, resolved }) => {
-    if (resolved.kind === "custom")
-      return stepDeclarations(name, resolved.color, null);
-    const theme = THEME_COLORS[resolved.color];
-    return stepDeclarations(name, `var(${theme.base})`, theme.text);
-  });
-}
-
-/** Vivid overrides for theme-following tokens whose inputs were resolved. */
-function vividDeclarations(
-  colors: ColorPrefs,
-  palettes: Partial<Record<ThemeColor, Palette>> | undefined,
-  dark: boolean,
-): string[] {
-  if (!colors.vivid || !palettes) return [];
-  return resolvedTokens(colors).flatMap(({ name, resolved }) => {
-    const input = resolved.kind === "theme" ? palettes[resolved.color] : null;
-    if (!input) return [];
-    const paints = vividPalette(input, dark);
-    return [
-      `${name}: ${colorCss({ ...paints.border, alpha: 1 })};`,
-      ...(["text", "border", "surface"] as const).map(
-        (role) => `${name}-${role}: ${colorCss(paints[role])};`,
-      ),
-    ];
-  });
-}
+const rule = (selector: string, declarations: Steps) => {
+  const lines = Object.entries(declarations).map(
+    ([name, value]) => `${name}: ${value};`,
+  );
+  return lines.length ? `${selector} {\n  ${lines.join("\n  ")}\n}\n` : "";
+};
 
 /**
- * Workstreams' roots inside an `@scope`, the scope's own root included: a
- * scoped selector without `:scope` matches only the scope's descendants.
- */
-const SCOPED_ROOTS = `:where(:scope, :scope *):is(${TOKEN_ROOTS})`;
-
-const rule = (selector: string, lines: readonly string[], indent = "") =>
-  `${indent}${selector} {\n${indent}  ${lines.join(`\n${indent}  `)}\n${indent}}\n`;
-
-/**
- * The token sheet: every token's steps on Workstreams' roots, then each
- * appearance's text band and vivid paints in an `@scope` for that appearance.
- * Scope proximity lets the nearest `.light` or `.dark` ancestor win, so a root
- * draws its own appearance's paints wherever it mounts; the rules name no
- * particular root, and the sheet never changes as roots come and go. Custom
- * choices bypass the vivid transform.
+ * The token sheet: one rule for every root, then one for dark roots, matched by
+ * selector, so it never changes as roots come and go. Every step is written in
+ * terms of BB's theme variables, which already follow the appearance. Vivid
+ * paints are literal colors, so the first rule carries light's and the dark rule
+ * replaces them; a theme color resolved under only one appearance keeps its
+ * normal steps under the other. Custom choices bypass the vivid transform.
  */
 export function colorTokenCss(
   colors: ColorPrefs,
   palettes?: ThemePalettes,
 ): string {
-  const base = baseDeclarations(colors);
-  let css = base.length ? rule(TOKEN_ROOTS, base) : "";
-  for (const appearance of ["light", "dark"] as const) {
-    const band = TEXT_BAND[appearance];
-    const lines = [
-      `--ws-text-min-l: ${band.min};`,
-      `--ws-text-max-l: ${band.max};`,
-      ...vividDeclarations(
-        colors,
-        palettes?.[appearance],
-        appearance === "dark",
-      ),
-    ];
-    css += `@scope (${APPEARANCE_SCOPES[appearance]}) {\n${rule(SCOPED_ROOTS, lines, "  ")}}\n`;
+  const every: Steps = {};
+  const dark: Steps = {};
+  for (const { name, resolved } of resolvedTokens(colors)) {
+    if (resolved.kind === "custom") {
+      Object.assign(every, steps(name, resolved.color, null));
+      continue;
+    }
+    const theme = THEME_COLORS[resolved.color];
+    const normal = steps(name, `var(${theme.base})`, theme.text);
+    const vivid = (appearance: Appearance) => {
+      const input = colors.vivid && palettes?.[appearance]?.[resolved.color];
+      return input ? vividSteps(name, input, appearance === "dark") : null;
+    };
+    const lightVivid = vivid("light");
+    const darkVivid = vivid("dark");
+    Object.assign(every, normal, lightVivid);
+    if (darkVivid) Object.assign(dark, darkVivid);
+    else if (lightVivid)
+      for (const step of Object.keys(lightVivid)) dark[step] = normal[step]!;
   }
-  return css;
+  return rule(TOKEN_ROOTS, every) + rule(DARK_ROOTS, dark);
 }

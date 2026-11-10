@@ -1,16 +1,20 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { installColorTokens } from "../../../src/app/theme/colorTokens.ts";
-import { DEFAULT_COLORS, THEME_COLORS } from "../../../src/domain/colors.ts";
+import { DEFAULT_COLORS } from "../../../src/domain/colors.ts";
 
-/** One base and one text read per theme color, under light and under dark. */
-const READS_PER_THEME = Object.keys(THEME_COLORS).length * 2 * 2;
+/** One computed style per appearance, however many roots the page holds. */
+const READS_PER_THEME = 2;
 
 let uninstall: (() => void) | undefined;
 let reads: ReturnType<typeof vi.spyOn>;
 let theme: HTMLStyleElement;
 
+/** The system appearance query, which jsdom does not implement. */
+const media = Object.assign(new EventTarget(), { matches: false });
+
 beforeEach(() => {
+  window.matchMedia = () => media as unknown as MediaQueryList;
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
   reads = vi.spyOn(window, "getComputedStyle");
   theme = document.createElement("style");
@@ -61,7 +65,7 @@ it("reads nothing with vivid colors off", () => {
   expect(reads).not.toHaveBeenCalled();
 });
 
-it("reads nothing as roots mount, restyle, or change appearance", async () => {
+it("reads nothing as roots mount, unmount, restyle, or change appearance", async () => {
   const scroller = document.getElementById("scroller")!;
   const first = document.getElementById("first")!;
   const rewrites = vi.fn();
@@ -76,6 +80,8 @@ it("reads nothing as roots mount, restyle, or change appearance", async () => {
       root.dataset.bbPlugin = "workstreams";
       root.style.setProperty("--background", "red");
       scroller.append(root);
+      document.getElementById("second")!.remove();
+      scroller.className = "scrolling";
       scroller.style.setProperty("--background", "red");
       scroller.style.setProperty("scroll-padding-top", "4px");
       first.className = "dark";
@@ -90,7 +96,9 @@ it("reads nothing as roots mount, restyle, or change appearance", async () => {
 it("tags no root: the sheet matches roots by selector", () => {
   for (const root of document.querySelectorAll("[data-bb-plugin]"))
     expect(root.getAttributeNames()).toEqual(["data-bb-plugin", "id"]);
-  expect(sheet().textContent).toContain("@scope (.dark)");
+  expect(
+    sheet().textContent!.startsWith('[data-bb-plugin="workstreams"], '),
+  ).toBe(true);
 });
 
 it("resolves the theme again when a theme style sheet is rewritten", async () => {
@@ -113,17 +121,38 @@ it("resolves the theme again when a style sheet is added or loads", async () => 
   link.remove();
 });
 
-it("ignores links that are not style sheets", async () => {
+it("resolves the theme again when a style sheet stops being one", async () => {
   const link = document.createElement("link");
-  link.rel = "modulepreload";
-  expect(
-    await readsAfter(() => {
-      document.head.append(link);
-      link.dispatchEvent(new Event("load"));
-    }),
-  ).toBe(0);
+  link.rel = "stylesheet";
+  document.head.append(link);
+  expect(await readsAfter(() => (link.rel = "alternate"))).toBe(
+    READS_PER_THEME,
+  );
   link.remove();
 });
+
+it("resolves the theme again when the system appearance changes", async () => {
+  expect(await readsAfter(() => media.dispatchEvent(new Event("change")))).toBe(
+    READS_PER_THEME,
+  );
+});
+
+it.each(["modulepreload", "preload"])(
+  "ignores %s links, which are not style sheets",
+  async (rel) => {
+    const link = document.createElement("link");
+    link.rel = rel;
+    link.setAttribute("as", "style");
+    expect(
+      await readsAfter(() => {
+        document.head.append(link);
+        link.href = "/plugin.css";
+        link.dispatchEvent(new Event("load"));
+        link.remove();
+      }),
+    ).toBe(0);
+  },
+);
 
 it("ignores its own writes", async () => {
   expect(

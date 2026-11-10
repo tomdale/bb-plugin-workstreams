@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect } from "vitest";
-import { THEME_COLORS } from "../../src/domain/colors.ts";
 import { browserTest, browserUnavailable } from "./browser-fixture.ts";
 import { startGalleryServer, type GalleryServer } from "./gallery-server.ts";
 
@@ -46,9 +45,10 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
             requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
           );
         }, css);
+      // BB marks dark with a class on the document element and light with none.
       const setAppearance = (dark: boolean) =>
         page.evaluate((dark) => {
-          document.documentElement.className = dark ? "dark" : "light";
+          document.documentElement.className = dark ? "dark" : "";
         }, dark);
       const blue =
         ":root, .light { --timeline-accent: oklch(.55 .1 250); } .dark { --timeline-accent: oklch(.72 .09 250); }";
@@ -166,16 +166,18 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
       await page.keyboard.press("Escape");
 
       await page.evaluate(() => {
-        document.documentElement.className = "light";
-        // A root that is its own theme scope draws that appearance.
+        document.documentElement.className = "";
+        // A root inside a dark theme scope draws dark on a light page.
+        const scope = document.createElement("div");
+        scope.className = "dark";
         const other = document.createElement("section");
         other.id = "other-theme";
         other.dataset.bbPlugin = "workstreams";
-        other.className = "dark";
         const child = document.createElement("span");
         child.style.color = "var(--ws-review-text)";
         other.append(child);
-        document.body.append(other);
+        scope.append(other);
+        document.body.append(scope);
         const host = document.createElement("aside");
         host.id = "host";
         host.style.color = "var(--timeline-accent)";
@@ -245,9 +247,9 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
     async ({ page }) => {
       await page.goto(url);
       await page.getByRole("switch", { name: "Use vivid colors" }).waitFor();
-      // A new theme converts one base and one text color per theme color, under
-      // each appearance, however many roots the page holds.
-      const readsPerSweep = Object.keys(THEME_COLORS).length * 2 * 2;
+      // Resolving the theme reads one computed style per appearance, however
+      // many roots the page holds.
+      const readsPerTheme = 2;
       const reads = () =>
         page.evaluate(
           () => (window as Window & { wsReads?: number }).wsReads ?? 0,
@@ -255,13 +257,11 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
       await page.evaluate(() => {
         const instrumented = window as Window & { wsReads?: number };
         instrumented.wsReads = 0;
-        const read = CanvasRenderingContext2D.prototype.getImageData;
-        CanvasRenderingContext2D.prototype.getImageData = function (
-          this: CanvasRenderingContext2D,
-          ...args: Parameters<CanvasRenderingContext2D["getImageData"]>
-        ) {
-          instrumented.wsReads = (instrumented.wsReads ?? 0) + 1;
-          return read.apply(this, args);
+        const read = window.getComputedStyle;
+        window.getComputedStyle = (element, pseudo) => {
+          if (element.closest("[data-ws-color-reader]"))
+            instrumented.wsReads = (instrumented.wsReads ?? 0) + 1;
+          return read(element, pseudo);
         };
       });
 
@@ -291,7 +291,16 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
             document.body.append(mounted);
             document.body.style.setProperty("--ws-plate-draw", `${step}px`);
             document.body.style.scrollPaddingTop = `${step}px`;
+            root.parentElement!.className = `scroller-${step}`;
+            // BB preloads plugin style sheets before it links them.
+            const preload = document.createElement("link");
+            preload.rel = "preload";
+            preload.as = "style";
+            preload.href = `data:text/css,/*${step}*/`;
+            document.head.append(preload);
             await new Promise((resolve) => requestAnimationFrame(resolve));
+            mounted.remove();
+            preload.remove();
           }
           chrome.remove();
           await new Promise((resolve) =>
@@ -331,13 +340,107 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
         document.head.append(theme);
       });
       await nextFrames();
-      expect(await reads()).toBe(readsPerSweep);
+      expect(await reads()).toBe(readsPerTheme);
       await page.evaluate(() => (document.documentElement.className = "dark"));
       await expect.poll(text).not.toBe(darkText);
 
       // Content churn after the theme settles costs no reads either.
       await churn();
-      expect(await reads()).toBe(readsPerSweep);
+      await page.evaluate(() => (document.documentElement.className = ""));
+      await nextFrames();
+      expect(await reads()).toBe(readsPerTheme);
+    },
+    60_000,
+  );
+  browserTest(
+    "draws light without a dark class, whatever the system appearance",
+    async ({ page }) => {
+      const lightness = () =>
+        page.locator('[data-ws-color-preview="needsYou"]').evaluate((el) => {
+          // Painting the color reads it back as sRGB, whatever its syntax.
+          const canvas = document.createElement("canvas");
+          canvas.width = canvas.height = 1;
+          const context = canvas.getContext("2d")!;
+          context.fillStyle = getComputedStyle(el).color;
+          context.fillRect(0, 0, 1, 1);
+          const [r, g, b] = [...context.getImageData(0, 0, 1, 1).data].map(
+            (channel) => {
+              const x = channel / 255;
+              return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+            },
+          );
+          // OKLab lightness.
+          const l = Math.cbrt(0.4122 * r! + 0.5363 * g! + 0.0514 * b!);
+          const m = Math.cbrt(0.2119 * r! + 0.6807 * g! + 0.1074 * b!);
+          const s = Math.cbrt(0.0883 * r! + 0.2817 * g! + 0.6299 * b!);
+          return 0.2105 * l + 0.7936 * m - 0.0041 * s;
+        });
+      for (const vivid of [true, false]) {
+        await page.emulateMedia({ colorScheme: "light" });
+        await page.goto(url);
+        const toggle = page.getByRole("switch", { name: "Use vivid colors" });
+        await toggle.waitFor();
+        if ((await toggle.getAttribute("aria-checked")) !== String(vivid))
+          await toggle.click();
+        await expect
+          .poll(() => toggle.getAttribute("aria-checked"))
+          .toBe(String(vivid));
+        // Needs you has no BB text twin, so its text is clamped to the
+        // appearance's band: dark text on a light page, light on a dark one.
+        await page.evaluate(() => (document.documentElement.className = ""));
+        await page.evaluate(
+          () =>
+            new Promise((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(resolve)),
+            ),
+        );
+        const light = await lightness();
+        await page.emulateMedia({ colorScheme: "dark" });
+        await page.evaluate(
+          () =>
+            new Promise((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(resolve)),
+            ),
+        );
+        expect(await lightness()).toBeCloseTo(light, 3);
+        await page.evaluate(
+          () => (document.documentElement.className = "dark"),
+        );
+        await expect.poll(lightness).toBeGreaterThan(light + 0.15);
+      }
+    },
+    60_000,
+  );
+
+  browserTest(
+    "keeps the normal steps for a BB theme color the theme does not define",
+    async ({ page }) => {
+      await page.goto(url);
+      await page.getByRole("switch", { name: "Use vivid colors" }).waitFor();
+      const declared = (name: string) =>
+        page.evaluate(
+          (name) =>
+            document
+              .querySelector("[data-ws-color-tokens]")!
+              .textContent!.match(new RegExp(`${name}: ([^;]+);`))?.[1],
+          name,
+        );
+      await expect
+        .poll(() => declared("--ws-needs-you-text"))
+        .toMatch(/^oklch\(\d/);
+      await page.evaluate(() => {
+        const theme = document.createElement("style");
+        theme.id = "bb-app-theme";
+        // `initial` leaves the variable guaranteed-invalid, as if undefined.
+        theme.textContent = ":root, .light, .dark { --attention: initial; }";
+        document.head.append(theme);
+      });
+      await expect
+        .poll(() => declared("--ws-needs-you-text"))
+        .toBe(
+          "oklch(from var(--ws-needs-you) clamp(var(--ws-text-min-l), l, var(--ws-text-max-l)) c h)",
+        );
+      expect(await declared("--ws-review-text")).toMatch(/^oklch\(\d/);
     },
     60_000,
   );
