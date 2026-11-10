@@ -16,8 +16,8 @@ export function workstreamGap(
   prevCollapsed: boolean,
 ): number {
   if (!prev) return 0;
-  const prevLabel = "label" in prev ? prev.label : prev.name;
-  const currLabel = "label" in curr ? curr.label : curr.name;
+  const prevLabel = prev.label ?? prev.name;
+  const currLabel = curr.label ?? curr.name;
   const prevOwner = splitWorkstreamName(prevLabel)?.owner ?? null;
   const currOwner = splitWorkstreamName(currLabel)?.owner ?? null;
   const prevKey = prevOwner ?? prev.id;
@@ -35,9 +35,11 @@ export function workstreamGap(
 }
 
 /**
- * The identity a gap reads from a group: a plain `Group` has just `name`,
- * and a `WorkstreamNode` also carries its inline-owner `label`.
+ * The identity a gap reads from a group: its inline-owner `label` when it
+ * has one, else its `name`.
  */
-type GapGroup =
-  | { readonly id: string; readonly name: string; readonly label: string }
-  | { readonly id: string; readonly name: string };
+type GapGroup = {
+  readonly id: string;
+  readonly name: string;
+  readonly label?: string;
+};

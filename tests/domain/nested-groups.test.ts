@@ -303,6 +303,25 @@ describe("arrangeGroups with topics", () => {
     sec_ws: "ws",
   });
 
+  it("offers Unfiled as a node with no topic, section, or subgroups", () => {
+    const projection = projectWorkstreams(
+      [thread("loose", { latestAttentionAt: now })],
+      sections,
+      { now },
+    );
+    const { unfiled } = arrangeGroups(projection, "alphabetical", bindings);
+    expect(unfiled).toMatchObject({
+      name: "Unfiled",
+      label: "Unfiled",
+      total: 1,
+      topicId: null,
+      hasSection: false,
+      subgroups: [],
+      sectionIds: [],
+    });
+    expect(unfiled.rows.map((row) => row.thread.id)).toEqual(["loose"]);
+  });
+
   it("focuses, and counts as focused, a whole top-level group", () => {
     const projection = projectWorkstreams(
       [

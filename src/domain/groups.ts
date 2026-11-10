@@ -103,6 +103,22 @@ function foldSmall<T extends WorkstreamThread>(
   };
 }
 
+/**
+ * Unfiled as a node, so it draws like any workstream: it has no topic, no
+ * section, and no subgroups.
+ */
+export const unfiledNode = <T extends WorkstreamThread>(
+  group: Group<T>,
+): WorkstreamNode<T> => ({
+  ...group,
+  topicId: null,
+  label: group.name,
+  parentTopicId: null,
+  hasSection: false,
+  subgroups: [],
+  sectionIds: [],
+});
+
 /** Id of a header drawn for a topic that has no section. */
 export const sharedTopicId = (topicId: string) => `topic:${topicId}`;
 
@@ -345,7 +361,7 @@ type GroupArrangement<T extends WorkstreamThread> = {
   /** Workstreams with no recent activity, in the projection's order. */
   readonly dormant: readonly WorkstreamNode<T>[];
   /** The virtual group of threads in no workstream. */
-  readonly unfiled: Group<T>;
+  readonly unfiled: WorkstreamNode<T>;
   /** Some workstream is focused, so the rest hide behind a toggle. */
   readonly tiered: boolean;
   /** There is anything below the focused groups to reveal. */
@@ -410,7 +426,7 @@ export function arrangeGroups<T extends WorkstreamThread>(
     pinned,
     populated: other,
     dormant: sortTree(dormant, "manual"),
-    unfiled: projection.unsorted,
+    unfiled: unfiledNode(projection.unsorted),
     tiered: pinned.length > 0,
     lowerCounts,
     hasLower:

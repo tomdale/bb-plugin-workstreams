@@ -78,7 +78,7 @@ import { useStableSidebarThreads } from "../useStableSidebarThreads.ts";
 import { shareJson } from "../structuralSharing.ts";
 import { workView } from "../../domain/status.ts";
 import { relativeAge } from "../../domain/presentation.ts";
-import { groupCollapseKey, useCollapsed } from "./useCollapsed.ts";
+import { useGroupCollapse } from "./useGroupCollapse.ts";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
 import { workstreamGap } from "./workstreamGap.ts";
 import {
@@ -168,7 +168,12 @@ import {
 import { Hint } from "../Hint.tsx";
 import { usePrefs } from "../prefs.ts";
 
-type ThreadGroup = Group<PluginSidebarThread>;
+/** The Dormant band folds with the lower workstreams, closed until opened. */
+const DORMANT_BAND = { id: "__dormant" };
+const DORMANT_SCOPE = { byDefault: true, lower: true };
+
+/** Which list of the arrangement a group sits in (see `arrangeGroups`). */
+type GroupList = "pinned" | "populated" | "dormant" | "unfiled";
 type ThreadNode = WorkstreamNode<PluginSidebarThread>;
 
 /** The groups drawn inline under `group`, in order, theirs included. */
@@ -239,7 +244,6 @@ export function WorkstreamsThreadList({
   });
   const actions = experimental_useSidebarThreadActions();
   const navigate = useBbNavigate();
-  const { isCollapsed, toggle } = useCollapsed();
   const { bandOptions, updateBandOptions } = useBandOptions();
   const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -284,7 +288,16 @@ export function WorkstreamsThreadList({
     tiered,
     hasLower,
     lowerCounts,
+    unfiled,
   } = arrangement;
+  const { isCollapsed, toggle, groupCollapsed, toggleGroup } = useGroupCollapse(
+    {
+      catalog: ws.server.catalog,
+      tiered,
+      lowerExpanded,
+      setLowerExpanded,
+    },
+  );
   const { waiting: lowerWaiting, total: lowerTotal } = headerCounts(
     lowerCounts,
     true,
@@ -482,7 +495,7 @@ export function WorkstreamsThreadList({
    * and its menu offers every preset and Custom….
    */
   const groupSnoozeOf = useCallback(
-    (group: ThreadGroup | ThreadNode): GroupSnooze | undefined => {
+    (group: ThreadNode): GroupSnooze | undefined => {
       const request = groupSnoozeRequest(group);
       if (!request) return undefined;
       const snooze = (when: SnoozeWhen) => applySnoozeLatest(request, when);
@@ -776,6 +789,24 @@ export function WorkstreamsThreadList({
         : undefined,
     [ws.server.catalog],
   );
+  const renderGroupBody = (group: ThreadNode, collapsed: boolean) => (
+    <GroupBody
+      group={group}
+      collapsed={collapsed}
+      renderRow={renderRow}
+      now={now}
+      projectionNow={projectionNow}
+      timestamps={timestamps}
+      groupSlot={groupSlot}
+      choosingTopic={choosingTopic}
+      colorOf={colorOf}
+      newThreadIn={newThreadIn}
+      groupSnoozeOf={groupSnoozeOf}
+      isCollapsed={isCollapsed}
+      groupCollapsed={groupCollapsed}
+      toggleGroup={toggleGroup}
+    />
+  );
   const renderSortableGroup = (
     group: ThreadNode,
     props: Omit<GroupProps, "group" | "children">,
@@ -802,22 +833,7 @@ export function WorkstreamsThreadList({
           snooze={groupSnoozeOf(group)}
           handle={handle}
         >
-          <GroupBody
-            group={group}
-            collapsed={props.collapsed}
-            renderRow={renderRow}
-            now={now}
-            projectionNow={projectionNow}
-            timestamps={timestamps}
-            groupSlot={groupSlot}
-            choosingTopic={choosingTopic}
-            colorOf={colorOf}
-            newThreadIn={newThreadIn}
-            groupSnoozeOf={groupSnoozeOf}
-            catalog={ws.server.catalog}
-            isCollapsed={isCollapsed}
-            toggle={toggle}
-          />
+          {renderGroupBody(group, props.collapsed)}
         </WorkstreamGroup>
       )}
     </Sortable>
@@ -838,61 +854,54 @@ export function WorkstreamsThreadList({
     String,
     wasTiered.current === tiered,
   );
-  /**
-   * Collapse state follows the group's topic; a shared topic's header has
-   * no section to look the topic up by, so it passes its own.
-   */
-  const groupStateKey = (id: string, topicId?: string | null) =>
-    groupCollapseKey(id, topicId ?? ws.server.catalog?.groups[id]);
-  const groupCollapsed = (
-    id: string,
-    byDefault = false,
-    topicId?: string | null,
-  ) => isCollapsed(groupStateKey(id, topicId), isCollapsed(id, byDefault));
-  const toggleGroup = (
-    id: string,
-    byDefault = false,
-    topicId?: string | null,
-  ) =>
-    toggle(groupStateKey(id, topicId), groupCollapsed(id, byDefault, topicId));
-  const lowerCollapsed = (
-    id: string,
-    byDefault = false,
-    topicId?: string | null,
-  ) =>
-    tiered
-      ? !lowerExpanded.has(groupStateKey(id, topicId))
-      : groupCollapsed(id, byDefault, topicId);
-  const lowerToggle = (
-    id: string,
-    byDefault = false,
-    topicId?: string | null,
-  ) => {
-    if (!tiered) return toggleGroup(id, byDefault, topicId);
-    const key = groupStateKey(id, topicId);
-    setLowerExpanded((current) => {
-      const next = new Set(current);
-      if (!next.delete(key)) next.add(key);
-      return next;
-    });
-  };
   const toggleLower = () => {
     if (showLower) setLowerExpanded(new Set());
     setShowLower(!showLower);
   };
-  const activeGroupProps = (
+  const groupPropsOf = (
     group: ThreadNode,
-  ): Omit<GroupProps, "group" | "children"> => ({
-    collapsed: group.prioritized
-      ? groupCollapsed(group.id, false, group.topicId)
-      : lowerCollapsed(group.id, false, group.topicId),
-    toggle: () =>
-      group.prioritized
-        ? toggleGroup(group.id, false, group.topicId)
-        : lowerToggle(group.id, false, group.topicId),
-    onToggleFocus: () => toggleFocus(group),
-    onNewThread: newThreadIn(group),
-  });
+    list: GroupList,
+  ): Omit<GroupProps, "group" | "children"> => {
+    const scope = {
+      byDefault: list === "dormant",
+      lower: list === "populated" || list === "unfiled",
+    };
+    return {
+      collapsed: groupCollapsed(group, scope),
+      toggle: () => toggleGroup(group, scope),
+      onToggleFocus: list === "unfiled" ? undefined : () => toggleFocus(group),
+      onNewThread: list === "unfiled" ? undefined : newThreadIn(group),
+      muted: list === "dormant" || list === "unfiled" ? true : undefined,
+    };
+  };
+  /** A list's groups, each spaced from the one above by its collapse state. */
+  const renderGroupList = (
+    groups: readonly ThreadNode[],
+    list: GroupList,
+    /** The last group of the list above, whose fold sets the first gap. */
+    above: [ThreadNode, GroupList] | null = null,
+  ) =>
+    groups.map((group, index) => {
+      const [prev, prevList] =
+        index > 0 ? ([groups[index - 1]!, list] as const) : (above ?? []);
+      const marginTop = workstreamGap(
+        prev ?? null,
+        group,
+        prev ? groupPropsOf(prev, prevList!).collapsed : false,
+      );
+      const sortable = renderSortableGroup(
+        group,
+        groupPropsOf(group, list),
+        marginTop ? { marginTop } : undefined,
+      );
+      return list === "dormant" ? (
+        <li key={group.id} className="list-none">
+          {sortable}
+        </li>
+      ) : (
+        sortable
+      );
+    });
   /** An item that opens and closes with its presence phase. */
   const present = (entry: PresenceEntry<unknown>, children: ReactNode) => (
     <Presence key={entry.key} as="li" phase={entry.phase} className="list-none">
@@ -976,56 +985,30 @@ export function WorkstreamsThreadList({
           items={populatedGroupItems}
           strategy={verticalListSortingStrategy}
         >
-          {populatedGroups.map((group, index) => {
-            const prev = index > 0 ? populatedGroups[index - 1]! : null;
-            const prevCollapsed = prev
-              ? lowerCollapsed(prev.id, false, prev.topicId)
-              : false;
-            const marginTop = workstreamGap(prev, group, prevCollapsed);
-            return renderSortableGroup(
-              group,
-              activeGroupProps(group),
-              marginTop ? { marginTop } : undefined,
-            );
-          })}
+          {renderGroupList(populatedGroups, "populated")}
         </SortableContext>
-        {projection.unsorted.total > 0 ? (
+        {unfiled.total > 0 ? (
           <DropTarget
-            id={groupKey(projection.unsorted.id)}
-            data={{ type: "target", groupId: projection.unsorted.id }}
+            id={groupKey(unfiled.id)}
+            data={{ type: "target", groupId: unfiled.id }}
           >
             {(ref) => {
-              const prev = populatedGroups[populatedGroups.length - 1] ?? null;
-              const prevCollapsed = prev
-                ? lowerCollapsed(prev.id, false, prev.topicId)
-                : false;
+              const props = groupPropsOf(unfiled, "unfiled");
+              const last = populatedGroups.at(-1);
               const marginTop = workstreamGap(
-                prev,
-                projection.unsorted,
-                prevCollapsed,
+                last ?? null,
+                unfiled,
+                last ? groupPropsOf(last, "populated").collapsed : false,
               );
               return (
                 <WorkstreamGroup
-                  group={projection.unsorted}
+                  {...props}
+                  group={unfiled}
                   sectionRef={ref}
-                  collapsed={lowerCollapsed(projection.unsorted.id)}
-                  toggle={() => lowerToggle(projection.unsorted.id)}
-                  snooze={groupSnoozeOf(projection.unsorted)}
+                  snooze={groupSnoozeOf(unfiled)}
                   style={marginTop ? { marginTop } : undefined}
-                  muted
                 >
-                  <ThreadTrees
-                    rows={projection.unsorted.rows}
-                    groupId={projection.unsorted.id}
-                    renderRow={renderRow}
-                    now={now}
-                    projectionNow={projectionNow}
-                    timestamps={timestamps}
-                    collapsed={lowerCollapsed(projection.unsorted.id)}
-                    slotWidth={groupSlot}
-                    choosingTopic={choosingTopic}
-                    isCollapsed={isCollapsed}
-                  />
+                  {renderGroupBody(unfiled, props.collapsed)}
                 </WorkstreamGroup>
               );
             }}
@@ -1036,40 +1019,14 @@ export function WorkstreamsThreadList({
             title="Dormant"
             flipKey="dormant"
             count={dormantGroups.length}
-            collapsed={lowerCollapsed("__dormant", true)}
-            toggle={() => lowerToggle("__dormant", true)}
+            collapsed={groupCollapsed(DORMANT_BAND, DORMANT_SCOPE)}
+            toggle={() => toggleGroup(DORMANT_BAND, DORMANT_SCOPE)}
           >
             <SortableContext
               items={dormantGroupItems}
               strategy={verticalListSortingStrategy}
             >
-              {dormantGroups.map((group, index) => {
-                const prev = index > 0 ? dormantGroups[index - 1]! : null;
-                const prevCollapsed = prev
-                  ? groupCollapsed(prev.id, true, prev.topicId)
-                  : false;
-                const marginTop = workstreamGap(prev, group, prevCollapsed);
-                return (
-                  <li key={group.id} className="list-none">
-                    {renderSortableGroup(
-                      group,
-                      {
-                        collapsed: groupCollapsed(
-                          group.id,
-                          true,
-                          group.topicId,
-                        ),
-                        toggle: () =>
-                          toggleGroup(group.id, true, group.topicId),
-                        onToggleFocus: () => toggleFocus(group),
-                        onNewThread: newThreadIn(group),
-                        muted: true,
-                      },
-                      marginTop ? { marginTop } : undefined,
-                    )}
-                  </li>
-                );
-              })}
+              {renderGroupList(dormantGroups, "dormant")}
             </SortableContext>
           </Band>
         ) : null}
@@ -1225,18 +1182,7 @@ export function WorkstreamsThreadList({
                 items={pinnedGroupItems}
                 strategy={verticalListSortingStrategy}
               >
-                {pinnedGroups.map((group, index) => {
-                  const prev = index > 0 ? pinnedGroups[index - 1]! : null;
-                  const prevCollapsed = prev
-                    ? groupCollapsed(prev.id, false, prev.topicId)
-                    : false;
-                  const marginTop = workstreamGap(prev, group, prevCollapsed);
-                  return renderSortableGroup(
-                    group,
-                    activeGroupProps(group),
-                    marginTop ? { marginTop } : undefined,
-                  );
-                })}
+                {renderGroupList(pinnedGroups, "pinned")}
               </SortableContext>,
               ...(hasLower
                 ? [
@@ -1574,10 +1520,10 @@ type GroupBodyProps = {
   choosingTopic: boolean;
   colorOf: (group: ThreadNode) => TopicColor;
   newThreadIn: (group: ThreadNode) => () => void;
-  groupSnoozeOf: (group: ThreadGroup | ThreadNode) => GroupSnooze | undefined;
-  catalog: ServerState["catalog"];
+  groupSnoozeOf: (group: ThreadNode) => GroupSnooze | undefined;
   isCollapsed: (id: string, byDefault?: boolean) => boolean;
-  toggle: (id: string, byDefault?: boolean) => void;
+  groupCollapsed: (group: ThreadNode) => boolean;
+  toggleGroup: (group: ThreadNode) => void;
 };
 
 function CategorizedTrees({
@@ -1662,9 +1608,6 @@ function CategorizedTrees({
   ));
 }
 
-const collapseKeyOf = (group: ThreadNode, catalog: ServerState["catalog"]) =>
-  groupCollapseKey(group.id, group.topicId ?? catalog?.groups[group.id]);
-
 function NestedGroup(
   props: GroupBodyProps & {
     sectionRef?: (element: HTMLElement | null) => void;
@@ -1672,19 +1615,17 @@ function NestedGroup(
 ) {
   const {
     group,
-    catalog,
-    isCollapsed,
-    toggle,
+    groupCollapsed,
+    toggleGroup,
     colorOf,
     newThreadIn,
     groupSnoozeOf,
     sectionRef,
   } = props;
-  const key = collapseKeyOf(group, catalog);
-  const collapsed = isCollapsed(key, isCollapsed(group.id, false));
+  const collapsed = groupCollapsed(group);
   const toggleThis = useCallback(
-    () => toggle(key, collapsed),
-    [toggle, key, collapsed],
+    () => toggleGroup(group),
+    [toggleGroup, group],
   );
   const onNewThread = useMemo(() => newThreadIn(group), [newThreadIn, group]);
   return (
@@ -1747,9 +1688,9 @@ const GroupBody = memo(
       before.colorOf === after.colorOf &&
       before.newThreadIn === after.newThreadIn &&
       before.groupSnoozeOf === after.groupSnoozeOf &&
-      before.catalog === after.catalog &&
       before.isCollapsed === after.isCollapsed &&
-      before.toggle === after.toggle &&
+      before.groupCollapsed === after.groupCollapsed &&
+      before.toggleGroup === after.toggleGroup &&
       sameGroupAges(before.group, before.timestamps, before.now, after.now)),
 );
 
@@ -2266,7 +2207,7 @@ function BandOptionsMenu({
 }
 
 type GroupProps = {
-  group: ThreadGroup | ThreadNode;
+  group: ThreadNode;
   /**
    * A subgroup: its block starts one step in, where its parent's name does,
    * and its name reads as a label, smaller and muted.
@@ -2336,8 +2277,8 @@ function WorkstreamGroup({
     // section.current is a ref; only `collapsed` gates the cleanup.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collapsed]);
-  const label = "label" in group ? group.label : group.name;
-  const isWorkstream = "hasSection" in group && group.hasSection;
+  const label = group.label;
+  const isWorkstream = group.hasSection;
   const counts = headerCounts(group, collapsed, prefs?.sidebar);
   const fold = useFold(!collapsed);
   const refSection = useRef(sectionRef);
