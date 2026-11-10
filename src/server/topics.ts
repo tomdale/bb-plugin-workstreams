@@ -1047,9 +1047,10 @@ export class TopicStore {
 
   /** Forgets a deleted thread's topic, so it no longer keeps a topic in use. */
   forget(threadId: string): void {
-    this.db
+    const removed = this.db
       .prepare("DELETE FROM ws_corpus_subject WHERE thread_id = ?")
       .run(threadId);
+    if (removed.changes > 0) this.bumpRevision();
   }
 
   /**
