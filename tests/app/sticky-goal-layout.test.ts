@@ -85,8 +85,8 @@ browserTest.skipIf(browserUnavailable)(
         </style>
         <div class="surface">
           <div class="ws-goal-overlay">
-            <div class="ws-goal-background" style="width:400px; --ws-plate-height:100px; --ws-fade-below-plate:1">
-              <div class="ws-sticky-goal" style="height:100px"><div class="ws-sticky-goal__plate"></div></div>
+            <div class="ws-goal-background" style="width:400px; --ws-plate-height:75px; --ws-fade-below-plate:1">
+              <div class="ws-sticky-goal" style="height:100px"><div class="ws-sticky-goal__plate" style="transform:scaleY(.75)"></div></div>
             </div>
           </div>
         </div>`);
@@ -117,9 +117,15 @@ browserTest.skipIf(browserUnavailable)(
           ).height,
         ),
       );
-      const rows = [0.02, 0.2, 0.5, 0.75, 1].map(
-        (fraction) => 100 + Math.round(fraction * fadeHeight),
-      );
+      const fadeStart = 75;
+      const rows = [
+        fadeStart - 1,
+        fadeStart,
+        fadeStart + 1,
+        ...[0.02, 0.2, 0.5, 0.75, 1].map(
+          (fraction) => fadeStart + Math.round(fraction * fadeHeight),
+        ),
+      ];
       const image = await page.screenshot();
       const samples = await page.evaluate(
         async ({ source, rows }) => {
@@ -138,10 +144,14 @@ browserTest.skipIf(browserUnavailable)(
       const contrast = samples.map((value) =>
         theme === "dark" ? value : 255 - value,
       );
-      expect(contrast[0]).toBeLessThan(16);
-      expect(contrast[4]).toBeGreaterThan(245);
-      for (let i = 1; i < contrast.length; i++) {
-        expect(contrast[i]! - contrast[i - 1]!).toBeGreaterThan(15);
+      // The shortened solid plate and its translated gradient meet without a
+      // step in either theme, then the gradient keeps falling off.
+      expect(Math.max(...contrast.slice(0, 3))).toBeLessThanOrEqual(6);
+      const falloff = contrast.slice(3);
+      expect(falloff[0]).toBeLessThan(16);
+      expect(falloff[4]).toBeGreaterThan(245);
+      for (let i = 1; i < falloff.length; i++) {
+        expect(falloff[i]! - falloff[i - 1]!).toBeGreaterThan(15);
       }
     }
   },

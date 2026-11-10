@@ -618,7 +618,13 @@ export function StickyGoalHeader(): React.ReactElement | null {
     fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
   const scrollPadding =
     fadeOnly && !pinned ? height * (1 - progress) : plateHeight;
-  const fadeAnchor = plateHeight;
+  // Fade holds the expanded heading in place. Start the shadow under the goal
+  // instead of leaving a separate solid band below it, without changing the
+  // reserved heading height, scroll padding, or the other transition modes.
+  const plateOverlap =
+    fadeOnly && !pinned && !floating ? Math.min(base * 1.5, plateHeight) : 0;
+  const solidPlateHeight = plateHeight - plateOverlap;
+  const fadeAnchor = solidPlateHeight;
   useLayoutEffect(() => {
     if (!mount) return;
     if (mount.root.dataset.collapsed !== String(collapsed))
@@ -822,7 +828,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
           <div
             className="ws-sticky-goal__plate"
             style={{
-              transform: `scaleY(${plateHeight / height})`,
+              transform: `scaleY(${solidPlateHeight / height})`,
               opacity: plateOpacity,
             }}
           />

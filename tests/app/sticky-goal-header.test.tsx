@@ -512,50 +512,72 @@ it("leaves the minimized title in the bar's gap by default", async () => {
   slot.lifecycle.unmount();
 });
 
-it("keeps the large heading floating over the timeline when asked to", async () => {
-  paneFixture({ recap: false });
-  const scroller = document.querySelector<HTMLElement>(
-    '[data-test="messages"]',
-  )!;
-  Object.defineProperties(scroller, {
-    scrollHeight: { configurable: true, value: 1000 },
-    clientHeight: { configurable: true, value: 400 },
-    scrollTop: { configurable: true, writable: true, value: 600 },
-  });
-  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 0, 900, 672),
-  );
-  const slot = await mountHeading("fade", null, undefined, {
-    headingScroll: "float",
-  });
-  await waitFor(() => expect(overlay()).not.toBeNull());
-  await new Promise((resolve) => setTimeout(resolve, 550));
-  // Far from the newest message, where minimizing would have swapped in the
-  // compact copy.
-  scroller.scrollTop = 300;
-  scroller.dispatchEvent(new Event("scroll"));
-  const expanded = () =>
-    overlay()!.querySelector<HTMLElement>(
-      '[data-ws-heading="expanded"] .ws-goal-overlay__group',
+it.each(["fade", "scroll"] as const)(
+  "keeps the large heading floating over the timeline in %s mode",
+  async (mode) => {
+    paneFixture({ recap: false });
+    const scroller = document.querySelector<HTMLElement>(
+      '[data-test="messages"]',
     )!;
-  const compact = () =>
-    overlay()!.querySelector<HTMLElement>(
-      '[data-ws-heading="compact"] .ws-goal-overlay__group',
+    Object.defineProperties(scroller, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 400 },
+      scrollTop: { configurable: true, writable: true, value: 600 },
+    });
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 48, 900, 672),
+    );
+    const header = document.querySelector("header")!;
+    vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 900, 48),
+    );
+    vi.spyOn(
+      header.querySelector(".bb-thread-title")!,
+      "getBoundingClientRect",
+    ).mockReturnValue(new DOMRect(0, 0, 80, 48));
+    vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(700, 0, 100, 48),
+    );
+    const slot = await mountHeading(mode, null, undefined, {
+      headingScroll: "float",
+    });
+    await waitFor(() => expect(overlay()).not.toBeNull());
+    await new Promise((resolve) => setTimeout(resolve, 550));
+    // Far from the newest message, where minimizing would have swapped in the
+    // compact copy.
+    scroller.scrollTop = 300;
+    scroller.dispatchEvent(new Event("scroll"));
+    const expanded = () =>
+      overlay()!.querySelector<HTMLElement>(
+        '[data-ws-heading="expanded"] .ws-goal-overlay__group',
+      )!;
+    const compact = () =>
+      overlay()!.querySelector<HTMLElement>(
+        '[data-ws-heading="compact"] .ws-goal-overlay__group',
+      )!;
+    await waitFor(() => expect(expanded().style.opacity).toBe("1"));
+    expect(compact().style.opacity).toBe("0");
+    expect(expanded().style.transform).toBe(
+      mode === "fade" ? "translateY(11.9px) scale(1)" : "translateY(11.9px)",
+    );
+    // The timeline keeps its reserved room, and the heading still shadows it.
+    expect(scroller.style.scrollPaddingTop).toBe(
+      `${headingHeight(14, false, 1, 0)}px`,
+    );
+    const background = overlay()!.querySelector<HTMLElement>(
+      ".ws-goal-background",
     )!;
-  await waitFor(() => expect(expanded().style.opacity).toBe("1"));
-  expect(compact().style.opacity).toBe("0");
-  expect(expanded().style.transform).toBe("translateY(11.9px) scale(1)");
-  // The timeline keeps its reserved room, and the heading still shadows it.
-  expect(scroller.style.scrollPaddingTop).toBe(
-    `${headingHeight(14, false, 1, 0)}px`,
-  );
-  const background = overlay()!.querySelector<HTMLElement>(
-    ".ws-goal-background",
-  )!;
-  expect(background.style.getPropertyValue("--ws-fade-below-plate")).toBe("1");
-  expect(background.style.getPropertyValue("--ws-fade-below-bar")).toBe("0");
-  slot.lifecycle.unmount();
-});
+    expect(background.style.getPropertyValue("--ws-fade-below-plate")).toBe(
+      "1",
+    );
+    expect(background.style.getPropertyValue("--ws-fade-below-bar")).toBe("0");
+    expect(
+      background.querySelector<HTMLElement>(".ws-sticky-goal__plate")!.style
+        .transform,
+    ).toBe("scaleY(1)");
+    slot.lifecycle.unmount();
+  },
+);
 
 it("draws the heading text inside the app's sliding surface so it travels with the pane", async () => {
   paneFixture({ recap: false });
@@ -742,7 +764,16 @@ it("eases fixed headings through a gentle handoff and switches modes", async () 
     ),
   );
   expect(Number(plate.style.opacity)).toBeGreaterThan(0.95);
-  expect(plate.style.transform).toBe("scaleY(1)");
+  const plateBox = overlay()!.querySelector<HTMLElement>(
+    '[data-ws-heading="expanded"]',
+  )!;
+  const height = Number.parseFloat(plateBox.style.height);
+  expect(plate.style.transform).toBe(`scaleY(${(height - 21) / height})`);
+  expect(
+    overlay()!
+      .querySelector<HTMLElement>(".ws-goal-background")!
+      .style.getPropertyValue("--ws-plate-height"),
+  ).toBe(`${height - 21}px`);
   await slot.behavior.emitRealtime("prefs", {
     prefs: parsePrefs({ threads: { headingTransition: "scroll" } }),
   });
