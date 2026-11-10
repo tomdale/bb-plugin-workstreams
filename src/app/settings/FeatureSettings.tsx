@@ -191,7 +191,7 @@ export function UpNextSettings() {
   );
   const freshDescription =
     window && window.value !== "off"
-      ? `Threads whose turn ended in the ${window.label.toLowerCase()} come before others, even ones blocked on you.`
+      ? `Threads whose turn ended in the ${window.label.toLowerCase()} come before older ones. Inside that group, unread threads come first, then the ones blocked on you.`
       : "Threads keep their place, however recently their turn ended.";
   return (
     <div className="space-y-3">
