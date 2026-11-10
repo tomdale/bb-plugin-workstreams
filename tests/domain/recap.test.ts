@@ -324,7 +324,11 @@ it("accepts a complete recap with no results, and writes only its title", () => 
 
 it("marks reported working threads but leaves inferred progress unmarked", async () => {
   const { slotMarkFor } = await import("../../src/domain/presentation.ts");
-  const thread = { indicator: "", hasPendingInteraction: false };
+  const thread = {
+    indicator: "",
+    hasPendingInteraction: false,
+    isUnread: false,
+  };
   expect(
     slotMarkFor(thread, {
       kind: "current",

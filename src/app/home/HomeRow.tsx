@@ -6,6 +6,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import {
+  dotMark,
   relativeAge,
   relativeAgeLabel,
   slotMarkFor,
@@ -171,7 +172,7 @@ export function HomeRow({
   const { hasUnsubmittedDraft } = useSidebarThreadDraft(thread.id);
   const slotMark = slotMarkFor(thread, work ?? { kind: "none" });
   const inlineDot =
-    thread.isUnread && slotMark !== null && slotMark.kind !== "needs-you";
+    thread.isUnread && slotMark !== null && !dotMark(slotMark.kind);
   return (
     <li
       ref={slotRef}

@@ -114,6 +114,19 @@ it("shows no mark or completion suffix for inferred completion", () => {
   });
 });
 
+it("marks a completed turn only until the row is read", () => {
+  const work = workView(thread, analysis("done"));
+  const unread = sidebarThread("u", { title: "Task", isUnread: true });
+  expect(presentRow(unread, work, options).slotMark).toEqual({
+    kind: "done",
+    label: "Complete",
+  });
+  expect(presentRow(unread, work, options).accessibleName).toBe(
+    "Task, Complete",
+  );
+  expect(presentRow(thread, work, options).slotMark).toBeNull();
+});
+
 it("marks a decision as needs you everywhere, Up Next included", () => {
   const work = workView(thread, analysis("needs_decision"));
   expect(hasStatusMark(thread, work)).toBe(true);
@@ -122,12 +135,12 @@ it("marks a decision as needs you everywhere, Up Next included", () => {
   );
 });
 
-it("marks a review verdict as needs you too", () => {
+it("marks a review verdict as ready for review", () => {
   const work = workView(thread, analysis("review"));
   expect(hasStatusMark(thread, work)).toBe(true);
   expect(presentRow(thread, work, options).slotMark).toEqual({
-    kind: "needs-you",
-    label: "Needs you",
+    kind: "review",
+    label: "Ready for review",
   });
 });
 

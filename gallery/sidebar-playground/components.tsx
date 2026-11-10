@@ -180,6 +180,9 @@ export function mountThread(
     toggle?: () => void;
   },
 ) {
+  // A `-unread` suffix fills the same mark while the row is unread.
+  const kind = options.kind.replace(/-unread$/, "");
+  const unread = kind === "unread" || kind !== options.kind;
   const indicator =
     (
       {
@@ -189,7 +192,7 @@ export function mountThread(
         error: "unread-error",
         draft: "draft",
       } as Record<string, string>
-    )[options.kind] ?? "none";
+    )[kind] ?? "none";
   const state = (
     {
       review: "review",
@@ -197,7 +200,7 @@ export function mountThread(
       decision: "needs_decision",
       blocked: "blocked",
     } as const
-  )[options.kind as "review" | "complete" | "decision" | "blocked"];
+  )[kind as "review" | "complete" | "decision" | "blocked"];
   const thread = {
     id: options.title,
     title: options.title,
@@ -206,14 +209,14 @@ export function mountThread(
     indicator,
     indicatorLabel: null,
     hasPendingInteraction: false,
-    isUnread: options.kind === "unread" && !options.legacy,
+    isUnread: unread && !options.legacy,
     isPinned: false,
     latestAttentionAt: 0,
   } as PluginSidebarThread;
   const work: WorkView | undefined = state
     ? {
         kind: "current",
-        reported: options.kind === "complete",
+        reported: kind === "complete",
         analysis: {
           state,
           recap: "",

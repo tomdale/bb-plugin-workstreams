@@ -12,6 +12,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
+import { dotMark } from "../../domain/presentation.ts";
 import { presentRow } from "./presentation.ts";
 import type { WorkView } from "../useWorkstreams.ts";
 import { StatusMark } from "./StatusMark.tsx";
@@ -104,11 +105,11 @@ export function Row({
     work,
     { showPin: traits.showPin, timestamps, now },
   );
-  // Unread is never the slot mark: needs-you carries it by the dot's fill,
-  // other marked rows carry it inline beside the title, markless rows by
-  // title weight alone.
+  // Unread is never the slot mark: the dots carry it in their fill, other
+  // marked rows carry it inline beside the title, markless rows by title
+  // weight alone.
   const inlineDot =
-    thread.isUnread && slotMark !== null && slotMark.kind !== "needs-you";
+    thread.isUnread && slotMark !== null && !dotMark(slotMark.kind);
   const actions = experimental_useSidebarThreadActions();
   const { splitProps } = experimental_useSidebarThreadSplit(thread.id);
   const { hasUnsubmittedDraft } = useSidebarThreadDraft(thread.id);
@@ -171,7 +172,6 @@ export function Row({
       <span
         className={cn(
           "ws-status-slot",
-          slotMark?.kind === "needs-you" && "ws-slot-dot",
           disclosure && slotMark && "ws-has-disclosure",
         )}
         data-collapsed={!showStatusSlot || undefined}

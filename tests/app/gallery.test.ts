@@ -898,10 +898,22 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
             const marks = (
               [
                 [
-                  ".ws-need-ring",
+                  ".ws-dot-needs-you",
                   "--ws-needs-you-mark",
                   "borderTopColor",
                   "var(--ws-needs-you-text)",
+                ],
+                [
+                  ".ws-dot-review.ws-dot-ring",
+                  "--ws-review-mark",
+                  "borderTopColor",
+                  "var(--ws-review-text)",
+                ],
+                [
+                  ".ws-dot-done",
+                  "--ws-complete-mark",
+                  "backgroundColor",
+                  "var(--ws-complete-text)",
                 ],
                 [
                   ".ws-failed",

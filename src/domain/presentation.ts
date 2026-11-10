@@ -61,23 +61,32 @@ export function relativeAgeLabel(at: number, now: number): string {
 /**
  * The mark a thread row's leading slot shows, at most one per row. Broken
  * and in-flight states come from BB's live status; needs-you adds the
- * pending card and the analysis verdicts that wait on the user; waiting
- * covers a turn the agent reported waiting on a subagent or timer. Unread
- * is never the slot mark: needs-you rows carry it by the dot's fill, rows
- * with any other slot mark carry it as an inline dot beside the title, and
- * markless rows carry it by title weight alone (see the sidebar's Row).
+ * pending card and the needs-decision verdict; review and done are the
+ * verdicts on a finished turn; waiting covers a turn the agent reported
+ * waiting on a subagent or timer.
+ *
+ * Unread is never a slot mark of its own. The dots (`dotMark`) carry it in
+ * their fill, other marks carry it as an inline dot beside the title, and
+ * markless rows carry it by title weight alone (see the sidebar's Row). A
+ * completed turn is news only while unread, so its dot is the whole mark.
  */
 export type SlotMarkKind =
-  "error" | "working" | "needs-you" | "waiting" | "draft";
+  "error" | "working" | "needs-you" | "review" | "done" | "waiting" | "draft";
 
 export type SlotMark = {
   readonly kind: SlotMarkKind;
   readonly label: string;
 };
 
+/** The marks drawn as a dot, whose fill says whether the row is unread. */
+export function dotMark(kind: SlotMarkKind): boolean {
+  return kind === "needs-you" || kind === "review" || kind === "done";
+}
+
 type SlotThread = {
   readonly indicator: string;
   readonly hasPendingInteraction: boolean;
+  readonly isUnread: boolean;
 };
 
 type SlotWork = {
@@ -97,11 +106,14 @@ export function slotMarkFor(
   if (
     role === "waiting" ||
     thread.hasPendingInteraction ||
-    state === "needs_decision" ||
-    state === "review"
+    state === "needs_decision"
   ) {
     return { kind: "needs-you", label: "Needs you" };
   }
+  if (state === "review") return { kind: "review", label: "Ready for review" };
+  // A completed turn is worth a mark until it is read, then nothing.
+  if (state === "done")
+    return thread.isUnread ? { kind: "done", label: "Complete" } : null;
   if (state === "in_progress" && work.reported)
     return { kind: "waiting", label: "Waiting" };
   if (role === "draft") return { kind: "draft", label: "Unsent draft" };

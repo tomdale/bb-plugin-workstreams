@@ -87,34 +87,38 @@
   font-weight: 400;
 }
 
-/* Needs you: one dot, solid while the row is unread and an open ring once
+/* Dots: one per mark, solid while the row is unread and an open ring once
    read, so the state and its newness share a mark. The ring runs 1px wider
-   because outlines read smaller than solids at the same size. Dot-only
-   slots narrow so the dot sits as close to its title as wider marks do. */
-.ws-need-dot {
+   because outlines read smaller than solids at the same size. Every dot
+   centers in the same 14px slot the other marks fill, so titles line up
+   down the list. */
+.ws-dot {
   width: 6px;
   height: 6px;
   border-radius: 9999px;
   flex-shrink: 0;
-  background: var(--ws-needs-you-mark);
+  background: var(--ws-dot);
 }
-.ws-need-ring {
+.ws-dot-ring {
   width: 7px;
   height: 7px;
-  border-radius: 9999px;
-  flex-shrink: 0;
-  border: 1px solid var(--ws-needs-you-mark);
+  border: 1px solid var(--ws-dot);
+  background: none;
   box-sizing: border-box;
 }
-.ws-status-slot > .ws-need-dot,
-.ws-status-slot > .ws-need-ring {
+.ws-dot-needs-you {
+  --ws-dot: var(--ws-needs-you-mark);
+}
+.ws-dot-review {
+  --ws-dot: var(--ws-review-mark);
+}
+.ws-dot-done {
+  --ws-dot: var(--ws-complete-mark);
+}
+.ws-status-slot > .ws-dot {
   position: absolute;
   inset: 0;
   margin: auto;
-}
-.ws-status-slot.ws-slot-dot {
-  width: 8px;
-  flex-basis: 8px;
 }
 
 /* Unread beside a slot mark: a small dot inline with the title. */

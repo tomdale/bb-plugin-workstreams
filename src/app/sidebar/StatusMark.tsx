@@ -5,7 +5,7 @@ import {
   type CSSProperties,
 } from "react";
 import { Icon } from "@/components/ui/icon";
-import type { SlotMark } from "../../domain/presentation.ts";
+import { dotMark, type SlotMark } from "../../domain/presentation.ts";
 import { colorCss, trackCss, type SpinnerStyle } from "../../domain/spinner.ts";
 import { useSpinner } from "../spinner.ts";
 
@@ -19,19 +19,27 @@ const FAILED_PATH =
 /**
  * The mark in a thread row's leading slot (see `slotMarkFor`): an
  * exclamation circle for a failed turn, a spinner for work in flight (grey
- * while the agent waits on a subagent or timer), the needs-you dot whose
- * fill says whether the row is unread, or a pencil for an unsent draft.
+ * while the agent waits on a subagent or timer), a dot for the states that
+ * wait on the reader (`dotMark`), or a pencil for an unsent draft.
  */
 export function StatusMark({
   mark,
   isUnread = false,
 }: {
   mark: SlotMark;
-  /** The needs-you dot draws solid while unread, a ring once read. */
+  /** The dots draw solid while unread, a ring once read. */
   isUnread?: boolean;
 }) {
   const aria =
-    mark.kind === "needs-you" && isUnread ? "Needs you, unread" : mark.label;
+    isUnread && dotMark(mark.kind) ? `${mark.label}, unread` : mark.label;
+  if (dotMark(mark.kind))
+    return (
+      <span
+        className={`ws-dot ws-dot-${mark.kind}${isUnread ? "" : " ws-dot-ring"}`}
+        role="img"
+        aria-label={aria}
+      />
+    );
   switch (mark.kind) {
     case "error":
       return (
@@ -51,14 +59,6 @@ export function StatusMark({
       return <WorkingMark label={aria} />;
     case "waiting":
       return <WorkingMark label={aria} waiting />;
-    case "needs-you":
-      return (
-        <span
-          className={isUnread ? "ws-need-dot" : "ws-need-ring"}
-          role="img"
-          aria-label={aria}
-        />
-      );
     case "draft":
       return (
         <span className="ws-mark ws-mark-draft" role="img" aria-label={aria}>

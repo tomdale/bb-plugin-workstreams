@@ -529,14 +529,17 @@ weight. Unread titles use medium weight.
 
 - **Status marks:** Each row shows at most one mark before its title, in this
   order of precedence: a red exclamation circle for a failed turn, the working
-  spinner (customizable), a yellow **Needs you** dot when the thread waits on
-  you (a pending question or approval, or a turn analysis or the agent's recap
-  reads as needing your decision or review), a grey spinner when the agent
-  reported it is waiting on a subagent or timer, and a muted `✎` for an unsent
-  draft. The Needs you dot is solid while the thread is unread and a ring once
-  read. Other unread threads with a mark also show a small blue dot before the
-  title; unread threads without a mark rely on the medium-weight title alone.
-  Complete and blocked threads show no mark.
+  spinner (customizable), an **orange Needs you** dot when the thread waits on
+  you (a pending question or approval, or a turn that ends needing your
+  decision), a **blue Ready for review** dot when the latest turn is ready for
+  your review, a **green Complete** dot when the latest turn finished, a grey
+  spinner when the agent reported it is waiting on a subagent or timer, and a
+  muted `✎` for an unsent draft. The Needs you and Ready for review dots are
+  solid while the thread is unread and a ring once read; the Complete dot shows
+  only while the thread is unread, so a read thread never carries a bare ring.
+  Other unread threads with a mark also show a small blue dot before the title;
+  unread threads without a mark rely on the medium-weight title alone. Blocked
+  threads show no mark.
 - **Hover actions:** **Archive** and **Snooze** (click to snooze with your
   default preset; rest the pointer for `350 ms` to open the snooze menu, or
   click **Wake now** on a snoozed row). Thread rows and workstream headers share

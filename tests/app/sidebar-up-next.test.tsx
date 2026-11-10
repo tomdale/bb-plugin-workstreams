@@ -247,13 +247,13 @@ it("marks the agent's reported state, which outranks analysis", async () => {
   const group = await slot.findByRole("region", { name: "Unfiled" });
   const band = await slot.findByRole("region", { name: "Up Next" });
   expect(
-    within(band).getByRole("link", { name: "Asked, Needs you" }),
+    within(band).getByRole("link", { name: "Asked, Ready for review" }),
   ).toBeTruthy();
   // Complete draws no mark, even over analysis that read a question.
   expect(within(band).getByRole("link", { name: "Finished" })).toBeTruthy();
-  expect(within(group).getAllByRole("img", { name: "Needs you" })).toHaveLength(
-    1,
-  );
+  expect(
+    within(group).getAllByRole("img", { name: "Ready for review" }),
+  ).toHaveLength(1);
   const finishedLink = within(group).getByRole("link", { name: "Finished" });
   expect(finishedLink.getAttribute("title")).toBeNull();
   expect(

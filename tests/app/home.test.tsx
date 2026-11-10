@@ -193,14 +193,15 @@ describe("Home screen", () => {
       expect(
         within(question).getByRole("img", { name: "Needs you" }),
       ).toBeTruthy();
-      // An unread completion draws nothing: bold title, no mark, no dot.
+      // An unread completion draws the green dot, and no inline unread dot.
       expect(
         within(band).getByRole("link", {
           name: /Finished work.*Beta.*10 minutes ago/,
         }),
       ).toBeTruthy();
       const done = within(band).getByRole("link", { name: /Finished work/ });
-      expect(done.querySelector(".ws-home-mark")?.children).toHaveLength(0);
+      expect(done.querySelector(".ws-home-mark > .ws-dot-done")).not.toBeNull();
+      expect(done.querySelector(".ws-unread-inline")).toBeNull();
       expect(within(band).getByText("5")).toBeTruthy();
     });
 

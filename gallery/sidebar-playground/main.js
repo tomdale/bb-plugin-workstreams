@@ -608,7 +608,10 @@ const data = [
     rows: [
       ["none", "Planning shortcuts"],
       ["unread", "Reviewing shortcuts", 1],
+      ["review", "Reading the checklist"],
+      ["review-unread", "Answering the review"],
       ["complete", "Improving keyboard navigation"],
+      ["complete-unread", "Finishing the report"],
     ],
   },
   {
