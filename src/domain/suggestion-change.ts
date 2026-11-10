@@ -56,9 +56,18 @@ export type ChangeContext = {
     parentId: string | null;
     aliases?: readonly string[];
   }[];
-  /** Each visible root's topic; null for Unfiled. */
+  /**
+   * Each filed root's topic, archived ones included; null for Unfiled. A
+   * suggestion can name any of them.
+   */
   readonly threadTopic: Readonly<Record<string, string | null>>;
   readonly title: (threadId: string) => string;
+  /**
+   * Whether a thread shows in the sidebar. The threads a merge or topic move
+   * lists and counts are only these, since review describes what the user
+   * sees move; archived assignments move too. Every thread, when absent.
+   */
+  readonly visible?: (threadId: string) => boolean;
   /**
    * Topics that waiting suggestions of the same tidy pass would create, by
    * lowercased name, so `new:` references read as their eventual paths.
@@ -113,8 +122,11 @@ function describe(
     return { id, title: context.title(id) };
   };
   /** Visible threads filed in a topic or any topic below it. */
+  const shown = Object.entries(threadTopic).filter(
+    ([id]) => context.visible?.(id) ?? true,
+  );
   const within = (ref: string) =>
-    Object.entries(threadTopic)
+    shown
       .filter(
         ([, topic]) =>
           topic !== null &&
@@ -201,7 +213,7 @@ function describe(
           {
             from: place(body.from),
             to: into,
-            threads: Object.entries(threadTopic)
+            threads: shown
               .filter(([, topic]) => topic === body.from)
               .map(([id]) => thread(id)),
             carried: 0,

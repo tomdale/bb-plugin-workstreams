@@ -708,6 +708,7 @@ export class Suggestions {
         known.titles.get(id) ??
         ("subgroups" in body ? body.threadTitles?.[id] : undefined) ??
         "Untitled thread",
+      visible: (id) => known.titles.has(id),
       creates,
     };
     return {

@@ -455,10 +455,11 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      with **Decline** (`×`) and **Accept** (`✓`), then the threads it moves (a
      count when a whole group moves), blank when none move. When that line names
      several threads, shows a count, or is cut short, click it to list every
-     thread, one per line; click again to fold it. A decision applies at once
-     and leaves **Undo** in its place for a few seconds; Activity keeps Undo
-     after that. The foot counts suggestions the tree has since outgrown ("1 out
-     of date") beside **Open Topics**, where you can dismiss them. **Close**,
+     thread, one per line; click again to fold it. Archived threads move with
+     their topic but aren't listed or counted. A decision applies at once and
+     leaves **Undo** in its place for a few seconds; Activity keeps Undo after
+     that. The foot counts suggestions the tree has since outgrown ("1 out of
+     date") beside **Open Topics**, where you can dismiss them. **Close**,
      `Esc`, or a click outside closes the list and leaves the rest waiting.
    - Drag a root thread to another workstream to set its **Topic** to that
      workstream's topic; its delegates follow it. Drop on a row to place it

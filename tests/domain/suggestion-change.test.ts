@@ -192,6 +192,18 @@ describe("suggestionChange", () => {
     ).toMatchObject({ from: at("bb", "Todo Plugin"), to: at("Todo Plugin") });
   });
 
+  it("lists and counts only visible threads moving with a topic", () => {
+    const hidden = context({ visible: (id) => id !== "t4" && id !== "t1" });
+    expect(
+      suggestionChange({ op: "reparent", topic: "agent", parent: "bb" }, hidden)
+        ?.moves[0],
+    ).toMatchObject({ carried: 1, carriedThreads: listed("t3") });
+    expect(
+      suggestionChange({ op: "merge", from: "toolbelt", into: "bb" }, hidden)
+        ?.moves[0]?.threads,
+    ).toEqual(listed("t2"));
+  });
+
   it("renames a topic in place", () => {
     expect(
       suggestionChange(
