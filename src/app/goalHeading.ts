@@ -139,23 +139,28 @@ export function headingScroll(
  * crossfade while the large title retreats and the compact title rises; only
  * their transforms and opacity change, so the timeline never reflows.
  */
-export const FADE_COMPACT_RISE = 14;
+export const FADE_COMPACT_RISE = 4;
 
 export function headingFade(progress: number, motion = true) {
   const eased = progress * progress * (3 - 2 * progress);
-  const retreat = -12 * eased;
+  const retreat = -3 * eased;
   return {
     expanded: {
       opacity: 1 - eased,
       y: motion ? retreat || 0 : 0,
-      scale: motion ? 1 - 0.06 * eased : 1,
+      scale: motion ? 1 - 0.01 * eased : 1,
     },
     compact: {
       opacity: eased,
       y: motion ? FADE_COMPACT_RISE * (1 - eased) : 0,
-      scale: motion ? 0.96 + 0.04 * eased : 1,
+      scale: motion ? 0.99 + 0.01 * eased : 1,
     },
   };
+}
+
+/** The pinned title scales directly between its expanded and compact sizes. */
+export function pinnedTitleScale(progress: number): number {
+  return 1 + (TITLE_BAR_TITLE_SIZE / TITLE_SIZE - 1) * progress;
 }
 
 /** Keep the outgoing heading readable longer and let the incoming one brighten early. */
@@ -226,6 +231,14 @@ export function compactBlock(base: number, eyebrow: Eyebrow | null): number {
 }
 
 /** Plate height when the collapsed heading stays pinned in the timeline. */
-export function pinnedHeight(base: number, eyebrow: Eyebrow | null): number {
-  return Math.round(compactBlock(base, eyebrow) + base * PINNED_PAD * 2);
+export function pinnedHeight(
+  base: number,
+  eyebrow: Eyebrow | null,
+  titleLines = 1,
+): number {
+  return Math.round(
+    compactBlock(base, eyebrow) +
+      base * TITLE_BAR_TITLE_SIZE * TITLE_LINE * (titleLines - 1) +
+      base * PINNED_PAD * 2,
+  );
 }

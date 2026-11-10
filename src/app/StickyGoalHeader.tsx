@@ -27,6 +27,7 @@ import {
   headingScroll,
   headingScrollLimit,
   pinnedHeight,
+  pinnedTitleScale,
   plateFadeScale,
   titleBarSlot,
   titleExitDistance,
@@ -571,9 +572,10 @@ export function StickyGoalHeader(): React.ReactElement | null {
     goal ? goalLines : 0,
   );
   const exitDistance = titleExitDistance(base, eyebrow, titleLines);
+  const pinned = !!placement && placement.bar === null;
   const { fromBottom, limit, fade } = useScrollState(
     mount?.scroller ?? null,
-    headingScrollLimit(exitDistance, fadeOnly ? "fade" : "scroll"),
+    headingScrollLimit(exitDistance, pinned || fadeOnly ? "fade" : "scroll"),
   );
   const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
   // A floating heading never makes the move to the compact copy: it stays at
@@ -587,10 +589,13 @@ export function StickyGoalHeader(): React.ReactElement | null {
       : headingScroll(
           settled ? fromBottom : 0,
           exitDistance,
-          fadeOnly ? "fade" : "scroll",
+          pinned || fadeOnly ? "fade" : "scroll",
           limit,
         );
   const collapsed = progress === 1;
+  const scalePinned = pinned && !floating;
+  const scaleProgress =
+    scalePinned && reduceMotion ? Number(collapsed) : progress;
   const fadeMotion = headingFade(progress, !reduceMotion);
   const opacity = fadeOnly
     ? {
@@ -598,29 +603,35 @@ export function StickyGoalHeader(): React.ReactElement | null {
         compact: fadeMotion.compact.opacity,
       }
     : headingOpacity(progress);
-  // When the title bar has no room, the compact copy sits in the timeline.
-  const pinned = !!placement && placement.bar === null;
-  // Pinned copies occupy the same text region. Let the large title clear
-  // before bringing in the compact one so their words never compete.
-  const compactOpacity =
-    fadeOnly && pinned ? Math.max(0, opacity.compact * 2 - 1) : opacity.compact;
-  const platePinnedHeight = pinnedHeight(base, eyebrow);
+  // A pinned title scales in place instead of handing off between two copies.
+  const expandedOpacity = scalePinned ? 1 : opacity.expanded;
+  const compactOpacity = scalePinned
+    ? 0
+    : fadeOnly && pinned
+      ? Math.max(0, opacity.compact * 2 - 1)
+      : opacity.compact;
+  const platePinnedHeight = pinnedHeight(
+    base,
+    eyebrow,
+    scalePinned ? titleLines : 1,
+  );
   // A pinned compact heading needs a solid plate; in the bar the full-size
   // plate can instead fade away without moving under the large heading.
   // Reduced motion swaps the pinned plate at the endpoint rather than
   // interpolating its height and the scroll padding derived from it.
-  const plateHeight = fadeOnly
-    ? pinned
-      ? reduceMotion
-        ? collapsed
-          ? platePinnedHeight
-          : height
-        : height * (1 - progress) + platePinnedHeight * progress
-      : height
-    : Math.max(
-        height * (1 - progress),
-        pinned ? platePinnedHeight * progress : 0,
-      );
+  const plateHeight =
+    fadeOnly || scalePinned
+      ? pinned
+        ? reduceMotion
+          ? collapsed
+            ? platePinnedHeight
+            : height
+          : height * (1 - progress) + platePinnedHeight * progress
+        : height
+      : Math.max(
+          height * (1 - progress),
+          pinned ? platePinnedHeight * progress : 0,
+        );
   const plateOpacity =
     fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
   const scrollPadding =
@@ -682,16 +693,25 @@ export function StickyGoalHeader(): React.ReactElement | null {
         y: paneTop + base * PINNED_PAD,
         width: placement.pane.width,
       };
-  const workstream = (compact: boolean, width: number) =>
-    context.workstream &&
-    eyebrow && (
+  const workstream = (compact: boolean, width: number) => {
+    if (!context.workstream || !eyebrow) return null;
+    const scale = compact
+      ? eyebrow.compactScale
+      : scalePinned
+        ? 1 + (eyebrow.compactScale - 1) * scaleProgress
+        : 1;
+    const y =
+      !compact && scalePinned
+        ? base * (PINNED_PAD - PAD_TOP) * scaleProgress
+        : 0;
+    return (
       <div
         className="ws-sticky-goal__workstream"
         style={
           {
             fontSize: eyebrow.size,
-            maxWidth: compact ? width / eyebrow.compactScale : width,
-            transform: `scale(${compact ? eyebrow.compactScale : 1})`,
+            maxWidth: width / scale,
+            transform: `translateY(${y}px) scale(${scale})`,
             ...workstreamColorStyle(context.workstream.color),
           } as React.CSSProperties
         }
@@ -700,6 +720,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
         <span>{context.workstream.name}</span>
       </div>
     );
+  };
 
   // The scroll transition carries both copies through the full exit distance;
   // the fade uses a small retreat and rise within their fixed layouts.
@@ -716,11 +737,14 @@ export function StickyGoalHeader(): React.ReactElement | null {
       >
         <div
           className="ws-goal-overlay__group"
+          data-ws-align={scalePinned && centered ? "center" : undefined}
           style={{
-            transform: fadeOnly
-              ? `translateY(${base * PAD_TOP + fadeMotion.expanded.y}px) scale(${fadeMotion.expanded.scale})`
-              : `translateY(${base * PAD_TOP - moved}px)`,
-            opacity: opacity.expanded,
+            transform: scalePinned
+              ? `translateY(${base * PAD_TOP}px)`
+              : fadeOnly
+                ? `translateY(${base * PAD_TOP + fadeMotion.expanded.y}px) scale(${fadeMotion.expanded.scale})`
+                : `translateY(${base * PAD_TOP - moved}px)`,
+            opacity: expandedOpacity,
             width: placement.pane.width,
           }}
         >
@@ -729,7 +753,10 @@ export function StickyGoalHeader(): React.ReactElement | null {
             className="ws-sticky-goal__title"
             style={{
               fontSize: base * TITLE_SIZE,
-              transform: `translateY(${eyebrowBlock}px)`,
+              transform: scalePinned
+                ? `translateY(${eyebrowBlock + (base * PINNED_PAD + barEyebrowBlock - base * PAD_TOP - eyebrowBlock) * scaleProgress}px) scale(${pinnedTitleScale(scaleProgress)})`
+                : `translateY(${eyebrowBlock}px)`,
+              transformOrigin: scalePinned && centered ? "50% 0" : undefined,
               ...(narrow && titleLines > 1
                 ? {
                     display: "-webkit-box",
@@ -762,6 +789,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
               style={{
                 fontSize: base * SUBTITLE_SIZE,
                 transform: `translateY(${eyebrowBlock + titleBlock}px)`,
+                opacity: scalePinned ? 1 - scaleProgress : 1,
               }}
             >
               {context.goal}
@@ -820,7 +848,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
             // In scroll mode, the plate's shadow shrinks to the bar fade's
             // length, never shorter than that much of its own.
             "--ws-plate-fade-scale":
-              fadeOnly && (!pinned || reduceMotion)
+              scalePinned || (fadeOnly && (!pinned || reduceMotion))
                 ? 1
                 : plateFadeScale(progress),
             "--ws-fade-below-plate": fade && plateHeight > 0 ? plateOpacity : 0,

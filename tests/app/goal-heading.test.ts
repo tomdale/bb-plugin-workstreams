@@ -13,6 +13,7 @@ import {
   headingScrollLimit,
   MIN_TITLE_BAR_WIDTH,
   pinnedHeight,
+  pinnedTitleScale,
   titleBarSlot,
   titleExitDistance,
 } from "../../src/app/goalHeading.ts";
@@ -47,6 +48,13 @@ it("makes the pinned plate taller by the room the larger phone line needs", () =
   const desktop = pinnedHeight(BASE, eyebrowMetrics(BASE, false));
   // The line reserves 20px on a phone instead of 10px in the title bar.
   expect(phone - desktop).toBe(10);
+});
+
+it("keeps every wrapped title line in the pinned plate", () => {
+  const one = pinnedHeight(BASE, null, 1);
+  expect(
+    Math.abs(pinnedHeight(BASE, null, 2) - one - BASE * 0.95 * (4 / 3)),
+  ).toBeLessThan(1);
 });
 
 it("leaves the room reserved for a heading with no workstream alone", () => {
@@ -123,18 +131,24 @@ it("gives the fade a longer scroll handoff than the slide", () => {
 it("eases a small retreat and rise through the fade", () => {
   expect(headingFade(0)).toEqual({
     expanded: { opacity: 1, y: 0, scale: 1 },
-    compact: { opacity: 0, y: 14, scale: 0.96 },
+    compact: { opacity: 0, y: 4, scale: 0.99 },
   });
   expect(headingFade(0.5)).toEqual({
-    expanded: { opacity: 0.5, y: -6, scale: 0.97 },
-    compact: { opacity: 0.5, y: 7, scale: 0.98 },
+    expanded: { opacity: 0.5, y: -1.5, scale: 0.995 },
+    compact: { opacity: 0.5, y: 2, scale: 0.995 },
   });
   expect(headingFade(1)).toEqual({
-    expanded: { opacity: 0, y: -12, scale: 0.94 },
+    expanded: { opacity: 0, y: -3, scale: 0.99 },
     compact: { opacity: 1, y: 0, scale: 1 },
   });
   expect(headingFade(0.25).compact.opacity).toBeLessThan(0.25);
   expect(headingFade(0.75).compact.opacity).toBeGreaterThan(0.75);
+});
+
+it("scales one pinned title directly to its compact size", () => {
+  expect(pinnedTitleScale(0)).toBe(1);
+  expect(pinnedTitleScale(1)).toBeCloseTo(0.95 / 1.5);
+  expect(pinnedTitleScale(0.5)).toBeCloseTo((1 + 0.95 / 1.5) / 2);
 });
 
 it("keeps the eased fade but removes spatial motion when asked", () => {
