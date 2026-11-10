@@ -61,6 +61,9 @@ export function AdvanceAfterLeaving(): null {
   const seen = useRef<Seen | undefined>(undefined);
   const route = useRef(threadId);
   route.current = threadId;
+  /** What the sidebar lists now, for a move still waiting out its delay. */
+  const currentList = useRef(listed);
+  currentList.current = listed;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -93,9 +96,14 @@ export function AdvanceAfterLeaving(): null {
     const leftSidebar =
       previous.listed.has(departing) && !listed.has(departing);
     if (!snoozed && !leftSidebar) return;
+    // Whatever the last departure asked for, this one decides again.
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+    // Workstreams lands its own archives (the recap card's); consuming the
+    // claim before the route is read keeps it from going stale.
+    if (leftSidebar && claimedArchiveNavigation(departing)) return;
     // The app has already taken the user somewhere else; leave them there.
     if (threadId !== null && threadId !== departing) return;
-    if (leftSidebar && claimedArchiveNavigation(departing)) return;
     // Nothing that is going away in this same change can be where to go next:
     // a snoozed workstream, or an archive that took threads with it.
     const leaving = new Set<string>([departing]);
@@ -107,10 +115,12 @@ export function AdvanceAfterLeaving(): null {
     const next = nextUpNextRowAfterLeaving(previous.rows, departing, leaving);
     if (!next) return;
     const target = next.thread.id;
-    if (timer.current !== null) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       timer.current = null;
       const at = route.current;
+      // A thread that left before the delay was up is no place to go, and a
+      // route the user chose is theirs.
+      if (!currentList.current.has(target)) return;
       if (at === null || at === departing) actions.open(target);
     }, ADVANCE_DELAY_MS);
   }, [ws.status, threadId, rows, listed, snoozesLoaded, snoozes, actions]);

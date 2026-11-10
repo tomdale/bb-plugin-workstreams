@@ -6,6 +6,7 @@ import {
   experimental_useSidebarThreads,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
+import { claimArchiveNavigation } from "../../src/app/archive/claims.ts";
 import { ServerStateRealtime } from "../../src/app/serverState.ts";
 import { AdvanceAfterLeaving } from "../../src/app/upNext/AdvanceAfterLeaving.tsx";
 import { parsePrefs } from "../../src/domain/prefs.ts";
@@ -181,5 +182,35 @@ it("stays where it is when Up Next has nowhere else to go", async () => {
   const snoozes: Snoozes = {};
   const slot = await mountLoaded("ask", listing([threading()[0]!]), snoozes);
   await snooze(slot, snoozes, "ask");
+  expect(slot.inspection.sidebarActionCalls).toEqual([]);
+});
+
+it("leaves the archive to Workstreams when the recap card claimed it", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout"] });
+  const slot = await mountLoaded("beta", listing(threading()), {});
+  claimArchiveNavigation("beta");
+  await archive(slot, "beta");
+  expect(slot.inspection.sidebarActionCalls).toEqual([]);
+});
+
+it("doesn't open a thread that left before the move was made", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout"] });
+  const snoozes: Snoozes = {};
+  const slot = await mountLoaded("beta", listing(threading()), snoozes);
+  // Snoozing waits out the delay before it moves; the thread it chose is
+  // archived in the meantime.
+  await act(async () => {
+    snoozes.beta = {
+      until: Date.now() + 3_600_000,
+      events: false,
+      attentionAt: 0,
+      at: 0,
+    } as ThreadSnooze;
+    await slot.emitRealtime("changed", {});
+  });
+  await archive(slot, "other");
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
   expect(slot.inspection.sidebarActionCalls).toEqual([]);
 });
