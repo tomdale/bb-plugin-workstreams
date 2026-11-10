@@ -14,7 +14,10 @@ import {
   type ExperimentalThreadContextCardProps,
 } from "@get-bb/plugin-sdk/app";
 import { relativeAge } from "../../domain/presentation.ts";
-import { useSharedServerStateSelector } from "../serverState.ts";
+import {
+  useSharedServerStateSelector,
+  useThreadRecordSelector,
+} from "../serverState.ts";
 import { useDebugMode } from "./debug.ts";
 import { ThreadActivity } from "./ThreadActivity.tsx";
 
@@ -53,8 +56,9 @@ function DebugEntries({
   const analysis = useSharedServerStateSelector(
     (server) => server.analysis[threadId],
   );
-  const assignment = useSharedServerStateSelector(
-    (server) => server.catalog?.assignments?.[threadId],
+  const assignment = useThreadRecordSelector(
+    threadId,
+    (record) => record.assignment,
   );
   const className = `flex min-w-0 flex-col gap-1.5${
     surface === "card" ? " px-2" : ""

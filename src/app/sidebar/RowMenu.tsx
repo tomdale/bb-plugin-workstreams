@@ -19,12 +19,13 @@ import type {
   SnoozeWhen,
   ThreadSnooze,
 } from "../../domain/snooze.ts";
-import type { Topic, TopicAssignment } from "../../domain/topics.ts";
+import type { Topic } from "../../domain/topics.ts";
 import { topicIndex } from "../../domain/topic-path.ts";
 import {
   useSharedServerState,
   useSharedServerActions,
   useSharedServerStateSelector,
+  useThreadRecordSelector,
 } from "../serverState.ts";
 import { useCloseOnFoldLeave } from "./Fold.tsx";
 import { isAutomaticTopic } from "../task/TaskIdentity.tsx";
@@ -76,9 +77,6 @@ export function RowMenu({
 }) {
   const [open, setOpen] = useState(false);
   useCloseOnFoldLeave(open, () => setOpen(false));
-  const assignment = useSharedServerStateSelector(
-    (server) => server.catalog?.assignments[thread.id] ?? null,
-  );
   return (
     <ContextMenu.Root open={open} onOpenChange={setOpen}>
       <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
@@ -89,7 +87,6 @@ export function RowMenu({
           snooze={snooze}
           snoozePrefs={snoozePrefs}
           showArchive={showArchive}
-          assignment={assignment}
         />
       ) : null}
     </ContextMenu.Root>
@@ -103,14 +100,12 @@ function RowMenuContent({
   snooze,
   snoozePrefs,
   showArchive,
-  assignment,
 }: {
   thread: PluginSidebarThread;
   handlers: RowMenuHandlers;
   snooze?: ThreadSnooze;
   snoozePrefs: SnoozePrefs;
   showArchive: boolean;
-  assignment: TopicAssignment | null;
 }) {
   const actions = experimental_useSidebarThreadActions();
   const portalScope = usePortalScopeProps();
@@ -120,6 +115,12 @@ function RowMenuContent({
     (server) => server.catalog?.entities ?? NO_TOPICS,
   );
   const index = useMemo(() => topicIndex(entities), [entities]);
+  // Undefined while an archived thread's topic is read; the submenu waits.
+  const record = useThreadRecordSelector(
+    thread.id,
+    (record) => record.assignment,
+  );
+  const assignment = record ?? null;
 
   // Topic submenu: the same choices as the composer's topic picker.
   const currentEntity = assignment?.entityId
@@ -154,7 +155,7 @@ function RowMenuContent({
         ) : null}
         <Separator />
         <ContextMenu.Sub>
-          <SubTrigger>Topic</SubTrigger>
+          <SubTrigger disabled={record === undefined}>Topic</SubTrigger>
           <ContextMenu.Portal>
             <ContextMenu.SubContent
               {...portalScope}
@@ -369,9 +370,16 @@ function Item({
 }
 
 /** An item that opens a submenu, marked with a trailing chevron. */
-function SubTrigger({ children }: { children: ReactNode }) {
+function SubTrigger({
+  children,
+  disabled,
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+}) {
   return (
     <ContextMenu.SubTrigger
+      disabled={disabled}
       className={cn(
         itemClass,
         "gap-2 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",

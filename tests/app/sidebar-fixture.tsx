@@ -204,7 +204,22 @@ export async function mount(
           ? {
               catalog: {
                 ...options.catalog,
-                assignments: {},
+                // Like the server, one for each thread the snapshot covers.
+                assignments: Object.fromEntries(
+                  threads.map((thread) => [
+                    thread.id,
+                    {
+                      threadId: thread.id,
+                      entityId: null,
+                      status: "unresolved",
+                      provenance: null,
+                      label: null,
+                      ancestorIds: [],
+                      evidence: null,
+                      inheritedFrom: null,
+                    },
+                  ]),
+                ),
                 revision: 1,
               },
             }

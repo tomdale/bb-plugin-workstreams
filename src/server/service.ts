@@ -334,6 +334,8 @@ export class WorkstreamService {
       ]);
       const seeded = getMeta(this.db, "seeded") === "1";
       let changed = false;
+      // Which threads are seen, and their parents, scope the client snapshot.
+      let snapshotChanged = false;
       const seenSections = new Map(
         (
           this.db
@@ -457,6 +459,11 @@ export class WorkstreamService {
           observeThreadTitle(this.db, thread.id, thread.ownTitle);
           if (
             !before ||
+            before.parent_thread_id !== (thread.parentThreadId ?? null)
+          )
+            snapshotChanged = true;
+          if (
+            !before ||
             before.section_id !== thread.sectionId ||
             before.parent_thread_id !== (thread.parentThreadId ?? null) ||
             before.title !== thread.title
@@ -470,17 +477,19 @@ export class WorkstreamService {
         }
         const present = new Set(threads.map((t) => t.id));
         for (const id of seen.keys())
-          if (!present.has(id))
+          if (!present.has(id)) {
             this.db
               .prepare("DELETE FROM ws_seen_thread WHERE thread_id = ?")
               .run(id);
+            snapshotChanged = true;
+          }
         if (!seeded) setMeta(this.db, "seeded", "1");
       });
       tx();
       this.lastReconciledAt = at;
       this.lastThreads = threads;
       this.lastSections = sections;
-      if (changed) this.onChange();
+      if (changed || snapshotChanged) this.onChange();
       return changed;
     });
   }

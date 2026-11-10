@@ -135,8 +135,8 @@ export class Analyzer {
           options: { label: string },
         ): Promise<{ answer: PlacementOutput; traceId: string | null }>;
       };
-      /** Incremental evidence is optional; failure leaves triage available. */
-      onChange: () => void;
+      /** A thread's stored analysis changed. */
+      onChange: (threadId: string) => void;
       /** A new result was stored for the thread's current turn. */
       onResult?: (threadId: string, result: StoredAnalysis) => void;
       log: (message: string) => void;
@@ -617,7 +617,7 @@ export class Analyzer {
       if ((this.lastText.get(threadId)?.revision ?? Infinity) <= revision)
         this.lastText.delete(threadId);
       this.lastError = null;
-      this.deps.onChange();
+      this.deps.onChange(threadId);
       if (stored.changes > 0 && !topicOnly)
         this.deps.onResult?.(threadId, result);
       return result;

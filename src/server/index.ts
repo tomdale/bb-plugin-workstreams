@@ -50,6 +50,8 @@ import { UserError, WorkstreamService } from "./service.ts";
 import type { RetitleBasis } from "../domain/titles.ts";
 import { TraceStore } from "./trace.ts";
 import { AgentRecaps } from "./recap.ts";
+import { ChangeFeed } from "./changes.ts";
+import type { StateSlice } from "../domain/changes.ts";
 import { registerQuestionTool } from "./questions/tool.ts";
 import { QuestionStore } from "./questions/store.ts";
 import {
@@ -82,7 +84,13 @@ export default async function plugin(bb: BbPluginApi) {
   const db = openDatabase(bb);
   seedPrefs(db);
   const journal = new Journal(db);
-  const notify = () => bb.realtime.publish("changed", {});
+  const changes = new ChangeFeed((signal) =>
+    bb.realtime.publish("changed", signal),
+  );
+  bb.onDispose(() => changes.dispose());
+  const notify = changes.notify;
+  const SNOOZES = { slices: ["snoozes"], threadIds: [] } as const;
+  const ORDER = { slices: ["order"], threadIds: [] } as const;
   const snoozes = new ThreadSnoozes(db);
   const service = new WorkstreamService(
     () => bb.sdk,
@@ -109,7 +117,7 @@ export default async function plugin(bb: BbPluginApi) {
     const woke = snoozes.clearSet(set);
     if (!woke.length) return;
     bb.log.info(`Woke ${woke.length} snoozed thread(s): ${event}`);
-    notify();
+    notify(SNOOZES);
     await markUnread(woke);
   };
   // Set below, once analysis and recaps exist.
@@ -131,7 +139,7 @@ export default async function plugin(bb: BbPluginApi) {
     if (service.reconciledAt() === null) return;
     const { ended, timed } = snoozes.sweep(service.threads(), Date.now());
     if (ended.length) {
-      notify();
+      notify(SNOOZES);
       await markUnread(timed);
     }
     await checkWakeEvents();
@@ -394,7 +402,8 @@ export default async function plugin(bb: BbPluginApi) {
     },
     placement,
     listing: listingOf,
-    onChange: notify,
+    onChange: (threadId) =>
+      notify({ slices: ["analysis"], threadIds: [threadId] }),
     onResult: (threadId, result) => {
       // A finished analysis can change whether the thread counts as done,
       // and settle how a snoozed thread's turn ended.
@@ -432,8 +441,8 @@ export default async function plugin(bb: BbPluginApi) {
     db,
     prefs: () => loadRecapPrefs(db),
     since: () => recapToolSince(db),
-    onChange: () => {
-      notify();
+    onChange: (threadId) => {
+      notify({ slices: ["recaps"], threadIds: [threadId] });
       // A reported or cleared recap can change whether the thread is done.
       triggerOrganizer(200);
       if (awaitingEvents()) void checkWakeEvents();
@@ -1003,6 +1012,36 @@ export default async function plugin(bb: BbPluginApi) {
     return { assignment: topics.assignment(input.threadId) };
   };
 
+  /** The slices of the client snapshot (`state`), each read on its own. */
+  const readSlice = {
+    analysis: () => ({ analysis: analyzer.all() }),
+    recaps: () => ({
+      recaps: recaps.visible(),
+      dismissedRecaps: recaps.visibleDismissedIds(),
+    }),
+    order: () => ({ order: loadOrder(db) }),
+    snoozes: () => ({
+      snoozes: snoozes.all(),
+      snoozePrefs: loadSnoozePrefs(db),
+    }),
+    catalog: () => {
+      const entities = topics.list();
+      const groups = Object.fromEntries(topics.groups());
+      return {
+        catalog: {
+          entities,
+          groups,
+          assignments: topics.visibleAssignments(),
+          revision: topics.revision(),
+          colors: topicColors.snapshot(entities, groups),
+          layout: organizerInstance.layout(),
+          categories: categories.generations(),
+        },
+      };
+    },
+    suggestions: () => ({ pendingSuggestions: suggestions.pendingCount() }),
+  } satisfies Record<StateSlice, () => object>;
+
   bb.rpc.register(rpcContract, {
     preview: ({ prompt, pickedProjectId, draftKey }) =>
       userFacing(async () => {
@@ -1085,6 +1124,7 @@ export default async function plugin(bb: BbPluginApi) {
         waitingCancelled: stored?.waitingCancelled ?? false,
         capped: capped && thread.status === "idle",
         corrections,
+        assignment: topics.assignment(threadId),
         files: thread.environmentId
           ? {
               environmentId: thread.environmentId,
@@ -1302,24 +1342,23 @@ export default async function plugin(bb: BbPluginApi) {
     taskReclassify: ({ threadId }) =>
       userFacing(async () => reclassifyTask({ threadId })),
     state: async () => ({
-      analysis: analyzer.all(),
-      recaps: recaps.all(),
-      dismissedRecaps: recaps.dismissedIds(),
-      organization: organizerInstance.state(),
-      order: loadOrder(db),
-      snoozes: snoozes.all(),
-      snoozePrefs: loadSnoozePrefs(db),
-      catalog: {
-        ...catalogWithColors(),
-        layout: organizerInstance.layout(),
-        categories: categories.generations(),
-      },
-      pendingSuggestions: suggestions.pendingCount(),
+      changes: changes.stamp(),
+      ...readSlice.analysis(),
+      ...readSlice.recaps(),
+      ...readSlice.order(),
+      ...readSlice.snoozes(),
+      ...readSlice.catalog(),
+      ...readSlice.suggestions(),
     }),
+    stateSlices: async ({ slices }) =>
+      Object.assign(
+        { changes: changes.stamp() },
+        ...[...new Set(slices)].map((slice) => readSlice[slice]()),
+      ),
     setSnoozePrefs: ({ patch }) =>
       userFacing(async () => {
         const prefs = saveSnoozePrefs(db, patch);
-        notify();
+        notify(SNOOZES);
         return { prefs };
       }),
     snooze: ({ threadIds, until, events }) =>
@@ -1348,7 +1387,7 @@ export default async function plugin(bb: BbPluginApi) {
         if (!Object.keys(stored).length)
           throw new UserError("Only active threads can be snoozed.");
         snoozes.set(stored);
-        notify();
+        notify(SNOOZES);
         // Records each new snooze's pull request state right away, so a
         // change soon after counts.
         void checkWakeEvents();
@@ -1356,12 +1395,12 @@ export default async function plugin(bb: BbPluginApi) {
       }),
     unsnooze: async ({ threadIds }) => {
       const woke = snoozes.clearAll(threadIds);
-      if (woke.length) notify();
+      if (woke.length) notify(SNOOZES);
       return { woke };
     },
     reorder: async (change) => {
       const order = saveOrder(db, change);
-      notify();
+      notify(ORDER);
       return { order };
     },
     prefs: async () => ({ prefs: currentPrefs() }),
@@ -1508,13 +1547,17 @@ export default async function plugin(bb: BbPluginApi) {
     traceClear: async () => ({ removed: traces.clear() }),
   });
 
+  // Clients that stayed connected while the plugin restarted hold the old
+  // process's snapshot; this signal's new epoch has them read all of it.
+  notify();
+
   registerCli(bb, {
     topicMigration,
     arrangement: {
       load: () => loadOrder(db),
       setPrioritized: (ids) => {
         saveOrder(db, { kind: "prioritized", ids });
-        notify();
+        notify(ORDER);
       },
     },
     service,

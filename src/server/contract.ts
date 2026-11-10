@@ -27,6 +27,7 @@ import {
   traceSummarySchema,
 } from "../domain/trace.ts";
 import { entrySchema } from "./journal.ts";
+import { changeStampSchema, stateSliceSchema } from "../domain/changes.ts";
 
 const analysisSchema = z.object({
   recap: z.string(),
@@ -351,6 +352,44 @@ const previewSchema = z.object({
     .object({ notes: z.array(z.string()), durationMs: z.number() })
     .optional(),
 });
+/** The fields of the client snapshot, each slice's own (domain/changes.ts). */
+const stateFields = {
+  analysis: z.record(z.string(), analysisSchema),
+  /** Agent recaps for each thread's latest turn, dismissed ones included. */
+  recaps: z.record(z.string(), recapSchema),
+  /** Ids of the recaps above whose docked card is dismissed. */
+  dismissedRecaps: z.array(z.string()),
+  /** The sidebar's drag-and-drop order. */
+  order: orderSchema,
+  /** Snoozed threads, by id (see domain/snooze.ts). */
+  snoozes: z.record(z.string(), snoozeSchema),
+  /** The snooze presets every menu lists, and which one a click uses. */
+  snoozePrefs: snoozePrefsSchema,
+  /** Organizing suggestions waiting for your decision. */
+  pendingSuggestions: z.number(),
+  catalog: catalogStateSchema,
+};
+
+/**
+ * The client snapshot. It covers visible, non-archived threads: recaps and
+ * assignments of other threads are read on demand through `recap_get`.
+ */
+const stateSchema = z.object({
+  ...stateFields,
+  recaps: stateFields.recaps.default({}),
+  dismissedRecaps: stateFields.dismissedRecaps.default([]),
+  snoozes: stateFields.snoozes.default({}),
+  pendingSuggestions: stateFields.pendingSuggestions.default(0),
+  catalog: stateFields.catalog.default({
+    entities: [],
+    groups: {},
+    assignments: {},
+    revision: 1,
+  }),
+  /** The slice revisions this read reflects. */
+  changes: changeStampSchema,
+});
+
 export const rpcContract = defineRpcContract({
   reclassificationPreview: {
     input: z.object({ threadIds: z.array(z.string()).min(1).max(100) }),
@@ -446,6 +485,8 @@ export const rpcContract = defineRpcContract({
       waitingCancelled: z.boolean(),
       capped: z.boolean(),
       corrections: z.number(),
+      /** The thread's topic, for threads outside the `state` snapshot. */
+      assignment: topicAssignmentSchema,
       /** Where the thread's files live, to resolve the recap's file links. */
       files: z
         .object({
@@ -673,44 +714,21 @@ export const rpcContract = defineRpcContract({
     input: z.object({ threadId: z.string().min(1) }),
     output: z.object({ assignment: topicAssignmentSchema }),
   },
+  /** The whole client snapshot, for a first load or a reconnect. */
   state: {
     input: z.null(),
-    output: z.object({
-      analysis: z.record(z.string(), analysisSchema),
-      /** Agent recaps for each thread's latest turn, dismissed ones included. */
-      recaps: z.record(z.string(), recapSchema).default({}),
-      /** Ids of the recaps above whose docked card is dismissed. */
-      dismissedRecaps: z.array(z.string()).default([]),
-      /** The sidebar's drag-and-drop order. */
-      order: orderSchema,
-      /** Snoozed threads, by id (see domain/snooze.ts). */
-      snoozes: z.record(z.string(), snoozeSchema).default({}),
-      /** The snooze presets every menu lists, and which one a click uses. */
-      snoozePrefs: snoozePrefsSchema,
-      /** Organizing suggestions waiting for your decision. */
-      pendingSuggestions: z.number().default(0),
-      catalog: catalogStateSchema.default({
-        entities: [],
-        groups: {},
-        assignments: {},
-        revision: 1,
-      }),
-      organization: organizerStateSchema.default({
-        status: "idle",
-        progress: null,
-        error: null,
-        lastUpdatedAt: null,
-        groups: [],
-        unresolved: [],
-        counts: {
-          activeRoots: 0,
-          completedRoots: 0,
-          totalRoots: 0,
-          unresolvedRoots: 0,
-          activeWorkstreams: 0,
-        },
-      }),
-    }),
+    output: stateSchema,
+  },
+  /**
+   * Only the named slices of `state`, for a client whose other slices are
+   * current (see domain/changes.ts). Fields of other slices are absent.
+   */
+  stateSlices: {
+    input: z.object({ slices: z.array(stateSliceSchema).min(1) }),
+    output: z
+      .object(stateFields)
+      .partial()
+      .extend({ changes: changeStampSchema }),
   },
   /**
    * Snoozes threads until a time, until a wake event (`until: null`), or
