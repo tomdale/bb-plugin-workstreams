@@ -5,7 +5,7 @@
  * and the topic tree), the Gallery (a specimen of every reply-block part),
  * and, with the debug UI on, the model calls. Each opens as a full view.
  */
-import { useLayoutEffect, useState } from "react";
+import { useCallback, useLayoutEffect, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import type { PluginNavPanelProps } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
@@ -61,6 +61,11 @@ export function WorkstreamsPage({
   const ws = useWorkstreams();
   const [view, setView] = useState<View>(() => viewOf(subPath));
   useLayoutEffect(() => setView(viewOf(subPath)), [subPath]);
+  const { projection } = ws;
+  const workstreamOf = useCallback(
+    (id: string) => projection.rowOf.get(id)?.workstreamId ?? null,
+    [projection],
+  );
 
   if (view.kind === "queue")
     return (
@@ -93,9 +98,7 @@ export function WorkstreamsPage({
             focus={view.focus}
             modelCalls={view.modelCalls}
             sections={ws.sections}
-            workstreamOf={(id) =>
-              ws.projection.rowOf.get(id)?.workstreamId ?? null
-            }
+            workstreamOf={workstreamOf}
           />
         )}
       </div>
