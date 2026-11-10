@@ -6,10 +6,12 @@ import {
 } from "../../domain/snooze.ts";
 import type { SnoozeWhen } from "../../domain/snooze.ts";
 import { snoozeThreads } from "../snooze/actions.ts";
-import { plainMenuKit } from "../snooze/SnoozeMenuItems.tsx";
+import {
+  CurrentSnoozeMenuItems,
+  plainMenuKit,
+} from "../snooze/SnoozeMenuItems.tsx";
 import { useStableCallback } from "../useLatest.ts";
 import type { useWorkstreams } from "../useWorkstreams.ts";
-import { CurrentSnoozeMenuItems } from "./SidebarThreadRow.tsx";
 import { groupSnoozeRequest } from "./rows.ts";
 import type { GroupSnooze, SnoozeRequest, ThreadNode } from "./types.ts";
 

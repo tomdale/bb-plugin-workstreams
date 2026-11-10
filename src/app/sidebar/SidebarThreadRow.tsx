@@ -1,4 +1,4 @@
-import { memo, type ComponentProps } from "react";
+import { memo } from "react";
 import { type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { type ServerState } from "../useWorkstreams.ts";
 import { workView } from "../../domain/status.ts";
@@ -19,14 +19,10 @@ import {
   type SnoozeWhen,
   type ThreadSnooze,
 } from "../../domain/snooze.ts";
-import { SnoozeMenuItems, plainMenuKit } from "../snooze/SnoozeMenuItems.tsx";
-
-/** Snooze menus sample the clock when their portal actually renders. */
-export function CurrentSnoozeMenuItems(
-  props: Omit<ComponentProps<typeof SnoozeMenuItems>, "now">,
-) {
-  return <SnoozeMenuItems {...props} now={Date.now()} />;
-}
+import {
+  CurrentSnoozeMenuItems,
+  plainMenuKit,
+} from "../snooze/SnoozeMenuItems.tsx";
 
 export type SidebarThreadRowProps = {
   handleRef?: DragHandle["ref"];

@@ -1,15 +1,14 @@
 import { type ReactNode } from "react";
 import { type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import { type Row as RowModel } from "../../domain/project.ts";
 import { type WorkstreamNode } from "../../domain/groups.ts";
 import { type Placement, type RowEntry } from "./rows.ts";
 import { type DragHandle } from "./dnd.tsx";
 import { type SnoozeWhen } from "../../domain/snooze.ts";
 
+export type { ThreadRow } from "./rows.ts";
+
 /** Types the sidebar thread list shares across its parts. */
 export type ThreadNode = WorkstreamNode<PluginSidebarThread>;
-
-export type ThreadRow = RowModel<PluginSidebarThread>;
 export type RowRenderOptions = {
   placement: Placement;
   /**

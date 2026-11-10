@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentProps, ComponentType, ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
@@ -102,6 +102,13 @@ export function SnoozeMenuItems({
       <MenuItem onSelect={onCustom}>Custom…</MenuItem>
     </>
   );
+}
+
+/** Snooze menus sample the clock when their portal actually renders. */
+export function CurrentSnoozeMenuItems(
+  props: Omit<ComponentProps<typeof SnoozeMenuItems>, "now">,
+) {
+  return <SnoozeMenuItems {...props} now={Date.now()} />;
 }
 
 export const snoozeMenuContentClass = menuSurfaceClass("60");
