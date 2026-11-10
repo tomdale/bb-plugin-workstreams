@@ -70,6 +70,8 @@ type SuggestionView = {
   change: SuggestionChange | null;
   /** What it does in a sentence, while `change` is known; else `summary`. */
   headline: string;
+  /** The model call that proposed it, while that trace is still stored. */
+  traceId: string | null;
   /**
    * Threads that joined a split's group since it was made; accepting asks
    * the model which subgroup each goes in.
@@ -96,6 +98,7 @@ type Row = {
   at: number;
   decided_at: number | null;
   detail: string | null;
+  trace_id: string | null;
 };
 
 /** What the last tidy pass saw, for its triggers. */
@@ -215,6 +218,7 @@ export class Suggestions {
         preview: review?.preview ?? null,
         arrivals: review?.arrivals ?? [],
         headline: review?.change ? changeHeadline(review.change) : row.summary,
+        traceId: row.trace_id,
       };
     });
   }
@@ -386,7 +390,7 @@ export class Suggestions {
         : this.threads().filter((t) => t.topicId === topic.id);
       if (this.declinedSplit(topic.id, threads)) continue;
       this.deps.topics.consumeDivisionRequest(topic.id);
-      const { value } = await this.deps.inference.run(
+      const { value, traceId } = await this.deps.inference.run(
         "split",
         {
           topics,
@@ -413,6 +417,7 @@ export class Suggestions {
             ),
           },
           value.reason,
+          traceId,
         );
     }
   }
@@ -528,8 +533,9 @@ export class Suggestions {
       declined: this.declined(),
     };
     let value: Awaited<ReturnType<Inference["run"]>>["value"];
+    let traceId: string | null = null;
     try {
-      ({ value } = await this.deps.inference.run("tidy", input, {
+      ({ value, traceId } = await this.deps.inference.run("tidy", input, {
         model: await this.deps.model(),
         label: `${roots.length} threads, ${topics.length} topics`,
       }));
@@ -545,7 +551,8 @@ export class Suggestions {
       const pass = randomUUID();
       const tree = this.tree();
       for (const { edit, reason } of value)
-        if (!refusal(edit, tree)) this.propose(pass, "edit", edit, reason);
+        if (!refusal(edit, tree))
+          this.propose(pass, "edit", edit, reason, traceId);
       setMeta(
         this.deps.db,
         TIDY_KEY,
@@ -559,17 +566,22 @@ export class Suggestions {
   private prefixes(): void {
     const pass = randomUUID();
     for (const { edit, reason } of prefixMoves(this.tree()))
-      this.propose(pass, "edit", edit, reason);
+      this.propose(pass, "edit", edit, reason, null);
   }
 
   // Shared ----------------------------------------------------------------
 
-  /** Stores a suggestion unless it waits already or you declined it before. */
+  /**
+   * Stores a suggestion unless it waits already or you declined it before.
+   * `traceId` is the model call that proposed it, so the debug UI can show what
+   * the model was asked and answered.
+   */
   private propose(
     pass: string,
     kind: "split" | "edit",
     body: TidyEdit | Split,
     reason: string,
+    traceId: string | null,
   ): void {
     const key = editKey(body);
     const known = this.deps.db
@@ -580,8 +592,8 @@ export class Suggestions {
     if (known) return;
     this.deps.db
       .prepare(
-        `INSERT INTO ws_suggestion(id, pass_id, kind, body, reason, summary, key, status, at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+        `INSERT INTO ws_suggestion(id, pass_id, kind, body, reason, summary, key, status, at, trace_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
       )
       .run(
         randomUUID(),
@@ -592,6 +604,7 @@ export class Suggestions {
         describeEdit(body, this.names()),
         key,
         this.now(),
+        traceId,
       );
   }
 

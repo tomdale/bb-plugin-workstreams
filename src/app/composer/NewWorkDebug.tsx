@@ -18,6 +18,8 @@ import type { Trace } from "../../domain/trace.ts";
 import type { RpcContract } from "../../server/contract.ts";
 import type { Preview } from "../../server/preview.ts";
 import { Code, json, smallButton } from "../debug/Inspector.tsx";
+import { DebugThreadButton } from "../debug/DebugThreadButton.tsx";
+import { draftSubject } from "../debug/subjects.ts";
 import type { NewWork } from "./new-work.ts";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -208,7 +210,13 @@ export function NewWorkDebug({ newWork }: { newWork: NewWork }) {
             </div>
           </details>
         ) : null}
-        <div className="mt-3 flex flex-wrap justify-end gap-2">
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+          {decision ? (
+            <DebugThreadButton
+              subject={draftSubject(decision, state.text)}
+              className="size-7"
+            />
+          ) : null}
           <button
             type="button"
             onClick={() => void copy()}

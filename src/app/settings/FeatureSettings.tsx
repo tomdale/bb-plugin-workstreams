@@ -501,6 +501,7 @@ export function OrganizeSettings() {
 export function AdvancedSettings() {
   const { prefs, update, error } = useFeaturePrefs();
   const rpc = useRpc<RpcContract>();
+  const { status: projectStatus, projects } = experimental_useSidebarThreads();
   const [machines, setMachines] = useState<
     { id: string; name: string }[] | null
   >(null);
@@ -532,14 +533,24 @@ export function AdvancedSettings() {
    * so a surface that is retired leaves the settings here.
    */
   const surfaces: {
-    key: keyof Omit<Prefs["advanced"], "hostId" | "debugRecord" | "debugUi">;
+    key: keyof Omit<
+      Prefs["advanced"],
+      "hostId" | "debugRecord" | "debugUi" | "debugProjectId"
+    >;
     label: string;
   }[] = [
     { key: "debugInspect", label: "Inspect buttons" },
+    { key: "debugDiscuss", label: "Debug thread buttons" },
     { key: "debugActivity", label: "Activity model calls" },
     { key: "debugComposer", label: "Composer routing diagnostics" },
     { key: "debugReplies", label: "Reply diagnostics" },
     { key: "debugThreadInfo", label: "Thread Info and context card" },
+  ];
+  const debugProjectOptions = [
+    { value: "", label: "Home project" },
+    ...projects
+      .filter((project) => !project.isPersonal)
+      .map((project) => ({ value: project.id, label: project.name })),
   ];
   return (
     <div className="space-y-3">
@@ -603,6 +614,27 @@ export function AdvancedSettings() {
                 }
               />
             ))}
+            <SettingRow
+              label="Debug threads project"
+              description="Where a debug thread starts, so its agent can read the prompts and code behind the result you asked about."
+              control={
+                <SettingsPicker
+                  label="Debug threads project"
+                  value={prefs.advanced.debugProjectId}
+                  options={debugProjectOptions}
+                  placeholder={
+                    projectStatus === "loading"
+                      ? "Loading projects…"
+                      : "Choose a project"
+                  }
+                  onChange={(debugProjectId) =>
+                    update({ advanced: { debugProjectId } })
+                  }
+                  disabled={projectStatus !== "ready"}
+                  className="w-56"
+                />
+              }
+            />
           </div>
         ) : null}
       </SectionRows>

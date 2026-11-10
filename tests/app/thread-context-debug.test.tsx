@@ -249,7 +249,12 @@ it("lists analysis and journal events and opens every transcript behind an event
       name: "Thread activity",
     }),
   ).toBeTruthy();
-  const rows = within(activity as HTMLElement).getAllByRole("button");
+  // A row is the disclosure button; the debug thread button beside it is not.
+  const rows = [
+    ...(activity as HTMLElement).querySelectorAll<HTMLElement>(
+      "li > button[aria-haspopup='dialog']",
+    ),
+  ];
   expect(rows[0]?.textContent).not.toContain("·");
   expect(rows[0]?.textContent).toContain("Work status: done");
   const chevrons = (activity as HTMLElement).querySelectorAll(

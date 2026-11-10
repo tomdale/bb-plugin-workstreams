@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import type { ProjectSuggestion } from "../../../server/projectAssociations.ts";
 import type { useWorkstreams } from "../../useWorkstreams.ts";
 import { SectionHeading } from "../../primitives/SectionHeading.tsx";
+import { DebugThreadButton } from "../../debug/DebugThreadButton.tsx";
+import { projectSuggestionSubject } from "../../debug/subjects.ts";
 
 export function ProjectSuggestions({
   ws,
@@ -104,6 +106,9 @@ export function ProjectSuggestions({
               {suggestion.fromProject} → {suggestion.toProject ?? "No project"}
             </span>
             <div className="flex shrink-0 items-center gap-1">
+              <DebugThreadButton
+                subject={projectSuggestionSubject(suggestion)}
+              />
               <Button
                 size="sm"
                 variant="ghost"

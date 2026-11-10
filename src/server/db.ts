@@ -492,6 +492,9 @@ const MIGRATIONS = [
   // A workstream's last visible-thread time kept an emptied one on the list;
   // an empty workstream now leaves at once, and nothing reads it.
   "DELETE FROM ws_meta WHERE key = 'last-populated-workstreams'",
+  // A suggestion's own model call, so the debug UI can start a thread that
+  // carries the prompt and response behind it.
+  "ALTER TABLE ws_suggestion ADD COLUMN trace_id TEXT",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

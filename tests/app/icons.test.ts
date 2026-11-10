@@ -54,6 +54,7 @@ const VERIFIED_BB_ICONS = new Set([
   "Bug",
   "Check",
   "ChevronDown",
+  "ChildThread",
   "ChevronLeft",
   "ChevronRight",
   "Close",

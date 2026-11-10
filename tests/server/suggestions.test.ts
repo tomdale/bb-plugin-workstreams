@@ -292,6 +292,15 @@ describe("tidy suggestions", () => {
       ["Rename Gamma to Gamma Two", "Because"],
     ]);
     const [merge, rename] = state.suggestions;
+    // Each suggestion remembers the call that proposed it, so a debug thread
+    // about it can carry the prompt and response.
+    const tidyCalls = await rpc<{ traces: { id: string; kind: string }[] }>(
+      "traces",
+      { kind: "tidy" },
+    );
+    expect(tidyCalls.traces.map((t) => t.kind)).toEqual(["tidy"]);
+    expect(merge!.traceId).toBe(tidyCalls.traces[0]!.id);
+    expect(rename!.traceId).toBe(tidyCalls.traces[0]!.id);
     expect(merge!.change).toEqual({
       op: "merge",
       moves: [

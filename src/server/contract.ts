@@ -298,6 +298,11 @@ const suggestionsStateSchema = z.object({
       /** The sidebar rows accepting it touches, now and after. */
       preview: suggestionPreviewSchema.nullable().default(null),
       headline: z.string(),
+      /**
+       * The model call that proposed it, while that trace is still stored;
+       * the debug UI's thread about the suggestion reads it.
+       */
+      traceId: z.string().nullable().default(null),
       arrivals: z.array(z.object({ id: z.string(), title: z.string() })),
     }),
   ),
@@ -909,6 +914,20 @@ export const rpcContract = defineRpcContract({
   traceClear: {
     input: z.null(),
     output: z.object({ removed: z.number() }),
+  },
+  /**
+   * Starts a visible thread about one AI-generated result. The debug UI
+   * composes the brief (the suggestion, its facts, the recorded calls) and
+   * this spawns the thread in Workstreams' project and answers with its id.
+   */
+  debugThread: {
+    input: z.object({
+      /** The thread's title. */
+      title: z.string().min(1).max(200),
+      /** The opening message. */
+      message: z.string().min(1).max(400_000),
+    }),
+    output: z.object({ threadId: z.string() }),
   },
 });
 

@@ -32,6 +32,7 @@ const suggestion = (
   preview,
   headline,
   arrivals: [],
+  traceId: null,
 });
 
 const merge = suggestion(

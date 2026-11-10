@@ -16,6 +16,8 @@ import {
 import { relativeAge } from "../../domain/presentation.ts";
 import { useSharedServerStateSelector } from "../serverState.ts";
 import { useDebugMode } from "./debug.ts";
+import { analysisSubject } from "./subjects.ts";
+import { DebugThreadButton } from "./DebugThreadButton.tsx";
 import { ThreadActivity } from "./ThreadActivity.tsx";
 
 function Entry({
@@ -59,6 +61,14 @@ function DebugEntries({
   const className = `flex min-w-0 flex-col gap-1.5${
     surface === "card" ? " px-2" : ""
   }`;
+  const discuss = analysis ? (
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span>Debug this classification</span>
+      <DebugThreadButton
+        subject={analysisSubject({ threadId, analysis, assignment })}
+      />
+    </div>
+  ) : null;
   // The Info tab's DetailCard supplies the dl; the context card does not.
   const Container = surface === "card" ? "dl" : "div";
   if (!analysis && !assignment)
@@ -113,6 +123,7 @@ function DebugEntries({
           {analysis.topicError}
         </Entry>
       ) : null}
+      {discuss}
     </Container>
   );
 }

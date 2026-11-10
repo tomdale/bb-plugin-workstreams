@@ -6,6 +6,8 @@ import {
   type TraceSummary,
 } from "../../domain/trace.ts";
 import { InspectButton } from "../debug/InspectButton.tsx";
+import { DebugThreadButton } from "../debug/DebugThreadButton.tsx";
+import { modelCallSubject } from "../debug/subjects.ts";
 import { ActivityTerm } from "./ActivityTerm.tsx";
 import { ActivityThreadLink } from "./ActivityThreadLink.tsx";
 
@@ -253,6 +255,7 @@ export const CallRow = memo(function CallRow({
               title={`${TRACE_KIND_TITLE[trace.kind]}: ${trace.label}`}
               label="Inspect this model call"
             />
+            <DebugThreadButton subject={modelCallSubject(trace)} />
           </div>
         </details>
       </div>

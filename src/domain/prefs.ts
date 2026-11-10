@@ -233,6 +233,16 @@ const GROUPS = {
     debugReplies: [z.boolean(), true],
     /** The Workstreams Debug section in a thread's Info tab and context card. */
     debugThreadInfo: [z.boolean(), true],
+    /**
+     * The button beside an AI-generated result that starts a thread about it,
+     * carrying the suggestion and the model calls behind it.
+     */
+    debugDiscuss: [z.boolean(), true],
+    /**
+     * The project a debug thread starts in, so its agent can read the prompts
+     * and code it is asked about; "" uses the home project.
+     */
+    debugProjectId: [z.string(), ""],
   },
 } as const satisfies Record<
   string,

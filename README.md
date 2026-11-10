@@ -1053,15 +1053,17 @@ collections and writes reviewed topic suggestions. | | **Advanced** | **Analysis
 machine** | Automatic | Enrolled BB machine used for gateway model calls when
 multiple machines are connected. |
 
-| Section      | Setting                          | Default | Details                                                                                                                  |
-| ------------ | -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **Advanced** | **Record model calls**           | `On`    | Records redacted model traces (`7` days / `1,000` records), whether or not the debug UI is showing.                      |
-| **Advanced** | **Debug UI**                     | `Off`   | Shows the surfaces below. The **toggle debug UI** command flips it without touching recording.                           |
-| **Advanced** | **Inspect buttons**              | `On`    | The bug button on rows and banners that opens the recorded calls behind a decision.                                      |
-| **Advanced** | **Activity model calls**         | `On`    | Recorded calls listed in Activity, with kind and failure filters, reported cost, and **Clear traces…**.                  |
-| **Advanced** | **Composer routing diagnostics** | `On`    | The **Debug** disclosure under the new-thread composer: confidence, inputs, and the server's notes on each routing step. |
-| **Advanced** | **Reply diagnostics**            | `On`    | **Raw agent output** and reply syntax diagnosis on assistant replies.                                                    |
-| **Advanced** | **Thread Info and context card** | `On`    | The **Workstreams Debug** section listing the metadata Workstreams accumulated for a thread.                             |
+| Section      | Setting                          | Default      | Details                                                                                                                  |
+| ------------ | -------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **Advanced** | **Record model calls**           | `On`         | Records redacted model traces (`7` days / `1,000` records), whether or not the debug UI is showing.                      |
+| **Advanced** | **Debug UI**                     | `Off`        | Shows the surfaces below. The **toggle debug UI** command flips it without touching recording.                           |
+| **Advanced** | **Inspect buttons**              | `On`         | The bug button on rows and banners that opens the recorded calls behind a decision.                                      |
+| **Advanced** | **Activity model calls**         | `On`         | Recorded calls listed in Activity, with kind and failure filters, reported cost, and **Clear traces…**.                  |
+| **Advanced** | **Composer routing diagnostics** | `On`         | The **Debug** disclosure under the new-thread composer: confidence, inputs, and the server's notes on each routing step. |
+| **Advanced** | **Reply diagnostics**            | `On`         | **Raw agent output** and reply syntax diagnosis on assistant replies.                                                    |
+| **Advanced** | **Thread Info and context card** | `On`         | The **Workstreams Debug** section listing the metadata Workstreams accumulated for a thread.                             |
+| **Advanced** | **Debug thread buttons**         | `On`         | The thread button beside an AI-generated result: it starts a thread carrying that result and the model calls behind it.  |
+| **Advanced** | **Debug threads project**        | Home project | Where those debug threads start, so their agent can read the prompts and code behind the result.                         |
 
 ### Gateway vs. provider worker models
 
@@ -1244,6 +1246,16 @@ What the UI shows:
   `tidy`) and **Failures only**, view total reported cost for the filtered
   calls, or click **Clear traces…** to delete recorded model traces while
   keeping the Activity log intact.
+- **Debug in a new thread:** Every AI-generated result carries a small thread
+  button: an organizing suggestion in the sidebar or Topics, the composer's
+  routing preview, a thread's topic and analysis, a project association, an
+  Activity event, or a recorded model call. It starts a visible thread in the
+  **debug threads project** whose first message is the result, what accepting it
+  would change, and the exact prompt, response, parsed output, and applied
+  outcome of every model call behind it, then opens it. A wrong or puzzling
+  suggestion becomes a conversation with the context to name the prompt or code
+  change, and `bb workstreams trace <id>` reprints any call it names. The thread
+  starts a turn at once, so it spends tokens like any other thread.
 - **Composer routing diagnostics:** Expand the **Debug** disclosure in the
   new-thread composer to inspect live Quick-analysis confidence, inputs, token
   usage, reasoning, and copyable JSON diagnostics.

@@ -50,6 +50,8 @@ import { SPARKLES_ICON } from "../workstream-icon.ts";
 import { Hint } from "../Hint.tsx";
 import { rowActionClass } from "./HoverActions.tsx";
 import { SuggestionPreview, type PreviewColors } from "./SuggestionPreview.tsx";
+import { DebugThreadButton } from "../debug/DebugThreadButton.tsx";
+import { suggestionSubject } from "../debug/subjects.ts";
 
 type Rpc = ReturnType<typeof useWorkstreams>["rpc"];
 type Suggestion = SuggestionsStateWire["suggestions"][number];
@@ -486,6 +488,9 @@ function SuggestionRow({
           {headline}
         </span>
         <span className="-mr-1 flex shrink-0 items-center gap-0.5">
+          <DebugThreadButton
+            subject={suggestionSubject(suggestion, "the sidebar")}
+          />
           <Hint label="Decline">
             <button
               type="button"

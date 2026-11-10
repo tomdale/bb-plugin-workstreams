@@ -14,6 +14,14 @@ import {
 import type { RpcContract } from "../../server/contract.ts";
 import type { JournalEntry as Entry } from "../../server/journal.ts";
 import { InspectButton } from "../debug/InspectButton.tsx";
+import { DebugThreadButton } from "../debug/DebugThreadButton.tsx";
+import {
+  ACTION_HELP,
+  ACTION_LABEL,
+  ENTRY_STATUS,
+  SOURCE_LABEL,
+} from "./activityLabels.ts";
+import { activityEntrySubject } from "../debug/subjects.ts";
 import { useDebugMode } from "../debug/debug.ts";
 import { ghostButton, secondaryButton } from "./controls.ts";
 import { CallRow } from "./CallRow.tsx";
@@ -30,80 +38,6 @@ import {
 
 /** The filter row's compact selects, sized to their chosen option. */
 const filterSelectClass = "h-7 w-auto px-2 text-xs";
-
-const ACTION_LABEL: Record<Entry["action"], string> = {
-  move: "Move",
-  "create-workstream": "New workstream",
-  "rename-workstream": "Rename",
-  "delete-workstream": "Delete",
-  undo: "Undo",
-  batch: "Reorganize",
-  categories: "Categories",
-  "edit-workstream": "Edit",
-  "project-association": "Project",
-  route: "New thread",
-  retitle: "Updated title",
-  "remove-topic": "Removed topic",
-  suggestion: "Suggestion",
-};
-
-const ACTION_HELP: Record<Entry["action"], string> = {
-  move: "A thread was moved to another workstream.",
-  "create-workstream": "A workstream was created to group related threads.",
-  "rename-workstream": "A workstream’s name was changed.",
-  "delete-workstream": "A workstream was removed. Its threads are not deleted.",
-  undo: "A previous Workstreams change was reversed.",
-  batch: "Several organization changes were applied together.",
-  categories:
-    "The current thread collection's categories changed without changing topic assignments.",
-  "edit-workstream": "A workstream’s description or settings were changed.",
-  "project-association":
-    "A topic’s associated project was learned, changed, or reviewed.",
-  route: "A new request was placed in a thread and workstream.",
-  retitle:
-    "A thread was given its goal as its title, from its opening request or after a turn.",
-  "remove-topic":
-    "Topics Workstreams had discovered were removed because no thread or workstream used them.",
-  suggestion:
-    "You accepted an organizing suggestion, which changed the topic tree or a thread's topic.",
-};
-const ENTRY_STATUS: Record<
-  Entry["status"],
-  { label: string; description: string }
-> = {
-  applied: {
-    label: "Applied",
-    description:
-      "This organization change was applied. It does not mean the thread’s work is complete.",
-  },
-  partial: {
-    label: "Partially applied",
-    description:
-      "Some parts of this change were applied; others could not be completed. Check the event details.",
-  },
-  failed: {
-    label: "Failed",
-    description:
-      "This change could not be applied. Check the event details for the failure.",
-  },
-  undone: {
-    label: "Undone",
-    description: "This change was reversed by a later undo event.",
-  },
-  dismissed: {
-    label: "Dismissed",
-    description: "This suggestion was declined without applying the change.",
-  },
-};
-
-const SOURCE_LABEL: Record<Entry["source"], string> = {
-  user: "you",
-  external: "outside Workstreams",
-  router: "router",
-  handoff: "handoff",
-  auto: "automatic",
-  bootstrap: "bootstrap",
-};
 
 function day(at: number): string {
   const date = new Date(at);
@@ -248,6 +182,14 @@ const ActivityEntryRow = memo(function ActivityEntryRow({
             Undo
           </button>
         ) : null}
+        <DebugThreadButton
+          subject={activityEntrySubject(
+            entry,
+            ACTION_LABEL[entry.action],
+            SOURCE_LABEL[entry.source],
+            ENTRY_STATUS[entry.status].label,
+          )}
+        />
       </span>
     </li>
   );

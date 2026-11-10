@@ -300,6 +300,25 @@ export default async function plugin(bb: BbPluginApi) {
     (await bb.sdk.projects.list()).find((p) => p.id === projectId)?.name ??
     null;
   /**
+   * The project a debug thread starts in: the one chosen for debug threads,
+   * else the home project new work starts in, else the only project there is.
+   * The thread's agent reads the prompts and code the brief asks about, so a
+   * project holding that source is the point of the setting.
+   */
+  const debugProject = async (): Promise<string> => {
+    const projects = await bb.sdk.projects.list();
+    const prefs = currentPrefs();
+    const debugProjectId = prefs.advanced.debugProjectId.trim();
+    for (const id of [debugProjectId, prefs.newWork.homeProjectId.trim()])
+      if (id && projects.some((project) => project.id === id)) return id;
+    if (projects.length === 1 && projects[0]) return projects[0].id;
+    throw new UserError(
+      debugProjectId
+        ? "That project isn't one BB knows. Choose another debug threads project in Settings → Workstreams → Advanced."
+        : "Choose a debug threads project in Settings → Workstreams → Advanced, so a debug thread knows where to start.",
+    );
+  };
+  /**
    * A topic one of the analyses chose, applied under the source priority;
    * the organizer then files the thread by it.
    */
@@ -1506,6 +1525,22 @@ export default async function plugin(bb: BbPluginApi) {
     traceReplay: ({ id }) =>
       userFacing(async () => ({ trace: await inference.replay(id) })),
     traceClear: async () => ({ removed: traces.clear() }),
+    /**
+     * Starts the thread a debug brief was written for. It runs in Workstreams'
+     * own project, where its agent can read the prompts and code the brief is
+     * about, and starts a turn at once: the brief is the request.
+     */
+    debugThread: ({ title, message }) =>
+      userFacing(async () => {
+        const projectId = await debugProject();
+        const thread = await bb.sdk.threads.spawn({
+          projectId,
+          environment: { type: "project-default" },
+          title,
+          prompt: message,
+        });
+        return { threadId: thread.id };
+      }),
   });
 
   registerCli(bb, {

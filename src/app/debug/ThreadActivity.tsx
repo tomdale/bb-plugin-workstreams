@@ -7,24 +7,16 @@ import { TRACE_KIND_TITLE, type TraceSummary } from "../../domain/trace.ts";
 import type { RpcContract } from "../../server/contract.ts";
 import type { JournalEntry } from "../../server/journal.ts";
 import { shareJson } from "../structuralSharing.ts";
+import {
+  ACTION_LABEL,
+  ENTRY_STATUS,
+  SOURCE_LABEL,
+} from "../page/activityLabels.ts";
+import { activityEntrySubject, modelCallSubject } from "./subjects.ts";
+import type { DebugSubject } from "../../domain/debug-thread.ts";
 import type { InspectTarget } from "./debug.ts";
+import { DebugThreadButton } from "./DebugThreadButton.tsx";
 import { TraceInspector } from "./Inspector.tsx";
-
-const ACTION_LABEL: Record<JournalEntry["action"], string> = {
-  move: "Move",
-  "create-workstream": "New workstream",
-  "rename-workstream": "Rename",
-  "delete-workstream": "Delete",
-  undo: "Undo",
-  batch: "Reorganize",
-  categories: "Categories",
-  "edit-workstream": "Edit",
-  "project-association": "Project",
-  route: "New thread",
-  retitle: "Updated title",
-  "remove-topic": "Removed topic",
-  suggestion: "Suggestion",
-};
 
 type ActivityResult = {
   entries: JournalEntry[];
@@ -38,6 +30,8 @@ type ActivityItem = {
   detail: string;
   failed: boolean;
   target: InspectTarget;
+  /** What a debug thread about this item would say. */
+  subject: DebugSubject;
 };
 
 const FULL_ANALYSIS_OUTCOMES: Record<string, string> = {
@@ -72,6 +66,12 @@ function itemsOf(result: ActivityResult | null): ActivityItem[] {
       target: {
         link: { kind: "entry", ref: entry.id },
       } satisfies InspectTarget,
+      subject: activityEntrySubject(
+        entry,
+        ACTION_LABEL[entry.action],
+        SOURCE_LABEL[entry.source],
+        ENTRY_STATUS[entry.status].label,
+      ),
     })),
     ...result.traces.map((trace) => ({
       key: `trace:${trace.id}`,
@@ -80,6 +80,7 @@ function itemsOf(result: ActivityResult | null): ActivityItem[] {
       detail: traceDetail(trace),
       failed: trace.status !== "ok",
       target: { traceIds: [trace.id] } satisfies InspectTarget,
+      subject: modelCallSubject(trace),
     })),
   ].sort((a, b) => b.at - a.at);
 }
@@ -190,7 +191,10 @@ export function ThreadActivity({
         {items.map((item) => {
           const date = new Date(item.at);
           return (
-            <li key={item.key}>
+            <li
+              key={item.key}
+              className="flex items-center gap-1 rounded-sm pr-1 hover:bg-state-hover"
+            >
               <button
                 type="button"
                 aria-haspopup="dialog"
@@ -200,7 +204,7 @@ export function ThreadActivity({
                   setSelected(item);
                   setOpen(true);
                 }}
-                className="group/activity grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-sm py-2 pl-2 pr-1 text-left hover:bg-state-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="group/activity grid w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-sm py-2 pl-2 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <span className="min-w-0">
                   <span className="block truncate text-xs font-medium">
@@ -232,6 +236,7 @@ export function ThreadActivity({
                   </span>
                 </span>
               </button>
+              <DebugThreadButton subject={item.subject} />
             </li>
           );
         })}

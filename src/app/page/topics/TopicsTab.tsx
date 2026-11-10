@@ -46,6 +46,8 @@ import { Reclassification } from "../Reclassification.tsx";
 import type { useWorkstreams } from "../../useWorkstreams.ts";
 import { TopicTree } from "./TopicTree.tsx";
 import { ProjectSuggestions } from "./ProjectSuggestions.tsx";
+import { DebugThreadButton } from "../../debug/DebugThreadButton.tsx";
+import { suggestionSubject } from "../../debug/subjects.ts";
 
 type Workstreams = ReturnType<typeof useWorkstreams>;
 type Suggestion = SuggestionsStateWire["suggestions"][number];
@@ -479,6 +481,9 @@ function Block({
               : "hidden group-hover/block:flex group-focus-within/block:flex pointer-coarse:flex",
           )}
         >
+          <DebugThreadButton
+            subject={suggestionSubject(suggestion, "Topics")}
+          />
           <button
             type="button"
             className={ghostButton}
