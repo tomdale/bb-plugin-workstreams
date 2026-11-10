@@ -18,9 +18,11 @@
  *
  * Closing punctuation is forgiving too, because a call whose values are all
  * lists of objects reads like JSON and writers close it with `}` instead of
- * `)`. Any of `)`, `]`, and `}` ends the entry list or list it closes, and a
- * container the writer never closed ends with the component itself. Stray
- * closers and sentence punctuation between components are skipped.
+ * `)`. Any of `)`, `]`, and `}` ends the entry list or list it closes, a
+ * container the writer never closed ends with the component itself, and a
+ * component name that begins a line in column one ends the container the
+ * writer left open before it. Stray closers and sentence punctuation between
+ * components are skipped.
  *
  * Each top-level statement parses independently: an error ends that statement
  * and parsing resumes at the next line that begins, in column one, with
@@ -419,14 +421,15 @@ class Parser {
    * `key: value` entries up to the closer or the end of the component, for
    * calls and objects. A value with no key before it is positional; a key that
    * directly follows a value is read as if a comma separated them. A closer
-   * that does not match the one that opened the container still ends it, and so
-   * does the end of the component, because both mean the writer finished.
+   * that does not match the one that opened the container still ends it, so
+   * does the end of the component, and so does the next component's name at the
+   * start of a line, because each means the writer finished.
    */
   private entries(openEnd: number): { fields: Field[]; end: number } {
     const fields: Field[] = [];
     let end = openEnd;
     this.skipCommas();
-    while (!this.closes()) {
+    while (!this.closes() && !(fields.length && this.startsComponent())) {
       const key = this.peek;
       const named =
         (key.t === "ident" || key.t === "string") &&
@@ -461,6 +464,21 @@ class Parser {
       }
     }
     return { fields, end: this.closes() ? this.next().end : end };
+  }
+  /**
+   * Whether the next token begins a component of its own: a name at the start of
+   * a line in column one, followed by `(`. A writer who leaves a container open
+   * and starts the next component means two statements, not a component that
+   * holds the other.
+   */
+  private startsComponent(): boolean {
+    const t = this.peek;
+    if (
+      t.t !== "ident" ||
+      (t.start !== 0 && this.lexer.source[t.start - 1] !== "\n")
+    )
+      return false;
+    return /^[A-Za-z_]\w*[ \t]*\(/.test(this.lexer.source.slice(t.start));
   }
   /** Whether the next token can begin another entry, for a missing comma. */
   private startsValue(): boolean {

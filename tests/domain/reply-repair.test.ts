@@ -234,6 +234,34 @@ describe("liberal component input", () => {
         "delivery",
       ]);
     });
+
+    it("ends a call the writer left open where the next component starts", () => {
+      const items = compileComponents(
+        'checks(title: "T", scope: "S", items: [{name: "N", status: passed}],\ndetails(title: "D", body: "B"))',
+      );
+      expect(items.map((i) => i.ok && i.component)).toEqual([
+        {
+          type: "checks",
+          title: "T",
+          scope: "S",
+          items: [{ name: "N", status: "passed" }],
+        },
+        { type: "details", title: "D", body: "B" },
+      ]);
+    });
+
+    it("keeps a component that opens a line inside the list that holds it", () => {
+      expect(
+        one(
+          'group(relationship: peers, children: [\n[text(body: "a")],\ntext(body: "b")\n])',
+        ),
+      ).toMatchObject({
+        children: [
+          { type: "text", body: "a" },
+          { type: "text", body: "b" },
+        ],
+      });
+    });
   });
 
   describe("names", () => {
