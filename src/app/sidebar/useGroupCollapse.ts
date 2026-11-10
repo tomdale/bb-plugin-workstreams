@@ -1,6 +1,6 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { groupCollapseKey, useCollapsed } from "./useCollapsed.ts";
-import type { ServerState } from "../useWorkstreams.ts";
+import type { TopicState } from "../../domain/topics.ts";
 
 /** What names a group's collapse state: its section, and its topic when it has one. */
 export type CollapseRef = {
@@ -27,12 +27,16 @@ export type CollapseScope = {
  * `toggle`).
  */
 export function useGroupCollapse({
-  catalog,
+  groups,
   tiered,
   lowerExpanded,
   setLowerExpanded,
 }: {
-  catalog: ServerState["catalog"];
+  /**
+   * The catalog's section-to-topic bindings. Only these name a fold, so a
+   * catalog change elsewhere leaves the fold callbacks as they were.
+   */
+  groups: TopicState["groups"] | undefined;
   tiered: boolean;
   lowerExpanded: ReadonlySet<string>;
   setLowerExpanded: Dispatch<SetStateAction<ReadonlySet<string>>>;
@@ -40,8 +44,8 @@ export function useGroupCollapse({
   const { isCollapsed, toggle } = useCollapsed();
   const keyOf = useCallback(
     (group: CollapseRef) =>
-      groupCollapseKey(group.id, group.topicId ?? catalog?.groups[group.id]),
-    [catalog],
+      groupCollapseKey(group.id, group.topicId ?? groups?.[group.id]),
+    [groups],
   );
   const stored = useCallback(
     (group: CollapseRef, byDefault: boolean) =>

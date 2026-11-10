@@ -45,7 +45,6 @@ export type ThreadTreesProps = {
   label?: string;
   categorized?: boolean;
   renderRow: RenderRow;
-  projectionNow: number;
   collapsed?: boolean;
   slotWidth: number;
   choosingTopic: boolean;
@@ -59,7 +58,6 @@ export function SortableThreadTree({
   label,
   categorized = false,
   renderRow,
-  projectionNow,
   slotWidth,
   choosingTopic,
   isCollapsed,
@@ -79,7 +77,6 @@ export function SortableThreadTree({
         {visible.map((entry, index) =>
           renderRow(entry, {
             placement: "group",
-            projectionNow,
             handle: index === 0 ? handle : undefined,
             slotWidth,
             label,
@@ -88,7 +85,7 @@ export function SortableThreadTree({
         )}
       </ul>
     ),
-    [visible, renderRow, projectionNow, slotWidth, label, categorized],
+    [visible, renderRow, slotWidth, label, categorized],
   );
   const root = tree[0]!.thread;
   return (
@@ -117,7 +114,6 @@ export const ThreadTrees = memo(
     label,
     categorized = false,
     renderRow,
-    projectionNow,
     slotWidth,
     choosingTopic,
     isCollapsed,
@@ -137,7 +133,6 @@ export const ThreadTrees = memo(
             label={label}
             categorized={categorized}
             renderRow={renderRow}
-            projectionNow={projectionNow}
             slotWidth={slotWidth}
             choosingTopic={choosingTopic}
             isCollapsed={isCollapsed}
@@ -163,7 +158,6 @@ export type GroupBodyProps = {
   group: ThreadNode;
   collapsed: boolean;
   renderRow: RenderRow;
-  projectionNow: number;
   groupSlot: number;
   choosingTopic: boolean;
   colorOf: (group: ThreadNode) => TopicColor;
@@ -178,7 +172,6 @@ export function CategorizedTrees({
   group,
   label,
   renderRow,
-  projectionNow,
   collapsed,
   groupSlot,
   choosingTopic,
@@ -188,7 +181,6 @@ export function CategorizedTrees({
   GroupBodyProps,
   | "group"
   | "renderRow"
-  | "projectionNow"
   | "collapsed"
   | "groupSlot"
   | "choosingTopic"
@@ -240,7 +232,6 @@ export function CategorizedTrees({
         label={label}
         categorized={Boolean(category.name)}
         renderRow={renderRow}
-        projectionNow={projectionNow}
         collapsed={collapsed}
         slotWidth={groupSlot}
         choosingTopic={choosingTopic}

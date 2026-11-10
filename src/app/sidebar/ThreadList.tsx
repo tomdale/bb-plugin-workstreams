@@ -28,21 +28,19 @@
  * This file arranges the list and owns its state. The pieces it draws live
  * beside it: `Bands.tsx` (band headers, menus, the lower toggle),
  * `GroupedBand.tsx` (a band's rows, grouped by workstream or not),
- * `WorkstreamGroup.tsx` (a workstream's header and fold), `GroupBody.tsx` (a
+ * `ListedWorkstream.tsx` (a workstream as the list holds it, sortable and
+ * memoized), `WorkstreamGroup.tsx` (its header and fold), `GroupBody.tsx` (a
  * group's trees, categories, and nested groups), `SidebarThreadRow.tsx` (a
  * thread row and what its placement offers), and `Row.tsx` (the row itself).
  * `rows.ts` holds the placement table and row planning, `useGroupCollapse.ts`
  * every group fold, and `useSidebarSnooze.tsx` the snoozing.
  */
 import {
-  cloneElement,
   useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
-  type ReactElement,
   type ReactNode,
 } from "react";
 import { DndContext } from "@dnd-kit/core";
@@ -69,7 +67,7 @@ import { initialUpNextState, planSidebarUpNext } from "./upNextState.ts";
 import { useWorkstreams } from "../useWorkstreams.ts";
 import { shareArrangement } from "../shareNodes.ts";
 import { useStableSidebarThreads } from "../useStableSidebarThreads.ts";
-import { useLatest } from "../useLatest.ts";
+import { useLatest, useStableCallback } from "../useLatest.ts";
 import { useSidebarSnooze } from "./useSidebarSnooze.tsx";
 import { useGroupCollapse } from "./useGroupCollapse.ts";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
@@ -99,16 +97,9 @@ import {
 } from "./rows.ts";
 import { type RowMenuHandlers } from "./RowMenu.tsx";
 import { TraceInspector } from "../debug/Inspector.tsx";
-import {
-  DropTarget,
-  Sortable,
-  useSidebarDnd,
-  type Drop,
-  groupKey,
-} from "./dnd.tsx";
+import { useSidebarDnd, type Drop, groupKey } from "./dnd.tsx";
 import { acceptsThreadDrop, planDrop } from "./drop.ts";
 import { setComposerPreset } from "../composer/preset.ts";
-import { isSnoozed } from "../../domain/snooze.ts";
 import { wakeThreads } from "../snooze/actions.ts";
 import { CustomSnoozeDialog } from "../snooze/CustomSnoozeDialog.tsx";
 
@@ -127,20 +118,20 @@ import { Hint } from "../Hint.tsx";
 import { usePrefs } from "../prefs.ts";
 import { RenderRow, ThreadNode, ThreadRow } from "./types.ts";
 import { SidebarThreadRow } from "./SidebarThreadRow.tsx";
-import { GroupBody } from "./GroupBody.tsx";
 import {
   Band,
   BandOptionsMenu,
   SidebarViewOptionsMenu,
   LowerToggle,
 } from "./Bands.tsx";
-import { GroupProps, WorkstreamGroup } from "./WorkstreamGroup.tsx";
+import {
+  ListedWorkstream,
+  collapseScopeOf,
+  type GroupList,
+} from "./ListedWorkstream.tsx";
 /** The Dormant band folds with the lower workstreams, closed until opened. */
 const DORMANT_BAND = { id: "__dormant" };
 const DORMANT_SCOPE = { byDefault: true, lower: true };
-
-/** Which list of the arrangement a group sits in (see `arrangeGroups`). */
-type GroupList = "pinned" | "populated" | "dormant" | "unfiled";
 export function WorkstreamsThreadList({
   activeThreadId,
   onNavigate,
@@ -173,7 +164,7 @@ export function WorkstreamsThreadList({
   const [inspecting, setInspecting] = useState<PluginSidebarThread | null>(
     null,
   );
-  const { projection, sections, now: projectionNow } = ws;
+  const { projection, sections } = ws;
   const nameOf = useMemo(
     () => new Map(sections.map((section) => [section.id, section.name])),
     [sections],
@@ -211,7 +202,7 @@ export function WorkstreamsThreadList({
   } = arrangement;
   const { isCollapsed, toggle, groupCollapsed, toggleGroup } = useGroupCollapse(
     {
-      catalog: ws.server.catalog,
+      groups: ws.server.catalog?.groups,
       tiered,
       lowerExpanded,
       setLowerExpanded,
@@ -222,18 +213,9 @@ export function WorkstreamsThreadList({
     true,
     prefs?.sidebar,
   );
-  const pinnedGroupItems = useMemo(
-    () => pinnedGroups.map((group) => groupKey(group.id)),
-    [pinnedGroups],
-  );
-  const populatedGroupItems = useMemo(
-    () => populatedGroups.map((group) => groupKey(group.id)),
-    [populatedGroups],
-  );
-  const dormantGroupItems = useMemo(
-    () => dormantGroups.map((group) => groupKey(group.id)),
-    [dormantGroups],
-  );
+  const pinnedGroupItems = useGroupItems(pinnedGroups);
+  const populatedGroupItems = useGroupItems(populatedGroups);
+  const dormantGroupItems = useGroupItems(dormantGroups);
   const prioritized = useMemo(
     () => focusedSections(arrangement, new Set(prioritizedIds)),
     [arrangement, prioritizedIds],
@@ -299,7 +281,7 @@ export function WorkstreamsThreadList({
   const listRef = useRef<HTMLDivElement>(null);
   const captureLayout = useFlip(listRef, [...prioritized].sort().join(" "));
   /** Focus covers a whole top-level group, so it names every section in it. */
-  const toggleFocus = (group: ThreadNode) => {
+  const toggleFocus = useStableCallback((group: ThreadNode) => {
     setError(null);
     captureLayout(`group:${group.id}`);
     const ids = group.prioritized
@@ -309,7 +291,7 @@ export function WorkstreamsThreadList({
           ...group.sectionIds.filter((id) => !prioritizedIds.includes(id)),
         ];
     ws.reorder({ kind: "prioritized", ids }).catch(report);
-  };
+  });
 
   const report = (cause: unknown) =>
     setError(cause instanceof Error ? cause.message : String(cause));
@@ -441,23 +423,22 @@ export function WorkstreamsThreadList({
   const pinnedBandPresence = usePresence(showPinned ? ["pinned"] : [], String);
   const pinnedRowPresence = usePresence(pinnedRows, rowKey);
   const snoozes = ws.server.snoozes;
+  /**
+   * Draws one row. Each row selects its own analysis, recap, and snooze (see
+   * `SidebarThreadRow`), so a server change leaves this renderer, and every
+   * group body memoized on it, as they were.
+   */
   const renderRow = useCallback<RenderRow>(
     (
       { row, depth, key },
       {
         placement,
-        projectionNow,
         handle,
         slotWidth = FULL_SLOT_PX,
         label,
         categorized = false,
       },
     ) => {
-      const storedSnooze = snoozes[row.thread.id];
-      const snooze =
-        storedSnooze && isSnoozed(storedSnooze, projectionNow)
-          ? storedSnooze
-          : undefined;
       let context = label;
       if (
         context === undefined &&
@@ -479,10 +460,7 @@ export function WorkstreamsThreadList({
           active={row.thread.id === activeThreadId}
           context={context}
           placement={placement}
-          analysis={ws.server.analysis[row.thread.id]}
-          recap={ws.server.recaps[row.thread.id]}
           slotWidth={slotWidth}
-          snooze={snooze}
           snoozePrefs={snoozePrefs}
           handlers={handlers}
           disclosureExpanded={
@@ -504,10 +482,7 @@ export function WorkstreamsThreadList({
       nameOf,
       onNavigate,
       snoozePrefs,
-      snoozes,
       toggle,
-      ws.server.analysis,
-      ws.server.recaps,
     ],
   );
   const planningSnoozeOf = useMemo(
@@ -558,7 +533,6 @@ export function WorkstreamsThreadList({
       planned={planned}
       grouped={bandOptions[placement].grouped}
       slotWidth={slotWidthOf(rows)}
-      projectionNow={projectionNow}
       renderRow={renderRow}
       isCollapsed={isCollapsed}
       toggle={toggle}
@@ -571,12 +545,7 @@ export function WorkstreamsThreadList({
     slotWidth: number,
   ) =>
     entriesOf([row, ...(descendants.get(row.thread.id) ?? [])], placement).map(
-      (entry) =>
-        renderRow(entry, {
-          placement,
-          projectionNow,
-          slotWidth,
-        }),
+      (entry) => renderRow(entry, { placement, slotWidth }),
     );
   /** The new thread starts with this workstream's topic. */
   const newThreadIn = useCallback(
@@ -591,10 +560,18 @@ export function WorkstreamsThreadList({
     },
     [navigate],
   );
+  // Colors read only the catalog's section bindings and stored colors, so a
+  // filing, which changes its assignments, leaves the group renderers alone.
+  const colorBindings = ws.server.catalog?.groups;
+  const storedColors = ws.server.catalog?.colors;
   const colorOf = useCallback(
     (group: ThreadNode) =>
-      colorForWorkstream(group.id, ws.server.catalog, group.topicId),
-    [ws.server.catalog],
+      colorForWorkstream(
+        group.id,
+        colorBindings && { groups: colorBindings, colors: storedColors },
+        group.topicId,
+      ),
+    [colorBindings, storedColors],
   );
 
   /**
@@ -606,60 +583,12 @@ export function WorkstreamsThreadList({
       group.parentTopicId
         ? colorForWorkstream(
             group.parentTopicId,
-            ws.server.catalog,
+            colorBindings && { groups: colorBindings, colors: storedColors },
             group.parentTopicId,
           )
         : undefined,
-    [ws.server.catalog],
+    [colorBindings, storedColors],
   );
-  const renderGroupBody = (group: ThreadNode, collapsed: boolean) => (
-    <GroupBody
-      group={group}
-      collapsed={collapsed}
-      renderRow={renderRow}
-      projectionNow={projectionNow}
-      groupSlot={groupSlot}
-      choosingTopic={choosingTopic}
-      colorOf={colorOf}
-      newThreadIn={newThreadIn}
-      groupSnoozeOf={groupSnoozeOf}
-      isCollapsed={isCollapsed}
-      groupCollapsed={groupCollapsed}
-      toggleGroup={toggleGroup}
-    />
-  );
-  const renderSortableGroup = (
-    group: ThreadNode,
-    props: Omit<GroupProps, "group" | "children">,
-    style?: CSSProperties,
-  ) => (
-    <Sortable
-      key={group.id}
-      id={groupKey(group.id)}
-      data={{ type: "group", groupId: group.id, pinned: group.prioritized }}
-      disabled={!headersDrag}
-      surface={({ ref, style: sortableStyle, children }) =>
-        cloneElement(children as ReactElement<GroupProps>, {
-          sectionRef: ref,
-          style: { ...sortableStyle, ...style },
-        })
-      }
-    >
-      {({ handle }) => (
-        <WorkstreamGroup
-          {...props}
-          group={group}
-          color={colorOf(group)}
-          prefixColor={prefixColorOf(group)}
-          snooze={groupSnoozeOf(group)}
-          handle={handle}
-        >
-          {renderGroupBody(group, props.collapsed)}
-        </WorkstreamGroup>
-      )}
-    </Sortable>
-  );
-
   if (!tiered && (showLower || lowerExpanded.size > 0)) {
     setShowLower(false);
     setLowerExpanded(new Set());
@@ -679,22 +608,38 @@ export function WorkstreamsThreadList({
     if (showLower) setLowerExpanded(new Set());
     setShowLower(!showLower);
   };
-  const groupPropsOf = (
+  const collapsedIn = (group: ThreadNode, list: GroupList) =>
+    groupCollapsed(group, collapseScopeOf(list));
+  /** One group of a list, spaced from the one above by that one's fold. */
+  const listedGroup = (
     group: ThreadNode,
     list: GroupList,
-  ): Omit<GroupProps, "group" | "children"> => {
-    const scope = {
-      byDefault: list === "dormant",
-      lower: list === "populated" || list === "unfiled",
-    };
-    return {
-      collapsed: groupCollapsed(group, scope),
-      toggle: () => toggleGroup(group, scope),
-      onToggleFocus: list === "unfiled" ? undefined : () => toggleFocus(group),
-      onNewThread: list === "unfiled" ? undefined : newThreadIn(group),
-      muted: list === "dormant" || list === "unfiled" ? true : undefined,
-    };
-  };
+    above: [ThreadNode, GroupList] | null,
+  ) => (
+    <ListedWorkstream
+      key={group.id}
+      group={group}
+      list={list}
+      collapsed={collapsedIn(group, list)}
+      marginTop={workstreamGap(
+        above?.[0] ?? null,
+        group,
+        above ? collapsedIn(...above) : false,
+      )}
+      headersDrag={headersDrag}
+      prefixColorOf={prefixColorOf}
+      toggleFocus={toggleFocus}
+      toggleGroup={toggleGroup}
+      renderRow={renderRow}
+      groupSlot={groupSlot}
+      choosingTopic={choosingTopic}
+      colorOf={colorOf}
+      newThreadIn={newThreadIn}
+      groupSnoozeOf={groupSnoozeOf}
+      isCollapsed={isCollapsed}
+      groupCollapsed={groupCollapsed}
+    />
+  );
   /** A list's groups, each spaced from the one above by its collapse state. */
   const renderGroupList = (
     groups: readonly ThreadNode[],
@@ -703,24 +648,17 @@ export function WorkstreamsThreadList({
     above: [ThreadNode, GroupList] | null = null,
   ) =>
     groups.map((group, index) => {
-      const [prev, prevList] =
-        index > 0 ? ([groups[index - 1]!, list] as const) : (above ?? []);
-      const marginTop = workstreamGap(
-        prev ?? null,
+      const listed = listedGroup(
         group,
-        prev ? groupPropsOf(prev, prevList!).collapsed : false,
-      );
-      const sortable = renderSortableGroup(
-        group,
-        groupPropsOf(group, list),
-        marginTop ? { marginTop } : undefined,
+        list,
+        index > 0 ? [groups[index - 1]!, list] : above,
       );
       return list === "dormant" ? (
         <li key={group.id} className="list-none">
-          {sortable}
+          {listed}
         </li>
       ) : (
-        sortable
+        listed
       );
     });
   /** An item that opens and closes with its presence phase. */
@@ -808,33 +746,15 @@ export function WorkstreamsThreadList({
         >
           {renderGroupList(populatedGroups, "populated")}
         </SortableContext>
-        {unfiled.total > 0 ? (
-          <DropTarget
-            id={groupKey(unfiled.id)}
-            data={{ type: "target", groupId: unfiled.id }}
-          >
-            {(ref) => {
-              const props = groupPropsOf(unfiled, "unfiled");
-              const last = populatedGroups.at(-1);
-              const marginTop = workstreamGap(
-                last ?? null,
-                unfiled,
-                last ? groupPropsOf(last, "populated").collapsed : false,
-              );
-              return (
-                <WorkstreamGroup
-                  {...props}
-                  group={unfiled}
-                  sectionRef={ref}
-                  snooze={groupSnoozeOf(unfiled)}
-                  style={marginTop ? { marginTop } : undefined}
-                >
-                  {renderGroupBody(unfiled, props.collapsed)}
-                </WorkstreamGroup>
-              );
-            }}
-          </DropTarget>
-        ) : null}
+        {unfiled.total > 0
+          ? listedGroup(
+              unfiled,
+              "unfiled",
+              populatedGroups.length > 0
+                ? [populatedGroups.at(-1)!, "populated"]
+                : null,
+            )
+          : null}
         {dormantGroups.length > 0 ? (
           <Band
             title="Dormant"
@@ -1105,6 +1025,16 @@ export function WorkstreamsThreadList({
       </div>
     </DndContext>
   );
+}
+
+/**
+ * A list's sortable ids, one array while they are unchanged. dnd-kit renders
+ * every sortable in a context whose items change identity, so a group whose
+ * rows changed would otherwise render every header beside it.
+ */
+function useGroupItems(groups: readonly ThreadNode[]): string[] {
+  const key = groups.map((group) => groupKey(group.id)).join("\n");
+  return useMemo(() => (key ? key.split("\n") : []), [key]);
 }
 
 /** The band of threads most worth the user's attention (see `selectUpNext`). */
