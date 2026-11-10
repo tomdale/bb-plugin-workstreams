@@ -1,8 +1,9 @@
-import { memo } from "react";
+import { memo, useEffect, useReducer } from "react";
 import { type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { type ServerState } from "../useWorkstreams.ts";
 import { workView } from "../../domain/status.ts";
 import { useClock } from "../clock.ts";
+import { useSharedServerStateSelector } from "../serverState.ts";
 import { Row, type RowSnoozeAction } from "./Row.tsx";
 import {
   foldKey,
@@ -12,7 +13,11 @@ import {
 } from "./rows.ts";
 import { RowMenu, type RowMenuHandlers } from "./RowMenu.tsx";
 import { type DragHandle } from "./dnd.tsx";
-import { shortWake, type ThreadSnooze } from "../../domain/snooze.ts";
+import {
+  isSnoozed,
+  shortWake,
+  type ThreadSnooze,
+} from "../../domain/snooze.ts";
 import {
   CurrentSnoozeMenuItems,
   plainMenuKit,
@@ -26,10 +31,7 @@ export type SidebarThreadRowProps = {
   active: boolean;
   context?: string;
   placement: Placement;
-  analysis?: ServerState["analysis"][string];
-  recap?: ServerState["recaps"][string];
   slotWidth: number;
-  snooze?: ThreadSnooze;
   snoozePrefs: ServerState["snoozePrefs"];
   handlers: RowMenuHandlers;
   disclosureExpanded?: boolean;
@@ -39,10 +41,33 @@ export type SidebarThreadRowProps = {
 };
 
 /**
+ * The thread's snooze while it holds. A timed snooze is re-checked when it
+ * ends, so the row drops it then without waiting for anything else to change.
+ */
+function useHeldSnooze(threadId: string): ThreadSnooze | undefined {
+  const stored = useSharedServerStateSelector(
+    (server) => server.snoozes[threadId],
+  );
+  const [, recheck] = useReducer((count: number) => count + 1, 0);
+  const held = isSnoozed(stored, Date.now());
+  const until = stored?.until ?? null;
+  useEffect(() => {
+    if (!held || until === null) return;
+    const timer = setTimeout(recheck, until - Date.now());
+    return () => clearTimeout(timer);
+  }, [held, until]);
+  return held ? stored : undefined;
+}
+
+/**
  * A list row with stable action identities. Its memo compares every prop, so
  * an unrelated thread update skips the SDK hooks and presentation work in
  * `Row`: a thread whose data is unchanged arrives as the same snapshot object
  * (see `useStableSidebarThreads`), and its row keeps that thread.
+ *
+ * The row selects its own analysis, recap, and snooze from the shared server
+ * state, so a server change renders only the rows whose entries changed and
+ * the list's renderer keeps one identity across them.
  */
 export const SidebarThreadRow = memo(function SidebarThreadRow({
   thread,
@@ -50,10 +75,7 @@ export const SidebarThreadRow = memo(function SidebarThreadRow({
   active,
   context,
   placement,
-  analysis,
-  recap,
   slotWidth,
-  snooze,
   snoozePrefs,
   handlers,
   disclosureExpanded,
@@ -63,7 +85,12 @@ export const SidebarThreadRow = memo(function SidebarThreadRow({
   handleRef,
   handleListeners,
 }: SidebarThreadRowProps) {
-  const work = workView(thread, analysis, recap);
+  // `workView` returns one object per thread, analysis, and recap, so the
+  // selection is unchanged until one of the three is.
+  const work = useSharedServerStateSelector((server) =>
+    workView(thread, server.analysis[thread.id], server.recaps[thread.id]),
+  );
+  const snooze = useHeldSnooze(thread.id);
   // A snoozed row's wake time follows the clock, so the row reads it itself.
   const wakeTime = useClock((now) =>
     snooze ? shortWake(snooze.until, now) : undefined,

@@ -36,7 +36,6 @@ export function GroupedBand({
   planned,
   grouped,
   slotWidth,
-  projectionNow,
   renderRow,
   isCollapsed,
   toggle,
@@ -48,7 +47,6 @@ export function GroupedBand({
   grouped: boolean;
   /** The status slot width every row in the band shares (see `slotWidthOf`). */
   slotWidth: number;
-  projectionNow: number;
   renderRow: RenderRow;
   isCollapsed: (id: string, byDefault?: boolean) => boolean;
   toggle: (id: string, byDefault?: boolean) => void;
@@ -58,9 +56,7 @@ export function GroupedBand({
     trees.flatMap((tree) =>
       visibleEntries(tree, placement, (id) =>
         isCollapsed(foldKey(placement, id), foldDefault(placement)),
-      ).map((entry) =>
-        renderRow(entry, { placement, projectionNow, slotWidth }),
-      ),
+      ).map((entry) => renderRow(entry, { placement, slotWidth })),
     );
   if (!grouped) return <>{rows(planned[0]!.trees)}</>;
   const label = regionLabel(placement);

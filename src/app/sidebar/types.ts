@@ -11,12 +11,6 @@ export type { ThreadRow } from "./rows.ts";
 export type ThreadNode = WorkstreamNode<PluginSidebarThread>;
 export type RowRenderOptions = {
   placement: Placement;
-  /**
-   * The projection's clock, which decides whether a stored snooze still
-   * holds. Passed per call, not captured, so a new projection does not
-   * remake every row's renderer.
-   */
-  projectionNow: number;
   /** The drag handle, for a root row that drags its tree. */
   handle?: DragHandle;
   /** The width its rows reserve for the status slot (see `slotWidthOf`). */

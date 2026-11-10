@@ -12,7 +12,9 @@ import * as groups from "../../src/domain/groups.ts";
 import * as categories from "../../src/domain/categoryRows.ts";
 import * as sidebarRows from "../../src/app/sidebar/rows.ts";
 import * as rowMenus from "../../src/app/sidebar/RowMenu.tsx";
-import { sidebarThread } from "./fixtures.ts";
+import * as dnd from "../../src/app/sidebar/dnd.tsx";
+import * as workstreamGroups from "../../src/app/sidebar/WorkstreamGroup.tsx";
+import { emptyState, sidebarThread } from "./fixtures.ts";
 import { mount } from "./sidebar-fixture.tsx";
 
 const THREAD_COUNT = 120;
@@ -32,6 +34,7 @@ afterEach(() => {
 it("profiles parent updates and preserves row interactions", async () => {
   const rowRenders = vi.spyOn(presentation, "presentRow");
   const menuRenders = vi.spyOn(rowMenus, "RowMenu");
+  const headerRenders = vi.spyOn(workstreamGroups, "WorkstreamGroup");
   const derived = {
     arrangeGroups: vi.spyOn(groups, "arrangeGroups"),
     categoryRows: vi.spyOn(categories, "categoryRows"),
@@ -76,6 +79,7 @@ it("profiles parent updates and preserves row interactions", async () => {
     {
       rows: number;
       menus: number;
+      headers: number;
       duration: number;
       reactDuration: number;
       commits: number;
@@ -86,6 +90,7 @@ it("profiles parent updates and preserves row interactions", async () => {
     vi.setSystemTime(Date.now() + 10);
     rowRenders.mockClear();
     menuRenders.mockClear();
+    headerRenders.mockClear();
     for (const spy of Object.values(derived)) spy.mockClear();
     durations.length = 0;
     const started = performance.now();
@@ -93,6 +98,7 @@ it("profiles parent updates and preserves row interactions", async () => {
     measurements[name] = {
       rows: rowRenders.mock.calls.length,
       menus: menuRenders.mock.calls.length,
+      headers: headerRenders.mock.calls.length,
       duration: performance.now() - started,
       reactDuration: durations.reduce((total, duration) => total + duration, 0),
       commits: durations.length,
@@ -178,6 +184,11 @@ it("profiles parent updates and preserves row interactions", async () => {
   });
   for (const measurement of Object.values(measurements))
     expect(measurement.menus).toBe(measurement.rows);
+  // A list render that leaves a workstream's own inputs alone skips its header.
+  for (const name of ["unchanged", "equal-clones"])
+    expect(measurements[name]!.headers, name).toBe(0);
+  // A thread change renders its own workstream's header, not its neighbors'.
+  expect(measurements["single-thread"]!.headers).toBe(1);
   for (const name of [
     "unchanged",
     "equal-clones",
@@ -273,5 +284,64 @@ it("retains a row's previous time while its visible age is unchanged", async () 
   expect(rowRenders).not.toHaveBeenCalled();
   expect(categoryPlan).not.toHaveBeenCalled();
   expect(trees).not.toHaveBeenCalled();
+  slot.lifecycle.unmount();
+});
+
+it("renders only the changed row when one thread's analysis changes", async () => {
+  const sortables = vi.spyOn(dnd, "Sortable");
+  const headers = vi.spyOn(workstreamGroups, "WorkstreamGroup");
+  const rowRenders = vi.spyOn(presentation, "presentRow");
+  const threads = Array.from({ length: 60 }, (_, index) =>
+    sidebarThread(`thread-${index}`, {
+      sectionId: ["sec_a", "sec_b", "sec_z"][Math.floor(index / 20)],
+      title: `Thread ${index}`,
+      latestAttentionAt: Date.now() - index * 1_000,
+    }),
+  );
+  const progress = (recap: string, revision: number) => ({
+    recap,
+    state: "in_progress",
+    needsYou: null,
+    subject: null,
+    goal: null,
+    drift: null,
+    driftSectionId: null,
+    revision,
+    at: revision,
+    model: "m",
+  });
+  const analysis: Record<string, unknown> = {
+    "thread-41": progress("Reading the code.", Date.now()),
+  };
+  const slot = await mount(threads, {
+    realtime: true,
+    activeThreadId: null,
+    settings: {
+      showForYou: false,
+      showRecent: false,
+      showSnoozed: false,
+      showArchived: false,
+    },
+    rpc: {
+      state: () => ({
+        ...emptyState(),
+        analysis: { ...analysis },
+        order: { workstreams: [], threads: {}, prioritized: [] },
+      }),
+    },
+  });
+  await waitFor(() => expect(slot.getAllByRole("link")).toHaveLength(60));
+  sortables.mockClear();
+  headers.mockClear();
+  rowRenders.mockClear();
+
+  analysis["thread-41"] = progress("Writing the fix.", Date.now() + 1);
+  await act(async () => slot.behavior.emitRealtime("changed", {}));
+  await waitFor(() => expect(rowRenders).toHaveBeenCalled());
+  // The row's own selection renders it; no group header, sortable tree, or
+  // other row renders.
+  expect(rowRenders).toHaveBeenCalledTimes(1);
+  expect(sortables).not.toHaveBeenCalled();
+  expect(headers).not.toHaveBeenCalled();
   slot.lifecycle.unmount();
 });
