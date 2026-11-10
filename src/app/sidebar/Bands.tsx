@@ -81,7 +81,7 @@ export function BandGroup({
  */
 export const BOX_STYLES = {
   attention: {
-    section: "ws-needs mx-2 mt-0 px-1 pt-1.5 pb-2", // slop-ok: 2 the Up Next band, an established product surface
+    section: "ws-needs mx-2 mt-0 px-1 pt-1.5 pb-[5px]", // slop-ok: 2 the Up Next band, an established product surface
     heading:
       "ws-needs-heading py-0.5 text-[11px] font-semibold uppercase tracking-wide", // slop-ok: 1 the product's section-label style
   },

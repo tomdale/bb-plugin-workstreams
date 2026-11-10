@@ -491,11 +491,17 @@
   font-size: 11px;
   font-weight: 500;
 }
-/* The gap holds both rows' 3px outsets so a hovered row's fill does not
-   paint over an adjacent selected row's. Only adjacent items take the gap; the card's outer
-   spacing stays unchanged. */
-.ws-needs li + li {
-  margin-top: 6px;
+/* Each Up Next slot (the `li` whose height the slot spring sets, with
+   `overflow: hidden` while it moves) holds a 3px pad above and below its row,
+   so the row's 3px fill outset stays inside the slot: the fill neither clips
+   while a slot moves nor jumps when it settles. The pads also keep adjacent
+   hover and selected fills from overlapping. The list and card take back
+   3px so the card's outer spacing is unchanged. */
+.ws-needs > ul {
+  margin-top: -1px;
+}
+.ws-needs > ul > li > ul {
+  padding-block: 3px;
 }
 /* The shimmer's gradient is three card widths wide. Translating that layer
    keeps the sweep on the compositor; background-position would repaint it.
