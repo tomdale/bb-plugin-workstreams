@@ -3,6 +3,14 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
 const FAILURE_LIMIT = 5;
 const REPEAT_LIMIT = 5;
+const PAGE = 100;
+/** The events a scan reads: tool results, and the turn boundaries that end it. */
+const SCANNED = [
+  "item/completed",
+  "turn/started",
+  "turn/completed",
+  "client/turn/requested",
+] as const;
 type State = {
   cursor: number;
   turnId: string;
@@ -44,7 +52,12 @@ export class ToolLoopGuard {
   constructor(
     private readonly deps: {
       bb: BbPluginApi;
-      enabled: (threadId: string) => boolean;
+      /**
+       * Whether the thread is guarded. It runs for every event batch, so it
+       * may answer from a cache; `fresh` asks for the stored answer, which
+       * the guard checks once more before it stops a turn.
+       */
+      enabled: (threadId: string, fresh?: boolean) => boolean;
       onLoop: (threadId: string) => void;
     },
   ) {}
@@ -64,6 +77,9 @@ export class ToolLoopGuard {
     );
     const running = this.pending.get(threadId);
     if (running) return running;
+    // Everything up to this sequence was already scanned.
+    const scanned = this.states.get(threadId);
+    if (scanned && scanned.cursor >= sequence) return Promise.resolve();
     const work = this.check(threadId)
       .catch((error: unknown) => {
         if (!this.controller.signal.aborted)
@@ -91,50 +107,64 @@ export class ToolLoopGuard {
     const signal = this.controller.signal;
     const scan = Symbol();
     this.scans.set(threadId, scan);
-    const [start] = await bb.sdk.threads.events.list({
-      threadId,
-      types: ["turn/started"],
-      order: "desc",
-      limit: "1",
-      signal,
-    });
-    if (
-      !start ||
-      start.scope.kind !== "turn" ||
-      signal.aborted ||
-      this.scans.get(threadId) !== scan ||
-      !this.deps.enabled(threadId)
-    )
-      return;
-    const turnId = start.scope.turnId;
+    // A scan that follows a turn sees the next turn start in its events,
+    // which ends the state, so only a new or stopped state reads the turn: a
+    // stopped state scans nothing until a new turn replaces it.
     let state = this.states.get(threadId);
-    if (!state || state.turnId !== turnId) {
-      state = {
-        cursor: start.seq,
-        turnId,
-        failure: null,
-        failures: 0,
-        repeat: null,
-        repeats: 0,
-        stopped: false,
-      };
-      this.states.set(threadId, state);
+    if (!state || state.stopped) {
+      const [start] = await bb.sdk.threads.events.list({
+        threadId,
+        types: ["turn/started"],
+        order: "desc",
+        limit: "1",
+        signal,
+      });
+      if (
+        !start ||
+        start.scope.kind !== "turn" ||
+        signal.aborted ||
+        this.scans.get(threadId) !== scan ||
+        !this.deps.enabled(threadId)
+      )
+        return;
+      state = this.states.get(threadId);
+      if (!state || state.turnId !== start.scope.turnId) {
+        state = {
+          cursor: start.seq,
+          turnId: start.scope.turnId,
+          failure: null,
+          failures: 0,
+          repeat: null,
+          repeats: 0,
+          stopped: false,
+        };
+        this.states.set(threadId, state);
+      }
     }
+    const turnId = state.turnId;
     while (
       !state.stopped &&
       !signal.aborted &&
       state.cursor < (this.sequences.get(threadId) ?? 0)
     ) {
+      const observed = this.sequences.get(threadId) ?? 0;
       const events = await bb.sdk.threads.events.list({
         threadId,
         afterSeq: String(state.cursor),
+        types: [...SCANNED],
         order: "asc",
-        limit: "100",
+        limit: String(PAGE),
         signal,
       });
       if (this.states.get(threadId) !== state || !this.deps.enabled(threadId))
         return;
-      if (!events.length) return;
+      // A short page holds every scanned event after the cursor, so nothing
+      // up to the sequence observed before the read is left to scan.
+      const complete = events.length < PAGE;
+      if (!events.length) {
+        state.cursor = Math.max(state.cursor, observed);
+        continue;
+      }
       for (const event of events) {
         state.cursor = event.seq;
         if (
@@ -185,7 +215,7 @@ export class ToolLoopGuard {
         if (
           this.states.get(threadId) !== state ||
           signal.aborted ||
-          !this.deps.enabled(threadId) ||
+          !this.deps.enabled(threadId, true) ||
           latest?.type !== "turn/started" ||
           latest.scope.kind !== "turn" ||
           latest.scope.turnId !== turnId ||
@@ -206,6 +236,7 @@ export class ToolLoopGuard {
         }
         return;
       }
+      if (complete) state.cursor = Math.max(state.cursor, observed);
     }
   }
 }
