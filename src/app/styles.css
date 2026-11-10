@@ -608,6 +608,27 @@
   transform-origin: top;
   opacity: var(--ws-fade-below-plate, 0);
 }
+/* A heading pinned in the timeline steps between its expanded and compact
+   states once the reader has scrolled past it, so the change is animated in
+   time rather than tracked to the scroll position. */
+[data-ws-pinned] .ws-sticky-goal__plate,
+[data-ws-pinned] .ws-sticky-goal__workstream,
+[data-ws-pinned] .ws-sticky-goal__title,
+[data-ws-pinned] .ws-sticky-goal__subtitle,
+[data-ws-pinned].ws-goal-background::after {
+  transition:
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-ws-pinned] .ws-sticky-goal__plate,
+  [data-ws-pinned] .ws-sticky-goal__workstream,
+  [data-ws-pinned] .ws-sticky-goal__title,
+  [data-ws-pinned] .ws-sticky-goal__subtitle,
+  [data-ws-pinned].ws-goal-background::after {
+    transition: none;
+  }
+}
 .ws-sticky-goal {
   position: absolute;
   inset: 0 0 auto;

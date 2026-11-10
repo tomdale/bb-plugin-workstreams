@@ -634,6 +634,12 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
     );
   const initial = groups().map(y);
   expect(groups().map((group) => Number(group.style.opacity))).toEqual([1, 0]);
+  // Only a pinned heading steps, so only it takes the animation.
+  expect(
+    overlay()!
+      .querySelector<HTMLElement>(".ws-goal-background")!
+      .hasAttribute("data-ws-pinned"),
+  ).toBe(false);
   const fadeScale = () =>
     Number(
       overlay()!
@@ -829,7 +835,7 @@ it("eases fixed headings through a gentle handoff and switches modes", async () 
 });
 
 it.each(["fade", "scroll"] as const)(
-  "scales one pinned title in place in %s mode",
+  "steps one pinned title in place in %s mode",
   async (mode) => {
     paneFixture({ recap: false });
     const scroller = document.querySelector<HTMLElement>(
@@ -851,6 +857,13 @@ it.each(["fade", "scroll"] as const)(
       overlay()!.querySelector<HTMLElement>(
         '[data-ws-heading="expanded"] .ws-sticky-goal__title',
       )!;
+    const fadeScale = () =>
+      Number(
+        overlay()!
+          .querySelector<HTMLElement>(".ws-goal-background")!
+          .style.getPropertyValue("--ws-plate-fade-scale"),
+      );
+    const exitDistance = titleExitDistance(14, null, 1);
     await waitFor(() => expect(groups()).toHaveLength(2));
     await new Promise((resolve) => setTimeout(resolve, 550));
     scroller.scrollTop = 100;
@@ -858,34 +871,29 @@ it.each(["fade", "scroll"] as const)(
     await waitFor(() =>
       expect(title().style.transform).toBe("translateY(0px) scale(1)"),
     );
+    // The step is animated by the stylesheet, which keys off this marker.
+    expect(
+      overlay()!
+        .querySelector<HTMLElement>('[data-ws-heading="expanded"]')!
+        .hasAttribute("data-ws-pinned"),
+    ).toBe(true);
     expect(groups().map((group) => Number(group.style.opacity))).toEqual([
       1, 0,
     ]);
+    // A pinned heading keeps the short feather at its expanded height too.
+    expect(fadeScale()).toBe(BAR_FADE_RATIO);
 
-    scroller.scrollTop = 50;
+    // Just inside the threshold the heading is still whole: the scroll
+    // position picks the state rather than driving the scale.
+    scroller.scrollTop = 100 - (exitDistance - 1);
     scroller.dispatchEvent(new Event("scroll"));
-    await waitFor(() =>
-      expect(title().style.transform).not.toBe("translateY(0px) scale(1)"),
-    );
-    const middle = title().style.transform.match(
-      /translateY\(([-\d.]+)px\) scale\(([-\d.]+)\)/,
-    )!;
-    expect(Number(middle[1])).toBeLessThan(0);
-    expect(Number(middle[2])).toBeLessThan(1);
-    expect(Number(middle[2])).toBeGreaterThan(pinnedTitleScale(1));
-    expect(groups().map((group) => Number(group.style.opacity))).toEqual([
-      1, 0,
-    ]);
-    const midFadeScale = () =>
-      Number(
-        overlay()!
-          .querySelector<HTMLElement>(".ws-goal-background")!
-          .style.getPropertyValue("--ws-plate-fade-scale"),
-      );
-    expect(midFadeScale()).toBeGreaterThan(BAR_FADE_RATIO);
-    expect(midFadeScale()).toBeLessThan(1);
+    await nextFrame();
+    await nextFrame();
+    expect(title().style.transform).toBe("translateY(0px) scale(1)");
+    expect(fadeScale()).toBe(BAR_FADE_RATIO);
 
-    scroller.scrollTop = 0;
+    // Past it, the whole move happens at once.
+    scroller.scrollTop = 100 - exitDistance;
     scroller.dispatchEvent(new Event("scroll"));
     const finalY = 14 * (0.3 - 0.85);
     await waitFor(() => {
@@ -895,12 +903,16 @@ it.each(["fade", "scroll"] as const)(
       expect(Number(match[1])).toBeCloseTo(finalY);
       expect(Number(match[2])).toBeCloseTo(pinnedTitleScale(1));
     });
-    // The compact pinned block carries the title bar's short fade, not the
-    // large heading's long one.
-    expect(midFadeScale()).toBe(BAR_FADE_RATIO);
+    expect(fadeScale()).toBe(BAR_FADE_RATIO);
     expect(groups().map((group) => Number(group.style.opacity))).toEqual([
       1, 0,
     ]);
+
+    scroller.scrollTop = 100;
+    scroller.dispatchEvent(new Event("scroll"));
+    await waitFor(() =>
+      expect(title().style.transform).toBe("translateY(0px) scale(1)"),
+    );
     slot.lifecycle.unmount();
   },
 );
@@ -931,22 +943,24 @@ it("left aligns a pinned title and its goal when title alignment is centered", a
     expanded().querySelector<HTMLElement>(".ws-sticky-goal__subtitle")!;
   await waitFor(() => expect(title().style.transform).toContain("scale(1)"));
   await new Promise((resolve) => setTimeout(resolve, 550));
-  scroller.scrollTop = 520;
+  scroller.scrollTop = 580;
   scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() => {
-    const opacity = Number(goal().style.opacity);
-    expect(opacity).toBeGreaterThan(0);
-    expect(opacity).toBeLessThan(1);
-  });
+  await nextFrame();
+  await nextFrame();
   expect(expanded().getAttribute("data-ws-align")).toBeNull();
   expect(expanded().style.opacity).toBe("1");
   expect(title().style.transformOrigin).toBe("0 0");
-  expect(Number(goal().style.opacity)).toBeLessThan(1);
+  expect(goal().style.opacity).toBe("1");
+
+  scroller.scrollTop = 450;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(goal().style.opacity).toBe("0"));
+  expect(title().style.transformOrigin).toBe("0 0");
   slot.lifecycle.unmount();
 });
 
 it.each([false, true])(
-  "keeps a two-line pinned title through scaling with reduced motion %s",
+  "keeps a two-line pinned title through the step with reduced motion %s",
   async (reduced) => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: reduced && query === REDUCED_MOTION_QUERY,
@@ -983,20 +997,24 @@ it.each([false, true])(
     try {
       await waitFor(() => expect(title().style.webkitLineClamp).toBe("2"));
       await new Promise((resolve) => setTimeout(resolve, 550));
-      scroller.scrollTop = 50;
+      // Two lines move the threshold: an exit distance measured through both
+      // of them.
+      const exit = titleExitDistance(14, null, 2);
+      scroller.scrollTop = 100 - exit + 1;
       scroller.dispatchEvent(new Event("scroll"));
       await nextFrame();
       await nextFrame();
-      const match = title().style.transform.match(/scale\(([-\d.]+)\)/)!;
-      if (reduced) expect(Number(match[1])).toBe(1);
-      else expect(Number(match[1])).toBeLessThan(1);
+      expect(title().style.transform).toBe("translateY(0px) scale(1)");
       expect(title().style.webkitLineClamp).toBe("2");
 
-      scroller.scrollTop = 0;
+      scroller.scrollTop = 100 - exit;
       scroller.dispatchEvent(new Event("scroll"));
       await waitFor(() =>
         expect(root()!.getAttribute("data-collapsed")).toBe("true"),
       );
+      // Reduced motion removes the animation, not the stepped endpoints.
+      const stepped = title().style.transform.match(/scale\(([-\d.]+)\)/)!;
+      expect(Number(stepped[1])).toBeCloseTo(pinnedTitleScale(1));
       expect(title().style.webkitLineClamp).toBe("2");
       const height = headingHeight(14, false, 2, 0);
       expect(
@@ -1079,83 +1097,88 @@ it.each(["fade", "scroll"] as const)(
   },
 );
 
-it("swaps a pinned backdrop at the endpoint under reduced motion", async () => {
-  vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: query === REDUCED_MOTION_QUERY,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  }));
-  paneFixture({ recap: false });
-  const scroller = document.querySelector<HTMLElement>(
-    '[data-test="messages"]',
-  )!;
-  Object.defineProperties(scroller, {
-    scrollHeight: { configurable: true, value: 1000 },
-    clientHeight: { configurable: true, value: 400 },
-    scrollTop: { configurable: true, writable: true, value: 600 },
-  });
-  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 48, 900, 672),
-  );
-  const slot = await mountHeading("scroll");
-  const groups = () => [
-    ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
-  ];
-  const plate = () =>
-    overlay()!.querySelector<HTMLElement>(".ws-sticky-goal__plate")!;
-  const title = () =>
-    overlay()!.querySelector<HTMLElement>(
-      '[data-ws-heading="expanded"] .ws-sticky-goal__title',
+it.each([false, true])(
+  "steps a pinned backdrop at the scroll threshold (reduced motion %s)",
+  async (reduced) => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: reduced && query === REDUCED_MOTION_QUERY,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    paneFixture({ recap: false });
+    const scroller = document.querySelector<HTMLElement>(
+      '[data-test="messages"]',
     )!;
-  await waitFor(() => expect(groups()).toHaveLength(2));
-  await new Promise((resolve) => setTimeout(resolve, 550));
-  const expandedHeight = headingHeight(14, false, 1, 0);
-  expect(plate().style.transform).toBe("scaleY(1)");
-  expect(scroller.style.scrollPaddingTop).toBe(`${expandedHeight}px`);
+    Object.defineProperties(scroller, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 400 },
+      scrollTop: { configurable: true, writable: true, value: 600 },
+    });
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 48, 900, 672),
+    );
+    const slot = await mountHeading("scroll");
+    const groups = () => [
+      ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
+    ];
+    const plate = () =>
+      overlay()!.querySelector<HTMLElement>(".ws-sticky-goal__plate")!;
+    const title = () =>
+      overlay()!.querySelector<HTMLElement>(
+        '[data-ws-heading="expanded"] .ws-sticky-goal__title',
+      )!;
+    const fadeScale = () =>
+      overlay()!
+        .querySelector<HTMLElement>(".ws-goal-background")!
+        .style.getPropertyValue("--ws-plate-fade-scale");
+    const exit = titleExitDistance(14, null, 1);
+    await waitFor(() => expect(groups()).toHaveLength(2));
+    await new Promise((resolve) => setTimeout(resolve, 550));
+    const expandedHeight = headingHeight(14, false, 1, 0);
+    expect(plate().style.transform).toBe("scaleY(1)");
+    expect(scroller.style.scrollPaddingTop).toBe(`${expandedHeight}px`);
 
-  scroller.scrollTop = 520;
-  scroller.dispatchEvent(new Event("scroll"));
-  await nextFrame();
-  await nextFrame();
-  expect(title().style.transform).toBe("translateY(0px) scale(1)");
-  expect(groups().map((group) => Number(group.style.opacity))).toEqual([1, 0]);
-  expect(plate().style.transform).toBe("scaleY(1)");
-  expect(scroller.style.scrollPaddingTop).toBe(`${expandedHeight}px`);
-  expect(
-    overlay()!
-      .querySelector<HTMLElement>(".ws-goal-background")!
-      .style.getPropertyValue("--ws-plate-fade-scale"),
-  ).toBe("1");
+    // Inside the threshold the header is untouched by the scroll position.
+    scroller.scrollTop = 600 - (exit - 1);
+    scroller.dispatchEvent(new Event("scroll"));
+    await nextFrame();
+    await nextFrame();
+    expect(title().style.transform).toBe("translateY(0px) scale(1)");
+    expect(groups().map((group) => Number(group.style.opacity))).toEqual([
+      1, 0,
+    ]);
+    expect(plate().style.transform).toBe("scaleY(1)");
+    expect(scroller.style.scrollPaddingTop).toBe(`${expandedHeight}px`);
+    expect(fadeScale()).toBe(String(BAR_FADE_RATIO));
 
-  scroller.scrollTop = 450;
-  scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() =>
-    expect(root()!.getAttribute("data-collapsed")).toBe("true"),
-  );
-  const finalY = 14 * (0.3 - 0.85);
-  const finalTransform = title().style.transform.match(
-    /translateY\(([-\d.]+)px\) scale\(([-\d.]+)\)/,
-  )!;
-  expect(Number(finalTransform[1])).toBeCloseTo(finalY);
-  expect(Number(finalTransform[2])).toBeCloseTo(pinnedTitleScale(1));
-  expect(groups().map((group) => Number(group.style.opacity))).toEqual([1, 0]);
-  const compactHeight = pinnedHeight(14, null);
-  expect(plate().style.transform).toBe(
-    `scaleY(${compactHeight / expandedHeight})`,
-  );
-  expect(scroller.style.scrollPaddingTop).toBe(`${compactHeight}px`);
-  expect(
-    overlay()!
-      .querySelector<HTMLElement>(".ws-goal-background")!
-      .style.getPropertyValue("--ws-plate-fade-scale"),
-  ).toBe(String(BAR_FADE_RATIO));
-  slot.lifecycle.unmount();
-});
+    scroller.scrollTop = 600 - exit - 1;
+    scroller.dispatchEvent(new Event("scroll"));
+    await waitFor(() =>
+      expect(root()!.getAttribute("data-collapsed")).toBe("true"),
+    );
+    const finalY = 14 * (0.3 - 0.85);
+    const finalTransform = title().style.transform.match(
+      /translateY\(([-\d.]+)px\) scale\(([-\d.]+)\)/,
+    )!;
+    expect(Number(finalTransform[1])).toBeCloseTo(finalY);
+    expect(Number(finalTransform[2])).toBeCloseTo(pinnedTitleScale(1));
+    expect(groups().map((group) => Number(group.style.opacity))).toEqual([
+      1, 0,
+    ]);
+    const compactHeight = pinnedHeight(14, null);
+    expect(plate().style.transform).toBe(
+      `scaleY(${compactHeight / expandedHeight})`,
+    );
+    expect(scroller.style.scrollPaddingTop).toBe(`${compactHeight}px`);
+    expect(fadeScale()).toBe(String(BAR_FADE_RATIO));
+    slot.lifecycle.unmount();
+  },
+);
 
 it.each(["fade", "scroll"] as const)(
   "starts fully compact in %s mode when the timeline is short",

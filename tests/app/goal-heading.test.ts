@@ -13,6 +13,7 @@ import {
   headingScrollLimit,
   MIN_TITLE_BAR_WIDTH,
   pinnedHeight,
+  pinnedStep,
   pinnedTitleScale,
   titleBarSlot,
   titleExitDistance,
@@ -179,6 +180,19 @@ it("accounts for a two-line phone title before finishing the reveal", () => {
   expect(
     titleExitDistance(BASE, eyebrow, 2) - titleExitDistance(BASE, eyebrow, 1),
   ).toBeCloseTo((BASE * 1.5 * 4) / 3);
+});
+
+it("holds a pinned heading whole until the title has scrolled out, then steps", () => {
+  const distance = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 1);
+  expect(pinnedStep(0, distance)).toBe(0);
+  expect(pinnedStep(distance - 1, distance)).toBe(0);
+  // One state either side of the threshold: the scroll position picks the
+  // state rather than driving the scale with it.
+  expect(pinnedStep(distance, distance)).toBe(1);
+  expect(pinnedStep(distance * 4, distance)).toBe(1);
+  // A wrapped title moves the threshold with the space it takes.
+  const wrapped = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 2);
+  expect(pinnedStep(distance, wrapped)).toBe(0);
 });
 
 it("uses BB's own phone condition", () => {

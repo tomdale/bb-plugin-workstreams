@@ -177,22 +177,32 @@ export function headingBackdropOpacity(progress: number): number {
 }
 
 /**
- * Length of the shadow under the collapsed title bar, as a fraction of the
+ * Length of the short shadow under a minimized heading, as a fraction of the
  * shadow under the expanded plate. styles.css draws both from one gradient
- * (12rem below the plate, 3rem below the bar), and while the heading collapses
- * the plate's shadow shrinks to this same fraction, so the feather that
- * follows the plate never outlasts the bar's.
+ * (12rem below the plate, 3rem below the minimized heading), and while the
+ * heading collapses the plate's shadow shrinks to this same fraction, so the
+ * feather that follows the plate never outlasts the bar's. A heading pinned in
+ * the timeline sits on this short feather at both heights, since the timeline
+ * scrolls beneath a solid plate rather than meeting a title bar's hairline.
  */
 export const BAR_FADE_RATIO = 3 / 12;
 
 /**
- * Fraction of the plate's shadow still drawn as the heading collapses. A
- * heading pinned in the timeline keeps a solid plate and follows this same
- * curve, so a compact pinned block never carries the large heading's long
- * shadow.
+ * Fraction of the plate's shadow still drawn as the heading collapses in the
+ * title bar's scroll handoff.
  */
 export function plateFadeScale(progress: number): number {
   return 1 - progress * (1 - BAR_FADE_RATIO);
+}
+
+/**
+ * A heading pinned in the timeline steps between its two states instead of
+ * following the scroll frame by frame: it compacts in one move once the reader
+ * has scrolled back far enough for the title to have left its expanded place.
+ * The scroll position picks the state; the change itself is animated in time.
+ */
+export function pinnedStep(fromBottom: number, exitDistance: number): 0 | 1 {
+  return fromBottom >= exitDistance ? 1 : 0;
 }
 
 /** Smallest title-bar slot worth drawing the compact heading into. */

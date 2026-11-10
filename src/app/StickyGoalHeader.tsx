@@ -9,6 +9,7 @@ import { useGoalContext } from "./goalContext.ts";
 import { workstreamColorStyle } from "../domain/workstreamColor.ts";
 import { usePrefs } from "./prefs.ts";
 import {
+  BAR_FADE_RATIO,
   FADE_COMPACT_RISE,
   PAD_TOP,
   PHONE_QUERY,
@@ -27,6 +28,7 @@ import {
   headingScroll,
   headingScrollLimit,
   pinnedHeight,
+  pinnedStep,
   pinnedTitleScale,
   plateFadeScale,
   titleBarSlot,
@@ -581,21 +583,29 @@ export function StickyGoalHeader(): React.ReactElement | null {
   // A floating heading never makes the move to the compact copy: it stays at
   // rest over the timeline, which scrolls beneath its shadow. A pane too short
   // to spare the room still compacts, so a phone with the keyboard up keeps a
-  // readable timeline.
+  // readable timeline. A heading pinned in the timeline steps between its two
+  // states at a threshold instead of tracking the scroll, and styles.css
+  // animates that one move.
+  const scrolled = settled ? fromBottom : 0;
+  const step = pinned ? pinnedStep(scrolled, exitDistance) : 0;
   const { moved, remaining, progress } = floating
     ? { moved: 0, remaining: exitDistance, progress: 0 }
     : placement?.short
       ? { moved: exitDistance, remaining: 0, progress: 1 }
-      : headingScroll(
-          settled ? fromBottom : 0,
-          exitDistance,
-          pinned || fadeOnly ? "fade" : "scroll",
-          limit,
-        );
+      : pinned
+        ? {
+            moved: exitDistance * step,
+            remaining: exitDistance * (1 - step),
+            progress: step,
+          }
+        : headingScroll(
+            scrolled,
+            exitDistance,
+            fadeOnly ? "fade" : "scroll",
+            limit,
+          );
   const collapsed = progress === 1;
   const scalePinned = pinned && !floating;
-  const scaleProgress =
-    scalePinned && reduceMotion ? Number(collapsed) : progress;
   const fadeMotion = headingFade(progress, !reduceMotion);
   const opacity = fadeOnly
     ? {
@@ -616,17 +626,13 @@ export function StickyGoalHeader(): React.ReactElement | null {
     scalePinned ? titleLines : 1,
   );
   // A pinned compact heading needs a solid plate; in the bar the full-size
-  // plate can instead fade away without moving under the large heading.
-  // Reduced motion swaps the pinned plate at the endpoint rather than
-  // interpolating its height and the scroll padding derived from it.
+  // plate can instead fade away without moving under the large heading. The
+  // pinned plate and the scroll padding derived from it change in one step,
+  // which styles.css animates.
   const plateHeight =
     fadeOnly || scalePinned
       ? pinned
-        ? reduceMotion
-          ? collapsed
-            ? platePinnedHeight
-            : height
-          : height * (1 - progress) + platePinnedHeight * progress
+        ? height * (1 - progress) + platePinnedHeight * progress
         : height
       : Math.max(
           height * (1 - progress),
@@ -698,12 +704,10 @@ export function StickyGoalHeader(): React.ReactElement | null {
     const scale = compact
       ? eyebrow.compactScale
       : scalePinned
-        ? 1 + (eyebrow.compactScale - 1) * scaleProgress
+        ? 1 + (eyebrow.compactScale - 1) * progress
         : 1;
     const y =
-      !compact && scalePinned
-        ? base * (PINNED_PAD - PAD_TOP) * scaleProgress
-        : 0;
+      !compact && scalePinned ? base * (PINNED_PAD - PAD_TOP) * progress : 0;
     return (
       <div
         className="ws-sticky-goal__workstream"
@@ -729,6 +733,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
       <div
         className="ws-goal-overlay__clip"
         data-ws-heading="expanded"
+        data-ws-pinned={pinned ? "" : undefined}
         style={{
           transform: `translate(${placement.pane.x}px, ${paneTop}px)`,
           width: placement.pane.width,
@@ -753,7 +758,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
             style={{
               fontSize: base * TITLE_SIZE,
               transform: scalePinned
-                ? `translateY(${eyebrowBlock + (base * PINNED_PAD + barEyebrowBlock - base * PAD_TOP - eyebrowBlock) * scaleProgress}px) scale(${pinnedTitleScale(scaleProgress)})`
+                ? `translateY(${eyebrowBlock + (base * PINNED_PAD + barEyebrowBlock - base * PAD_TOP - eyebrowBlock) * progress}px) scale(${pinnedTitleScale(progress)})`
                 : `translateY(${eyebrowBlock}px)`,
               transformOrigin: scalePinned ? "0 0" : undefined,
               ...(narrow && titleLines > 1
@@ -788,7 +793,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
               style={{
                 fontSize: base * SUBTITLE_SIZE,
                 transform: `translateY(${eyebrowBlock + titleBlock}px)`,
-                opacity: scalePinned ? 1 - scaleProgress : 1,
+                opacity: scalePinned ? 1 - progress : 1,
               }}
             >
               {context.goal}
@@ -839,21 +844,20 @@ export function StickyGoalHeader(): React.ReactElement | null {
     <>
       <div
         className="ws-goal-background"
+        data-ws-pinned={pinned ? "" : undefined}
         style={
           {
             transform: `translate(${placement.background.x}px, ${placement.background.y}px)`,
             width: placement.background.width,
             "--ws-plate-height": `${fadeAnchor}px`,
             // In scroll mode, the plate's shadow shrinks to the bar fade's
-            // length, never shorter than that much of its own.
-            // A pinned heading keeps a solid plate, so the fade beneath it
-            // follows the plate's height: full length under the large heading,
-            // as short as the title bar's fade once the compact block takes
-            // over. In the bar a fading plate's shadow leaves with the plate's
-            // opacity, so only the scroll handoff shrinks it there. Reduced
-            // motion swaps the pinned fade at the endpoint, with the plate.
+            // length, never shorter than that much of its own. A pinned heading
+            // is a solid band the timeline runs under, with no title bar's
+            // hairline to meet, so it keeps the short feather at both heights
+            // rather than laying the large heading's long one over the messages
+            // a narrow pane has little room for.
             "--ws-plate-fade-scale": pinned
-              ? plateFadeScale(reduceMotion ? Number(collapsed) : progress)
+              ? BAR_FADE_RATIO
               : fadeOnly
                 ? 1
                 : plateFadeScale(progress),
