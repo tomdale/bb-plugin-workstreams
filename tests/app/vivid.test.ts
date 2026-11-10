@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
+import { THEME_COLORS, TOKEN_ROOTS } from "../../src/domain/colors.ts";
 import { browserTest, browserUnavailable } from "./browser-fixture.ts";
 
 let server: ChildProcess;
@@ -314,6 +315,85 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
       });
       await expect.poll(text).toBe("oklch(0.5 0.134 242.749)");
       expect(errors).toEqual([]);
+    },
+    60_000,
+  );
+
+  browserTest(
+    "resolves theme colors on a theme change, not on content churn",
+    async ({ page }) => {
+      await page.goto(url);
+      await page.getByRole("switch", { name: "Use vivid colors" }).waitFor();
+      const paletteRoots = await page.evaluate(
+        (selector) => document.querySelectorAll(selector).length,
+        TOKEN_ROOTS,
+      );
+      // A sweep reads one base and one text color per theme color per root.
+      const readsPerSweep = paletteRoots * Object.keys(THEME_COLORS).length * 2;
+      const reads = () =>
+        page.evaluate(
+          () => (window as Window & { wsReads?: number }).wsReads ?? 0,
+        );
+      await page.evaluate(() => {
+        const instrumented = window as Window & { wsReads?: number };
+        instrumented.wsReads = 0;
+        const read = CanvasRenderingContext2D.prototype.getImageData;
+        CanvasRenderingContext2D.prototype.getImageData = function (
+          this: CanvasRenderingContext2D,
+          ...args: Parameters<CanvasRenderingContext2D["getImageData"]>
+        ) {
+          instrumented.wsReads = (instrumented.wsReads ?? 0) + 1;
+          return read.apply(this, args);
+        };
+      });
+
+      const churn = async () =>
+        page.evaluate(async () => {
+          const root = document.querySelector<HTMLElement>(
+            '[data-bb-plugin="workstreams"]',
+          )!;
+          const content = root.querySelector<HTMLElement>("h1")!;
+          // App chrome outside every plugin root, like a scrollbar or fade.
+          const chrome = document.createElement("div");
+          document.body.append(chrome);
+          for (let step = 0; step < 20; step++) {
+            // Rows, hover fills, and streamed messages restyle inside a root.
+            content.className = `churn-${step}`;
+            content.style.color = `rgb(${step} 0 0)`;
+            const row = document.createElement("span");
+            row.className = `row-${step}`;
+            row.style.transform = `translateY(${step}px)`;
+            root.append(row);
+            chrome.className = `chrome-${step}`;
+            chrome.style.opacity = String(step / 20);
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+          }
+          chrome.remove();
+          await new Promise((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve)),
+          );
+        });
+
+      await churn();
+      expect(await reads()).toBe(0);
+
+      // The theme scope moving is a theme change, and it re-resolves once.
+      await page.evaluate(async () => {
+        document.documentElement.className = "dark";
+        await new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        );
+      });
+      expect(await reads()).toBe(readsPerSweep);
+      const text = () =>
+        page
+          .locator('[data-ws-color-preview="review"]')
+          .evaluate((el) => getComputedStyle(el).color);
+      await expect.poll(text).toBe("oklch(0.828 0.111 230.318)");
+
+      // Content churn after the theme settles costs no reads either.
+      await churn();
+      expect(await reads()).toBe(readsPerSweep);
     },
     60_000,
   );
