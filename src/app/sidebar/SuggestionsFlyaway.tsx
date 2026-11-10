@@ -31,6 +31,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { useRealtime } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import {
@@ -95,6 +96,7 @@ export function SuggestionsFlyaway({
   children: (slot: ReactNode) => ReactElement;
 }) {
   const [open, setOpen] = useState(false);
+  const compact = useIsCompactViewport();
   const trigger = useRef<HTMLButtonElement>(null);
   // The count stays while the flyaway is open, so focus has somewhere to
   // return on close even after the last decision.
@@ -133,7 +135,8 @@ export function SuggestionsFlyaway({
       <PopoverContent
         align="start"
         side="right"
-        sideOffset={10}
+        // Close enough that the caret nearly touches the count it belongs to.
+        sideOffset={4}
         aria-label={TITLE}
         mobileTitle={TITLE}
         // Focus the flyaway itself, so Tab reaches the suggestions first and
@@ -152,8 +155,23 @@ export function SuggestionsFlyaway({
         // headline and both sides of a drawing have room for their names; no
         // narrower than the sidebar's own width, and capped so one long name
         // cannot fill the window.
-        className="flex max-h-[min(32rem,var(--radix-popover-content-available-height))] w-max min-w-[360px] max-w-[min(40rem,calc(100vw-1rem))] flex-col overflow-hidden p-0 text-[13px]"
+        // Room for the caret outside the panel, so no clipping here.
+        className="flex max-h-[min(32rem,var(--radix-popover-content-available-height))] w-max min-w-[360px] max-w-[min(40rem,calc(100vw-1rem))] flex-col p-0 text-[13px]"
       >
+        {/* Points at the count, level with it wherever the flyaway lands. The
+            drawer needs none, and no popper context to draw one from. */}
+        {compact ? null : (
+          <PopoverPrimitive.Arrow width={10} height={5} asChild aria-hidden>
+            <svg viewBox="0 0 10 5" className="overflow-visible">
+              <path d="M-.5 -1H10.5L5 5Z" className="fill-popover" />
+              <path
+                d="M0 0L5 5L10 0"
+                className="fill-none stroke-border"
+                strokeWidth={1}
+              />
+            </svg>
+          </PopoverPrimitive.Arrow>
+        )}
         <SuggestionList
           rpc={rpc}
           colors={colors}
