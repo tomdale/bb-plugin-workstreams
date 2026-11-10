@@ -310,6 +310,19 @@ describe("changeHeadline", () => {
         ],
       }),
     ).toBe("Split Toolbelt into Shell and Sidebar");
+    // Three or more destinations read as their count: the preview names each.
+    expect(
+      headline({
+        topicId: "toolbelt",
+        subgroups: [
+          { name: "Shell", description: "", threadIds: ["t1"] },
+          { name: "Sidebar", description: "", threadIds: ["t2"] },
+          { name: "Docs", description: "", threadIds: ["t3"] },
+          { name: "Plugins", description: "", threadIds: ["t4"] },
+          { name: "Skills", description: "", threadIds: ["t5"] },
+        ],
+      }),
+    ).toBe("Split Toolbelt into 5 workstreams");
     expect(
       headline({
         topicId: "auto",
@@ -337,6 +350,17 @@ describe("changeHeadline", () => {
         ],
       }),
     ).toBe("Move 1 Toolbelt thread into Shell and Sidebar");
+    expect(
+      headline({
+        topicId: "toolbelt",
+        repair: true,
+        subgroups: [
+          { name: "Shell", description: "", threadIds: ["t1"] },
+          { name: "Sidebar", description: "", threadIds: ["t2"] },
+          { name: "Docs", description: "", threadIds: ["t3"] },
+        ],
+      }),
+    ).toBe("Move 3 Toolbelt threads into 3 workstreams");
     // Threads gone since leave no count.
     expect(
       headline({
@@ -372,7 +396,7 @@ describe("changeHeadline", () => {
         parent: null,
         children: ["agent", "toolbelt", "bb"],
       }),
-    ).toBe("Group Agent, Toolbelt, and bb under a new Work");
+    ).toBe("Group 3 topics under a new Work");
     expect(
       headline({
         op: "create",

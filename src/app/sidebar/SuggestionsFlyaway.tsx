@@ -9,7 +9,8 @@
  * before and after accepting (`SuggestionPreview`). The flyaway is wider than the sidebar, so both sides have
  * room. A decision applies at once and leaves a line in its place with Undo
  * for a few seconds, as in Topics; Activity keeps Undo after that. Closing
- * (Escape, Close, or a click outside) decides nothing: the rest keep waiting.
+ * (Escape, the header's ✕, or a click outside) decides nothing: the rest keep
+ * waiting.
  *
  * Only suggestions that can apply now are listed. Those the tree has since
  * outgrown stay pending, as everywhere else, and are counted at the foot,
@@ -340,10 +341,11 @@ function SuggestionList({
         <button
           ref={close}
           type="button"
+          aria-label="Close"
           onClick={onClose}
-          className={TEXT_BUTTON}
+          className={HEADER_CLOSE}
         >
-          Close
+          <Icon name="X" className="size-3.5" aria-hidden />
         </button>
       </div>
       {open2 > 1 ? (
@@ -396,6 +398,10 @@ const lostFocus = () =>
 
 const TEXT_BUTTON =
   "h-6 shrink-0 cursor-pointer rounded-md px-2 text-xs text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring";
+
+/** The header's dismiss, as BB's overlays draw it: an icon, named for nobody who can see it. */
+const HEADER_CLOSE =
+  "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring";
 
 const ACCEPT_TEXT =
   "text-[var(--ws-complete-text)] hover:text-[var(--ws-complete-text)]";

@@ -292,10 +292,15 @@ export function changeLines(change: SuggestionChange): string[] {
 }
 
 const leaf = (place: TopicPlace) => place.at(-1)?.name ?? "the top level";
-const list = (names: readonly string[]) =>
-  names.length > 2
-    ? `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`
-    : names.join(" and ");
+const list = (names: readonly string[]) => names.join(" and ");
+
+/**
+ * Names in a headline, which is one line: two read as themselves, and three
+ * or more as their count. The preview beside a headline draws every one of
+ * them, and a list of five only truncates.
+ */
+const namedOrCounted = (all: readonly string[], noun: string) =>
+  all.length > 2 ? `${all.length} ${noun}` : list(all);
 
 /** Whether accepting moves any visible thread, by itself or with its group. */
 export function movesThreads(change: SuggestionChange): boolean {
@@ -306,7 +311,8 @@ export function movesThreads(change: SuggestionChange): boolean {
  * What a suggestion does, as verb, subject, and destination: "Split
  * Automations into PR Upkeep and Design", "Move “Fix CI” to Evals", "Move
  * Workforest under bb". The destination is always named, so a list of
- * headlines reads as a list of changes.
+ * headlines reads as a list of changes; a spread of three or more
+ * destinations is their count, as the preview names each one.
  */
 export function changeHeadline(change: SuggestionChange): string {
   const [first] = change.moves;
@@ -321,9 +327,9 @@ export function changeHeadline(change: SuggestionChange): string {
     case "split":
     case "file":
       if (change.op === "split" && destinations.length > 1)
-        return `Split ${group} into ${list(destinations)}`;
+        return `Split ${group} into ${namedOrCounted(destinations, "workstreams")}`;
       if (destinations.length > 1)
-        return `Move ${count}${group} ${threads.length === 1 ? "thread" : "threads"} into ${list(destinations)}`;
+        return `Move ${count}${group} ${threads.length === 1 ? "thread" : "threads"} into ${namedOrCounted(destinations, "workstreams")}`;
       return threads.length === 1
         ? `Move “${threads[0]!.title}” to ${destinations[0]}`
         : `Move ${count}threads to ${destinations[0]}`;
@@ -340,7 +346,10 @@ export function changeHeadline(change: SuggestionChange): string {
       return `Rename ${leaf(first.from ?? [])} to ${leaf(first.to)}`;
     case "create":
       return first.from
-        ? `Group ${list(change.moves.map((m) => leaf(m.to)))} under a new ${group}`
+        ? `Group ${namedOrCounted(
+            change.moves.map((m) => leaf(m.to)),
+            "topics",
+          )} under a new ${group}`
         : `Create ${leaf(first.to)}${first.to.length > 1 ? ` under ${group}` : ""}`;
   }
 }

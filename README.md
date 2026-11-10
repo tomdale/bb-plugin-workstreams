@@ -347,9 +347,11 @@ categories.
   is never proposed again.
 - **Review and undo:** Each suggestion names what moves and where, shows the
   change in a line or two in the app and in `bb workstreams suggestions`, and
-  says why it can't apply when the tree changed since. Accepting one records it
-  in Activity with **Undo**, which restores the topic tree and assignments as
-  they were while nothing has changed since.
+  says why it can't apply when the tree changed since. A headline names one or
+  two destinations and counts three or more ("Split Agent Skills into 5
+  workstreams"), since the preview beside it names each one. Accepting one
+  records it in Activity with **Undo**, which restores the topic tree and
+  assignments as they were while nothing has changed since.
 
 ---
 
