@@ -444,6 +444,8 @@ export function AdvancedSettings() {
   return (
     <div className="space-y-3">
       <SettingsSaveError error={error} />
+      {/* slop-ok: 2 every Workstreams settings section draws this card, and BB
+          frames its own settings the same way */}
       <SectionRows>
         {machines && machines.length > 1 ? (
           <SettingRow
