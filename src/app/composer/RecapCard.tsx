@@ -23,7 +23,6 @@ import {
   UrlLink,
   experimental_FileLink as FileLink,
   useComposer,
-  useRealtime,
   useRpc,
   useBbNavigate,
   type PluginSidebarThread,
@@ -31,6 +30,8 @@ import {
 import type { RpcContract } from "../../server/contract.ts";
 import { recapHostFileLink } from "../../domain/recapFileLinks.ts";
 import { usePendingQuestion } from "../question/pending.ts";
+import { shareJson } from "../structuralSharing.ts";
+import { useThreadChanged } from "../useChanged.ts";
 import {
   fileTarget,
   itemParts,
@@ -973,12 +974,15 @@ function useRecap(threadId: string | null) {
     void rpc
       .call("recap_get", { threadId })
       .then((next) => {
-        if (current === version.current) setState(next);
+        // Unchanged records keep their identity, so the card's memoized
+        // parts skip the re-read.
+        if (current === version.current)
+          setState((previous) => shareJson(previous, next));
       })
       .catch(() => {});
   }, [rpc, threadId]);
   useEffect(load, [load]);
-  useRealtime("changed", load);
+  useThreadChanged(threadId, load);
   const dismiss = useCallback(
     async (recapId: string) => {
       if (!threadId) return;

@@ -1771,3 +1771,38 @@ it("keeps the other next action buttons idle while one is sending", async () => 
     ).toBeNull(),
   );
 });
+
+it("re-reads its recap only for changes that can concern its thread", async () => {
+  const slot = await mount();
+  await slot.findByRole("region", { name: "Latest recap" });
+  const reads = () =>
+    slot.inspection.rpcCalls.filter((call) => call.method === "recap_get")
+      .length;
+  const before = reads();
+  const changes = {
+    epoch: "e1",
+    revisions: {
+      analysis: 1,
+      recaps: 1,
+      order: 0,
+      snoozes: 0,
+      catalog: 0,
+      suggestions: 0,
+    },
+  };
+  await slot.behavior.emitRealtime("changed", {
+    ...changes,
+    threadIds: ["other"],
+  });
+  await slot.behavior.emitRealtime("changed", { ...changes, threadIds: [] });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(reads()).toBe(before);
+  await slot.behavior.emitRealtime("changed", {
+    ...changes,
+    threadIds: ["t1"],
+  });
+  await waitFor(() => expect(reads()).toBe(before + 1));
+  // A write that names no threads may have changed this one.
+  await slot.behavior.emitRealtime("changed", changes);
+  await waitFor(() => expect(reads()).toBe(before + 2));
+});

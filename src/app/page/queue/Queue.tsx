@@ -27,7 +27,6 @@ import { KeyChip } from "../../primitives/KeyChip.tsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   experimental_useSidebarThreadActions,
-  useRealtime,
   useRpc,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
@@ -50,6 +49,8 @@ import { usePrefs } from "../../prefs.ts";
 import { useRecapPrefs } from "../../recap/prefs.ts";
 import { HashColors } from "../../composer/RecapCard.tsx";
 import { usePendingQuestion } from "../../question/pending.ts";
+import { shareJson } from "../../structuralSharing.ts";
+import { useThreadChanged, useUnscopedChanged } from "../../useChanged.ts";
 import { QueueQuestion } from "../../question/QueueQuestion.tsx";
 import { CustomSnoozeDialog } from "../../snooze/CustomSnoozeDialog.tsx";
 import type { useWorkstreams } from "../../useWorkstreams.ts";
@@ -92,7 +93,8 @@ function useSuggestions(ws: Workstreams) {
   const [state, setState] = useState<SuggestionsStateWire | null>(null);
   const read = useCallback(async () => {
     try {
-      setState((await ws.rpc.call("suggestions", null)).state);
+      const next = (await ws.rpc.call("suggestions", null)).state;
+      setState((previous) => shareJson(previous, next));
     } catch {
       // The queue still works without suggestions.
     }
@@ -100,7 +102,7 @@ function useSuggestions(ws: Workstreams) {
   useEffect(() => {
     void read();
   }, [read]);
-  useRealtime("changed", () => void read());
+  useUnscopedChanged(() => void read());
   const ready = useMemo(
     () =>
       (state?.suggestions ?? []).filter(
@@ -120,7 +122,7 @@ function useQueueRecap(threadId: string | null, recapId: string | null) {
     files: RecapFiles | null;
     waitingCancelled: boolean;
   } | null>(null);
-  useRealtime("changed", () => refresh((value) => value + 1));
+  useThreadChanged(threadId, () => refresh((value) => value + 1));
   useEffect(() => {
     if (!threadId || !recapId) return;
     let active = true;
@@ -128,12 +130,14 @@ function useQueueRecap(threadId: string | null, recapId: string | null) {
       .call("recap_get", { threadId })
       .then((result) => {
         if (active && result.recap?.id === recapId)
-          setState({
-            threadId,
-            recapId,
-            files: result.files,
-            waitingCancelled: result.waitingCancelled,
-          });
+          setState((previous) =>
+            shareJson(previous, {
+              threadId,
+              recapId,
+              files: result.files,
+              waitingCancelled: result.waitingCancelled,
+            }),
+          );
       })
       .catch(() => {});
     return () => {
