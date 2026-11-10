@@ -28,8 +28,8 @@ type OrganizerDeps = {
   service: WorkstreamService;
   topics: TopicStore;
   analyzer: Analyzer;
-  /** Agent recaps for each thread's latest turn; they outrank analysis. */
-  recaps?: () => Record<string, Recap>;
+  /** The agent recap for a thread's latest turn; it outranks analysis. */
+  recap?: (threadId: string) => Recap | undefined;
   members: (sectionId: string) => Promise<CleanupMember[]>;
   /** Records each pass's section changes in Activity. */
   journal?: Journal;
@@ -194,9 +194,8 @@ export class Organizer {
     return this.storedLayout().nodes;
   }
 
+  /** Whether each root is done, from only the roots' analyses and recaps. */
   private completed(roots: readonly InventoryThread[]): Map<string, boolean> {
-    const analysis = this.deps.analyzer.all();
-    const recaps = this.deps.recaps?.() ?? {};
     const current = new Map(
       this.deps.service.threads().map((thread) => [thread.id, thread]),
     );
@@ -206,30 +205,37 @@ export class Organizer {
         isDone(
           workView(
             current.get(root.id) ?? root,
-            analysis[root.id],
-            recaps[root.id],
+            this.deps.analyzer.get(root.id),
+            this.deps.recap?.(root.id),
           ),
         ),
       ]),
     );
   }
 
-  private fingerprint(
-    roots: readonly InventoryThread[],
-    completed: ReadonlyMap<string, boolean>,
-    projected?: ReadonlyMap<string, string | null>,
-  ): string {
+  /**
+   * What a pass applies from. Every input is the one the pass planned with,
+   * so a change that lands while it runs makes the next pass differ.
+   */
+  private fingerprint(plan: {
+    revision: number;
+    roots: readonly InventoryThread[];
+    completed: ReadonlyMap<string, boolean>;
+    assignments: ReadonlyMap<string, TopicAssignment>;
+    projected?: ReadonlyMap<string, string | null>;
+  }): string {
+    const { roots, completed, assignments, projected } = plan;
     return createHash("sha256")
       .update(
         JSON.stringify({
-          catalogRevision: this.deps.topics.revision(),
+          catalogRevision: plan.revision,
           layout: this.storedLayout().nodes,
           roots: roots.map((root) => [
             root.id,
             root.title,
             projected?.has(root.id) ? projected.get(root.id) : root.sectionId,
             completed.get(root.id),
-            assignmentEvidence(this.deps.topics.assignment(root.id)),
+            assignmentEvidence(assignments.get(root.id)!),
           ]),
         }),
       )
@@ -246,7 +252,7 @@ export class Organizer {
     let passContext: {
       roots: InventoryThread[];
       isCompletedMap: Map<string, boolean>;
-      assignments: Record<string, TopicAssignment>;
+      assignments: ReadonlyMap<string, TopicAssignment>;
       selectedEntityIds: string[];
       entityToSection: Map<string, string>;
       appliedSectionIds: Map<string, string | null>;
@@ -265,10 +271,18 @@ export class Organizer {
         .filter((t) => !t.isHidden && !t.isArchived);
 
       const factRevision = this.factRevision;
+      const revision = this.deps.topics.revision();
       const isCompletedMap = this.completed(roots);
+      const rootIds = roots.map((root) => root.id);
+      const assignments = this.deps.topics.assignmentsOf(rootIds);
 
       // Check if snapshot is identical to last completed run
-      const snapshotHash = this.fingerprint(roots, isCompletedMap);
+      const snapshotHash = this.fingerprint({
+        revision,
+        roots,
+        completed: isCompletedMap,
+        assignments,
+      });
 
       if (
         !isForced &&
@@ -281,18 +295,15 @@ export class Organizer {
 
       // What each root's topic was settled from, shown for roots with none.
       const evidenceById = new Map<string, string>();
-      for (const root of roots) {
-        const basis = this.deps.topics.basis(root.id);
-        if (basis) evidenceById.set(root.id, basis);
-      }
+      for (const [id, assignment] of assignments)
+        if (assignment.evidence) evidenceById.set(id, assignment.evidence);
 
       // 2. Derivation stage
       const entities = this.deps.topics.list();
-      const assignments = this.deps.topics.assignments();
 
       const counts: Record<string, number> = {};
       for (const root of roots) {
-        const assignment = assignments[root.id];
+        const assignment = assignments.get(root.id);
         if (
           assignment &&
           assignment.status === "assigned" &&
@@ -322,25 +333,44 @@ export class Organizer {
         entities,
       };
 
-      const planEvidence = JSON.stringify({
-        entities,
-        completed: [...isCompletedMap],
-        assignments: roots.map((root) =>
-          assignmentEvidence(assignments[root.id]!),
-        ),
-      });
+      const evidence = (
+        topics: readonly Topic[],
+        completed: ReadonlyMap<string, boolean>,
+        current: ReadonlyMap<string, TopicAssignment>,
+      ) =>
+        JSON.stringify({
+          entities: topics,
+          completed: [...completed],
+          assignments: rootIds.map((id) =>
+            assignmentEvidence(current.get(id)!),
+          ),
+        });
+      const planEvidence = evidence(entities, isCompletedMap, assignments);
+      // Topics, assignments, and analysis change only while the pass awaits
+      // BB, so the evidence is read again only after an await.
+      let awaited = false;
+      const awaitBb = async <T>(call: Promise<T>): Promise<T> => {
+        try {
+          return await call;
+        } finally {
+          awaited = true;
+        }
+      };
       const assertCurrent = () => {
         if (
           signal.aborted ||
           this.disposed ||
-          this.factRevision !== factRevision ||
-          JSON.stringify({
-            entities: this.deps.topics.list(),
-            completed: [...this.completed(roots)],
-            assignments: roots.map((root) =>
-              assignmentEvidence(this.deps.topics.assignment(root.id)),
-            ),
-          }) !== planEvidence
+          this.factRevision !== factRevision
+        )
+          throw new SupersededPlan();
+        if (!awaited) return;
+        awaited = false;
+        if (
+          evidence(
+            this.deps.topics.list(),
+            this.completed(roots),
+            this.deps.topics.assignmentsOf(rootIds),
+          ) !== planEvidence
         )
           throw new SupersededPlan();
       };
@@ -352,7 +382,7 @@ export class Organizer {
       await this.deps.service.exclusive(async () => {
         let failed = false;
         try {
-          const liveSections = await listSections(sdk);
+          const liveSections = await awaitBb(listSections(sdk));
           for (const section of liveSections)
             changes.name(section.id, section.name);
           const groupBindings = new Map(this.deps.topics.groups()); // sectionId -> entityId
@@ -384,9 +414,9 @@ export class Organizer {
 
             if (!section) {
               // Ownership permits cleanup when the projection no longer uses this section.
-              const created = await sdk.threadSections.create({
-                name: expectedName,
-              });
+              const created = await awaitBb(
+                sdk.threadSections.create({ name: expectedName }),
+              );
               section = { id: created.id, name: created.name };
               changes.created.push(created.id);
               changes.name(created.id, created.name);
@@ -402,10 +432,12 @@ export class Organizer {
               this.deps.service.seeSection(created.id, created.name);
             } else if (section.name !== expectedName) {
               // Rename section if entity name changed
-              await sdk.threadSections.update({
-                id: section.id,
-                name: expectedName,
-              });
+              await awaitBb(
+                sdk.threadSections.update({
+                  id: section.id,
+                  name: expectedName,
+                }),
+              );
               changes.renamed.push({
                 id: section.id,
                 from: section.name,
@@ -422,7 +454,7 @@ export class Organizer {
           // Update roots' sectionId in BB
           for (const root of roots) {
             assertCurrent();
-            const assignment = assignments[root.id];
+            const assignment = assignments.get(root.id);
             let targetSectionId: string | null = null;
 
             if (
@@ -443,9 +475,9 @@ export class Organizer {
             if ((root.sectionId ?? null) !== targetSectionId) {
               // The snapshot is from the start of the pass; classification may
               // have taken a while, so write only what still differs.
-              const live = await sdk.threads
-                .get({ threadId: root.id })
-                .catch(() => null);
+              const live = await awaitBb(
+                sdk.threads.get({ threadId: root.id }).catch(() => null),
+              );
               const from = live?.sectionId ?? null;
               if (
                 live &&
@@ -454,10 +486,12 @@ export class Organizer {
                 from !== targetSectionId
               ) {
                 assertCurrent();
-                await sdk.threads.update({
-                  threadId: root.id,
-                  sectionId: targetSectionId,
-                });
+                await awaitBb(
+                  sdk.threads.update({
+                    threadId: root.id,
+                    sectionId: targetSectionId,
+                  }),
+                );
                 changes.moves.push({
                   threadId: root.id,
                   title: root.title,
@@ -484,7 +518,7 @@ export class Organizer {
 
             const boundEntityId = groupBindings.get(section.id);
             if (boundEntityId && !selectedEntityIds.includes(boundEntityId)) {
-              const members = await this.deps.members(section.id);
+              const members = await awaitBb(this.deps.members(section.id));
               const activeMembers = members.filter(
                 (m) => m.archivedAt === null,
               );
@@ -498,7 +532,7 @@ export class Organizer {
                   .get(section.id) as { created_by: string } | undefined;
 
                 if (wsRow?.created_by === "workstreams") {
-                  await sdk.threadSections.delete({ id: section.id });
+                  await awaitBb(sdk.threadSections.delete({ id: section.id }));
                   changes.removed.push(section.id);
                   this.deps.db
                     .prepare("DELETE FROM ws_seen_section WHERE section_id = ?")
@@ -558,11 +592,13 @@ export class Organizer {
         JSON.stringify({ nodes: layout.nodes }),
       );
 
-      this.lastSyncedHash = this.fingerprint(
+      this.lastSyncedHash = this.fingerprint({
+        revision,
         roots,
-        isCompletedMap,
-        appliedSectionIds,
-      );
+        completed: isCompletedMap,
+        assignments,
+        projected: appliedSectionIds,
+      });
 
       const saved = this.save(finalState);
       this.deps.onPass?.(isForced);
@@ -616,7 +652,7 @@ export class Organizer {
     error: string | null;
     roots: InventoryThread[];
     isCompletedMap: Map<string, boolean>;
-    assignments: Record<string, TopicAssignment>;
+    assignments: ReadonlyMap<string, TopicAssignment>;
     selectedEntityIds: string[];
     entityToSection: Map<string, string>;
     evidenceById: Map<string, string>;
@@ -655,7 +691,7 @@ export class Organizer {
     let completedRootsCount = 0;
 
     for (const root of roots) {
-      const assignment = assignments[root.id];
+      const assignment = assignments.get(root.id);
       const isCompleted = isCompletedMap.get(root.id) ?? false;
       if (isCompleted) {
         completedRootsCount++;

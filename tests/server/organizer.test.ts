@@ -5,6 +5,7 @@ import { fakeWorld } from "./fake-bb.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import type { OrganizerState } from "../../src/server/contract.ts";
+import { AgentRecaps } from "../../src/server/recap.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 let world: World | null = null;
@@ -696,6 +697,71 @@ describe("automatic update coordinator lifecycle", () => {
       },
       { timeout: 2000 },
     );
+  });
+});
+
+describe("organizer pass cost", () => {
+  /** Topic-tree reads and recap scans in one forced pass with nothing to move. */
+  const passReads = async (roots: number) => {
+    world = await fakeWorld();
+    const w = world;
+    const corpus = new TopicStore(openDatabase(w.bb));
+    const lantern = corpus.create("Lantern", "Product");
+    for (let i = 0; i < roots; i++) {
+      w.addThread(`t${i}`, { title: `Lantern task ${i}` });
+      corpus.assign(`t${i}`, lantern.id, { provenance: "manual" });
+    }
+    await rebuildOrg(w);
+    const list = vi.spyOn(TopicStore.prototype, "list");
+    const assignment = vi.spyOn(TopicStore.prototype, "assignment");
+    const recaps = vi.spyOn(AgentRecaps.prototype, "all");
+    try {
+      await rebuildOrg(w);
+      return {
+        lists: list.mock.calls.length,
+        assignments: assignment.mock.calls.length,
+        recapScans: recaps.mock.calls.length,
+      };
+    } finally {
+      vi.restoreAllMocks();
+      await w.harness.lifecycle.dispose();
+      world = null;
+    }
+  };
+
+  it("reads the topic tree a fixed number of times, however many roots there are", async () => {
+    const few = await passReads(2);
+    const many = await passReads(12);
+    expect(many.lists).toBe(few.lists);
+    expect(many.recapScans).toBe(0);
+  });
+
+  it("drops a plan whose topics changed while it waited on BB, then applies the new one", async () => {
+    world = await fakeWorld();
+    const w = world;
+    const corpus = new TopicStore(openDatabase(w.bb));
+    const lantern = corpus.create("Lantern", "Product");
+    const compass = corpus.create("Compass", "Navigation");
+    w.addThread("t1", { title: "Task" });
+    corpus.assign("t1", lantern.id, { provenance: "manual" });
+    let moved = false;
+    const created: string[] = [];
+    w.harness.sdk.stub("threadSections.create", async ({ name }) => {
+      created.push(name);
+      // The user picks another topic while BB creates the section.
+      if (!moved) {
+        moved = true;
+        corpus.assign("t1", compass.id, { provenance: "manual" });
+      }
+      return w.addSection(name) as never;
+    });
+    await rebuildOrg(w);
+    await vi.waitFor(() => {
+      const section = w.sections.find((s) => s.name === "Compass");
+      expect(section).toBeDefined();
+      expect(w.threads.get("t1")?.sectionId).toBe(section!.id);
+    });
+    expect(created).toEqual(["Lantern", "Compass"]);
   });
 });
 
