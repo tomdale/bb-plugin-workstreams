@@ -71,14 +71,16 @@ export function buildForest<T extends TreeThread>(
 
   const roots = rootCandidates.map((root) => grow(root, 0, root));
   // Anything unvisited is only reachable through a cycle. Break each cycle at
-  // its lowest id so repeated renders agree.
+  // its lowest id so repeated renders agree. Without a cycle every thread is
+  // visited by now, and the sorted scan is skipped.
   const cycleIds: string[] = [];
-  for (const thread of [...present.values()].sort(byId)) {
-    if (visited.has(thread.id)) continue;
-    const root = grow(thread, 0, thread);
-    roots.push(root);
-    for (const node of flatten(root)) cycleIds.push(node.thread.id);
-  }
+  if (visited.size < present.size)
+    for (const thread of [...present.values()].sort(byId)) {
+      if (visited.has(thread.id)) continue;
+      const root = grow(thread, 0, thread);
+      roots.push(root);
+      for (const node of flatten(root)) cycleIds.push(node.thread.id);
+    }
   if (order.roots) roots.sort((a, b) => order.roots!(a.thread, b.thread));
   return { roots, rootOf, orphanIds, cycleIds };
 }

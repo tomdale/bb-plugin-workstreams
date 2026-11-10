@@ -325,6 +325,16 @@ export function useSharedServerStateSelector<T>(
   return useSyncExternalStore(store.subscribe, snapshot, snapshot);
 }
 
+/**
+ * Reads plugin state on demand without rendering for its changes. The store
+ * stays live, refreshing on `changed`, while the caller is mounted.
+ */
+export function useServerStateReader(): () => ServerState {
+  const store = useStore();
+  useEffect(() => store.subscribe(() => {}), [store]);
+  return store.snapshot;
+}
+
 export function useSharedServerActions() {
   const store = useStore();
   return {

@@ -1,21 +1,26 @@
 /**
  * The single client-side model for the sidebar and the page: BB's
  * live sidebar threads plus the plugin's own state, run through the shared
- * domain projection.
+ * domain projection (see `sharedProjection.ts`).
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
-import { useStableSidebarThreads } from "./useStableSidebarThreads.ts";
 import {
-  nextDormancyDeadline,
-  projectWorkstreams,
-  type Projection,
-} from "../domain/project.ts";
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { useSdk, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import {
+  useSidebarThreadsReader,
+  useStableSidebarThreads,
+} from "./useStableSidebarThreads.ts";
+import type { Projection } from "../domain/project.ts";
 import type { Recap } from "../domain/recap.ts";
-import { needsAttention, upNextKind, workView } from "../domain/status.ts";
-import { nextUpNextDeadline, UP_NEXT_FRESH_WINDOWS } from "../domain/upNext.ts";
+import { workView } from "../domain/status.ts";
+import type { UpNextOptions } from "../domain/upNext.ts";
 import type { ManualOrder } from "../domain/order.ts";
-import { RECENT_LIMIT, UP_NEXT_SHOWN } from "../domain/prefs.ts";
+import { RECENT_LIMIT } from "../domain/prefs.ts";
 import type { StoredAnalysis } from "../server/analyzer.ts";
 import type { TopicState } from "../domain/topics.ts";
 import type { WorkstreamTopics } from "../domain/groups.ts";
@@ -24,8 +29,9 @@ import {
   type SnoozePrefs,
   type ThreadSnooze,
 } from "../domain/snooze.ts";
-import { useSharedServerState } from "./serverState.ts";
-import { usePrefs } from "./prefs.ts";
+import { useServerStateReader, useSharedServerState } from "./serverState.ts";
+import { usePrefsRealtime, usePrefs, usePrefsSelector } from "./prefs.ts";
+import { projectionStoreFor } from "./sharedProjection.ts";
 
 export type ServerState = {
   /**
@@ -92,45 +98,19 @@ export function useWorkstreams() {
   const { status, threads, sections, projects } = useStableSidebarThreads();
   const { prefs } = usePrefs();
   const { rpc, server, refresh, reorder, setSnoozes } = useServerState();
+  const shared = projectionStoreFor(useSdk());
+  // Renders when a deadline passes; the read below then takes a new reading.
+  useSyncExternalStore(shared.subscribe, shared.clock, shared.clock);
 
   const { analysis, recaps, order, snoozes, catalog } = server;
-  const sampledAt = Date.now();
-  const deadline = Math.min(
-    ...Object.values(snoozes)
-      .map((snooze) => snooze.until)
-      .filter((until): until is number => until !== null && until > sampledAt),
-    nextDormancyDeadline(threads, sections, {
-      now: sampledAt,
-      needsYou: (thread) => {
-        const work = workView(thread, analysis[thread.id], recaps[thread.id]);
-        return needsAttention(thread, work);
-      },
-      order,
-      snoozedUntil: (thread) => {
-        const snooze = snoozes[thread.id];
-        return isSnoozed(snooze, sampledAt) ? snooze!.until : undefined;
-      },
-    }) ?? Number.POSITIVE_INFINITY,
-    nextUpNextDeadline(threads, {
-      kindOf: (thread) =>
-        upNextKind(
-          thread,
-          workView(thread, analysis[thread.id], recaps[thread.id]),
-        ),
-      now: sampledAt,
-      snoozedUntil: (thread) => {
-        const snooze = snoozes[thread.id];
-        return isSnoozed(snooze, sampledAt) ? snooze!.until : undefined;
-      },
-    }) ?? Number.POSITIVE_INFINITY,
-  );
-  const clock = useNow(null, Number.isFinite(deadline) ? deadline : undefined);
-  // Parent rerenders keep the projection's clock stable. A timer deadline or
-  // new projection input samples the current time for time-sensitive updates.
-  const now = useMemo(
-    () => Math.max(clock, Date.now()),
-    [clock, threads, sections, analysis, recaps, order, snoozes, deadline],
-  );
+  const { projection, now } = shared.read({
+    threads,
+    sections,
+    analysis,
+    recaps,
+    order,
+    snoozes,
+  });
   /** What nests the workstreams (see `nestGroups`). */
   const topics: WorkstreamTopics | undefined = useMemo(
     () =>
@@ -142,48 +122,13 @@ export function useWorkstreams() {
             categories: catalog.categories,
           }
         : undefined,
-    [catalog],
+    // A filing changes the catalog's assignments, which nesting never reads.
+    [catalog?.entities, catalog?.groups, catalog?.layout, catalog?.categories],
   );
-  /** The projection this one replaces: unchanged rows keep their identity. */
-  const previousProjection = useRef<
-    Projection<PluginSidebarThread> | undefined
-  >(undefined);
-  const projection: Projection<PluginSidebarThread> = useMemo(() => {
-    const next = projectWorkstreams(threads, sections, {
-      now,
-      needsYou: (thread) => {
-        const work = workView(thread, analysis[thread.id], recaps[thread.id]);
-        return needsAttention(thread, work);
-      },
-      order,
-      snoozedUntil: (thread) => {
-        const snooze = snoozes[thread.id];
-        return isSnoozed(snooze, now) ? snooze!.until : undefined;
-      },
-      previous: previousProjection.current,
-    });
-    previousProjection.current = next;
-    return next;
-  }, [threads, sections, now, analysis, recaps, order, snoozes]);
-  /**
-   * What Up Next ranks threads by (see `selectUpNext`), less the focused
-   * workstreams, which each surface resolves for itself.
-   */
-  const upNextPrefs = prefs?.upNext;
-  const upNextOptions = useMemo(
-    () => ({
-      kindOf: (thread: PluginSidebarThread) =>
-        upNextKind(
-          thread,
-          workView(thread, analysis[thread.id], recaps[thread.id]),
-        ),
-      now,
-      shown: upNextPrefs?.shown ?? UP_NEXT_SHOWN.fallback,
-      unreadFirst: upNextPrefs?.unreadFirst ?? true,
-      fill: upNextPrefs?.fill ?? true,
-      freshWithinMs: UP_NEXT_FRESH_WINDOWS[upNextPrefs?.freshWindow ?? "off"],
-    }),
-    [analysis, recaps, now, upNextPrefs],
+  const upNextOptions = shared.upNextOptions(
+    { analysis, recaps },
+    now,
+    prefs?.upNext,
   );
   return {
     status,
@@ -213,4 +158,49 @@ export function useWorkstreams() {
     showArchived: prefs?.sidebar.showArchived ?? true,
     showParentThreadLink: prefs?.threads.showParentLink ?? false,
   };
+}
+
+/** The projection and Up Next's options, as an action reads them when it runs. */
+export type UpNextReading = {
+  readonly projection: Projection<PluginSidebarThread>;
+  /** Up Next's options, focused on the stored focused workstreams. */
+  readonly upNext: UpNextOptions<PluginSidebarThread>;
+};
+
+/**
+ * Reads the shared projection on demand, for an action that needs it only
+ * when it runs, such as the next-Up-Next command or the recap card's
+ * Archive. The surface keeps the server state and preferences live but does
+ * not render for their changes, and derives nothing until it reads; the
+ * read shares the projection every rendered surface already derived.
+ *
+ * The sidebar's default view must be fed by a wide consumer (see
+ * `useSidebarThreadsPublisher`) or by a single-thread lookup on the same
+ * surface (see `useSidebarThread`).
+ */
+export function useUpNextReader(): () => UpNextReading {
+  const shared = projectionStoreFor(useSdk());
+  const readThreads = useSidebarThreadsReader();
+  const readServer = useServerStateReader();
+  usePrefsRealtime();
+  const upNextPrefs = usePrefsSelector((prefs) => prefs?.upNext);
+  return useCallback(() => {
+    const { threads, sections } = readThreads();
+    const { analysis, recaps, order, snoozes } = readServer();
+    const { projection, now } = shared.read({
+      threads,
+      sections,
+      analysis,
+      recaps,
+      order,
+      snoozes,
+    });
+    return {
+      projection,
+      upNext: {
+        ...shared.upNextOptions({ analysis, recaps }, now, upNextPrefs),
+        prioritized: new Set(order.prioritized),
+      },
+    };
+  }, [shared, readThreads, readServer, upNextPrefs]);
 }

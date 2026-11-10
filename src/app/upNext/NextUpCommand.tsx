@@ -1,44 +1,42 @@
-import { useEffect, useMemo } from "react";
-import {
-  experimental_useSidebarThreadActions,
-  type PluginSidebarThread,
-} from "@get-bb/plugin-sdk/app";
+import { useEffect } from "react";
+import { experimental_useSidebarThreadActions } from "@get-bb/plugin-sdk/app";
 import { nextUpNextThread } from "../../domain/archiveNavigation.ts";
-import type { Projection } from "../../domain/project.ts";
-import type { UpNextOptions } from "../../domain/upNext.ts";
-import { useWorkstreams } from "../useWorkstreams.ts";
+import { useSidebarThreadsPublisher } from "../useStableSidebarThreads.ts";
+import { useUpNextReader, type UpNextReading } from "../useWorkstreams.ts";
 
 let current: {
-  projection: Projection<PluginSidebarThread>;
-  upNext: UpNextOptions<PluginSidebarThread>;
+  read: () => UpNextReading;
   open: (threadId: string) => void;
 } | null = null;
 
-/** The app-wide command reads the live projection and uses BB's sidebar flow. */
+/**
+ * The app-wide command reads the live projection and uses BB's sidebar flow.
+ *
+ * Mounted for the app's whole life, everywhere, including phones, so it also
+ * keeps the sidebar's default view fed: single-thread lookups elsewhere read
+ * that view without calling the SDK hook (see `useStableSidebarThreads`). It
+ * derives nothing until the command runs.
+ */
 export function NextUpCommandBridge(): null {
-  const { projection, upNextOptions, server } = useWorkstreams();
+  useSidebarThreadsPublisher();
+  const read = useUpNextReader();
   const actions = experimental_useSidebarThreadActions();
-  const prioritized = server.order.prioritized;
-  const bridge = useMemo(
-    () => ({
-      projection,
-      upNext: { ...upNextOptions, prioritized: new Set(prioritized) },
-      open: (threadId: string) => actions.open(threadId),
-    }),
-    [projection, upNextOptions, prioritized, actions],
-  );
-  current = bridge;
   useEffect(() => {
+    const bridge = {
+      read,
+      open: (threadId: string) => actions.open(threadId),
+    };
+    current = bridge;
     return () => {
       if (current === bridge) current = null;
     };
-  }, [bridge]);
+  }, [read, actions]);
   return null;
 }
 
 export function openNextUpThread(threadId: string | null): void {
-  const next = current
-    ? nextUpNextThread(current.projection, threadId, current.upNext)?.thread.id
-    : null;
-  if (next) current?.open(next);
+  if (!current) return;
+  const { projection, upNext } = current.read();
+  const next = nextUpNextThread(projection, threadId, upNext)?.thread.id;
+  if (next) current.open(next);
 }

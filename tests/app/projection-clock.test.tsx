@@ -6,7 +6,16 @@ import {
   useWorkstreams,
   type ServerState,
 } from "../../src/app/useWorkstreams.ts";
-import { projectWorkstreams, DAY_MS } from "../../src/domain/project.ts";
+import { useState } from "react";
+import {
+  nextDormancyDeadline,
+  projectWorkstreams,
+  DAY_MS,
+} from "../../src/domain/project.ts";
+import {
+  NextUpCommandBridge,
+  openNextUpThread,
+} from "../../src/app/upNext/NextUpCommand.tsx";
 import { agedKind } from "../../src/domain/upNext.ts";
 import { DEFAULT_SNOOZE_PREFS } from "../../src/domain/snooze.ts";
 import { section, sidebarThread } from "./fixtures.ts";
@@ -41,6 +50,7 @@ vi.mock("../../src/domain/project.ts", async (importOriginal) => {
   return {
     ...domain,
     projectWorkstreams: vi.fn(domain.projectWorkstreams),
+    nextDormancyDeadline: vi.fn(domain.nextDormancyDeadline),
   };
 });
 
@@ -49,6 +59,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.mocked(projectWorkstreams).mockClear();
+  vi.mocked(nextDormancyDeadline).mockClear();
 });
 
 function state(): ServerState {
@@ -157,5 +168,99 @@ it("rebuilds at the dormancy and Up Next staleness boundaries", async () => {
   expect(agedKind(stale, latest.upNextOptions.kindOf(stale), latest.now)).toBe(
     "other",
   );
+  slot.lifecycle.unmount();
+});
+
+it("derives one projection and one set of deadlines for every surface", async () => {
+  vi.useFakeTimers();
+  const at = 100 * DAY_MS;
+  vi.setSystemTime(at);
+  const thread = sidebarThread("t1", { latestAttentionAt: at - DAY_MS });
+  harness.sidebar.current = {
+    status: "ready",
+    threads: [thread],
+    sections: [],
+    projects: [],
+  };
+  const seen: ReturnType<typeof useWorkstreams>[] = [];
+  let rerender!: () => void;
+  function Consumer({ index }: { index: number }) {
+    seen[index] = useWorkstreams();
+    return null;
+  }
+  function Suite() {
+    const [, setCount] = useState(0);
+    rerender = () => setCount((count) => count + 1);
+    return (
+      <>
+        <NextUpCommandBridge />
+        <Consumer index={0} />
+        <Consumer index={1} />
+        <Consumer index={2} />
+      </>
+    );
+  }
+  const slot = renderSlot({ component: Suite }, {}, { rpc: rpc() });
+  await act(async () => {});
+  const derive = () => ({
+    projections: vi.mocked(projectWorkstreams).mock.calls.length,
+    dormancy: vi.mocked(nextDormancyDeadline).mock.calls.length,
+  });
+  const before = derive();
+
+  // Parent renders reuse the projection without deriving anything.
+  act(() => rerender());
+  act(() => rerender());
+  expect(derive()).toEqual(before);
+
+  // A sidebar change derives once for all three surfaces, which see the
+  // same projection, clock reading, and Up Next options.
+  harness.sidebar.current = {
+    ...harness.sidebar.current,
+    threads: [{ ...thread, isUnread: true }],
+  };
+  act(() => rerender());
+  expect(derive()).toEqual({
+    projections: before.projections + 1,
+    dormancy: before.dormancy + 1,
+  });
+  expect(seen[1]!.projection).toBe(seen[0]!.projection);
+  expect(seen[2]!.projection).toBe(seen[0]!.projection);
+  expect(seen[1]!.upNextOptions).toBe(seen[0]!.upNextOptions);
+  expect(seen[2]!.now).toBe(seen[0]!.now);
+  slot.lifecycle.unmount();
+});
+
+it("lets the next-Up-Next command derive only when it runs", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(100 * DAY_MS);
+  harness.sidebar.current = {
+    status: "ready",
+    threads: [
+      sidebarThread("t1", { isUnread: true }),
+      sidebarThread("t2", { isUnread: true }),
+    ],
+    sections: [],
+    projects: [],
+  };
+  let rerender!: () => void;
+  function Suite() {
+    const [, setCount] = useState(0);
+    rerender = () => setCount((count) => count + 1);
+    return <NextUpCommandBridge />;
+  }
+  const slot = renderSlot({ component: Suite }, {}, { rpc: rpc() });
+  await act(async () => {});
+  harness.sidebar.current = {
+    ...harness.sidebar.current,
+    threads: [...harness.sidebar.current.threads],
+  };
+  act(() => rerender());
+  expect(projectWorkstreams).not.toHaveBeenCalled();
+  act(() => openNextUpThread(null));
+  expect(projectWorkstreams).toHaveBeenCalledOnce();
+  expect(slot.inspection.sidebarActionCalls).toEqual([
+    { method: "open", threadId: expect.any(String) },
+  ]);
   slot.lifecycle.unmount();
 });
