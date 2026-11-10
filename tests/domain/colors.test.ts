@@ -28,11 +28,6 @@ const STEPS = [
   "rule",
 ];
 
-const tokensCss = readFileSync(
-  new URL("../../src/app/theme/tokens.css", import.meta.url),
-  "utf8",
-);
-
 describe("color choices", () => {
   it("accepts the Workstreams default, theme colors, and #rrggbb, lowercased", () => {
     expect(colorChoiceSchema.parse({ kind: "default" })).toEqual({
@@ -101,10 +96,8 @@ describe("color choices", () => {
     expect(prefs.colors.complete).toEqual(DEFAULT_COLORS.complete);
     expect(prefs.colors.failure).toEqual({ kind: "custom", color: "#aa0000" });
     expect(prefs.colors.review).toEqual(DEFAULT_COLORS.review);
-    expect(prefs.colors.scheme).toBe("workstreams");
-    expect(parsePrefs({ colors: { scheme: "neon" } }).colors.scheme).toBe(
-      "workstreams",
-    );
+    expect(prefs.colors.vivid).toBe(true);
+    expect(parsePrefs({ colors: { vivid: "neon" } }).colors.vivid).toBe(true);
   });
 
   it("merges one token without touching the others", () => {
@@ -123,10 +116,15 @@ describe("color choices", () => {
 });
 
 describe("colorTokenCss", () => {
-  const defaults: ColorPrefs = { ...DEFAULT_COLORS, scheme: "workstreams" };
+  const defaults: ColorPrefs = { ...DEFAULT_COLORS, vivid: true };
 
-  it("adds nothing while every token is at its default", () => {
-    expect(colorTokenCss(defaults)).toBe("");
+  it("follows semantic theme colors for all defaults", () => {
+    const css = colorTokenCss(defaults);
+    for (const token of COLOR_TOKENS)
+      for (const step of ["", ...STEPS])
+        expect(css).toContain(
+          `${COLOR_TOKEN_VAR[token]}${step ? `-${step}` : ""}:`,
+        );
   });
 
   it("writes every step of a custom color, deriving its text", () => {
@@ -139,7 +137,7 @@ describe("colorTokenCss", () => {
       "--ws-complete-text: oklch(from var(--ws-complete) clamp(",
     );
     for (const step of STEPS) expect(css).toContain(`--ws-complete-${step}:`);
-    expect(css).not.toContain("--ws-review");
+    expect(css).toContain("--ws-review: var(--timeline-accent);");
   });
 
   it("uses BB's text twin for a theme color that has one, else derives", () => {
@@ -157,7 +155,7 @@ describe("colorTokenCss", () => {
   it("draws defaulted tokens in their matching theme colors when the set follows the bb theme", () => {
     const css = colorTokenCss({
       ...defaults,
-      scheme: "theme",
+      vivid: false,
       failure: { kind: "custom", color: "#aa0000" },
     });
     expect(css).toContain("--ws-complete: var(--success);");
@@ -174,8 +172,7 @@ describe("colorTokenCss", () => {
       ...defaults,
       review: { kind: "theme", color: "warning" },
     };
-    expect(resolveColor(colors, "complete")).toEqual({ kind: "workstreams" });
-    expect(resolveColor({ ...colors, scheme: "theme" }, "complete")).toEqual({
+    expect(resolveColor(colors, "complete")).toEqual({
       kind: "theme",
       color: "success",
       byDefault: true,
@@ -201,61 +198,74 @@ describe("colorTokenCss", () => {
       failure: { kind: "custom", color: "red; } * { color: red" },
       review: { kind: "theme", color: "nope" },
     } as unknown as ColorPrefs);
-    expect(css).toBe("");
+    expect(css).not.toContain("red; }");
+    expect(css).not.toContain("nope");
   });
 });
 
-describe("tokens.css", () => {
-  const block = (dark: boolean) => {
-    const at = tokensCss.indexOf(
-      dark
-        ? '.dark [data-bb-plugin="workstreams"]'
-        : ':where(\n  [data-bb-plugin="workstreams"]',
-    );
-    expect(at, dark ? "dark block" : "light block").toBeGreaterThan(-1);
-    return tokensCss.slice(at, tokensCss.indexOf("\n}", at));
-  };
-  const declared = (css: string, name: string) =>
-    css.match(new RegExp(`\\s${name}:\\s*([^;]+);`))?.[1]?.trim();
-
-  it.each(COLOR_TOKENS)(
-    "declares every step of %s's default in light and dark",
-    (token) => {
-      const v = COLOR_TOKEN_VAR[token];
-      for (const css of [block(false), block(true)])
-        for (const step of ["", ...STEPS]) {
-          const name = step ? `${v}-${step}` : v;
-          expect(declared(css, name), name).toBeTruthy();
-        }
-    },
+describe("theme fallbacks", () => {
+  const css = readFileSync(
+    new URL("../../src/app/theme/tokens.css", import.meta.url),
+    "utf8",
   );
-
-  it("keeps today's recap and question shades per mode", () => {
-    expect(declared(block(false), "--ws-review-text")).toBe(
-      "oklch(50% 0.134 242.749)",
+  const declarations = (source: string) =>
+    Object.fromEntries(
+      [...source.matchAll(/(--ws-[\w-]+):\s*([^;]+);/g)].map((match) => [
+        match[1],
+        match[2]!.replace(/\s+/g, ""),
+      ]),
     );
-    expect(declared(block(true), "--ws-review-text")).toBe(
-      "oklch(82.8% 0.111 230.318)",
-    );
-    expect(declared(block(false), "--ws-needs-you-mark")).toBe(
-      "var(--warning-text)",
-    );
-    expect(declared(block(false), "--ws-needs-you-band")).toBe(
-      "var(--attention)",
+  it("matches the normal palette before preferences load", () => {
+    expect(declarations(css)).toMatchObject(
+      declarations(colorTokenCss({ ...DEFAULT_COLORS, vivid: false })),
     );
   });
-
-  it("mixes translucent steps in oklab", () => {
-    for (const match of tokensCss.matchAll(
-      /color-mix\(\s*in (\w+),[^;]*transparent\s*\)/g,
-    ))
-      expect(match[1]).toBe("oklab");
-  });
-
-  it("confines token declarations to Workstreams' roots with zero specificity", () => {
-    expect(tokensCss).not.toContain("@scope");
-    expect(tokensCss).toMatch(
-      /:where\(\s*\[data-bb-plugin="workstreams"\],\s*\[data-bb-plugin-root\]:not\(\[data-bb-plugin\]\)\s*\)\s*\{/,
+  it("keeps commit-hash and merged-PR defaults independent of vivid colors", () => {
+    expect(declarations(css)).toMatchObject({
+      "--ws-hash-digits":
+        "color-mix(inoklab,oklch(95.1%0.026236.824)75%,transparent)",
+      "--ws-hash-letters":
+        "color-mix(inoklab,oklch(89.4%0.057293.283)70%,transparent)",
+      "--ws-pr-merged": "#8e4ec6",
+    });
+    expect(colorTokenCss({ ...DEFAULT_COLORS, vivid: true })).not.toMatch(
+      /--ws-(hash|pr-merged)/,
     );
+  });
+});
+
+describe("vivid preference migration", () => {
+  it("maps existing schemes while preserving token overrides", () => {
+    for (const [scheme, vivid] of [
+      ["workstreams", true],
+      ["theme", false],
+    ] as const) {
+      const colors = parsePrefs({
+        colors: {
+          scheme,
+          review: { kind: "custom", color: "#123456" },
+          waiting: { kind: "theme", color: "warning" },
+        },
+      }).colors;
+      expect(colors.vivid).toBe(vivid);
+      expect(colors.review).toEqual({ kind: "custom", color: "#123456" });
+      expect(colors.waiting).toEqual({ kind: "theme", color: "warning" });
+      expect(colors).not.toHaveProperty("scheme");
+    }
+  });
+  it("gives a saved vivid choice precedence and sanitizes bad fields independently", () => {
+    expect(
+      parsePrefs({ colors: { scheme: "theme", vivid: true } }).colors.vivid,
+    ).toBe(true);
+    expect(
+      parsePrefs({ colors: { scheme: "workstreams", vivid: false } }).colors
+        .vivid,
+    ).toBe(false);
+    expect(
+      prefsPatchSchema.safeParse({ colors: { scheme: "theme" } }).success,
+    ).toBe(false);
+    expect(
+      mergePrefs(parsePrefs({}), { colors: { vivid: false } }).colors.vivid,
+    ).toBe(false);
   });
 });

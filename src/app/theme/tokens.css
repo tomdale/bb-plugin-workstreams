@@ -1,210 +1,19 @@
 /*
- * Workstreams' color tokens (see src/domain/colors.ts) and the only place the
- * app writes literal colors. Each token's default, "Workstreams default", is
- * the Tailwind shades the app has always drawn with, per mode. Settings →
- * Workstreams → Colors can point a token at a BB theme color or a custom
- * color instead; ColorTokenStyle then writes every step of that token from
- * one color over these defaults (see colorTokenDeclarations).
- *
- * Steps, as --ws-<token>-<step> (the bare token is the solid color;
- * --ws-<token>-original keeps the default solid color for the settings
- * swatch even while the token is overridden):
- *   (bare)     dots, bars          text      text on a page or card
- *   strong     fills, mid text     on-strong text on a strong fill
- *   soft       quiet text, pills   mark      sidebar and Home glyphs
- *   band       the Up Next block   border    a card's frame
- *   surface    a card's tint       footer    a card footer's tint
- *   rule       hairlines inside a tinted card
- *
- * Card surfaces are translucent in both modes, so a card tints whatever it
- * sits on (the page, or a raised surface like the settings preview) rather
- * than painting a fill computed from the page background.
- *
- * Declared on Workstreams' roots with zero specificity (BB's plugin scoping),
- * not on :root, so `var()` resolves against the theme where each root sits.
- * Translucent steps mix in oklab, as Tailwind and BB do.
+ * Workstreams semantic paints follow BB theme variables until ColorTokenStyle
+ * applies loaded preferences. Declarations have zero specificity so window-local
+ * overrides win in any load order. Text, border, and surface are the coordinated
+ * vivid paints; strong, soft, and mark use text, while band uses the solid paint.
+ * Surface, footer, and rule are translucent. Commit hashes and merged-PR
+ * indicators use independent colors.
  */
-
-:root,
-.light {
-  /* The readable lightness band for text derived from a custom color. */
-  --ws-text-min-l: 0;
-  --ws-text-max-l: 0.55;
-}
-.dark {
-  --ws-text-min-l: 0.78;
-  --ws-text-max-l: 1;
-}
-
 :where(
   [data-bb-plugin="workstreams"],
   [data-bb-plugin-root]:not([data-bb-plugin])
 ) {
-  --ws-complete-original: oklch(69.6% 0.17 162.48);
-  --ws-complete: var(--ws-complete-original);
-  --ws-complete-text: oklch(50.8% 0.118 165.612);
-  --ws-complete-strong: oklch(59.6% 0.145 163.225);
-  --ws-complete-on-strong: var(--canvas);
-  --ws-complete-soft: var(--ws-complete-text);
-  --ws-complete-mark: #30a46c;
-  --ws-complete-band: var(--ws-complete);
-  --ws-complete-border: oklch(76.5% 0.177 163.223);
-  --ws-complete-surface: color-mix(
-    in oklab,
-    oklch(97.9% 0.021 166.113) 40%,
-    transparent
-  );
-  --ws-complete-footer: color-mix(
-    in oklab,
-    oklch(69.6% 0.17 162.48) 5%,
-    transparent
-  );
-  --ws-complete-rule: color-mix(
-    in oklab,
-    oklch(37.8% 0.077 168.94) 10%,
-    transparent
-  );
-
-  --ws-review-original: oklch(68.5% 0.169 237.323);
-  --ws-review: var(--ws-review-original);
-  --ws-review-text: oklch(50% 0.134 242.749);
-  --ws-review-strong: oklch(58.8% 0.158 241.966);
-  --ws-review-on-strong: var(--canvas);
-  --ws-review-soft: var(--ws-review-text);
-  --ws-review-mark: var(--primary);
-  --ws-review-band: var(--ws-review);
-  --ws-review-border: oklch(74.6% 0.16 232.661);
-  --ws-review-surface: color-mix(
-    in oklab,
-    oklch(97.7% 0.013 236.62) 40%,
-    transparent
-  );
-  --ws-review-footer: color-mix(
-    in oklab,
-    oklch(68.5% 0.169 237.323) 5%,
-    transparent
-  );
-  --ws-review-rule: color-mix(
-    in oklab,
-    oklch(39.1% 0.09 240.876) 10%,
-    transparent
-  );
-
-  --ws-waiting-original: oklch(60.6% 0.25 292.717);
-  --ws-waiting: var(--ws-waiting-original);
-  --ws-waiting-text: oklch(49.1% 0.27 292.581);
-  --ws-waiting-strong: oklch(54.1% 0.281 293.009);
-  --ws-waiting-on-strong: var(--canvas);
-  --ws-waiting-soft: var(--ws-waiting-text);
-  --ws-waiting-mark: var(--ws-waiting-text);
-  --ws-waiting-band: var(--ws-waiting);
-  --ws-waiting-border: oklch(70.2% 0.183 293.541);
-  --ws-waiting-surface: color-mix(
-    in oklab,
-    oklch(96.9% 0.016 293.756) 40%,
-    transparent
-  );
-  --ws-waiting-footer: color-mix(
-    in oklab,
-    oklch(60.6% 0.25 292.717) 5%,
-    transparent
-  );
-  --ws-waiting-rule: color-mix(
-    in oklab,
-    oklch(38% 0.189 293.745) 10%,
-    transparent
-  );
-
-  --ws-needs-you-original: oklch(76.9% 0.188 70.08);
-  --ws-needs-you: var(--ws-needs-you-original);
-  --ws-needs-you-text: oklch(55.5% 0.163 48.998);
-  --ws-needs-you-strong: oklch(66.6% 0.179 58.318);
-  --ws-needs-you-on-strong: #fff;
-  --ws-needs-you-soft: color-mix(
-    in oklab,
-    oklch(76.9% 0.188 70.08) 75%,
-    var(--foreground)
-  );
-  --ws-needs-you-mark: var(--warning-text);
-  --ws-needs-you-band: var(--attention);
-  --ws-needs-you-border: oklch(76.9% 0.188 70.08);
-  --ws-suggestions-accent: oklch(55% 0.21 295);
-  --ws-suggestions-text: color-mix(
-    in oklab,
-    oklch(55% 0.21 295) 55%,
-    var(--foreground)
-  );
-  --ws-needs-you-surface: color-mix(
-    in oklab,
-    oklch(98.7% 0.022 95.277) 40%,
-    transparent
-  );
-  --ws-needs-you-footer: color-mix(
-    in oklab,
-    oklch(76.9% 0.188 70.08) 5%,
-    transparent
-  );
-  --ws-needs-you-rule: color-mix(
-    in oklab,
-    oklch(41.4% 0.112 45.904) 10%,
-    transparent
-  );
-
-  --ws-failure-original: oklch(63.7% 0.237 25.331);
-  --ws-failure: var(--ws-failure-original);
-  --ws-failure-text: oklch(50.5% 0.213 27.518);
-  --ws-failure-strong: oklch(57.7% 0.245 27.325);
-  --ws-failure-on-strong: var(--canvas);
-  --ws-failure-soft: var(--ws-failure-text);
-  --ws-failure-mark: var(--destructive);
-  --ws-failure-band: var(--ws-failure);
-  --ws-failure-border: oklch(70.4% 0.191 22.216);
-  --ws-failure-surface: color-mix(
-    in oklab,
-    oklch(97.1% 0.013 17.38) 40%,
-    transparent
-  );
-  --ws-failure-footer: color-mix(
-    in oklab,
-    oklch(63.7% 0.237 25.331) 5%,
-    transparent
-  );
-  --ws-failure-rule: color-mix(
-    in oklab,
-    oklch(39.6% 0.141 25.723) 10%,
-    transparent
-  );
-
-  --ws-suggestion-original: oklch(60.6% 0.25 292.717);
-  --ws-suggestion: var(--ws-suggestion-original);
-  --ws-suggestion-text: color-mix(
-    in oklab,
-    oklch(60.6% 0.25 292.717) 70%,
-    var(--foreground)
-  );
-  --ws-suggestion-strong: oklch(54.1% 0.281 293.009);
-  --ws-suggestion-on-strong: var(--canvas);
-  --ws-suggestion-soft: var(--ws-suggestion-text);
-  --ws-suggestion-mark: var(--ws-suggestion-text);
-  --ws-suggestion-band: var(--ws-suggestion);
-  --ws-suggestion-border: oklch(70.2% 0.183 293.541);
-  --ws-suggestion-surface: color-mix(
-    in oklab,
-    oklch(96.9% 0.016 293.756) 40%,
-    transparent
-  );
-  --ws-suggestion-footer: color-mix(
-    in oklab,
-    oklch(60.6% 0.25 292.717) 5%,
-    transparent
-  );
-  --ws-suggestion-rule: color-mix(
-    in oklab,
-    oklch(38% 0.189 293.745) 10%,
-    transparent
-  );
-
-  /* Commit hashes in recaps, unless Settings → Recap sets their colors. */
+  --ws-suggestions-accent: var(--ws-suggestion);
+  --ws-suggestions-text: var(--ws-suggestion-text);
+  --ws-text-min-l: 0;
+  --ws-text-max-l: 0.55;
   --ws-hash-digits: color-mix(
     in oklab,
     oklch(39.1% 0.09 240.876) 75%,
@@ -217,199 +26,12 @@
   );
   --ws-pr-merged: #8e4ec6;
 }
-
 :where(
   .dark [data-bb-plugin="workstreams"],
   .dark [data-bb-plugin-root]:not([data-bb-plugin])
 ) {
-  --ws-complete-original: oklch(76.5% 0.177 163.223);
-  --ws-complete: var(--ws-complete-original);
-  --ws-complete-text: oklch(84.5% 0.143 164.978);
-  --ws-complete-strong: oklch(76.5% 0.177 163.223);
-  --ws-complete-on-strong: var(--canvas);
-  --ws-complete-soft: var(--ws-complete-text);
-  --ws-complete-mark: #30a46c;
-  --ws-complete-band: var(--ws-complete);
-  --ws-complete-border: color-mix(
-    in oklab,
-    oklch(69.6% 0.17 162.48) 70%,
-    transparent
-  );
-  --ws-complete-surface: color-mix(
-    in oklab,
-    oklch(26.2% 0.051 172.552) 15%,
-    transparent
-  );
-  --ws-complete-footer: color-mix(
-    in oklab,
-    oklch(84.5% 0.143 164.978) 4%,
-    transparent
-  );
-  --ws-complete-rule: color-mix(
-    in oklab,
-    oklch(90.5% 0.093 164.15) 15%,
-    transparent
-  );
-
-  --ws-review-original: oklch(74.6% 0.16 232.661);
-  --ws-review: var(--ws-review-original);
-  --ws-review-text: oklch(82.8% 0.111 230.318);
-  --ws-review-strong: oklch(74.6% 0.16 232.661);
-  --ws-review-on-strong: var(--canvas);
-  --ws-review-soft: var(--ws-review-text);
-  --ws-review-mark: var(--primary);
-  --ws-review-band: var(--ws-review);
-  --ws-review-border: color-mix(
-    in oklab,
-    oklch(68.5% 0.169 237.323) 80%,
-    transparent
-  );
-  --ws-review-surface: color-mix(
-    in oklab,
-    oklch(29.3% 0.066 243.157) 15%,
-    transparent
-  );
-  --ws-review-footer: color-mix(
-    in oklab,
-    oklch(82.8% 0.111 230.318) 4%,
-    transparent
-  );
-  --ws-review-rule: color-mix(
-    in oklab,
-    oklch(90.1% 0.058 230.902) 15%,
-    transparent
-  );
-
-  --ws-waiting-original: oklch(70.2% 0.183 293.541);
-  --ws-waiting: var(--ws-waiting-original);
-  --ws-waiting-text: oklch(81.1% 0.111 293.571);
-  --ws-waiting-strong: oklch(70.2% 0.183 293.541);
-  --ws-waiting-on-strong: var(--canvas);
-  --ws-waiting-soft: var(--ws-waiting-text);
-  --ws-waiting-mark: var(--ws-waiting-text);
-  --ws-waiting-band: var(--ws-waiting);
-  --ws-waiting-border: color-mix(
-    in oklab,
-    oklch(60.6% 0.25 292.717) 70%,
-    transparent
-  );
-  --ws-waiting-surface: color-mix(
-    in oklab,
-    oklch(28.3% 0.141 291.089) 20%,
-    transparent
-  );
-  --ws-waiting-footer: color-mix(
-    in oklab,
-    oklch(81.1% 0.111 293.571) 4%,
-    transparent
-  );
-  --ws-waiting-rule: color-mix(
-    in oklab,
-    oklch(89.4% 0.057 293.283) 15%,
-    transparent
-  );
-
-  --ws-needs-you-original: oklch(82.8% 0.189 84.429);
-  --ws-needs-you: var(--ws-needs-you-original);
-  --ws-needs-you-text: oklch(87.9% 0.169 91.605);
-  --ws-needs-you-strong: oklch(82.8% 0.189 84.429);
-  --ws-needs-you-on-strong: oklch(27.9% 0.077 45.635);
-  --ws-needs-you-soft: color-mix(
-    in oklab,
-    oklch(76.9% 0.188 70.08) 75%,
-    var(--foreground)
-  );
-  --ws-needs-you-mark: var(--warning-text);
-  --ws-needs-you-band: var(--attention);
-  --ws-suggestions-accent: oklch(76% 0.15 295);
-  --ws-suggestions-text: color-mix(
-    in oklab,
-    oklch(76% 0.15 295) 60%,
-    var(--foreground)
-  );
-  --ws-needs-you-border: color-mix(
-    in oklab,
-    oklch(76.9% 0.188 70.08) 70%,
-    transparent
-  );
-  --ws-needs-you-surface: color-mix(
-    in oklab,
-    oklch(27.9% 0.077 45.635) 15%,
-    transparent
-  );
-  --ws-needs-you-footer: color-mix(
-    in oklab,
-    oklch(87.9% 0.169 91.605) 4%,
-    transparent
-  );
-  --ws-needs-you-rule: color-mix(
-    in oklab,
-    oklch(92.4% 0.12 95.746) 15%,
-    transparent
-  );
-
-  --ws-failure-original: oklch(70.4% 0.191 22.216);
-  --ws-failure: var(--ws-failure-original);
-  --ws-failure-text: oklch(80.8% 0.114 19.571);
-  --ws-failure-strong: oklch(70.4% 0.191 22.216);
-  --ws-failure-on-strong: var(--canvas);
-  --ws-failure-soft: var(--ws-failure-text);
-  --ws-failure-mark: var(--destructive);
-  --ws-failure-band: var(--ws-failure);
-  --ws-failure-border: color-mix(
-    in oklab,
-    oklch(63.7% 0.237 25.331) 70%,
-    transparent
-  );
-  --ws-failure-surface: color-mix(
-    in oklab,
-    oklch(25.8% 0.092 26.042) 15%,
-    transparent
-  );
-  --ws-failure-footer: color-mix(
-    in oklab,
-    oklch(80.8% 0.114 19.571) 4%,
-    transparent
-  );
-  --ws-failure-rule: color-mix(
-    in oklab,
-    oklch(88.5% 0.062 18.334) 15%,
-    transparent
-  );
-
-  --ws-suggestion-original: oklch(70.2% 0.183 293.541);
-  --ws-suggestion: var(--ws-suggestion-original);
-  --ws-suggestion-text: color-mix(
-    in oklab,
-    oklch(60.6% 0.25 292.717) 70%,
-    var(--foreground)
-  );
-  --ws-suggestion-strong: oklch(70.2% 0.183 293.541);
-  --ws-suggestion-on-strong: var(--canvas);
-  --ws-suggestion-soft: var(--ws-suggestion-text);
-  --ws-suggestion-mark: var(--ws-suggestion-text);
-  --ws-suggestion-band: var(--ws-suggestion);
-  --ws-suggestion-border: color-mix(
-    in oklab,
-    oklch(60.6% 0.25 292.717) 70%,
-    transparent
-  );
-  --ws-suggestion-surface: color-mix(
-    in oklab,
-    oklch(28.3% 0.141 291.089) 20%,
-    transparent
-  );
-  --ws-suggestion-footer: color-mix(
-    in oklab,
-    oklch(81.1% 0.111 293.571) 4%,
-    transparent
-  );
-  --ws-suggestion-rule: color-mix(
-    in oklab,
-    oklch(89.4% 0.057 293.283) 15%,
-    transparent
-  );
-
+  --ws-text-min-l: 0.78;
+  --ws-text-max-l: 1;
   --ws-hash-digits: color-mix(
     in oklab,
     oklch(95.1% 0.026 236.824) 75%,
@@ -418,6 +40,133 @@
   --ws-hash-letters: color-mix(
     in oklab,
     oklch(89.4% 0.057 293.283) 70%,
+    transparent
+  );
+}
+
+:where(
+  [data-bb-plugin="workstreams"],
+  [data-bb-plugin-root]:not([data-bb-plugin])
+) {
+  --ws-complete: var(--success);
+  --ws-complete-text: var(--success-foreground);
+  --ws-complete-strong: var(--ws-complete-text);
+  --ws-complete-on-strong: var(--canvas);
+  --ws-complete-soft: var(--ws-complete-text);
+  --ws-complete-mark: var(--ws-complete-text);
+  --ws-complete-band: var(--ws-complete);
+  --ws-complete-border: color-mix(
+    in oklab,
+    var(--ws-complete) 75%,
+    transparent
+  );
+  --ws-complete-surface: color-mix(
+    in oklab,
+    var(--ws-complete) 6%,
+    transparent
+  );
+  --ws-complete-footer: color-mix(in oklab, var(--ws-complete) 4%, transparent);
+  --ws-complete-rule: color-mix(
+    in oklab,
+    var(--ws-complete-text) 16%,
+    transparent
+  );
+  --ws-review: var(--timeline-accent);
+  --ws-review-text: var(--timeline-accent);
+  --ws-review-strong: var(--ws-review-text);
+  --ws-review-on-strong: var(--canvas);
+  --ws-review-soft: var(--ws-review-text);
+  --ws-review-mark: var(--ws-review-text);
+  --ws-review-band: var(--ws-review);
+  --ws-review-border: color-mix(in oklab, var(--ws-review) 75%, transparent);
+  --ws-review-surface: color-mix(in oklab, var(--ws-review) 6%, transparent);
+  --ws-review-footer: color-mix(in oklab, var(--ws-review) 4%, transparent);
+  --ws-review-rule: color-mix(in oklab, var(--ws-review-text) 16%, transparent);
+  --ws-waiting: var(--pr-merged);
+  --ws-waiting-text: var(--pr-merged);
+  --ws-waiting-strong: var(--ws-waiting-text);
+  --ws-waiting-on-strong: var(--canvas);
+  --ws-waiting-soft: var(--ws-waiting-text);
+  --ws-waiting-mark: var(--ws-waiting-text);
+  --ws-waiting-band: var(--ws-waiting);
+  --ws-waiting-border: color-mix(in oklab, var(--ws-waiting) 75%, transparent);
+  --ws-waiting-surface: color-mix(in oklab, var(--ws-waiting) 6%, transparent);
+  --ws-waiting-footer: color-mix(in oklab, var(--ws-waiting) 4%, transparent);
+  --ws-waiting-rule: color-mix(
+    in oklab,
+    var(--ws-waiting-text) 16%,
+    transparent
+  );
+  --ws-needs-you: var(--attention);
+  --ws-needs-you-text: oklch(
+    from var(--ws-needs-you)
+      clamp(var(--ws-text-min-l), l, var(--ws-text-max-l)) c h
+  );
+  --ws-needs-you-strong: var(--ws-needs-you-text);
+  --ws-needs-you-on-strong: var(--canvas);
+  --ws-needs-you-soft: var(--ws-needs-you-text);
+  --ws-needs-you-mark: var(--ws-needs-you-text);
+  --ws-needs-you-band: var(--ws-needs-you);
+  --ws-needs-you-border: color-mix(
+    in oklab,
+    var(--ws-needs-you) 75%,
+    transparent
+  );
+  --ws-needs-you-surface: color-mix(
+    in oklab,
+    var(--ws-needs-you) 6%,
+    transparent
+  );
+  --ws-needs-you-footer: color-mix(
+    in oklab,
+    var(--ws-needs-you) 4%,
+    transparent
+  );
+  --ws-needs-you-rule: color-mix(
+    in oklab,
+    var(--ws-needs-you-text) 16%,
+    transparent
+  );
+  --ws-failure: var(--destructive);
+  --ws-failure-text: var(--destructive-text);
+  --ws-failure-strong: var(--ws-failure-text);
+  --ws-failure-on-strong: var(--canvas);
+  --ws-failure-soft: var(--ws-failure-text);
+  --ws-failure-mark: var(--ws-failure-text);
+  --ws-failure-band: var(--ws-failure);
+  --ws-failure-border: color-mix(in oklab, var(--ws-failure) 75%, transparent);
+  --ws-failure-surface: color-mix(in oklab, var(--ws-failure) 6%, transparent);
+  --ws-failure-footer: color-mix(in oklab, var(--ws-failure) 4%, transparent);
+  --ws-failure-rule: color-mix(
+    in oklab,
+    var(--ws-failure-text) 16%,
+    transparent
+  );
+  --ws-suggestion: var(--pr-merged);
+  --ws-suggestion-text: var(--pr-merged);
+  --ws-suggestion-strong: var(--ws-suggestion-text);
+  --ws-suggestion-on-strong: var(--canvas);
+  --ws-suggestion-soft: var(--ws-suggestion-text);
+  --ws-suggestion-mark: var(--ws-suggestion-text);
+  --ws-suggestion-band: var(--ws-suggestion);
+  --ws-suggestion-border: color-mix(
+    in oklab,
+    var(--ws-suggestion) 75%,
+    transparent
+  );
+  --ws-suggestion-surface: color-mix(
+    in oklab,
+    var(--ws-suggestion) 6%,
+    transparent
+  );
+  --ws-suggestion-footer: color-mix(
+    in oklab,
+    var(--ws-suggestion) 4%,
+    transparent
+  );
+  --ws-suggestion-rule: color-mix(
+    in oklab,
+    var(--ws-suggestion-text) 16%,
     transparent
   );
 }

@@ -9,6 +9,43 @@ import { loadPrefs, savePrefs, seedPrefs } from "../../src/server/prefs.ts";
 import { fakeWorld } from "./fake-bb.ts";
 
 describe("Workstreams prefs", () => {
+  it("persists vivid choices after migrating schemes without resetting overrides", async () => {
+    const world = await fakeWorld();
+    try {
+      const db = openDatabase(world.bb);
+      for (const [scheme, vivid] of [
+        ["theme", false],
+        ["workstreams", true],
+      ] as const) {
+        setMeta(
+          db,
+          "prefs",
+          JSON.stringify({
+            colors: {
+              scheme,
+              review: { kind: "custom", color: "#123456" },
+              waiting: { kind: "theme", color: "warning" },
+            },
+            sidebar: { showRecent: false },
+          }),
+        );
+        expect(loadPrefs(db).colors.vivid).toBe(vivid);
+        savePrefs(db, { colors: { vivid: !vivid } });
+        expect(loadPrefs(db)).toMatchObject({
+          colors: {
+            vivid: !vivid,
+            review: { kind: "custom", color: "#123456" },
+            waiting: { kind: "theme", color: "warning" },
+          },
+          sidebar: { showRecent: false },
+        });
+        savePrefs(db, { colors: { vivid } });
+        expect(loadPrefs(db).colors.vivid).toBe(vivid);
+      }
+    } finally {
+      await world.harness.lifecycle.dispose();
+    }
+  });
   it("defaults the new sidebar visibility preferences on", () => {
     expect(parsePrefs({}).sidebar).toMatchObject({
       showForYou: true,

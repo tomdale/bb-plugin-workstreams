@@ -911,10 +911,10 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
                 fixture: resolvedColor(
                   mark,
                   {
-                    ".ws-work-review": "var(--status-primary)",
-                    ".ws-work-complete": "#30a46c",
-                    ".ws-mark-waiting": "var(--status-waiting)",
-                    ".ws-mark-error": "var(--status-error)",
+                    ".ws-work-review": "var(--timeline-accent)",
+                    ".ws-work-complete": "var(--success-foreground)",
+                    ".ws-mark-waiting": "var(--ws-needs-you-text)",
+                    ".ws-mark-error": "var(--destructive-text)",
                   }[selector!] ?? `var(${token})`,
                 ),
               };
@@ -1424,7 +1424,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         .getByRole("radio", { name: "Custom hex" })
         .click();
       expect(
-        await page.locator("style[data-gallery-color-tokens]").textContent(),
+        await page.locator("style[data-ws-color-tokens]").textContent(),
       ).toContain("--ws-needs-you");
       await page
         .getByRole("navigation", { name: "Design system" })
@@ -1437,11 +1437,9 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
         })
         .waitFor();
       await page
-        .locator("style[data-gallery-color-tokens]")
+        .locator("style[data-ws-color-tokens]")
         .waitFor({ state: "detached" });
-      expect(
-        await page.locator("style[data-gallery-color-tokens]").count(),
-      ).toBe(0);
+      expect(await page.locator("style[data-ws-color-tokens]").count()).toBe(0);
       const options = page
         .getByRole("group", { name: "Follow viewport", exact: true })
         .getByRole("button", { name: "Open options" });

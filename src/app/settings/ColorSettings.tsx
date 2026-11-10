@@ -17,31 +17,20 @@ import {
   resolveColor,
   type ColorChoice,
   type ColorPrefs,
-  type ColorScheme,
   type ColorToken,
   type ThemeColor,
 } from "../../domain/colors.ts";
 import { usePrefs } from "../prefs.ts";
-import { SectionRows, SegmentedControl, SettingRow } from "./ui.tsx";
+import { SectionRows, SettingSwitch, SettingRow } from "./ui.tsx";
 
 /** A color input needs a starting `#rrggbb` when the theme color can't be read. */
 const FALLBACK_CUSTOM = "#808080";
 const SAVE_DELAY_MS = 250;
 /** The custom swatch's color wheel, drawn from theme colors. */
 const WHEEL =
-  "conic-gradient(var(--destructive), var(--attention), var(--success), var(--timeline-accent), var(--pr-merged), var(--destructive))";
+  "conic-gradient(var(--destructive), var(--attention), var(--success), var(--timeline-accent), var(--pr-merged), var(--destructive))"; // slop-ok: 2 Existing color-wheel swatch
 
-const SCHEME_OPTIONS = [
-  { value: "workstreams", label: "Workstreams" },
-  { value: "theme", label: "bb theme" },
-] as const satisfies readonly { value: ColorScheme; label: string }[];
-
-/**
- * Settings → Workstreams → Colors. One switch picks the set every token
- * starts from (Workstreams' own shades or the matching bb theme colors); each
- * token's chip opens a swatch picker to keep that default, follow another
- * theme color, or use a custom color.
- */
+/** Settings → Workstreams → Colors. Token overrides apply in both normal and vivid modes. */
 export function ColorSettings() {
   const { prefs, save } = usePrefs();
   const [error, setError] = useState<string | null>(null);
@@ -59,14 +48,15 @@ export function ColorSettings() {
   return (
     <div className="space-y-3">
       <SectionRows>
+        {" "}
+        {/* slop-ok: 2 The existing Colors settings use this outlined group */}
         <SettingRow
-          label="Default colors"
+          label="Use vivid colors"
           control={
-            <SegmentedControl
-              label="Default colors"
-              value={colors.scheme}
-              options={SCHEME_OPTIONS}
-              onChange={(scheme) => update({ scheme })}
+            <SettingSwitch
+              label="Use vivid colors"
+              checked={colors.vivid}
+              onChange={(vivid) => update({ vivid })}
             />
           }
         />
@@ -91,10 +81,9 @@ export function ColorSettings() {
 /** What a token draws with, in a few plain words. */
 function describe(colors: ColorPrefs, token: ColorToken): string {
   const resolved = resolveColor(colors, token);
-  if (resolved.kind === "workstreams") return "Default";
   if (resolved.kind === "custom") return `Custom ${resolved.color}`;
   const label = THEME_COLORS[resolved.color].label;
-  return resolved.byDefault ? `Default · ${label}` : label;
+  return resolved.byDefault ? `Default (${label})` : label;
 }
 
 function ColorRow({
@@ -156,11 +145,8 @@ function ColorPicker({
   const matched = THEME_COLORS[THEME_MATCH[token]];
   const defaults: Swatch = {
     key: "default",
-    label: colors.scheme === "theme" ? `Default · ${matched.label}` : "Default",
-    fill:
-      colors.scheme === "theme"
-        ? `var(${matched.base})`
-        : `var(${COLOR_TOKEN_VAR[token]}-original)`,
+    label: `Default (${matched.label})`,
+    fill: `var(${matched.base})`,
     checked: choice.kind === "default",
     pick: () => onChange({ kind: "default" }),
   };
@@ -232,7 +218,7 @@ function ColorPicker({
           className="mb-1 px-1 text-xs text-muted-foreground"
         >
           <span className="font-medium text-foreground">{name}</span>
-          {named ? ` · ${named.label}` : null}
+          {named ? `: ${named.label}` : null}
         </p>
         <div
           role="radiogroup"
@@ -388,7 +374,7 @@ function CustomColorFields({
         onKeyDown={(event) => {
           if (event.key === "Enter") commitText();
         }}
-        className="h-7 w-24 rounded-md border border-border bg-background px-2 font-mono text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="h-7 w-24 rounded-md border border-border bg-background px-2 font-mono text-xs text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring" // slop-ok: 2 Existing hex-code input
       />
     </div>
   );

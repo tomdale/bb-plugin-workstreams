@@ -672,10 +672,12 @@ it("lists every color token with what it draws with now", async () => {
   expect(
     slot.container.querySelector('[data-ws-color-caption="complete"]')
       ?.textContent,
-  ).toBe("Default");
+  ).toBe("Default (Success)");
   expect(
-    slot.getByRole("radio", { name: "Workstreams" }).getAttribute("value"),
-  ).toBe("workstreams");
+    slot
+      .getByRole("switch", { name: "Use vivid colors" })
+      .getAttribute("aria-checked"),
+  ).toBe("true");
   expect(slot.container.querySelector('input[type="color"]')).toBeNull();
 });
 
@@ -698,10 +700,9 @@ const setPrefsInputs = (slot: Awaited<ReturnType<typeof mount>>) =>
 it("picks a default, theme, or custom color from a token's swatches", async () => {
   const slot = await mount("colors");
   let picker = await openPicker(slot, "Review");
-  expect(picker.getByRole("radio", { name: "Default" })).toHaveProperty(
-    "checked",
-    true,
-  );
+  expect(
+    picker.getByRole("radio", { name: "Default (Timeline blue)" }),
+  ).toHaveProperty("checked", true);
   fireEvent.click(picker.getByRole("radio", { name: "Destructive" }));
   await waitFor(() => expect(setPrefsInputs(slot)).toHaveLength(1));
   await waitFor(() =>
@@ -722,7 +723,9 @@ it("picks a default, theme, or custom color from a token's swatches", async () =
   });
   await waitFor(() => expect(setPrefsInputs(slot)).toHaveLength(4));
   picker = within(screen.getByRole("radiogroup", { name: "Review color" }));
-  fireEvent.click(picker.getByRole("radio", { name: "Default" }));
+  fireEvent.click(
+    picker.getByRole("radio", { name: "Default (Timeline blue)" }),
+  );
   await waitFor(() => expect(setPrefsInputs(slot)).toHaveLength(5));
   expect(setPrefsInputs(slot)).toEqual([
     { patch: { colors: { review: { kind: "theme", color: "destructive" } } } },
@@ -736,20 +739,22 @@ it("picks a default, theme, or custom color from a token's swatches", async () =
 
 it("switches the default set and names each defaulted token's theme color", async () => {
   const slot = await mount("colors");
-  fireEvent.click(await slot.findByRole("radio", { name: "bb theme" }));
+  fireEvent.click(
+    await slot.findByRole("switch", { name: "Use vivid colors" }),
+  );
   await waitFor(() =>
     expect(
       slot.container.querySelector('[data-ws-color-caption="complete"]')
         ?.textContent,
-    ).toBe("Default · Success"),
+    ).toBe("Default (Success)"),
   );
   expect(setPrefsInputs(slot)).toEqual([
-    { patch: { colors: { scheme: "theme" } } },
+    { patch: { colors: { vivid: false } } },
   ]);
   const picker = await openPicker(slot, "Needs you");
   // The Default swatch now names the theme color it stands for.
   expect(
-    picker.getByRole("radio", { name: "Default · Attention" }),
+    picker.getByRole("radio", { name: "Default (Attention)" }),
   ).toHaveProperty("checked", true);
   expect(picker.getByRole("radio", { name: "Attention" })).toHaveProperty(
     "checked",
@@ -757,7 +762,7 @@ it("switches the default set and names each defaulted token's theme color", asyn
   );
 });
 
-it("writes the chosen colors over the token defaults, and nothing at the defaults", async () => {
+it("installs scoped theme colors and removes them on unmount", async () => {
   const overlay = { component: ColorTokenStyle };
   const styles = () =>
     document.head.querySelectorAll("style[data-ws-color-tokens]");
@@ -772,7 +777,10 @@ it("writes the chosen colors over the token defaults, and nothing at the default
       atDefaults.inspection.rpcCalls.some((call) => call.method === "prefs"),
     ).toBe(true),
   );
-  expect(styles()).toHaveLength(0);
+  await waitFor(() => expect(styles()).toHaveLength(1));
+  expect(styles()[0]!.textContent).toContain(
+    "--ws-review: var(--timeline-accent);",
+  );
   atDefaults.lifecycle.unmount();
 
   prefs = mergePrefs(prefs, {

@@ -7,12 +7,7 @@
  * Recap, snooze, and working-indicator preferences keep their own stores.
  */
 import { z } from "zod";
-import {
-  colorChoiceSchema,
-  colorSchemeSchema,
-  DEFAULT_COLORS,
-  DEFAULT_SCHEME,
-} from "./colors.ts";
+import { colorChoiceSchema, DEFAULT_COLORS } from "./colors.ts";
 import {
   UP_NEXT_FRESH_WINDOWS,
   UP_NEXT_LIMIT,
@@ -209,8 +204,7 @@ const GROUPS = {
   },
   /** Workstreams' color tokens (domain/colors.ts): a BB theme color or a custom color each. */
   colors: {
-    /** What tokens left at their default draw with. */
-    scheme: [colorSchemeSchema, DEFAULT_SCHEME],
+    vivid: [z.boolean(), true],
     complete: [colorChoiceSchema, DEFAULT_COLORS.complete],
     review: [colorChoiceSchema, DEFAULT_COLORS.review],
     waiting: [colorChoiceSchema, DEFAULT_COLORS.waiting],
@@ -304,6 +298,13 @@ export function parsePrefs(raw: unknown): Prefs {
     const saved = advanced as Record<string, unknown>;
     if (saved.debug !== undefined && saved.debugUi === undefined)
       groups.advanced = { ...saved, debugUi: saved.debug };
+  }
+  // Existing theme-scheme preferences use normal colors; explicit vivid choices take precedence.
+  const colors = groups.colors;
+  if (colors && typeof colors === "object") {
+    const saved = colors as Record<string, unknown>;
+    if (saved.vivid === undefined && saved.scheme === "theme")
+      groups.colors = { ...saved, vivid: false };
   }
   const parsed = prefsSchema.parse(
     Object.fromEntries(

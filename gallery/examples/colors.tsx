@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useLayoutEffect, useState, type CSSProperties } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { WorkstreamIcon } from "../../src/app/WorkstreamIcon";
@@ -11,16 +11,16 @@ import {
   COLOR_TOKEN_LABEL,
   COLOR_TOKEN_VAR,
   DEFAULT_COLORS,
-  DEFAULT_SCHEME,
   THEME_COLORS,
   colorChoiceSchema,
   colorTokenCss,
   type ColorChoice,
   type ColorPrefs,
-  type ColorScheme,
   type ColorToken,
   type ThemeColor,
 } from "../../src/domain/colors";
+import { installColorTokens } from "../../src/app/theme/colorTokens";
+import { SettingSwitch } from "../../src/app/settings/ui";
 import { RECAP_STATES, type Recap } from "../../src/domain/recap";
 import {
   allocateChildColor,
@@ -40,7 +40,6 @@ import type { GalleryExample } from "../examples";
 
 const roles = [
   { suffix: "", label: "Solid", use: "Dots and bars" },
-  { suffix: "-original", label: "Original", use: "Default settings swatch" },
   { suffix: "-text", label: "Text", use: "Text on a page or card" },
   { suffix: "-strong", label: "Strong", use: "Fills and mid text" },
   { suffix: "-on-strong", label: "On strong", use: "Text on a strong fill" },
@@ -53,7 +52,7 @@ const roles = [
   { suffix: "-rule", label: "Rule", use: "Internal hairline" },
 ] as const;
 
-const defaults: ColorPrefs = { ...DEFAULT_COLORS, scheme: DEFAULT_SCHEME };
+const defaults: ColorPrefs = { ...DEFAULT_COLORS, vivid: true };
 const firstFamily = allocateFamilyColor([]);
 const families = [firstFamily, allocateFamilyColor([firstFamily])];
 const themeOptions = (Object.keys(THEME_COLORS) as ThemeColor[]).map(
@@ -88,7 +87,7 @@ function RoleSample({
   return (
     <span
       aria-hidden="true"
-      className="flex h-7 w-12 shrink-0 items-center justify-center overflow-hidden rounded-sm"
+      className="flex h-7 w-12 shrink-0 items-center justify-center overflow-hidden rounded-sm" // slop-ok: 2 Existing token swatch shape
       style={
         onStrong
           ? {
@@ -101,7 +100,7 @@ function RoleSample({
               ? { border: `2px solid ${color}` }
               : suffix === "-rule"
                 ? {
-                    background: `linear-gradient(${color}, ${color}) center / 100% 1px no-repeat`,
+                    background: `linear-gradient(${color}, ${color}) center / 100% 1px no-repeat`, // slop-ok: 2 Existing single-color rule swatch
                   }
                 : suffix === "-mark"
                   ? { color }
@@ -196,7 +195,7 @@ export function ColorsExample({
   const [answer, setAnswer] = useState<string | null>(null);
   const choice = prefs[token];
   const parsedHex = colorChoiceSchema.safeParse({ kind: "custom", color: hex });
-  const css = colorTokenCss(prefs);
+  useLayoutEffect(() => installColorTokens(prefs), [prefs]);
   const sampleStyle: CSSProperties = {
     background:
       surface === "page"
@@ -207,7 +206,6 @@ export function ColorsExample({
     setPrefs((current) => ({ ...current, [token]: next }));
   return (
     <div className="space-y-6">
-      <style data-gallery-color-tokens="">{css}</style>
       <GalleryControls label="Color editor">
         <div
           className="grid gap-3"
@@ -216,17 +214,16 @@ export function ColorsExample({
               "repeat(auto-fit, minmax(min(100%, 20rem), 1fr))",
           }}
         >
-          <ExampleChoice<ColorScheme>
-            label="Default set"
-            value={prefs.scheme}
-            options={[
-              { value: "workstreams", label: "Workstreams defaults" },
-              { value: "theme", label: "Match BB theme" },
-            ]}
-            onChange={(scheme) =>
-              setPrefs((current) => ({ ...current, scheme }))
-            }
-          />
+          <label className="flex items-center justify-between gap-3 text-sm">
+            Use vivid colors
+            <SettingSwitch
+              label="Use vivid colors"
+              checked={prefs.vivid}
+              onChange={(vivid) =>
+                setPrefs((current) => ({ ...current, vivid }))
+              }
+            />
+          </label>
           <ExampleChoice<ColorToken>
             label="Edit token"
             value={token}
@@ -478,7 +475,7 @@ export function ColorsExample({
             <code>
               {JSON.stringify(prefs, null, 2)}
               {"\n\n"}
-              {css || "No overrides; tokens.css supplies every default."}
+              {colorTokenCss(prefs)}
             </code>
           </pre>
         </details>
@@ -492,14 +489,16 @@ export const colorsExample: GalleryExample = {
   group: "Foundations",
   title: "Colors",
   description:
-    "The six state colors, with default, BB theme, and custom choices.",
-  source: `import { colorTokenCss, DEFAULT_COLORS, type ColorPrefs } from "../../src/domain/colors";
+    "The six state colors, with vivid, BB theme, and custom choices.",
+  source: `import { useLayoutEffect } from "react";
+import { DEFAULT_COLORS, type ColorPrefs } from "../../src/domain/colors";
+import { installColorTokens } from "../../src/app/theme/colorTokens";
 import { RecapCardPreview } from "../../src/app/composer/RecapCard";
 
-const prefs: ColorPrefs = { ...DEFAULT_COLORS, scheme: "workstreams",
+const prefs: ColorPrefs = { ...DEFAULT_COLORS, vivid: true,
   needsYou: { kind: "custom", color: "#ff00ff" } };
 
-<style>{colorTokenCss(prefs)}</style>
+useLayoutEffect(() => installColorTokens(prefs), [prefs]);
 <RecapCardPreview recap={recap} layout="full" />`,
   render: () => <ColorsExample />,
 };

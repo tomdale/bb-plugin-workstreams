@@ -1,14 +1,6 @@
-/**
- * Workstreams' color tokens: the few semantic colors its UI draws with. Each
- * token keeps its Workstreams default (the shades it has always used, per
- * mode), follows one of BB's theme colors, so BB's light and dark modes and
- * custom palettes restyle it, or uses a custom `#rrggbb` the user picks.
- *
- * The app's stylesheet (src/app/theme/tokens.css) declares every token's
- * default steps. {@link colorTokenCss} writes the user's other choices over
- * them, deriving every step from one color.
- */
+/* Workstreams semantic colors follow BB's active theme. Custom hex choices bypass vivid enhancement. */
 import { z } from "zod";
+import { colorCss, vividPalette, type Palette } from "./vivid.ts";
 
 export const COLOR_TOKENS = [
   "complete",
@@ -103,7 +95,7 @@ export const colorChoiceSchema = z.discriminatedUnion("kind", [
 ]);
 export type ColorChoice = z.infer<typeof colorChoiceSchema>;
 
-/** Every token starts at its Workstreams default. */
+/** Each default follows its matching BB semantic color. */
 export const DEFAULT_COLORS = {
   complete: { kind: "default" },
   review: { kind: "default" },
@@ -113,16 +105,7 @@ export const DEFAULT_COLORS = {
   suggestion: { kind: "default" },
 } as const satisfies Record<ColorToken, ColorChoice>;
 
-/**
- * What a token left at its default draws with: Workstreams' own shades, or
- * the BB theme color each token matches ({@link THEME_MATCH}).
- */
-const COLOR_SCHEMES = ["workstreams", "theme"] as const;
-export type ColorScheme = (typeof COLOR_SCHEMES)[number];
-export const colorSchemeSchema = z.enum(COLOR_SCHEMES);
-export const DEFAULT_SCHEME: ColorScheme = "workstreams";
-
-/** The BB theme color each token follows when the set matches BB's theme. */
+/** The semantic BB theme color for each default token. */
 export const THEME_MATCH: Record<ColorToken, ThemeColor> = {
   complete: "success",
   review: "timeline-accent",
@@ -133,12 +116,11 @@ export const THEME_MATCH: Record<ColorToken, ThemeColor> = {
 };
 
 export type ColorPrefs = Record<ColorToken, ColorChoice> & {
-  scheme: ColorScheme;
+  vivid: boolean;
 };
 
 /** What a token draws with now, after the set's default applies. */
 type ResolvedColor =
-  | { kind: "workstreams" }
   | { kind: "theme"; color: ThemeColor; byDefault: boolean }
   | { kind: "custom"; color: string };
 
@@ -150,24 +132,21 @@ export function resolveColor(
   if (choice.kind === "custom") return choice;
   if (choice.kind === "theme")
     return { kind: "theme", color: choice.color, byDefault: false };
-  return colors.scheme === "theme"
-    ? { kind: "theme", color: THEME_MATCH[token], byDefault: true }
-    : { kind: "workstreams" };
+  return { kind: "theme", color: THEME_MATCH[token], byDefault: true };
 }
 
-/**
- * Every step of a token chosen as one color (see tokens.css for what each
- * step draws). Text uses BB's text-safe twin of a theme color where there is
- * one; otherwise it keeps the color's hue and chroma and clamps its lightness
- * into the current mode's readable band.
- */
+/** Text without a BB text twin uses the appearance's lightness band. */
+export function derivedText(color: string): string {
+  return `oklch(from ${color} clamp(var(--ws-text-min-l), l, var(--ws-text-max-l)) c h)`;
+}
+
 function stepDeclarations(name: string, color: string, text: string | null) {
-  const derivedText = `oklch(from var(${name}) clamp(var(--ws-text-min-l), l, var(--ws-text-max-l)) c h)`;
+  const textColor = derivedText(`var(${name})`);
   const mix = (source: string, percent: number) =>
     `color-mix(in oklab, var(${source}) ${percent}%, transparent)`;
   return [
     `${name}: ${color};`,
-    `${name}-text: ${text ? `var(${text})` : derivedText};`,
+    `${name}-text: ${text ? `var(${text})` : textColor};`,
     `${name}-strong: var(${name}-text);`,
     `${name}-on-strong: var(--canvas);`,
     `${name}-soft: var(${name}-text);`,
@@ -185,17 +164,18 @@ function stepDeclarations(name: string, color: string, text: string | null) {
  * `usePortalScopeProps`. Matches BB's own utility scoping
  * (`pluginScopeRoots`), so tokens reach everything Tailwind classes reach.
  */
-const TOKEN_ROOTS =
+export const TOKEN_ROOTS =
   '[data-bb-plugin="workstreams"], [data-bb-plugin-root]:not([data-bb-plugin])';
 
 /**
- * The declarations that override tokens.css's defaults for the user's
- * choices; tokens drawing with Workstreams' own shades are omitted. Every
- * value comes from {@link THEME_COLORS} or a re-validated `#rrggbb`, never
- * from raw input.
+ * Token declarations use validated choices. Resolved theme paints are optional,
+ * so normal theme CSS also works before the browser can resolve vivid inputs.
  */
-function colorTokenDeclarations(colors: ColorPrefs): string[] {
-  const scheme = colorSchemeSchema.safeParse(colors.scheme);
+function colorTokenDeclarations(
+  colors: ColorPrefs,
+  palettes?: Partial<Record<ThemeColor, Palette>>,
+  dark = false,
+): string[] {
   const lines: string[] = [];
   for (const token of COLOR_TOKENS) {
     const parsed = colorChoiceSchema.safeParse(colors[token]);
@@ -203,7 +183,6 @@ function colorTokenDeclarations(colors: ColorPrefs): string[] {
     const resolved = resolveColor(
       {
         ...colors,
-        scheme: scheme.success ? scheme.data : DEFAULT_SCHEME,
         [token]: parsed.data,
       },
       token,
@@ -214,17 +193,27 @@ function colorTokenDeclarations(colors: ColorPrefs): string[] {
     else if (resolved.kind === "theme") {
       const theme = THEME_COLORS[resolved.color];
       lines.push(...stepDeclarations(name, `var(${theme.base})`, theme.text));
+      const input = palettes?.[resolved.color];
+      if (colors.vivid && input) {
+        const paints = vividPalette(input, dark);
+        lines.push(`${name}: ${colorCss({ ...paints.border, alpha: 1 })};`);
+        for (const role of ["text", "border", "surface"] as const)
+          lines.push(`${name}-${role}: ${colorCss(paints[role])};`);
+      }
     }
   }
   return lines;
 }
 
 /**
- * The stylesheet that applies `colors`, or "" when every token is at its
- * default. The selector carries real specificity so it outranks tokens.css's
- * zero-specificity defaults whichever loads last.
+ * Scoped CSS for normal or vivid paints. Custom choices bypass the transform.
  */
-export function colorTokenCss(colors: ColorPrefs): string {
-  const lines = colorTokenDeclarations(colors);
-  return lines.length ? `${TOKEN_ROOTS} {\n  ${lines.join("\n  ")}\n}\n` : "";
+export function colorTokenCss(
+  colors: ColorPrefs,
+  palettes?: Partial<Record<ThemeColor, Palette>>,
+  dark = false,
+  selector = TOKEN_ROOTS,
+): string {
+  const lines = colorTokenDeclarations(colors, palettes, dark);
+  return lines.length ? `${selector} {\n  ${lines.join("\n  ")}\n}\n` : "";
 }
