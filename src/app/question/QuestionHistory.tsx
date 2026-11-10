@@ -4,6 +4,7 @@ import {
   Markdown,
   useRealtime,
   useRpc,
+  useSdk,
   type PluginTimelineRendererProps,
 } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../../server/contract.ts";
@@ -366,6 +367,37 @@ export function QuestionHistoryCard({ record }: { record: QuestionHistory }) {
   );
 }
 
+/**
+ * Reads that found no stored question before a row stops asking. A form's
+ * question is stored before its row appears and attached as the form opens,
+ * so a row still missing one after this many reads is a form from before
+ * questions were stored.
+ */
+const MISSING_READS = 3;
+
+/** Settled rows, kept so a row that remounts (virtualized scrolling) reads nothing. */
+const SETTLED_KEPT = 500;
+
+const settledRows = new WeakMap<object, Map<string, QuestionHistory | null>>();
+
+/** One cache for every row of this plugin client (useSdk is shared). */
+function useSettledRows(): Map<string, QuestionHistory | null> {
+  const sdk = useSdk();
+  let rows = settledRows.get(sdk);
+  if (!rows) {
+    rows = new Map();
+    settledRows.set(sdk, rows);
+  }
+  return rows;
+}
+
+/**
+ * Whether a stored record can still change: only a pending question is
+ * answered or dismissed later. An `unknown` outcome is how a question that
+ * ended without one stays.
+ */
+const settles = (record: QuestionHistory) => record.status !== "pending";
+
 /** BB owns the form row's position; the plugin renders only its saved body. */
 export function QuestionHistoryInline({
   row,
@@ -373,25 +405,29 @@ export function QuestionHistoryInline({
   Original,
 }: PluginTimelineRendererProps) {
   const rpc = useRpc<RpcContract>();
+  const settled = useSettledRows();
+  const cacheKey = `${row.threadId}\n${row.id}`;
   const [loaded, setLoaded] = useState<{
     rowId: string;
     record: QuestionHistory | null;
-  } | null>(null);
+    settled: boolean;
+  } | null>(() =>
+    settled.has(cacheKey)
+      ? { rowId: row.id, record: settled.get(cacheKey)!, settled: true }
+      : null,
+  );
   const direct = questionResultRecord(payload, row.id, row.startedAt);
   const directRef = useRef(direct);
   directRef.current = direct;
   const finalRef = useRef(false);
   finalRef.current =
-    direct !== null ||
-    (loaded?.rowId === row.id &&
-      loaded.record !== null &&
-      loaded.record.status !== "pending" &&
-      loaded.record.status !== "unknown");
+    direct !== null || (loaded?.rowId === row.id && loaded.settled);
   const scheduler = useRef({
     key: "",
     generation: 0,
     inFlight: false,
     trailing: false,
+    missing: 0,
   });
   const load = useCallback(
     async (initial = false) => {
@@ -404,6 +440,18 @@ export function QuestionHistoryInline({
         state.generation++;
         state.inFlight = false;
         state.trailing = false;
+        state.missing = 0;
+      }
+      // A settled record is the stored one; the render prefers it to the
+      // payload's, so a remount shows it without reading again.
+      if (settled.has(cacheKey)) {
+        const record = settled.get(cacheKey)!;
+        setLoaded((previous) =>
+          previous?.rowId === row.id && previous.settled
+            ? previous
+            : { rowId: row.id, record, settled: true },
+        );
+        return;
       }
       if (state.inFlight) {
         state.trailing = true;
@@ -421,32 +469,36 @@ export function QuestionHistoryInline({
             })
             .catch(() => null);
           if (state.generation !== generation) return;
+          state.missing = value ? 0 : state.missing + 1;
+          const done = value ? settles(value) : state.missing >= MISSING_READS;
+          if (done) {
+            settled.set(cacheKey, value);
+            if (settled.size > SETTLED_KEPT)
+              settled.delete(settled.keys().next().value!);
+          }
           setLoaded((previous) => {
             if (previous?.rowId === row.id) {
               const record = shareJson(previous.record, value);
-              return record === previous.record
+              return record === previous.record && previous.settled === done
                 ? previous
-                : { rowId: row.id, record };
+                : { rowId: row.id, record, settled: done };
             }
-            return { rowId: row.id, record: value };
+            return { rowId: row.id, record: value, settled: done };
           });
-          if (
-            directRef.current ||
-            (value && value.status !== "pending" && value.status !== "unknown")
-          )
-            state.trailing = false;
+          if (directRef.current || done) state.trailing = false;
         } while (state.trailing);
       } finally {
         if (state.generation === generation) state.inFlight = false;
       }
     },
-    [rpc, row.id, row.threadId],
+    [rpc, row.id, row.threadId, settled, cacheKey],
   );
   useEffect(() => {
     const state = scheduler.current;
     state.generation++;
     state.inFlight = false;
     state.trailing = false;
+    state.missing = 0;
     void load(true);
     return () => {
       state.generation++;

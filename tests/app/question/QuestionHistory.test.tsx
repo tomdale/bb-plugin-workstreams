@@ -78,7 +78,7 @@ it("renders the saved Q&A at the form row", async () => {
   expect(slot.queryByText("Original row")).toBeNull();
 });
 
-it("does not refetch a known-final direct record on realtime signals", async () => {
+it("reads a known-final direct record once, across signals and remounts", async () => {
   const result = {
     questions: [
       {
@@ -90,32 +90,123 @@ it("does not refetch a known-final direct record on realtime signals", async () 
     ],
     answers: { "Keep this answer?": "Keep it" },
   };
-  const questionAt = vi.fn(() => null);
-  const slot = renderSlot(
-    { component: QuestionHistoryInline },
-    {
-      row: {
-        id: "thread:form:final",
-        threadId: "thread",
-        turnId: null,
-        kind: "workstreams/ask-user-question",
-        toolName: null,
-        status: "completed",
-        startedAt: 123,
-        completedAt: 124,
-      },
-      payload: result,
-      presentation: null,
-      thread: { id: "thread", providerId: "pi" },
-      Original: () => <p>Original row</p>,
+  const questionAt = vi.fn(() => ({
+    id: "stored",
+    at: 123,
+    status: "answered",
+    payload: {
+      questions: [
+        {
+          id: "q0",
+          prompt: "Keep this answer?",
+          shortLabel: "Answer",
+          multiSelect: false,
+          allowFreeText: true,
+          options: [],
+        },
+      ],
     },
-    { rpc: { question_at: questionAt } },
-  );
+    result,
+  }));
+  const props = {
+    row: {
+      id: "thread:form:final",
+      threadId: "thread",
+      turnId: null,
+      kind: "workstreams/ask-user-question",
+      toolName: null,
+      status: "completed" as const,
+      startedAt: 123,
+      completedAt: 124,
+    },
+    payload: result,
+    presentation: null,
+    thread: { id: "thread", providerId: "pi" },
+    Original: () => <p>Original row</p>,
+  };
+  let mounted = true;
+  function Host(slotProps: typeof props) {
+    return mounted ? <QuestionHistoryInline {...slotProps} /> : null;
+  }
+  const slot = renderSlot({ component: Host as never }, props, {
+    rpc: { question_at: questionAt },
+  });
   await slot.findByText("Keep it");
+  // The first mount confirms the stored record, which the row then shows.
   await waitFor(() => expect(questionAt).toHaveBeenCalledTimes(1));
   await slot.behavior.emitRealtime("question:thread", {});
   await slot.behavior.emitRealtime("question:thread", {});
   expect(questionAt).toHaveBeenCalledTimes(1);
+  mounted = false;
+  slot.rerender(<Host {...props} />);
+  expect(slot.queryByText("Keep it")).toBeNull();
+  mounted = true;
+  slot.rerender(<Host {...props} />);
+  expect(slot.getByText("Keep it")).toBeTruthy();
+  await act(async () => {});
+  expect(questionAt).toHaveBeenCalledTimes(1);
+});
+
+it("stops reading a row whose question is settled without an answer or was never stored", async () => {
+  const unknown = vi.fn(() => ({
+    id: "stored",
+    at: 123,
+    status: "unknown",
+    payload: {
+      questions: [
+        {
+          id: "q0",
+          prompt: "Lost?",
+          shortLabel: "Lost",
+          multiSelect: false,
+          allowFreeText: true,
+          options: [],
+        },
+      ],
+    },
+    result: null,
+  }));
+  const missing = vi.fn(() => null);
+  const row = (id: string) => ({
+    row: {
+      id: `thread:form:${id}`,
+      threadId: "thread",
+      turnId: null,
+      kind: "workstreams/ask-user-question",
+      toolName: null,
+      status: "completed" as const,
+      startedAt: 123,
+      completedAt: 124,
+    },
+    payload: null,
+    presentation: null,
+    thread: { id: "thread", providerId: "pi" },
+    Original: () => <p>Original row</p>,
+  });
+  const settled = renderSlot(
+    { component: QuestionHistoryInline },
+    row("unknown"),
+    { rpc: { question_at: unknown } },
+  );
+  await waitFor(() => expect(unknown).toHaveBeenCalledTimes(1));
+  for (let n = 0; n < 4; n++)
+    await settled.behavior.emitRealtime("question:thread", {});
+  await act(async () => {});
+  expect(unknown).toHaveBeenCalledTimes(1);
+  settled.lifecycle.unmount();
+
+  const absent = renderSlot(
+    { component: QuestionHistoryInline },
+    row("absent"),
+    { rpc: { question_at: missing } },
+  );
+  await waitFor(() => expect(missing).toHaveBeenCalledTimes(1));
+  for (let n = 0; n < 6; n++) {
+    await absent.behavior.emitRealtime("question:thread", {});
+    await act(async () => {});
+  }
+  expect(missing).toHaveBeenCalledTimes(3);
+  expect(absent.getByText("Original row")).toBeTruthy();
 });
 
 it("coalesces pending realtime signals and preserves a late durable answer", async () => {
