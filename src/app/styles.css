@@ -250,21 +250,27 @@
     transparent
   );
 }
-/* The Workstreams heading's Reorganize action: plain needs-you text at rest,
-   a tinted chip under the pointer, deeper while pressed, and under keyboard
-   focus. */
+/* The Workstreams heading's Reorganize action: muted purple text with a
+   saturated purple icon; a rounded, tinted chip under the pointer, deeper
+   while pressed, and under keyboard focus. */
+.ws-suggestions-action {
+  color: var(--ws-suggestions-text);
+}
+.ws-suggestions-action [data-icon] {
+  color: var(--ws-suggestions-accent);
+}
 .ws-suggestions-action:hover,
 .ws-suggestions-action:focus-visible {
   background-color: color-mix(
     in oklab,
-    var(--ws-needs-you-soft) 22%,
+    var(--ws-suggestions-accent) 20%,
     transparent
   );
 }
 .ws-suggestions-action:active {
   background-color: color-mix(
     in oklab,
-    var(--ws-needs-you-soft) 32%,
+    var(--ws-suggestions-accent) 30%,
     transparent
   );
 }
