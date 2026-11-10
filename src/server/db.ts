@@ -492,6 +492,14 @@ const MIGRATIONS = [
   // A workstream's last visible-thread time kept an emptied one on the list;
   // an empty workstream now leaves at once, and nothing reads it.
   "DELETE FROM ws_meta WHERE key = 'last-populated-workstreams'",
+  // The project and title BB last reported for each visible, undeleted root
+  // that nothing derived. Project learning plans from it rather than listing
+  // every thread BB has.
+  `CREATE TABLE ws_project_root (
+    thread_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    name TEXT NOT NULL
+  )`,
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

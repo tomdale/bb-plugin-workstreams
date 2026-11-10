@@ -11,11 +11,23 @@ import { topicAncestors, type Topic } from "../domain/topics.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal, JournalEntry } from "./journal.ts";
 import type { TopicStore } from "./topics.ts";
-import { displayTitle } from "./inventory.ts";
+import { displayTitle, type InventoryThread } from "./inventory.ts";
 
 type Sdk = BbPluginApi["sdk"];
 type Thread = Awaited<ReturnType<Sdk["threads"]["list"]>>[number];
 type Project = Awaited<ReturnType<Sdk["projects"]["list"]>>[number];
+/** The facts about a thread that decide whether and how it votes. */
+type Observed = Pick<
+  Thread,
+  | "id"
+  | "projectId"
+  | "title"
+  | "visibility"
+  | "deletedAt"
+  | "parentThreadId"
+  | "sourceThreadId"
+> &
+  Partial<Pick<Thread, "titleFallback" | "originPluginId" | "originKind">>;
 type Source =
   "unknown" | "historical" | "independent" | "workstreams" | "derived";
 type SuggestionRow = {
@@ -37,6 +49,12 @@ export type ProjectSuggestion = {
   threads: { id: string; name: string; project: string }[];
 };
 
+/** A full sweep of BB's threads catches project moves and missed deletes. */
+const SWEEP_EVERY_MS = 24 * 60 * 60_000;
+/** How long the project list is trusted before it is read again. */
+const PROJECTS_EVERY_MS = 10 * 60_000;
+const SWEPT_KEY = "project-learning-swept-at";
+
 const derived = (
   thread: Pick<Thread, "parentThreadId" | "sourceThreadId"> &
     Partial<Pick<Thread, "originPluginId" | "originKind">>,
@@ -48,11 +66,23 @@ const derived = (
     thread.originKind,
   );
 
+/**
+ * Learns topic projects from the threads stored in `ws_project_thread` (who
+ * chose each project) and `ws_project_root` (what BB last reported about each
+ * thread that may vote), joined with topic assignments. Archived roots keep their rows and
+ * keep voting. The rows follow dispatches, deletions, and the reconciler's
+ * active threads; a full sweep of BB's threads runs once to bootstrap
+ * historical work and daily after that, because BB has no event for a
+ * project move and deletions can be missed while the plugin is down.
+ */
 export class ProjectAssociations {
   private pending: Promise<void> | null = null;
   private disposed = false;
-  private threads: Thread[] = [];
   private projects: Project[] = [];
+  /** When `projects` was read; null forces a read before the next plan. */
+  private projectsAt: number | null = null;
+  /** The inputs of the last plan applied, serialized. */
+  private planned: string | null = null;
   private readonly since: number;
 
   constructor(
@@ -98,15 +128,57 @@ export class ProjectAssociations {
     return { projectId: choice.projectId, source };
   }
 
+  /**
+   * Records what BB reports about a thread: its project and title while it
+   * is a visible, undeleted root that nothing derived, and nothing otherwise.
+   */
+  observe(thread: Observed): void {
+    if (
+      this.projectsAt !== null &&
+      !this.projects.some((project) => project.id === thread.projectId)
+    )
+      this.projectsAt = null;
+    if (thread.visibility === "hidden" || thread.deletedAt || derived(thread))
+      this.deps.db
+        .prepare("DELETE FROM ws_project_root WHERE thread_id = ?")
+        .run(thread.id);
+    else
+      this.deps.db
+        .prepare(
+          `INSERT INTO ws_project_root (thread_id, project_id, name) VALUES (?, ?, ?)
+          ON CONFLICT(thread_id) DO UPDATE SET project_id = excluded.project_id, name = excluded.name`,
+        )
+        .run(thread.id, thread.projectId, displayTitle(thread));
+  }
+
+  /**
+   * Refreshes the project and title of observed threads from the
+   * reconciler's visible, non-archived threads, without another listing.
+   */
+  observeActive(threads: readonly InventoryThread[]): void {
+    const update = this.deps.db.prepare(
+      `UPDATE ws_project_root SET project_id = ?, name = ?
+      WHERE thread_id = ? AND (project_id <> ? OR name <> ?)`,
+    );
+    this.deps.db.transaction(() => {
+      for (const thread of threads)
+        update.run(
+          thread.projectId,
+          thread.title,
+          thread.id,
+          thread.projectId,
+          thread.title,
+        );
+    })();
+  }
+
   /** A late draft report may confirm an unknown root, but never rehabilitates a supplied project. */
   recordChoice(
-    thread: Pick<
-      Thread,
-      "id" | "projectId" | "parentThreadId" | "sourceThreadId"
-    >,
+    thread: Observed,
     choice: ProjectChoice | null | undefined,
     independentRoot = true,
   ): void {
+    this.observe(thread);
     const source: Source =
       derived(thread) || !independentRoot
         ? "derived"
@@ -135,16 +207,24 @@ export class ProjectAssociations {
     this.deps.db
       .prepare("DELETE FROM ws_project_thread WHERE thread_id = ?")
       .run(threadId);
+    this.deps.db
+      .prepare("DELETE FROM ws_project_root WHERE thread_id = ?")
+      .run(threadId);
   }
 
   dispose(): void {
     this.disposed = true;
   }
 
-  reconcile(): Promise<void> {
+  /**
+   * Applies what the stored history now supports. It sweeps BB's threads
+   * first when `sweep` asks, when no sweep has completed, or when the last is
+   * a day old; otherwise it reads no threads from BB.
+   */
+  reconcile(options: { sweep?: boolean } = {}): Promise<void> {
     if (this.disposed) return Promise.resolve();
     if (!this.pending)
-      this.pending = this.scan()
+      this.pending = this.learn(options.sweep ?? false)
         .catch((error) => {
           if (!this.disposed) throw error;
         })
@@ -154,38 +234,80 @@ export class ProjectAssociations {
     return this.pending;
   }
 
-  private async scan(): Promise<void> {
+  private async learn(force: boolean): Promise<void> {
     const sdk = this.deps.sdk();
-    const threads: Thread[] = [];
-    for (const archived of [false, true]) {
-      for (let offset = 0; ; offset += 100) {
-        const page = await sdk.threads.list({
-          archived,
-          includeHidden: true,
-          limit: 100,
-          offset,
-        });
-        if (this.disposed) return;
-        threads.push(...page);
-        if (page.length < 100) break;
+    const now = Date.now();
+    const sweptAt = Number(getMeta(this.deps.db, SWEPT_KEY) ?? 0);
+    const sweep = force || !(now - sweptAt < SWEEP_EVERY_MS);
+    const refresh =
+      sweep ||
+      this.projectsAt === null ||
+      !(now - this.projectsAt < PROJECTS_EVERY_MS);
+    if (!refresh && this.inputs(this.projects) === this.planned) return;
+    let threads: Thread[] | null = null;
+    if (sweep) {
+      threads = [];
+      for (const archived of [false, true]) {
+        for (let offset = 0; ; offset += 100) {
+          const page = await sdk.threads.list({
+            archived,
+            includeHidden: true,
+            limit: 100,
+            offset,
+          });
+          if (this.disposed) return;
+          threads.push(...page);
+          if (page.length < 100) break;
+        }
       }
     }
-    const projects = await sdk.projects.list({});
+    const projects = refresh ? await sdk.projects.list({}) : this.projects;
     if (this.disposed) return;
     await this.deps.exclusive(async () => {
       if (this.disposed) return;
-      this.threads = threads;
       const projectsChanged =
         JSON.stringify(this.projects) !== JSON.stringify(projects);
       this.projects = projects;
-      const changed = this.deps.db.transaction(() => this.apply())();
+      if (refresh) this.projectsAt = now;
+      const changed = this.deps.db.transaction(() => {
+        if (threads) {
+          this.sweep(threads);
+          setMeta(this.deps.db, SWEPT_KEY, String(now));
+        }
+        const inputs = this.inputs(projects);
+        if (inputs === this.planned) return false;
+        const changed = this.apply();
+        this.planned = inputs;
+        return changed;
+      })();
       if (changed || projectsChanged) this.deps.onChange();
     });
   }
 
-  private roots(): ProjectRoot[] {
+  /** Everything a plan depends on, serialized. */
+  private inputs(projects: readonly Project[]): string {
+    return JSON.stringify([
+      this.deps.topics.list(),
+      this.roots(),
+      projects.map((project) => project.id),
+    ]);
+  }
+
+  /**
+   * Records every thread BB lists, forgets the ones it no longer has, and
+   * gives eligible threads seen for the first time their provenance: work
+   * created before learning began is historical evidence unless its topic
+   * already had a project setting; anything newer is unknown and never votes.
+   */
+  private sweep(threads: readonly Thread[]): void {
     const { db, topics } = this.deps;
-    const entities = topics.list();
+    const present = new Set(threads.map((thread) => thread.id));
+    for (const { thread_id } of db
+      .prepare(
+        "SELECT thread_id FROM ws_project_thread UNION SELECT thread_id FROM ws_project_root",
+      )
+      .all() as { thread_id: string }[])
+      if (!present.has(thread_id)) this.forget(thread_id);
     const known = new Set(
       (
         db.prepare("SELECT thread_id FROM ws_project_thread").all() as {
@@ -193,49 +315,64 @@ export class ProjectAssociations {
         }[]
       ).map((row) => row.thread_id),
     );
-    const present = new Set(this.threads.map((thread) => thread.id));
-    for (const id of known) if (!present.has(id)) this.forget(id);
-    const roots: ProjectRoot[] = [];
-    for (const thread of this.threads) {
-      if (thread.visibility === "hidden" || thread.deletedAt || derived(thread))
-        continue;
-      const topicId = topics.assignment(thread.id).entityId;
-      if (!known.has(thread.id)) {
-        // Old composers did not report who chose the project. Only unassociated
-        // historical work bootstraps learning; new unknown choices never vote.
-        const configured =
-          topicId &&
-          topicAncestors(topicId, entities).some((id) => {
-            const topic = entities.find((entity) => entity.id === id)!;
-            return topic.projectId || topic.projectSource;
-          });
-        const source =
-          thread.createdAt < this.since && !configured
-            ? "historical"
-            : "unknown";
-        db.prepare(
-          "INSERT OR IGNORE INTO ws_project_thread (thread_id, project_id, source) VALUES (?, ?, ?)",
-        ).run(thread.id, thread.projectId, source);
-      }
-      const proof = db
-        .prepare(
-          "SELECT source, project_id FROM ws_project_thread WHERE thread_id = ?",
-        )
-        .get(thread.id) as { source: Source; project_id: string };
+    const entities = topics.list();
+    const assigned = new Map(
+      (
+        db
+          .prepare(
+            "SELECT thread_id, entity_id FROM ws_corpus_subject WHERE entity_id IS NOT NULL",
+          )
+          .all() as { thread_id: string; entity_id: string }[]
+      ).map((row) => [row.thread_id, row.entity_id]),
+    );
+    const insert = db.prepare(
+      "INSERT OR IGNORE INTO ws_project_thread (thread_id, project_id, source) VALUES (?, ?, ?)",
+    );
+    for (const thread of threads) {
+      this.observe(thread);
       if (
-        topicId &&
-        proof.project_id === thread.projectId &&
-        (proof.source === "historical" || proof.source === "independent") &&
-        thread.projectId !== "proj_personal"
+        known.has(thread.id) ||
+        thread.visibility === "hidden" ||
+        thread.deletedAt ||
+        derived(thread)
       )
-        roots.push({
-          id: thread.id,
-          name: displayTitle(thread),
-          projectId: thread.projectId,
-          topicId,
+        continue;
+      const topicId = assigned.get(thread.id);
+      // Old composers did not report who chose the project. Only unassociated
+      // historical work bootstraps learning; new unknown choices never vote.
+      const configured =
+        topicId &&
+        topicAncestors(topicId, entities).some((id) => {
+          const topic = entities.find((entity) => entity.id === id)!;
+          return topic.projectId || topic.projectSource;
         });
+      insert.run(
+        thread.id,
+        thread.projectId,
+        thread.createdAt < this.since && !configured ? "historical" : "unknown",
+      );
     }
-    return roots;
+  }
+
+  /**
+   * Independent roots that vote: observed as eligible, outside Personal,
+   * still in the project their choice recorded, and filed in a topic.
+   * Archived roots count.
+   */
+  private roots(): ProjectRoot[] {
+    return this.deps.db
+      .prepare(
+        `SELECT r.thread_id AS id, r.name, r.project_id AS projectId, s.entity_id AS topicId
+        FROM ws_project_root r
+        JOIN ws_project_thread p ON p.thread_id = r.thread_id
+        JOIN ws_corpus_subject s ON s.thread_id = r.thread_id
+        WHERE p.project_id = r.project_id
+          AND p.source IN ('historical', 'independent')
+          AND r.project_id <> 'proj_personal'
+          AND s.entity_id IS NOT NULL
+        ORDER BY r.thread_id`,
+      )
+      .all() as ProjectRoot[];
   }
 
   private plan(): ProjectLearningDecision[] {
@@ -357,8 +494,8 @@ export class ProjectAssociations {
     id: string,
     decision: "accept" | "decline",
   ): Promise<JournalEntry> {
-    if (this.pending) await this.pending;
-    await this.reconcile();
+    while (this.pending) await this.pending;
+    await this.reconcile({ sweep: true });
     return this.deps.exclusive(async () => {
       const entry = this.deps.db.transaction(() => {
         const row = this.deps.db

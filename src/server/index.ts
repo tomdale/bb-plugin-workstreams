@@ -851,6 +851,7 @@ export default async function plugin(bb: BbPluginApi) {
           analyzer.catchUp(service.threads());
           quick.sweep(service.threads());
           void sweepSnoozes();
+          projectAssociations.observeActive(service.threads());
           learnProjects();
           triggerOrganizer(50);
         })
