@@ -737,7 +737,6 @@ export function StickyGoalHeader(): React.ReactElement | null {
       >
         <div
           className="ws-goal-overlay__group"
-          data-ws-align={scalePinned && centered ? "center" : undefined}
           style={{
             transform: scalePinned
               ? `translateY(${base * PAD_TOP}px)`
@@ -756,7 +755,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
               transform: scalePinned
                 ? `translateY(${eyebrowBlock + (base * PINNED_PAD + barEyebrowBlock - base * PAD_TOP - eyebrowBlock) * scaleProgress}px) scale(${pinnedTitleScale(scaleProgress)})`
                 : `translateY(${eyebrowBlock}px)`,
-              transformOrigin: scalePinned && centered ? "50% 0" : undefined,
+              transformOrigin: scalePinned ? "0 0" : undefined,
               ...(narrow && titleLines > 1
                 ? {
                     display: "-webkit-box",

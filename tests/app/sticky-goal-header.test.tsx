@@ -899,7 +899,7 @@ it.each(["fade", "scroll"] as const)(
   },
 );
 
-it("centers a pinned title as it scales and fades only its goal", async () => {
+it("left aligns a pinned title and its goal when title alignment is centered", async () => {
   paneFixture({ recap: false });
   const scroller = document.querySelector<HTMLElement>(
     '[data-test="messages"]',
@@ -932,9 +932,9 @@ it("centers a pinned title as it scales and fades only its goal", async () => {
     expect(opacity).toBeGreaterThan(0);
     expect(opacity).toBeLessThan(1);
   });
-  expect(expanded().getAttribute("data-ws-align")).toBe("center");
+  expect(expanded().getAttribute("data-ws-align")).toBeNull();
   expect(expanded().style.opacity).toBe("1");
-  expect(title().style.transformOrigin).toBe("50% 0");
+  expect(title().style.transformOrigin).toBe("0 0");
   expect(Number(goal().style.opacity)).toBeLessThan(1);
   slot.lifecycle.unmount();
 });

@@ -526,13 +526,14 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
   As you scroll away from the newest message, the large heading hands off to a
   minimized title in the title bar over a feathered background. When the bar is
   too narrow, one pinned title scales down in place; **Fade** and **Scroll** do
-  not apply. In **Settings → Workstreams → Threads**, choose **Title on scroll →
-  Float** to leave the heading over the thread and let the timeline move beneath
-  its shadow, **Title transition → Scroll** to slide both copies as they cross
-  while the heading minimizes, or **Title alignment → Centered** to put the
-  minimized title in the bar's middle. Those last two appear only while the
-  title minimizes. Reduced motion uses the stationary crossfade in the title bar
-  and changes a pinned title at the endpoint. Switching threads preserves your
+  not apply. Pinned titles and their workstream names stay left aligned. In
+  **Settings → Workstreams → Threads**, choose **Title on scroll → Float** to
+  leave the heading over the thread and let the timeline move beneath its
+  shadow, **Title transition → Scroll** to slide both copies as they cross while
+  the heading minimizes, or **Title alignment → Centered** to put the minimized
+  title in the bar's middle. Those last two appear only while the title
+  minimizes. Reduced motion uses the stationary crossfade in the title bar and
+  changes a pinned title at the endpoint. Switching threads preserves your
   reading position. When you follow the newest message, the view stays attached
   to it as the heading loads.
 - **Thread header actions:**
