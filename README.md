@@ -460,14 +460,15 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    - While organizing suggestions wait for review, their count ("2 suggestions")
      appears on the **Workstreams** heading. Click it to open them below the
      heading, over the workstreams and the edge of the thread, so the list
-     underneath doesn't move. Each suggestion draws the sidebar rows it touches
-     as they are, an arrow, and as they would be, with **Decline** (`×`) and
-     **Accept** (`✓`) beside it. Workstreams are bold and threads have a ring;
-     nested rows hang from their parent. Rows that leave are dimmed and crossed
-     out; rows that land or are new (`+`) take their workstream's color, and
-     numbers are thread counts. Click a colored count to list the threads
-     arriving there. Parents show no count, since threads sit in the topics
-     under them, and archived threads move with their topic without being
+     underneath doesn't move. Each suggestion starts with a dimmed line saying
+     what it does ("Merge Payments into Billing") beside **Decline** (`×`) and
+     **Accept** (`✓`), then draws the sidebar rows it touches as they are, an
+     arrow, and as they would be. Workstreams are bold and threads have a ring;
+     nested rows are indented beside a guide line. Rows that leave are dimmed
+     and crossed out; rows that land or are new (`+`) take their workstream's
+     color, and numbers are thread counts. Click a colored count to list the
+     threads arriving there. Parents show no count, since threads sit in the
+     topics under them, and archived threads move with their topic without being
      counted. A decision applies at once and leaves **Undo** in its place for a
      few seconds; Activity keeps Undo after that. The foot counts suggestions
      the tree has since outgrown ("1 out of date") beside **Open Topics**, where

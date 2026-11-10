@@ -273,12 +273,8 @@
   );
 }
 
-/* A suggestion's before and after (SuggestionPreview). A landing row takes
-   its workstream's identity color. A nested row hangs from the row above on
-   a 1px └ guide whose arm meets the row's middle. A nested row below another
-   starts its guide at that row's arm, and a row with another below it
-   branches square (├), so stacked rows share one straight trunk. Each row
-   draws the stretch of trunk leading to it, in its color when it lands. */
+/* A suggestion's before and after (SuggestionPreview): a landing row takes
+   its workstream's identity color, and threads wear a small ring. */
 .ws-preview-accent {
   --ws-preview-accent: var(
     --ws-color-light,
@@ -287,36 +283,6 @@
 }
 .dark .ws-preview-accent {
   --ws-preview-accent: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
-}
-.ws-preview-nest {
-  --ws-preview-guide: color-mix(
-    in oklab,
-    var(--muted-foreground) 45%,
-    var(--popover)
-  );
-  position: relative;
-  padding-left: 18px;
-}
-.ws-preview-nest.ws-preview-accent {
-  --ws-preview-guide: var(--ws-preview-accent);
-}
-.ws-preview-nest::before {
-  content: "";
-  position: absolute;
-  left: 5px;
-  top: -3px;
-  width: 7px;
-  height: 12px;
-  border-left: 1px solid var(--ws-preview-guide);
-  border-bottom: 1px solid var(--ws-preview-guide);
-  border-bottom-left-radius: 3px;
-}
-.ws-preview-nest + .ws-preview-nest::before {
-  top: -9px;
-  height: 18px;
-}
-.ws-preview-nest:has(+ .ws-preview-nest)::before {
-  border-bottom-left-radius: 0;
 }
 .ws-preview-ring {
   display: inline-block;

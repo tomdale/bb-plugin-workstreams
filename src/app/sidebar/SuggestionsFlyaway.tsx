@@ -4,10 +4,9 @@
  * heading. The flyaway floats over the workstreams, so the list under it
  * never moves, and Up Next above it is untouched.
  *
- * Each suggestion is drawn as the sidebar rows it touches, before and after
- * accepting (`SuggestionPreview`), with Decline and Accept beside it; its
- * headline ("Merge Payments into Billing") names the row for screen readers
- * and the buttons. The flyaway is wider than the sidebar, so both sides have
+ * Each suggestion starts with its headline ("Merge Payments into Billing"),
+ * dimmed, beside Decline and Accept, then draws the sidebar rows it touches
+ * before and after accepting (`SuggestionPreview`). The flyaway is wider than the sidebar, so both sides have
  * room. A decision applies at once and leaves a line in its place with Undo
  * for a few seconds, as in Topics; Activity keeps Undo after that. Closing
  * (Escape, Close, or a click outside) decides nothing: the rest keep waiting.
@@ -349,37 +348,40 @@ function SuggestionRow({
 }) {
   const { headline, preview } = suggestion;
   return (
-    <li className={cn(ROW, "flex items-center gap-2 py-2")}>
-      {preview ? (
-        <>
-          <span className="sr-only">{headline}</span>
-          <SuggestionPreview preview={preview} colors={colors} />
-        </>
-      ) : (
-        <span className="min-w-0 flex-1 font-medium leading-4">{headline}</span>
-      )}
-      <span className="-mr-1 flex shrink-0 items-center gap-0.5 self-start">
-        <Hint label="Decline">
-          <button
-            type="button"
-            aria-label={`Decline: ${headline}`}
-            onClick={() => onDecide("decline")}
-            className={rowActionClass}
-          >
-            <Icon name="X" className="size-3.5" aria-hidden />
-          </button>
-        </Hint>
-        <Hint label="Accept">
-          <button
-            type="button"
-            aria-label={`Accept: ${headline}`}
-            onClick={() => onDecide("accept")}
-            className={cn(rowActionClass, "text-foreground")}
-          >
-            <Icon name="Check" className="size-3.5" aria-hidden />
-          </button>
-        </Hint>
-      </span>
+    <li className={cn(ROW, "pb-2 pt-1")}>
+      <div className="flex min-h-6 items-center gap-2">
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate leading-4",
+            preview ? "text-[12px] text-muted-foreground" : "font-medium",
+          )}
+        >
+          {headline}
+        </span>
+        <span className="-mr-1 flex shrink-0 items-center gap-0.5">
+          <Hint label="Decline">
+            <button
+              type="button"
+              aria-label={`Decline: ${headline}`}
+              onClick={() => onDecide("decline")}
+              className={rowActionClass}
+            >
+              <Icon name="X" className="size-3.5" aria-hidden />
+            </button>
+          </Hint>
+          <Hint label="Accept">
+            <button
+              type="button"
+              aria-label={`Accept: ${headline}`}
+              onClick={() => onDecide("accept")}
+              className={cn(rowActionClass, "text-foreground")}
+            >
+              <Icon name="Check" className="size-3.5" aria-hidden />
+            </button>
+          </Hint>
+        </span>
+      </div>
+      {preview ? <SuggestionPreview preview={preview} colors={colors} /> : null}
     </li>
   );
 }

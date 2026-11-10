@@ -2,7 +2,7 @@
  * A suggestion drawn as the sidebar rows it touches: as they are, an arrow,
  * and as they would be after accepting (`suggestionPreview` in the domain).
  * Workstreams are bold and threads wear a ring, as in the sidebar; nested
- * rows hang from their parent on a └ guide. A row that leaves is dimmed and
+ * rows are indented beside a guide line. A row that leaves is dimmed and
  * crossed out; one that lands, appears or changes takes its workstream's
  * color, as the sidebar draws that workstream, and counts are visible
  * threads. A landing row's count opens the threads that arrive.
@@ -47,6 +47,12 @@ export function SuggestionPreview({
   );
 }
 
+/**
+ * One side of the drawing. Consecutive nested rows sit in one indented run
+ * with a single 1px guide down its left edge, like an editor's indent guide
+ * or the line joining a block's rows on Topics, so nesting never depends on
+ * per-row connectors meeting up.
+ */
 function Side({
   rows,
   colors,
@@ -54,11 +60,28 @@ function Side({
   rows: readonly PreviewRow[];
   colors?: PreviewColors;
 }) {
+  const runs: { depth: 0 | 1; rows: { row: PreviewRow; key: number }[] }[] = [];
+  rows.forEach((row, key) => {
+    const last = runs.at(-1);
+    if (row.depth === 1 && last?.depth === 1) last.rows.push({ row, key });
+    else runs.push({ depth: row.depth, rows: [{ row, key }] });
+  });
   return (
     <div className="min-w-0">
-      {rows.map((row, index) => (
-        <Row key={index} row={row} colors={colors} />
-      ))}
+      {runs.map((run) =>
+        run.depth === 1 ? (
+          <div
+            key={run.rows[0]!.key}
+            className="ml-[5px] min-w-0 border-l border-border pl-3"
+          >
+            {run.rows.map(({ row, key }) => (
+              <Row key={key} row={row} colors={colors} />
+            ))}
+          </div>
+        ) : (
+          <Row key={run.rows[0]!.key} row={run.rows[0]!.row} colors={colors} />
+        ),
+      )}
     </div>
   );
 }
@@ -110,11 +133,7 @@ function Row({ row, colors }: { row: PreviewRow; colors?: PreviewColors }) {
     );
   return (
     <div
-      className={cn(
-        "min-w-0",
-        landing && "ws-preview-accent",
-        row.depth === 1 && "ws-preview-nest",
-      )}
+      className={cn("min-w-0", landing && "ws-preview-accent")}
       style={landing ? accentOf(row, colors) : undefined}
     >
       <div className="min-h-[18px] min-w-0 [overflow-wrap:anywhere]">
