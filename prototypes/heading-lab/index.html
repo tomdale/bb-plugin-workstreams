@@ -1172,18 +1172,23 @@
                 height * (1 - progress),
                 pinned ? platePinnedHeight * progress : 0,
               );
-        const plateOpacity =
-          fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
-        // In the title bar the plate and its shadow rise out of the way as
-        // the heading fades, so the shadow never hangs over text that is
-        // still coming into view.
-        const shadowOpacity = fadeOnly && !pinned ? 1 - progress : plateOpacity;
+        // In the title bar the plate and its shadow rise out of the way and
+        // dissolve with the heading, so neither hangs over text that is
+        // already coming into view or ends in a step. Fade dissolves them
+        // with the expanded title; Scroll, which slides that title away,
+        // dissolves them in proportion to the progress.
+        const plateOpacity = fadeOnly && !pinned ? opacity.expanded : 1;
+        const shadowOpacity = pinned
+          ? 1
+          : fadeOnly
+            ? opacity.expanded
+            : 1 - progress;
         const scrollPadding =
           fadeOnly && !pinned ? height * (1 - progress) : plateHeight;
+        // The shadow starts under the goal, not below the plate, in both
+        // transitions, so the expanded state looks the same in each.
         const plateOverlap =
-          fadeOnly && !pinned && !floating
-            ? Math.min(base * 1.5, plateHeight)
-            : 0;
+          !pinned && !floating ? Math.min(base * 1.5, plateHeight) : 0;
         // A whole pixel, so the plate and the shadow that starts where it ends
         // meet on a pixel boundary. On a fractional edge each covers part of
         // the same row, and the two partial coverages leave a light seam.
