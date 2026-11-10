@@ -113,8 +113,8 @@ it("does not refetch a known-final direct record on realtime signals", async () 
   );
   await slot.findByText("Keep it");
   await waitFor(() => expect(questionAt).toHaveBeenCalledTimes(1));
-  await slot.behavior.emitRealtime("changed", {});
-  await slot.behavior.emitRealtime("changed", {});
+  await slot.behavior.emitRealtime("question:thread", {});
+  await slot.behavior.emitRealtime("question:thread", {});
   expect(questionAt).toHaveBeenCalledTimes(1);
 });
 
@@ -162,9 +162,9 @@ it("coalesces pending realtime signals and preserves a late durable answer", asy
     { rpc: { question_at: questionAt } },
   );
   await waitFor(() => expect(questionAt).toHaveBeenCalledTimes(1));
-  await slot.behavior.emitRealtime("changed", {});
-  await slot.behavior.emitRealtime("changed", {});
-  await slot.behavior.emitRealtime("changed", {});
+  await slot.behavior.emitRealtime("question:thread", {});
+  await slot.behavior.emitRealtime("question:thread", {});
+  await slot.behavior.emitRealtime("question:thread", {});
   expect(questionAt).toHaveBeenCalledTimes(1);
 
   answerFirst({
@@ -193,7 +193,7 @@ it("coalesces pending realtime signals and preserves a late durable answer", asy
     },
   });
   await slot.findByText("Late answer");
-  await slot.behavior.emitRealtime("changed", {});
+  await slot.behavior.emitRealtime("question:thread", {});
   expect(questionAt).toHaveBeenCalledTimes(2);
 });
 
@@ -224,7 +224,7 @@ it("does not publish a deep-equal missing result", async () => {
   await act(async () => {});
   Original.mockClear();
 
-  await slot.behavior.emitRealtime("changed", {});
+  await slot.behavior.emitRealtime("question:thread", {});
   await waitFor(() => expect(questionAt).toHaveBeenCalledTimes(2));
   await act(async () => {});
   expect(Original).not.toHaveBeenCalled();

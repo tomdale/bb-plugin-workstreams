@@ -23,6 +23,7 @@ import {
 } from "./question-presentation.tsx";
 import { formatQuestionText } from "./question-markdown.ts";
 import { shareJson } from "../structuralSharing.ts";
+import { questionChannel } from "../../domain/changes.ts";
 
 // BB's timeline pins layout changes to the bottom. A synthetic scroll session
 // lets its position keeper detach after the card grows; otherwise the disclosure
@@ -453,7 +454,7 @@ export function QuestionHistoryInline({
       state.trailing = false;
     };
   }, [load]);
-  useRealtime("changed", () => void load());
+  useRealtime(questionChannel(row.threadId), () => void load());
   const record = loaded?.rowId === row.id ? loaded.record : null;
   const saved = record?.result ? record : (direct ?? record);
   return saved ? <QuestionHistoryCard record={saved} /> : <Original />;

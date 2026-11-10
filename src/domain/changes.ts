@@ -84,3 +84,10 @@ export function staleSlices(
 export function isScopedChange(payload: unknown): boolean {
   return readChangedSignal(payload)?.threadIds !== undefined;
 }
+
+/**
+ * The channel that signals a thread's durable question changed: one opened,
+ * attached to its form, answered, dismissed, or left without its waiter.
+ * Only that thread's views listen to it.
+ */
+export const questionChannel = (threadId: string) => `question:${threadId}`;
