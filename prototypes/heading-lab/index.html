@@ -1,0 +1,1210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sticky goal heading — playground</title>
+    <style>
+      /* ------------------------------------------------------------------
+         Shipped rules, copied verbatim from src/app/styles.css (the block
+         from ".ws-sticky-goal-root" through ".ws-sticky-goal__subtitle") so
+         this page draws the heading the product draws.
+         ------------------------------------------------------------------ */
+      .ws-sticky-goal-root {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        flex: none;
+        height: 0;
+        pointer-events: none;
+      }
+      .ws-goal-background {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 0;
+      }
+      .ws-goal-background::before,
+      .ws-goal-background::after {
+        position: absolute;
+        right: 0;
+        left: 0;
+        height: 12rem;
+        background: linear-gradient(
+          to bottom in oklab,
+          var(--background) 0%,
+          color-mix(in oklab, var(--background) 90%, transparent) 20%,
+          color-mix(in oklab, var(--background) 65%, transparent) 40%,
+          color-mix(in oklab, var(--background) 40%, transparent) 60%,
+          color-mix(in oklab, var(--background) 18%, transparent) 80%,
+          transparent 100%
+        );
+        content: "";
+      }
+      .ws-goal-background::before {
+        top: -1px;
+        height: 3rem;
+        opacity: var(--ws-fade-below-bar, 0);
+      }
+      .ws-goal-background::after {
+        top: 0;
+        transform: translateY(var(--ws-plate-height, 0px))
+          scaleY(var(--ws-plate-fade-scale, 1));
+        transform-origin: top;
+        opacity: var(--ws-fade-below-plate, 0);
+      }
+      [data-ws-edge] {
+        mask-image: linear-gradient(
+          to bottom,
+          var(--background) 0,
+          var(--background)
+            calc(var(--ws-plate-draw, 0px) - var(--ws-plate-edge, 0px)),
+          color-mix(in oklab, var(--background) 50%, transparent)
+            var(--ws-plate-draw, 0px)
+        );
+      }
+      [data-ws-pinned].ws-goal-background::after {
+        background: linear-gradient(
+          to bottom in oklab,
+          color-mix(in oklab, var(--background) 50%, transparent) 0%,
+          color-mix(in oklab, var(--background) 39%, transparent) 18%,
+          color-mix(in oklab, var(--background) 28%, transparent) 36%,
+          color-mix(in oklab, var(--background) 17%, transparent) 58%,
+          color-mix(in oklab, var(--background) 6%, transparent) 80%,
+          transparent 100%
+        );
+      }
+      [data-ws-pinned] .ws-sticky-goal__plate,
+      [data-ws-pinned] .ws-sticky-goal__workstream,
+      [data-ws-pinned] .ws-sticky-goal__title,
+      [data-ws-pinned] .ws-sticky-goal__subtitle,
+      [data-ws-pinned].ws-goal-background::after {
+        transition:
+          transform 180ms ease,
+          opacity 180ms ease;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        [data-ws-pinned] .ws-sticky-goal__plate,
+        [data-ws-pinned] .ws-sticky-goal__workstream,
+        [data-ws-pinned] .ws-sticky-goal__title,
+        [data-ws-pinned] .ws-sticky-goal__subtitle,
+        [data-ws-pinned].ws-goal-background::after {
+          transition: none;
+        }
+      }
+      .ws-sticky-goal {
+        position: absolute;
+        inset: 0 0 auto;
+      }
+      .ws-sticky-goal__plate {
+        position: absolute;
+        inset: 0;
+        transform-origin: top;
+        background: var(--background);
+      }
+      .ws-goal-overlay {
+        position: absolute;
+        inset: 0 auto auto 0;
+        width: 0;
+        height: 0;
+        z-index: 40;
+        pointer-events: none;
+      }
+      .pane > .ws-goal-overlay {
+        z-index: 40;
+      }
+      .ws-goal-overlay__clip,
+      .ws-goal-overlay__group {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+      }
+      .ws-goal-overlay__clip {
+        overflow: hidden;
+      }
+      [data-ws-hide-title] .bb-thread-title {
+        display: none;
+      }
+      .ws-sticky-goal__workstream {
+        position: absolute;
+        top: 0;
+        left: -2px;
+        transform-origin: 0 0;
+        display: flex;
+        max-width: 100%;
+        align-items: center;
+        gap: 0.2em;
+        color: var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)));
+        font-weight: 550;
+        letter-spacing: 0.01em;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+      .dark .ws-sticky-goal__workstream {
+        color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
+      }
+      .ws-sticky-goal__workstream > span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ws-sticky-goal__title,
+      .ws-sticky-goal__subtitle {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transform-origin: 0 0;
+        white-space: nowrap;
+      }
+      .ws-sticky-goal__title {
+        margin: 0;
+        color: var(--foreground);
+        font-family: inherit;
+        font-weight: 450;
+        letter-spacing: -0.02em;
+        line-height: 1.3333;
+      }
+      .ws-sticky-goal__subtitle {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        color: var(--muted-foreground);
+        line-height: 1.4;
+      }
+      .ws-sticky-goal__probe {
+        white-space: normal;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      /* ------------------------------------------------------------------
+         Playground frame. Nothing below draws part of the heading; it only
+         gives the heading a thread pane to sit in and controls to switch.
+         ------------------------------------------------------------------ */
+      :root {
+        color-scheme: light;
+        --page: #efefef;
+        --background: #fff;
+        --foreground: #0d0d0d;
+        --muted-foreground: #676767;
+        --border: #e3e3e3;
+        --accent: #1a63d8;
+      }
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --page: #101010;
+        --background: #000;
+        --foreground: #fff;
+        --muted-foreground: #9b9b9b;
+        --border: #232323;
+        --accent: #7aa2ff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--foreground);
+        font:
+          14px/1.5 Geist,
+          -apple-system,
+          system-ui,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px 22px;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
+        background: var(--background);
+      }
+      .group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .group > .name {
+        color: var(--muted-foreground);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      button {
+        padding: 4px 9px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      button[aria-pressed="true"] {
+        border-color: var(--accent);
+        background: color-mix(in oklab, var(--accent) 12%, transparent);
+        color: var(--accent);
+      }
+      button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+      .stage {
+        display: flex;
+        gap: 18px;
+        padding: 18px;
+        align-items: flex-start;
+      }
+      .pane {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        flex: none;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--background);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+      }
+      .bar {
+        display: flex;
+        flex: none;
+        align-items: center;
+        justify-content: space-between;
+        height: 44px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--border);
+      }
+      .bar .cluster {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+      .bar .bb-thread-title {
+        overflow: hidden;
+        max-width: 220px;
+        color: var(--muted-foreground);
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .bar .actions {
+        display: flex;
+        gap: 6px;
+        flex: none;
+      }
+      .bar .actions > span {
+        width: 22px;
+        height: 22px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+      }
+      .window {
+        position: relative;
+        flex: 1;
+        overflow: hidden;
+      }
+      .scroller {
+        position: absolute;
+        inset: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      .column {
+        display: flex;
+        flex-direction: column;
+        padding-top: 14px;
+      }
+      .messages {
+        padding: 0 22px 40px;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      .messages p {
+        margin: 0 0 12px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 0;
+        border-top: 1px solid var(--border);
+        color: var(--muted-foreground);
+        font:
+          12px/1.4 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+      .row .ok {
+        margin-left: auto;
+        color: #14884a;
+      }
+      .readout {
+        flex: 1 1 240px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 2px 12px;
+        align-content: start;
+        padding: 12px 14px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--background);
+        color: var(--muted-foreground);
+        font:
+          11px/1.6 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+      .readout b {
+        color: var(--foreground);
+        font-weight: 500;
+      }
+      .caption {
+        padding: 0 18px 18px;
+        color: var(--muted-foreground);
+        font-size: 12px;
+      }
+      .readout .hint {
+        grid-column: 1 / -1;
+        margin-top: 8px;
+        color: var(--muted-foreground);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="controls" id="controls"></div>
+
+    <div class="stage">
+      <div class="pane" id="pane">
+        <div class="bar" id="bar">
+          <div class="cluster">
+            <span class="bb-thread-title">Fixing pinned heading overlay</span>
+          </div>
+          <div class="actions"><span></span><span></span><span></span></div>
+        </div>
+        <div class="window" id="window">
+          <div class="scroller" id="scroller">
+            <div class="column" id="column">
+              <div class="ws-sticky-goal-root" id="anchor"></div>
+              <div class="messages" id="messages">
+                <p>
+                  The heading draws over this timeline from a layer above the
+                  scroller. A zero-height anchor inside the column reserves the
+                  heading's space, so the first message starts below it.
+                </p>
+                <p>
+                  <b>Roll the content</b> under the band with the arrow keys,
+                  the wheel, or the buttons above. Past the threshold a pinned
+                  heading steps down to its compact block in one move.
+                </p>
+                <div class="row">
+                  <span>npm run typecheck</span><span class="ok">Passed</span>
+                </div>
+                <div class="row">
+                  <span>npm test — 2327 passed</span
+                  ><span class="ok">Passed</span>
+                </div>
+                <div class="row">
+                  <span>npx prettier --check</span
+                  ><span class="ok">Passed</span>
+                </div>
+                <div class="row">
+                  <span>scripts/bb-plugin-smoke</span
+                  ><span class="ok">Passed</span>
+                </div>
+                <p>
+                  Ring's solid tile is now dark slate, with a thin blue edge
+                  along its outer rim and a white label. The row above the edge
+                  is what to watch: it should come up through the band rather
+                  than be cut by it.
+                </p>
+                <p>
+                  A paragraph that straddles the edge is the hardest case, so
+                  this one sits mid-pane on purpose. Scroll a few pixels at a
+                  time and watch the first line's glyphs.
+                </p>
+                <div class="row">
+                  <span>bb workstreams topics preview</span
+                  ><span class="ok">ok</span>
+                </div>
+                <p>
+                  The plate is solid until its own edge, where the mask hands
+                  over to the feather at half cover. Nothing steps at that
+                  boundary: that is the whole point of the mask.
+                </p>
+                <p>
+                  Every size here is a multiple of the timeline's body font
+                  size, so the heading scales with the text around it rather
+                  than with the window.
+                </p>
+                <div class="row">
+                  <span>bb workstreams status</span><span class="ok">ok</span>
+                </div>
+                <p>
+                  Keep scrolling to the bottom of the thread: the heading
+                  expands again, because it is the newest message you are
+                  reading, not the top of the timeline.
+                </p>
+                <p>
+                  Fill text so the pane has room to scroll in both directions.
+                  It only exists to give the fade something to work on.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ws-goal-overlay" id="overlay" style="inset: 0 auto auto 0">
+          <div class="ws-goal-background" id="background">
+            <div class="ws-sticky-goal" id="band">
+              <div class="ws-sticky-goal__plate" id="plate"></div>
+            </div>
+          </div>
+          <div
+            class="ws-goal-overlay__clip"
+            data-ws-heading="expanded"
+            id="clipExpanded"
+          >
+            <div class="ws-goal-overlay__group" id="groupExpanded">
+              <div class="ws-sticky-goal__workstream" id="eyebrowExpanded">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path d="M1 8h2l2-5 3 10 2.5-5h2.5" />
+                </svg>
+                <span>bb: Workstreams Plugin</span>
+              </div>
+              <h2 class="ws-sticky-goal__title" id="titleExpanded"></h2>
+              <div class="ws-sticky-goal__subtitle" id="goalExpanded"></div>
+            </div>
+          </div>
+          <div
+            class="ws-goal-overlay__clip"
+            data-ws-heading="compact"
+            id="clipCompact"
+            aria-hidden="true"
+          >
+            <div class="ws-goal-overlay__group" id="groupCompact">
+              <div class="ws-sticky-goal__workstream" id="eyebrowCompact">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path d="M1 8h2l2-5 3 10 2.5-5h2.5" />
+                </svg>
+                <span>bb: Workstreams Plugin</span>
+              </div>
+              <div class="ws-sticky-goal__title" id="titleCompact"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="readout" id="readout"></div>
+    </div>
+
+    <p class="caption">
+      White surface on purpose: every wash, mask edge, and step in contrast
+      shows against it. The pinned block is a solid band the timeline scrolls
+      under; its own last <code>0.9em</code> fades to half cover and a
+      <code>1.875rem</code> feather finishes the dissolve below it.
+    </p>
+
+    <script type="module">
+      /* ==================================================================
+         Ported from src/app/goalHeading.ts. Keep these in step with it; the
+         playground exists to inspect that file's behaviour, not to change it.
+         ================================================================== */
+      const TITLE_SIZE = 1.5;
+      const SUBTITLE_SIZE = 0.92;
+      const TITLE_LINE = 4 / 3;
+      const SUBTITLE_LINE = 1.4;
+      const PAD_TOP = 0.85;
+      const PAD_BOTTOM = 0.65;
+      const EYEBROW_BLOCK = 1.25;
+      const TITLE_BAR_TITLE_SIZE = 0.95;
+      const PINNED_PAD = 0.5;
+      const PINNED_EDGE = 0.9;
+      const PLATE_FADE_REM = 12;
+      const BAR_FADE_RATIO = 3 / PLATE_FADE_REM;
+      const PINNED_FEATHER = 1.875 / PLATE_FADE_REM;
+      const DESKTOP_EYEBROW_SIZE = 0.8;
+      const DESKTOP_COMPACT_SCALE = 0.82;
+      const PHONE_EYEBROW_SIZE = 0.875;
+      const EYEBROW_LINE = 1.2;
+      const EYEBROW_ICON_PX = 16;
+      const COMPACT_GAP = 0.2;
+      const FADE_COMPACT_RISE = 4;
+      const HEADING_SCROLL_RATIO = 0.4;
+      const HEADING_FADE_SCROLL_RATIO = 1 / 3.5;
+      const MIN_TITLE_BAR_WIDTH = 140;
+      const TITLE_BAR_GAP = 16;
+
+      function eyebrowMetrics(base, phone) {
+        const expandedBlock = base * EYEBROW_BLOCK;
+        const size = base * (phone ? PHONE_EYEBROW_SIZE : DESKTOP_EYEBROW_SIZE);
+        const compactScale = phone ? 1 : DESKTOP_COMPACT_SCALE;
+        const line =
+          Math.max(EYEBROW_ICON_PX, size * EYEBROW_LINE) * compactScale;
+        return {
+          size,
+          compactScale,
+          expandedBlock,
+          compactBlock: line + base * COMPACT_GAP,
+        };
+      }
+
+      function headingHeight(base, hasEyebrow, titleLines, goalLines) {
+        return Math.round(
+          base *
+            (PAD_TOP +
+              (hasEyebrow ? EYEBROW_BLOCK : 0) +
+              TITLE_SIZE * TITLE_LINE * titleLines +
+              SUBTITLE_SIZE * SUBTITLE_LINE * goalLines +
+              PAD_BOTTOM),
+        );
+      }
+
+      function titleExitDistance(base, eyebrow, titleLines) {
+        return (
+          base * PAD_TOP +
+          (eyebrow ? eyebrow.expandedBlock : 0) +
+          base * TITLE_SIZE * TITLE_LINE * titleLines
+        );
+      }
+
+      function headingScrollLimit(exitDistance, transition = "scroll") {
+        return (
+          exitDistance /
+          (transition === "fade"
+            ? HEADING_FADE_SCROLL_RATIO
+            : HEADING_SCROLL_RATIO)
+        );
+      }
+
+      function headingScroll(
+        fromBottom,
+        exitDistance,
+        transition = "scroll",
+        limit,
+      ) {
+        const scrollLimit =
+          limit ?? headingScrollLimit(exitDistance, transition);
+        const t =
+          scrollLimit <= 0
+            ? 1
+            : Math.min(Math.max(0, fromBottom) / scrollLimit, 1);
+        const progress = t * (0.5 + t * (2 - 1.5 * t));
+        const moved = exitDistance * progress;
+        return { moved, remaining: exitDistance - moved, progress };
+      }
+
+      function headingFade(progress, motion = true) {
+        const eased = progress * progress * (3 - 2 * progress);
+        const retreat = -3 * eased;
+        return {
+          expanded: {
+            opacity: 1 - eased,
+            y: motion ? retreat || 0 : 0,
+            scale: motion ? 1 - 0.01 * eased : 1,
+          },
+          compact: {
+            opacity: eased,
+            y: motion ? FADE_COMPACT_RISE * (1 - eased) : 0,
+            scale: motion ? 0.99 + 0.01 * eased : 1,
+          },
+        };
+      }
+
+      const pinnedTitleScale = (progress) =>
+        1 + (TITLE_BAR_TITLE_SIZE / TITLE_SIZE - 1) * progress;
+
+      const headingOpacity = (progress) => ({
+        expanded: 1 - progress * progress,
+        compact: 1 - (1 - progress) * (1 - progress),
+      });
+
+      const headingBackdropOpacity = (progress) => 1 - progress ** 12;
+
+      const plateFadeScale = (progress) => 1 - progress * (1 - BAR_FADE_RATIO);
+
+      const compactBlock = (base, eyebrow) =>
+        (eyebrow ? eyebrow.compactBlock : 0) +
+        base * TITLE_BAR_TITLE_SIZE * TITLE_LINE;
+
+      const pinnedHeight = (base, eyebrow, titleLines = 1) =>
+        Math.round(
+          compactBlock(base, eyebrow) +
+            base * TITLE_BAR_TITLE_SIZE * TITLE_LINE * (titleLines - 1) +
+            base * (PINNED_PAD + PINNED_EDGE),
+        );
+
+      const pinnedEdge = (base, compact) =>
+        base * (compact ? PINNED_EDGE : PAD_BOTTOM);
+
+      const pinnedStep = (fromBottom, exitDistance) =>
+        fromBottom >= exitDistance ? 1 : 0;
+
+      function titleBarSlot(bar, clusterRight, actionsLeft, centered) {
+        if (centered) {
+          const center = (bar.left + bar.right) / 2;
+          const half = Math.min(
+            center - clusterRight - TITLE_BAR_GAP,
+            actionsLeft - TITLE_BAR_GAP - center,
+          );
+          if (half * 2 < MIN_TITLE_BAR_WIDTH) return null;
+          return { x: center - half - bar.left, width: half * 2 };
+        }
+        const x = clusterRight + TITLE_BAR_GAP;
+        const width = actionsLeft - TITLE_BAR_GAP - x;
+        return width >= MIN_TITLE_BAR_WIDTH ? { x: x - bar.left, width } : null;
+      }
+
+      /* ==================================================================
+         Playground state and controls.
+         ================================================================== */
+      const TITLES = {
+        short: "Fixing pinned overlay",
+        medium: "Fixing pinned heading overlay",
+        long: "Scaling the pinned heading overlay across every narrow pane",
+      };
+
+      const state = {
+        layout: "pinned",
+        transition: "fade",
+        float: false,
+        reducedMotion: false,
+        phone: false,
+        title: "long",
+        goal: true,
+        workstream: true,
+        width: 380,
+        theme: "light",
+      };
+
+      const GOAL =
+        "Smooth the pinned title overlay fade and tighten spacing so text transitions seamlessly under the heading.";
+
+      const CONTROLS = [
+        {
+          name: "Layout",
+          options: [
+            ["pinned", "Pinned in timeline"],
+            ["bar", "Title bar"],
+          ],
+          key: "layout",
+        },
+        {
+          name: "Transition",
+          options: [
+            ["fade", "Fade"],
+            ["scroll", "Scroll"],
+          ],
+          key: "transition",
+        },
+        {
+          name: "Title",
+          options: [
+            ["short", "Short"],
+            ["medium", "One line"],
+            ["long", "Wraps"],
+          ],
+          key: "title",
+        },
+        {
+          name: "Pane",
+          options: [
+            [380, "380px"],
+            [560, "560px"],
+            [760, "760px"],
+          ],
+          key: "width",
+        },
+        {
+          name: "Surface",
+          options: [
+            ["light", "White"],
+            ["dark", "Dark"],
+          ],
+          key: "theme",
+        },
+      ];
+
+      const controls = document.getElementById("controls");
+
+      function buildControls() {
+        for (const group of CONTROLS) {
+          const wrap = document.createElement("div");
+          wrap.className = "group";
+          const name = document.createElement("span");
+          name.className = "name";
+          name.textContent = group.name;
+          wrap.append(name);
+          for (const [value, label] of group.options) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = label;
+            button.addEventListener("click", () => {
+              state[group.key] = value;
+              draw();
+            });
+            button.dataset.key = group.key;
+            button.dataset.value = String(value);
+            wrap.append(button);
+          }
+          controls.append(wrap);
+        }
+        for (const [key, label] of [
+          ["float", "Float"],
+          ["reducedMotion", "Reduced motion"],
+          ["phone", "Phone metrics"],
+          ["goal", "Goal line"],
+          ["workstream", "Workstream line"],
+        ]) {
+          const wrap = document.createElement("div");
+          wrap.className = "group";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = label;
+          button.dataset.toggle = key;
+          button.addEventListener("click", () => {
+            state[key] = !state[key];
+            draw();
+          });
+          wrap.append(button);
+          controls.append(wrap);
+        }
+        const scrolls = document.createElement("div");
+        scrolls.className = "group";
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = "Scroll";
+        scrolls.append(name);
+        for (const [label, action] of [
+          ["Top of thread", () => (scroller.scrollTop = 0)],
+          ["↓ Threshold − 2px", () => step(2, -1)],
+          ["↓ Threshold + 2px", () => step(2, 1)],
+          [
+            "Newest message",
+            () => (scroller.scrollTop = scroller.scrollHeight),
+          ],
+        ]) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = label;
+          button.addEventListener("click", () => {
+            action();
+            draw();
+          });
+          scrolls.append(button);
+        }
+        controls.append(scrolls);
+      }
+
+      function markControls() {
+        for (const button of controls.querySelectorAll("button[data-key]")) {
+          button.setAttribute(
+            "aria-pressed",
+            String(String(state[button.dataset.key]) === button.dataset.value),
+          );
+        }
+        for (const button of controls.querySelectorAll("button[data-toggle]")) {
+          button.setAttribute(
+            "aria-pressed",
+            String(!!state[button.dataset.toggle]),
+          );
+        }
+      }
+
+      /* ==================================================================
+         The heading, drawn the way StickyGoalHeader draws it.
+         ================================================================== */
+      const pane = document.getElementById("pane");
+      const bar = document.getElementById("bar");
+      const scroller = document.getElementById("scroller");
+      const column = document.getElementById("column");
+      const anchor = document.getElementById("anchor");
+      const messages = document.getElementById("messages");
+      const overlay = document.getElementById("overlay");
+      const background = document.getElementById("background");
+      const band = document.getElementById("band");
+      const plate = document.getElementById("plate");
+      const clipExpanded = document.getElementById("clipExpanded");
+      const groupExpanded = document.getElementById("groupExpanded");
+      const eyebrowExpanded = document.getElementById("eyebrowExpanded");
+      const titleExpanded = document.getElementById("titleExpanded");
+      const goalExpanded = document.getElementById("goalExpanded");
+      const clipCompact = document.getElementById("clipCompact");
+      const groupCompact = document.getElementById("groupCompact");
+      const eyebrowCompact = document.getElementById("eyebrowCompact");
+      const titleCompact = document.getElementById("titleCompact");
+      const readout = document.getElementById("readout");
+
+      const TITLE_TEXT = () => TITLES[state.title];
+
+      function setText() {
+        titleExpanded.textContent = TITLE_TEXT();
+        titleCompact.textContent = TITLE_TEXT();
+        goalExpanded.textContent = GOAL;
+        bar.querySelector(".bb-thread-title").textContent = TITLE_TEXT();
+        bar.setAttribute("data-ws-hide-title", "");
+      }
+
+      /** Scroll so that the pinned threshold sits `offset` px away. */
+      function step(offset, direction) {
+        const base = baseFontSize();
+        const eyebrow = state.workstream ? eyebrowMetrics(base, false) : null;
+        const lines = titleLines(base);
+        const exit = titleExitDistance(base, eyebrow, lines);
+        const range = scroller.scrollHeight - scroller.clientHeight;
+        const target = Math.min(
+          range,
+          Math.max(0, range - (exit + direction * offset)),
+        );
+        scroller.scrollTop = target;
+      }
+
+      function baseFontSize() {
+        return Number.parseFloat(getComputedStyle(messages).fontSize) || 14;
+      }
+
+      /** Lines the expanded title takes at the pane's width. */
+      function titleLines(base) {
+        const probe = document.createElement("h2");
+        probe.className = "ws-sticky-goal__title ws-sticky-goal__probe";
+        probe.style.fontSize = `${base * TITLE_SIZE}px`;
+        probe.style.width = `${textWidth()}px`;
+        probe.textContent = TITLE_TEXT();
+        groupExpanded.append(probe);
+        const line = base * TITLE_SIZE * TITLE_LINE;
+        const lines = Math.min(
+          2,
+          Math.max(1, Math.round(probe.scrollHeight / line)),
+        );
+        probe.remove();
+        return lines;
+      }
+
+      function textWidth() {
+        const rect = messages.getBoundingClientRect();
+        const style = getComputedStyle(messages);
+        return (
+          rect.width -
+          Number.parseFloat(style.paddingLeft) -
+          Number.parseFloat(style.paddingRight)
+        );
+      }
+
+      function draw() {
+        document.documentElement.dataset.theme = state.theme;
+        document.body.classList.toggle("dark", state.theme === "dark");
+        pane.style.width = `${state.width}px`;
+        pane.style.height = "520px";
+        setText();
+        markControls();
+
+        const base = state.phone ? 16 : baseFontSize();
+        const phone = state.phone;
+        const eyebrow = state.workstream ? eyebrowMetrics(base, phone) : null;
+        const hasEyebrow = !!eyebrow;
+        const lines = titleLines(base);
+        const narrow = state.width < 560;
+        const goalLines = state.goal ? 3 : 0;
+        const visibleGoalLines = state.goal ? Math.min(3, 3) : 0;
+
+        // --- geometry the component measures from BB's DOM -----------------
+        const originRect = pane.getBoundingClientRect();
+        const scrollerRect = scroller.getBoundingClientRect();
+        const messagesRect = messages.getBoundingClientRect();
+        const messagesStyle = getComputedStyle(messages);
+        const textLeft =
+          messagesRect.left + Number.parseFloat(messagesStyle.paddingLeft);
+        const textRight =
+          messagesRect.right - Number.parseFloat(messagesStyle.paddingRight);
+
+        const paneSpot = {
+          x: textLeft - originRect.left,
+          y: scrollerRect.top + base * PAD_TOP - originRect.top,
+          width: Math.max(0, textRight - textLeft),
+        };
+        const backgroundSpot = {
+          x: scrollerRect.left - originRect.left,
+          y: scrollerRect.top - originRect.top,
+          width: scrollerRect.width,
+        };
+
+        // --- where the compact copy would go -------------------------------
+        const barRect = bar.getBoundingClientRect();
+        const clusterRight = bar
+          .querySelector(".cluster")
+          .getBoundingClientRect().right;
+        const actionsLeft = bar
+          .querySelector(".actions")
+          .getBoundingClientRect().left;
+        const slot =
+          state.layout === "bar"
+            ? titleBarSlot(
+                { left: barRect.left, right: barRect.right },
+                clusterRight,
+                actionsLeft,
+                false,
+              )
+            : null;
+        const pinned = state.layout === "pinned" || slot === null;
+
+        // --- scroll state ---------------------------------------------------
+        const height = headingHeight(base, hasEyebrow, lines, visibleGoalLines);
+        const exitDistance = titleExitDistance(base, eyebrow, lines);
+        const fadeOnly = state.reducedMotion || state.transition === "fade";
+        const floating = state.float;
+        const scrollLimit = headingScrollLimit(
+          exitDistance,
+          fadeOnly ? "fade" : "scroll",
+        );
+        const range = Math.max(
+          0,
+          scroller.scrollHeight - scroller.clientHeight,
+        );
+        const fromBottomRaw = Math.min(
+          range,
+          Math.max(0, range - scroller.scrollTop),
+        );
+        const limit = Math.min(scrollLimit, range);
+        const fromBottom = Math.min(fromBottomRaw, limit);
+        const stepped = pinned ? pinnedStep(fromBottom, exitDistance) : 0;
+        const scroll = headingScroll(
+          fromBottom,
+          exitDistance,
+          fadeOnly ? "fade" : "scroll",
+          limit,
+        );
+        const { moved, remaining, progress } = floating
+          ? { moved: 0, remaining: exitDistance, progress: 0 }
+          : pinned
+            ? {
+                moved: exitDistance * stepped,
+                remaining: exitDistance * (1 - stepped),
+                progress: stepped,
+              }
+            : scroll;
+
+        const collapsed = progress === 1;
+        const scalePinned = pinned && !floating;
+        const fadeMotion = headingFade(progress, !state.reducedMotion);
+        const opacity = fadeOnly
+          ? {
+              expanded: fadeMotion.expanded.opacity,
+              compact: fadeMotion.compact.opacity,
+            }
+          : headingOpacity(progress);
+        const expandedOpacity = scalePinned ? 1 : opacity.expanded;
+        const compactOpacity = scalePinned ? 0 : opacity.compact;
+        const platePinnedHeight = pinnedHeight(
+          base,
+          eyebrow,
+          scalePinned ? lines : 1,
+        );
+        const plateHeight =
+          fadeOnly || scalePinned
+            ? pinned
+              ? height * (1 - progress) + platePinnedHeight * progress
+              : height
+            : Math.max(
+                height * (1 - progress),
+                pinned ? platePinnedHeight * progress : 0,
+              );
+        const plateOpacity =
+          fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
+        const scrollPadding =
+          fadeOnly && !pinned ? height * (1 - progress) : plateHeight;
+        const plateOverlap =
+          fadeOnly && !pinned && !floating
+            ? Math.min(base * 1.5, plateHeight)
+            : 0;
+        const solidPlateHeight = plateHeight - plateOverlap;
+        const plateEdge = Math.min(
+          pinnedEdge(base, collapsed),
+          solidPlateHeight,
+        );
+        const titleBlock = base * TITLE_SIZE * TITLE_LINE * lines;
+
+        // --- the reserved gap and scroll padding ---------------------------
+        anchor.style.marginBottom = `${height}px`;
+        scroller.style.scrollPaddingTop = `${scrollPadding}px`;
+        anchor.dataset.collapsed = String(collapsed);
+
+        // --- plate and feather ---------------------------------------------
+        background.style.transform = `translate(${backgroundSpot.x}px, ${backgroundSpot.y}px)`;
+        background.style.width = `${backgroundSpot.width}px`;
+        background.style.setProperty(
+          "--ws-plate-height",
+          `${solidPlateHeight}px`,
+        );
+        background.style.setProperty(
+          "--ws-plate-fade-scale",
+          String(
+            pinned ? PINNED_FEATHER : fadeOnly ? 1 : plateFadeScale(progress),
+          ),
+        );
+        background.style.setProperty(
+          "--ws-fade-below-plate",
+          String(fadeOnly && !pinned ? 0 : 1),
+        );
+        background.style.setProperty("--ws-fade-below-bar", "0");
+        background.toggleAttribute("data-ws-pinned", pinned);
+        band.dataset.wsEdge = pinned ? "" : undefined;
+        if (pinned) band.setAttribute("data-ws-edge", "");
+        else band.removeAttribute("data-ws-edge");
+        band.style.height = `${height}px`;
+        band.style.setProperty("--ws-plate-draw", `${solidPlateHeight}px`);
+        band.style.setProperty("--ws-plate-edge", `${plateEdge}px`);
+        plate.style.transform = `scaleY(${solidPlateHeight / height})`;
+        plate.style.opacity = String(plateOpacity);
+
+        // --- the expanded copy ---------------------------------------------
+        clipExpanded.toggleAttribute("data-ws-pinned", pinned);
+        clipExpanded.style.transform = `translate(${paneSpot.x}px, ${paneSpot.y - base * PAD_TOP}px)`;
+        clipExpanded.style.width = `${paneSpot.width}px`;
+        clipExpanded.style.height = `${height}px`;
+        groupExpanded.style.transform = scalePinned
+          ? `translateY(${base * PAD_TOP}px)`
+          : fadeOnly
+            ? `translateY(${base * PAD_TOP + fadeMotion.expanded.y}px) scale(${fadeMotion.expanded.scale})`
+            : `translateY(${base * PAD_TOP - moved}px)`;
+        groupExpanded.style.opacity = String(expandedOpacity);
+        groupExpanded.style.width = `${paneSpot.width}px`;
+
+        const eyebrowBlock = eyebrow ? eyebrow.expandedBlock : 0;
+        const barEyebrowBlock = eyebrow ? eyebrow.compactBlock : 0;
+        const eyebrowScale = scalePinned
+          ? 1 + ((eyebrow ? eyebrow.compactScale : 1) - 1) * progress
+          : 1;
+        const eyebrowY = scalePinned
+          ? base * (PINNED_PAD - PAD_TOP) * progress
+          : 0;
+        if (eyebrow) {
+          for (const el of [eyebrowExpanded, eyebrowCompact])
+            el.style.display = "";
+          eyebrowExpanded.style.fontSize = `${eyebrow.size}px`;
+          eyebrowExpanded.style.maxWidth = `${paneSpot.width / eyebrowScale}px`;
+          eyebrowExpanded.style.transform = `translateY(${eyebrowY}px) scale(${eyebrowScale})`;
+        } else {
+          for (const el of [eyebrowExpanded, eyebrowCompact])
+            el.style.display = "none";
+        }
+        titleExpanded.style.fontSize = `${base * TITLE_SIZE}px`;
+        titleExpanded.style.transform = scalePinned
+          ? `translateY(${eyebrowBlock + (base * PINNED_PAD + barEyebrowBlock - base * PAD_TOP - eyebrowBlock) * progress}px) scale(${pinnedTitleScale(progress)})`
+          : `translateY(${eyebrowBlock}px)`;
+        titleExpanded.style.transformOrigin = scalePinned ? "0 0" : "";
+        titleExpanded.style.webkitLineClamp = narrow && lines > 1 ? "2" : "";
+        titleExpanded.style.webkitBoxOrient =
+          narrow && lines > 1 ? "vertical" : "";
+        titleExpanded.style.display = narrow && lines > 1 ? "-webkit-box" : "";
+        titleExpanded.style.whiteSpace = narrow && lines > 1 ? "normal" : "";
+        titleExpanded.style.paddingBottom = "0";
+        goalExpanded.style.fontSize = `${base * SUBTITLE_SIZE}px`;
+        goalExpanded.style.transform = `translateY(${eyebrowBlock + titleBlock}px)`;
+        goalExpanded.style.opacity = String(scalePinned ? 1 - progress : 1);
+        goalExpanded.style.display = state.goal ? "" : "none";
+
+        // --- the compact copy ----------------------------------------------
+        const barBlock = compactBlock(base, eyebrow);
+        const compactSpot = slot
+          ? {
+              x: barRect.left + slot.x - originRect.left,
+              y:
+                barRect.top +
+                barRect.height / 2 -
+                originRect.top -
+                barBlock / 2,
+              width: slot.width,
+            }
+          : {
+              x: paneSpot.x,
+              y: paneSpot.y - base * PAD_TOP + base * PINNED_PAD,
+              width: paneSpot.width,
+            };
+        clipCompact.style.transform = `translate(${compactSpot.x}px, ${compactSpot.y}px)`;
+        clipCompact.style.width = `${compactSpot.width}px`;
+        clipCompact.style.height = `${Math.max(barBlock, slot ? barBlock : paneSpot.y - compactSpot.y, barBlock + FADE_COMPACT_RISE)}px`;
+        groupCompact.style.transform = fadeOnly
+          ? `translateY(${fadeMotion.compact.y}px) scale(${fadeMotion.compact.scale})`
+          : `translateY(${remaining}px)`;
+        groupCompact.style.opacity = String(compactOpacity);
+        groupCompact.style.width = `${compactSpot.width}px`;
+        if (eyebrow) {
+          eyebrowCompact.style.fontSize = `${eyebrow.size}px`;
+          eyebrowCompact.style.maxWidth = `${compactSpot.width / eyebrow.compactScale}px`;
+          eyebrowCompact.style.transform = `scale(${eyebrow.compactScale})`;
+        }
+        titleCompact.style.fontSize = `${base * TITLE_BAR_TITLE_SIZE}px`;
+        titleCompact.style.transform = `translateY(${barEyebrowBlock}px)`;
+
+        // --- readout --------------------------------------------------------
+        readout.innerHTML = `
+          <span>layout</span><b>${pinned ? "pinned" : "title bar"}${state.width < 560 ? " · narrow" : ""}</b>
+          <span>base / eyebrow</span><b>${base}px / ${eyebrow ? eyebrow.size.toFixed(1) + "px" : "none"}</b>
+          <span>heading height</span><b>${height}px · ${lines} title line${lines === 1 ? "" : "s"}</b>
+          <span>exit distance</span><b>${exitDistance.toFixed(1)}px</b>
+          <span>from bottom</span><b>${fromBottomRaw.toFixed(1)}px of ${range}px</b>
+          <span>progress</span><b>${progress.toFixed(2)}${pinned ? " (stepped)" : ""}</b>
+          <span>plate</span><b>${solidPlateHeight}px${pinned ? ` · edge ${plateEdge.toFixed(1)}px` : ""}</b>
+          <span>feather</span><b>${
+            pinned
+              ? `${(PINNED_FEATHER * 192).toFixed(0)}px from half cover`
+              : fadeOnly
+                ? `bar fade, plate at ${plateOpacity.toFixed(2)}`
+                : `${(plateFadeScale(progress) * 192).toFixed(0)}px`
+          }</b>
+          <span>scroll padding</span><b>${scrollPadding}px</b>
+          <span class="hint">↑ ↓ scroll the timeline · click a control to switch state</span>
+        `;
+      }
+
+      function tick() {
+        draw();
+      }
+
+      buildControls();
+      scroller.addEventListener("scroll", tick, { passive: true });
+      window.addEventListener("resize", tick);
+      document.addEventListener("keydown", (event) => {
+        if (event.target.closest("button")) return;
+        if (event.key === "ArrowDown" || event.key === "j") {
+          scroller.scrollTop += 24;
+          event.preventDefault();
+        } else if (event.key === "ArrowUp" || event.key === "k") {
+          scroller.scrollTop -= 24;
+          event.preventDefault();
+        }
+      });
+
+      // Start expanded, at the newest message, like a thread you just opened.
+      requestAnimationFrame(() => {
+        draw();
+        scroller.scrollTop = scroller.scrollHeight;
+        draw();
+      });
+      new ResizeObserver(tick).observe(pane);
+    </script>
+  </body>
+</html>
