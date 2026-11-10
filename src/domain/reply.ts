@@ -124,12 +124,19 @@ function codeClosed(source: string): boolean {
 }
 
 /**
+ * A closing fence written at the end of the last component's line is content to
+ * Markdown, so it arrives as a trailing positional value; the fence line below
+ * it closes the block. Dropping it leaves the component readable.
+ */
+const TRAILING_FENCE = /[ \t]*(?:`{3,}|~{3,})[ \t]*$/;
+
+/**
  * One fence holds one or more compact-syntax statements, or a JSON component
  * object, the form earlier replies were stored in; both read through the same
  * forgiving compiler.
  */
 export function compileFence(content: string, raw: string): ReplyPart[] {
-  const compiled = compileComponents(content);
+  const compiled = compileComponents(content.replace(TRAILING_FENCE, ""));
   if (!compiled.length)
     return [
       {

@@ -242,6 +242,20 @@ describe("composed replies", () => {
     expect(data.body).toEqual([{ type: "text", body: "```md\n:::\n```" }]);
   });
 
+  it("reads a component whose line ends with the closing fence", () => {
+    const data = read(
+      ':::reply\n```workstreams\nchecks(title: "T", scope: "S", items: [{name: "N", status: passed}])```\n```\n:::\n',
+    );
+    expect(data.body).toEqual([
+      {
+        type: "checks",
+        title: "T",
+        scope: "S",
+        items: [{ name: "N", status: "passed" }],
+      },
+    ]);
+  });
+
   it("keeps malformed component source without losing surrounding prose or the recap", () => {
     const source =
       ':::reply{state="complete"}\n# Investigated the failure\n- [x] The source was preserved\n\nBefore.\n\n```workstreams\nnotAComponent(value: "source")\n```\n\nAfter.\n:::\n';

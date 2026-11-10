@@ -663,12 +663,13 @@ which adds a message-block slot, you also get **Structured replies**:
   field; enum words such as `Passed`, `ok`, or `not tested`; numbers and
   booleans written as text; a single value where a list belongs; a string for a
   step or evidence entry; unknown fields, which are dropped; indented `"""`
-  text; nested groups, which flatten; a `Workstreams` or `workstream` fence; and
-  a call its writer closed with `}`, closed twice, or never closed at all. A
-  statement that still fails shows its source with a one-line reason that
-  carries a line and column and, for a near-miss name or enum word, a "did you
-  mean"; the other statements in the fence still render. Replies stored with a
-  JSON object in the fence keep rendering.
+  text; nested groups, which flatten; a `Workstreams` or `workstream` fence; a
+  call its writer closed with `}`, closed twice, or never closed at all; and a
+  fence its writer closed at the end of the last component's line. A statement
+  that still fails shows its source with a one-line reason that carries a line
+  and column and, for a near-miss name or enum word, a "did you mean"; the other
+  statements in the fence still render. Replies stored with a JSON object in the
+  fence keep rendering.
 - Checks and delivery stages can include evidence links. Relative evidence paths
   stay inside the message's workspace; external files use explicit absolute
   paths. Native file previews preserve literal filename characters and separate
