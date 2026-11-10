@@ -326,6 +326,7 @@ it("marks reported working threads but leaves inferred progress unmarked", async
   const { slotMarkFor } = await import("../../src/domain/presentation.ts");
   const thread = {
     indicator: "",
+    status: "idle",
     hasPendingInteraction: false,
     isUnread: false,
   };

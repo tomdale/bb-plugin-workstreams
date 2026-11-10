@@ -538,8 +538,9 @@ weight. Unread titles use medium weight.
   solid while the thread is unread and a ring once read; the Complete dot shows
   only while the thread is unread, so a read thread never carries a bare ring.
   Other unread threads with a mark also show a small blue dot before the title;
-  unread threads without a mark rely on the medium-weight title alone. Blocked
-  threads show no mark.
+  unread threads without a mark rely on the medium-weight title alone. A failed
+  turn keeps its circle until the thread runs again, so reading the row does not
+  clear it. Blocked threads show no mark.
 - **Hover actions:** **Archive** and **Snooze** (click to snooze with your
   default preset; rest the pointer for `350 ms` to open the snooze menu, or
   click **Wake now** on a snoozed row). Thread rows and workstream headers share

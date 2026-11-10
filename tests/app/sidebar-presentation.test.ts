@@ -169,6 +169,24 @@ it("marks a failed turn over a verdict, and working over everything", () => {
   expect(presentRow(running, work, options).slotMark?.kind).toBe("working");
 });
 
+it("keeps the failure mark after the failed turn is read", () => {
+  // BB drops the indicator to "none" on read; the thread's status holds.
+  const read = sidebarThread("e", { title: "Task", status: "error" });
+  expect(read.indicator).toBe("none");
+  expect(hasStatusMark(read, undefined)).toBe(true);
+  expect(presentRow(read, undefined, options)).toMatchObject({
+    accessibleName: "Task, Failed",
+    slotMark: { kind: "error", label: "Failed" },
+  });
+  // An unread failed thread adds the inline unread dot beside that mark.
+  const unread = sidebarThread("u", {
+    title: "Task",
+    status: "error",
+    isUnread: true,
+  });
+  expect(presentRow(unread, undefined, options).slotMark?.kind).toBe("error");
+});
+
 it("reserves a shared status slot when any row has a slot mark", () => {
   const quiet = [thread, sidebarThread("other")];
   const marked = [{ ...thread, hasPendingInteraction: true }, quiet[1]!];

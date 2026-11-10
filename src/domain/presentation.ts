@@ -59,11 +59,12 @@ export function relativeAgeLabel(at: number, now: number): string {
 }
 
 /**
- * The mark a thread row's leading slot shows, at most one per row. Broken
- * and in-flight states come from BB's live status; needs-you adds the
- * pending card and the needs-decision verdict; review and done are the
- * verdicts on a finished turn; waiting covers a turn the agent reported
- * waiting on a subagent or timer.
+ * The mark a thread row's leading slot shows, at most one per row. A failed
+ * turn comes from BB's thread status, which holds until the next turn, so the
+ * mark outlives the row being read; the rest of the turned states come from
+ * BB's live indicator. Needs-you adds the pending card and the needs-decision
+ * verdict; review and done are the verdicts on a finished turn; waiting
+ * covers a turn the agent reported waiting on a subagent or timer.
  *
  * Unread is never a slot mark of its own. The dots (`dotMark`) carry it in
  * their fill, other marks carry it as an inline dot beside the title, and
@@ -85,6 +86,7 @@ export function dotMark(kind: SlotMarkKind): boolean {
 
 type SlotThread = {
   readonly indicator: string;
+  readonly status: string;
   readonly hasPendingInteraction: boolean;
   readonly isUnread: boolean;
 };
@@ -100,7 +102,11 @@ export function slotMarkFor(
   work: SlotWork,
 ): SlotMark | null {
   const role = statusRole(thread.indicator);
-  if (role === "error") return { kind: "error", label: "Failed" };
+  // The failure mark follows the turn, not the row's unread dot: BB's
+  // indicator drops to "none" once the thread is read, its status stays
+  // "error" until the thread runs again.
+  if (role === "error" || thread.status === "error")
+    return { kind: "error", label: "Failed" };
   if (role === "working") return { kind: "working", label: "Working" };
   const state = work.kind === "current" ? work.analysis?.state : undefined;
   if (
