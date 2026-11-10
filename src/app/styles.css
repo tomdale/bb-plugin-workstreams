@@ -263,14 +263,14 @@
 .ws-suggestions-action:focus-visible {
   background-color: color-mix(
     in oklab,
-    var(--ws-suggestions-accent) 20%,
+    var(--ws-suggestions-accent) 9%,
     transparent
   );
 }
 .ws-suggestions-action:active {
   background-color: color-mix(
     in oklab,
-    var(--ws-suggestions-accent) 30%,
+    var(--ws-suggestions-accent) 14%,
     transparent
   );
 }
