@@ -384,19 +384,19 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    active stay, whatever their tier. So Up Next by default shows a few threads,
    grows only for threads blocked on you, and lists at most `10` on its own. A
    thread you have read that isn't blocked on you therefore only fills a row
-   nothing more urgent wants; turning **Keeps Up Next full** off (its off state
-   is **Only what needs you**) drops those threads entirely, so Up Next lists
-   just the threads that are unread or blocked on you, fewer than **Threads
-   shown** when there are fewer of them, and nothing when none needs you. **Show
-   N more** lists the trimmed threads that are unread or blocked on you below
-   the rest, and **Show less** collapses them; trimmed read threads not blocked
-   on you stay in Recent and their workstreams. It re-ranks as recaps, read
-   state, and activity change. When the order changes, transforms slide existing
-   rows to their new positions without changing their heights. A row joining Up
-   Next fades in at its destination. With reduced motion enabled, the new order
-   appears without sliding or fading. The thread you have open keeps its row and
-   place until you open another thread. Nested delegates do not appear as
-   separate Up Next entries; find them in their workstream's thread tree.
+   nothing more urgent wants; turning **Keep Up Next full** off drops those
+   threads entirely, so Up Next lists just the threads that are unread or
+   blocked on you, fewer than **Threads shown** when there are fewer of them,
+   and nothing when none needs you. **Show N more** lists the trimmed threads
+   that are unread or blocked on you below the rest, and **Show less** collapses
+   them; trimmed read threads not blocked on you stay in Recent and their
+   workstreams. It re-ranks as recaps, read state, and activity change. When the
+   order changes, transforms slide existing rows to their new positions without
+   changing their heights. A row joining Up Next fades in at its destination.
+   With reduced motion enabled, the new order appears without sliding or fading.
+   The thread you have open keeps its row and place until you open another
+   thread. Nested delegates do not appear as separate Up Next entries; find them
+   in their workstream's thread tree.
    - **Focus:** While a focused workstream has a thread blocked on you, Up Next
      applies these rules to focused workstreams' threads only and marks its
      header with the focus icon.
@@ -960,8 +960,8 @@ Open **Settings → Workstreams** to configure:
 | **Sidebar**           | **Timestamp**                                      | `Always`                                    | Show each row's age, right after its title, `Always`, `On hover`, or `Never`.                                                                                                                                                                      |
 | **Sidebar**           | **Thread count** / **Waiting count**               | `When collapsed`                            | Show workstream counts `Always`, `When collapsed`, or `Never`.                                                                                                                                                                                     |
 | **Up Next**           | **Threads shown**                                  | `5` (`1–10`)                                | How many rows Up Next shows by default. Threads blocked on you still grow past this count, up to `10`.                                                                                                                                             |
-| **Up Next**           | **Keeps Up Next full** / **Only what needs you**   | `On`                                        | On, threads you have read top up the rows after the ones that need you. Off, Up Next leaves them out, so it holds fewer rows than **Threads shown**, or none, when nothing needs you.                                                              |
-| **Up Next**           | **Unread first** / **Unread ranks with the rest**  | `On`                                        | On, unread threads come before read ones, newest first. Off, each thread ranks by what its turn was blocked on, so a read question can lead an unread review.                                                                                      |
+| **Up Next**           | **Keep Up Next full**                              | `On`                                        | On, threads you have read top up the rows after the ones that need you. Off, Up Next leaves them out, so it holds fewer rows than **Threads shown**, or none, when nothing needs you.                                                              |
+| **Up Next**           | **Unread first**                                   | `On`                                        | On, unread threads come before read ones, newest first. Off, each thread ranks by what its turn was blocked on, so a read question can lead an unread review.                                                                                      |
 | **Up Next**           | **Prioritize recent threads**                      | `Don't prioritize`                          | Threads whose turn ended within the chosen window (`Last hour` through `Last week`) lead, whatever they were blocked on. The ranking above still orders the threads inside each group.                                                             |
 | **Working indicator** | **Style**, **Color**, **Track**                    | `Spokes`, `Subtle gray`, `Faded color`      | Choose from `7` spinner shapes (`Spokes`, `Sunburst`, `Arc`, `Orbit`, `Ring`, `Braille`, `Dots`), named or custom `#rrggbb` colors, and track styles for `Arc`/`Orbit`/`Ring`.                                                                     |
 | **Colors**            | **Default colors**, then six colors                | `Workstreams`                               | **Default colors** picks Workstreams' own shades or matching bb theme colors; each color's swatches can override it with a theme color or a custom `#rrggbb`.                                                                                      |

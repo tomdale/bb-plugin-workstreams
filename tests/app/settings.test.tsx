@@ -244,7 +244,7 @@ it("saves Up Next's row count, fill, unread order, and recent window", async () 
   expect(shown.textContent).toBe("5");
   fireEvent.click(slot.getByRole("button", { name: "Increase threads shown" }));
   await waitFor(() => expect(shown.textContent).toBe("6"));
-  fireEvent.click(slot.getByRole("switch", { name: "Keeps Up Next full" }));
+  fireEvent.click(slot.getByRole("switch", { name: "Keep Up Next full" }));
   fireEvent.click(slot.getByRole("switch", { name: "Unread first" }));
   fireEvent.click(
     slot.getByRole("button", { name: "Prioritize recent threads" }),
@@ -267,7 +267,7 @@ it("saves Up Next's row count, fill, unread order, and recent window", async () 
   ]);
 });
 
-it("names each Up Next setting by what it is doing now", async () => {
+it("describes each Up Next setting as it is set now", async () => {
   const slot = await mount("up-next");
   expect(
     await slot.findByText(
@@ -277,22 +277,19 @@ it("names each Up Next setting by what it is doing now", async () => {
   expect(
     slot.getByText("Unread threads come before read ones, newest first."),
   ).toBeTruthy();
-  fireEvent.click(slot.getByRole("switch", { name: "Keeps Up Next full" }));
+  fireEvent.click(slot.getByRole("switch", { name: "Keep Up Next full" }));
   fireEvent.click(slot.getByRole("switch", { name: "Unread first" }));
   expect(
-    await slot.findByRole("switch", { name: "Only what needs you" }),
-  ).toBeTruthy();
-  expect(
-    await slot.findByRole("switch", { name: "Unread ranks with the rest" }),
-  ).toBeTruthy();
-  expect(
-    slot.getByText(
+    await slot.findByText(
       "Leaves out threads you have read that aren't waiting on you, so Up Next can be empty.",
     ),
   ).toBeTruthy();
   expect(
     slot.getByText("A read question can lead an unread review."),
   ).toBeTruthy();
+  // The labels hold still while the lines under them follow the setting.
+  expect(slot.getByRole("switch", { name: "Keep Up Next full" })).toBeTruthy();
+  expect(slot.getByRole("switch", { name: "Unread first" })).toBeTruthy();
 });
 
 it("describes the recent-thread window it is set to", async () => {

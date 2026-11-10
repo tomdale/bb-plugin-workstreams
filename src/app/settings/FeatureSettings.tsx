@@ -164,9 +164,9 @@ export function SidebarSettings() {
  * what leads them. The same order draws the sidebar, the phone Home screen,
  * the queue, and the next Up Next command (see `selectUpNext`).
  *
- * Each row's label and description state what the setting is doing now, so the
- * section reads as a description of the list rather than a list of switches to
- * decode; the alternatives a row offers live in its control.
+ * Each label names a setting and stays put; the line under it states what that
+ * setting is doing now, so a switch's two sides never move the row the user is
+ * aiming at and the section still reads as the list they have.
  */
 export function UpNextSettings() {
   const { prefs, update, error } = useFeaturePrefs();
@@ -180,25 +180,12 @@ export function UpNextSettings() {
     { value: "3d", label: "Last 3 days" },
     { value: "7d", label: "Last week" },
   ];
-  const fill = prefs.upNext.fill
-    ? {
-        label: "Keeps Up Next full",
-        description: "Adds threads you have read after the ones that need you.",
-      }
-    : {
-        label: "Only what needs you",
-        description:
-          "Leaves out threads you have read that aren't waiting on you, so Up Next can be empty.",
-      };
-  const unread = prefs.upNext.unreadFirst
-    ? {
-        label: "Unread first",
-        description: "Unread threads come before read ones, newest first.",
-      }
-    : {
-        label: "Unread ranks with the rest",
-        description: "A read question can lead an unread review.",
-      };
+  const fillDescription = prefs.upNext.fill
+    ? "Adds threads you have read after the ones that need you."
+    : "Leaves out threads you have read that aren't waiting on you, so Up Next can be empty.";
+  const unreadDescription = prefs.upNext.unreadFirst
+    ? "Unread threads come before read ones, newest first."
+    : "A read question can lead an unread review.";
   const window = windows.find(
     (option) => option.value === prefs.upNext.freshWindow,
   );
@@ -224,22 +211,22 @@ export function UpNextSettings() {
           }
         />
         <SettingRow
-          label={fill.label}
-          description={fill.description}
+          label="Keep Up Next full"
+          description={fillDescription}
           control={
             <SettingSwitch
-              label={fill.label}
+              label="Keep Up Next full"
               checked={prefs.upNext.fill}
               onChange={(next) => update({ upNext: { fill: next } })}
             />
           }
         />
         <SettingRow
-          label={unread.label}
-          description={unread.description}
+          label="Unread first"
+          description={unreadDescription}
           control={
             <SettingSwitch
-              label={unread.label}
+              label="Unread first"
               checked={prefs.upNext.unreadFirst}
               onChange={(unreadFirst) => update({ upNext: { unreadFirst } })}
             />
