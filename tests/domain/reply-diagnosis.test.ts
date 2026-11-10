@@ -214,19 +214,19 @@ describe("diagnoseReply", () => {
   it("parses thread IDs, @thread mentions, and BB message URLs", () => {
     expect(
       parseReplyTarget(
-        "http://127.0.0.1:38886/projects/proj_wsn9w7svv8/threads/thr_5wjm6b2596#msg=115",
+        "http://127.0.0.1:38886/projects/proj_demo1aaaaa/threads/thr_demo2aaaaa#msg=115",
       ),
-    ).toEqual({ threadId: "thr_5wjm6b2596", messageSeq: 115 });
-    expect(parseReplyTarget("@thread:thr_5wjm6b2596#msg=90")).toEqual({
-      threadId: "thr_5wjm6b2596",
+    ).toEqual({ threadId: "thr_demo2aaaaa", messageSeq: 115 });
+    expect(parseReplyTarget("@thread:thr_demo2aaaaa#msg=90")).toEqual({
+      threadId: "thr_demo2aaaaa",
       messageSeq: 90,
     });
-    expect(parseReplyTarget("thr_5wjm6b2596", 42)).toEqual({
-      threadId: "thr_5wjm6b2596",
+    expect(parseReplyTarget("thr_demo2aaaaa", 42)).toEqual({
+      threadId: "thr_demo2aaaaa",
       messageSeq: 42,
     });
-    expect(parseReplyTarget("thr_5wjm6b2596")).toEqual({
-      threadId: "thr_5wjm6b2596",
+    expect(parseReplyTarget("thr_demo2aaaaa")).toEqual({
+      threadId: "thr_demo2aaaaa",
     });
     expect(parseReplyTarget("   ")).toBeNull();
   });

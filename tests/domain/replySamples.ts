@@ -21,7 +21,7 @@ export type ReplySample = {
 export const REPLY_SAMPLES: ReplySample[] = [
   {
     kind: "finished work",
-    from: "thr_ghfi59evbk",
+    from: "thr_demo6aaaaa",
     card: true,
     message: `:::reply
 ### Checked
@@ -37,7 +37,7 @@ Each snapshot carries its own copy of the scripts, so changing a script makes a 
   },
   {
     kind: "finished work, no card",
-    from: "thr_ghfi59evbk",
+    from: "thr_demo6aaaaa",
     card: false,
     message: `:::reply{v="1"}
 Skills find their helper scripts from every install path. Both commits are pushed: [toolbelt ff20695](https://github.com/tomdale/toolbelt/commit/ff20695a8a0e8225e7b2c63ab2a2575f5f5bc6e2) and [dotfiles 20898c5](https://github.com/tomdale/dotfiles/commit/20898c50af6f973e57f18be9ffed1f0de3e4ccf6).
@@ -54,7 +54,7 @@ Skills find their helper scripts from every install path. Both commits are pushe
   },
   {
     kind: "status check",
-    from: "thr_bmdzxnqkvt",
+    from: "thr_sample001",
     card: true,
     message: `:::reply
 ### Checked
@@ -76,7 +76,7 @@ One older Build Container run failed. A newer run replaced it and passed, so it 
   },
   {
     kind: "report",
-    from: "thr_6mnpbbtj5b",
+    from: "thr_demo3aaaaa",
     card: true,
     message: `:::reply
 ### Not done
@@ -98,10 +98,10 @@ Leave out the subagent model override, or write \`vercel-ai-gateway/openai/gpt-6
   },
   {
     kind: "handed off",
-    from: "thr_bv9tr2z664",
+    from: "thr_demo4aaaaa",
     card: false,
     message: `:::reply
-@thread:thr_4teudyehkq now owns the browser-automation Zod error. It has the error text and the steps to reproduce it.
+@thread:thr_demo1aaaaa now owns the browser-automation Zod error. It has the error text and the steps to reproduce it.
 
 ### Next
 That thread reports back here when it has a fix.
@@ -110,7 +110,7 @@ That thread reports back here when it has a fix.
   },
   {
     kind: "waiting on you",
-    from: "thr_yfujvpd8vc",
+    from: "thr_demo9aaaaa",
     card: false,
     message: `:::reply
 The GitHub issue form is open in your browser with the title and body filled in. I have not submitted it.
@@ -122,7 +122,7 @@ The GitHub issue form is open in your browser with the title and body filled in.
   },
   {
     kind: "blocked",
-    from: "thr_myw2nnifxa",
+    from: "thr_sample002",
     card: false,
     message: `:::reply
 The live test stops with \`403 Forbidden\`: the default development token may not call the service-only API. Listing and enabling the sample plugin work, and cleanup succeeds.
