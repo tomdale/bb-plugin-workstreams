@@ -1,7 +1,7 @@
 /**
  * The organizing suggestions on the Workstreams heading: a count ("2
- * suggestions") in a fixed-width slot that opens them in a flyaway below the
- * heading. The flyaway floats over the workstreams, so the list under it
+ * suggestions") in a fixed-width slot that opens them in a flyaway to the right of
+ * the count. The flyaway floats over the workstreams, so the list under it
  * never moves, and Up Next above it is untouched.
  *
  * Each suggestion starts with its headline ("Merge Payments into Billing"),
@@ -32,7 +32,6 @@ import { useRealtime } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import {
   Popover,
-  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
@@ -92,7 +91,7 @@ export function SuggestionsFlyaway({
   children: (slot: ReactNode) => ReactElement;
 }) {
   const [open, setOpen] = useState(false);
-  const anchor = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   // The count stays while the flyaway is open, so focus has somewhere to
   // return on close even after the last decision.
   const shown = count > 0 || open;
@@ -102,6 +101,7 @@ export function SuggestionsFlyaway({
       {shown ? (
         <PopoverTrigger asChild>
           <button
+            ref={trigger}
             type="button"
             // A transparent border is the chip: the border-box (what the
             // hover background paints and the pointer hits) grows 3px up,
@@ -111,6 +111,11 @@ export function SuggestionsFlyaway({
             // label's baseline.
             className="ws-suggestions-action -mx-2 -mb-[2px] -mt-[3px] flex shrink-0 cursor-pointer items-center whitespace-nowrap rounded-md border-transparent border-x-8 border-b-2 border-t-[3px] text-[12px] leading-4 font-medium tabular-nums transition-colors"
           >
+            <Icon
+              name="Sparkles"
+              className="mr-1 size-3 shrink-0"
+              aria-hidden
+            />
             {count > 0 ? suggestionCountLabel(count) : "No suggestions"}
           </button>
         </PopoverTrigger>
@@ -120,13 +125,11 @@ export function SuggestionsFlyaway({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <Scrim shown={open} />
-      <PopoverAnchor asChild ref={anchor} tabIndex={-1}>
-        {children(slot)}
-      </PopoverAnchor>
+      {children(slot)}
       <PopoverContent
         align="start"
-        side="bottom"
-        sideOffset={6}
+        side="right"
+        sideOffset={10}
         aria-label={TITLE}
         mobileTitle={TITLE}
         // Focus the flyaway itself, so Tab reaches the suggestions first and
@@ -136,10 +139,10 @@ export function SuggestionsFlyaway({
           (event.currentTarget as HTMLElement | null)?.focus();
         }}
         onCloseAutoFocus={(event) => {
-          // With nothing left, the count is gone: focus its heading instead.
+          // With nothing left the count is gone; focus returns to the trigger.
           if (count > 0) return;
           event.preventDefault();
-          anchor.current?.focus();
+          trigger.current?.focus();
         }}
         // Wider than the sidebar, over the thread beside it, so both sides of
         // each suggestion have room for their names.
@@ -241,6 +244,7 @@ function SuggestionList({
     ...decided.keys(),
   ]);
 
+  const open2 = ready.filter((s) => !decided.has(s.id)).length;
   const forget = (ids: readonly string[]) =>
     setDecided((was) => {
       const next = new Map(was);
@@ -283,6 +287,10 @@ function SuggestionList({
       toast.error(message(cause));
       forget([s.id]);
     }
+  };
+  const decideAll = async (decision: Decided["decision"]) => {
+    const targets = ready.filter((s) => !decided.has(s.id));
+    for (const s of targets) await decide(s, decision);
   };
   const undo = async (id: string) => {
     const entry = decided.get(id);
@@ -337,6 +345,24 @@ function SuggestionList({
           Close
         </button>
       </div>
+      {open2 > 1 ? (
+        <div className="flex h-8 shrink-0 items-center justify-end gap-1 border-b border-border px-1.5">
+          <button
+            type="button"
+            onClick={() => void decideAll("decline")}
+            className={cn(TEXT_BUTTON, REJECT_TEXT)}
+          >
+            Reject all
+          </button>
+          <button
+            type="button"
+            onClick={() => void decideAll("accept")}
+            className={cn(TEXT_BUTTON, ACCEPT_TEXT)}
+          >
+            Accept all
+          </button>
+        </div>
+      ) : null}
       {rows.length ? (
         <ul className="m-0 min-h-0 flex-1 list-none overflow-y-auto overscroll-contain p-0">
           {rows}
@@ -370,6 +396,10 @@ const lostFocus = () =>
 const TEXT_BUTTON =
   "h-6 shrink-0 cursor-pointer rounded-md px-2 text-xs text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring";
 
+const ACCEPT_TEXT =
+  "text-[var(--ws-complete-text)] hover:text-[var(--ws-complete-text)]";
+const REJECT_TEXT = "text-destructive hover:text-destructive";
+
 const ROW = "border-b border-border/60 px-3 last:border-b-0";
 
 function SuggestionRow({
@@ -399,7 +429,7 @@ function SuggestionRow({
               type="button"
               aria-label={`Decline: ${headline}`}
               onClick={() => onDecide("decline")}
-              className={rowActionClass}
+              className={cn(rowActionClass, REJECT_TEXT)}
             >
               <Icon name="X" className="size-3.5" aria-hidden />
             </button>
@@ -409,7 +439,7 @@ function SuggestionRow({
               type="button"
               aria-label={`Accept: ${headline}`}
               onClick={() => onDecide("accept")}
-              className={cn(rowActionClass, "text-foreground")}
+              className={cn(rowActionClass, ACCEPT_TEXT)}
             >
               <Icon name="Check" className="size-3.5" aria-hidden />
             </button>
