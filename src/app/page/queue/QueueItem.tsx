@@ -10,7 +10,14 @@
  * thread actions. Reply replaces the replies and the row in place, so the
  * card doesn't move.
  */
-import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import {
+  memo,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
@@ -144,22 +151,52 @@ export function CardStack({
   );
 }
 
-/** The recap card, or a plain card for a thread without a recap. */
-export function ThreadCard({
-  card,
-  threadId,
-  files,
-  age,
-  question,
-  waitingCancelled = false,
-}: {
+type ThreadCardProps = {
   card: QueueCard;
   threadId: string;
   files: RecapFiles | null;
   age: string;
   question?: ReactNode;
   waitingCancelled?: boolean;
-}) {
+};
+
+/**
+ * Whether two cards draw the same: `cardOf` builds a new card for each
+ * render, from values that keep their identity while unchanged.
+ */
+function sameCard(a: QueueCard, b: QueueCard): boolean {
+  if (a === b) return true;
+  const fields = Object.keys(a) as (keyof QueueCard)[];
+  return (
+    fields.length === Object.keys(b).length &&
+    fields.every((field) => Object.is(a[field], b[field]))
+  );
+}
+
+/**
+ * The recap card, or a plain card for a thread without a recap. The queue
+ * draws every card in the pile on each render, so a card whose content is
+ * unchanged skips its recap's Markdown.
+ */
+export const ThreadCard = memo(
+  ThreadCardContent,
+  (before: ThreadCardProps, after: ThreadCardProps) =>
+    sameCard(before.card, after.card) &&
+    before.threadId === after.threadId &&
+    before.files === after.files &&
+    before.age === after.age &&
+    before.question === after.question &&
+    before.waitingCancelled === after.waitingCancelled,
+);
+
+function ThreadCardContent({
+  card,
+  threadId,
+  files,
+  age,
+  question,
+  waitingCancelled = false,
+}: ThreadCardProps) {
   return (
     <div
       style={{ zoom: question ? undefined : CARD_ZOOM }}
@@ -274,7 +311,7 @@ export type SuggestionMove = {
 };
 
 /** A suggestion's card: why, then each topic with the threads moving into it. */
-export function SuggestionCard({
+export const SuggestionCard = memo(function SuggestionCard({
   reason,
   moving,
   moves,
@@ -320,7 +357,7 @@ export function SuggestionCard({
       </div>
     </div>
   );
-}
+});
 
 /**
  * The proposed replies: each a full sentence with its number key. Holding
