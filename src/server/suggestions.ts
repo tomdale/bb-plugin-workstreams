@@ -32,6 +32,10 @@ import {
   type ChangeContext,
   type SuggestionChange,
 } from "../domain/suggestion-change.ts";
+import {
+  suggestionPreview,
+  type SuggestionPreview,
+} from "../domain/suggestion-preview.ts";
 import { topicPath } from "../domain/topic-path.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal } from "./journal.ts";
@@ -208,6 +212,7 @@ export class Suggestions {
               ? row.detail
               : null,
         change: review?.change ?? null,
+        preview: review?.preview ?? null,
         arrivals: review?.arrivals ?? [],
         headline: review?.change ? changeHeadline(review.change) : row.summary,
       };
@@ -676,6 +681,7 @@ export class Suggestions {
     known: { topics: readonly Topic[]; titles: ReadonlyMap<string, string> },
   ): {
     change: SuggestionChange | null;
+    preview: SuggestionPreview | null;
     arrivals: { id: string; title: string }[];
   } {
     const body = JSON.parse(row.body) as TidyEdit | Split;
@@ -713,6 +719,7 @@ export class Suggestions {
     };
     return {
       change: suggestionChange(edit, context),
+      preview: suggestionPreview(edit, context),
       arrivals: (now?.arrivals ?? []).map((id) => ({
         id,
         title: context.title(id),

@@ -2,6 +2,7 @@ import { topicMigrationInput } from "../domain/topicMigration.ts";
 import { categoryGenerationSchema } from "../domain/categories.ts";
 import type { LayoutNode } from "../domain/layout.ts";
 import type { SuggestionChange } from "../domain/suggestion-change.ts";
+import type { SuggestionPreview } from "../domain/suggestion-preview.ts";
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { questionHistorySchema } from "./questions/history.ts";
 import {
@@ -266,6 +267,22 @@ const suggestionChangeSchema: z.ZodType<SuggestionChange> = z.object({
   ),
 });
 
+const previewRowSchema = z.object({
+  kind: z.enum(["topic", "thread", "threads", "more"]),
+  name: z.string(),
+  depth: z.union([z.literal(0), z.literal(1)]),
+  mark: z.enum(["same", "gone", "new"]),
+  count: z.number().optional(),
+  created: z.boolean().optional(),
+  within: z.string().optional(),
+  arriving: z.array(z.object({ id: z.string(), title: z.string() })).optional(),
+});
+
+const suggestionPreviewSchema: z.ZodType<SuggestionPreview> = z.object({
+  before: z.array(previewRowSchema),
+  after: z.array(previewRowSchema),
+});
+
 const suggestionsStateSchema = z.object({
   suggestions: z.array(
     z.object({
@@ -278,6 +295,8 @@ const suggestionsStateSchema = z.object({
       decidedAt: z.number().nullable(),
       problem: z.string().nullable(),
       change: suggestionChangeSchema.nullable(),
+      /** The sidebar rows accepting it touches, now and after. */
+      preview: suggestionPreviewSchema.nullable().default(null),
       headline: z.string(),
       arrivals: z.array(z.object({ id: z.string(), title: z.string() })),
     }),

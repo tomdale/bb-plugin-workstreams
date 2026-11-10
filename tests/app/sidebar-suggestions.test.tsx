@@ -18,6 +18,7 @@ const suggestion = (
   headline: string,
   change: Suggestion["change"],
   problem: string | null = null,
+  preview: Suggestion["preview"] = null,
 ): Suggestion => ({
   id,
   kind: "edit",
@@ -28,21 +29,43 @@ const suggestion = (
   decidedAt: null,
   problem,
   change,
+  preview,
   headline,
   arrivals: [],
 });
 
-const merge = suggestion("merge", "Merge Payments into Billing", {
-  op: "merge",
-  moves: [
-    {
-      from: place("Payments"),
-      to: place("Billing"),
-      threads: [{ id: "t1", title: "Refund flow" }],
-      carried: 0,
-    },
-  ],
-});
+const merge = suggestion(
+  "merge",
+  "Merge Payments into Billing",
+  {
+    op: "merge",
+    moves: [
+      {
+        from: place("Payments"),
+        to: place("Billing"),
+        threads: [{ id: "t1", title: "Refund flow" }],
+        carried: 0,
+      },
+    ],
+  },
+  null,
+  {
+    before: [
+      { kind: "topic", name: "Billing", depth: 0, mark: "same", count: 1 },
+      { kind: "topic", name: "Payments", depth: 0, mark: "gone", count: 1 },
+    ],
+    after: [
+      {
+        kind: "topic",
+        name: "Billing",
+        depth: 0,
+        mark: "new",
+        count: 2,
+        arriving: [{ id: "t1", title: "Refund flow" }],
+      },
+    ],
+  },
+);
 const rename = suggestion("rename", "Rename Docs to Docs site", {
   op: "rename",
   moves: [
@@ -92,17 +115,15 @@ it("shows no count when nothing waits", async () => {
   expect(slot.queryByRole("button", { name: /suggestion/ })).toBeNull();
 });
 
-it("lists each suggestion's change and the threads it moves", async () => {
+it("draws each suggestion before and after, named by its headline", async () => {
   const { flyaway } = await open([merge, rename, outdated]);
-  await flyaway.findByText("Merge Payments into Billing");
-  expect(flyaway.getByText("Refund flow")).toBeTruthy();
-  // A suggestion that moves no thread keeps an empty second line.
-  const renameLines = flyaway
-    .getByText("Rename Docs to Docs site")
-    .closest("li")!
-    .querySelectorAll("p");
-  expect(renameLines).toHaveLength(1);
-  expect(renameLines[0]!.textContent).toBe("");
+  const row = (await flyaway.findByText("Merge Payments into Billing")).closest(
+    "li",
+  )!;
+  expect(within(row).getAllByText("Billing")).toHaveLength(2);
+  expect(within(row).getByText("Payments")).toBeTruthy();
+  // A suggestion without a drawing shows its headline.
+  expect(flyaway.getByText("Rename Docs to Docs site")).toBeTruthy();
   // Out-of-date suggestions are counted, not listed.
   expect(flyaway.queryByText("Move Infra under Platform")).toBeNull();
   expect(flyaway.getByText("1 out of date")).toBeTruthy();
@@ -116,48 +137,17 @@ it("lists each suggestion's change and the threads it moves", async () => {
   ).toBeTruthy();
 });
 
-const reparent = suggestion("reparent", "Move Workforest under bb", {
-  op: "reparent",
-  moves: [
-    {
-      from: place("Workforest"),
-      to: [...place("bb"), ...place("Workforest")],
-      threads: [],
-      carried: 2,
-      carriedThreads: [
-        { id: "w1", title: "Fix worktree cleanup" },
-        { id: "w2", title: "Cache mirrors" },
-      ],
-    },
-  ],
-});
-
-it("lists a group's threads when its count is clicked", async () => {
-  const { flyaway } = await open([reparent]);
-  const line = await flyaway.findByRole("button", { name: "2 threads" });
-  expect(line.getAttribute("aria-expanded")).toBe("false");
-  fireEvent.click(line);
-  expect(line.getAttribute("aria-expanded")).toBe("true");
-  expect(flyaway.getByText("Fix worktree cleanup")).toBeTruthy();
-  expect(flyaway.getByText("Cache mirrors")).toBeTruthy();
-  fireEvent.click(line);
-  expect(flyaway.getByRole("button", { name: "2 threads" })).toBeTruthy();
-  expect(flyaway.queryByText("Cache mirrors")).toBeNull();
-});
-
-it("lists every thread when the line is cut off", async () => {
-  const widths = vi
-    .spyOn(HTMLElement.prototype, "scrollWidth", "get")
-    .mockReturnValue(400);
-  try {
-    const { flyaway } = await open([merge]);
-    fireEvent.click(
-      await flyaway.findByRole("button", { name: "Refund flow" }),
-    );
-    await flyaway.findByRole("button", { name: "Refund flow", expanded: true });
-  } finally {
-    widths.mockRestore();
-  }
+it("lists the threads arriving when a count is clicked", async () => {
+  const { flyaway } = await open([merge]);
+  const count = await flyaway.findByRole("button", {
+    name: "Show 1 thread arriving in Billing",
+  });
+  expect(flyaway.queryByText("Refund flow")).toBeNull();
+  fireEvent.click(count);
+  expect(count.getAttribute("aria-expanded")).toBe("true");
+  expect(flyaway.getByText("Refund flow")).toBeTruthy();
+  fireEvent.click(count);
+  expect(flyaway.queryByText("Refund flow")).toBeNull();
 });
 
 it("leaves suggestions waiting when closed", async () => {

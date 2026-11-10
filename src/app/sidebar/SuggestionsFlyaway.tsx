@@ -4,11 +4,11 @@
  * heading. The flyaway floats over the workstreams, so the list under it
  * never moves, and Up Next above it is untouched.
  *
- * Each suggestion is two lines: what accepting it does ("Merge Payments into
- * Billing") with Decline and Accept, then the threads it moves. The second
- * line stays, empty, when no thread moves, so every suggestion has the same
- * shape. When that line names several threads, counts a group's ("4
- * threads"), or is cut off, clicking it lists every thread, one per line. A decision applies at once and leaves a line in its place with Undo
+ * Each suggestion is drawn as the sidebar rows it touches, before and after
+ * accepting (`SuggestionPreview`), with Decline and Accept beside it; its
+ * headline ("Merge Payments into Billing") names the row for screen readers
+ * and the buttons. The flyaway is wider than the sidebar, so both sides have
+ * room. A decision applies at once and leaves a line in its place with Undo
  * for a few seconds, as in Topics; Activity keeps Undo after that. Closing
  * (Escape, Close, or a click outside) decides nothing: the rest keep waiting.
  *
@@ -22,7 +22,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type ReactElement,
@@ -40,14 +39,10 @@ import {
 import { cn } from "@/lib/utils";
 import type { SuggestionsStateWire } from "../../server/contract.ts";
 import { keepOrder } from "../../domain/feed.ts";
-import {
-  movingThreadTitles,
-  movingThreadsLine,
-  type SuggestionChange,
-} from "../../domain/suggestion-change.ts";
 import type { useWorkstreams } from "../useWorkstreams.ts";
 import { Hint } from "../Hint.tsx";
 import { rowActionClass } from "./HoverActions.tsx";
+import { SuggestionPreview } from "./SuggestionPreview.tsx";
 
 type Rpc = ReturnType<typeof useWorkstreams>["rpc"];
 type Suggestion = SuggestionsStateWire["suggestions"][number];
@@ -140,7 +135,9 @@ export function SuggestionsFlyaway({
           event.preventDefault();
           anchor.current?.focus();
         }}
-        className="flex max-h-[min(26rem,var(--radix-popover-content-available-height))] w-(--radix-popover-trigger-width) min-w-60 flex-col overflow-hidden p-0 text-[13px]"
+        // Wider than the sidebar, over the thread beside it, so both sides of
+        // each suggestion have room for their names.
+        className="flex max-h-[min(32rem,var(--radix-popover-content-available-height))] w-[360px] max-w-[calc(100vw-1rem)] flex-col overflow-hidden p-0 text-[13px]"
       >
         <SuggestionList
           rpc={rpc}
@@ -332,88 +329,7 @@ const lostFocus = () =>
 const TEXT_BUTTON =
   "h-6 shrink-0 cursor-pointer rounded-md px-2 text-xs text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring";
 
-/** A suggestion's two lines, shared by its pending and decided forms. */
-function Lines({ top, threads }: { top: ReactNode; threads: ReactNode }) {
-  return (
-    <>
-      <div className="flex min-h-6 items-center gap-2">{top}</div>
-      {typeof threads === "string" ? (
-        <p className={THREADS}>{threads}</p>
-      ) : (
-        threads
-      )}
-    </>
-  );
-}
-
-const THREADS = "m-0 min-h-4 truncate leading-4 text-muted-foreground";
-
-/**
- * The threads a suggestion moves, on one line. When it names more than one,
- * counts a group's threads, or is cut off, it is a button that lists every
- * thread, one per line, and folds back on a second click.
- */
-function MovingThreads({ change }: { change: SuggestionChange }) {
-  const line = movingThreadsLine(change);
-  const titles = movingThreadTitles(change);
-  const own = change.moves.reduce((n, m) => n + m.threads.length, 0);
-  const [expanded, setExpanded] = useState(false);
-  const [cut, setCut] = useState(false);
-  const ref = useRef<HTMLElement>(null);
-  // Several threads always expand, one per line. A single title expands
-  // only when cut off, measured again once the flyaway takes the heading's
-  // width and once the font loads, either of which can change the fit.
-  const several = titles.length > 1 || titles.length > own;
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || several || expanded) return;
-    let live = true;
-    const measure = () => {
-      if (live) setCut(el.scrollWidth > el.clientWidth);
-    };
-    measure();
-    void document.fonts?.ready.then(measure);
-    const observer =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(measure);
-    observer?.observe(el);
-    return () => {
-      live = false;
-      observer?.disconnect();
-    };
-  }, [line, several, expanded]);
-  const expandable = titles.length > 0 && (several || cut);
-  if (!expandable)
-    return (
-      <p ref={ref as React.Ref<HTMLParagraphElement>} className={THREADS}>
-        {line}
-      </p>
-    );
-  return (
-    <button
-      ref={ref as React.Ref<HTMLButtonElement>}
-      type="button"
-      aria-expanded={expanded}
-      onClick={() => setExpanded(!expanded)}
-      className={cn(
-        THREADS,
-        "block w-full cursor-pointer text-left hover:text-foreground",
-        expanded && "whitespace-normal",
-      )}
-    >
-      {expanded
-        ? titles.map((title, index) => (
-            <span key={index} className="block truncate">
-              {title}
-            </span>
-          ))
-        : line}
-    </button>
-  );
-}
-
-const ROW = "border-b border-border/60 px-3 pb-1.5 pt-1 last:border-b-0";
+const ROW = "border-b border-border/60 px-3 last:border-b-0";
 
 function SuggestionRow({
   suggestion,
@@ -422,41 +338,39 @@ function SuggestionRow({
   suggestion: Suggestion;
   onDecide: (decision: Decided["decision"]) => void;
 }) {
-  const { headline } = suggestion;
+  const { headline, preview } = suggestion;
   return (
-    <li className={ROW}>
-      <Lines
-        top={
-          <>
-            <span className="min-w-0 flex-1 font-medium leading-4">
-              {headline}
-            </span>
-            <span className="-mr-1 flex shrink-0 items-center gap-0.5">
-              <Hint label="Decline">
-                <button
-                  type="button"
-                  aria-label={`Decline: ${headline}`}
-                  onClick={() => onDecide("decline")}
-                  className={rowActionClass}
-                >
-                  <Icon name="X" className="size-3.5" aria-hidden />
-                </button>
-              </Hint>
-              <Hint label="Accept">
-                <button
-                  type="button"
-                  aria-label={`Accept: ${headline}`}
-                  onClick={() => onDecide("accept")}
-                  className={cn(rowActionClass, "text-foreground")}
-                >
-                  <Icon name="Check" className="size-3.5" aria-hidden />
-                </button>
-              </Hint>
-            </span>
-          </>
-        }
-        threads={<MovingThreads change={suggestion.change!} />}
-      />
+    <li className={cn(ROW, "flex items-center gap-2 py-2")}>
+      {preview ? (
+        <>
+          <span className="sr-only">{headline}</span>
+          <SuggestionPreview preview={preview} />
+        </>
+      ) : (
+        <span className="min-w-0 flex-1 font-medium leading-4">{headline}</span>
+      )}
+      <span className="-mr-1 flex shrink-0 items-center gap-0.5 self-start">
+        <Hint label="Decline">
+          <button
+            type="button"
+            aria-label={`Decline: ${headline}`}
+            onClick={() => onDecide("decline")}
+            className={rowActionClass}
+          >
+            <Icon name="X" className="size-3.5" aria-hidden />
+          </button>
+        </Hint>
+        <Hint label="Accept">
+          <button
+            type="button"
+            aria-label={`Accept: ${headline}`}
+            onClick={() => onDecide("accept")}
+            className={cn(rowActionClass, "text-foreground")}
+          >
+            <Icon name="Check" className="size-3.5" aria-hidden />
+          </button>
+        </Hint>
+      </span>
     </li>
   );
 }
@@ -474,30 +388,23 @@ function DecidedRow({
     if (lostFocus()) undo.current?.focus();
   }, []);
   return (
-    <li className={ROW}>
-      <Lines
-        top={
-          <>
-            <span
-              role="status"
-              className="min-w-0 flex-1 truncate leading-4 text-muted-foreground"
-            >
-              {decided.decision === "accept"
-                ? `✓ ${decided.headline}`
-                : `Declined: ${decided.headline}`}
-            </span>
-            <button
-              ref={undo}
-              type="button"
-              onClick={onUndo}
-              className="shrink-0 cursor-pointer text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-            >
-              Undo
-            </button>
-          </>
-        }
-        threads=""
-      />
+    <li className={cn(ROW, "flex min-h-9 items-center gap-2 py-2")}>
+      <span
+        role="status"
+        className="min-w-0 flex-1 truncate leading-4 text-muted-foreground"
+      >
+        {decided.decision === "accept"
+          ? `✓ ${decided.headline}`
+          : `Declined: ${decided.headline}`}
+      </span>
+      <button
+        ref={undo}
+        type="button"
+        onClick={onUndo}
+        className="shrink-0 cursor-pointer text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+      >
+        Undo
+      </button>
     </li>
   );
 }

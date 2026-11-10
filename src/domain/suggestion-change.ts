@@ -30,7 +30,7 @@ export type ChangeMove = {
   readonly threads: readonly { readonly id: string; readonly title: string }[];
   /** Further visible threads that move along with a moved topic. */
   readonly carried: number;
-  /** The threads `carried` counts, for review that lists them on request. */
+  /** The threads `carried` counts. */
   readonly carriedThreads?: readonly {
     readonly id: string;
     readonly title: string;
@@ -296,30 +296,6 @@ const list = (names: readonly string[]) =>
   names.length > 2
     ? `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`
     : names.join(" and ");
-
-/**
- * The threads accepting a suggestion moves, as one line for the sidebar's
- * suggestions: the titles it moves itself, then how many more move along
- * with a moved group. Empty when no thread moves. `movingThreadTitles` lists
- * them all.
- */
-export function movingThreadsLine(change: SuggestionChange): string {
-  const titles = change.moves.flatMap((m) => m.threads.map((t) => t.title));
-  const carried = change.moves.reduce((n, m) => n + m.carried, 0);
-  if (!carried) return titles.join(", ");
-  if (titles.length) return `${titles.join(", ")} and ${carried} more`;
-  return carried === 1 ? "1 thread" : `${carried} threads`;
-}
-
-/** Every thread accepting a suggestion moves, by title: its own, then carried. */
-export function movingThreadTitles(change: SuggestionChange): string[] {
-  return [
-    ...change.moves.flatMap((m) => m.threads.map((t) => t.title)),
-    ...change.moves.flatMap((m) =>
-      (m.carriedThreads ?? []).map((t) => t.title),
-    ),
-  ];
-}
 
 /** Whether accepting moves any visible thread, by itself or with its group. */
 export function movesThreads(change: SuggestionChange): boolean {

@@ -273,6 +273,52 @@
   );
 }
 
+/* A suggestion's before and after (SuggestionPreview). A nested row hangs
+   from the row above on a └ guide; a nested row with another below it runs
+   the guide on down to that one's. Green when the row lands. Threads wear a
+   small ring. */
+.ws-preview-nest {
+  position: relative;
+  padding-left: 18px;
+}
+.ws-preview-nest::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: -2px;
+  width: 7px;
+  height: 11px;
+  border-left: 1.25px solid
+    color-mix(in oklab, var(--muted-foreground) 55%, var(--popover));
+  border-bottom: 1.25px solid
+    color-mix(in oklab, var(--muted-foreground) 55%, var(--popover));
+  border-bottom-left-radius: 4px;
+}
+.ws-preview-nest:has(+ .ws-preview-nest)::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 7px;
+  bottom: 0;
+  border-left: 1.25px solid
+    color-mix(in oklab, var(--muted-foreground) 55%, var(--popover));
+}
+.ws-preview-nest-new:has(+ .ws-preview-nest-new)::after {
+  border-color: var(--ws-complete-text);
+}
+.ws-preview-nest-new::before {
+  border-color: var(--ws-complete-text);
+}
+.ws-preview-ring {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border: 1.25px solid currentColor;
+  border-radius: 9999px;
+  vertical-align: 1px;
+}
+
 /* StatusDot's workstream dot takes the topic's hue (`workstreamColorStyle`
    sets --ws-color-dot or --ws-hue). The hollow dot holds its place for
    collections that are not workstreams (Unfiled, Dormant, Snoozed), so every

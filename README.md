@@ -459,17 +459,19 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      **Recent activity**, or **Manual order** (drag headers within their tier).
    - While organizing suggestions wait for review, their count ("2 suggestions")
      appears on the **Workstreams** heading. Click it to open them below the
-     heading, over the workstreams, so the list underneath doesn't move. Each
-     suggestion takes two lines: what it does ("Merge Payments into Billing")
-     with **Decline** (`×`) and **Accept** (`✓`), then the threads it moves (a
-     count when a whole group moves), blank when none move. When that line names
-     several threads, shows a count, or is cut short, click it to list every
-     thread, one per line; click again to fold it. Archived threads move with
-     their topic but aren't listed or counted. A decision applies at once and
-     leaves **Undo** in its place for a few seconds; Activity keeps Undo after
-     that. The foot counts suggestions the tree has since outgrown ("1 out of
-     date") beside **Open Topics**, where you can dismiss them. **Close**,
-     `Esc`, or a click outside closes the list and leaves the rest waiting.
+     heading, over the workstreams and the edge of the thread, so the list
+     underneath doesn't move. Each suggestion draws the sidebar rows it touches
+     as they are, an arrow, and as they would be, with **Decline** (`×`) and
+     **Accept** (`✓`) beside it. Workstreams are bold and threads have a ring;
+     nested rows hang from their parent. Red crossed-out rows leave, green rows
+     land or are new (`+`), and numbers are thread counts. Click a green count
+     to list the threads arriving there. Parents show no count, since threads
+     sit in the topics under them, and archived threads move with their topic
+     without being counted. A decision applies at once and leaves **Undo** in
+     its place for a few seconds; Activity keeps Undo after that. The foot
+     counts suggestions the tree has since outgrown ("1 out of date") beside
+     **Open Topics**, where you can dismiss them. **Close**, `Esc`, or a click
+     outside closes the list and leaves the rest waiting.
    - Drag a root thread to another workstream to set its **Topic** to that
      workstream's topic; its delegates follow it. Drop on a row to place it
      before or after that root, or on a header to place it first, including a
