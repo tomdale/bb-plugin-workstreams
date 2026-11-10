@@ -15,6 +15,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useReducer,
   useRef,
   type RefObject,
@@ -47,6 +48,16 @@ export const UP_NEXT_MOTION = {
   leaveMs: 120,
   /** A burst of row changes redraws once, this long after its last change. */
   burstMs: 120,
+  /**
+   * After the open thread changes, a rearrangement that only removes or
+   * reorders rows waits this long without a further change, so rows do not
+   * move as the user switches threads. Rows arriving are not delayed.
+   */
+  settleMs: 1500,
+  /** How long after a selection change `settleMs` applies. */
+  settleWindowMs: 2000,
+  /** Rearrangement waits until the pointer has been still this long. */
+  pointerIdleMs: 500,
 } as const;
 
 /** Whether motion runs here and now: it needs Web Animations and is off under reduced motion. */
@@ -573,6 +584,17 @@ export function useSlotList<T>(
     readonly edge?: string;
     readonly immediate?: string;
     readonly arranged?: (item: T) => boolean;
+    /**
+     * Changes when the user switches threads; a removal or reorder within
+     * `settleWindowMs` of that waits `settleMs` (see {@link UP_NEXT_MOTION}).
+     */
+    readonly settleKey?: string | null;
+    /**
+     * The time, on the `performance.now` clock, before which a rearrangement
+     * must wait: the pointer moving over the list holds it (see
+     * {@link usePointerHold}). Read when the wait ends.
+     */
+    readonly holdUntil?: () => number;
   },
 ): SlotEntry<T>[] {
   const animate = canAnimate();
@@ -697,6 +719,14 @@ export function useSlotList<T>(
     signature: string;
     id: ReturnType<typeof setTimeout>;
   } | null>(null);
+  const settledAt = useRef<number>(Number.NEGATIVE_INFINITY);
+  const settleKey = useRef(options.settleKey);
+  if (settleKey.current !== options.settleKey) {
+    settleKey.current = options.settleKey;
+    settledAt.current = performance.now();
+  }
+  const holdUntil = useRef(options.holdUntil);
+  holdUntil.current = options.holdUntil;
   useEffect(() => {
     if (display.signature === signature) {
       if (timer.current) clearTimeout(timer.current.id);
@@ -706,13 +736,26 @@ export function useSlotList<T>(
     // A burst restarts the wait on each change.
     if (timer.current?.signature === signature) return;
     if (timer.current) clearTimeout(timer.current.id);
+    const arrival = keys.some((key) => !display.keys.includes(key));
+    const settling =
+      !arrival &&
+      performance.now() - settledAt.current < UP_NEXT_MOTION.settleWindowMs;
+    const apply = () => {
+      const held = (holdUntil.current?.() ?? 0) - performance.now();
+      if (held > 0) {
+        timer.current = { signature, id: setTimeout(apply, held) };
+        return;
+      }
+      timer.current = null;
+      shown.current = latest.current;
+      redraw();
+    };
     timer.current = {
       signature,
-      id: setTimeout(() => {
-        timer.current = null;
-        shown.current = latest.current;
-        redraw();
-      }, UP_NEXT_MOTION.burstMs),
+      id: setTimeout(
+        apply,
+        settling ? UP_NEXT_MOTION.settleMs : UP_NEXT_MOTION.burstMs,
+      ),
     };
   });
   useEffect(
@@ -730,6 +773,25 @@ export function useSlotList<T>(
     leaving: entry.phase === "leave",
     ref: refFor(entry.key),
   }));
+}
+
+/**
+ * Holds a list's rearrangement while the pointer moves over it and for
+ * `pointerIdleMs` after it stops, so rows never shift under a pointer that is
+ * aiming at one. Spread `onPointerMove` on the list's container and pass
+ * `holdUntil` to {@link useSlotList}.
+ */
+export function usePointerHold() {
+  const movedAt = useRef(Number.NEGATIVE_INFINITY);
+  return useMemo(
+    () => ({
+      onPointerMove: () => {
+        movedAt.current = performance.now();
+      },
+      holdUntil: () => movedAt.current + UP_NEXT_MOTION.pointerIdleMs,
+    }),
+    [],
+  );
 }
 
 export type PresencePhase = "enter" | "idle" | "leave";

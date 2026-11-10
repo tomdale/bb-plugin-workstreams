@@ -408,17 +408,20 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    you stay in Recent and their workstreams. It re-ranks as recaps, read state,
    and activity change. A change in its rows waits until changes have been quiet
    for `120 ms`, so a burst moves once, and then everything moves together on
-   one spring. A row joining Up Next opens its slot and fades in, a row leaving
-   fades as its slot closes, and a row that changes rank travels to its new
-   place over the rows it passes. A row the count pushes out slides under **Show
-   N more** without fading, and a row that **Show N more** held rises out from
-   under it into the last slot. The card's edge, **Pinned**, and the workstreams
-   below follow the rows. A row's highlight and marks change at once, and **Show
-   N more** and **Show less** apply without waiting. With reduced motion
-   enabled, the new order appears at once, with nothing fading. The thread you
-   have open keeps its row and place until you open another thread. Nested
-   delegates do not appear as separate Up Next entries; find them in their
-   workstream's thread tree.
+   one spring. A row that leaves or changes rank within `2 s` of opening another
+   thread waits for `1.5 s` of quiet instead, so rows do not move as you switch
+   threads; a row joining is not delayed. While the pointer moves over Up Next,
+   and for `500 ms` after it stops, rows hold their places. A row joining Up
+   Next opens its slot and fades in, a row leaving fades as its slot closes, and
+   a row that changes rank travels to its new place over the rows it passes. A
+   row the count pushes out slides under **Show N more** without fading, and a
+   row that **Show N more** held rises out from under it into the last slot. The
+   card's edge, **Pinned**, and the workstreams below follow the rows. A row's
+   highlight and marks change at once, and **Show N more** and **Show less**
+   apply without waiting. With reduced motion enabled, the new order appears at
+   once, with nothing fading. The thread you have open keeps its row and place
+   until you open another thread. Nested delegates do not appear as separate Up
+   Next entries; find them in their workstream's thread tree.
    - **Focus:** While a focused workstream has a thread blocked on you, Up Next
      applies these rules to focused workstreams' threads only and marks its
      header with the focus icon.

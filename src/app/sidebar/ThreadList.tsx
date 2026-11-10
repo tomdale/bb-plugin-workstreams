@@ -116,6 +116,7 @@ import {
   presenceProps,
   useFlip,
   usePresence,
+  usePointerHold,
   useSlotList,
   type PresenceEntry,
 } from "./motion.ts";
@@ -412,11 +413,14 @@ export function WorkstreamsThreadList({
   );
   // Up Next's rows and Show more, as drawn: a change in which rows show
   // waits out its burst, then every slot moves at once (see `useSlotList`).
+  const upNextPointer = usePointerHold();
   const upNextSlots = useSlotList(upNextItems, upNextItemKey, {
     trimmed: trimmedNeeds,
     edge: UP_NEXT_MORE_KEY,
     immediate: String(showMore),
     arranged: (item) => item.kind === "more",
+    settleKey: activeThreadId,
+    holdUntil: upNextPointer.holdUntil,
   });
   const showBand = upNextSlots.some(
     (slot) => slot.item.kind === "row" && !slot.leaving,
@@ -907,7 +911,7 @@ export function WorkstreamsThreadList({
             <div className="flex flex-col gap-[10px]">
               {bandPresence.map((band) => (
                 <Presence key={band.key} phase={band.phase} gap>
-                  <div>
+                  <div onPointerMove={upNextPointer.onPointerMove}>
                     <Band
                       title={UP_NEXT}
                       box="attention"

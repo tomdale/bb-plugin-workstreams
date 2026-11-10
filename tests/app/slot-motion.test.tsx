@@ -21,10 +21,14 @@ function List({
   items,
   trimmed = new Set(),
   immediate,
+  settleKey,
+  holdUntil,
 }: {
   items: Item[];
   trimmed?: ReadonlySet<string>;
   immediate?: string;
+  settleKey?: string;
+  holdUntil?: () => number;
 }) {
   const slots = useSlotList(
     [...items.map((item) => ({ kind: "row" as const, item })), MORE],
@@ -34,6 +38,8 @@ function List({
       edge: ":more",
       immediate,
       arranged: (entry) => entry.kind === "more",
+      settleKey,
+      holdUntil,
     },
   );
   return (
@@ -198,6 +204,48 @@ describe("useSlotList", () => {
     const view = render(<List items={rows("a")} immediate="false" />);
     view.rerender(<List items={rows("a", "b")} immediate="true" />);
     expect(order()).toEqual(["a", "b", ":more"]);
+  });
+
+  it("waits for the settle delay to remove or reorder rows soon after the open thread changes", () => {
+    const view = render(<List items={rows("a", "b", "c")} settleKey="a" />);
+    step(UP_NEXT_MOTION.settleWindowMs + 1);
+    view.rerender(<List items={rows("a", "b", "c")} settleKey="b" />);
+    view.rerender(<List items={rows("b", "c")} settleKey="b" />);
+    step(UP_NEXT_MOTION.settleMs - 1);
+    expect(slot("a")!.getAttribute("aria-hidden")).toBeNull();
+    step(1);
+    expect(slot("a")!.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("does not delay a row that arrives right after the open thread changes", () => {
+    const view = render(<List items={rows("a", "b")} settleKey="a" />);
+    step(UP_NEXT_MOTION.settleWindowMs + 1);
+    view.rerender(<List items={rows("a", "b")} settleKey="b" />);
+    view.rerender(<List items={rows("n", "a", "b")} settleKey="b" />);
+    step(UP_NEXT_MOTION.burstMs);
+    expect(order()).toContain("n");
+  });
+
+  it("applies a removal at the burst delay when the open thread did not just change", () => {
+    const view = render(<List items={rows("a", "b")} settleKey="a" />);
+    step(UP_NEXT_MOTION.settleWindowMs + 1);
+    view.rerender(<List items={rows("a")} settleKey="a" />);
+    step(UP_NEXT_MOTION.burstMs);
+    expect(slot("b")!.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("holds a rearrangement until the pointer has been still for the idle delay", () => {
+    let movedAt = Number.NEGATIVE_INFINITY;
+    const holdUntil = () => movedAt + UP_NEXT_MOTION.pointerIdleMs;
+    const view = render(<List items={rows("a", "b")} holdUntil={holdUntil} />);
+    view.rerender(<List items={rows("a")} holdUntil={holdUntil} />);
+    step(UP_NEXT_MOTION.burstMs - 20);
+    movedAt = performance.now();
+    step(20);
+    step(UP_NEXT_MOTION.pointerIdleMs - 21);
+    expect(slot("b")!.getAttribute("aria-hidden")).toBeNull();
+    step(1);
+    expect(slot("b")!.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("opens an entering slot from nothing and fades its contents in after a delay", () => {
