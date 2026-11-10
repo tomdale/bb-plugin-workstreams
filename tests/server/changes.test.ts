@@ -159,4 +159,53 @@ describe("client snapshot scope", () => {
       before.changes.revisions.catalog!,
     );
   });
+
+  it("ignores hidden threads' lifecycle events, which never reach the snapshot", async () => {
+    const w = await fakeWorld();
+    worlds.push(w);
+    w.addThread("t1", { status: "idle" });
+    await w.harness.behavior.callRpc("refresh", null);
+    await tick();
+    const before = w.harness.inspection.realtimeSignals.length;
+    const worker = w.addThread("worker", { visibility: "hidden" });
+    for (const event of ["thread.created", "thread.archived"] as const)
+      await w.harness.behavior.emitThreadEvent(event, {
+        thread: { ...worker, archivedAt: Date.now() },
+      } as never);
+    await tick();
+    expect(
+      w.harness.inspection.realtimeSignals
+        .slice(before)
+        .filter((signal) => signal.channel === "changed"),
+    ).toEqual([]);
+  });
+
+  it("names only the slices a visible thread's archive can change", async () => {
+    const w = await fakeWorld();
+    worlds.push(w);
+    w.addThread("t1", { status: "idle" });
+    await w.harness.behavior.callRpc("refresh", null);
+    await tick();
+    const read = async () =>
+      (
+        (await w.harness.behavior.callRpc("state", null)) as {
+          changes: { revisions: Record<string, number> };
+        }
+      ).changes.revisions;
+    const before = await read();
+    const signals = w.harness.inspection.realtimeSignals.length;
+    await w.harness.behavior.emitThreadEvent("thread.archived", {
+      thread: { ...w.threads.get("t1")!, archivedAt: Date.now() },
+    } as never);
+    await tick();
+    const after = await read();
+    for (const slice of ["analysis", "recaps", "catalog"])
+      expect(after[slice]).toBeGreaterThan(before[slice]!);
+    for (const slice of ["order", "snoozes", "suggestions"])
+      expect(after[slice]).toBe(before[slice]);
+    const changed = w.harness.inspection.realtimeSignals
+      .slice(signals)
+      .filter((signal) => signal.channel === "changed");
+    expect(changed[0]?.payload).toMatchObject({ threadIds: ["t1"] });
+  });
 });

@@ -291,8 +291,9 @@ export default async function plugin(bb: BbPluginApi) {
     topics,
     journal,
     exclusive: (task) => service.exclusive(task),
+    // Topics' projects, and the project suggestions views list.
     onChange: () => {
-      notify();
+      notify({ slices: ["catalog", "suggestions"] });
       triggerOrganizer(50);
     },
   });
@@ -344,7 +345,7 @@ export default async function plugin(bb: BbPluginApi) {
         topic: changed ? "applied" : "not applied: the thread keeps its topic",
       });
       if (changed || topics.revision() !== revision) {
-        notify();
+        notify({ slices: ["catalog"], threadIds: [threadId] });
         triggerOrganizer();
       }
     } catch (error) {
@@ -579,7 +580,7 @@ export default async function plugin(bb: BbPluginApi) {
         undo: null,
         detail: `${label}\n${current ? current.categories.map((category) => `${category.name}: ${category.threadIds.map((id) => titles.get(id) ?? id).join(", ")}`).join("\n") : "No active categories"}`,
       });
-      notify();
+      notify({ slices: ["catalog"] });
     },
     log: (message) => bb.log.warn(message),
   });
@@ -593,7 +594,9 @@ export default async function plugin(bb: BbPluginApi) {
     recap: (threadId) => recaps.get(threadId)?.recap,
     members: (sectionId) => sectionMembers(bb.sdk, sectionId),
     journal,
-    onChange: notify,
+    // A pass writes its layout and status; the organization view re-reads its
+    // own state for a change that names no threads.
+    onChange: () => notify({ slices: ["catalog"] }),
     onPass: (rebuild) => {
       void categories
         .reconcile(rebuild)
@@ -624,8 +627,11 @@ export default async function plugin(bb: BbPluginApi) {
       topicDivisionEvidence(bb.sdk, topics, topicId, (id) =>
         placement.checkoutOf(id),
       ),
+    // Suggestion views re-read their lists for a change that names no threads.
     onChange: (topicsChanged) => {
-      notify();
+      notify({
+        slices: topicsChanged ? ["suggestions", "catalog"] : ["suggestions"],
+      });
       if (topicsChanged) triggerOrganizer(10);
     },
     log: (message) => bb.log.warn(message),
@@ -697,7 +703,7 @@ export default async function plugin(bb: BbPluginApi) {
         ? topics.groups().get(identity.sectionId)
         : identity.entityId;
       if (topicId && topics.inheritTopic(threadId, topicId)) {
-        notify();
+        notify({ slices: ["catalog"], threadIds: [threadId] });
         triggerOrganizer(10);
       } else if (topicId) placement.hintStart(threadId, topicId, "workstream");
       return;
@@ -721,7 +727,7 @@ export default async function plugin(bb: BbPluginApi) {
         if (entity) placement.hintStart(threadId, entity.id, "picked");
         return;
       }
-      notify();
+      notify({ slices: ["catalog"], threadIds: [threadId] });
       triggerOrganizer(10);
       return;
     }
@@ -762,7 +768,7 @@ export default async function plugin(bb: BbPluginApi) {
       ctx.queuedMessages.length === 0 &&
       snoozes.clear(ctx.thread.id)
     )
-      notify();
+      notify(SNOOZES);
     // A thread's first message has an origin; follow-ups, steers, and retries
     // don't. Queued re-attempts of a first message still count.
     const fresh =
@@ -854,7 +860,8 @@ export default async function plugin(bb: BbPluginApi) {
           });
         else service.seeThread(ctx.thread.id, null, ctx.parentThreadId ?? null);
         if (!ctx.parentThreadId) {
-          if (from && topics.inherit(ctx.thread.id, from)) notify();
+          if (from && topics.inherit(ctx.thread.id, from))
+            notify({ slices: ["catalog"], threadIds: [ctx.thread.id] });
           else if (from) {
             const source = topics.assignment(from).entityId;
             if (source) placement.hintStart(ctx.thread.id, source, "thread");
@@ -906,8 +913,15 @@ export default async function plugin(bb: BbPluginApi) {
     "thread.unarchived",
     "thread.deleted",
   ] as const)
-    bb.events.on(event, () => {
-      notify();
+    bb.events.on(event, ({ thread }) => {
+      // Hidden threads are never seen, organized, or in the client snapshot,
+      // and subagent runs create and archive them constantly.
+      if (thread.visibility === "hidden") return;
+      // The thread joins or leaves the seen threads that scope these slices.
+      notify({
+        slices: ["analysis", "recaps", "catalog"],
+        threadIds: [thread.id],
+      });
       reconcileSoon();
       triggerOrganizer();
     });
@@ -927,7 +941,7 @@ export default async function plugin(bb: BbPluginApi) {
       thread.sourceThreadId &&
       topics.inherit(thread.id, thread.sourceThreadId)
     ) {
-      notify();
+      notify({ slices: ["catalog"], threadIds: [thread.id] });
       triggerOrganizer();
     }
   });
@@ -939,7 +953,7 @@ export default async function plugin(bb: BbPluginApi) {
         .catch((error: unknown) =>
           bb.log.warn(`Unpinning archived thread failed: ${String(error)}`),
         );
-    if (snoozes.clear(thread.id)) notify();
+    if (snoozes.clear(thread.id)) notify(SNOOZES);
   });
   bb.events.on("interaction.pending", ({ thread, interaction }) => {
     void waker

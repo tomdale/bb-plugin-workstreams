@@ -11,6 +11,7 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { Database } from "./db.ts";
 import { getMeta, setMeta } from "./db.ts";
 import { buildForest } from "../domain/tree.ts";
+import type { ChangeScope } from "../domain/changes.ts";
 import type { Section } from "../domain/project.ts";
 import {
   displayTitle,
@@ -41,7 +42,8 @@ export class WorkstreamService {
     private readonly sdk: () => Sdk,
     private readonly db: Database,
     private readonly journal: Journal,
-    private readonly onChange: () => void,
+    /** Reports a write clients may show; see `ChangeFeed.notify`. */
+    private readonly onChange: (scope?: ChangeScope) => void,
     private readonly now: () => number = Date.now,
     private readonly titlesEnabled: () => boolean = () => true,
     /** Undo put the topic tree back, so workstreams must follow it. */
@@ -134,7 +136,9 @@ export class WorkstreamService {
         workstreams: [],
         undo: { kind: "retitle", threadId, from: thread.title, to: suggestion },
       });
-      this.onChange();
+      // Titles reach clients from BB's own thread list; the client snapshot
+      // holds none, so only this thread's views and the journal follow.
+      this.onChange({ slices: [], threadIds: [threadId] });
       return { entry, skipped: null };
     });
   }
@@ -489,7 +493,11 @@ export class WorkstreamService {
       this.lastReconciledAt = at;
       this.lastThreads = threads;
       this.lastSections = sections;
-      if (changed || snapshotChanged) this.onChange();
+      // Sections and the seen threads shape these slices. Which threads are
+      // seen also decides which threads' records clients may read, so the
+      // change names no threads.
+      if (changed || snapshotChanged)
+        this.onChange({ slices: ["analysis", "recaps", "catalog", "order"] });
       return changed;
     });
   }
