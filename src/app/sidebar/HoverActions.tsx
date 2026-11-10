@@ -253,39 +253,19 @@ function moveFocus(event: KeyboardEvent<HTMLElement>) {
 }
 
 /**
- * The button itself. It stops pointer and mouse downs so it never starts a
- * drag (of the row, or of the workstream a header leads), and clicks so it
- * never opens the row or folds the workstream.
+ * A button in a row that is not the row's press: it stops pointer and mouse
+ * downs so it never starts a drag (of the row, or of the workstream a header
+ * leads), and clicks so it never opens the row or folds the workstream.
  */
-const HoverButton = forwardRef<
+export const RowPressButton = forwardRef<
   HTMLButtonElement,
-  ComponentPropsWithoutRef<"button"> & {
-    label: string;
-    revealed?: boolean;
-    compact?: boolean;
-    onRun?: () => void;
-  }
->(function HoverButton(
-  {
-    label,
-    revealed,
-    compact,
-    onRun,
-    className,
-    children,
-    onPointerDown,
-    onClick,
-    ...rest
-  },
-  ref,
-) {
+  ComponentPropsWithoutRef<"button">
+>(function RowPressButton({ onPointerDown, onClick, ...rest }, ref) {
   return (
     <button
       {...rest}
       ref={ref}
       type="button"
-      aria-label={label}
-      data-revealed={revealed ? "" : undefined}
       onPointerDown={(event) => {
         event.stopPropagation();
         onPointerDown?.(event);
@@ -296,6 +276,31 @@ const HoverButton = forwardRef<
         event.preventDefault();
         event.stopPropagation();
         onClick?.(event);
+      }}
+    />
+  );
+});
+
+const HoverButton = forwardRef<
+  HTMLButtonElement,
+  ComponentPropsWithoutRef<"button"> & {
+    label: string;
+    revealed?: boolean;
+    compact?: boolean;
+    onRun?: () => void;
+  }
+>(function HoverButton(
+  { label, revealed, compact, onRun, className, onClick, ...rest },
+  ref,
+) {
+  return (
+    <RowPressButton
+      {...rest}
+      ref={ref}
+      aria-label={label}
+      data-revealed={revealed ? "" : undefined}
+      onClick={(event) => {
+        onClick?.(event);
         onRun?.();
       }}
       className={cn(
@@ -304,8 +309,6 @@ const HoverButton = forwardRef<
         !revealed && REVEAL_ON_ROW_HOVER,
         className,
       )}
-    >
-      {children}
-    </button>
+    />
   );
 });

@@ -17,7 +17,12 @@ import type { WorkView } from "../useWorkstreams.ts";
 import { StatusMark } from "./StatusMark.tsx";
 import { usePrefsSelector } from "../prefs.ts";
 import { SnoozeIcon, WakeIcon } from "../snooze/icons.tsx";
-import { HoverAction, HoverMenuButton, RowActions } from "./HoverActions.tsx";
+import {
+  HoverAction,
+  HoverMenuButton,
+  RowActions,
+  RowPressButton,
+} from "./HoverActions.tsx";
 import { rowGeometry } from "./rowGeometry.ts";
 import { PLACEMENT_TRAITS, STANDALONE_TRAITS, type Placement } from "./rows.ts";
 
@@ -177,27 +182,19 @@ export function Row({
         {disclosure ? (
           // Sits in the status slot: always shown when the slot is otherwise
           // empty, and swapped in for the status mark on hover.
-          <button
-            type="button"
+          <RowPressButton
             aria-label={
               disclosure.expanded ? "Hide child threads" : "Show child threads"
             }
             aria-expanded={disclosure.expanded}
-            onPointerDown={(event) => event.stopPropagation()}
-            onMouseDown={(event) => event.stopPropagation()}
-            onTouchStart={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              disclosure.toggle();
-            }}
+            onClick={disclosure.toggle}
             className="ws-disclosure absolute inset-0 flex cursor-pointer items-center justify-center rounded text-muted-foreground hover:text-foreground"
           >
             <Icon
               name={disclosure.expanded ? "ChevronDown" : "ChevronRight"}
               className="size-3"
             />
-          </button>
+          </RowPressButton>
         ) : null}
       </span>
       <span

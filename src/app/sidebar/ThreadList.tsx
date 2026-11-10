@@ -144,10 +144,13 @@ import {
   type PresenceEntry,
 } from "./motion.ts";
 import { FocusIcon } from "./FocusIcon.tsx";
+import { FoldBody, FoldChevron, Presence } from "./Fold.tsx";
+import { RadioMenuGroup, CheckSlot } from "../primitives/RadioMenuGroup.tsx";
 import {
   HoverAction,
   HoverMenuButton,
   RowActions,
+  RowPressButton,
   rowActionClass,
 } from "./HoverActions.tsx";
 import { categoryRows } from "../../domain/categoryRows.ts";
@@ -889,13 +892,9 @@ export function WorkstreamsThreadList({
   });
   /** An item that opens and closes with its presence phase. */
   const present = (entry: PresenceEntry<unknown>, children: ReactNode) => (
-    <li
-      key={entry.key}
-      className="ws-presence list-none"
-      {...presenceProps(entry.phase)}
-    >
+    <Presence key={entry.key} as="li" phase={entry.phase} className="list-none">
       <ul>{children}</ul>
-    </li>
+    </Presence>
   );
   // Left edge matches the row titles: 26px with the status slot, 14px when
   // the rows fold it away (see styles.css).
@@ -969,12 +968,7 @@ export function WorkstreamsThreadList({
   ) : null;
   /** Everything below the focused workstreams, as one opening block. */
   const lowerBlock = lowerPresence.map((entry) => (
-    <div
-      key="lower"
-      data-flip-key="lower"
-      className="ws-presence [--ws-presence-gap:0.5rem]"
-      {...presenceProps(entry.phase)}
-    >
+    <Presence key="lower" data-flip-key="lower" phase={entry.phase} gap>
       <div className="flex flex-col">
         <SortableContext
           items={populatedGroupItems}
@@ -1078,7 +1072,7 @@ export function WorkstreamsThreadList({
           </Band>
         ) : null}
       </div>
-    </div>
+    </Presence>
   ));
   if (ws.status === "loading")
     return <p className="px-3 py-2 text-xs text-muted-foreground">Loading…</p>;
@@ -1127,19 +1121,16 @@ export function WorkstreamsThreadList({
           </p>
         ) : null}
         {stackPresence.map((stack) => (
-          <div
+          <Presence
             key={stack.key}
             data-flip-key="up-next"
-            className="ws-presence ws-up-next-sticky [--ws-presence-gap:0.5rem]"
-            {...presenceProps(stack.phase)}
+            phase={stack.phase}
+            gap
+            className="ws-up-next-sticky"
           >
             <div className="flex flex-col gap-[10px]">
               {bandPresence.map((band) => (
-                <div
-                  key={band.key}
-                  className="ws-presence [--ws-presence-gap:0.5rem]"
-                  {...presenceProps(band.phase)}
-                >
+                <Presence key={band.key} phase={band.phase} gap>
                   <div>
                     <Band
                       title={UP_NEXT}
@@ -1195,14 +1186,10 @@ export function WorkstreamsThreadList({
                       ))}
                     </Band>
                   </div>
-                </div>
+                </Presence>
               ))}
               {pinnedBandPresence.map((band) => (
-                <div
-                  key={band.key}
-                  className="ws-presence [--ws-presence-gap:0.5rem]"
-                  {...presenceProps(band.phase)}
-                >
+                <Presence key={band.key} phase={band.phase} gap>
                   <div>
                     <Band
                       title={PINNED}
@@ -1222,10 +1209,10 @@ export function WorkstreamsThreadList({
                       )}
                     </Band>
                   </div>
-                </div>
+                </Presence>
               ))}
             </div>
-          </div>
+          </Presence>
         ))}
         {tiered
           ? [
@@ -2048,23 +2035,6 @@ const upNextItemKey = (item: UpNextItem) =>
 const PINNED = "Pinned";
 
 /**
- * A fold's chevron: one arrow that turns a quarter turn as the fold opens,
- * over the 150ms BB's own sidebar uses, so the state reads without the icon
- * swapping out from under the pointer.
- */
-function FoldChevron({ open }: { open: boolean }) {
-  return (
-    <Icon
-      name="ChevronRight"
-      className={cn(
-        "size-3 transition-transform duration-150 motion-reduce:transition-none",
-        open && "rotate-90",
-      )}
-    />
-  );
-}
-
-/**
  * A workstream's archived threads, under a compact header that carries its
  * name and count.
  */
@@ -2094,11 +2064,7 @@ function ArchivedWorkstreamGroup({
         <WorkstreamName name={name} muted className="flex-1 text-[12px]" />
         <span className="tabular-nums">{count}</span>
       </button>
-      {fold.render ? (
-        <div className="ws-fold" ref={fold.ref} {...presenceProps(fold.phase)}>
-          <ul className="mt-0.5">{children}</ul>
-        </div>
-      ) : null}
+      <FoldBody fold={fold}>{children}</FoldBody>
     </section>
   );
 }
@@ -2218,11 +2184,7 @@ function Band({
         </button>
         {menu}
       </div>
-      {fold.render ? (
-        <div className="ws-fold" ref={fold.ref} {...presenceProps(fold.phase)}>
-          <ul className="mt-0.5">{children}</ul>
-        </div>
-      ) : null}
+      <FoldBody fold={fold}>{children}</FoldBody>
     </section>
   );
 }
@@ -2277,27 +2239,7 @@ function SidebarViewOptionsMenu({
           <DropdownMenu.Label className={MENU_LABEL_CLASS}>
             Sort workstreams
           </DropdownMenu.Label>
-          <DropdownMenu.RadioGroup
-            value={sort}
-            onValueChange={(value) =>
-              onChange(value as "alphabetical" | "activity" | "manual")
-            }
-          >
-            {options.map(([value, name]) => (
-              <DropdownMenu.RadioItem
-                key={value}
-                value={value}
-                className={cn(MENU_ITEM_CLASS, "gap-2")}
-              >
-                <span className="inline-flex size-4 items-center justify-center">
-                  <DropdownMenu.ItemIndicator>
-                    <Icon name="Check" className="size-3.5" />
-                  </DropdownMenu.ItemIndicator>
-                </span>
-                {name}
-              </DropdownMenu.RadioItem>
-            ))}
-          </DropdownMenu.RadioGroup>
+          <RadioMenuGroup value={sort} options={options} onChange={onChange} />
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
@@ -2343,25 +2285,11 @@ function BandOptionsMenu({
           <DropdownMenu.Label className={MENU_LABEL_CLASS}>
             Sort by
           </DropdownMenu.Label>
-          <DropdownMenu.RadioGroup
+          <RadioMenuGroup
             value={options.sort}
-            onValueChange={(value) => onChange({ sort: value as BandSort })}
-          >
-            {sortOptions.map(([value, name]) => (
-              <DropdownMenu.RadioItem
-                key={value}
-                value={value}
-                className={cn(MENU_ITEM_CLASS, "gap-2")}
-              >
-                <span className="inline-flex size-4 items-center justify-center">
-                  <DropdownMenu.ItemIndicator>
-                    <Icon name="Check" className="size-3.5" />
-                  </DropdownMenu.ItemIndicator>
-                </span>
-                {name}
-              </DropdownMenu.RadioItem>
-            ))}
-          </DropdownMenu.RadioGroup>
+            options={sortOptions}
+            onChange={(sort) => onChange({ sort })}
+          />
           <DropdownMenu.Separator className={MENU_SEPARATOR_CLASS} />
           <DropdownMenu.CheckboxItem
             checked={options.grouped}
@@ -2370,11 +2298,7 @@ function BandOptionsMenu({
             }
             className={cn(MENU_ITEM_CLASS, "gap-2")}
           >
-            <span className="inline-flex size-4 items-center justify-center">
-              <DropdownMenu.ItemIndicator>
-                <Icon name="Check" className="size-3.5" />
-              </DropdownMenu.ItemIndicator>
-            </span>
+            <CheckSlot />
             Group by workstream
           </DropdownMenu.CheckboxItem>
         </DropdownMenu.Content>
@@ -2539,24 +2463,16 @@ function WorkstreamGroup({
                 {/* The chevron is the header's only press: the row stays the
               workstream's drag handle, and a press on the name does
               nothing. */}
-                <button
-                  type="button"
+                <RowPressButton
                   aria-expanded={!collapsed}
                   aria-label={
                     collapsed ? `Expand ${label}` : `Collapse ${label}`
                   }
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onMouseDown={(event) => event.stopPropagation()}
-                  onTouchStart={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    toggle();
-                  }}
+                  onClick={toggle}
                   className={cn(rowActionClass, "size-5")}
                 >
                   <FoldChevron open={!collapsed} />
-                </button>
+                </RowPressButton>
               </span>
               {/* Keep the always-visible action at the trailing edge so revealing
             other actions cannot move it underneath the pointer. */}
@@ -2600,17 +2516,9 @@ function WorkstreamGroup({
               </span>
             </div>
           </HeaderMenu>
-          {fold.render ? (
-            <div
-              className="ws-fold"
-              ref={fold.ref}
-              {...presenceProps(fold.phase)}
-            >
-              <ul ref={bodyRef} className="list-none">
-                {children}
-              </ul>
-            </div>
-          ) : null}
+          <FoldBody fold={fold} listRef={bodyRef} listClassName="list-none">
+            {children}
+          </FoldBody>
         </section>
       )}
     </IncomingThread>

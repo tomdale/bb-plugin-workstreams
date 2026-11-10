@@ -805,7 +805,7 @@ export function useSlotList<T>(
   }));
 }
 
-type PresencePhase = "enter" | "idle" | "leave";
+export type PresencePhase = "enter" | "idle" | "leave";
 export type PresenceEntry<T> = {
   readonly key: string;
   readonly item: T;
