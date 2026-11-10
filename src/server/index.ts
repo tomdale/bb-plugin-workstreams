@@ -502,16 +502,18 @@ export default async function plugin(bb: BbPluginApi) {
     db,
     collections: () => {
       const entities = topics.list();
-      const assignments = topics.assignments();
       const analysis = analyzer.all();
+      const snoozed = snoozes.all();
+      const now = Date.now();
       const roots = buildForest(service.threads())
         .roots.map((root) => root.thread)
         .filter(
           (root) =>
             !root.isHidden &&
             !root.isArchived &&
-            !isSnoozed(snoozes.get(root.id), Date.now()),
+            !isSnoozed(snoozed[root.id], now),
         );
+      const assignments = topics.assignmentsOf(roots.map((root) => root.id));
       return entities
         .filter(
           (topic) =>
@@ -522,7 +524,7 @@ export default async function plugin(bb: BbPluginApi) {
           topicId: topic.id,
           label: topicPath(topic.id, entities),
           roots: roots
-            .filter((root) => assignments[root.id]?.entityId === topic.id)
+            .filter((root) => assignments.get(root.id)?.entityId === topic.id)
             .map((root) => ({
               id: root.id,
               title: root.title,

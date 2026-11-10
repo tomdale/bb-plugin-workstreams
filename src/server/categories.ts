@@ -28,9 +28,17 @@ type Record = z.infer<typeof recordSchema>;
  * Category state belongs to the current collection, not its thread records.
  * Reconciliation serializes calls, checks their evidence again before applying,
  * and persists attempts so unrelated events and restarts do not repeat them.
+ *
+ * Collections are derived once per reconcile and again only after a
+ * classification call, the one await during which they can change. Every
+ * decision is a function of the collections and the stored records, which
+ * only this class writes, so a reconcile whose collections equal those the
+ * last drain settled has nothing to do.
  */
 export class Categories {
   private pending = false;
+  /** The collections, serialized, that the last drain left nothing due for. */
+  private settled: string | null = null;
   private running: Promise<void> | null = null;
   private controller = new AbortController();
   private requests = new Map<
@@ -106,9 +114,10 @@ export class Categories {
     if (this.controller.signal.aborted) return;
     const request = placementRequests([text])[0];
     if (!request) return;
-    const collection = this.deps
-      .collections()
-      .find((item) => item.roots.some((root) => root.id === threadId));
+    const collections = this.deps.collections();
+    const collection = collections.find((item) =>
+      item.roots.some((root) => root.id === threadId),
+    );
     if (!collection) return;
     const records = this.read();
     const previous = records.get(collection.topicId);
@@ -136,7 +145,8 @@ export class Categories {
       work: { ...previous?.work, [threadId]: { basis, key } },
     });
     this.save(records);
-    return this.reconcile();
+    this.settled = null;
+    return this.reconcileWith(collections);
   }
 
   private key(collection: CategoryCollection, record?: Record): string {
@@ -154,7 +164,21 @@ export class Categories {
 
   async reconcile(retryFailed = false): Promise<void> {
     if (this.controller.signal.aborted) return;
-    this.synchronizeDepartures();
+    const collections = this.deps.collections();
+    if (
+      !retryFailed &&
+      !this.running &&
+      this.settled === JSON.stringify(collections)
+    )
+      return;
+    return this.reconcileWith(collections, retryFailed);
+  }
+
+  private reconcileWith(
+    collections: CategoryCollection[],
+    retryFailed = false,
+  ): Promise<void> {
+    this.synchronizeDepartures(collections);
     if (retryFailed) {
       const records = this.read();
       for (const [id, record] of records)
@@ -164,18 +188,16 @@ export class Categories {
     }
     this.pending = true;
     if (this.running) return this.running;
-    this.running = this.drain().finally(() => {
+    this.running = this.drain(collections).finally(() => {
       this.running = null;
     });
     return this.running;
   }
 
-  private synchronizeDepartures() {
+  private synchronizeDepartures(current: readonly CategoryCollection[]) {
     const records = this.read();
     const collections = new Map(
-      this.deps
-        .collections()
-        .map((collection) => [collection.topicId, collection]),
+      current.map((collection) => [collection.topicId, collection]),
     );
     for (const [id, record] of records) {
       const collection = collections.get(id);
@@ -228,10 +250,12 @@ export class Categories {
         this.requests.delete(id);
   }
 
-  private async drain() {
+  private async drain(initial: CategoryCollection[]) {
+    let next: CategoryCollection[] | null = initial;
     while (this.pending && !this.controller.signal.aborted) {
       this.pending = false;
-      const collections = this.deps.collections();
+      const collections = next ?? this.deps.collections();
+      next = null;
       const present = new Set(
         collections.map((collection) => collection.topicId),
       );
@@ -242,17 +266,32 @@ export class Categories {
           this.commit(records, id, "The topic no longer holds a collection.");
         }
       }
-      for (const collection of collections) {
+      let latest = new Map(collections.map((item) => [item.topicId, item]));
+      let assessed = false;
+      for (const { topicId } of collections) {
         if (this.controller.signal.aborted) return;
-        const latest = this.deps
-          .collections()
-          .find((item) => item.topicId === collection.topicId);
-        if (latest) await this.update(latest);
+        const collection = latest.get(topicId);
+        if (!collection) continue;
+        const after = await this.update(collection);
+        if (after) {
+          assessed = true;
+          latest = new Map(after.map((item) => [item.topicId, item]));
+        }
       }
+      // A collection handled before a classification call may have changed
+      // during it, so only a round without calls settles the collections.
+      if (assessed) this.pending = true;
+      else this.settled = JSON.stringify(collections);
     }
   }
 
-  private async update(collection: CategoryCollection) {
+  /**
+   * Brings one collection's record up to date. Returns the collections read
+   * again after a classification call, or null when it made none.
+   */
+  private async update(
+    collection: CategoryCollection,
+  ): Promise<CategoryCollection[] | null> {
     const records = this.read();
     const previous = records.get(collection.topicId);
     const generation = previous?.generation ?? null;
@@ -268,20 +307,21 @@ export class Categories {
           );
         else this.save(records);
       }
-      return;
+      return null;
     }
     if (action === "none") {
       if (previous) {
         records.delete(collection.topicId);
         this.save(records);
       }
-      return;
+      return null;
     }
     const current = generation
       ? pruneCategories(generation, collection.roots)
       : null;
     const key = this.key(collection, previous);
-    if (previous?.attempted === key && previous.status === "settled") return;
+    if (previous?.attempted === key && previous.status === "settled")
+      return null;
     const record: Record = {
       generation: current,
       attempted: key,
@@ -298,28 +338,30 @@ export class Categories {
         "Removed roots that left the collection.",
       );
     else this.save(records);
+    let collections: CategoryCollection[] | null = null;
     try {
       const answer = await this.deps.classify(
         { ...collection, current },
         this.controller.signal,
       );
-      if (this.controller.signal.aborted) return;
-      const latest = this.deps
-        .collections()
-        .find((item) => item.topicId === collection.topicId);
+      if (this.controller.signal.aborted) return null;
+      collections = this.deps.collections();
+      const latest = collections.find(
+        (item) => item.topicId === collection.topicId,
+      );
       if (
         !latest ||
         this.key(latest, this.read().get(collection.topicId)) !== key ||
         this.read().get(collection.topicId)?.attemptId !== record.attemptId
       ) {
         this.pending = true;
-        return;
+        return collections;
       }
       if (answer.keep) {
         const fresh = this.read();
         fresh.set(collection.topicId, { ...record, status: "settled" });
         this.save(fresh);
-        return;
+        return collections;
       }
       const next: CategoryGeneration = {
         id: current?.id ?? randomUUID(),
@@ -342,7 +384,7 @@ export class Categories {
         this.commit(fresh, collection.topicId, answer.reason);
       else this.save(fresh);
     } catch (error) {
-      if (this.controller.signal.aborted) return;
+      if (this.controller.signal.aborted) return null;
       const fresh = this.read();
       const message = error instanceof Error ? error.message : String(error);
       const latest = fresh.get(collection.topicId);
@@ -356,5 +398,6 @@ export class Categories {
       }
       this.deps.log(`Categorizing ${collection.label} failed: ${message}`);
     }
+    return collections ?? this.deps.collections();
   }
 }

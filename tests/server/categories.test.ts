@@ -336,4 +336,61 @@ describe("persisted collection categories", () => {
     await engine.reconcile();
     expect(engine.generations()).toEqual(before);
   });
+
+  it("derives collections once per reconcile and skips one whose collections are unchanged", async () => {
+    const { engine, state, classify } = setup();
+    const other = { ...collection(), topicId: "topic-b", label: "Other" };
+    const small = { ...collection(2), topicId: "topic-c", label: "Small" };
+    state.collections = [collection(), other, small];
+    const derive = vi.fn(() => state.collections);
+    const counted = new Categories({
+      db: openDatabase(hosts[0]!.bb),
+      collections: derive,
+      classify,
+      changed: vi.fn(),
+      log: vi.fn(),
+    });
+    engines.push(counted);
+    engine.dispose();
+
+    await counted.reconcile();
+    expect(classify).toHaveBeenCalledTimes(2);
+    // Once to start, once after each call, and once for a round with no call.
+    expect(derive).toHaveBeenCalledTimes(4);
+
+    derive.mockClear();
+    await counted.reconcile();
+    await counted.reconcile();
+    expect(derive).toHaveBeenCalledTimes(2);
+    expect(classify).toHaveBeenCalledTimes(2);
+
+    // A changed collection is assessed again, without a throttle.
+    state.collections = [
+      { ...other, roots: [...other.roots, { ...other.roots[0]!, id: "t9" }] },
+      collection(),
+      small,
+    ];
+    await counted.reconcile();
+    expect(classify).toHaveBeenCalledTimes(3);
+    expect(classify.mock.calls[2]![0].topicId).toBe("topic-b");
+  });
+
+  it("reassesses a collection that changed while another was being classified", async () => {
+    const { state, classify, create, engine } = setup();
+    engine.dispose();
+    const other = { ...collection(), topicId: "topic-b", label: "Other" };
+    state.collections = [collection(), other];
+    classify.mockImplementation(async (input: CategoryInput) => {
+      // The first collection gains a root while the second is assessed.
+      if (input.topicId === "topic-b" && classify.mock.calls.length === 2)
+        state.collections = [collection(7), other];
+      return decision(input);
+    });
+    await create().reconcile();
+    expect(classify.mock.calls.map(([input]) => input.topicId)).toEqual([
+      "topic-a",
+      "topic-b",
+      "topic-a",
+    ]);
+  });
 });
