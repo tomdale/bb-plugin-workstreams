@@ -525,9 +525,10 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
   heading over the thread and let the timeline move beneath its shadow, **Title
   transition → Scroll** to slide both copies as they cross while the heading
   minimizes, or **Title alignment → Centered** to put the minimized title in the
-  bar's middle. Those last two appear only while the title minimizes. Switching
-  threads preserves your reading position. When you follow the newest message,
-  the view stays attached to it as the heading loads.
+  bar's middle. Those last two appear only while the title minimizes. Reduced
+  motion uses the stationary crossfade for either transition. Switching threads
+  preserves your reading position. When you follow the newest message, the view
+  stays attached to it as the heading loads.
 - **Thread header actions:**
   - **Parent thread** (optional, off by default): Opens the parent thread from a
     delegate's header.

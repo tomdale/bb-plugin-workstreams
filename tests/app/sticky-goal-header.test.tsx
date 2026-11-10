@@ -12,6 +12,7 @@ import {
   headingHeight,
   headingOpacity,
   headingScroll,
+  pinnedHeight,
   titleExitDistance,
 } from "../../src/app/goalHeading.ts";
 import {
@@ -863,7 +864,76 @@ it("finishes the fade at a short thread's oldest message without clipping the ri
   slot.lifecycle.unmount();
 });
 
-it("keeps fixed title positions under reduced motion while fading", async () => {
+it.each(["fade", "scroll"] as const)(
+  "keeps titles and backdrop stationary under reduced motion in %s mode",
+  async (mode) => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === REDUCED_MOTION_QUERY,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    paneFixture({ recap: false });
+    const scroller = document.querySelector<HTMLElement>(
+      '[data-test="messages"]',
+    )!;
+    Object.defineProperties(scroller, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 400 },
+      scrollTop: { configurable: true, writable: true, value: 600 },
+    });
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 48, 900, 672),
+    );
+    const header = document.querySelector("header")!;
+    vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 900, 48),
+    );
+    vi.spyOn(
+      header.querySelector(".bb-thread-title")!,
+      "getBoundingClientRect",
+    ).mockReturnValue(new DOMRect(0, 0, 80, 48));
+    vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(700, 0, 100, 48),
+    );
+    const slot = await mountHeading(mode);
+    const groups = () => [
+      ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
+    ];
+    await waitFor(() => expect(groups()).toHaveLength(2));
+    await new Promise((resolve) => setTimeout(resolve, 550));
+    const transforms = groups().map((group) => group.style.transform);
+    const plate = overlay()!.querySelector<HTMLElement>(
+      ".ws-sticky-goal__plate",
+    )!;
+    const plateTransform = plate.style.transform;
+    expect(transforms).toEqual([
+      "translateY(11.9px) scale(1)",
+      "translateY(0px) scale(1)",
+    ]);
+    scroller.scrollTop = 550;
+    scroller.dispatchEvent(new Event("scroll"));
+    await waitFor(() => {
+      const opacity = Number(groups()[1]!.style.opacity);
+      expect(opacity).toBeGreaterThan(0);
+      expect(opacity).toBeLessThan(1);
+    });
+    expect(groups().map((group) => group.style.transform)).toEqual(transforms);
+    expect(plate.style.transform).toBe(plateTransform);
+    expect(
+      overlay()!
+        .querySelector<HTMLElement>(".ws-goal-background")!
+        .style.getPropertyValue("--ws-plate-fade-scale"),
+    ).toBe("1");
+    slot.lifecycle.unmount();
+  },
+);
+
+it("swaps a pinned backdrop at the endpoint under reduced motion", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query === REDUCED_MOTION_QUERY,
     media: query,
@@ -886,36 +956,41 @@ it("keeps fixed title positions under reduced motion while fading", async () => 
   vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
     new DOMRect(0, 48, 900, 672),
   );
-  const header = document.querySelector("header")!;
-  vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 0, 900, 48),
-  );
-  vi.spyOn(
-    header.querySelector(".bb-thread-title")!,
-    "getBoundingClientRect",
-  ).mockReturnValue(new DOMRect(0, 0, 80, 48));
-  vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(700, 0, 100, 48),
-  );
-  const slot = await mountHeading("fade");
+  const slot = await mountHeading("scroll");
   const groups = () => [
     ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
   ];
+  const plate = () =>
+    overlay()!.querySelector<HTMLElement>(".ws-sticky-goal__plate")!;
   await waitFor(() => expect(groups()).toHaveLength(2));
   await new Promise((resolve) => setTimeout(resolve, 550));
-  const transforms = groups().map((group) => group.style.transform);
-  expect(transforms).toEqual([
-    "translateY(11.9px) scale(1)",
-    "translateY(0px) scale(1)",
-  ]);
-  scroller.scrollTop = 550;
+  const expandedHeight = headingHeight(14, false, 1, 0);
+  expect(plate().style.transform).toBe("scaleY(1)");
+  expect(scroller.style.scrollPaddingTop).toBe(`${expandedHeight}px`);
+
+  scroller.scrollTop = 520;
   scroller.dispatchEvent(new Event("scroll"));
   await waitFor(() => {
     const opacity = Number(groups()[1]!.style.opacity);
     expect(opacity).toBeGreaterThan(0);
     expect(opacity).toBeLessThan(1);
   });
-  expect(groups().map((group) => group.style.transform)).toEqual(transforms);
+  expect(plate().style.transform).toBe("scaleY(1)");
+  expect(scroller.style.scrollPaddingTop).toBe(`${expandedHeight}px`);
+  expect(
+    overlay()!
+      .querySelector<HTMLElement>(".ws-goal-background")!
+      .style.getPropertyValue("--ws-plate-fade-scale"),
+  ).toBe("1");
+
+  scroller.scrollTop = 450;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(Number(groups()[1]!.style.opacity)).toBe(1));
+  const compactHeight = pinnedHeight(14, null);
+  expect(plate().style.transform).toBe(
+    `scaleY(${compactHeight / expandedHeight})`,
+  );
+  expect(scroller.style.scrollPaddingTop).toBe(`${compactHeight}px`);
   slot.lifecycle.unmount();
 });
 

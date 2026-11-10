@@ -508,7 +508,9 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const { threadId } = useBbContext();
   const context = useGoalContext(threadId);
   const { prefs } = usePrefs();
-  const fadeOnly = (prefs?.threads.headingTransition ?? "fade") === "fade";
+  const reduceMotion = usePrefersReducedMotion();
+  const fadeOnly =
+    reduceMotion || (prefs?.threads.headingTransition ?? "fade") === "fade";
   // Floating keeps the large heading over the thread instead of minimizing it.
   const floating = (prefs?.threads.headingScroll ?? "minimize") === "float";
   const centered = (prefs?.threads.headingAlign ?? "left") === "center";
@@ -518,7 +520,6 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const placement = usePlacement(mount, base, centered);
   const hasEyebrow = !!context?.workstream;
   const phone = useMediaQuery(PHONE_QUERY);
-  const reduceMotion = usePrefersReducedMotion();
   const eyebrow = hasEyebrow ? eyebrowMetrics(base, phone) : null;
   // On a phone the title may take two lines; it is measured, once placed.
   const measureRef = useRef<HTMLHeadingElement>(null);
@@ -606,9 +607,15 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const platePinnedHeight = pinnedHeight(base, eyebrow);
   // A pinned compact heading needs a solid plate; in the bar the full-size
   // plate can instead fade away without moving under the large heading.
+  // Reduced motion swaps the pinned plate at the endpoint rather than
+  // interpolating its height and the scroll padding derived from it.
   const plateHeight = fadeOnly
     ? pinned
-      ? height * (1 - progress) + platePinnedHeight * progress
+      ? reduceMotion
+        ? collapsed
+          ? platePinnedHeight
+          : height
+        : height * (1 - progress) + platePinnedHeight * progress
       : height
     : Math.max(
         height * (1 - progress),
@@ -813,7 +820,9 @@ export function StickyGoalHeader(): React.ReactElement | null {
             // In scroll mode, the plate's shadow shrinks to the bar fade's
             // length, never shorter than that much of its own.
             "--ws-plate-fade-scale":
-              fadeOnly && !pinned ? 1 : plateFadeScale(progress),
+              fadeOnly && (!pinned || reduceMotion)
+                ? 1
+                : plateFadeScale(progress),
             "--ws-fade-below-plate": fade && plateHeight > 0 ? plateOpacity : 0,
             "--ws-fade-below-bar":
               fade && inBar
