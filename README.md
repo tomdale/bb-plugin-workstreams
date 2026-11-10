@@ -368,17 +368,17 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    lists those threads after everything else, because it is where a Waiting
    recap's status check is watched and cancelled. Candidates rank in tiers, each
    newest first by latest turn end. With **Prioritize unread threads** on (the
-   default), every unread thread leads every read thread, and the unread ones
-   rank by what their turn left you with:
-   1. Unread threads whose turn failed
-   2. Unread threads blocked on you
-   3. Other unread threads
-   4. Read questions
-   5. Read reviews
-   6. Other read threads
+   default), every unread thread comes before every read thread, however its
+   turn ended, and the unread ones rank by what their turn left you with:
+   1. Unread threads blocked on you
+   2. Other unread threads
+   3. Read questions
+   4. Read reviews
+   5. Other read threads
 
-   With it off, each thread ranks by its kind alone, so a read question leads an
-   unread review:
+   A failed turn gets no boost, so a thread that just failed cues up with the
+   other unread threads by its turn-end time. With the setting off, each thread
+   ranks by its kind alone, so a read question comes before an unread review:
    1. Questions
    2. Reviews
    3. Other threads
@@ -977,8 +977,8 @@ Open **Settings → Workstreams** to configure:
 | **Sidebar**           | **Thread count** / **Waiting count**               | `When collapsed`                            | Show workstream counts `Always`, `When collapsed`, or `Never`.                                                                                                                                                                                     |
 | **Up Next**           | **Threads shown**                                  | `5` (`1–10`)                                | How many rows Up Next shows before **Show N more**. The list never grows past this count.                                                                                                                                                          |
 | **Up Next**           | **Show read threads**                              | `On`                                        | On, threads you have already read fill the rows left after the ones blocked on you. Off, it skips threads you have read that aren't blocked on you, so Up Next holds fewer rows than **Threads shown**, or none, when nothing needs you.           |
-| **Up Next**           | **Prioritize unread threads**                      | `On`                                        | On, unread threads lead every read thread. Failed ones lead the unread. Off, each thread ranks by what it's blocked on, so a read question can lead an unread review.                                                                              |
-| **Up Next**           | **Prioritize recent threads**                      | `Don't prioritize`                          | Threads whose turn ended within the chosen window (`Last hour` through `Last week`) lead. The ranking above still orders the threads inside each group.                                                                                            |
+| **Up Next**           | **Prioritize unread threads**                      | `On`                                        | On, unread threads come before read ones. Among the unread, the ones blocked on you come first. Off, each thread ranks by what it's blocked on, so a read question can come before an unread review.                                               |
+| **Up Next**           | **Prioritize recent threads**                      | `Don't prioritize`                          | Threads whose turn ended within the chosen window (`Last hour` through `Last week`) come first. The ranking above still orders the threads inside each group.                                                                                      |
 | **Working indicator** | **Style**, **Color**, **Track**                    | `Spokes`, `Subtle gray`, `Faded color`      | Choose from `7` spinner shapes (`Spokes`, `Sunburst`, `Arc`, `Orbit`, `Ring`, `Braille`, `Dots`), named or custom `#rrggbb` colors, and track styles for `Arc`/`Orbit`/`Ring`.                                                                     |
 | **Colors**            | **Default colors**, then six colors                | `Workstreams`                               | **Default colors** picks Workstreams' own shades or matching bb theme colors; each color's swatches can override it with a theme color or a custom `#rrggbb`.                                                                                      |
 | **Threads**           | **Full analysis model**                            | `openai/gpt-6-sol-fast`                     | Model used at turn end to settle goals and fallback status.                                                                                                                                                                                        |

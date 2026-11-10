@@ -129,7 +129,9 @@ describe("selectUpNext", () => {
     ).toEqual(["ou1", "or1", "wu1", "wr1"]);
   });
 
-  it("ranks an unread failed turn first, then threads blocked on you", () => {
+  it("puts the unread threads blocked on you first, whatever failed", () => {
+    // A failed turn gets no boost: it ranks with the other unread threads, by
+    // recency, and behind the unread thread that asks for something.
     expect(
       upNext([
         t("ou1", 900),
@@ -137,7 +139,7 @@ describe("selectUpNext", () => {
         t("qu1", 700),
         t("qr1", 950),
       ]),
-    ).toEqual(["ou2", "qu1", "ou1", "qr1"]);
+    ).toEqual(["qu1", "ou1", "ou2", "qr1"]);
   });
 
   it("shows the most urgent threads and no more", () => {

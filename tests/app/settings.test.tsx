@@ -278,7 +278,7 @@ it("describes each Up Next setting as it is set now", async () => {
   ).toBeTruthy();
   expect(
     slot.getByText(
-      "Unread threads lead every read thread. Failed ones lead the unread.",
+      "Unread threads come before read ones. Among the unread, the ones blocked on you come first.",
     ),
   ).toBeTruthy();
   fireEvent.click(slot.getByRole("switch", { name: "Show read threads" }));
@@ -292,7 +292,7 @@ it("describes each Up Next setting as it is set now", async () => {
   ).toBeTruthy();
   expect(
     slot.getByText(
-      "Every thread ranks by what it's blocked on, so a read question can lead an unread review.",
+      "Every thread ranks by what it's blocked on, so a read question can come before an unread review.",
     ),
   ).toBeTruthy();
   // The labels hold still while the lines under them follow the setting.
@@ -315,7 +315,7 @@ it("describes the recent-thread window it is set to", async () => {
   fireEvent.click(await slot.findByRole("option", { name: "Last day" }));
   expect(
     await slot.findByText(
-      "Threads whose turn ended in the last day lead. The usual order holds inside them.",
+      "Threads whose turn ended in the last day come first. The usual order holds inside them.",
     ),
   ).toBeTruthy();
 });

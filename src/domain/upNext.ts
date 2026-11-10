@@ -18,16 +18,16 @@
  *
  * Candidates rank by tier, then by latest attention (BB's turn-end time,
  * the one unread compares against), newest first. With "Prioritize unread
- * threads" on, every unread thread leads every read thread, and the unread
- * threads rank by what their turn leaves the user with: a failed turn first,
- * then a thread blocked on the user, then the rest. Read threads follow in
- * their kind's order:
+ * threads" on, every unread thread comes before every read thread, and the
+ * unread threads rank by what their turn leaves the user with: a thread blocked
+ * on the user first, then the rest, however the turn ended. Read threads follow
+ * in their kind's order:
  *
- * 1. unread, failed   2. unread, blocked on the user   3. unread, other
- * 4. read questions   5. read reviews   6. other read
+ * 1. unread, blocked on the user   2. unread, other
+ * 3. read questions   4. read reviews   5. other read
  *
  * With that setting off (`unreadFirst`), each thread keeps its kind's tier and
- * unread only breaks ties, so a read question leads an unread review:
+ * unread only breaks ties, so a read question comes before an unread review:
  *
  * 1. questions  2. reviews  3. other
  *
@@ -124,9 +124,9 @@ export type UpNextOptions<T extends UpNextThread> = {
    */
   readonly shown?: number;
   /**
-   * Rank unread threads above every read thread, and within them a failed turn
-   * first, then one blocked on the user. False ranks each thread by its kind
-   * alone. True when absent.
+   * Rank unread threads above every read thread, and within them a thread
+   * blocked on the user first. Failed turns get no boost. False ranks each
+   * thread by its kind alone. True when absent.
    */
   readonly unreadFirst?: boolean;
   /**
@@ -234,15 +234,13 @@ const WAITING_TIER = 6;
 function tierOf(
   kind: UpNextKind,
   unread: boolean,
-  failed: boolean,
   unreadFirst: boolean,
 ): number {
   if (kind === "waiting") return WAITING_TIER;
   if (!unreadFirst) return KIND_TIER[kind];
   if (!unread) return KIND_TIER[kind] + READ_TIER_OFFSET;
   // What an unread thread leaves the user with, most urgent first.
-  if (failed) return 0;
-  return isBlockedOnUser(kind) ? 1 : 2;
+  return isBlockedOnUser(kind) ? 0 : 1;
 }
 
 const byAttention = (a: Row<WorkstreamThread>, b: Row<WorkstreamThread>) =>
@@ -292,12 +290,7 @@ export function selectUpNext<T extends UpNextThread>(
         fresh:
           freshWithinMs > 0 &&
           options.now - row.thread.latestAttentionAt <= freshWithinMs,
-        tier: tierOf(
-          kind,
-          row.thread.isUnread,
-          row.thread.status === "error",
-          unreadFirst,
-        ),
+        tier: tierOf(kind, row.thread.isUnread, unreadFirst),
         prioritized:
           row.workstreamId !== null &&
           (options.prioritized?.has(row.workstreamId) ?? false),
