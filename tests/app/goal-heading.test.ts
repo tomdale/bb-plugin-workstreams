@@ -4,6 +4,7 @@ import {
   SUBTITLE_LINE,
   SUBTITLE_SIZE,
   compactBlock,
+  COMPACT_GAP,
   eyebrowMetrics,
   headingBackdropOpacity,
   headingFade,
@@ -24,9 +25,9 @@ const BASE = 16;
 it("keeps the workstream line one size and one height on a phone", () => {
   const phone = eyebrowMetrics(BASE, true);
   expect(phone.compactScale).toBe(1);
-  // The compact heading reserves the same room for it as the expanded one,
-  // so the line never moves between states.
-  expect(phone.compactBlock).toBe(phone.expandedBlock);
+  // One line box at one reading size, with only the gap under it added: the
+  // line never moves or changes size between states.
+  expect(phone.compactBlock).toBeCloseTo(phone.size * 1.2 + BASE * COMPACT_GAP);
 });
 
 it("sets the phone workstream line in BB's phone secondary size", () => {
@@ -44,11 +45,16 @@ it("still shrinks the workstream line in the title bar away from a phone", () =>
   expect(desktop.compactBlock).toBeLessThan(desktop.expandedBlock);
 });
 
-it("makes the pinned plate taller by the room the larger phone line needs", () => {
-  const phone = pinnedHeight(BASE, eyebrowMetrics(BASE, true));
-  const desktop = pinnedHeight(BASE, eyebrowMetrics(BASE, false));
-  // The line reserves 20px on a phone instead of 10px in the title bar.
-  expect(phone - desktop).toBe(10);
+it("gives the compact line the room its own box needs", () => {
+  const phone = eyebrowMetrics(BASE, true);
+  const desktop = eyebrowMetrics(BASE, false);
+  // The taller phone line leaves more room for the title under it.
+  expect(phone.compactBlock).toBeGreaterThan(desktop.compactBlock);
+  // Away from a phone the 16px wave icon is taller than the text beside it,
+  // so it, scaled with the line, sets that block.
+  expect(desktop.compactBlock).toBeCloseTo(
+    16 * desktop.compactScale + BASE * COMPACT_GAP,
+  );
 });
 
 it("keeps every wrapped title line in the pinned plate", () => {

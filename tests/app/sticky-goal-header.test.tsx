@@ -4,6 +4,8 @@ import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { Profiler, type ProfilerOnRenderCallback } from "react";
 import {
+  PAD_TOP,
+  PINNED_PAD,
   SUBTITLE_LINE,
   SUBTITLE_SIZE,
   BAR_FADE_RATIO,
@@ -895,7 +897,7 @@ it.each(["fade", "scroll"] as const)(
     // Past it, the whole move happens at once.
     scroller.scrollTop = 100 - exitDistance;
     scroller.dispatchEvent(new Event("scroll"));
-    const finalY = 14 * (0.3 - 0.85);
+    const finalY = 14 * (PINNED_PAD - PAD_TOP);
     await waitFor(() => {
       const match = title().style.transform.match(
         /translateY\(([-\d.]+)px\) scale\(([-\d.]+)\)/,
@@ -1161,7 +1163,7 @@ it.each([false, true])(
     await waitFor(() =>
       expect(root()!.getAttribute("data-collapsed")).toBe("true"),
     );
-    const finalY = 14 * (0.3 - 0.85);
+    const finalY = 14 * (PINNED_PAD - PAD_TOP);
     const finalTransform = title().style.transform.match(
       /translateY\(([-\d.]+)px\) scale\(([-\d.]+)\)/,
     )!;

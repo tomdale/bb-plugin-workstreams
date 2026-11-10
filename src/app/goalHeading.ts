@@ -20,8 +20,8 @@ const PAD_BOTTOM = 0.65;
 const EYEBROW_BLOCK = 1.25;
 /** In the title bar the title is set at this multiple of body size. */
 export const TITLE_BAR_TITLE_SIZE = 0.95;
-/** Padding above and below the heading when it stays pinned in the timeline. */
-export const PINNED_PAD = 0.3;
+/** Padding above and below a heading that stays pinned in the timeline. */
+export const PINNED_PAD = 0.5;
 
 /**
  * BB's own phone condition: a viewport under its `md` breakpoint driven by a
@@ -51,25 +51,29 @@ type Eyebrow = {
 
 const DESKTOP_EYEBROW_SIZE = 0.8;
 const DESKTOP_COMPACT_SCALE = 0.82;
-const DESKTOP_COMPACT_BLOCK_PX = 10;
 /** 14px at the 16px body size phones use: BB's `text-xs` there. */
 const PHONE_EYEBROW_SIZE = 0.875;
+/** The workstream line's own line box, as a multiple of its font size. */
+const EYEBROW_LINE = 1.2;
+/** The wave icon's box (`.size-4`), which sets a floor on the line's height. */
+const EYEBROW_ICON_PX = 16;
+/** Gap between the minimized workstream line and the title beneath it. */
+export const COMPACT_GAP = 0.2;
 
 export function eyebrowMetrics(base: number, phone: boolean): Eyebrow {
   const expandedBlock = base * EYEBROW_BLOCK;
-  return phone
-    ? {
-        size: base * PHONE_EYEBROW_SIZE,
-        compactScale: 1,
-        expandedBlock,
-        compactBlock: expandedBlock,
-      }
-    : {
-        size: base * DESKTOP_EYEBROW_SIZE,
-        compactScale: DESKTOP_COMPACT_SCALE,
-        expandedBlock,
-        compactBlock: DESKTOP_COMPACT_BLOCK_PX,
-      };
+  const size = base * (phone ? PHONE_EYEBROW_SIZE : DESKTOP_EYEBROW_SIZE);
+  const compactScale = phone ? 1 : DESKTOP_COMPACT_SCALE;
+  // The minimized line clears its own line box, icon included, so the title
+  // sits under the text rather than under a fixed offset that either crowds
+  // the line or leaves a gap: the box is what the line actually draws.
+  const line = Math.max(EYEBROW_ICON_PX, size * EYEBROW_LINE) * compactScale;
+  return {
+    size,
+    compactScale,
+    expandedBlock,
+    compactBlock: line + base * COMPACT_GAP,
+  };
 }
 
 /** Expanded heading height in px for a body font size. */
