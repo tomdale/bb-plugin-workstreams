@@ -622,8 +622,10 @@ which adds a message-block slot, you also get **Structured replies**:
   reports `passed`, `failed`, `skipped`, `blocked` or `untested`; a delivery
   stage reports `done`, `pending`, `blocked`, `not-started` or `unknown`, where
   `blocked` is a stage that cannot proceed and `not-started` one nobody has
-  reached. A reply's kind remains separate from whether its work is complete,
-  ready for review, or waiting.
+  reached. A checks header prints the test counts the reply reported and no
+  others, so a run whose writer never counted skips shows no skipped count. A
+  reply's kind remains separate from whether its work is complete, ready for
+  review, or waiting.
 - Report components also include `table`, `references`, `review`, and `actions`,
   rendered directly by Workstreams with the shared reply panels and no
   Generative UI dependency:

@@ -28,12 +28,11 @@ export function testCountProblems(
   const totals = parts.flatMap((part) =>
     part.type === "checks" && part.testTotals ? [part.testTotals] : [],
   );
-  for (const reported of totals)
+  // A count the reply left out is a claim nobody made, not a wrong one.
+  for (const given of totals)
     if (
-      Object.keys(expected).some(
-        (key) =>
-          reported[key as keyof TestTotals] !==
-          expected[key as keyof TestTotals],
+      Object.entries(given).some(
+        ([key, value]) => value !== expected[key as keyof TestTotals],
       )
     )
       problems.push("Reported test totals differ from supplied facts");
@@ -66,9 +65,17 @@ export function testCountProblems(
   for (const [key, actual] of reported)
     if (actual.some((value) => value !== expected[key]))
       problems.push(`Reported ${key} count differs from supplied facts`);
-  if (!totals.length)
-    for (const key of Object.keys(expected) as (keyof TestTotals)[])
-      if (expected[key] > 0 && !reported.get(key)?.includes(expected[key]))
-        problems.push(`No explicit ${key} count from supplied facts`);
+  // A component may report only the counts it recorded, so a count it leaves
+  // out has to be stated in the prose or nowhere; either way it was not said.
+  const stated = new Map<keyof TestTotals, number[]>([...reported]);
+  for (const given of totals)
+    for (const [key, value] of Object.entries(given) as [
+      keyof TestTotals,
+      number,
+    ][])
+      stated.set(key, [...(stated.get(key) ?? []), value]);
+  for (const key of Object.keys(expected) as (keyof TestTotals)[])
+    if (expected[key] > 0 && !stated.get(key)?.includes(expected[key]))
+      problems.push(`No explicit ${key} count from supplied facts`);
   return problems;
 }

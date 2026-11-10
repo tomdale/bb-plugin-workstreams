@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { ReplyPart } from "../../domain/replyComponents.ts";
+import type { ReplyPart, TestTotals } from "../../domain/replyComponents.ts";
 import { Evidence, type ReplyDocument } from "./Evidence.tsx";
 import { PANEL_ROW_CLASS, StatusMark, StatusWord } from "./Panel.tsx";
 import { CHECK_STATUS, reportsFailure, type CheckStatus } from "./status.ts";
@@ -19,14 +19,13 @@ const ROW_TINT: Partial<Record<CheckStatus, string>> = {
 const TOTAL_STATUSES = ["passed", "failed", "skipped"] as const;
 
 /**
- * The reported totals, at the right edge of a checks header. A zero count is
- * muted, so a clean run shows no red word.
+ * The reported totals, at the right edge of a checks header. Only the counts the
+ * reply reported are printed, so the row never claims a count nobody made. A
+ * zero count is muted, so a clean run shows no red word.
  */
-export function TestTotals({
-  totals,
-}: {
-  totals: { passed: number; failed: number; skipped: number };
-}) {
+export function TestTotals({ totals }: { totals: TestTotals }) {
+  const shown = TOTAL_STATUSES.filter((status) => totals[status] !== undefined);
+  if (!shown.length) return null;
   return (
     <div
       aria-label="Reported test totals"
@@ -35,8 +34,8 @@ export function TestTotals({
       <span className="text-[11px] font-medium leading-[17.6px] text-muted-foreground">
         Tests
       </span>
-      {TOTAL_STATUSES.map((status) => {
-        const count = totals[status];
+      {shown.map((status) => {
+        const count = totals[status]!;
         return (
           <span
             key={status}

@@ -157,6 +157,23 @@ type Checks = Extract<ReplyComponent, { type: "checks" }>;
 const checksWithEvidence = (items: Checks["items"]): Checks =>
   ({ ...COMPONENT_EXAMPLES.checks, type: "checks", items }) as Checks;
 
+it("prints only the test counts the reply reported", () => {
+  const partial = {
+    ...COMPONENT_EXAMPLES.checks,
+    testTotals: { passed: 44, failed: 0 },
+  } as Checks;
+  const view = draw(body(partial));
+  const totals = view.container.querySelector(
+    '[aria-label="Reported test totals"]',
+  );
+  expect(
+    [...(totals?.querySelectorAll("[data-reply-test-total]") ?? [])].map(
+      (cell) => cell.getAttribute("data-reply-test-total"),
+    ),
+  ).toEqual(["passed", "failed"]);
+  expect(totals?.textContent).toContain("44");
+});
+
 it("renders directives with message context while prose keeps workspace routing", async () => {
   const directive =
     '::inline-vis{source="thread-storage" file="sidebar-section-labels.html"}';

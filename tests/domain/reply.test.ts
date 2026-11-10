@@ -484,6 +484,29 @@ describe("component boundary", () => {
     if (parsed.success)
       expect(componentText(parsed.data)).toContain("- Pushed: done");
   });
+  it("prints only the test counts the writer supplied", () => {
+    const sample = {
+      type: "checks" as const,
+      title: "Local checks",
+      scope: "Local",
+      items: [{ name: "Unit tests", status: "passed" as const }],
+    };
+    const partial = replyComponentSchema.safeParse({
+      ...sample,
+      testTotals: { passed: 44, failed: 0 },
+    });
+    expect(partial.success).toBe(true);
+    if (partial.success) {
+      expect(componentText(partial.data)).toContain(
+        "44 tests passed; 0 failed",
+      );
+      expect(componentText(partial.data)).not.toContain("skipped");
+    }
+    const none = replyComponentSchema.safeParse({ ...sample, testTotals: {} });
+    expect(none.success).toBe(true);
+    if (none.success)
+      expect(componentText(none.data)).not.toContain("tests passed");
+  });
   it("rejects invalid statuses and invented negative counts", () => {
     expect(
       replyComponentSchema.safeParse({

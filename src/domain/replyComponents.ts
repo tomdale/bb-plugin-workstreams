@@ -139,9 +139,9 @@ const checks = z
     scope: text,
     testTotals: z
       .object({
-        passed: z.number().int().nonnegative(),
-        failed: z.number().int().nonnegative(),
-        skipped: z.number().int().nonnegative(),
+        passed: z.number().int().nonnegative().optional(),
+        failed: z.number().int().nonnegative().optional(),
+        skipped: z.number().int().nonnegative().optional(),
       })
       .strict()
       .optional(),
@@ -314,6 +314,10 @@ export const replyPartSchema = z.union([
   z.object({ type: z.literal("pending") }).strict(),
 ]);
 export type ReplyPart = z.infer<typeof replyPartSchema>;
+/** The test counts a checks component reports; each is present only when written. */
+export type TestTotals = NonNullable<
+  Extract<ReplyPart, { type: "checks" }>["testTotals"]
+>;
 
 function encodedFilePath(path: string): string | null {
   try {
@@ -383,6 +387,27 @@ function evidenceText(items: ReplyEvidence[] | undefined): string {
     .join("\n");
 }
 
+/**
+ * The test counts a reply reported, in one line. A count the writer left out is
+ * absent from the line rather than printed as zero, so the row claims nothing
+ * nobody counted.
+ */
+function totalsText(totals: TestTotals | undefined): string {
+  const words = {
+    passed: "tests passed",
+    failed: "failed",
+    skipped: "skipped",
+  };
+  return totals
+    ? (Object.keys(words) as (keyof typeof words)[])
+        .flatMap((key) => {
+          const count = totals[key];
+          return count === undefined ? [] : [`${count} ${words[key]}`];
+        })
+        .join("; ")
+    : "";
+}
+
 /** Every claim, qualification, and piece of evidence survives the text view. */
 export function componentText(part: ReplyPart): string {
   switch (part.type) {
@@ -428,11 +453,7 @@ export function componentText(part: ReplyPart): string {
       return [
         `### ${part.title}`,
         part.scope,
-        ...(part.testTotals
-          ? [
-              `${part.testTotals.passed} tests passed; ${part.testTotals.failed} failed; ${part.testTotals.skipped} skipped`,
-            ]
-          : []),
+        totalsText(part.testTotals),
         ...part.items.map(
           (item) =>
             `- ${item.name}: ${item.status}${item.detail ? ` — ${item.detail}` : ""}${item.evidence ? `\n${evidenceText(item.evidence)}` : ""}`,

@@ -57,3 +57,22 @@ it("rejects contradictory structured totals even when prose is accurate", () => 
     ).length,
   ).toBeGreaterThan(0);
 });
+it("accepts a component that reports only the counts it recorded", () => {
+  const partial = {
+    type: "checks" as const,
+    title: "Local checks",
+    scope: "Local",
+    items: [],
+    testTotals: { passed: 8, failed: 0 },
+  };
+  expect(
+    testCountProblems(
+      [partial],
+      "8 local tests passed, 0 failed and 1 skipped",
+      expected,
+    ),
+  ).toEqual([]);
+  expect(testCountProblems([partial], "", expected)).toEqual([
+    "No explicit skipped count from supplied facts",
+  ]);
+});

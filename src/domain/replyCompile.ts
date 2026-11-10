@@ -443,6 +443,20 @@ function convertible(node: Node, shape: Shape): boolean {
   }
 }
 
+/**
+ * An optional field that holds nothing is absent rather than a value: empty text,
+ * and an object whose every field was dropped.
+ */
+function empty(value: unknown): boolean {
+  if (typeof value === "string") return value.trim() === "";
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 0
+  );
+}
+
 function convertFields(
   fields: Field[],
   shape: ObjectShape,
@@ -462,12 +476,7 @@ function convertFields(
   const assign = (field: FieldShape, node: Node, at: number) => {
     const converted = convert(node, field.shape, `"${field.name}"`, out);
     if (converted === undefined) return;
-    if (
-      field.optional &&
-      typeof converted === "string" &&
-      converted.trim() === ""
-    )
-      return;
+    if (field.optional && empty(converted)) return;
     if (field.name in value) {
       if (JSON.stringify(value[field.name]) !== JSON.stringify(converted))
         out.add(at, `${owner} repeats "${field.name}".`);

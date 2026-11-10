@@ -465,6 +465,19 @@ describe("liberal component input", () => {
         ),
       ).toEqual({ type: "change", title: "T", before: "B", after: "A" });
     });
+
+    it("keeps the test counts the writer supplied", () => {
+      expect(
+        one(
+          'checks(title: "T", scope: "S", testTotals: {passed: 44, failed: 0}, items: [{name: "N", status: passed}])',
+        ),
+      ).toMatchObject({ testTotals: { passed: 44, failed: 0 } });
+      expect(
+        one(
+          'checks(title: "T", scope: "S", testTotals: {}, items: [{name: "N", status: passed}])',
+        ),
+      ).not.toHaveProperty("testTotals");
+    });
   });
 
   describe("evidence", () => {
