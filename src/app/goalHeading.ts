@@ -209,12 +209,13 @@ export function headingBackdropOpacity(progress: number): number {
 }
 
 /**
- * Length of the short shadow under a collapsing heading, as a fraction of the
- * shadow under the expanded plate (12rem). While the heading collapses toward
- * the title bar the plate's shadow shrinks to this fraction; once it is in the
- * bar no shadow is drawn over the content. A heading pinned in the timeline
- * sits on this short feather at both heights, since the timeline scrolls
- * beneath a solid plate.
+ * Length of the short shadow under a minimized heading, as a fraction of the
+ * shadow under the expanded plate. styles.css draws both from one gradient
+ * (12rem below the plate, 3rem below the minimized heading), and while the
+ * heading collapses the plate's shadow shrinks to this same fraction, so the
+ * feather that follows the plate never outlasts the bar's. A heading pinned in
+ * the timeline sits on this short feather at both heights, since the timeline
+ * scrolls beneath a solid plate rather than meeting a title bar's hairline.
  */
 export const BAR_FADE_RATIO = 3 / PLATE_FADE_REM;
 

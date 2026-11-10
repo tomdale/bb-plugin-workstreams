@@ -39,6 +39,9 @@ its exit distance, how far the timeline is from the newest message, the stepped
 progress, the drawn plate and its edge, the feather length, and the scroll
 padding the heading reserves.
 
+The selected options are kept in the query string, so a reload shows the same
+state and a URL can be shared. Options at their defaults are left out.
+
 ## Keeping it honest
 
 `index.html` holds two things: the shipped CSS rules, copied verbatim from
@@ -57,6 +60,14 @@ The page leaves out what has no geometry to inspect: the 500 ms settle before
 the heading follows scrolling in a freshly opened thread, the choice of which BB
 pane to mount in, the inset it reads from a rendered message, and the
 workstream's own color.
+
+## Changes waiting to be ported
+
+The lab runs ahead of the plugin while a design is settled, and the changes move
+over together once it is. Until then these differ on purpose:
+
+- No gradient under the title bar once the minimized title is in it: the lab
+  drops the `::before` rule and `--ws-fade-below-bar` that the plugin draws.
 
 This directory is a lab, not a product surface: nothing here ships, and the page
 is the place to look at a change to the heading's geometry or its edges before

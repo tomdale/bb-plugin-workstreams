@@ -859,14 +859,20 @@ export function StickyGoalHeader(): React.ReactElement | null {
             transform: `translate(${placement.background.x}px, ${placement.background.y}px)`,
             width: placement.background.width,
             "--ws-plate-height": `${fadeAnchor}px`,
-            // In scroll mode, the plate's shadow shrinks as the heading
-            // leaves for the title bar, where no shadow is drawn.
+            // In scroll mode, the plate's shadow shrinks to the bar fade's
+            // length, never shorter than that much of its own.
             "--ws-plate-fade-scale": pinned
               ? PINNED_FEATHER
               : fadeOnly
                 ? 1
                 : plateFadeScale(progress),
             "--ws-fade-below-plate": fade && plateHeight > 0 ? plateOpacity : 0,
+            "--ws-fade-below-bar":
+              fade && inBar
+                ? fadeOnly
+                  ? opacity.compact
+                  : Number(collapsed)
+                : 0,
           } as React.CSSProperties
         }
       >
