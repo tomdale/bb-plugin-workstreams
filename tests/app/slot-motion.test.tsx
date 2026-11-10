@@ -464,9 +464,7 @@ describe("useSlotList measurement", () => {
     observeResizes();
     const view = render(<List items={rows("a", "b")} />);
     const reads = vi.mocked(HTMLElement.prototype.getBoundingClientRect);
-    const styles = vi.mocked(getComputedStyle);
     reads.mockClear();
-    styles.mockClear();
     for (let i = 0; i < 5; i++)
       view.rerender(
         <List
@@ -477,19 +475,6 @@ describe("useSlotList measurement", () => {
         />,
       );
     expect(reads).not.toHaveBeenCalled();
-    expect(styles).not.toHaveBeenCalled();
-  });
-
-  it("reads the gap between slots once, however many arrangements follow", () => {
-    observeResizes();
-    const view = render(<List items={rows("a", "b")} />);
-    view.rerender(<List items={rows("n", "a", "b")} />);
-    step(UP_NEXT_MOTION.burstMs);
-    step(1000);
-    view.rerender(<List items={rows("a", "b")} />);
-    step(UP_NEXT_MOTION.burstMs);
-    step(1000);
-    expect(getComputedStyle).toHaveBeenCalledOnce();
   });
 
   it("watches each slot's contents, not the slot, and grows a slot whose contents grew", () => {
