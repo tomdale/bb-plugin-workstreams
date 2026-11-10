@@ -137,6 +137,29 @@ it("draws each suggestion before and after, named by its headline", async () => 
   ).toBeTruthy();
 });
 
+it("reads the suggestions when the pointer reaches the count, so the list opens complete", async () => {
+  const read = vi.fn(() => ({ state: stateOf([merge, rename]) }));
+  const slot = await mount(undefined, {
+    pendingSuggestions: 2,
+    rpc: { suggestions: read },
+  });
+  const count = await slot.findByRole("button", { name: "2 suggestions" });
+  expect(read).not.toHaveBeenCalled();
+  fireEvent.pointerEnter(count);
+  await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+  // Let the read land before the click, as it does in the moment before one.
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  fireEvent.click(count);
+  const flyaway = within(
+    await slot.findByRole("dialog", { name: "Organizing suggestions" }),
+  );
+  // The first frame already has the suggestions, not a loading line.
+  expect(flyaway.queryByText("Loading…")).toBeNull();
+  expect(flyaway.getByText("Merge Payments into Billing")).toBeTruthy();
+  // Opening right after the read does not read again.
+  expect(read).toHaveBeenCalledTimes(1);
+});
+
 it("lists the threads arriving when a count is clicked", async () => {
   const { flyaway } = await open([merge]);
   const count = await flyaway.findByRole("button", {

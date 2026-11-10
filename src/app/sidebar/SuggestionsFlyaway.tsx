@@ -19,7 +19,8 @@
  * beside the way to Topics, where they can be dismissed.
  *
  * The count is the server's pending count (`pendingSuggestions`), so it
- * includes out-of-date suggestions; the list is read only while open.
+ * includes out-of-date suggestions. The list is read when the pointer or focus
+ * reaches the count and while the flyaway is open, not otherwise.
  */
 import {
   useCallback,
@@ -75,6 +76,37 @@ const weight = (s: Suggestion) =>
 export const suggestionCountLabel = (count: number) =>
   count === 1 ? "1 suggestion" : `${count} suggestions`;
 
+/** How recently read suggestions still count as current when the list opens. */
+const FRESH_MS = 1_000;
+
+/**
+ * The suggestions the flyaway lists, held above the list so they outlive it:
+ * the pointer reaching the count reads them before the click, and the list
+ * then opens at its final size. Opening on "Loading…" instead would draw a
+ * small panel that jumps to full size, taking its caret with it as the
+ * panel slides clear of the window's edge.
+ */
+function useSuggestionFeed(rpc: Rpc) {
+  const [state, setState] = useState<SuggestionsStateWire | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const readAt = useRef(0);
+  const read = useCallback(async () => {
+    readAt.current = Date.now();
+    try {
+      setState((await rpc.call("suggestions", null)).state);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    }
+  }, [rpc]);
+  /** Reads unless a read just began; what the pointer and the list share. */
+  const refresh = useCallback(() => {
+    if (Date.now() - readAt.current >= FRESH_MS) void read();
+  }, [read]);
+  return { state, setState, loadError, read, refresh };
+}
+type Feed = ReturnType<typeof useSuggestionFeed>;
+
 /**
  * Wraps the Workstreams heading, which anchors the flyaway, and hands it the
  * count to place in its row.
@@ -98,6 +130,7 @@ export function SuggestionsFlyaway({
   const [open, setOpen] = useState(false);
   const compact = useIsCompactViewport();
   const trigger = useRef<HTMLButtonElement>(null);
+  const feed = useSuggestionFeed(rpc);
   // The count stays while the flyaway is open, so focus has somewhere to
   // return on close even after the last decision.
   const shown = count > 0 || open;
@@ -109,6 +142,9 @@ export function SuggestionsFlyaway({
           <button
             ref={trigger}
             type="button"
+            onPointerEnter={feed.refresh}
+            onFocus={feed.refresh}
+            onPointerDown={feed.refresh}
             // A transparent border is the chip: the border-box (what the
             // hover background paints and the pointer hits) grows 3px up,
             // 2px down and 8px sideways around the text, and the matching
@@ -174,6 +210,7 @@ export function SuggestionsFlyaway({
         )}
         <SuggestionList
           rpc={rpc}
+          feed={feed}
           colors={colors}
           onClose={() => setOpen(false)}
           onOpenTopics={() => {
@@ -219,34 +256,27 @@ function Scrim({ shown }: { shown: boolean }) {
 
 function SuggestionList({
   rpc,
+  feed,
   colors,
   onClose,
   onOpenTopics,
 }: {
   rpc: Rpc;
+  feed: Feed;
   colors?: PreviewColors;
   onClose: () => void;
   onOpenTopics: () => void;
 }) {
-  const [state, setState] = useState<SuggestionsStateWire | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  const { state, setState, loadError, read, refresh } = feed;
   const [decided, setDecided] = useState<ReadonlyMap<string, Decided>>(
     new Map(),
   );
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const kept = useRef<string[]>([]);
   const close = useRef<HTMLButtonElement>(null);
-  const read = useCallback(async () => {
-    try {
-      setState((await rpc.call("suggestions", null)).state);
-      setLoadError(false);
-    } catch {
-      setLoadError(true);
-    }
-  }, [rpc]);
   useEffect(() => {
-    void read();
-  }, [read]);
+    refresh();
+  }, [refresh]);
   useRealtime("changed", () => void read());
   useEffect(
     () => () => {
