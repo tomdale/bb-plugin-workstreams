@@ -416,3 +416,142 @@ it("does not scan the full timeline for unrelated DOM updates", async () => {
     overlay.lifecycle.unmount();
   }
 });
+
+/** Delivery rows for several runs of one owner thread, keyed by event seq. */
+function deliveryThread(seqs: number[]) {
+  const ids = new Map(
+    seqs.map((seq) => [
+      seq,
+      `${String(seq).padStart(8, "0")}-1234-1234-1234-123456789abc`,
+    ]),
+  );
+  const notice = (seq: number) =>
+    `Subagent "Review ${seq}" (${ids.get(seq)}) completed. `;
+  const events = vi.fn(async ({ afterSeq }: { afterSeq: string }) => {
+    const seq = Number(afterSeq) + 1;
+    return [
+      {
+        type: "client/turn/requested",
+        seq,
+        data: {
+          input: [
+            {
+              type: "text",
+              text: `${notice(seq)}\n${reply}\nFull transcript: @thread:thr_worker`,
+            },
+          ],
+        },
+      },
+    ];
+  });
+  /** Runs the subagents plugin reports; a test adds runs as they finish. */
+  const finished = new Set(seqs);
+  const callRpc = vi.fn(async () => ({
+    runs: [...finished].map((seq) => ({
+      id: ids.get(seq)!,
+      title: `Review ${seq}`,
+      threadId: "thr_worker",
+      output: reply,
+      ownerThreadId: "thr_parent",
+    })),
+  }));
+  const get = vi.fn(async () => ({
+    environment: { id: "env_worker", path: "/work/worker", hostId: "host" },
+  }));
+  const sdk = {
+    threads: { events: { list: events }, get },
+    plugins: { callRpc },
+  } as unknown as PluginBrowserBbSdk;
+  const Row = ({ seq }: { seq: number }) => (
+    <div data-timeline-row-id={`thr_parent:user-seed:${seq}`}>
+      <div data-message-column="">
+        <Markdown content={notice(seq)} />
+      </div>
+    </div>
+  );
+  const Timeline = ({ rows }: { rows: number[] }) => (
+    <>
+      {rows.map((seq) => (
+        <Row key={seq} seq={seq} />
+      ))}
+    </>
+  );
+  return { sdk, events, callRpc, get, finished, ids, Timeline };
+}
+
+const cards = (container: HTMLElement) =>
+  container.querySelectorAll("[data-ws-subagent-delivery]").length;
+
+it("reads each delivery row once, however often BB remounts it", async () => {
+  const thread = deliveryThread([42, 43]);
+  const message = render(<thread.Timeline rows={[42, 43]} />);
+  const overlay = renderSlot(
+    { component: SubagentDeliveries },
+    {},
+    { sdk: thread.sdk },
+  );
+  await waitFor(() => expect(cards(message.container)).toBe(2));
+  // Both rows of the thread share one run list.
+  expect(thread.callRpc).toHaveBeenCalledTimes(1);
+  expect(thread.events).toHaveBeenCalledTimes(2);
+
+  // Virtualized scrolling unmounts rows and mounts them again.
+  for (let pass = 0; pass < 3; pass++) {
+    message.rerender(<thread.Timeline rows={[]} />);
+    await waitFor(() => expect(cards(message.container)).toBe(0));
+    message.rerender(<thread.Timeline rows={[42, 43]} />);
+    await waitFor(() => expect(cards(message.container)).toBe(2));
+  }
+  expect(thread.events).toHaveBeenCalledTimes(2);
+  expect(thread.callRpc).toHaveBeenCalledTimes(1);
+  expect(thread.get).toHaveBeenCalledTimes(1);
+  overlay.lifecycle.unmount();
+});
+
+it("asks for the run list again when a newer delivery is not in it", async () => {
+  const thread = deliveryThread([42, 43]);
+  thread.finished.delete(43);
+  const message = render(<thread.Timeline rows={[42]} />);
+  const overlay = renderSlot(
+    { component: SubagentDeliveries },
+    {},
+    { sdk: thread.sdk },
+  );
+  await waitFor(() => expect(cards(message.container)).toBe(1));
+  thread.finished.add(43);
+  message.rerender(<thread.Timeline rows={[42, 43]} />);
+  await waitFor(() => expect(cards(message.container)).toBe(2));
+  expect(thread.callRpc).toHaveBeenCalledTimes(2);
+  overlay.lifecycle.unmount();
+});
+
+it("judges an ordinary message row once instead of on every mutation", async () => {
+  const message = render(
+    <div data-timeline-row-id="thr_parent:user-seed:7">
+      <div data-message-column="">
+        <p>Please review the plan.</p>
+      </div>
+    </div>,
+  );
+  const row = message.container.querySelector<HTMLElement>(
+    "[data-timeline-row-id]",
+  )!;
+  const paragraph = row.querySelector("p")!;
+  const reads = vi.spyOn(row, "querySelector");
+  const events = vi.fn();
+  const sdk = {
+    threads: { events: { list: events } },
+  } as unknown as PluginBrowserBbSdk;
+  const overlay = renderSlot({ component: SubagentDeliveries }, {}, { sdk });
+  const flush = () =>
+    act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  await flush();
+  expect(reads).toHaveBeenCalledTimes(1);
+  for (const text of [" It", " is", " long."]) {
+    paragraph.append(document.createTextNode(text));
+    await flush();
+  }
+  expect(reads).toHaveBeenCalledTimes(1);
+  expect(events).not.toHaveBeenCalled();
+  overlay.lifecycle.unmount();
+});
