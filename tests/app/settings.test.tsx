@@ -311,7 +311,7 @@ it("describes the recent-thread window it is set to", async () => {
   fireEvent.click(await slot.findByRole("option", { name: "Last day" }));
   expect(
     await slot.findByText(
-      "Threads whose turn ended in the last day come before others. The usual order holds inside them.",
+      "Threads whose turn ended in the last day come before others, even ones blocked on you.",
     ),
   ).toBeTruthy();
 });
