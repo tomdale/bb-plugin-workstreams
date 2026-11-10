@@ -35,6 +35,16 @@ export const PINNED_PAD = 0.5;
 export const PINNED_EDGE = 0.9;
 
 /**
+ * Distance a pinned band's own edge fades over: the padding below its last
+ * line, so the dissolve never runs under a glyph. The compact block keeps that
+ * padding for the fade, which is why its padding and this distance are one
+ * constant.
+ */
+export function pinnedEdge(base: number, compact: boolean): number {
+  return base * (compact ? PINNED_EDGE : PAD_BOTTOM);
+}
+
+/**
  * Feather below a pinned plate, as a fraction of the shadow styles.css draws
  * under the expanded plate: 1.875rem, long enough to finish the dissolve the
  * plate's edge starts rather than reading as a band of its own.

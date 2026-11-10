@@ -12,7 +12,7 @@ import {
   FADE_COMPACT_RISE,
   PAD_TOP,
   PHONE_QUERY,
-  PINNED_EDGE,
+  pinnedEdge,
   PINNED_FEATHER,
   PINNED_PAD,
   SUBTITLE_SIZE,
@@ -651,7 +651,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const solidPlateHeight = plateHeight - plateOverlap;
   const fadeAnchor = solidPlateHeight;
   // Room the plate's own edge fades out over, kept inside the block's padding.
-  const plateEdge = Math.min(base * PINNED_EDGE, solidPlateHeight);
+  const plateEdge = Math.min(pinnedEdge(base, collapsed), solidPlateHeight);
   useLayoutEffect(() => {
     if (!mount) return;
     if (mount.root.dataset.collapsed !== String(collapsed))
