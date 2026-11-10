@@ -53,6 +53,32 @@ function RootComposer() {
   );
 }
 
+function ComposerWithProjectPick() {
+  const composer = useComposer();
+  return (
+    <main data-app-composer-role="primary">
+      <NewThreadRouting />
+      <button
+        type="button"
+        onClick={() =>
+          void composer.setSelection({ projectId: "project-beta" })
+        }
+      >
+        Pick Beta
+      </button>
+      <form
+        data-promptbox=""
+        onSubmit={(event) => {
+          event.preventDefault();
+          void composer.submit({ experimental_data: null });
+        }}
+      >
+        <button type="submit">Host submit</button>
+      </form>
+    </main>
+  );
+}
+
 function RootComposerWithPickerRow() {
   return (
     <main data-app-composer-role="primary">
@@ -157,6 +183,7 @@ function mount(
                 description: "Alpha product",
                 parentId: null,
                 aliases: [],
+                projectId: "project-alpha",
               },
             ],
             groups: {},
@@ -172,6 +199,7 @@ function mount(
               description: "Alpha product",
               parentId: null,
               aliases: [],
+              projectId: "project-alpha",
             },
           ],
           groups: {},
@@ -412,7 +440,7 @@ it("uses the associated project after Quick analysis selects a topic", async () 
   );
 });
 
-it("uses a manually selected topic's project and leaves it unchanged for an unassociated topic", async () => {
+it("uses a manually selected topic's project and moves to No project for an unassociated topic", async () => {
   const { slot } = mount(identityDecision, { entities: projectTopics });
   fireEvent.click(
     await screen.findByRole("button", { name: "Topic: Automatic" }),
@@ -424,8 +452,10 @@ it("uses a manually selected topic's project and leaves it unchanged for an unas
   fireEvent.click(screen.getByRole("button", { name: "Topic: Alpha" }));
   fireEvent.click(await screen.findByText("Beta"));
   await screen.findByRole("button", { name: "Topic: Beta" });
-  expect(slot.inspection.composer.selection?.projectId).toBe("project-beta");
-  expect(slot.inspection.composer.selections).toHaveLength(1);
+  await waitFor(() =>
+    expect(slot.inspection.composer.selection?.projectId).toBe("proj_personal"),
+  );
+  expect(slot.inspection.composer.selections).toHaveLength(2);
 });
 
 it("uses the project of a workstream whose plus button opened the composer", async () => {
@@ -438,7 +468,10 @@ it("uses the project of a workstream whose plus button opened the composer", asy
 
 it("does not apply a stale project's lookup after selecting another topic", async () => {
   const { slot, projectList } = mount(identityDecision, {
-    entities: projectTopics,
+    entities: [
+      projectTopics[0]!,
+      { ...projectTopics[1]!, projectId: "project-alpha" },
+    ],
   });
   let resolve!: (projects: Awaited<ReturnType<typeof projectList>>) => void;
   projectList.mockImplementationOnce(
@@ -472,5 +505,47 @@ it("ignores an associated project that is no longer available", async () => {
       slot.inspection.sdkCalls.some((call) => call.method === "projects.list"),
     ).toBe(true),
   );
+  expect(slot.inspection.composer.selections).toEqual([]);
+});
+
+it("sends nothing while the project differs from the picked workstream's", async () => {
+  const { slot } = mount(identityDecision, {
+    component: ComposerWithProjectPick,
+  });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Topic: Automatic" }),
+  );
+  fireEvent.click(await screen.findByText("Alpha"));
+  await screen.findByRole("button", { name: "Topic: Alpha" });
+  fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
+  await waitFor(() =>
+    expect(slot.inspection.composer.selection?.projectId).toBe("project-beta"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
+  const alert = await screen.findByRole("alert");
+  expect(alert.textContent).toContain("Alpha belongs to Alpha");
+  expect(alert.textContent).toContain("would start in Beta");
+  expect(slot.inspection.composer.submits).toHaveLength(0);
+});
+
+it("leaves an automatic topic unfiled rather than moving a thread out of its project", async () => {
+  const { slot } = mount(identityDecision, {
+    entities: [
+      {
+        id: "ent_alpha",
+        name: "Alpha",
+        description: "",
+        parentId: null,
+        aliases: [],
+      },
+    ],
+  });
+  await typePrompt(slot, "Fix the parser in Alpha");
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Topic: No topic" }),
+    ).toBeTruthy(),
+  );
+  expect(slot.inspection.composer.selection?.projectId).toBe("project-alpha");
   expect(slot.inspection.composer.selections).toEqual([]);
 });

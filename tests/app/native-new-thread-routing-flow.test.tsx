@@ -81,8 +81,10 @@ async function mount(
   const beta = w.addSection("Beta");
   const corpus = new TopicStore(openDatabase(w.bb));
   const alphaTopic = corpus.create("Alpha", "Alpha effort");
+  corpus.edit(alphaTopic.id, { projectId: "proj_1", projectSource: "manual" });
   corpus.bindGroup(alpha.id, alphaTopic.id);
   const betaTopic = corpus.create("Beta", "Beta effort");
+  corpus.edit(betaTopic.id, { projectId: "proj_1", projectSource: "manual" });
   corpus.bindGroup(beta.id, betaTopic.id);
   seededAlphaId = alphaTopic.id;
   w.addThread("a1", { sectionId: alpha.id, title: "Alpha task" });

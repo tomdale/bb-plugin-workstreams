@@ -17,7 +17,11 @@ import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport
 import { useHostPickerRow } from "./host-picker-row.ts";
 import { WorkstreamPicker } from "./WorkstreamPicker.tsx";
 import { takeComposerPreset } from "./preset.ts";
-import { topicProject } from "../../domain/topicProject.ts";
+import {
+  NO_PROJECT,
+  workstreamProject,
+  workstreamProjectConflict,
+} from "../../domain/topicProject.ts";
 import { preserveProjectChoice, takeProjectChoice } from "./project-choice.ts";
 
 export function NewThreadRouting() {
@@ -100,15 +104,31 @@ export function NewThreadRouting() {
     let live = true;
     void (async () => {
       const catalog = await rpc.call("catalog", null);
-      const projectId = topicProject(
-        sectionId ? catalog.groups[sectionId] : topicId,
-        catalog.entities,
-      );
-      if (!projectId || !live) return;
+      // A workstream always has a project; with none, it is No project.
+      const destination = sectionId ? catalog.groups[sectionId] : topicId;
+      if (!destination || !live) return;
+      const projectId = workstreamProject(destination, catalog.entities);
       const projects = await sdk.projects.list({});
-      if (!live || !projects.some((project) => project.id === projectId))
+      if (
+        !live ||
+        (projectId !== NO_PROJECT &&
+          !projects.some((project) => project.id === projectId))
+      )
         return;
-      if (composer.selection?.projectId === projectId) return;
+      const { scope, selection } = composerRef.current;
+      const current =
+        selection?.projectId ??
+        (scope.kind === "new-thread" ? scope.projectId : null);
+      if (current === projectId) return;
+      // Quick analysis's guess never moves a thread out of its project on a
+      // workstream with none; it leaves the thread unfiled instead.
+      if (
+        projectId === NO_PROJECT &&
+        model.snapshot().identity?.provenance === "automatic"
+      ) {
+        model.selectIdentity(null, "automatic");
+        return;
+      }
       model.supplyProject(projectId);
       const release = preserveProjectChoice(projectId, model.snapshot());
       try {
@@ -137,11 +157,47 @@ export function NewThreadRouting() {
       "form[data-promptbox]",
     );
     if (!form || primary?.closest('[role="dialog"]')) return;
+    // The thread starts in the project the composer shows. If that differs
+    // from its workstream's project, nothing is sent until one of them
+    // changes.
+    const projectConflict = async (): Promise<string | null> => {
+      const { identity } = model.snapshot();
+      const topicId = identity?.sectionId ? null : identity?.entityId;
+      const proposed = identity?.proposal?.parentId;
+      if (!identity || !(topicId || proposed || identity.sectionId))
+        return null;
+      const catalog = await rpc.call("catalog", null);
+      const destination = identity.sectionId
+        ? catalog.groups[identity.sectionId]
+        : (topicId ?? proposed);
+      const { scope, selection } = composerRef.current;
+      const chosen =
+        selection?.projectId ??
+        (scope.kind === "new-thread" ? scope.projectId : null);
+      const conflict = workstreamProjectConflict(
+        destination,
+        catalog.entities,
+        chosen,
+      );
+      if (!conflict) return null;
+      const projects = await sdk.projects.list({});
+      const nameOf = (id: string | null | undefined) =>
+        !id || id === NO_PROJECT
+          ? "No project"
+          : (projects.find((project) => project.id === id)?.name ??
+            "an unavailable project");
+      return `${identity.label} belongs to ${nameOf(conflict.workstreamProjectId)}, but this thread would start in ${nameOf(chosen)}. Choose that project, or another topic.`;
+    };
     const submit = (event: Event) => {
       event.preventDefault();
       event.stopImmediatePropagation();
       void (async () => {
         try {
+          const conflict = await projectConflict();
+          if (conflict) {
+            model.reportError(conflict);
+            return;
+          }
           const identity = submittedIdentity(model.snapshot());
           const projectChoice = submittedProject(model.snapshot());
           await composerRef.current.submit({

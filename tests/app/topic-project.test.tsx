@@ -19,14 +19,14 @@ it.each([
   {
     initial: "project",
     source: "manual",
-    option: "No associated project",
+    option: "No project",
     expected: null,
     automatic: false,
   },
   {
     initial: null,
     source: "disabled",
-    option: "Automatic",
+    option: "Automatic · No project",
     expected: null,
     automatic: true,
   },

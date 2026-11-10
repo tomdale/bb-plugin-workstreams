@@ -9,9 +9,12 @@
 import type { NewWorkState } from "./new-work.ts";
 
 type Choice = Pick<NewWorkState, "identity" | "decision" | "suppliedProjectId">;
-let pending: { projectId: string; choice: Choice } | null = null;
+let pending: { projectId: string | null; choice: Choice } | null = null;
 
-export function preserveProjectChoice(projectId: string, choice: Choice) {
+export function preserveProjectChoice(
+  projectId: string | null,
+  choice: Choice,
+) {
   const transfer = { projectId, choice };
   pending = transfer;
   return () => {

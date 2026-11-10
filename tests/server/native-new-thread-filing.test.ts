@@ -81,6 +81,7 @@ describe("message.dispatch for the New thread view", () => {
     const w = world;
     const corpus = new TopicStore(openDatabase(w.bb));
     const feature = corpus.create("Parser", "Parser feature");
+    corpus.edit(feature.id, { projectId: "proj_1", projectSource: "manual" });
     const hook = w.harness.registrations.hooks["message.dispatch"]!;
     const dispatch = async (threadId: string, text: string) => {
       const thread = w.addThread(threadId, { createdAt: Date.now() });

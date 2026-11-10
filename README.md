@@ -125,13 +125,15 @@ Archived roots count; delegates, forks, plugin-created roots, hidden threads,
 and Personal do not. Parents are associated only when their subtopics agree.
 Learning uses thread history, not another model call.
 
-A learned project appears as **Automatic · <project>**. Choosing a project
-explicitly makes it your choice, which learning never changes. Choosing **No
-associated project** disables learning and project inheritance for that topic;
-choose **Automatic** to enable them again. Existing explicit associations stay
-manual. Automatic associations, manual changes, and suggestion decisions appear
-in **Activity**, with supporting threads and undo where applicable. Undoing an
-automatic association disables learning so it is not immediately recreated.
+A workstream always has a project. When none is chosen or learned, it is **No
+project**, shown as **Automatic · No project**. A learned project appears as
+**Automatic · <project>**. Choosing a project explicitly makes it your choice,
+which learning never changes. Choosing **No project** disables learning and
+project inheritance for that topic; choose **Automatic** to enable them again.
+Existing explicit associations stay manual. Automatic associations, manual
+changes, and suggestion decisions appear in **Activity**, with supporting
+threads and undo where applicable. Undoing an automatic association disables
+learning so it is not immediately recreated.
 
 When independent history contradicts a learned association, **Project
 associations** under **Topics** offers a correction to accept or decline.
@@ -140,16 +142,22 @@ Consistent alternative history suggests another project; mixed history suggests
 declining suppresses that correction while the association is unchanged.
 Acceptance rechecks the history and becomes your explicit choice.
 
-Selecting an associated topic manually, through Quick analysis, or with the
-workstream's **＋** button updates the new-thread composer to use its project.
-Subtopics use their nearest ancestor's project unless overridden or disabled.
-With no associated project, the composer keeps its current project; unavailable
-projects are ignored. Changing the project does not replace the draft or refile
-existing threads. Workstreams records when it supplied the composer's project,
-including across reloads, so those threads cannot reinforce its own inference.
-Unknown project choices on new threads do not count. Historical work with no
-association can bootstrap learning; historical work that already had an
-association is excluded when its project-choice provenance is unknown.
+Selecting a topic manually, through Quick analysis, or with the workstream's
+**＋** button updates the new-thread composer to use its project, or No project
+when it has none. Subtopics use their nearest ancestor's project unless
+overridden or disabled. Quick analysis never moves a thread to No project: when
+its topic has no project and you are in one, the topic shows **No topic** and
+the thread stays unfiled. A thread never starts in a project unrelated to its
+workstream. If you change the composer's project after choosing a topic, sending
+shows what differs and sends nothing until the project or topic changes. The
+server also declines to file a thread under a workstream whose project differs
+from the thread's. Unavailable projects are not applied. Changing the project
+does not replace the draft or refile existing threads. Workstreams records when
+it supplied the composer's project, including across reloads, so those threads
+cannot reinforce its own inference. Unknown project choices on new threads do
+not count. Historical work with no association can bootstrap learning;
+historical work that already had an association is excluded when its
+project-choice provenance is unknown.
 
 Quick analysis defaults to schema-constrained `openai/gpt-6-luna-fast` with
 reasoning disabled (`15 s` timeout, up to `4` in-flight calls). A draft

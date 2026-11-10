@@ -101,8 +101,7 @@ export function ProjectSuggestions({
               {suggestion.topic}
             </span>
             <span className="min-w-0 max-w-full break-words text-muted-foreground">
-              {suggestion.fromProject} →{" "}
-              {suggestion.toProject ?? "No associated project"}
+              {suggestion.fromProject} → {suggestion.toProject ?? "No project"}
             </span>
             <div className="flex shrink-0 items-center gap-1">
               <Button

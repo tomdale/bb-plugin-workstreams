@@ -63,7 +63,16 @@ it.each([1, 2] as const)(
         }),
         state: () => emptyState(),
         catalog: () => ({
-          entities: [],
+          entities: [
+            {
+              id: "ent_alpha",
+              name: "Alpha",
+              description: "",
+              parentId: null,
+              aliases: [],
+              projectId: "proj_1",
+            },
+          ],
           groups: {},
           assignments: {},
           revision: 1,

@@ -24,6 +24,7 @@ import { withoutSubagentDeliveries } from "./requestProvenance.ts";
 import { Suggestions } from "./suggestions.ts";
 import { ProjectAssociations } from "./projectAssociations.ts";
 import type { ProjectChoice } from "../domain/projectChoice.ts";
+import { workstreamProjectConflict } from "../domain/topicProject.ts";
 import { Reclassification } from "./reclassification.ts";
 import { sectionMembers } from "./cleanup.ts";
 import { ComposerPreview, type Preview } from "./preview.ts";
@@ -645,6 +646,21 @@ export default async function plugin(bb: BbPluginApi) {
   ) => {
     if (!identity) return;
     const threadId = thread.id;
+    // A thread never joins a workstream whose project differs from its own,
+    // whatever the composer sent; placement files it from its request instead.
+    const destination = identity.sectionId
+      ? topics.groups().get(identity.sectionId)
+      : (identity.entityId ?? identity.proposal?.parentId);
+    const conflicting = !!workstreamProjectConflict(
+      destination,
+      topics.list(),
+      thread.projectId,
+    );
+    if (conflicting)
+      bb.log.warn(
+        `Composed thread ${threadId} not filed: its project differs from its workstream's.`,
+      );
+    if (conflicting && identity.provenance !== "automatic") return;
     if (identity.provenance === "inherited") {
       const topicId = identity.sectionId
         ? topics.groups().get(identity.sectionId)
@@ -680,7 +696,7 @@ export default async function plugin(bb: BbPluginApi) {
     }
     // Quick analysis already ran on this text in the composer: its topic
     // files the thread until placement settles it, and its title names it.
-    if (identity.entityId || identity.proposal)
+    if (!conflicting && (identity.entityId || identity.proposal))
       applyTopic(
         threadId,
         {

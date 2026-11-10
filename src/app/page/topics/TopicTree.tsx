@@ -358,9 +358,9 @@ function EditTopicDialog({
                   label:
                     topic.projectSource === "learned" && topic.projectId
                       ? `Automatic · ${ws.projects.find((project) => project.id === topic.projectId)?.name ?? "Unavailable project"}`
-                      : "Automatic",
+                      : "Automatic · No project",
                 },
-                { value: "", label: "No associated project" },
+                { value: "", label: "No project" },
                 ...ws.projects.map((project) => ({
                   value: project.id,
                   label: project.name,

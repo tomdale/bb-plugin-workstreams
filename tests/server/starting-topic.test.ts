@@ -47,6 +47,9 @@ async function setup(placed?: () => string | null) {
   const corpus = new TopicStore(openDatabase(w.bb));
   const parser = corpus.create("Parser", "Parser product");
   const docs = corpus.create("Docs", "Docs product");
+  // A workstream's threads start in its project.
+  corpus.edit(parser.id, { projectId: "proj_1", projectSource: "manual" });
+  corpus.edit(docs.id, { projectId: "proj_1", projectSource: "manual" });
   topicId = parser.id;
   const hook = w.harness.registrations.hooks["message.dispatch"]!;
   const dispatch = async (
@@ -172,6 +175,22 @@ describe("a new root's first topic", () => {
     });
     // Quick analysis still titles it.
     expect(w.threads.get("t1")?.title).toBe("Parser tab handling");
+  });
+
+  it("never files a thread under a workstream with a different project", async () => {
+    const { w, corpus, docs, dispatch, settle } = await setup();
+    corpus.edit(docs.id, {
+      projectId: "proj_elsewhere",
+      projectSource: "manual",
+    });
+    await w.harness.behavior.callRpc("draftIdentity", {
+      draftKey: "d1",
+      text: "Make the parser handle tabs",
+      identity: { entityId: docs.id, proposal: null, provenance: "manual" },
+    });
+    await dispatch("t1", "Make the parser handle tabs");
+    await settle();
+    expect(corpus.assignment("t1").entityId).not.toBe(docs.id);
   });
 
   it("is the topic of the workstream whose ＋ opened the composer", async () => {

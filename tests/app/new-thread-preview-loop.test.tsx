@@ -57,6 +57,7 @@ async function mount() {
   const alpha = w.addSection("Alpha");
   const corpus = new TopicStore(openDatabase(w.bb));
   seededAlphaId = corpus.create("Alpha", "Alpha effort").id;
+  corpus.edit(seededAlphaId, { projectId: "proj_1", projectSource: "manual" });
   corpus.bindGroup(alpha.id, seededAlphaId);
   w.addThread("a1", { sectionId: alpha.id, title: "Alpha task" });
   await w.harness.behavior.callRpc("refresh", null);
