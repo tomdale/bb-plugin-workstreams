@@ -164,13 +164,13 @@ export function Stepper({
   );
 }
 
-type PickerOption = {
-  value: string;
+type PickerOption<V extends string = string> = {
+  value: V;
   label: string;
   description?: string;
 };
 
-export function SettingsPicker({
+export function SettingsPicker<V extends string = string>({
   label,
   value,
   options,
@@ -180,9 +180,9 @@ export function SettingsPicker({
   className,
 }: {
   label: string;
-  value: string;
-  options: readonly PickerOption[];
-  onChange(value: string): void;
+  value: V;
+  options: readonly PickerOption<V>[];
+  onChange(value: V): void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;

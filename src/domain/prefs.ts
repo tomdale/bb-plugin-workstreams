@@ -13,6 +13,12 @@ import {
   DEFAULT_COLORS,
   DEFAULT_SCHEME,
 } from "./colors.ts";
+import {
+  UP_NEXT_FRESH_WINDOWS,
+  UP_NEXT_LIMIT,
+  UP_NEXT_MAX,
+  type UpNextFreshWindow,
+} from "./upNext.ts";
 
 /**
  * A model Workstreams calls. `gateway` names an AI Gateway model directly
@@ -87,10 +93,29 @@ export const DEFAULT_MODELS = {
 
 export const RECENT_LIMIT = { min: 1, max: 20, fallback: 5 } as const;
 
+/** Up Next's row count before Show more: one through its Show-more ceiling. */
+export const UP_NEXT_SHOWN = {
+  min: 1,
+  max: UP_NEXT_MAX,
+  fallback: UP_NEXT_LIMIT,
+} as const;
+
 const recentLimit = z
   .number()
   .int()
   .transform((n) => Math.min(RECENT_LIMIT.max, Math.max(RECENT_LIMIT.min, n)));
+
+const upNextShown = z
+  .number()
+  .int()
+  .transform((n) =>
+    Math.min(UP_NEXT_SHOWN.max, Math.max(UP_NEXT_SHOWN.min, n)),
+  );
+
+const freshWindows = Object.keys(UP_NEXT_FRESH_WINDOWS) as [
+  UpNextFreshWindow,
+  ...UpNextFreshWindow[],
+];
 
 const countVisibility = z.enum(["always", "collapsed", "never"]);
 
@@ -121,6 +146,17 @@ const GROUPS = {
     threadCount: [countVisibility, "collapsed"],
     /** When workstream headers show their waiting-on-you count. */
     waitingCount: [countVisibility, "collapsed"],
+  },
+  upNext: {
+    /** How many rows Up Next shows before Show more. */
+    shown: [upNextShown, UP_NEXT_SHOWN.fallback],
+    /** Rank unread threads above every other thread. */
+    unreadFirst: [z.boolean(), true],
+    /**
+     * Rank threads whose turn ended within this window above older ones; off
+     * ranks by tier and attention alone.
+     */
+    freshWindow: [z.enum(freshWindows), "off"],
   },
   threads: {
     /** Title untitled threads with their goal and retitle them as work moves on. */

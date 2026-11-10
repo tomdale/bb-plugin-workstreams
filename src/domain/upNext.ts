@@ -13,23 +13,34 @@
  * blocked on the user elsewhere wait outside Up Next.
  *
  * Candidates rank by tier, then by latest attention (BB's turn-end time,
- * the one unread compares against), newest first:
+ * the one unread compares against), newest first. Unread threads lead by
+ * default: an unread thread has an outcome the user hasn't seen, whatever
+ * its turn was blocked on. The tiers are then:
  *
  * 1. unread            2. read questions  3. read reviews
  * 4. other read        5. unread waiting  6. read waiting
  *
- * Unread threads always come first, newest first: an unread thread has
- * an outcome the user hasn't seen, whatever its turn was blocked on.
- * "Waiting" threads are still waiting on something else (a subagent, a
- * timer), so they come after every other thread, even read ones.
+ * With unread threads not leading (`unreadFirst` off), each thread keeps its
+ * kind's tier and unread only breaks ties, so a read question leads an unread
+ * review:
+ *
+ * 1. questions  2. reviews  3. other  4. waiting
+ *
+ * Either way "Waiting" threads are still waiting on something else (a
+ * subagent, a timer), so they come after every other thread, even read ones.
+ *
+ * "Prioritize recent threads" (`freshWithinMs`) puts the threads whose turn
+ * ended inside that window above every other thread, before any of this
+ * applies; inside each of the two groups the order is the same one above.
  *
  * The list then trims from the least urgent end: threads not blocked on the
- * user leave, bottom first, until {@link UP_NEXT_LIMIT} remain; read
- * blocked threads leave until {@link UP_NEXT_MAX} remain; and past that,
+ * user leave, bottom first, until `shown` (see {@link UP_NEXT_LIMIT}) remain;
+ * read blocked threads leave until {@link UP_NEXT_MAX} remain; and past that,
  * only the most recently active {@link UP_NEXT_MAX} stay, whatever their
  * tier. So Up Next always holds a few threads, grows only for threads
  * blocked on the user, and stays short enough to act on. The trimmed
- * threads that are unread or blocked on the user wait behind Show more.
+ * threads that are unread or blocked on the user wait behind Show more,
+ * whether or not unread threads lead.
  *
  * Nested threads never appear on their own (BB doesn't mark a delegate
  * unread when its turn ends); they show under their root's row. Parent
@@ -44,12 +55,32 @@ import {
 import type { UpNextKind } from "./status.ts";
 import { buildForest } from "./tree.ts";
 
-/** Up Next trims threads not blocked on the user down to this many rows. */
+/**
+ * How many rows Up Next shows before Show more unless the user chooses
+ * another count (see `UP_NEXT_SHOWN` in domain/prefs.ts).
+ */
 export const UP_NEXT_LIMIT = 5;
-/** Up Next never lists more than this many rows. */
+/** Up Next never lists more than this many rows, Show more included. */
 export const UP_NEXT_MAX = 10;
 /** How long a finished turn's review or decision stays blocked on the user. */
 export const UP_NEXT_STALE_AFTER_MS = 7 * DAY_MS;
+
+/**
+ * The windows "Prioritize recent threads" offers, in milliseconds. `off`
+ * leaves the order to tiers and attention alone.
+ */
+export const UP_NEXT_FRESH_WINDOWS = {
+  off: 0,
+  "1h": 60 * 60 * 1000,
+  "6h": 6 * 60 * 60 * 1000,
+  "12h": 12 * 60 * 60 * 1000,
+  "1d": DAY_MS,
+  "3d": 3 * DAY_MS,
+  "7d": 7 * DAY_MS,
+} as const;
+
+/** A window from {@link UP_NEXT_FRESH_WINDOWS}. */
+export type UpNextFreshWindow = keyof typeof UP_NEXT_FRESH_WINDOWS;
 
 export type UpNextThread = WorkstreamThread & {
   readonly isUnread: boolean;
@@ -85,6 +116,18 @@ export type UpNextOptions<T extends UpNextThread> = {
   readonly now: number;
   /** Focused workstream ids (`ManualOrder.prioritized`); none, no focus. */
   readonly prioritized?: ReadonlySet<string>;
+  /**
+   * How many rows Up Next shows before Show more, 1 through
+   * {@link UP_NEXT_MAX}. {@link UP_NEXT_LIMIT} when absent.
+   */
+  readonly shown?: number;
+  /** Unread threads rank above every other thread. True when absent. */
+  readonly unreadFirst?: boolean;
+  /**
+   * Threads whose turn ended within this window rank above older ones, in
+   * milliseconds. `0`, the default, ranks by tier alone.
+   */
+  readonly freshWithinMs?: number;
 };
 
 /** A question or review: the thread is blocked on the user. */
@@ -152,12 +195,24 @@ type UpNextSelection<T extends WorkstreamThread> = {
   readonly focused: boolean;
 };
 
+/** A kind's tier while unread threads rank with their kind. */
+const KIND_TIER: Record<UpNextKind, number> = {
+  question: 0,
+  review: 1,
+  other: 2,
+  waiting: 3,
+};
+
 /** Tier rank, 0 most urgent; see the module comment. */
-function tierOf(kind: UpNextKind, unread: boolean): number {
+function tierOf(
+  kind: UpNextKind,
+  unread: boolean,
+  unreadFirst: boolean,
+): number {
+  if (!unreadFirst) return KIND_TIER[kind];
+  // A waiting thread ranks last either way, ahead of read waiting threads.
   if (kind === "waiting") return unread ? 4 : 5;
-  if (unread) return 0;
-  if (kind === "other") return 3;
-  return kind === "question" ? 1 : 2;
+  return unread ? 0 : KIND_TIER[kind] + 1;
 }
 
 const byAttention = (a: Row<WorkstreamThread>, b: Row<WorkstreamThread>) =>
@@ -171,6 +226,12 @@ export function selectUpNext<T extends UpNextThread>(
     readonly exclude?: (thread: T) => boolean;
   },
 ): UpNextSelection<T> {
+  const shownCount = Math.min(
+    UP_NEXT_MAX,
+    Math.max(1, Math.round(options.shown ?? UP_NEXT_LIMIT)),
+  );
+  const unreadFirst = options.unreadFirst ?? true;
+  const freshWithinMs = options.freshWithinMs ?? 0;
   const ranked = [
     ...projection.groups,
     projection.unsorted,
@@ -193,13 +254,21 @@ export function selectUpNext<T extends UpNextThread>(
         row,
         onYou: isBlockedOnUser(kind),
         unread: row.thread.isUnread,
-        tier: tierOf(kind, row.thread.isUnread),
+        fresh:
+          freshWithinMs > 0 &&
+          options.now - row.thread.latestAttentionAt <= freshWithinMs,
+        tier: tierOf(kind, row.thread.isUnread, unreadFirst),
         prioritized:
           row.workstreamId !== null &&
           (options.prioritized?.has(row.workstreamId) ?? false),
       };
     })
-    .sort((a, b) => a.tier - b.tier || byAttention(a.row, b.row));
+    .sort(
+      (a, b) =>
+        Number(b.fresh) - Number(a.fresh) ||
+        a.tier - b.tier ||
+        byAttention(a.row, b.row),
+    );
 
   const focused = ranked.some((entry) => entry.prioritized && entry.onYou);
   const pool = focused ? ranked.filter((entry) => entry.prioritized) : ranked;
@@ -218,7 +287,7 @@ export function selectUpNext<T extends UpNextThread>(
     }
     shown = kept.reverse();
   };
-  trim(UP_NEXT_LIMIT, (entry) => !entry.onYou);
+  trim(shownCount, (entry) => !entry.onYou);
   trim(UP_NEXT_MAX, (entry) => entry.onYou && !entry.unread);
   if (shown.length > UP_NEXT_MAX) {
     const newest = new Set(

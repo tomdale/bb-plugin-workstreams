@@ -15,6 +15,7 @@ import {
   OrganizeSettings,
   SidebarSettings,
   ThreadsSettings,
+  UpNextSettings,
   WorkingIndicatorSettings,
 } from "../../src/app/settings/FeatureSettings.tsx";
 import { ColorTokenStyle } from "../../src/app/theme/ColorTokenStyle.tsx";
@@ -43,6 +44,7 @@ async function mount(
   let prefs = parsePrefs({});
   const components = {
     sidebar: SidebarSettings,
+    "up-next": UpNextSettings,
     "working-indicator": WorkingIndicatorSettings,
     colors: ColorSettings,
     threads: ThreadsSettings,
@@ -232,6 +234,37 @@ it("clamps the Recent stepper to 1–20 and hides it when Recent is off", async 
         JSON.stringify(call.input).includes('"showRecent":false'),
     ),
   ).toBe(true);
+});
+
+it("saves Up Next's row count, unread order, and recent window", async () => {
+  const slot = await mount("up-next");
+  const shown = await slot.findByLabelText("threads shown", {
+    selector: "output",
+  });
+  expect(shown.textContent).toBe("5");
+  fireEvent.click(slot.getByRole("button", { name: "Increase threads shown" }));
+  await waitFor(() => expect(shown.textContent).toBe("6"));
+  fireEvent.click(
+    slot.getByRole("switch", { name: "Always show unread first" }),
+  );
+  fireEvent.click(
+    slot.getByRole("button", { name: "Prioritize recent threads" }),
+  );
+  fireEvent.click(await slot.findByRole("option", { name: "Last day" }));
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
+    ).toHaveLength(3),
+  );
+  expect(
+    slot.inspection.rpcCalls
+      .filter((call) => call.method === "setPrefs")
+      .map((call) => call.input),
+  ).toEqual([
+    { patch: { upNext: { shown: 6 } } },
+    { patch: { upNext: { unreadFirst: false } } },
+    { patch: { upNext: { freshWindow: "1d" } } },
+  ]);
 });
 
 it("describes title locking accurately", async () => {

@@ -3,9 +3,14 @@ import { experimental_useSidebarThreads, useRpc } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../../server/contract.ts";
 import {
   RECENT_LIMIT,
+  UP_NEXT_SHOWN,
   type Prefs,
   type PrefsPatch,
 } from "../../domain/prefs.ts";
+import {
+  UP_NEXT_FRESH_WINDOWS,
+  type UpNextFreshWindow,
+} from "../../domain/upNext.ts";
 import { usePrefs } from "../prefs.ts";
 import { ModelField } from "./ModelField.tsx";
 import { SpinnerSettings } from "./SpinnerSettings.tsx";
@@ -150,6 +155,68 @@ export function SidebarSettings() {
           )}
         </SectionRows>
       </SettingsGroup>
+    </div>
+  );
+}
+
+/**
+ * How many rows Up Next shows before Show more, and what leads it. The same
+ * order draws the sidebar, the phone Home screen, the queue, and the next
+ * Up Next command (see `selectUpNext`).
+ */
+export function UpNextSettings() {
+  const { prefs, update, error } = useFeaturePrefs();
+  if (!prefs) return <Loading />;
+  const windows: { value: UpNextFreshWindow; label: string }[] = [
+    { value: "off", label: "Don't prioritize" },
+    { value: "1h", label: "Last hour" },
+    { value: "6h", label: "Last 6 hours" },
+    { value: "12h", label: "Last 12 hours" },
+    { value: "1d", label: "Last day" },
+    { value: "3d", label: "Last 3 days" },
+    { value: "7d", label: "Last week" },
+  ];
+  return (
+    <div className="space-y-3">
+      <SettingsSaveError error={error} />
+      <SectionRows>
+        <SettingRow
+          label="Threads shown"
+          description={`How many rows Up Next shows before Show more. Show more lists the threads it trimmed that are still unread or blocked on you, up to ${UP_NEXT_SHOWN.max}.`}
+          control={
+            <Stepper
+              label="threads shown"
+              value={prefs.upNext.shown}
+              min={UP_NEXT_SHOWN.min}
+              max={UP_NEXT_SHOWN.max}
+              onChange={(shown) => update({ upNext: { shown } })}
+            />
+          }
+        />
+        <SettingRow
+          label="Always show unread first"
+          description="Rank unread threads above every other thread. Turned off, they rank with whatever their turn was blocked on, so a read question can lead an unread review."
+          control={
+            <SettingSwitch
+              label="Always show unread first"
+              checked={prefs.upNext.unreadFirst}
+              onChange={(unreadFirst) => update({ upNext: { unreadFirst } })}
+            />
+          }
+        />
+        <SettingRow
+          label="Prioritize recent threads"
+          description="Move threads whose turn ended within the chosen window above older ones, whatever they are blocked on. Inside each group the usual order holds."
+          control={
+            <SettingsPicker
+              label="Prioritize recent threads"
+              value={prefs.upNext.freshWindow}
+              options={windows}
+              onChange={(freshWindow) => update({ upNext: { freshWindow } })}
+            />
+          }
+        />
+      </SectionRows>
     </div>
   );
 }

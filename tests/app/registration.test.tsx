@@ -70,6 +70,7 @@ it("binds UI surfaces to the components exercised by the SDK harness", async () 
   ).toBe(NewThreadRouting);
   for (const [id, component] of [
     ["sidebar", features.SidebarSettings],
+    ["up-next", features.UpNextSettings],
     ["working-indicator", features.WorkingIndicatorSettings],
     ["colors", ColorSettings],
     ["threads", features.ThreadsSettings],
@@ -145,6 +146,7 @@ it("registers settings in feature order", async () => {
   const app = await loadPluginApp(() => import("../../src/app/index.tsx"));
   expect(app.settingsSections.map(({ id, title }) => [id, title])).toEqual([
     ["sidebar", "Sidebar"],
+    ["up-next", "Up Next"],
     ["working-indicator", "Working indicator"],
     ["colors", "Colors"],
     ["threads", "Threads"],

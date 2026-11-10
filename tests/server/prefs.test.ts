@@ -167,6 +167,29 @@ describe("Workstreams prefs", () => {
     await world.harness.lifecycle.dispose();
   });
 
+  it("defaults Up Next's row count, unread order, and recent window", () => {
+    expect(parsePrefs({}).upNext).toEqual({
+      shown: 5,
+      unreadFirst: true,
+      freshWindow: "off",
+    });
+    // Each field falls back on its own and clamps to Up Next's range.
+    expect(
+      parsePrefs({
+        upNext: { shown: 99, unreadFirst: false, freshWindow: "2h" },
+      }).upNext,
+    ).toEqual({ shown: 10, unreadFirst: false, freshWindow: "off" });
+    expect(parsePrefs({ upNext: { shown: 0 } }).upNext.shown).toBe(1);
+    expect(
+      prefsPatchSchema.safeParse({ upNext: { freshWindow: "2h" } }).success,
+    ).toBe(false);
+    expect(
+      prefsPatchSchema.safeParse({
+        upNext: { shown: 4, unreadFirst: false, freshWindow: "6h" },
+      }).success,
+    ).toBe(true);
+  });
+
   it("records by default, shows the debug UI only when asked, and carries the old switch over", () => {
     expect(parsePrefs({}).advanced).toMatchObject({
       debugRecord: true,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DAY_MS, projectWorkstreams } from "../../src/domain/project.ts";
 import type { UpNextKind } from "../../src/domain/status.ts";
 import {
+  UP_NEXT_FRESH_WINDOWS,
   UP_NEXT_LIMIT,
   UP_NEXT_MAX,
   UP_NEXT_STALE_AFTER_MS,
@@ -51,6 +52,9 @@ function upNext(
   options: {
     snoozedUntil?: (thread: TestThread) => number | null | undefined;
     exclude?: (thread: TestThread) => boolean;
+    shown?: number;
+    unreadFirst?: boolean;
+    freshWithinMs?: number;
   } = {},
 ) {
   const projection = projectWorkstreams(threads, sections, {
@@ -58,8 +62,14 @@ function upNext(
     snoozedUntil: options.snoozedUntil,
   });
   return ids(
-    selectUpNext(projection, { kindOf, now: clock, exclude: options.exclude })
-      .rows,
+    selectUpNext(projection, {
+      kindOf,
+      now: clock,
+      exclude: options.exclude,
+      shown: options.shown,
+      unreadFirst: options.unreadFirst,
+      freshWithinMs: options.freshWithinMs,
+    }).rows,
   );
 }
 
@@ -462,6 +472,115 @@ describe("selectUpNext", () => {
 
   it("trims to five and caps at ten", () => {
     expect([UP_NEXT_LIMIT, UP_NEXT_MAX]).toEqual([5, 10]);
+  });
+
+  describe("settings", () => {
+    const HOUR = 60 * 60 * 1000;
+    const ago = (hours: number) => clock - hours * HOUR;
+
+    it("shows the chosen number of rows before Show more", () => {
+      const quiet = [
+        t("qu1", 10),
+        t("or1", 9),
+        t("or2", 8),
+        t("or3", 7),
+        t("or4", 6),
+      ];
+      expect(upNext(quiet)).toHaveLength(5);
+      // Trimmed threads not blocked on you leave first, from the bottom.
+      expect(upNext(quiet, { shown: 2 })).toEqual(["qu1", "or1"]);
+      // Threads blocked on you still grow past the chosen count.
+      const blocked = [
+        t("qu1", 10),
+        t("qr1", 9),
+        t("qr2", 8),
+        t("rr1", 7),
+        t("or1", 6),
+      ];
+      expect(upNext(blocked, { shown: 2 })).toEqual([
+        "qu1",
+        "qr1",
+        "qr2",
+        "rr1",
+      ]);
+    });
+
+    it("leaves the trimmed unread threads behind Show more", () => {
+      const projection = projectWorkstreams(
+        [t("qu1", 10), t("ou1", 9), t("ou2", 8), t("or1", 7)],
+        sections,
+        { now },
+      );
+      const selection = selectUpNext(projection, {
+        kindOf,
+        now: clock,
+        shown: 1,
+      });
+      expect(ids(selection.rows)).toEqual(["qu1"]);
+      expect(ids(selection.more)).toEqual(["ou1", "ou2"]);
+    });
+
+    it("keeps the Show-more ceiling whatever the chosen count", () => {
+      const threads = Array.from({ length: 12 }, (_, i) =>
+        t(`qu${i}`, 100 + i),
+      );
+      expect(upNext(threads, { shown: 99 })).toHaveLength(UP_NEXT_MAX);
+    });
+
+    it("ranks unread with their kind when unread doesn't lead", () => {
+      const threads = [t("ou1", 200), t("ru1", 100), t("qr1", 90)];
+      expect(upNext(threads)).toEqual(["ou1", "ru1", "qr1"]);
+      // A read question now leads an unread review, and unread only breaks a
+      // kind's tie. Waiting threads still come last, even unread ones.
+      expect(
+        upNext([...threads, t("wu1", 300)], { unreadFirst: false }),
+      ).toEqual(["qr1", "ru1", "ou1", "wu1"]);
+    });
+
+    it("holds trimmed unread threads behind Show more even when they don't lead", () => {
+      const projection = projectWorkstreams(
+        [...[1, 2, 3, 4, 5].map((n) => t(`or${n}`, 10 - n)), t("ou1", 1)],
+        sections,
+        { now },
+      );
+      const selection = selectUpNext(projection, {
+        kindOf,
+        now: clock,
+        unreadFirst: false,
+        shown: 2,
+      });
+      expect(ids(selection.rows)).toEqual(["or1", "or2"]);
+      expect(ids(selection.more)).toEqual(["ou1"]);
+    });
+
+    it("moves threads whose turn ended within the window above older ones", () => {
+      const threads = [t("qr1", ago(30)), t("rr1", ago(2)), t("or1", ago(1))];
+      // Without a window the read question leads on kind alone.
+      expect(upNext(threads)).toEqual(["qr1", "rr1", "or1"]);
+      // A day and a quarter old, it falls behind both fresh threads, which
+      // keep the usual order between them.
+      expect(
+        upNext(threads, { freshWithinMs: UP_NEXT_FRESH_WINDOWS["1d"] }),
+      ).toEqual(["rr1", "or1", "qr1"]);
+    });
+
+    it("counts a thread still inside its window as fresh", () => {
+      const window = UP_NEXT_FRESH_WINDOWS["1h"];
+      // The boundary itself is inside the window, so a question exactly an
+      // hour old leads only because it is a question, not because it's fresh.
+      const fresh = t("qr1", clock - window);
+      const older = t("or1", clock - window - 1);
+      expect(upNext([older, fresh], { freshWithinMs: window })).toEqual([
+        "qr1",
+        "or1",
+      ]);
+      // One millisecond past it, the fresh thread wins on freshness instead.
+      expect(
+        upNext([t("qr1", clock - window - 1), t("or1", clock - window)], {
+          freshWithinMs: window,
+        }),
+      ).toEqual(["or1", "qr1"]);
+    });
   });
 });
 

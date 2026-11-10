@@ -13,9 +13,9 @@ import {
 } from "../domain/project.ts";
 import type { Recap } from "../domain/recap.ts";
 import { needsAttention, upNextKind, workView } from "../domain/status.ts";
-import { nextUpNextDeadline } from "../domain/upNext.ts";
+import { nextUpNextDeadline, UP_NEXT_FRESH_WINDOWS } from "../domain/upNext.ts";
 import type { ManualOrder } from "../domain/order.ts";
-import { RECENT_LIMIT } from "../domain/prefs.ts";
+import { RECENT_LIMIT, UP_NEXT_SHOWN } from "../domain/prefs.ts";
 import type { StoredAnalysis } from "../server/analyzer.ts";
 import type { TopicState } from "../domain/topics.ts";
 import type { WorkstreamTopics } from "../domain/groups.ts";
@@ -165,6 +165,7 @@ export function useWorkstreams() {
    * What Up Next ranks threads by (see `selectUpNext`), less the focused
    * workstreams, which each surface resolves for itself.
    */
+  const upNextPrefs = prefs?.upNext;
   const upNextOptions = useMemo(
     () => ({
       kindOf: (thread: PluginSidebarThread) =>
@@ -173,8 +174,11 @@ export function useWorkstreams() {
           workView(thread, analysis[thread.id], recaps[thread.id]),
         ),
       now,
+      shown: upNextPrefs?.shown ?? UP_NEXT_SHOWN.fallback,
+      unreadFirst: upNextPrefs?.unreadFirst ?? true,
+      freshWithinMs: UP_NEXT_FRESH_WINDOWS[upNextPrefs?.freshWindow ?? "off"],
     }),
-    [analysis, recaps, now],
+    [analysis, recaps, now, upNextPrefs],
   );
   return {
     status,

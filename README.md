@@ -370,24 +370,29 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    5. Unread **Waiting** threads
    6. Read **Waiting** threads
 
-   Unread threads always come first, newest first, whatever their turn was
-   blocked on. Waiting threads (the agent reported Waiting on a subagent or
-   timer, or analysis found the work still in progress) rank after every other
-   thread, even read ones. Up Next then trims from the bottom: threads not
-   blocked on you leave, least urgent first, until `5` remain; read blocked
-   threads leave until `10` remain; past that, only the `10` most recently
-   active stay, whatever their tier. So Up Next always shows a few threads,
-   grows only for threads blocked on you, and lists at most `10` on its own.
-   **Show N more** lists the trimmed threads that are unread or blocked on you
-   below the rest, and **Show less** collapses them; trimmed read threads not
-   blocked on you stay in Recent and their workstreams. It re-ranks as recaps,
-   read state, and activity change. When the order changes, transforms slide
-   existing rows to their new positions without changing their heights. A row
-   joining Up Next fades in at its destination. With reduced motion enabled, the
-   new order appears without sliding or fading. The thread you have open keeps
-   its row and place until you open another thread. Nested delegates do not
-   appear as separate Up Next entries; find them in their workstream's thread
-   tree.
+   Unread threads come first by default, newest first, whatever their turn was
+   blocked on; turning off **Always show unread first** in the Up Next settings
+   ranks each thread by what it was blocked on instead, so a read question can
+   lead an unread review. Waiting threads (the agent reported Waiting on a
+   subagent or timer, or analysis found the work still in progress) rank after
+   every other thread, even read ones. **Prioritize recent threads** in those
+   settings moves the threads whose turn ended within the chosen window above
+   older ones, whatever they were blocked on, and keeps the six tiers inside
+   each group. Up Next then trims from the bottom: threads not blocked on you
+   leave, least urgent first, until **Threads shown** remain (`5` by default);
+   read blocked threads leave until `10` remain; past that, only the `10` most
+   recently active stay, whatever their tier. So Up Next always shows a few
+   threads, grows only for threads blocked on you, and lists at most `10` on its
+   own. **Show N more** lists the trimmed threads that are unread or blocked on
+   you below the rest, and **Show less** collapses them; trimmed read threads
+   not blocked on you stay in Recent and their workstreams. It re-ranks as
+   recaps, read state, and activity change. When the order changes, transforms
+   slide existing rows to their new positions without changing their heights. A
+   row joining Up Next fades in at its destination. With reduced motion enabled,
+   the new order appears without sliding or fading. The thread you have open
+   keeps its row and place until you open another thread. Nested delegates do
+   not appear as separate Up Next entries; find them in their workstream's
+   thread tree.
    - **Focus:** While a focused workstream has a thread blocked on you, Up Next
      applies these rules to focused workstreams' threads only and marks its
      header with the focus icon.
@@ -936,6 +941,9 @@ Open **Settings → Workstreams** to configure:
 | **Sidebar**           | **Up next and workstreams on phones**              | `On`                                        | Replaces BB's flat Recent list on the compact phone Home screen.                                                                                                                                                                                       |
 | **Sidebar**           | **Timestamp**                                      | `Always`                                    | Show each row's age, right after its title, `Always`, `On hover`, or `Never`.                                                                                                                                                                          |
 | **Sidebar**           | **Thread count** / **Waiting count**               | `When collapsed`                            | Show workstream counts `Always`, `When collapsed`, or `Never`.                                                                                                                                                                                         |
+| **Up Next**           | **Threads shown**                                  | `5` (`1–10`)                                | Rows Up Next shows before **Show N more**, which reveals the trimmed threads that are unread or blocked on you. Threads blocked on you still grow past this count, up to `10`.                                                                         |
+| **Up Next**           | **Always show unread first**                       | `On`                                        | Rank unread threads above every other thread. Turned off, each thread ranks by what its turn was blocked on, so a read question can lead an unread review, and unread still sits behind Show more when trimmed.                                        |
+| **Up Next**           | **Prioritize recent threads**                      | `Don't prioritize`                          | Move threads whose turn ended within the chosen window (`Last hour` through `Last week`) above older ones, whatever they were blocked on. The ranking above still orders the threads inside each group.                                                |
 | **Working indicator** | **Style**, **Color**, **Track**                    | `Spokes`, `Subtle gray`, `Faded color`      | Choose from `7` spinner shapes (`Spokes`, `Sunburst`, `Arc`, `Orbit`, `Ring`, `Braille`, `Dots`), named or custom `#rrggbb` colors, and track styles for `Arc`/`Orbit`/`Ring`.                                                                         |
 | **Colors**            | **Default colors**, then six colors                | `Workstreams`                               | **Default colors** picks Workstreams' own shades or matching bb theme colors; each color's swatches can override it with a theme color or a custom `#rrggbb`.                                                                                          |
 | **Threads**           | **Full analysis model**                            | `openai/gpt-6-sol-fast`                     | Model used at turn end to settle goals and fallback status.                                                                                                                                                                                            |

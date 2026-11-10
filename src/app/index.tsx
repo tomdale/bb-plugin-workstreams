@@ -27,6 +27,7 @@ import {
   OrganizeSettings,
   SidebarSettings,
   ThreadsSettings,
+  UpNextSettings,
   WorkingIndicatorSettings,
 } from "./settings/FeatureSettings.tsx";
 import { WorkstreamsThreadList } from "./sidebar/ThreadList.tsx";
@@ -188,6 +189,11 @@ export default definePluginApp((app) => {
     id: "sidebar",
     title: "Sidebar",
     component: SidebarSettings,
+  });
+  app.slots.settingsSection({
+    id: "up-next",
+    title: "Up Next",
+    component: UpNextSettings,
   });
   app.slots.settingsSection({
     id: "working-indicator",
