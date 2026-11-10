@@ -75,3 +75,12 @@ export function staleSlices(
     (slice) => held.revisions[slice] !== next.revisions[slice],
   );
 }
+
+/**
+ * Whether every write behind a `changed` payload named its scope. Such writes
+ * change only `state` slices and the named threads' records, so a view of
+ * anything else (suggestions, the organizer) has nothing new to read.
+ */
+export function isScopedChange(payload: unknown): boolean {
+  return readChangedSignal(payload)?.threadIds !== undefined;
+}

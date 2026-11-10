@@ -14,7 +14,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { toast } from "sonner";
-import { useRealtime } from "@get-bb/plugin-sdk/app";
+import { shareJson } from "../../structuralSharing.ts";
+import { useUnscopedChanged } from "../../useChanged.ts";
 import { cn } from "@/lib/utils";
 import { menuSurfaceClass } from "../../primitives/menu.ts";
 import { KeyChip } from "../../primitives/KeyChip.tsx";
@@ -71,13 +72,15 @@ function useOrganizer(ws: Workstreams) {
       ws.rpc.call("organization", { action: "get" }),
       ws.rpc.call("suggestions", null),
     ]);
-    if (o.status === "fulfilled") setOrganizer(o.value.state);
-    if (s.status === "fulfilled") setSuggestions(s.value.state);
+    if (o.status === "fulfilled")
+      setOrganizer((previous) => shareJson(previous, o.value.state));
+    if (s.status === "fulfilled")
+      setSuggestions((previous) => shareJson(previous, s.value.state));
   }, [ws.rpc]);
   useEffect(() => {
     void read();
   }, [read]);
-  useRealtime("changed", () => void read());
+  useUnscopedChanged(() => void read());
   const working =
     organizer?.status === "classifying" ||
     organizer?.status === "deriving" ||

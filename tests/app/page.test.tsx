@@ -1017,3 +1017,37 @@ it("opens the activity log from the menu, with undo", async () => {
   );
   slot.lifecycle.unmount();
 });
+
+it("re-reads the queue's suggestions only for writes beyond recaps and analysis", async () => {
+  const suggestions = vi.fn(() => ({
+    state: { suggestions: [], running: false, lastRunAt: null, error: null },
+  }));
+  const slot = await mount(undefined, [], { suggestions });
+  await waitFor(() => expect(heading(slot)).toBe("Beta question"));
+  await waitFor(() => expect(suggestions).toHaveBeenCalled());
+  const before = suggestions.mock.calls.length;
+  const changes = {
+    epoch: "e1",
+    revisions: {
+      analysis: 1,
+      recaps: 1,
+      order: 0,
+      snoozes: 0,
+      catalog: 0,
+      suggestions: 0,
+    },
+  };
+  await act(async () => {
+    await slot.behavior.emitRealtime("changed", {
+      ...changes,
+      threadIds: ["a1"],
+    });
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(suggestions).toHaveBeenCalledTimes(before);
+  await act(async () => {
+    await slot.behavior.emitRealtime("changed", changes);
+  });
+  await waitFor(() => expect(suggestions).toHaveBeenCalledTimes(before + 1));
+  slot.lifecycle.unmount();
+});
