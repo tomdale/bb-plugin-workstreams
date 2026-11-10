@@ -250,7 +250,7 @@ function Scrim({ shown }: { shown: boolean }) {
         background: "rgb(0 0 0 / 0.4)",
         opacity: shown ? 1 : 0,
         pointerEvents: shown ? "auto" : "none",
-        transition: still ? undefined : "opacity 150ms ease-out",
+        transition: still ? undefined : "opacity 80ms ease-out",
       }}
     />,
     document.body,
