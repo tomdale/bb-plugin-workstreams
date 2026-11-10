@@ -185,6 +185,9 @@ export function headingBackdropOpacity(progress: number): number {
   return 1 - progress ** 12;
 }
 
+/** The feather styles.css draws below a plate, in rem of the gradient's length. */
+const PLATE_FADE_REM = 12;
+
 /**
  * Length of the short shadow under a minimized heading, as a fraction of the
  * shadow under the expanded plate. styles.css draws both from one gradient
@@ -194,14 +197,15 @@ export function headingBackdropOpacity(progress: number): number {
  * the timeline sits on this short feather at both heights, since the timeline
  * scrolls beneath a solid plate rather than meeting a title bar's hairline.
  */
-export const BAR_FADE_RATIO = 3 / 12;
+export const BAR_FADE_RATIO = 3 / PLATE_FADE_REM;
 
 /**
- * Feather under a heading pinned in the timeline once it compacts: half the
- * title bar's, because the messages resume directly under the block, so a
- * longer one leaves the next row looking like empty space.
+ * Feather under a heading pinned in the timeline once it compacts. Longer than
+ * the compact block's own padding but shorter than the title bar's shadow, on
+ * a curve that gives up most of its cover early: the messages dissolve out
+ * from under the block instead of appearing to be cut off by it.
  */
-export const PINNED_FADE_RATIO = BAR_FADE_RATIO / 2;
+export const PINNED_FADE_RATIO = 2.25 / PLATE_FADE_REM;
 
 /**
  * Fraction of the plate's shadow still drawn as the heading collapses in the

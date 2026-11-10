@@ -846,6 +846,9 @@ export function StickyGoalHeader(): React.ReactElement | null {
       <div
         className="ws-goal-background"
         data-ws-pinned={pinned ? "" : undefined}
+        // The compact block's feather is short enough that the row beneath it
+        // needs the softer curve to read as a dissolve.
+        data-ws-feather={pinned && collapsed ? "soft" : undefined}
         style={
           {
             transform: `translate(${placement.background.x}px, ${placement.background.y}px)`,

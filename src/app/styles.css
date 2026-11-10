@@ -608,6 +608,20 @@
   transform-origin: top;
   opacity: var(--ws-fade-below-plate, 0);
 }
+/* A compact heading pinned in the timeline ends where the messages resume, so
+   its feather gives up most of its cover in the first third: the row under the
+   block reads as dissolving rather than as cut off. */
+[data-ws-feather="soft"].ws-goal-background::after {
+  background: linear-gradient(
+    to bottom in oklab,
+    var(--background) 0%,
+    color-mix(in oklab, var(--background) 55%, transparent) 12%,
+    color-mix(in oklab, var(--background) 32%, transparent) 25%,
+    color-mix(in oklab, var(--background) 16%, transparent) 45%,
+    color-mix(in oklab, var(--background) 5%, transparent) 70%,
+    transparent 100%
+  );
+}
 /* A heading pinned in the timeline steps between its expanded and compact
    states once the reader has scrolled past it, so the change is animated in
    time rather than tracked to the scroll position. */
