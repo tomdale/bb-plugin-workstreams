@@ -351,10 +351,17 @@ type Placement = {
   bar: { x: number; centerY: number; width: number } | null;
 };
 
+/**
+ * The message text's inset from the column's edges, read from a rendered prose
+ * message, for the column width it was read at. Null until one renders.
+ */
+type TextInset = { width: number; left: number; right: number } | null;
+
 function measurePlacement(
   mount: Mount,
   base: number,
   centered: boolean,
+  inset: { current: TextInset },
 ): Placement {
   // Everything is relative to the overlay's own origin. The overlay sits in
   // the same sliding surface as the pane, so these coordinates do not change
@@ -365,21 +372,32 @@ function measurePlacement(
   // Line the heading up with the message text. BB insets that text from the
   // column by a width that varies with the viewport, so read it from a rendered
   // prose message (they alone carry the inset); fall back to the desktop inset.
-  let textLeft = columnRect.left + 32;
-  let textRight = columnRect.right - 32;
-  for (const message of mount.scroller.querySelectorAll<HTMLElement>(
-    "[data-message-column]",
-  )) {
-    const rect = message.getBoundingClientRect();
-    const style = getComputedStyle(message);
-    const padLeft = Number.parseFloat(style.paddingLeft) || 0;
-    const padRight = Number.parseFloat(style.paddingRight) || 0;
-    if (rect.width > 0 && padLeft > 0) {
-      textLeft = rect.left + padLeft;
-      textRight = rect.right - padRight;
-      break;
+  // The inset follows the column's width, so one reading serves every frame
+  // until the width changes.
+  if (
+    !inset.current ||
+    Math.abs(inset.current.width - columnRect.width) >= 0.5
+  ) {
+    inset.current = null;
+    for (const message of mount.column.querySelectorAll<HTMLElement>(
+      "[data-message-column]",
+    )) {
+      const rect = message.getBoundingClientRect();
+      const style = getComputedStyle(message);
+      const padLeft = Number.parseFloat(style.paddingLeft) || 0;
+      const padRight = Number.parseFloat(style.paddingRight) || 0;
+      if (rect.width > 0 && padLeft > 0) {
+        inset.current = {
+          width: columnRect.width,
+          left: rect.left + padLeft - columnRect.left,
+          right: columnRect.right - (rect.right - padRight),
+        };
+        break;
+      }
     }
   }
+  const textLeft = columnRect.left + (inset.current?.left ?? 32);
+  const textRight = columnRect.right - (inset.current?.right ?? 32);
   const pane = {
     x: textLeft - origin.left,
     y: scrollerRect.top + base * PAD_TOP - origin.top,
@@ -463,18 +481,35 @@ function usePlacement(
       return;
     }
     let frame = 0;
+    const inset: { current: TextInset } = { current: null };
     const header = mount.scroller
       .closest("[data-split-pane-id]")
       ?.querySelector<HTMLElement>(":scope > header");
     const measure = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const next = measurePlacement(mount, base, centered);
+        const next = measurePlacement(mount, base, centered, inset);
         setPlacement((prev) => (samePlacement(prev, next) ? prev : next));
       });
     };
     measure();
-    const resize = new ResizeObserver(measure);
+    // The column grows with every streamed line, but the placement depends
+    // only on its width. Its height matters only until a prose message has
+    // rendered and given the text inset; until then each new message may.
+    let columnWidth: number | null = null;
+    const resize = new ResizeObserver((entries) => {
+      let moved = false;
+      for (const entry of entries) {
+        if (entry.target !== mount.column) {
+          moved = true;
+          continue;
+        }
+        const width = entry.contentRect.width;
+        if (width !== columnWidth || !inset.current) moved = true;
+        columnWidth = width;
+      }
+      if (moved) measure();
+    });
     resize.observe(mount.scroller);
     resize.observe(mount.column);
     if (header) resize.observe(header);

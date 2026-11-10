@@ -399,6 +399,89 @@ it("remeasures wrapped goals when the pane width changes", async () => {
   }
 });
 
+it("remeasures for the column's height only until the text inset is known", async () => {
+  paneFixture({ recap: false });
+  const column = document.querySelector<HTMLElement>('[data-test="column"]')!;
+  let width = 800;
+  vi.spyOn(column, "getBoundingClientRect").mockImplementation(
+    () => new DOMRect(0, 0, width, 1000),
+  );
+  const slot = await mountHeading();
+  type Observer = {
+    callback: ResizeObserverCallback;
+    targets: Element[];
+  };
+  const observers: Observer[] = [];
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      targets: Element[] = [];
+      constructor(public callback: ResizeObserverCallback) {
+        observers.push(this);
+      }
+      observe(target: Element) {
+        this.targets.push(target);
+      }
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  const searches = vi.spyOn(Element.prototype, "querySelectorAll");
+  const insetSearches = () =>
+    searches.mock.calls.filter(
+      ([selector]) => selector === "[data-message-column]",
+    ).length;
+  const paneX = () =>
+    overlay()!.querySelector<HTMLElement>('[data-ws-heading="expanded"]')!.style
+      .transform;
+  try {
+    await waitFor(() =>
+      expect(overlay()?.textContent).toContain("Ship the mobile polish"),
+    );
+    const placement = observers.find((observer) =>
+      observer.targets.includes(column),
+    )!;
+    const resizeColumn = async (height: number) => {
+      await act(async () =>
+        placement.callback(
+          [
+            {
+              target: column,
+              contentRect: new DOMRect(0, 0, width, height),
+            } as unknown as ResizeObserverEntry,
+          ],
+          placement as unknown as ResizeObserver,
+        ),
+      );
+      await nextFrame();
+    };
+    await resizeColumn(100);
+    const unresolved = insetSearches();
+    expect(unresolved).toBeGreaterThan(0);
+    // Until a prose message renders, a taller column may hold the first one.
+    const message = document.createElement("div");
+    message.dataset.messageColumn = "";
+    message.style.padding = "0 24px";
+    vi.spyOn(message, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(10, 0, 780, 50),
+    );
+    column.append(message);
+    await resizeColumn(200);
+    expect(insetSearches()).toBe(unresolved + 1);
+    expect(paneX()).toMatch(/^translate\(34px,/);
+    // Streamed lines only make the column taller, which moves nothing.
+    for (const height of [300, 400, 500]) await resizeColumn(height);
+    expect(insetSearches()).toBe(unresolved + 1);
+    expect(paneX()).toMatch(/^translate\(34px,/);
+    width = 700;
+    await resizeColumn(500);
+    expect(insetSearches()).toBe(unresolved + 2);
+  } finally {
+    searches.mockRestore();
+    slot.lifecycle.unmount();
+  }
+});
+
 it("attaches to the message scroller although a recap card scrolls its own text", async () => {
   paneFixture({ recap: true });
   const slot = await mountHeading();
