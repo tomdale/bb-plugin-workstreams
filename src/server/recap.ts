@@ -100,6 +100,13 @@ export class AgentRecaps {
   >();
   private readonly waitingChecks = new Set<Promise<void>>();
   /**
+   * Whether each thread's turns are guarded against tool loops: recaps are
+   * required and the thread is enrolled. The guard asks on every event batch
+   * of an active thread; `configure`, `onArchived`, `forget` and
+   * `prefsChanged` keep the answers current.
+   */
+  private readonly guarded = new Map<string, boolean>();
+  /**
    * Whether the client that last connected draws reply blocks. Only the
    * tomdale/bb fork does; on upstream bb every client reports it doesn't, so
    * Structured replies stays off and agents keep the recap tool. The report is
@@ -122,8 +129,16 @@ export class AgentRecaps {
     this.messageBlocks = loadClientReport(deps.db).messageBlocks;
     this.loopGuard = new ToolLoopGuard({
       bb: deps.bb,
-      enabled: (threadId) =>
-        deps.prefs().required && this.row(threadId).enrolled === 1,
+      enabled: (threadId, fresh) => {
+        const cached = this.guarded.get(threadId);
+        if (cached !== undefined && !fresh) return cached;
+        const row = this.deps.db
+          .prepare("SELECT enrolled FROM ws_agent_recap WHERE thread_id = ?")
+          .get(threadId) as Pick<Row, "enrolled"> | undefined;
+        const guarded = deps.prefs().required && row?.enrolled === 1;
+        this.guarded.set(threadId, guarded);
+        return guarded;
+      },
       onLoop: (threadId) => {
         deps.db
           .prepare("UPDATE ws_agent_recap SET capped = 1 WHERE thread_id = ?")
@@ -194,6 +209,7 @@ export class AgentRecaps {
     this.deps.db
       .prepare("UPDATE ws_agent_recap SET enrolled = ? WHERE thread_id = ?")
       .run(Number(on), threadId);
+    this.guarded.set(threadId, on);
     // Body-only replies and the recap tool share the Structured replies gate.
     const replies = enabled && prefs.replies && this.messageBlocks;
     return {
@@ -201,6 +217,11 @@ export class AgentRecaps {
       structuredReplies: replies,
       replyInstructions: replies ? replyInstructions(on) : null,
     };
+  }
+
+  /** The recap preferences were saved; enrollment answers may have changed. */
+  prefsChanged() {
+    this.guarded.clear();
   }
 
   /** A client's report of what its bb draws; the latest report wins. */
@@ -357,11 +378,13 @@ export class AgentRecaps {
     this.deps.db
       .prepare("UPDATE ws_agent_recap SET enrolled = 0 WHERE thread_id = ?")
       .run(threadId);
+    this.guarded.set(threadId, false);
   }
 
   forget(threadId: string) {
     this.cancelWaitingTimer(threadId);
     this.loopGuard.forget(threadId);
+    this.guarded.delete(threadId);
     this.deps.db
       .prepare("DELETE FROM ws_agent_recap WHERE thread_id = ?")
       .run(threadId);

@@ -1419,6 +1419,7 @@ export default async function plugin(bb: BbPluginApi) {
     recapPrefs: async () => ({ prefs: loadRecapPrefs(db) }),
     setRecapPrefs: async ({ patch }) => {
       const prefs = saveRecapPrefs(db, patch);
+      recaps.prefsChanged();
       bb.realtime.publish("recapPrefs", { prefs });
       // Corrections and the card follow at once; the tool follows each
       // session's next start.
