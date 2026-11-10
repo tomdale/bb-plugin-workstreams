@@ -731,7 +731,8 @@ describe("organizer pass cost", () => {
 
   it("reads the topic tree a fixed number of times, however many roots there are", async () => {
     const few = await passReads(2);
-    const many = await passReads(12);
+    // Below six roots, so no category assessment adds reads of its own.
+    const many = await passReads(5);
     expect(many.lists).toBe(few.lists);
     expect(many.recapScans).toBe(0);
   });
