@@ -3,7 +3,9 @@
  * order. Pure, so the page and tests share one definition.
  *
  * Up Next comes first, in the shared ranking (`selectUpNext`), with the
- * threads the sidebar trims behind Show more appended in their rank. Earlier
+ * threads the sidebar trims behind Show more appended in their rank. Threads
+ * still waiting on something else follow them, since the page is where their
+ * status check is watched and cancelled, and Up Next leaves them out. Earlier
  * holds every other open root whose turn isn't underway, newest first, for
  * when Up Next is clear. Nested threads never come up on their own; they
  * follow their root.
@@ -64,6 +66,10 @@ export function planFeed<T extends UpNextThread>(
     kindOf: options.kindOf,
     now: options.now,
     prioritized: focusedSections(arranged, options.prioritized),
+    // The page is where a Waiting recap's status check is watched and
+    // cancelled, so it takes those threads after everything else; the sidebar's
+    // Up Next leaves them out.
+    includeWaiting: true,
   });
 
   // Each section's place, from the nested groups the sidebar draws.

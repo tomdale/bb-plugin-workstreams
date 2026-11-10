@@ -6,12 +6,15 @@
  * snoozed) is a candidate, except one whose turn is still under way or
  * waiting on something else: a working thread has nothing to act on yet, and a
  * Waiting thread (see `isRunning` and `upNextKind`) belongs in its workstream
- * until it asks for the user or finishes. A question or a review is blocked on
- * the user; anything else (done, failed) is not. A review or a needed decision
- * whose turn ended more than {@link UP_NEXT_STALE_AFTER_MS} ago has gone stale
- * and ranks as neither (see `agedKind`). While a focused workstream has a
- * thread blocked on the user, only focused workstreams' threads are
- * candidates; the threads blocked on the user elsewhere wait outside Up Next.
+ * until it asks for the user or finishes. The queue page takes those Waiting
+ * threads too (`includeWaiting`), after everything else, because it is where a
+ * Waiting recap's status check is watched and cancelled. A question or a review
+ * is blocked on the user; anything else (done, failed) is not. A review or a
+ * needed decision whose turn ended more than {@link UP_NEXT_STALE_AFTER_MS} ago
+ * has gone stale and ranks as neither (see `agedKind`). While a focused
+ * workstream has a thread blocked on the user, only focused workstreams'
+ * threads are candidates; the threads blocked on the user elsewhere wait
+ * outside Up Next.
  *
  * Candidates rank by tier, then by latest attention (BB's turn-end time,
  * the one unread compares against), newest first. With "Prioritize unread
@@ -138,6 +141,14 @@ export type UpNextOptions<T extends UpNextThread> = {
    * Up Next can hold fewer than `shown` rows, or none. True when absent.
    */
   readonly fill?: boolean;
+  /**
+   * Whether threads still waiting on something else are candidates, ranked
+   * after every other thread. False keeps them out, which is what the sidebar,
+   * the phone Home screen, and the next Up Next command want; the queue page
+   * wants them, because it watches a Waiting recap's status check. False when
+   * absent.
+   */
+  readonly includeWaiting?: boolean;
 };
 
 /** A question or review: the thread is blocked on the user. */
@@ -205,26 +216,28 @@ type UpNextSelection<T extends WorkstreamThread> = {
   readonly focused: boolean;
 };
 
-/** The kinds Up Next ranks; a Waiting thread is never a candidate. */
-type RankedKind = Exclude<UpNextKind, "waiting">;
-
 /** A kind's tier when unread threads rank with their kind. */
-const KIND_TIER: Record<RankedKind, number> = {
+const KIND_TIER: Record<UpNextKind, number> = {
   question: 0,
   review: 1,
   other: 2,
+  waiting: 3,
 };
 
 /** Read threads keep their kind's order below every unread thread. */
 const READ_TIER_OFFSET = 3;
 
+/** A Waiting thread ranks after every ranked thread, read or not. */
+const WAITING_TIER = 6;
+
 /** Tier rank, 0 most urgent; see the module comment. */
 function tierOf(
-  kind: RankedKind,
+  kind: UpNextKind,
   unread: boolean,
   failed: boolean,
   unreadFirst: boolean,
 ): number {
+  if (kind === "waiting") return WAITING_TIER;
   if (!unreadFirst) return KIND_TIER[kind];
   if (!unread) return KIND_TIER[kind] + READ_TIER_OFFSET;
   // What an unread thread leaves the user with, most urgent first.
@@ -250,6 +263,7 @@ export function selectUpNext<T extends UpNextThread>(
   const unreadFirst = options.unreadFirst ?? true;
   const freshWithinMs = options.freshWithinMs ?? 0;
   const fill = options.fill ?? true;
+  const includeWaiting = options.includeWaiting ?? false;
   const ranked = [
     ...projection.groups,
     projection.unsorted,
@@ -268,9 +282,9 @@ export function selectUpNext<T extends UpNextThread>(
         options.kindOf(row.thread),
         options.now,
       );
-      // A thread the agent reported Waiting, or one still working, asks nothing
-      // of the user: it stays in its workstream until the turn finishes.
-      if (kind === "waiting") return null;
+      // A thread the agent reported Waiting asks nothing of the user: it stays
+      // in its workstream until the turn finishes, unless the caller lists it.
+      if (kind === "waiting" && !includeWaiting) return null;
       return {
         row,
         onYou: isBlockedOnUser(kind),

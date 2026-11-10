@@ -363,11 +363,13 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    ended more than `7` days ago ages out and counts as not blocked; a pending
    question card or approval never ages out. A thread the agent reported
    **Waiting** on a subagent or timer, or one analysis found still in progress,
-   is never a candidate: it stays in its workstream until it asks for you or
-   finishes. Candidates rank in tiers, each newest first by latest turn end.
-   With **Prioritize unread threads** on (the default), every unread thread
-   leads every read thread, and the unread ones rank by what their turn left you
-   with:
+   is never a candidate in the sidebar, Home screen, or next Up Next command: it
+   stays in its workstream until it asks for you or finishes. The queue page
+   lists those threads after everything else, because it is where a Waiting
+   recap's status check is watched and cancelled. Candidates rank in tiers, each
+   newest first by latest turn end. With **Prioritize unread threads** on (the
+   default), every unread thread leads every read thread, and the unread ones
+   rank by what their turn left you with:
    1. Unread threads whose turn failed
    2. Unread threads blocked on you
    3. Other unread threads
@@ -768,32 +770,33 @@ above the composer:
 
 Open **Workstreams** in the main navigation panel. The page is a queue that
 shows one thing at a time that needs you: Up Next's threads in the sidebar's
-order, then the organizer's suggestions. The order holds while the page is open.
-The next items wait as a stack of cards behind the current one, the next two
-peeking out above it. Acting on an item, or skipping it, tucks its card under:
-it drops clear of the stack, slips behind it, and rises to the back while the
-others move up a place; going back reverses the path. A card too tall to fit
-behind the next one fades away on its way. A moving card follows a sideways loop
-and banks slightly. Presses are taken one card at a time, at least 60 ms apart
-and only when the previous card clears; a press that arrives while one waits is
-dropped, and a press the other way is always taken. Holding `↓` moves cards on,
-and holding `↑` brings them back. Repeats start after 250 ms and run every 25
-ms. As a hold continues, the springs stiffen and clearing loosens while cards
-stay whole; letting go rests on a whole card. When a card comes back from behind
-the stack it regains its colour, and the card it is about to cover dims its
-content and shrinks to the size it will have under it, keeping its frame and
-background. Under reduced motion the new item only fades in. To look ahead or
-back without acting, use the footer's arrows, which also show where you are ("2
-of 9"), or press `↓`, `→` or `J` for the next item and `↑`, `←` or `K` for the
-previous one. The card stack's top edge sits about a quarter of the way down the
-page, and the heading sits in a fixed place just above the stack. The replies
-and actions follow the card and the page grows downward, so opening Reply,
-holding `Shift`, or a receipt appearing above never moves anything. The stack
-keeps that place from item to item and follows the window as you resize it; it
-only glides down when the next item's heading wraps to more lines. The new
-heading fades in place; the receipt line crossfades to the next one with a small
-drift. Under reduced motion the card only fades in and the heading changes in
-place.
+order, then the threads that are still waiting, then the organizer's
+suggestions. A waiting thread's card carries its status-check countdown, which
+the sidebar's Up Next never shows. The order holds while the page is open. The
+next items wait as a stack of cards behind the current one, the next two peeking
+out above it. Acting on an item, or skipping it, tucks its card under: it drops
+clear of the stack, slips behind it, and rises to the back while the others move
+up a place; going back reverses the path. A card too tall to fit behind the next
+one fades away on its way. A moving card follows a sideways loop and banks
+slightly. Presses are taken one card at a time, at least 60 ms apart and only
+when the previous card clears; a press that arrives while one waits is dropped,
+and a press the other way is always taken. Holding `↓` moves cards on, and
+holding `↑` brings them back. Repeats start after 250 ms and run every 25 ms. As
+a hold continues, the springs stiffen and clearing loosens while cards stay
+whole; letting go rests on a whole card. When a card comes back from behind the
+stack it regains its colour, and the card it is about to cover dims its content
+and shrinks to the size it will have under it, keeping its frame and background.
+Under reduced motion the new item only fades in. To look ahead or back without
+acting, use the footer's arrows, which also show where you are ("2 of 9"), or
+press `↓`, `→` or `J` for the next item and `↑`, `←` or `K` for the previous
+one. The card stack's top edge sits about a quarter of the way down the page,
+and the heading sits in a fixed place just above the stack. The replies and
+actions follow the card and the page grows downward, so opening Reply, holding
+`Shift`, or a receipt appearing above never moves anything. The stack keeps that
+place from item to item and follows the window as you resize it; it only glides
+down when the next item's heading wraps to more lines. The new heading fades in
+place; the receipt line crossfades to the next one with a small drift. Under
+reduced motion the card only fades in and the heading changes in place.
 
 Question cards on this page use the same form as the thread: choose options,
 review previews, add notes, answer in your own words, or attach files and

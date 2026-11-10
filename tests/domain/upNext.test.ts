@@ -56,6 +56,7 @@ function upNext(
     unreadFirst?: boolean;
     freshWithinMs?: number;
     fill?: boolean;
+    includeWaiting?: boolean;
   } = {},
 ) {
   const projection = projectWorkstreams(threads, sections, {
@@ -71,6 +72,7 @@ function upNext(
       unreadFirst: options.unreadFirst,
       freshWithinMs: options.freshWithinMs,
       fill: options.fill,
+      includeWaiting: options.includeWaiting,
     }).rows,
   );
 }
@@ -115,6 +117,16 @@ describe("selectUpNext", () => {
         t("qu1", 2, { status: "active", hasPendingInteraction: true }),
       ]),
     ).toEqual(["qu1", "or1"]);
+  });
+
+  it("takes Waiting threads last when the caller asks for them", () => {
+    // The queue page lists them for their status check; the sidebar never
+    // does. Unread or read, they follow every other thread.
+    expect(
+      upNext([t("wu1", 900), t("wr1", 800), t("or1", 1), t("ou1", 2)], {
+        includeWaiting: true,
+      }),
+    ).toEqual(["ou1", "or1", "wu1", "wr1"]);
   });
 
   it("ranks an unread failed turn first, then threads blocked on you", () => {

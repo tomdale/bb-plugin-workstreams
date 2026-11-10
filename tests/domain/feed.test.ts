@@ -55,6 +55,31 @@ describe("planFeed", () => {
     expect(feed.earlier).toHaveLength(0);
   });
 
+  it("queues a waiting thread after the ones that need you", () => {
+    const kindOfIds = (t: { id: string }): UpNextKind =>
+      t.id.startsWith("w") ? "waiting" : kindOf(t);
+    const projection = projectWorkstreams(
+      [
+        thread("w1", { sectionId: "sec_a", latestAttentionAt: now }),
+        thread("q1", {
+          sectionId: "sec_a",
+          latestAttentionAt: now - 60_000,
+        }),
+      ],
+      sections,
+      { now },
+    );
+    const feed = planFeed(projection, {
+      kindOf: kindOfIds,
+      now,
+      prioritized: new Set(),
+      groupSort: "alphabetical",
+    });
+    // Up Next leaves it out; the page keeps it, last, for its status check.
+    expect(ids(feed.upNext)).toEqual(["q1", "w1"]);
+    expect(ids(feed.earlier)).toEqual([]);
+  });
+
   it("leaves running and snoozed roots out of the queue", () => {
     const feed = plan(
       [
