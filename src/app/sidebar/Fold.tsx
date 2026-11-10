@@ -27,16 +27,37 @@ export function FoldChevron({ open }: { open: boolean }) {
   );
 }
 
-/** The phase of the fold a row sits in, so its open menus can close with it. */
+/**
+ * The phase of the folds around a row. A fold publishes its own phase joined
+ * with this one (see `rowsPhase`), so a row nested in a fold that is at rest
+ * inside a folding ancestor still sees the ancestor leaving.
+ */
 const FoldPhase = createContext<PresencePhase>("idle");
 
 /**
- * Closes a menu the moment the fold around it starts closing. The contents
+ * The phase a fold's rows see: `own`, unless any fold around it is leaving.
+ * Once one is, they are all leaving, because that ancestor's closing takes
+ * every row inside it, however far the fold nearest them has opened.
+ */
+export function rowsPhase(
+  own: PresencePhase,
+  enclosing: PresencePhase,
+): PresencePhase {
+  return own === "leave" || enclosing === "leave" ? "leave" : own;
+}
+
+/** The phase of the folds around this row. */
+export function useFoldPhase(): PresencePhase {
+  return useContext(FoldPhase);
+}
+
+/**
+ * Closes a menu the moment the folds around it start closing. The contents
  * stay mounted, inert, until the fold finishes, and a menu left open over
  * them would outlive the row it belongs to.
  */
 export function useCloseOnFoldLeave(open: boolean, close: () => void) {
-  const leaving = useContext(FoldPhase) === "leave";
+  const leaving = useFoldPhase() === "leave";
   useEffect(() => {
     if (leaving && open) close();
     // `close` only has to be current when the fold starts leaving.
@@ -60,11 +81,14 @@ export function FoldBody({
   listClassName?: string;
   children: ReactNode;
 }) {
+  const enclosing = useFoldPhase();
   if (!fold.render) return null;
   return (
     <div className="ws-fold" ref={fold.ref} {...presenceProps(fold.phase)}>
       <ul ref={listRef} className={listClassName}>
-        <FoldPhase.Provider value={fold.phase}>{children}</FoldPhase.Provider>
+        <FoldPhase.Provider value={rowsPhase(fold.phase, enclosing)}>
+          {children}
+        </FoldPhase.Provider>
       </ul>
     </div>
   );
