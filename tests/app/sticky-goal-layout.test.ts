@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { expect } from "vitest";
-import { BAR_FADE_RATIO } from "../../src/app/goalHeading.ts";
 import { browserTest, browserUnavailable } from "./browser-fixture.ts";
 const styles = readFileSync(
   new URL("../../src/app/styles.css", import.meta.url),
@@ -39,8 +38,6 @@ browserTest.skipIf(browserUnavailable)(
       const background = document.querySelector<HTMLElement>(
         ".ws-goal-background",
       )!;
-      const barFade = getComputedStyle(background, "::before");
-      const barFadeHeight = Number.parseFloat(barFade.height);
       const plateFadeHeight = Number.parseFloat(
         getComputedStyle(background, "::after").height,
       );
@@ -53,8 +50,7 @@ browserTest.skipIf(browserUnavailable)(
         fade: getComputedStyle(background, "::after").backgroundImage,
         fadeOpacity: getComputedStyle(background, "::after").opacity,
         plateFadeHeight,
-        barFadeHeight,
-        barFadeTop: barFade.top,
+        barShadow: getComputedStyle(background, "::before").content,
       };
     });
     expect(result.rootTop).toBeLessThan(result.scrollerTop);
@@ -63,15 +59,9 @@ browserTest.skipIf(browserUnavailable)(
     expect(result.onTop).toBe("ws-sticky-goal__plate");
     expect(result.fade).toContain("linear-gradient");
     expect(result.fadeOpacity).toBe("1");
-    // One gradient in two lengths: the bar's shadow is the plate's, shortened.
     expect(result.plateFadeHeight).toBe(192);
-    expect(result.barFadeHeight).toBe(48);
-    expect(result.barFadeHeight / result.plateFadeHeight).toBeCloseTo(
-      BAR_FADE_RATIO,
-    );
-    // The bar's shadow starts one pixel higher, over the title bar's hairline,
-    // so the two surfaces meet in the shadow instead of along a rule.
-    expect(result.barFadeTop).toBe("-1px");
+    // The title bar has no shadow of its own: only the plate casts one.
+    expect(result.barShadow).toBe("none");
   },
 );
 

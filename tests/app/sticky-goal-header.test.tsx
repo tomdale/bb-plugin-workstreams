@@ -585,7 +585,7 @@ it.each(["fade", "scroll"] as const)(
     expect(background.style.getPropertyValue("--ws-fade-below-plate")).toBe(
       "1",
     );
-    expect(background.style.getPropertyValue("--ws-fade-below-bar")).toBe("0");
+    expect(background.style.getPropertyValue("--ws-fade-below-bar")).toBe("");
     expect(
       background.querySelector<HTMLElement>(".ws-sticky-goal__plate")!.style
         .transform,
@@ -833,8 +833,8 @@ it("eases fixed headings through a gentle handoff and switches modes", async () 
   expect(
     overlay()!
       .querySelector<HTMLElement>(".ws-goal-background")!
-      .style.getPropertyValue("--ws-fade-below-bar"),
-  ).toBe("1");
+      .style.getPropertyValue("--ws-fade-below-plate"),
+  ).toBe("0");
   await slot.behavior.emitRealtime("prefs", {
     prefs: parsePrefs({ threads: { headingTransition: "scroll" } }),
   });

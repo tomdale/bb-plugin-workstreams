@@ -73,7 +73,6 @@ const drawn = declarations(withoutAtRules(pageStyles()));
 const DRAWN = [
   ".ws-sticky-goal-root",
   ".ws-goal-background",
-  ".ws-goal-background::before",
   ".ws-goal-background::after",
   "[data-ws-edge]",
   "[data-ws-pinned].ws-goal-background::after",

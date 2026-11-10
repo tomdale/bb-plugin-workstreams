@@ -648,11 +648,11 @@
 }
 
 /* A zero-height anchor reserves the heading's space in the message column.
-   The plate, fades, and text share a layer in BB's sliding app surface, so
+   The plate, fade, and text share a layer in BB's sliding app surface, so
    they stay together as the timeline scrolls or a phone's pane slides aside.
    Scrolling away from the newest message hands off between the two fixed-size
-   headings without reflow; the feathered fade follows the plate or sits below
-   the bar. */
+   headings without reflow; the feathered fade follows the plate. Once the heading is in
+   the title bar nothing is drawn over the content. */
 .ws-sticky-goal-root {
   position: sticky;
   top: 0;
@@ -667,7 +667,6 @@
   left: 0;
   height: 0;
 }
-.ws-goal-background::before,
 .ws-goal-background::after {
   position: absolute;
   right: 0;
@@ -685,14 +684,6 @@
     transparent 100%
   );
   content: "";
-}
-/* Under the title bar, once the heading has gone. Its top pixel covers the
-   title bar's hairline, so the bar and the content meet in the shadow rather
-   than along a rule. */
-.ws-goal-background::before {
-  top: -1px;
-  height: 3rem;
-  opacity: var(--ws-fade-below-bar, 0);
 }
 /* Under the expanded plate. */
 .ws-goal-background::after {

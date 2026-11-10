@@ -24,7 +24,6 @@
         left: 0;
         height: 0;
       }
-      .ws-goal-background::before,
       .ws-goal-background::after {
         position: absolute;
         right: 0;
@@ -40,11 +39,6 @@
           transparent 100%
         );
         content: "";
-      }
-      .ws-goal-background::before {
-        top: -1px;
-        height: 3rem;
-        opacity: var(--ws-fade-below-bar, 0);
       }
       .ws-goal-background::after {
         top: 0;
@@ -1161,12 +1155,6 @@
           "--ws-fade-below-plate",
           String(fade && plateHeight > 0 ? plateOpacity : 0),
         );
-        background.style.setProperty(
-          "--ws-fade-below-bar",
-          String(
-            fade && slot ? (fadeOnly ? opacity.compact : Number(collapsed)) : 0,
-          ),
-        );
         background.toggleAttribute("data-ws-pinned", pinned);
         if (pinned) band.setAttribute("data-ws-edge", "");
         else band.removeAttribute("data-ws-edge");
@@ -1275,7 +1263,7 @@
             pinned
               ? `${(PINNED_FEATHER * 192).toFixed(0)}px from half cover`
               : fadeOnly
-                ? `bar fade, plate at ${plateOpacity.toFixed(2)}`
+                ? `plate shadow at ${plateOpacity.toFixed(2)}`
                 : `${(plateFadeScale(progress) * 192).toFixed(0)}px`
           }</b>
           <span>scroll padding</span><b>${scrollPadding}px</b>

@@ -600,6 +600,7 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
   while the heading minimizes, or **Title alignment → Centered** to center the
   minimized title's slot in the bar. Titles and workstream names stay left
   aligned in every layout. Those last two appear only while the title minimizes.
+  Once the minimized title is in the bar, nothing is drawn over the timeline.
   Reduced motion uses the stationary crossfade in the title bar and removes the
   animation from a pinned heading's step. Switching threads preserves your
   reading position. When you follow the newest message, the view stays attached
