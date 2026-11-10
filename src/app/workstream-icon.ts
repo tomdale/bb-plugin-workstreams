@@ -13,3 +13,9 @@ export const WORKSTREAM_ICON = "workstreams/workstream";
  * the manifest like the marks above.
  */
 export const TAG_ICON = "workstreams/tag";
+
+/**
+ * The "magic" sparkles, for organizing suggestions. BB's icon set has no
+ * sparkles; declared in the manifest like the marks above.
+ */
+export const SPARKLES_ICON = "workstreams/sparkles";

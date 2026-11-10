@@ -31,8 +31,13 @@ check live traces and costs, and evaluate prompt or model changes with `eval/`
 Before changing UI, agent tools or instructions, or the SDK dependency, read
 `.agents/skills/bb-plugin-guidelines/SKILL.md`, installed from
 tomdale/bb-plugins by the skills CLI (`skills-lock.json`; refresh with
-`npx skills update`). Record BB Plugin SDK limits in tomdale/bb-plugins
-`docs/bb-sdk-wishlist.md`.
+`npx skills update`). `<Icon name>` takes any string, and BB draws a name
+outside its registry as a lightning bolt with no warning, so a bolt means the
+name is unregistered. Use a name already in use under `src/app`, or declare an
+SVG in `package.json` `bb.branding.experimental_icons` and export its
+`workstreams/<key>` name from `src/app/workstream-icon.ts`;
+`tests/app/icons.test.ts` checks each one. Record BB Plugin SDK limits in
+tomdale/bb-plugins `docs/bb-sdk-wishlist.md`.
 
 Checks (repository root): `npm ci`, `npm run typecheck`, `npm test`,
 `npm run build`, `npx prettier --check <changed files>`, then

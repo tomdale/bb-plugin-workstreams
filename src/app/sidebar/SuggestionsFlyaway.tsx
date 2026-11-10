@@ -41,6 +41,7 @@ import { usePrefersReducedMotion } from "@/components/ui/hooks/use-media-query";
 import type { SuggestionsStateWire } from "../../server/contract.ts";
 import { keepOrder } from "../../domain/feed.ts";
 import type { useWorkstreams } from "../useWorkstreams.ts";
+import { SPARKLES_ICON } from "../workstream-icon.ts";
 import { Hint } from "../Hint.tsx";
 import { rowActionClass } from "./HoverActions.tsx";
 import { SuggestionPreview, type PreviewColors } from "./SuggestionPreview.tsx";
@@ -112,7 +113,7 @@ export function SuggestionsFlyaway({
             className="ws-suggestions-action -mx-2 -mb-[2px] -mt-[3px] flex shrink-0 cursor-pointer items-center whitespace-nowrap rounded-md border-transparent border-x-8 border-b-2 border-t-[3px] text-[12px] leading-4 font-medium tabular-nums transition-colors"
           >
             <Icon
-              name="Sparkles"
+              name={SPARKLES_ICON}
               className="mr-1 size-3 shrink-0"
               aria-hidden
             />
