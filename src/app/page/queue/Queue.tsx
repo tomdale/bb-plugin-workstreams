@@ -168,7 +168,19 @@ function useShiftHeld() {
   return held;
 }
 
+/** Each suggestion's moves, kept while the suggestion is, for its memoized card. */
+const movesOf = new WeakMap<Suggestion, SuggestionMove[]>();
+
 function suggestionMoves(s: Suggestion): SuggestionMove[] {
+  let moves = movesOf.get(s);
+  if (!moves) {
+    moves = groupMoves(s);
+    movesOf.set(s, moves);
+  }
+  return moves;
+}
+
+function groupMoves(s: Suggestion): SuggestionMove[] {
   const byTopic = new Map<string, SuggestionMove>();
   for (const move of s.change?.moves ?? []) {
     const leaf = move.to.at(-1);
@@ -289,7 +301,13 @@ export function Queue({
   const before = requested
     ? remaining.slice(Math.max(0, requestedPosition - 2), requestedPosition)
     : [];
-  const motion = useQueueMotion(requested, pile, requestedPosition > 0, before);
+  const motion = useQueueMotion(
+    requested,
+    pile,
+    requestedPosition > 0,
+    before,
+    receipt,
+  );
   const current =
     motion.front && remaining.includes(motion.front) ? motion.front : requested;
   const activeItem = useRef(current);

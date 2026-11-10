@@ -222,12 +222,16 @@ const toggle = (el: HTMLElement, name: string, on: boolean, value = "") => {
  * heading and replies can fade where they were; `accept` first when the change
  * is a skip from a key or button, so held keys queue no more than one; `hold`
  * when a skip key goes down and `release` when it is let go.
+ *
+ * `shownReceipt` is the receipt on show, by identity: the receipt line draws
+ * only from it, so a new one means new receipt markup to keep a copy of.
  */
 export function useQueueMotion(
   item: string | null,
   pile: readonly string[],
   previous: boolean,
   before: readonly string[] = [],
+  shownReceipt: unknown = null,
 ) {
   const page = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -253,6 +257,11 @@ export function useQueueMotion(
   const lastFront = useRef<string | undefined>(undefined);
   /** The receipt on show, with a copy kept current to leave as. */
   const lastReceipt = useRef<{ key: string; copy: HTMLElement } | null>(null);
+  /**
+   * What the cards were last bound and synced for: the pile, the items
+   * before it, and the cards the engine held after the sync.
+   */
+  const synced = useRef<string | null>(null);
   /** The last change's direction and when, for what changes with it. */
   const lastDirection = useRef<{ direction: Direction; at: number } | null>(
     null,
@@ -443,6 +452,10 @@ export function useQueueMotion(
   }, [wake]);
 
   // The pile: the engine takes the moves that make it what the page shows.
+  // A render that changes none of the pile, the items before it, or the
+  // cards the engine holds (and carries no new direction) leaves the cards
+  // where they are drawn; their size changes arrive through the observer.
+  const pileKey = `${previous}\u0000${before.join("\n")}\u0000${pile.join("\n")}`;
   useLayoutEffect(() => {
     if (!observer.current && typeof ResizeObserver !== "undefined")
       observer.current = new ResizeObserver(() => {
@@ -450,6 +463,9 @@ export function useQueueMotion(
         wake();
         write(engine.current!.frame());
       });
+    const heldKey = () =>
+      `${pileKey}\u0000${motionAvailable() ? engine.current!.keys().join("\n") : ""}`;
+    if (hint.current === undefined && synced.current === heldKey()) return;
     bind();
     const reduced = reducedMotion();
     const instant = !motionAvailable() || reduced;
@@ -469,8 +485,8 @@ export function useQueueMotion(
     const frame = engine.current!.frame();
     write(frame);
     if (frame.busy) wake();
-    // `released` re-binds after cards go.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    synced.current = heldKey();
+    // `released` renders after cards go, which changes what the engine holds.
   });
 
   useLayoutEffect(() => {
@@ -574,9 +590,12 @@ export function useQueueMotion(
       });
       lastCrossfade.current.receipt = now;
     }
+    // The copy is taken while this receipt's markup is on the page, to leave
+    // as once a new receipt replaces it. The markup changes only with the
+    // receipt, so a render with the same receipt has nothing new to copy.
     lastReceipt.current =
       receipt && key ? { key, copy: copyOf(receipt) } : null;
-  });
+  }, [shownReceipt]);
 
   useEffect(() => {
     const clk = clock.current;
