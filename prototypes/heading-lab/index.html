@@ -1172,19 +1172,22 @@
                 height * (1 - progress),
                 pinned ? platePinnedHeight * progress : 0,
               );
+        const plateOpacity =
+          fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
         // In the title bar the plate and its shadow rise out of the way as
         // the heading fades, so the shadow never hangs over text that is
         // still coming into view.
         const shadowOpacity = fadeOnly && !pinned ? 1 - progress : plateOpacity;
-        const plateOpacity =
-          fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
         const scrollPadding =
           fadeOnly && !pinned ? height * (1 - progress) : plateHeight;
         const plateOverlap =
           fadeOnly && !pinned && !floating
             ? Math.min(base * 1.5, plateHeight)
             : 0;
-        const solidPlateHeight = plateHeight - plateOverlap;
+        // A whole pixel, so the plate and the shadow that starts where it ends
+        // meet on a pixel boundary. On a fractional edge each covers part of
+        // the same row, and the two partial coverages leave a light seam.
+        const solidPlateHeight = Math.round(plateHeight - plateOverlap);
         const plateEdge = Math.min(
           pinnedEdge(base, collapsed),
           solidPlateHeight,
