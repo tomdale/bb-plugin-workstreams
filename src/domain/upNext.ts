@@ -3,14 +3,15 @@
  * screen, and the next-Up-Next command so they always list the same threads.
  *
  * Every top-level thread that is in a group (not archived, hidden, or
- * snoozed) is a candidate, except one whose turn is underway and asks
- * nothing of the user (see `isRunning`). A question or a review is blocked
- * on the user; anything else (done, waiting on something else, failed) is
- * not. A review or a needed decision whose turn ended more than
- * {@link UP_NEXT_STALE_AFTER_MS} ago has gone stale and ranks as neither
- * (see `agedKind`). While a focused workstream has a thread blocked on the
- * user, only focused workstreams' threads are candidates; the threads
- * blocked on the user elsewhere wait outside Up Next.
+ * snoozed) is a candidate, except one whose turn is still under way or
+ * waiting on something else: a working thread has nothing to act on yet, and a
+ * Waiting thread (see `isRunning` and `upNextKind`) belongs in its workstream
+ * until it asks for the user or finishes. A question or a review is blocked on
+ * the user; anything else (done, failed) is not. A review or a needed decision
+ * whose turn ended more than {@link UP_NEXT_STALE_AFTER_MS} ago has gone stale
+ * and ranks as neither (see `agedKind`). While a focused workstream has a
+ * thread blocked on the user, only focused workstreams' threads are
+ * candidates; the threads blocked on the user elsewhere wait outside Up Next.
  *
  * Candidates rank by tier, then by latest attention (BB's turn-end time,
  * the one unread compares against), newest first. With "Prioritize unread
@@ -20,16 +21,12 @@
  * their kind's order:
  *
  * 1. unread, failed   2. unread, blocked on the user   3. unread, other
- * 4. read questions   5. read reviews   6. other read   7. read waiting
+ * 4. read questions   5. read reviews   6. other read
  *
  * With that setting off (`unreadFirst`), each thread keeps its kind's tier and
  * unread only breaks ties, so a read question leads an unread review:
  *
- * 1. questions  2. reviews  3. other  4. waiting
- *
- * "Waiting" threads are still waiting on something else (a subagent, a timer),
- * so they rank after the other read threads; a Waiting thread nobody has read
- * leads them, because it has an outcome to see.
+ * 1. questions  2. reviews  3. other
  *
  * "Prioritize recent threads" (`freshWithinMs`) puts the threads whose turn
  * ended inside that window above every other thread, before any of this
@@ -123,7 +120,6 @@ export type UpNextOptions<T extends UpNextThread> = {
    * {@link UP_NEXT_MAX}. {@link UP_NEXT_LIMIT} when absent.
    */
   readonly shown?: number;
-  /** Unread threads rank above every other thread. True when absent. */
   /**
    * Rank unread threads above every read thread, and within them a failed turn
    * first, then one blocked on the user. False ranks each thread by its kind
@@ -209,12 +205,14 @@ type UpNextSelection<T extends WorkstreamThread> = {
   readonly focused: boolean;
 };
 
-/** A kind's tier while unread threads rank with their kind. */
-const KIND_TIER: Record<UpNextKind, number> = {
+/** The kinds Up Next ranks; a Waiting thread is never a candidate. */
+type RankedKind = Exclude<UpNextKind, "waiting">;
+
+/** A kind's tier when unread threads rank with their kind. */
+const KIND_TIER: Record<RankedKind, number> = {
   question: 0,
   review: 1,
   other: 2,
-  waiting: 3,
 };
 
 /** Read threads keep their kind's order below every unread thread. */
@@ -222,7 +220,7 @@ const READ_TIER_OFFSET = 3;
 
 /** Tier rank, 0 most urgent; see the module comment. */
 function tierOf(
-  kind: UpNextKind,
+  kind: RankedKind,
   unread: boolean,
   failed: boolean,
   unreadFirst: boolean,
@@ -270,6 +268,9 @@ export function selectUpNext<T extends UpNextThread>(
         options.kindOf(row.thread),
         options.now,
       );
+      // A thread the agent reported Waiting, or one still working, asks nothing
+      // of the user: it stays in its workstream until the turn finishes.
+      if (kind === "waiting") return null;
       return {
         row,
         onYou: isBlockedOnUser(kind),
@@ -288,6 +289,7 @@ export function selectUpNext<T extends UpNextThread>(
           (options.prioritized?.has(row.workstreamId) ?? false),
       };
     })
+    .filter((entry) => entry !== null)
     .sort(
       (a, b) =>
         Number(b.fresh) - Number(a.fresh) ||

@@ -870,7 +870,13 @@ it("shows the waiting recap countdown and retains cancellation after restore", a
     recap_get: get,
   });
   await waitFor(() => expect(heading(slot)).toBe("Beta question"));
-  fireEvent.click(slot.getByRole("button", { name: "Next" }));
+  // A thread that reported Waiting stays out of Up Next, so it shows up with
+  // the earlier open threads once nothing needs the user.
+  press("e");
+  expect(await slot.findByText("Nothing needs you right now.")).toBeTruthy();
+  fireEvent.click(
+    slot.getByRole("button", { name: "Go through 1 earlier thread" }),
+  );
   expect(await slot.findByLabelText("Status check countdown")).toBeTruthy();
   get.mockResolvedValue({ recap, files: null, waitingCancelled: true });
   await act(async () => {

@@ -98,12 +98,23 @@ describe("selectUpNext", () => {
     ]);
   });
 
-  it("ranks an unread Waiting thread with the other unread threads", () => {
-    // Waiting is still waiting on something else, so it comes last among read
-    // threads; an unread one has an outcome to see and leads them all.
+  it("leaves Waiting and working threads out", () => {
     expect(
-      upNext([t("wu1", 900), t("wr1", 800), t("or1", 1), t("ou1", 2)]),
-    ).toEqual(["wu1", "ou1", "or1", "wr1"]);
+      upNext([
+        t("wu1", 900),
+        t("wr1", 800),
+        t("or1", 1),
+        t("ou1", 2),
+        t("or2", 3, { status: "active" }),
+      ]),
+    ).toEqual(["ou1", "or1"]);
+    // A pending question keeps a running thread in: it is on the user now.
+    expect(
+      upNext([
+        t("or1", 1),
+        t("qu1", 2, { status: "active", hasPendingInteraction: true }),
+      ]),
+    ).toEqual(["qu1", "or1"]);
   });
 
   it("ranks an unread failed turn first, then threads blocked on you", () => {
@@ -128,7 +139,7 @@ describe("selectUpNext", () => {
         t("or2", 4),
         t("or3", 2),
       ]),
-    ).toEqual(["qu1", "wu1", "ou1", "or1", "or2"]);
+    ).toEqual(["qu1", "ou1", "or1", "or2", "or3"]);
     expect(
       upNext([
         ...[1, 2, 3, 4, 5].map((n) => t(`ou${n}`, 10 - n)),
@@ -589,10 +600,10 @@ describe("selectUpNext", () => {
       // thread blocked on you leads the unread ones.
       expect(upNext(threads)).toEqual(["ru1", "ou1", "qr1"]);
       // Turned off, a read question leads an unread review, and unread only
-      // breaks a kind's tie. Waiting threads come last either way.
+      // breaks a kind's tie. A Waiting thread stays out either way.
       expect(
         upNext([...threads, t("wu1", 300)], { unreadFirst: false }),
-      ).toEqual(["qr1", "ru1", "ou1", "wu1"]);
+      ).toEqual(["qr1", "ru1", "ou1"]);
     });
 
     it("holds trimmed unread threads behind Show more even when they don't lead", () => {
