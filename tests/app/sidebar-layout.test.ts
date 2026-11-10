@@ -167,6 +167,58 @@ describe.skipIf(browserUnavailable)(
     );
 
     browserTest(
+      "spaces Up Next rows so adjacent selected and hover fills do not overlap",
+      async ({ page }) => {
+        await page.setContent(`<style>${styles}</style>
+          <style>
+            ul { margin: 0; padding: 0; list-style: none; }
+            .ws-row { position: relative; display: flex; height: 21px; }
+          </style>
+          <section class="ws-needs"><ul>
+            <li><div class="ws-row selected ws-row-active">Selected</div></li>
+            <li><div class="ws-row hovered">Hovered</div></li>
+          </ul></section>`);
+        const selected = page.locator(".selected");
+        const hovered = page.locator(".hovered");
+        await hovered.hover();
+
+        const selectedBox = (await selected.boundingBox())!;
+        const hoveredBox = (await hovered.boundingBox())!;
+        expect(hoveredBox.y - selectedBox.y).toBe(24);
+        expect(
+          await selected.evaluate(
+            (row) => getComputedStyle(row.parentElement!).marginTop,
+          ),
+        ).toBe("0px");
+        expect(
+          await hovered.evaluate(
+            (row) => getComputedStyle(row.parentElement!).marginTop,
+          ),
+        ).toBe("3px");
+
+        const selectedFill = await selected.evaluate((row) => {
+          const style = getComputedStyle(row, "::before");
+          return { top: style.top, bottom: style.bottom, height: style.height };
+        });
+        const hoverFill = await hovered.evaluate((row) => {
+          const style = getComputedStyle(row, "::before");
+          return { top: style.top, bottom: style.bottom, height: style.height };
+        });
+        expect(selectedFill).toEqual({
+          top: "0px",
+          bottom: "0px",
+          height: "21px",
+        });
+        expect(hoverFill).toEqual({
+          top: "-3px",
+          bottom: "-3px",
+          height: "27px",
+        });
+        expect(hoveredBox.y - 3).toBe(selectedBox.y + selectedBox.height);
+      },
+    );
+
+    browserTest(
       "keeps nested animated rows within the sidebar and ellipsizes both lines",
       async ({ page }) => {
         await page.emulateMedia({ reducedMotion: "reduce" });
