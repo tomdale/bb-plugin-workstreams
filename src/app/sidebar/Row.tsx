@@ -101,21 +101,16 @@ export function Row({
   const timestamps = usePrefsSelector(
     (prefs) => prefs?.sidebar.timestamps ?? "show",
   );
-  const {
-    shownState,
-    reported,
-    state,
-    recap,
-    nativeStatus,
-    pinned,
-    accessibleName,
-    timestamp,
-  } = presentRow(thread, work, {
-    attention,
-    showPin,
-    timestamps,
-    now,
-  });
+  const { slotMark, recap, pinned, accessibleName, timestamp } = presentRow(
+    thread,
+    work,
+    { showPin, timestamps, now },
+  );
+  // Unread is never the slot mark: needs-you carries it by the dot's fill,
+  // other marked rows carry it inline beside the title, markless rows by
+  // title weight alone.
+  const inlineDot =
+    thread.isUnread && slotMark !== null && slotMark.kind !== "needs-you";
   const actions = experimental_useSidebarThreadActions();
   const { splitProps } = experimental_useSidebarThreadSplit(thread.id);
   const { hasUnsubmittedDraft } = useSidebarThreadDraft(thread.id);
@@ -179,26 +174,13 @@ export function Row({
       <span
         className={cn(
           "ws-status-slot",
-          disclosure && (nativeStatus || state?.glyph) && "ws-has-disclosure",
+          slotMark?.kind === "needs-you" && "ws-slot-dot",
+          disclosure && slotMark && "ws-has-disclosure",
         )}
         data-collapsed={!showStatusSlot || undefined}
       >
-        {nativeStatus ? (
-          <StatusMark
-            indicator={thread.indicator}
-            label={thread.indicatorLabel}
-            hasPendingInteraction={thread.hasPendingInteraction}
-            isUnread={thread.isUnread}
-          />
-        ) : null}
-        {state?.glyph && !nativeStatus ? (
-          <span
-            className={`ws-work ws-work-${reported && shownState === "done" ? "complete" : shownState} pointer-events-none relative inline-flex size-3.5 shrink-0 items-center justify-center`}
-            role="img"
-            aria-label={state.label}
-          >
-            {state.glyph}
-          </span>
+        {slotMark ? (
+          <StatusMark mark={slotMark} isUnread={thread.isUnread} />
         ) : null}
         {disclosure ? (
           // Sits in the status slot: always shown when the slot is otherwise
@@ -241,8 +223,22 @@ export function Row({
         <span
           className={cn("flex min-w-0 items-baseline gap-1.5", leadingClass)}
         >
-          <span className="ws-text-thread min-w-0 truncate">
-            <ThreadTitle threadId={thread.id} />
+          <span
+            className={cn(
+              "ws-text-thread min-w-0 truncate",
+              inlineDot && "flex items-center gap-1.5",
+            )}
+          >
+            {inlineDot ? (
+              <span
+                className="ws-unread-inline"
+                role="img"
+                aria-label="Unread"
+              />
+            ) : null}
+            <span className={inlineDot ? "min-w-0 truncate" : undefined}>
+              <ThreadTitle threadId={thread.id} />
+            </span>
           </span>
           {context ? (
             <span className="block max-w-24 shrink-0 truncate text-[11px] font-normal tabular-nums text-muted-foreground/70">

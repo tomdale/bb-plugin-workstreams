@@ -189,12 +189,18 @@ describe("Home screen", () => {
       ).toMatch(/^\d+$/);
       const question = within(band).getByRole("link", { name: /Alpha one/ });
       expect(within(question).getByText("Ship it?")).toBeTruthy();
-      expect(within(question).queryByRole("img")).toBeNull();
+      // A read needs-you row draws the open ring.
+      expect(
+        within(question).getByRole("img", { name: "Needs you" }),
+      ).toBeTruthy();
+      // An unread completion draws nothing: bold title, no mark, no dot.
       expect(
         within(band).getByRole("link", {
-          name: /Finished, unread.*Finished work.*Beta.*10 minutes ago/,
+          name: /Finished work.*Beta.*10 minutes ago/,
         }),
       ).toBeTruthy();
+      const done = within(band).getByRole("link", { name: /Finished work/ });
+      expect(done.querySelector(".ws-home-mark")?.children).toHaveLength(0);
       expect(within(band).getByText("5")).toBeTruthy();
     });
 

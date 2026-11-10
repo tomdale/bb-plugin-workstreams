@@ -323,12 +323,22 @@ it("accepts a complete recap with no results, and writes only its title", () => 
 });
 
 it("marks reported working threads but leaves inferred progress unmarked", async () => {
-  const { workStateMark } = await import("../../src/domain/presentation.ts");
-  expect(workStateMark("in_progress", true)).toEqual({
-    glyph: "↻",
-    label: "Waiting",
-  });
-  expect(workStateMark("in_progress", false).glyph).toBeNull();
+  const { slotMarkFor } = await import("../../src/domain/presentation.ts");
+  const thread = { indicator: "", hasPendingInteraction: false };
+  expect(
+    slotMarkFor(thread, {
+      kind: "current",
+      analysis: { state: "in_progress" },
+      reported: true,
+    }),
+  ).toEqual({ kind: "waiting", label: "Waiting" });
+  expect(
+    slotMarkFor(thread, {
+      kind: "current",
+      analysis: { state: "in_progress" },
+      reported: false,
+    }),
+  ).toBeNull();
 });
 
 const files = { environmentId: "env_1", root: "/work/", hostId: "host_1" };

@@ -32,7 +32,7 @@ describe.skipIf(browserUnavailable)(
       async ({ page }) => {
         await page.setContent(`<style>${styles}</style>
           <div style="--ws-hue: 47; --ws-color-light: oklch(42% .1 47); --ws-color-dark: oklch(75% .1 47); --muted-foreground: rgb(130, 130, 130); color: rgb(130, 130, 130)">
-            <span class="ws-mark ws-mark-unread"></span>
+            <span class="ws-mark ws-mark-draft"></span>
             <span class="ws-mark ws-spin ws-spin-dots"></span>
             <span style="--ws-color-light: oklch(58% .12 200); --ws-color-dark: oklch(72% .12 200)">
               <span class="ws-text-prefix">Prefix</span>

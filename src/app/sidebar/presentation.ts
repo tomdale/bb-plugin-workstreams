@@ -1,42 +1,17 @@
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import {
   relativeAge,
-  statusRole,
-  workStateMark,
+  slotMarkFor,
+  type SlotMark,
 } from "../../domain/presentation.ts";
 import type { WorkView } from "../../domain/status.ts";
 
-/** Up Next implies a needed decision, so it does not repeat that mark. */
-export function shownWorkState(
-  work: WorkView | undefined,
-  attention?: boolean,
-) {
-  return work?.kind === "current" &&
-    !(attention && work.analysis.state === "needs_decision")
-    ? work.analysis.state
-    : null;
-}
-
-/** Native working, unread, waiting, and error marks take precedence over assessments. */
-export function hasNativeStatus(thread: PluginSidebarThread): boolean {
-  return (
-    Boolean(statusRole(thread.indicator)) ||
-    thread.hasPendingInteraction ||
-    thread.isUnread
-  );
-}
-
+/** Whether the row's leading slot has a mark to show. */
 export function hasStatusMark(
   thread: PluginSidebarThread,
   work: WorkView | undefined,
-  attention?: boolean,
 ): boolean {
-  if (hasNativeStatus(thread)) return true;
-  const state = shownWorkState(work, attention);
-  return Boolean(
-    state &&
-    workStateMark(state, work?.kind === "current" && work.reported).glyph,
-  );
+  return slotMarkFor(thread, work ?? { kind: "none" }) !== null;
 }
 
 /** The row's text and marks, shared by every placement without rendering a thread list. */
@@ -44,23 +19,17 @@ export function presentRow(
   thread: PluginSidebarThread,
   work: WorkView | undefined,
   options: {
-    attention?: boolean;
     showPin: boolean;
     timestamps: "show" | "hover" | "hide";
     now: number;
   },
 ) {
-  const shownState = shownWorkState(work, options.attention);
-  const reported = work?.kind === "current" && work.reported;
-  const state = shownState ? workStateMark(shownState, reported) : null;
+  const slotMark = slotMarkFor(thread, work ?? { kind: "none" });
   return {
-    shownState,
-    reported,
-    state,
-    nativeStatus: hasNativeStatus(thread),
+    slotMark,
     pinned: thread.isPinned && options.showPin,
-    accessibleName: state?.glyph
-      ? `${thread.displayTitle}, ${state.label}`
+    accessibleName: slotMark
+      ? `${thread.displayTitle}, ${slotMark.label}`
       : thread.displayTitle,
     recap:
       work?.kind === "current"

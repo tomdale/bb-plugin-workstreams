@@ -434,7 +434,7 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
       expect(Math.abs(lineHeight.trial - lineHeight.app)).toBeLessThan(0.05);
       const unreadWeight = await page.evaluate(() => {
         const row = document.querySelector(
-          "#after .row:has(.ws-mark-unread) .ws-row",
+          "#after .row:has(.font-medium) .ws-row",
         )!;
         const reference = row.cloneNode(true) as HTMLElement;
         document.getElementById("after")!.append(reference);
@@ -895,37 +895,33 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
               unit.querySelector(".cat"),
             )!;
             const category = firstWithCategory.querySelector(".cat")!;
-            const marks = [
-              [".ws-work-review", "--ws-review-mark"],
-              [".ws-work-complete", "--ws-complete-mark"],
-              [".ws-work-needs_decision", "--ws-needs-you-soft"],
-              [".ws-mark-waiting", "--ws-needs-you-mark"],
-              [".ws-mark-error", "--ws-failure-mark"],
-            ].map(([selector, token]) => {
-              const mark = root.querySelector(selector!)!;
+            const marks = (
+              [
+                [
+                  ".ws-need-ring",
+                  "--ws-needs-you-mark",
+                  "borderTopColor",
+                  "var(--ws-needs-you-text)",
+                ],
+                [
+                  ".ws-failed",
+                  "--ws-failure-mark",
+                  "color",
+                  "var(--destructive-text)",
+                ],
+              ] as const
+            ).map(([selector, token, prop, fixture]) => {
+              const mark = root.querySelector(selector)!;
               return {
                 selector,
-                token: getComputedStyle(mark).getPropertyValue(token!).trim(),
-                actual: getComputedStyle(mark).color,
+                token: getComputedStyle(mark).getPropertyValue(token).trim(),
+                actual: getComputedStyle(mark)[prop],
                 expected: resolvedColor(mark, `var(${token})`),
-                fixture: resolvedColor(
-                  mark,
-                  {
-                    ".ws-work-review": "var(--timeline-accent)",
-                    ".ws-work-complete": "var(--success-foreground)",
-                    ".ws-mark-waiting": "var(--ws-needs-you-text)",
-                    ".ws-mark-error": "var(--destructive-text)",
-                  }[selector!] ?? `var(${token})`,
-                ),
+                fixture: resolvedColor(mark, fixture),
               };
             });
-            const unread = root.querySelector(".ws-mark-unread")!;
             return {
               names,
-              unread: {
-                actual: getComputedStyle(unread, "::before").backgroundColor,
-                expected: resolvedColor(unread, "var(--status-primary)"),
-              },
               prefix: {
                 actual: getComputedStyle(prefix).color,
                 // Probed inside the prefix, which carries the container's
@@ -952,7 +948,6 @@ describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
             expect(name.actual, String(name.name)).toBe(name.expected);
           expect(panel.prefix.actual).toBe(panel.prefix.expected);
           expect(panel.category.actual).toBe(panel.category.expected);
-          expect(panel.unread.actual).toBe(panel.unread.expected);
           for (const mark of panel.marks) {
             expect(mark.token, mark.selector).not.toBe("");
             expect(mark.actual, mark.selector).toBe(mark.expected);

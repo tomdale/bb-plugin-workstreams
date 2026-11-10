@@ -68,9 +68,9 @@ it("wires the presented row to native shortcuts, split navigation, disclosure, a
   expect(link.getAttribute("data-sidebar-thread-id")).toBe("root");
   expect(link.getAttribute("data-sidebar-thread-shortcut-target")).toBe("");
   expect(slot.getByRole("img", { name: "Pinned" })).toBeTruthy();
-  expect(
-    slot.container.querySelector(".ws-status-slot .ws-mark"),
-  ).not.toBeNull();
+  // Unread alone draws no slot mark and no inline dot.
+  expect(slot.container.querySelector(".ws-status-slot .ws-mark")).toBeNull();
+  expect(slot.container.querySelector(".ws-unread-inline")).toBeNull();
   fireEvent.click(link, { metaKey: true });
   expect(slot.inspection.sidebarActionCalls.at(-1)).toMatchObject({
     method: "open",
@@ -93,9 +93,7 @@ it("wires the presented row to native shortcuts, split navigation, disclosure, a
   expect(slot.getByText("Alpha")).toBeTruthy();
   slot.rerender(<LiveRow {...props} showPin={false} />);
   expect(slot.queryByRole("img", { name: "Pinned" })).toBeNull();
-  expect(
-    slot.container.querySelector(".ws-status-slot .ws-mark"),
-  ).not.toBeNull();
+  expect(slot.container.querySelector(".ws-status-slot .ws-mark")).toBeNull();
 });
 
 it("uses the default working indicator and follows live spinner preferences", async () => {

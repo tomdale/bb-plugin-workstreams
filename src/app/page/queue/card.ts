@@ -4,7 +4,7 @@
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import type { NextAction, Recap } from "../../../domain/recap.ts";
 import type { WorkView } from "../../../domain/status.ts";
-import { statusRole, workStateMark } from "../../../domain/presentation.ts";
+import { statusRole, workStateLabel } from "../../../domain/presentation.ts";
 import type { Sent } from "./useQueueActions.ts";
 
 export type QueueCard =
@@ -52,7 +52,7 @@ export function cardOf(
   if (recap && thread.status === "idle") return { kind: "recap", recap };
   const state =
     work.kind === "current"
-      ? workStateMark(work.analysis.state, work.reported).label
+      ? workStateLabel(work.analysis.state, work.reported)
       : "No recap";
   return { kind: "line", label: state, line: analysis?.recap ?? null };
 }

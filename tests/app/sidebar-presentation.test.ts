@@ -97,7 +97,8 @@ it.each([true, false])(
     const pinned = { ...thread, isPinned: true, isUnread: true };
     const row = presentRow(pinned, undefined, { ...options, showPin });
     expect(row.pinned).toBe(showPin);
-    expect(row.nativeStatus).toBe(true);
+    // Unread alone is no slot mark.
+    expect(row.slotMark).toBeNull();
     expect(presentRow(thread, undefined, { ...options, showPin }).pinned).toBe(
       false,
     );
@@ -113,21 +114,51 @@ it("shows no mark or completion suffix for inferred completion", () => {
   });
 });
 
-it("omits the implied decision mark in Up Next without changing other rows", () => {
+it("marks a decision as needs you everywhere, Up Next included", () => {
   const work = workView(thread, analysis("needs_decision"));
   expect(hasStatusMark(thread, work)).toBe(true);
-  expect(hasStatusMark(thread, work, true)).toBe(false);
-  expect(
-    presentRow(thread, work, { ...options, attention: true }).accessibleName,
-  ).toBe("Task");
   expect(presentRow(thread, work, options).accessibleName).toContain(
-    "Needs your decision",
+    "Needs you",
   );
 });
 
-it("reserves a shared status slot when any row needs a native mark", () => {
+it("marks a review verdict as needs you too", () => {
+  const work = workView(thread, analysis("review"));
+  expect(hasStatusMark(thread, work)).toBe(true);
+  expect(presentRow(thread, work, options).slotMark).toEqual({
+    kind: "needs-you",
+    label: "Needs you",
+  });
+});
+
+it("marks a turn the agent reported waiting as waiting, not an inferred one", () => {
+  const work = {
+    kind: "current" as const,
+    analysis: analysis("in_progress"),
+    reported: true,
+  };
+  expect(presentRow(thread, work, options).slotMark).toEqual({
+    kind: "waiting",
+    label: "Waiting",
+  });
+  const inferred = workView(thread, analysis("in_progress"));
+  expect(presentRow(thread, inferred, options).slotMark).toBeNull();
+});
+
+it("marks a failed turn over a verdict, and working over everything", () => {
+  const work = workView(thread, analysis("review"));
+  const failed = sidebarThread("f", {
+    title: "Task",
+    indicator: "unread-error",
+  });
+  expect(presentRow(failed, work, options).slotMark?.kind).toBe("error");
+  const running = sidebarThread("r", { title: "Task", indicator: "runtime" });
+  expect(presentRow(running, work, options).slotMark?.kind).toBe("working");
+});
+
+it("reserves a shared status slot when any row has a slot mark", () => {
   const quiet = [thread, sidebarThread("other")];
-  const marked = [{ ...thread, isUnread: true }, quiet[1]!];
+  const marked = [{ ...thread, hasPendingInteraction: true }, quiet[1]!];
   expect(quiet.some((t) => hasStatusMark(t, undefined))).toBe(false);
   expect(marked.some((t) => hasStatusMark(t, undefined))).toBe(true);
 });

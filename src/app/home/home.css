@@ -167,6 +167,11 @@ section:has(> [data-bb-plugin-root] > [data-ws-home="hidden"]) {
   flex-direction: column;
   gap: 1px;
 }
+.ws-home-title .ws-unread-inline {
+  display: inline-block;
+  vertical-align: 2px;
+  margin-right: 6px;
+}
 .ws-home-title {
   overflow: hidden;
   font-size: var(--text-sm, 0.8125rem);

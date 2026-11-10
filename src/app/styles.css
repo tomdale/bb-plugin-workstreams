@@ -57,8 +57,7 @@
     transition: none;
   }
 }
-.ws-status-slot > .ws-mark,
-.ws-status-slot > .ws-work {
+.ws-status-slot > .ws-mark {
   position: absolute;
   inset: 0;
 }
@@ -75,22 +74,51 @@
   pointer-events: none;
   position: relative;
 }
-.ws-mark-waiting {
-  color: var(--ws-needs-you-mark);
-}
-.ws-mark-error {
+.ws-failed {
   color: var(--ws-failure-mark);
-}
-.ws-mark-unread::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background: var(--primary, currentColor);
 }
 .ws-mark-draft {
   color: var(--muted-foreground);
   font-weight: 400;
+}
+
+/* Needs you: one dot, solid while the row is unread and an open ring once
+   read, so the state and its newness share a mark. The ring runs 1px wider
+   because outlines read smaller than solids at the same size. Dot-only
+   slots narrow so the dot sits as close to its title as wider marks do. */
+.ws-need-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+  background: var(--ws-needs-you-mark);
+}
+.ws-need-ring {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+  border: 1px solid var(--ws-needs-you-mark);
+  box-sizing: border-box;
+}
+.ws-status-slot > .ws-need-dot,
+.ws-status-slot > .ws-need-ring {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}
+.ws-status-slot.ws-slot-dot {
+  width: 8px;
+  flex-basis: 8px;
+}
+
+/* Unread beside a slot mark: a small dot inline with the title. */
+.ws-unread-inline {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+  background: var(--primary);
 }
 
 /* Working indicators: one class per shape (see SPINNER_SHAPES), colored by
@@ -574,26 +602,6 @@
   .ws-presence[data-presence] {
     animation: none;
   }
-}
-
-/* Work state from the agent's recap or analysis (see workStateMark). */
-.ws-work {
-  font-size: 10px;
-  line-height: 1;
-}
-.ws-work-needs_decision {
-  color: var(--ws-needs-you-soft);
-}
-.ws-work-review {
-  color: var(--ws-review-mark);
-}
-.ws-work-blocked,
-.ws-work-done {
-  color: var(--muted-foreground);
-}
-.ws-work-complete {
-  color: var(--ws-complete-mark);
-  font-weight: 600;
 }
 
 /* Pull request number, tinted by state. */

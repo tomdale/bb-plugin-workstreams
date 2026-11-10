@@ -510,10 +510,16 @@ empty workstream leaves the list as soon as its last visible thread does. Active
 rows use a highlighted background and foreground text without changing title
 weight. Unread titles use medium weight.
 
-- **Status marks:** Live BB runtime indicators (customizable working spinner,
-  `?` waiting, `!` error, `✎` unsent draft, unread dot) and Workstreams status
-  glyphs (`◆` Needs your decision, `◇` Ready for your review, `⏸︎` Blocked on
-  something else, `✓` Complete from agent recap, `↻` Waiting from agent recap).
+- **Status marks:** Each row shows at most one mark before its title, in this
+  order of precedence: a red exclamation circle for a failed turn, the working
+  spinner (customizable), a yellow **Needs you** dot when the thread waits on
+  you (a pending question or approval, or a turn analysis or the agent's recap
+  reads as needing your decision or review), a grey spinner when the agent
+  reported it is waiting on a subagent or timer, and a muted `✎` for an unsent
+  draft. The Needs you dot is solid while the thread is unread and a ring once
+  read. Other unread threads with a mark also show a small blue dot before the
+  title; unread threads without a mark rely on the medium-weight title alone.
+  Complete and blocked threads show no mark.
 - **Hover actions:** **Archive** and **Snooze** (click to snooze with your
   default preset; rest the pointer for `350 ms` to open the snooze menu, or
   click **Wake now** on a snoozed row). Thread rows and workstream headers share

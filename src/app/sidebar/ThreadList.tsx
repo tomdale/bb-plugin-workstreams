@@ -506,18 +506,13 @@ export function WorkstreamsThreadList({
   );
 
   /** Whether any of these rows draws a status mark (see `hasStatusMark`). */
-  const anyMark = (rows: readonly ThreadRow[], placement: Placement) =>
+  const anyMark = (rows: readonly ThreadRow[]) =>
     rows.some(
       (row) =>
-        row.hasChildren ||
-        hasStatusMark(
-          row.thread,
-          ws.work(row.thread),
-          placement === "needs-you",
-        ),
+        row.hasChildren || hasStatusMark(row.thread, ws.work(row.thread)),
     );
   const needsMarks = useMemo(
-    () => anyMark(shownNeedsRows, "needs-you"),
+    () => anyMark(shownNeedsRows),
     [shownNeedsRows, ws.server.analysis, ws.server.recaps],
   );
   const groupMarks = useMemo(
@@ -528,7 +523,6 @@ export function WorkstreamsThreadList({
           projection.unsorted,
           ...projection.dormant,
         ].flatMap((group) => group.rows),
-        "group",
       ),
     [projection, ws.server.analysis, ws.server.recaps],
   );
@@ -536,7 +530,7 @@ export function WorkstreamsThreadList({
   const showBand = ws.showForYou && shownNeedsRows.length > 0;
   const pinnedRows = projection.pinnedThreads;
   const pinnedMarks = useMemo(
-    () => anyMark(pinnedRows, "pinned"),
+    () => anyMark(pinnedRows),
     [pinnedRows, ws.server.analysis, ws.server.recaps],
   );
   const showPinned = pinnedRows.length > 0;
@@ -682,7 +676,7 @@ export function WorkstreamsThreadList({
     section: BandId,
   ) => {
     const options = bandOptions[section];
-    const marks = anyMark(rows, placement);
+    const marks = anyMark(rows);
     const renderTrees = (items: readonly ThreadRow[][]) =>
       items.flatMap((tree) =>
         unfolded(tree, placement).map((row) =>

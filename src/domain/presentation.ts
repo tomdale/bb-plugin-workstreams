@@ -32,14 +32,6 @@ export function statusRole(indicator: string): StatusRole | null {
   }
 }
 
-export const STATUS_LABEL: Record<StatusRole, string> = {
-  working: "Working",
-  waiting: "Waiting for you",
-  error: "Failed",
-  unread: "Finished, unread",
-  draft: "Unsent draft",
-};
-
 /** Compact age: "now", "5m", "3h", "2d", "6w". */
 export function relativeAge(at: number, now: number): string {
   const minutes = Math.max(0, Math.floor((now - at) / 60_000));
@@ -67,33 +59,69 @@ export function relativeAgeLabel(at: number, now: number): string {
 }
 
 /**
- * Work-state glyphs, drawn beside BB's own status mark. `in_progress` and an
- * inferred `done` draw nothing: most threads are in one of those states, so
- * a mark on them would be noise. A thread whose agent reported its turn
- * complete or waiting draws an explicit reported mark instead.
+ * The mark a thread row's leading slot shows, at most one per row. Broken
+ * and in-flight states come from BB's live status; needs-you adds the
+ * pending card and the analysis verdicts that wait on the user; waiting
+ * covers a turn the agent reported waiting on a subagent or timer. Unread
+ * is never the slot mark: needs-you rows carry it by the dot's fill, rows
+ * with any other slot mark carry it as an inline dot beside the title, and
+ * markless rows carry it by title weight alone (see the sidebar's Row).
  */
-const WORK_STATE: Record<
-  "needs_decision" | "review" | "blocked" | "in_progress" | "done",
-  { glyph: string | null; label: string }
-> = {
-  needs_decision: { glyph: "◆", label: "Needs your decision" },
-  review: { glyph: "◇", label: "Ready for your review" },
-  // U+FE0E keeps the pause sign from rendering as an emoji.
-  blocked: { glyph: "\u23F8\uFE0E", label: "Blocked on something else" },
-  in_progress: { glyph: null, label: "In progress" },
-  done: { glyph: null, label: "Done" },
+export type SlotMarkKind =
+  "error" | "working" | "needs-you" | "waiting" | "draft";
+
+export type SlotMark = {
+  readonly kind: SlotMarkKind;
+  readonly label: string;
 };
 
-/** A turn the thread's agent reported complete in its recap. */
-const REPORTED_DONE = { glyph: "\u2713", label: "Complete" } as const;
+type SlotThread = {
+  readonly indicator: string;
+  readonly hasPendingInteraction: boolean;
+};
 
-/** The mark for a work state, given whether the thread's agent reported it. */
-export function workStateMark(
-  state: keyof typeof WORK_STATE,
-  reported: boolean,
-): { glyph: string | null; label: string } {
-  if (reported && state === "done") return REPORTED_DONE;
-  if (reported && state === "in_progress")
-    return { glyph: "↻", label: "Waiting" };
-  return WORK_STATE[state];
+type SlotWork = {
+  readonly kind: "none" | "pending" | "current";
+  readonly analysis?: { readonly state: string };
+  readonly reported?: boolean;
+};
+
+export function slotMarkFor(
+  thread: SlotThread,
+  work: SlotWork,
+): SlotMark | null {
+  const role = statusRole(thread.indicator);
+  if (role === "error") return { kind: "error", label: "Failed" };
+  if (role === "working") return { kind: "working", label: "Working" };
+  const state = work.kind === "current" ? work.analysis?.state : undefined;
+  if (
+    role === "waiting" ||
+    thread.hasPendingInteraction ||
+    state === "needs_decision" ||
+    state === "review"
+  ) {
+    return { kind: "needs-you", label: "Needs you" };
+  }
+  if (state === "in_progress" && work.reported)
+    return { kind: "waiting", label: "Waiting" };
+  if (role === "draft") return { kind: "draft", label: "Unsent draft" };
+  return null;
+}
+
+/** The work state as words, for places that narrate rather than mark. */
+export function workStateLabel(state: string, reported: boolean): string {
+  if (reported && state === "in_progress") return "Waiting";
+  if (reported && state === "done") return "Complete";
+  switch (state) {
+    case "needs_decision":
+      return "Needs your decision";
+    case "review":
+      return "Ready for your review";
+    case "blocked":
+      return "Blocked on something else";
+    case "done":
+      return "Done";
+    default:
+      return "In progress";
+  }
 }

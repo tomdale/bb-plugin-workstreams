@@ -44,9 +44,7 @@ export function UpNextBlock({
   // collapsed, as in the sidebar.
   if (showMore && more.length === 0) setShowMore(false);
   const rows = showMore ? [...kept, ...more] : kept;
-  const marks = rows.some((row) =>
-    hasStatusMark(row.thread, work(row.thread), true),
-  );
+  const marks = rows.some((row) => hasStatusMark(row.thread, work(row.thread)));
   const listRef = useRef<HTMLUListElement>(null);
   const captureRows = useRowFlip(
     listRef,

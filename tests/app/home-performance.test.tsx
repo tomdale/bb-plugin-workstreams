@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 it("profiles Home parent updates and preserves group folding", async () => {
-  const rowRenders = vi.spyOn(presentation, "shownWorkState");
+  const rowRenders = vi.spyOn(domainPresentation, "slotMarkFor");
   const descendantPlans = vi.spyOn(model, "descendantCounts");
   const durations: number[] = [];
   const threads = Array.from({ length: 120 }, (_, index) =>
@@ -113,7 +113,7 @@ it("profiles Home parent updates and preserves group folding", async () => {
   );
   expect(
     within(slot.getByRole("region", { name: "Alpha" })).getByRole("img", {
-      name: "Waiting for input",
+      name: "Needs you, unread",
     }),
   ).toBeTruthy();
 
@@ -155,7 +155,7 @@ it("profiles Home parent updates and preserves group folding", async () => {
 
 it("skips row presentation on minute ticks when ages are hidden", async () => {
   vi.useFakeTimers();
-  const rowRenders = vi.spyOn(presentation, "shownWorkState");
+  const rowRenders = vi.spyOn(domainPresentation, "slotMarkFor");
   const threads = Array.from({ length: 12 }, (_, index) =>
     sidebarThread(`thread-${index}`, {
       sectionId: "sec_a",
@@ -179,8 +179,11 @@ it("skips row presentation on minute ticks when ages are hidden", async () => {
 });
 
 it("defers Snoozed row derivations until its fold opens", async () => {
-  const rowRenders = vi.spyOn(presentation, "shownWorkState");
+  const rowRenders = vi.spyOn(domainPresentation, "slotMarkFor");
   const wakes = vi.spyOn(snooze, "shortWake");
+  // The fold's mark-column check also derives each row's mark; stub it so
+  // the count covers row renders alone.
+  vi.spyOn(presentation, "hasStatusMark").mockReturnValue(false);
   const threads = Array.from({ length: 12 }, (_, index) =>
     sidebarThread(`thread-${index}`, {
       sectionId: "sec_a",

@@ -91,7 +91,7 @@ it("keeps the pinned band in Up Next's floating plate and leaves pinned rows in 
     plate!.compareDocumentPosition(pinned) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
   // The pinned thread keeps its place in its group as well.
-  expect(groupRows(slot, "Beta")).toEqual(["Pinned task, Needs your decision"]);
+  expect(groupRows(slot, "Beta")).toEqual(["Pinned task, Needs you"]);
   slot.lifecycle.unmount();
 });
 

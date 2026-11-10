@@ -424,7 +424,7 @@ it("shows Up Next and Recent as overlays without removing group rows", async () 
   // Up Next takes the question and the four newest others; Recent carries
   // on with the next one.
   expect(groupRows(slot, "Up Next")).toEqual([
-    "Asking task",
+    "Asking task, Needs you",
     "Other 1",
     "Other 2",
     "Other 3",
@@ -454,7 +454,7 @@ it("shows Up Next and Recent as overlays without removing group rows", async () 
   ).toBeNull();
   expect(groupRows(slot, "Beta")).toContain("Other 5 child");
   expect(groupRows(slot, "Beta")).toHaveLength(6);
-  expect(groupRows(slot, "Alpha")).toEqual(["Asking task"]);
+  expect(groupRows(slot, "Alpha")).toEqual(["Asking task, Needs you"]);
   const alpha = within(slot.getByRole("region", { name: "Alpha" }));
   expect(alpha.queryByTitle("1 waiting on you")).toBeNull();
   expect(alpha.queryByText("1", { selector: "span" })).toBeNull();
@@ -590,9 +590,24 @@ it("folds the status slot away only when no row in the group has a mark", async 
   await quiet.findByRole("region", { name: "Alpha" });
   expect(slots(quiet, "Alpha")).toEqual([true, true]);
   quiet.lifecycle.unmount();
-  const marked = await mount(
+  // Unread alone no longer opens the slot; a slot mark does.
+  const unread = await mount(
     [
       sidebarThread("a", { sectionId: "sec_a", title: "A", isUnread: true }),
+      sidebarThread("b", { sectionId: "sec_a", title: "B" }),
+    ],
+    { settings: { showRecent: false } },
+  );
+  await unread.findByRole("region", { name: "Alpha" });
+  expect(slots(unread, "Alpha")).toEqual([true, true]);
+  unread.lifecycle.unmount();
+  const marked = await mount(
+    [
+      sidebarThread("a", {
+        sectionId: "sec_a",
+        title: "A",
+        hasPendingInteraction: true,
+      }),
       sidebarThread("b", { sectionId: "sec_a", title: "B" }),
     ],
     { settings: { showRecent: false } },

@@ -8,7 +8,7 @@ import { Icon } from "@/components/ui/icon";
 import {
   relativeAge,
   relativeAgeLabel,
-  workStateMark,
+  slotMarkFor,
 } from "../../domain/presentation.ts";
 import { WorkstreamIcon } from "../WorkstreamIcon.tsx";
 import {
@@ -17,7 +17,6 @@ import {
 } from "../../domain/workstreamColor.ts";
 import type { ServerState, WorkView } from "../useWorkstreams.ts";
 import { workView } from "../../domain/status.ts";
-import { hasNativeStatus, shownWorkState } from "../sidebar/presentation.ts";
 import { StatusMark } from "../sidebar/StatusMark.tsx";
 
 /** Stable clock prop for memoized rows that show neither age nor wake time. */
@@ -157,10 +156,9 @@ export function HomeRow({
   disclosure?: { open: boolean; count: number; toggle: () => void };
 }) {
   const { hasUnsubmittedDraft } = useSidebarThreadDraft(thread.id);
-  const attention = variant === "attention";
-  const shown = shownWorkState(work, attention);
-  const reported = work?.kind === "current" && work.reported;
-  const state = shown ? workStateMark(shown, reported) : null;
+  const slotMark = slotMarkFor(thread, work ?? { kind: "none" });
+  const inlineDot =
+    thread.isUnread && slotMark !== null && slotMark.kind !== "needs-you";
   return (
     <li
       className="ws-home-row"
@@ -176,21 +174,8 @@ export function HomeRow({
       >
         {showMarkSlot ? (
           <span className="ws-home-mark">
-            {hasNativeStatus(thread) ? (
-              <StatusMark
-                indicator={thread.indicator}
-                label={thread.indicatorLabel}
-                hasPendingInteraction={thread.hasPendingInteraction}
-                isUnread={thread.isUnread}
-              />
-            ) : state?.glyph ? (
-              <span
-                className={`ws-work ws-work-${reported && shown === "done" ? "complete" : shown}`}
-                role="img"
-                aria-label={state.label}
-              >
-                {state.glyph}
-              </span>
+            {slotMark ? (
+              <StatusMark mark={slotMark} isUnread={thread.isUnread} />
             ) : null}
           </span>
         ) : null}
@@ -201,6 +186,13 @@ export function HomeRow({
         ) : null}
         <span className="ws-home-text">
           <span className="ws-home-title">
+            {inlineDot ? (
+              <span
+                className="ws-unread-inline"
+                role="img"
+                aria-label="Unread"
+              />
+            ) : null}
             <ThreadTitle threadId={thread.id} />
           </span>
           {workstream || ask ? (

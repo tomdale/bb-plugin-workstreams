@@ -1,52 +1,71 @@
-import { Icon } from "@/components/ui/icon";
 import {
   useLayoutEffect,
   useRef,
   type AnimationEvent,
   type CSSProperties,
 } from "react";
-import { STATUS_LABEL, statusRole } from "../../domain/presentation.ts";
+import { Icon } from "@/components/ui/icon";
+import type { SlotMark } from "../../domain/presentation.ts";
 import { colorCss, trackCss, type SpinnerStyle } from "../../domain/spinner.ts";
 import { useSpinner } from "../spinner.ts";
 
 /**
- * BB's resolved thread status, drawn as a small mark. BB ships no status
- * component, so the list owns the glyphs; unknown kinds draw nothing.
+ * Heroicons' exclamation-circle (20/solid, MIT): its bang fills the
+ * silhouette and stays legible at 13px, where a triangle's cutout doesn't.
+ */
+const FAILED_PATH =
+  "M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z";
+
+/**
+ * The mark in a thread row's leading slot (see `slotMarkFor`): an
+ * exclamation circle for a failed turn, a spinner for work in flight (grey
+ * while the agent waits on a subagent or timer), the needs-you dot whose
+ * fill says whether the row is unread, or a pencil for an unsent draft.
  */
 export function StatusMark({
-  indicator,
-  label,
-  hasPendingInteraction = false,
+  mark,
   isUnread = false,
 }: {
-  indicator: string;
-  label: string | null;
-  /** BB sometimes exposes these facts separately from its indicator kind. */
-  hasPendingInteraction?: boolean;
+  mark: SlotMark;
+  /** The needs-you dot draws solid while unread, a ring once read. */
   isUnread?: boolean;
 }) {
-  const role =
-    statusRole(indicator) ??
-    (hasPendingInteraction ? "waiting" : isUnread ? "unread" : null);
-  if (!role) return <span className="ws-mark" aria-hidden="true" />;
-  const text = label ?? STATUS_LABEL[role];
-  if (role === "working") return <WorkingMark label={text} />;
-  return (
-    <span
-      className={`ws-mark ws-mark-${role}`}
-      role="img"
-      aria-label={text}
-      title={text}
-    >
-      {role === "waiting"
-        ? "?"
-        : role === "error"
-          ? "!"
-          : role === "draft"
-            ? "✎"
-            : null}
-    </span>
-  );
+  const aria =
+    mark.kind === "needs-you" && isUnread ? "Needs you, unread" : mark.label;
+  switch (mark.kind) {
+    case "error":
+      return (
+        <span className="ws-mark ws-failed" role="img" aria-label={aria}>
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path fillRule="evenodd" d={FAILED_PATH} clipRule="evenodd" />
+          </svg>
+        </span>
+      );
+    case "working":
+      return <WorkingMark label={aria} />;
+    case "waiting":
+      return <WorkingMark label={aria} waiting />;
+    case "needs-you":
+      return (
+        <span
+          className={isUnread ? "ws-need-dot" : "ws-need-ring"}
+          role="img"
+          aria-label={aria}
+        />
+      );
+    case "draft":
+      return (
+        <span className="ws-mark ws-mark-draft" role="img" aria-label={aria}>
+          ✎
+        </span>
+      );
+  }
 }
 
 /**
@@ -69,14 +88,17 @@ export function synchronizeSpinnerAnimations(element: HTMLElement): void {
  * The working indicator, in the style chosen in settings unless `spinner`
  * gives one (the settings previews). Shapes read their colors from
  * `--ws-spin-primary` and `--ws-spin-track`. Unlabeled marks are decorative:
- * the caller announces the work in text.
+ * the caller announces the work in text. `waiting` draws it grey: the agent
+ * is idle while its subagent or timer runs.
  */
 export function WorkingMark({
   label,
   spinner: shown,
+  waiting = false,
 }: {
   label?: string;
   spinner?: SpinnerStyle;
+  waiting?: boolean;
 }) {
   const chosen = useSpinner();
   const spinner = shown ?? chosen;
@@ -98,10 +120,16 @@ export function WorkingMark({
     ref: markRef,
     onAnimationStart,
     className: `ws-mark ws-spin ws-spin-${spinner.shape}`,
-    style: {
-      "--ws-spin-primary": colorCss(spinner.primary),
-      "--ws-spin-track": trackCss(spinner),
-    } as CSSProperties,
+    style: (waiting
+      ? {
+          "--ws-spin-primary": "var(--muted-foreground)",
+          "--ws-spin-track":
+            "color-mix(in oklab, var(--muted-foreground) 25%, transparent)",
+        }
+      : {
+          "--ws-spin-primary": colorCss(spinner.primary),
+          "--ws-spin-track": trackCss(spinner),
+        }) as CSSProperties,
     ...a11y,
   };
   if (spinner.shape === "spokes" || spinner.shape === "bold-spokes")

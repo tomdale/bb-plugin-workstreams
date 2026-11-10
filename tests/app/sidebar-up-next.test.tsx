@@ -45,7 +45,7 @@ it("lists Threads shown threads blocked on you, newest first, with the rest behi
   );
   const band = await slot.findByRole("region", { name: "Up Next" });
   // Blocked on you or not, the count is the whole list; the newest lead.
-  const top = ["l", "k", "j", "i", "h"].map((id) => `Ask ${id}`);
+  const top = ["l", "k", "j", "i", "h"].map((id) => `Ask ${id}, Needs you`);
   expect(groupRows(slot, "Up Next")).toEqual(top);
   // Show more lists the rest below, which stay where they were.
   const more = within(band).getByRole("button", { name: "Show 7 more" });
@@ -53,13 +53,13 @@ it("lists Threads shown threads blocked on you, newest first, with the rest behi
   fireEvent.click(more);
   expect(groupRows(slot, "Up Next")).toEqual([
     ...top,
-    "Ask g",
-    "Ask f",
-    "Ask e",
-    "Ask d",
-    "Ask c",
-    "Ask b",
-    "Ask a",
+    "Ask g, Needs you",
+    "Ask f, Needs you",
+    "Ask e, Needs you",
+    "Ask d, Needs you",
+    "Ask c, Needs you",
+    "Ask b, Needs you",
+    "Ask a, Needs you",
   ]);
   fireEvent.click(within(band).getByRole("button", { name: "Show less" }));
   expect(groupRows(slot, "Up Next")).toEqual(top);
@@ -94,21 +94,21 @@ it("ranks a current needs-decision result as a question, but not a stale one", a
     { analysis: { fresh: result(base + 100), stale: result(base + 150) } },
   );
   const band = await slot.findByRole("region", { name: "Up Next" });
-  // The section implies the decision, so its rows leave the mark out. The
-  // stale ask is newer but no longer a question, so it ranks after.
+  // The stale ask is newer but no longer a question, so it ranks after and
+  // draws no needs-you mark.
   expect(
     within(band)
       .getAllByRole("link")
       .map((a) => a.getAttribute("aria-label")),
-  ).toEqual(["Fresh ask", "Stale ask"]);
+  ).toEqual(["Fresh ask, Needs you", "Stale ask"]);
   // Each row carries what it asks, under the title.
   expect(band.textContent).toContain("Ship it?");
-  expect(
-    within(band).queryAllByRole("img", { name: "Needs your decision" }),
-  ).toHaveLength(0);
+  expect(within(band).getAllByRole("img", { name: "Needs you" })).toHaveLength(
+    1,
+  );
   expect(
     within(slot.getByRole("region", { name: "Unfiled" })).getAllByRole("img", {
-      name: "Needs your decision",
+      name: "Needs you",
     }),
   ).toHaveLength(1);
   slot.lifecycle.unmount();
@@ -150,7 +150,7 @@ it("holds a result marked read on selection until another thread opens", async (
   // Unread, the oldest thread outranks the read ones.
   await waitFor(() =>
     expect(groupRows(slot, "Up Next")).toEqual([
-      "Result, Complete",
+      "Result",
       "Other 1",
       "Other 2",
       "Other 3",
@@ -166,7 +166,7 @@ it("holds a result marked read on selection until another thread opens", async (
   // Read, it would rank last and leave; it holds its row while open.
   await waitFor(() => {
     expect(groupRows(slot, "Up Next")).toEqual([
-      "Updated result, Complete",
+      "Updated result",
       "Other 1",
       "Other 2",
       "Other 3",
@@ -177,11 +177,11 @@ it("holds a result marked read on selection until another thread opens", async (
   expect(slot.queryByRole("region", { name: "Recent" })).toBeNull();
 
   slot.selectThread("o1");
-  expect(groupRows(slot, "Up Next")).not.toContain("Updated result, Complete");
-  expect(groupRows(slot, "Recent")).toEqual(["Updated result, Complete"]);
+  expect(groupRows(slot, "Up Next")).not.toContain("Updated result");
+  expect(groupRows(slot, "Recent")).toEqual(["Updated result"]);
   // Opening it again doesn't bring it back.
   slot.selectThread("result");
-  expect(groupRows(slot, "Up Next")).not.toContain("Updated result, Complete");
+  expect(groupRows(slot, "Up Next")).not.toContain("Updated result");
   slot.lifecycle.unmount();
 });
 
@@ -223,38 +223,38 @@ it("marks the agent's reported state, which outranks analysis", async () => {
       }),
     ],
     {
-      // Analysis read the turn as a question; the agent reported it done.
-      analysis: {
-        asked: {
-          recap: "Asked whether to ship.",
-          state: "needs_decision",
-          needsYou: "Ship it?",
-          subject: null,
-          drift: null,
-          driftSectionId: null,
-          revision: 100,
-          at,
-          model: "m",
-        },
-      },
+      // Analysis read both turns as questions; the agent reported one ready
+      // for review and the other complete.
+      analysis: Object.fromEntries(
+        ["asked", "finished"].map((id) => [
+          id,
+          {
+            recap: "Asked whether to ship.",
+            state: "needs_decision",
+            needsYou: "Ship it?",
+            subject: null,
+            drift: null,
+            driftSectionId: null,
+            revision: 100,
+            at,
+            model: "m",
+          },
+        ]),
+      ),
       recaps: { asked: recap("review"), finished: recap("complete") },
     },
   );
   const group = await slot.findByRole("region", { name: "Unfiled" });
   const band = await slot.findByRole("region", { name: "Up Next" });
   expect(
-    within(band).getByRole("link", { name: "Asked, Ready for your review" }),
+    within(band).getByRole("link", { name: "Asked, Needs you" }),
   ).toBeTruthy();
-  expect(
-    within(band).getByRole("link", { name: "Finished, Complete" }),
-  ).toBeTruthy();
-  expect(
-    within(group).getByRole("img", { name: "Ready for your review" }),
-  ).toBeTruthy();
-  expect(within(group).getByRole("img", { name: "Complete" })).toBeTruthy();
-  const finishedLink = within(group).getByRole("link", {
-    name: "Finished, Complete",
-  });
+  // Complete draws no mark, even over analysis that read a question.
+  expect(within(band).getByRole("link", { name: "Finished" })).toBeTruthy();
+  expect(within(group).getAllByRole("img", { name: "Needs you" })).toHaveLength(
+    1,
+  );
+  const finishedLink = within(group).getByRole("link", { name: "Finished" });
   expect(finishedLink.getAttribute("title")).toBeNull();
   expect(
     finishedLink.parentElement?.querySelector(

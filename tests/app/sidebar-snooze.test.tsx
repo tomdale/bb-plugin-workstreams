@@ -68,7 +68,7 @@ describe("snoozing", () => {
     expect(fold.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(fold);
     expect(groupRows(slot, "Snoozed")).toEqual([
-      "Asking task",
+      "Asking task, Needs you",
       "Napping task",
       "Nap child task",
     ]);
@@ -78,12 +78,15 @@ describe("snoozing", () => {
     fireEvent.click(
       within(napRow).getByRole("button", { name: "Hide child threads" }),
     );
-    expect(groupRows(slot, "Snoozed")).toEqual(["Asking task", "Napping task"]);
+    expect(groupRows(slot, "Snoozed")).toEqual([
+      "Asking task, Needs you",
+      "Napping task",
+    ]);
     fireEvent.click(
       within(napRow).getByRole("button", { name: "Show child threads" }),
     );
     expect(groupRows(slot, "Snoozed")).toEqual([
-      "Asking task",
+      "Asking task, Needs you",
       "Napping task",
       "Nap child task",
     ]);
@@ -102,14 +105,17 @@ describe("snoozing", () => {
       snoozes: { nap: { until: later(), attentionAt: 0, at: 0 } },
     });
     await waitFor(() =>
-      expect(groupRows(slot, "Alpha")).toEqual(["Asking task"]),
+      expect(groupRows(slot, "Alpha")).toEqual(["Asking task, Needs you"]),
     );
     expect(slot.queryByRole("button", { name: /^Snoozed\d*$/ })).toBeNull();
     expect(slot.queryAllByRole("link", { name: "Napping task" })).toHaveLength(
       0,
     );
-    expect(groupRows(slot, "Up Next")).toEqual(["Asking task", "Other task"]);
-    expect(groupRows(slot, "Alpha")).toEqual(["Asking task"]);
+    expect(groupRows(slot, "Up Next")).toEqual([
+      "Asking task, Needs you",
+      "Other task",
+    ]);
+    expect(groupRows(slot, "Alpha")).toEqual(["Asking task, Needs you"]);
     slot.lifecycle.unmount();
   });
 
@@ -155,7 +161,10 @@ describe("snoozing", () => {
       ),
     );
     await waitFor(() =>
-      expect(groupRows(slot, "Alpha")).toEqual(["Asking task", "Napping task"]),
+      expect(groupRows(slot, "Alpha")).toEqual([
+        "Asking task, Needs you",
+        "Napping task",
+      ]),
     );
     expect(
       slot.inspection.rpcCalls.some(

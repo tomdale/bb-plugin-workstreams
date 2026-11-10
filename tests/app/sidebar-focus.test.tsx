@@ -114,7 +114,10 @@ describe("focused workstreams", () => {
     );
     // The rules then apply to the focused workstream's threads alone.
     await waitFor(() =>
-      expect(groupRows(slot, "Up Next")).toEqual(["Ask z1", "Zeta quiet"]),
+      expect(groupRows(slot, "Up Next")).toEqual([
+        "Ask z1, Needs you",
+        "Zeta quiet",
+      ]),
     );
     const band = slot.getByRole("region", { name: "Up Next" });
     expect(
@@ -172,10 +175,10 @@ describe("focused workstreams", () => {
     );
     await waitFor(() =>
       expect(groupRows(unfocused, "Up Next")).toEqual([
-        "Ask a1",
-        "Ask b1",
+        "Ask a1, Needs you",
+        "Ask b1, Needs you",
         "Zeta quiet",
-        "Read recap, Complete",
+        "Read recap",
       ]),
     );
     expect(
@@ -286,12 +289,18 @@ describe("focused workstreams", () => {
       order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
     });
     await waitFor(() =>
-      expect(groupRows(slot, "Up Next")).toEqual(["Ask a1", "Zeta task"]),
+      expect(groupRows(slot, "Up Next")).toEqual([
+        "Ask a1, Needs you",
+        "Zeta task",
+      ]),
     );
     threads[1] = asking("z1", "sec_z", 200);
     slot.selectThread("a1");
     await waitFor(() =>
-      expect(groupRows(slot, "Up Next")).toEqual(["Ask a1", "Ask z1"]),
+      expect(groupRows(slot, "Up Next")).toEqual([
+        "Ask a1, Needs you",
+        "Ask z1, Needs you",
+      ]),
     );
     // Group counts include the held row, irrespective of its Up Next position.
     expect(
@@ -300,7 +309,9 @@ describe("focused workstreams", () => {
       }),
     ).toBeTruthy();
     slot.selectThread("z1");
-    await waitFor(() => expect(groupRows(slot, "Up Next")).toEqual(["Ask z1"]));
+    await waitFor(() =>
+      expect(groupRows(slot, "Up Next")).toEqual(["Ask z1, Needs you"]),
+    );
     expect(
       slot.getByRole("button", {
         name: "Show other workstreams, 1 waiting on you, 1 thread",
@@ -326,12 +337,12 @@ describe("focused workstreams", () => {
         order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
       });
       await waitFor(() =>
-        expect(groupRows(slot, "Up Next")).toEqual(["Ask a1"]),
+        expect(groupRows(slot, "Up Next")).toEqual(["Ask a1, Needs you"]),
       );
       threads.push(asking("z1", "sec_z", 200));
       slot.selectThread(null);
       await waitFor(() =>
-        expect(groupRows(slot, "Up Next")).toEqual(["Ask z1"]),
+        expect(groupRows(slot, "Up Next")).toEqual(["Ask z1, Needs you"]),
       );
       const band = slot.getByRole("region", { name: "Up Next" });
       expect(band.textContent).toContain("Ask z1");
