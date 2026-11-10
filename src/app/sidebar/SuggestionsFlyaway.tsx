@@ -6,8 +6,10 @@
  *
  * Each suggestion starts with its headline ("Merge Payments into Billing"),
  * dimmed, beside Decline and Accept, then draws the sidebar rows it touches
- * before and after accepting (`SuggestionPreview`). The flyaway is wider than the sidebar, so both sides have
- * room. A decision applies at once and leaves a line in its place with Undo
+ * before and after accepting (`SuggestionPreview`). The flyaway is as wide as
+ * its suggestions need, at least the sidebar's width, so a headline and both
+ * sides of a drawing fit without truncating. A decision applies at once and
+ * leaves a line in its place with Undo
  * for a few seconds, as in Topics; Activity keeps Undo after that. Closing
  * (Escape, the header's ✕, or a click outside) decides nothing: the rest keep
  * waiting.
@@ -146,9 +148,11 @@ export function SuggestionsFlyaway({
           event.preventDefault();
           trigger.current?.focus();
         }}
-        // Wider than the sidebar, over the thread beside it, so both sides of
-        // each suggestion have room for their names.
-        className="flex max-h-[min(32rem,var(--radix-popover-content-available-height))] w-[360px] max-w-[calc(100vw-1rem)] flex-col overflow-hidden p-0 text-[13px]"
+        // As wide as its suggestions need, over the thread beside it, so a
+        // headline and both sides of a drawing have room for their names; no
+        // narrower than the sidebar's own width, and capped so one long name
+        // cannot fill the window.
+        className="flex max-h-[min(32rem,var(--radix-popover-content-available-height))] w-max min-w-[360px] max-w-[min(40rem,calc(100vw-1rem))] flex-col overflow-hidden p-0 text-[13px]"
       >
         <SuggestionList
           rpc={rpc}
