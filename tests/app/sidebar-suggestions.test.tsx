@@ -150,6 +150,53 @@ it("lists the threads arriving when a count is clicked", async () => {
   expect(flyaway.queryByText("Refund flow")).toBeNull();
 });
 
+it("dims the app behind the open flyaway", async () => {
+  const { slot } = await open([merge]);
+  const scrim = () => document.querySelector("[data-ws-flyaway-scrim]");
+  expect(scrim()?.getAttribute("data-ws-flyaway-scrim")).toBe("shown");
+  fireEvent.keyDown(document.activeElement ?? document.body, {
+    key: "Escape",
+  });
+  await waitFor(() =>
+    expect(
+      slot.queryByRole("dialog", { name: "Organizing suggestions" }),
+    ).toBeNull(),
+  );
+  expect(scrim()?.getAttribute("data-ws-flyaway-scrim")).toBe("hidden");
+});
+
+it("leaves off a count of no threads", async () => {
+  const empty = suggestion(
+    "empty",
+    "Move Handoff Plugin under bb",
+    merge.change,
+    null,
+    {
+      before: [
+        {
+          kind: "topic",
+          name: "Handoff Plugin",
+          depth: 0,
+          mark: "gone",
+          count: 0,
+        },
+      ],
+      after: [
+        {
+          kind: "topic",
+          name: "Handoff Plugin",
+          depth: 1,
+          mark: "new",
+          count: 0,
+        },
+      ],
+    },
+  );
+  const { flyaway } = await open([empty]);
+  await flyaway.findByText("Move Handoff Plugin under bb");
+  expect(flyaway.queryByText("0")).toBeNull();
+});
+
 it("leaves suggestions waiting when closed", async () => {
   const decide = vi.fn();
   const { slot, count, flyaway } = await open([merge, rename], {

@@ -5,7 +5,7 @@
  * rows are indented beside a guide line. A row that leaves is dimmed and
  * crossed out; one that lands, appears or changes takes its workstream's
  * color, as the sidebar draws that workstream, and counts are visible
- * threads, in muted text. A landing row's count opens the threads that
+ * threads, in muted text, left off when there are none. A landing row's count opens the threads that
  * arrive.
  */
 import { useState, type CSSProperties } from "react";
@@ -112,7 +112,9 @@ function Row({ row, colors }: { row: PreviewRow; colors?: PreviewColors }) {
           ? "text-muted-foreground"
           : "";
   const count =
-    row.count === undefined ? null : row.arriving?.length ? (
+    // A count of nothing says nothing; a topic whose threads are all
+    // archived moves with none to show.
+    !row.count ? null : row.arriving?.length ? (
       <button
         type="button"
         aria-expanded={open}

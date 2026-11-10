@@ -26,6 +26,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { useRealtime } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
@@ -36,6 +37,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
+import { usePrefersReducedMotion } from "@/components/ui/hooks/use-media-query";
 import type { SuggestionsStateWire } from "../../server/contract.ts";
 import { keepOrder } from "../../domain/feed.ts";
 import type { useWorkstreams } from "../useWorkstreams.ts";
@@ -116,6 +119,7 @@ export function SuggestionsFlyaway({
   );
   return (
     <Popover open={open} onOpenChange={setOpen}>
+      <Scrim shown={open} />
       <PopoverAnchor asChild ref={anchor} tabIndex={-1}>
         {children(slot)}
       </PopoverAnchor>
@@ -152,6 +156,37 @@ export function SuggestionsFlyaway({
         />
       </PopoverContent>
     </Popover>
+  );
+}
+
+/**
+ * Dims the app behind the open flyaway, as BB's dialogs do. It stays mounted
+ * so it fades both ways on opacity alone, and takes the pointer only while
+ * shown: a click on it closes the flyaway (an outside click) without reaching
+ * the control underneath. Compact viewports open the flyaway as a drawer,
+ * which brings its own backdrop.
+ */
+function Scrim({ shown }: { shown: boolean }) {
+  const compact = useIsCompactViewport();
+  const still = usePrefersReducedMotion();
+  if (compact || typeof document === "undefined") return null;
+  // Styled inline: it sits outside the plugin's scoped styles, and it must
+  // not wear BB's portaled-overlay marker while it waits, hidden.
+  return createPortal(
+    <div
+      aria-hidden
+      data-ws-flyaway-scrim={shown ? "shown" : "hidden"}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 40,
+        background: "rgb(0 0 0 / 0.4)",
+        opacity: shown ? 1 : 0,
+        pointerEvents: shown ? "auto" : "none",
+        transition: still ? undefined : "opacity 150ms ease-out",
+      }}
+    />,
+    document.body,
   );
 }
 
