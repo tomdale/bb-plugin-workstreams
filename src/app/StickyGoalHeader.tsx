@@ -1,5 +1,5 @@
 import { useBbContext } from "@get-bb/plugin-sdk/app";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   useMediaQuery,
@@ -301,7 +301,9 @@ function useScrollState(
         )
           return;
         rendered.current = next;
-        setRendered(next);
+        // Commit in this frame: a scroll-tracked heading that waits for the
+        // scheduler to render lags the timeline by a frame and judders.
+        flushSync(() => setRendered(next));
       });
     };
     update();
@@ -878,8 +880,14 @@ export function StickyGoalHeader(): React.ReactElement | null {
           style={
             {
               height,
-              "--ws-plate-draw": `${solidPlateHeight}px`,
-              "--ws-plate-edge": `${plateEdge}px`,
+              // Only the pinned mask reads these; elsewhere they would
+              // restyle the subtree on every scrolled frame for nothing.
+              ...(pinned
+                ? {
+                    "--ws-plate-draw": `${solidPlateHeight}px`,
+                    "--ws-plate-edge": `${plateEdge}px`,
+                  }
+                : null),
             } as React.CSSProperties
           }
         >
