@@ -2,20 +2,39 @@ import { createHash } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
 const FAILURE_LIMIT = 5;
+const REPEAT_LIMIT = 5;
 type State = {
   cursor: number;
   turnId: string;
+  /** The last failure seen, and how many in a row share it. */
   failure: string | null;
-  count: number;
+  failures: number;
+  /** The last successful tool call, and how many in a row repeat it. */
+  repeat: string | null;
+  repeats: number;
   stopped: boolean;
 };
 
+const digest = (value: unknown) =>
+  createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
 /**
- * Stops active turns that repeatedly fail the same tool with the same error.
- * Event history includes provider-side validation failures that never reach
- * a plugin tool's execute handler. Argument wording does not reset the count.
+ * Stops active turns that spin on the same call: five failures in a row with
+ * the same error, or five successful tool calls in a row with the same
+ * arguments and the same output.
+ *
+ * The repeat case is a turn that keeps asking a question whose answer cannot
+ * change, which happens when an agent has nothing left to emit but cannot end
+ * the turn without a tool call: an agent-only reminder that asks for a single
+ * call leaves a model that honors it with no other move. Shell commands are
+ * left out because polling with `sleep`, `curl`, or `bb thread wait` repeats
+ * the same command on purpose.
+ *
+ * Event history includes provider-side validation failures that never reach a
+ * plugin tool's execute handler. Argument wording does not reset a failure
+ * count.
  */
-export class ToolFailureGuard {
+export class ToolLoopGuard {
   private readonly controller = new AbortController();
   private readonly states = new Map<string, State>();
   private readonly pending = new Map<string, Promise<void>>();
@@ -94,7 +113,9 @@ export class ToolFailureGuard {
         cursor: start.seq,
         turnId,
         failure: null,
-        count: 0,
+        failures: 0,
+        repeat: null,
+        repeats: 0,
         stopped: false,
       };
       this.states.set(threadId, state);
@@ -128,17 +149,31 @@ export class ToolFailureGuard {
         const item = event.data.item;
         if (item.type !== "toolCall" && item.type !== "commandExecution")
           continue;
+        let reason: string | null = null;
         if (item.type !== "toolCall" || item.status !== "failed") {
           state.failure = null;
-          state.count = 0;
-          continue;
+          state.failures = 0;
+          const call = item.type === "toolCall" ? item : null;
+          const repeat = call
+            ? digest([call.tool, call.arguments, call.result])
+            : null;
+          if (repeat !== null && repeat === state.repeat) state.repeats += 1;
+          else {
+            state.repeat = repeat;
+            state.repeats = 1;
+          }
+          if (call && state.repeats >= REPEAT_LIMIT)
+            reason = `${REPEAT_LIMIT} identical calls to ${call.tool}`;
+        } else {
+          const failure = digest([item.tool, item.result]);
+          state.failures = state.failure === failure ? state.failures + 1 : 1;
+          state.failure = failure;
+          state.repeat = null;
+          state.repeats = 0;
+          if (state.failures >= FAILURE_LIMIT)
+            reason = `${FAILURE_LIMIT} consecutive failures from ${item.tool}`;
         }
-        const failure = createHash("sha256")
-          .update(JSON.stringify([item.tool, item.result]))
-          .digest("hex");
-        state.count = state.failure === failure ? state.count + 1 : 1;
-        state.failure = failure;
-        if (state.count < FAILURE_LIMIT) continue;
+        if (reason === null) continue;
         const thread = await bb.sdk.threads.get({ threadId, signal });
         const [latest] = await bb.sdk.threads.events.list({
           threadId,
@@ -159,12 +194,10 @@ export class ToolFailureGuard {
         )
           return;
         // Suppress recap reminders before stopping, so the guard cannot cause
-        // another mandatory recap turn to repeat the same failure.
+        // another mandatory recap turn to repeat the same loop.
         state.stopped = true;
         this.deps.onLoop(threadId);
-        bb.log.warn(
-          `Stopped ${threadId}: ${FAILURE_LIMIT} consecutive failures from ${item.tool}`,
-        );
+        bb.log.warn(`Stopped ${threadId}: ${reason}`);
         try {
           await bb.sdk.threads.stop({ threadId, signal });
         } catch (error) {

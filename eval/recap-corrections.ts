@@ -168,7 +168,9 @@ for (const scenario of cases) {
       const visible = `${texts.join(" ")} ${JSON.stringify(last.arguments)}`;
       const contentOk =
         scenario.id === "answered"
-          ? texts.length === 0
+          ? // One short line may end the turn; the answer must not come back.
+            texts.every((text) => text.length <= 60) &&
+            !texts.some((text) => scenario.prior.includes(text))
           : scenario.id === "unanswered"
             ? /\b4\b/.test(visible) && texts.length <= 1
             : !texts.includes(scenario.prior);

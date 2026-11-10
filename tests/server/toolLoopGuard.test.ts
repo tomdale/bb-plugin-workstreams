@@ -1,7 +1,7 @@
 import { createTestPluginHost } from "./test-host.ts";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
-import { ToolFailureGuard } from "../../src/server/toolFailureGuard.ts";
+import { ToolLoopGuard } from "../../src/server/toolLoopGuard.ts";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -42,7 +42,7 @@ function world(disableOnLoop = true) {
       },
     },
   });
-  const guard = new ToolFailureGuard({
+  const guard = new ToolLoopGuard({
     bb,
     enabled: () => enabled,
     onLoop: () => {
@@ -77,13 +77,29 @@ function world(disableOnLoop = true) {
         result,
       },
     });
-  const success = () =>
+  const success = (
+    result = "ok",
+    tool = "WorkstreamsRecap",
+    args: Record<string, unknown> = { goal: "Clarified Up Next rows" },
+  ) =>
     add("item/completed", {
       item: {
         type: "toolCall",
-        tool: "read",
+        id: `call-${events.length}`,
+        tool,
         status: "completed",
-        result: "ok",
+        arguments: args,
+        result,
+      },
+    });
+  const command = (command: string) =>
+    add("item/completed", {
+      item: {
+        type: "commandExecution",
+        id: `call-${events.length}`,
+        command,
+        status: "completed",
+        result: "",
       },
     });
   const observe = () => guard.observe("t1", events.length);
@@ -93,6 +109,7 @@ function world(disableOnLoop = true) {
     add,
     fail,
     success,
+    command,
     observe,
     guard,
     harness,
@@ -109,6 +126,92 @@ function world(disableOnLoop = true) {
     },
   };
 }
+
+describe("repeated successful call guard", () => {
+  it("stops on the fifth identical successful call", async () => {
+    const w = world();
+    for (let i = 0; i < 4; i++) {
+      w.success();
+      await w.observe();
+    }
+    expect(w.loops()).toBe(0);
+    w.success();
+    await w.observe();
+    expect(w.loops()).toBe(1);
+    expect(w.harness.inspection.sdk.callsTo("threads.stop")).toHaveLength(1);
+    w.success();
+    await w.observe();
+    expect(w.harness.inspection.sdk.callsTo("threads.stop")).toHaveLength(1);
+  });
+
+  it("counts only exact repeats of tool, arguments, and output", async () => {
+    const w = world();
+    const four = (
+      result = "ok",
+      tool = "WorkstreamsRecap",
+      args: Record<string, unknown> = { goal: "Clarified Up Next rows" },
+    ) => {
+      for (let i = 0; i < 4; i++) w.success(result, tool, args);
+    };
+    four();
+    // Same call, new output: the model learned something.
+    four("Recap complete");
+    // Same output, new arguments: a different question.
+    four("Recap complete", "WorkstreamsRecap", { goal: "Other goal" });
+    // A different tool.
+    four("Recap complete", "read", { path: "README.md" });
+    await w.observe();
+    expect(w.loops()).toBe(0);
+  });
+
+  it("keeps counting repeats across text and reasoning between calls", async () => {
+    const w = world();
+    for (let i = 0; i < 5; i++) {
+      w.add("item/completed", {
+        item: { type: "reasoning", id: `r-${i}`, content: ["Stop."] },
+      });
+      w.add("item/completed", {
+        item: { type: "agentMessage", id: `m-${i}`, text: "Ending." },
+      });
+      w.success();
+    }
+    await w.observe();
+    expect(w.loops()).toBe(1);
+  });
+
+  it("leaves repeated shell commands and interleaved commands alone", async () => {
+    const w = world();
+    for (let i = 0; i < 8; i++) w.command("bb thread wait thr_1");
+    // A command between identical calls breaks the run.
+    for (let i = 0; i < 4; i++) w.success();
+    w.command("npm test");
+    for (let i = 0; i < 4; i++) w.success();
+    await w.observe();
+    expect(w.loops()).toBe(0);
+  });
+
+  it("never carries repeats into a fresh turn", async () => {
+    const w = world();
+    for (let i = 0; i < 4; i++) w.success();
+    await w.observe();
+    w.nextTurn();
+    w.success();
+    await w.observe();
+    expect(w.loops()).toBe(0);
+    for (let i = 0; i < 4; i++) w.success();
+    await w.observe();
+    expect(w.loops()).toBe(1);
+  });
+
+  it("treats a failure as a new event rather than a repeat", async () => {
+    const w = world();
+    for (let i = 0; i < 4; i++) w.success();
+    w.fail();
+    for (let i = 0; i < 4; i++) w.success();
+    await w.observe();
+    expect(w.loops()).toBe(0);
+  });
+});
 
 describe("failing tool loop guard", () => {
   it("stops on the fifth same-tool same-error failure despite reworded arguments", async () => {

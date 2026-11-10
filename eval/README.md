@@ -265,13 +265,13 @@ establish which approach is best. It does not change live replies.
 `node eval/recap-corrections.ts` compares the previous and current reminder
 using synthetic conversations and real Gateway tool selection. It checks an
 already-answered request, an unanswered request, and a request needing a
-question card. The answered case passes only when the agent calls the recap
-without more text; the unanswered case requires the answer in the reply or recap
-and a valid recap call. The question case requires a valid question call without
-repeating the previous message. If the agent stops without calling a tool, the
-runner sends up to three reminders, retaining its replies. This small test
-cannot establish a production failure rate or reproduce BB's complete provider
-session.
+question card. The answered case passes only when the agent calls the recap, at
+most one short line of text states nothing already answered; the unanswered case
+requires the answer in the reply or recap and a valid recap call. The question
+case requires a valid question call without repeating the previous message. If
+the agent stops without calling a tool, the runner sends up to three reminders,
+retaining its replies. This small test cannot establish a production failure
+rate or reproduce BB's complete provider session.
 
 - `EVAL_MODEL`: default `openai/gpt-6-luna`
 - `EVAL_REASONING_LEVEL`: default `xhigh`

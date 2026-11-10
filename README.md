@@ -583,10 +583,11 @@ of each turn using `WorkstreamsRecap`, rendered as a card above the composer:
 - **Reminders and loop guard:** If an enrolled agent ends a turn without a valid
   recap or a question card, Workstreams sends up to `3` automatic reminders
   (configurable `0–10`). Reminders name the recap tool rather than assuming the
-  latest setting changed the session, and tell the agent not to repeat an answer
-  already visible to the user. If an active thread hits `5` identical
-  consecutive tool-call failures, Workstreams stops the turn and pauses
-  automatic continuation to prevent an infinite retry loop.
+  latest setting changed the session, tell the agent not to repeat an answer
+  already visible to the user, and leave it one short line to end the turn with.
+  If an active thread makes `5` identical tool calls in a row — the same
+  failures, or the same arguments and the same output — Workstreams stops the
+  turn and pauses automatic continuation to prevent an infinite retry loop.
 
 ### Upstream bb and the tomdale/bb fork
 

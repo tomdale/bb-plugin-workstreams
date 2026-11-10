@@ -12,7 +12,13 @@ import type { AgentReport, StoredAnalysis, WorkState } from "./analysis.ts";
 
 export const RECAP_TOOL = "WorkstreamsRecap";
 
-export const RECAP_CORRECTION = `Your turn ended without a recap. Any answer you already gave is visible to the user: do not repeat it, in a block or otherwise, and add no closing note. Finish any remaining authorized work, then call ${RECAP_TOOL}, which is the whole of this turn's output. Write nothing after it — no note, no reply block — and put anything the recap leaves unsaid in its own fields. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
+/**
+ * The reminder sent to a turn that ended without a recap. It forbids repeating
+ * an answer already on screen, and still leaves one short line to end the turn
+ * with: a step that is only a tool call emits no text, and a model with no way
+ * to finish keeps making the same call until something stops it.
+ */
+export const RECAP_CORRECTION = `Your turn ended without a recap. Any answer you already gave is visible to the user: do not repeat it and do not add a reply block. Finish any remaining authorized work, then call ${RECAP_TOOL}, which the app draws as the card above the composer, and end the turn with one short line. Everything else belongs in the recap's fields, not in that line. Call ${RECAP_TOOL} once: calling it again with the same arguments means you are stuck, not finishing. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
 
 /**
  * How a turn's result stands: complete, awaiting review, or waiting on an async task.

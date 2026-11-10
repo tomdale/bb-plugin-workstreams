@@ -40,7 +40,7 @@ import { loadClientReport, saveClientReport } from "./clientReport.ts";
 import type { Database } from "./db.ts";
 import { UserError } from "./service.ts";
 import { ASK_USER_QUESTION_RENDERER_ID } from "./questions/contracts.ts";
-import { ToolFailureGuard } from "./toolFailureGuard.ts";
+import { ToolLoopGuard } from "./toolLoopGuard.ts";
 
 type Row = {
   thread_id: string;
@@ -93,7 +93,7 @@ export class AgentRecaps {
   private readonly controller = new AbortController();
   private readonly pending = new Map<string, Promise<void>>();
   private readonly repeat = new Set<string>();
-  private readonly failureGuard: ToolFailureGuard;
+  private readonly loopGuard: ToolLoopGuard;
   private readonly waitingTimers = new Map<
     string,
     ReturnType<typeof setTimeout>
@@ -119,7 +119,7 @@ export class AgentRecaps {
     },
   ) {
     this.messageBlocks = loadClientReport(deps.db).messageBlocks;
-    this.failureGuard = new ToolFailureGuard({
+    this.loopGuard = new ToolLoopGuard({
       bb: deps.bb,
       enabled: (threadId) =>
         deps.prefs().required && this.row(threadId).enrolled === 1,
@@ -140,7 +140,7 @@ export class AgentRecaps {
       "experimental_thread.events",
       ({ thread, sequence }) => {
         if (thread.status === "active")
-          return this.failureGuard.observe(thread.id, sequence);
+          return this.loopGuard.observe(thread.id, sequence);
       },
     );
     this.deps.bb.agents.registerTool({
@@ -322,7 +322,7 @@ export class AgentRecaps {
   onIdle(threadId: string): Promise<void> {
     const recap = this.get(threadId)?.recap;
     if (recap) this.scheduleWaiting(threadId, recap);
-    this.failureGuard.forget(threadId);
+    this.loopGuard.forget(threadId);
     const running = this.pending.get(threadId);
     if (running) {
       this.repeat.add(threadId);
@@ -350,7 +350,7 @@ export class AgentRecaps {
 
   onArchived(threadId: string) {
     this.cancelWaitingTimer(threadId);
-    this.failureGuard.forget(threadId);
+    this.loopGuard.forget(threadId);
     this.deps.db
       .prepare("UPDATE ws_agent_recap SET enrolled = 0 WHERE thread_id = ?")
       .run(threadId);
@@ -358,7 +358,7 @@ export class AgentRecaps {
 
   forget(threadId: string) {
     this.cancelWaitingTimer(threadId);
-    this.failureGuard.forget(threadId);
+    this.loopGuard.forget(threadId);
     this.deps.db
       .prepare("DELETE FROM ws_agent_recap WHERE thread_id = ?")
       .run(threadId);
@@ -487,7 +487,7 @@ export class AgentRecaps {
     await Promise.allSettled([
       ...this.waitingChecks,
       ...this.pending.values(),
-      this.failureGuard.dispose(),
+      this.loopGuard.dispose(),
     ]);
   }
 
@@ -579,7 +579,7 @@ export class AgentRecaps {
     // A queued group dispatches more than once; only its first attempt is new.
     if (inputKey !== null && row.input_key === inputKey) return;
     this.cancelWaitingTimer(threadId);
-    this.failureGuard.forget(threadId);
+    this.loopGuard.forget(threadId);
     this.deps.db
       .prepare(
         `UPDATE ws_agent_recap SET epoch = epoch + 1, intercepts = 0, capped = 0,

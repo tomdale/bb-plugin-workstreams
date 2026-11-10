@@ -1018,24 +1018,17 @@ describe("turn endings with reply blocks", () => {
     const [correction] = s.corrections();
     const message = (correction!.input as { text: string }[])[0]!.text;
     expect(message).toContain("Your turn ended without a recap.");
-    expect(message).toContain(`then call ${RECAP_TOOL}, which is the whole`);
     expect(message).toContain(
       "Any answer you already gave is visible to the user",
     );
-    expect(message).toContain(
-      "in a block or otherwise, and add no closing note",
-    );
-    // The call is the whole correction turn; nothing may follow it.
-    expect(message).toContain(
-      `then call ${RECAP_TOOL}, which is the whole of this turn's output`,
-    );
-    expect(message).toContain(
-      "Write nothing after it — no note, no reply block",
-    );
-    expect(message).toContain(
-      "put anything the recap leaves unsaid in its own fields",
-    );
+    expect(message).toContain("do not repeat it and do not add a reply block");
     expect(message).toContain("Finish any remaining authorized work");
+    // The call carries the recap, but the turn needs one line to end with.
+    expect(message).toContain(`then call ${RECAP_TOOL}, which the app draws`);
+    expect(message).toContain("end the turn with one short line");
+    expect(message).not.toContain("Write nothing after it");
+    expect(message).toContain("Everything else belongs in the recap's fields");
+    expect(message).toContain(`Call ${RECAP_TOOL} once`);
     expect(message).toContain("ask through the available question-card tool");
     // The card has one source, so recovery never offers the block form.
     expect(message).not.toContain(":::reply");
