@@ -465,10 +465,10 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      **Accept** (`✓`), then draws the sidebar rows it touches as they are, an
      arrow, and as they would be. Workstreams are bold and threads have a ring;
      nested rows are indented beside a guide line. Rows that leave are dimmed
-     and crossed out; rows that land or are new (`+`) take their workstream's
-     color, and numbers are thread counts. Click a colored count to list the
-     threads arriving there. Parents show no count, since threads sit in the
-     topics under them, and archived threads move with their topic without being
+     and crossed out; rows that land or are new take their workstream's color,
+     and numbers are thread counts. Click a colored count to list the threads
+     arriving there. Parents show no count, since threads sit in the topics
+     under them, and archived threads move with their topic without being
      counted. A decision applies at once and leaves **Undo** in its place for a
      few seconds; Activity keeps Undo after that. The foot counts suggestions
      the tree has since outgrown ("1 out of date") beside **Open Topics**, where

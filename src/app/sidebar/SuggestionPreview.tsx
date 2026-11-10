@@ -144,12 +144,12 @@ function Row({ row, colors }: { row: PreviewRow; colors?: PreviewColors }) {
           {row.within ? (
             <span className="font-normal">{row.within}: </span>
           ) : null}
-          {row.created ? "+ " : null}
           {row.kind === "threads"
             ? plural(row.count ?? 0)
             : row.kind === "more"
               ? `${row.count} more`
               : row.name}
+          {row.created ? <span className="sr-only"> (new)</span> : null}
         </span>
         {row.kind === "topic" && count ? <> {count}</> : null}
       </div>
