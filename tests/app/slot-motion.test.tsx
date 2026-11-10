@@ -374,29 +374,18 @@ describe("useSlotList", () => {
     expect(slot(":more")!.textContent).toBe("Show 2 more");
   });
 
-  it("under reduced motion applies a change at once, dropping leaving rows and fading in joining ones", () => {
+  it("under reduced motion applies a change at once, with nothing fading, moving, or waiting", () => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: query.includes("reduce"),
     }));
-    const view = render(<List items={rows("a", "b")} />);
-    view.rerender(<List items={rows("n", "a")} />);
-    expect(order()).toEqual(["n", "a", ":more"]);
-    const entering = slot("n")!;
-    expect(entering.style.height).toBe(`${ROW}px`);
-    expect(entering.style.transform).toBe("");
-    expect(Number(entering.style.opacity)).toBeLessThan(1);
-    step(UP_NEXT_MOTION.reducedFadeMs + 16);
-    expect(entering.style.opacity).toBe("");
-  });
-
-  it("under reduced motion applies a change with no leaving rows at once", () => {
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: query.includes("reduce"),
-    }));
-    const view = render(<List items={rows("a", "b")} />);
-    view.rerender(<List items={rows("b", "a")} />);
-    expect(order()).toEqual(["b", "a", ":more"]);
-    expect(slot("b")!.style.transform).toBe("");
+    const view = render(<List items={rows("a", "b", "c")} />);
+    // `n` joins, `b` leaves, and `c` and `a` change places.
+    view.rerender(<List items={rows("n", "c", "a")} />);
+    expect(order()).toEqual(["n", "c", "a", ":more"]);
+    expect(document.querySelectorAll("[data-key][style]")).toHaveLength(0);
+    step(1000);
+    expect(order()).toEqual(["n", "c", "a", ":more"]);
+    expect(document.querySelectorAll("[data-key][style]")).toHaveLength(0);
   });
 
   it("applies every change at once without Web Animations", () => {

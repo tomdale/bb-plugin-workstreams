@@ -8,8 +8,8 @@
  * place when a priority change reorders them.
  *
  * Motion is skipped where Web Animations are unavailable (tests, old
- * engines); there every change applies at once. Under reduced motion,
- * layout changes apply at once, and only Up Next's joining rows fade in.
+ * engines) and under reduced motion; there every change applies at once,
+ * with nothing waiting, moving, or fading.
  */
 import {
   useCallback,
@@ -47,26 +47,17 @@ export const UP_NEXT_MOTION = {
   leaveMs: 120,
   /** A burst of row changes redraws once, this long after its last change. */
   burstMs: 120,
-  /** Under reduced motion, a joining row fades in over this and nothing moves. */
-  reducedFadeMs: 150,
 } as const;
 
-type MotionMode = "none" | "reduced" | "full";
-
-/** How much motion runs here and now. */
-function motionMode(): MotionMode {
-  if (typeof window === "undefined") return "none";
-  if (typeof Element === "undefined" || !("animate" in Element.prototype))
-    return "none";
-  return typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ? "reduced"
-    : "full";
-}
-
-/** Whether this motion runs here and now. */
+/** Whether motion runs here and now: it needs Web Animations and is off under reduced motion. */
 function canAnimate(): boolean {
-  return motionMode() === "full";
+  if (typeof window === "undefined") return false;
+  if (typeof Element === "undefined" || !("animate" in Element.prototype))
+    return false;
+  return !(
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 }
 
 /** A CSS cubic Bézier timing function, solved for x by bisection. */
@@ -158,7 +149,6 @@ type Slot = {
 /** One commit's decisions about a slot list (see `SlotSprings.commit`). */
 type SlotCommit = {
   readonly entries: readonly { key: string; leaving: boolean }[];
-  readonly mode: Exclude<MotionMode, "none">;
   /** The first commit: everything appears at rest. */
   readonly first: boolean;
   /** Entering rows that open without fading, rising from under Show more. */
@@ -255,7 +245,6 @@ class SlotSprings {
     this.advance(now);
     if (this.resize !== null) clearTimeout(this.resize);
     this.resize = null;
-    const full = change.mode === "full";
     const drawn = new Map<string, number>();
     for (const [key, { top }] of this.layout())
       drawn.set(key, top + this.slots.get(key)!.offset.value);
@@ -288,22 +277,20 @@ class SlotSprings {
       placed.add(key);
       const natural = naturals.get(key) ?? slot?.natural ?? 0;
       const enter = (from: number): Fade | null =>
-        full && change.rise.has(key)
+        change.rise.has(key)
           ? null
           : {
               from,
               to: 1,
-              start: now + (full ? UP_NEXT_MOTION.enterDelayMs : 0),
-              duration: full
-                ? UP_NEXT_MOTION.enterMs
-                : UP_NEXT_MOTION.reducedFadeMs,
+              start: now + UP_NEXT_MOTION.enterDelayMs,
+              duration: UP_NEXT_MOTION.enterMs,
             };
       if (!slot) {
         const opening = !change.first;
         slot = {
           natural,
           height: {
-            value: full && opening ? 0 : natural,
+            value: opening ? 0 : natural,
             velocity: 0,
             target: natural,
           },
@@ -325,10 +312,6 @@ class SlotSprings {
       }
       slot.natural = natural;
       slot.height.target = natural;
-      if (!full) {
-        slot.height.value = natural;
-        slot.height.velocity = 0;
-      }
     }
     for (const key of this.slots.keys())
       if (!placed.has(key)) this.slots.delete(key);
@@ -340,7 +323,7 @@ class SlotSprings {
       const slot = this.slots.get(key)!;
       if (slot.leaving) continue;
       const from = drawn.get(key);
-      if (!full || arriving.has(key) || from === undefined) {
+      if (arriving.has(key) || from === undefined) {
         slot.offset = { value: 0, velocity: 0, target: 0 };
         continue;
       }
@@ -357,10 +340,9 @@ class SlotSprings {
    * Picks up a change in a slot's contents height, such as a row gaining a
    * second line, without a change in arrangement. Like an arrangement, the
    * new height waits until changes have been quiet for `burstMs`, so a row
-   * that loses its second line as it leaves keeps its slot until it closes;
-   * under reduced motion it applies at once.
+   * that loses its second line as it leaves keeps its slot until it closes.
    */
-  remeasure(mode: Exclude<MotionMode, "none">, now: number) {
+  remeasure(now: number) {
     const keys = this.order.filter((key) => !this.slots.get(key)!.leaving);
     const naturals = this.measure(keys);
     let changed = false;
@@ -372,23 +354,18 @@ class SlotSprings {
         continue;
       changed = true;
       slot.natural = natural;
-      if (mode !== "full") {
-        slot.height = { value: natural, velocity: 0, target: natural };
-      }
     }
     if (!changed) return;
-    if (mode === "full") {
-      if (this.resize !== null) clearTimeout(this.resize);
-      this.resize = setTimeout(() => {
-        this.resize = null;
-        const at = performance.now();
-        this.advance(at);
-        for (const slot of this.slots.values())
-          if (!slot.leaving) slot.height.target = slot.natural;
-        this.draw(at);
-        this.schedule();
-      }, UP_NEXT_MOTION.burstMs);
-    }
+    if (this.resize !== null) clearTimeout(this.resize);
+    this.resize = setTimeout(() => {
+      this.resize = null;
+      const at = performance.now();
+      this.advance(at);
+      for (const slot of this.slots.values())
+        if (!slot.leaving) slot.height.target = slot.natural;
+      this.draw(at);
+      this.schedule();
+    }, UP_NEXT_MOTION.burstMs);
     // Hold the slot at its height until then.
     this.draw(now);
   }
@@ -629,9 +606,8 @@ type ShownSlots<T> = {
  * `arranged` marks an item whose contents belong to the arrangement, such as
  * Show more's count, so it changes only when the arrangement does.
  *
- * Under reduced motion nothing waits or moves: the new arrangement applies
- * at once, leaving rows go, and entering rows fade in. Without Web
- * Animations (tests) every change applies at once.
+ * Under reduced motion, and without Web Animations (tests), every change
+ * applies at once: nothing waits, moves, or fades.
  */
 export function useSlotList<T>(
   items: readonly T[],
@@ -643,7 +619,7 @@ export function useSlotList<T>(
     readonly arranged?: (item: T) => boolean;
   },
 ): SlotEntry<T>[] {
-  const mode = motionMode();
+  const animate = canAnimate();
   const keys = items.map(keyOf);
   const signature = keys.join("\n");
   const shown = useRef<ShownSlots<T> | null>(null);
@@ -659,11 +635,7 @@ export function useSlotList<T>(
     trimmed: options.trimmed,
   };
   let display = shown.current;
-  if (
-    display === null ||
-    mode !== "full" ||
-    options.immediate !== immediate.current
-  )
+  if (display === null || !animate || options.immediate !== immediate.current)
     display = live;
   const displayItems = display.keys.flatMap((key) => {
     const held = display.items.get(key);
@@ -679,7 +651,7 @@ export function useSlotList<T>(
     committed.current ?? [],
     displayItems,
     keyOf,
-    mode === "full" && committed.current !== null,
+    animate && committed.current !== null,
   );
 
   const springs = useRef<SlotSprings | null>(null);
@@ -716,7 +688,7 @@ export function useSlotList<T>(
     for (const key of refs.current.keys())
       if (!byKey.has(key) && !presence.some((entry) => entry.key === key))
         refs.current.delete(key);
-    if (mode === "none") {
+    if (!animate) {
       arranged.current = null;
       return;
     }
@@ -730,7 +702,7 @@ export function useSlotList<T>(
     const now = performance.now();
     const previous = arranged.current;
     if (previous?.signature === arrangement) {
-      engine.remeasure(mode, now);
+      engine.remeasure(now);
       return;
     }
     // Rows arriving at the end that the limit kept out come up from under
@@ -750,7 +722,6 @@ export function useSlotList<T>(
     engine.commit(
       {
         entries,
-        mode,
         // Rows arriving in an empty list appear with it: the list's own
         // container opens around them.
         first: previous === null || previous.present === 0,
