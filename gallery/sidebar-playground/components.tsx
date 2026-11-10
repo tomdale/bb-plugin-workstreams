@@ -189,10 +189,13 @@ export function mountThread(
         working: "runtime",
         unread: "unread-success",
         waiting: "waiting-for-input",
-        error: "unread-error",
+        // BB reports a failed turn as a row indicator only while unread; the
+        // thread's status carries it once the row is read.
+        error: unread ? "unread-error" : "none",
         draft: "draft",
       } as Record<string, string>
     )[kind] ?? "none";
+  const status = kind === "error" ? "error" : "idle";
   const state = (
     {
       review: "review",
@@ -206,6 +209,7 @@ export function mountThread(
     title: options.title,
     displayTitle: options.title,
     href: "#",
+    status,
     indicator,
     indicatorLabel: null,
     hasPendingInteraction: false,

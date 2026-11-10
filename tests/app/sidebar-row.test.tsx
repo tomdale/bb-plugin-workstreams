@@ -14,11 +14,15 @@ function LiveRow(props: Parameters<typeof Row>[0]) {
 }
 
 async function mount(indicator: "none" | "runtime" = "none") {
+  return mountThread({ indicator });
+}
+
+async function mountThread(overrides: Parameters<typeof sidebarThread>[1]) {
   const thread = sidebarThread("root", {
     title: "Root task",
     isPinned: true,
     isUnread: true,
-    indicator,
+    ...overrides,
   });
   const props = {
     thread,
@@ -94,6 +98,17 @@ it("wires the presented row to native shortcuts, split navigation, disclosure, a
   slot.rerender(<LiveRow {...props} placement="recent" />);
   expect(slot.queryByRole("img", { name: "Pinned" })).toBeNull();
   expect(slot.container.querySelector(".ws-status-slot .ws-mark")).toBeNull();
+});
+
+it("keeps the failure mark on a read thread whose last turn failed", async () => {
+  // BB reports the error as a row indicator only while unread; the thread's
+  // own status carries it afterwards.
+  const { slot } = await mountThread({ isUnread: false, status: "error" });
+  const link = slot.getByRole("link", { name: "Root task, Failed" });
+  expect(link).toBeTruthy();
+  const mark = slot.getByRole("img", { name: "Failed" });
+  expect(mark.className).toContain("ws-failed");
+  expect(slot.container.querySelector(".ws-unread-inline")).toBeNull();
 });
 
 it("uses the default working indicator and follows live spinner preferences", async () => {
