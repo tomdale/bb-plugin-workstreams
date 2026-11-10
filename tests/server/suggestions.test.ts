@@ -3,6 +3,9 @@ import { fakeWorld } from "./fake-bb.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 import { getMeta, openDatabase, setMeta } from "../../src/server/db.ts";
 import type { SuggestionsStateWire } from "../../src/server/contract.ts";
+import { Suggestions } from "../../src/server/suggestions.ts";
+import { Journal } from "../../src/server/journal.ts";
+import { createTestPluginHost } from "./test-host.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 let world: World | null = null;
@@ -807,5 +810,60 @@ describe("suggestions CLI", () => {
     const accepted = await cli("suggestions", "accept", "all");
     expect(accepted.stdout).toBe("Accepted 1 suggestion.");
     expect(topics.getById(a.id)?.name).toBe("Alpha Two");
+  });
+});
+
+describe("suggestion checks after organizer passes", () => {
+  it("checks again only when topics, assignments, visible roots, or the preference changed", async () => {
+    const host = createTestPluginHost({ pluginId: "suggestion-checks" });
+    try {
+      const db = openDatabase(host.bb);
+      const topics = new TopicStore(db);
+      let roots = [{ id: "t1", title: "One" }];
+      let enabled = false;
+      const suggestions = new Suggestions({
+        db,
+        inference: null as never,
+        topics,
+        journal: new Journal(db),
+        model: async () => null as never,
+        enabled: () => enabled,
+        roots: () => roots,
+        checkout: () => null,
+        coordination: () => [],
+        onChange: () => {},
+        log: () => {},
+      });
+      const reads = vi.spyOn(topics, "assignments");
+      const checks = () => reads.mock.calls.length;
+      suggestions.checkIfChanged();
+      const once = checks();
+      expect(once).toBeGreaterThan(0);
+      suggestions.checkIfChanged();
+      expect(checks()).toBe(once);
+
+      const topic = topics.create("Lantern");
+      suggestions.checkIfChanged();
+      expect(checks()).toBe(once * 2);
+      topics.assign("t1", topic.id);
+      suggestions.checkIfChanged();
+      expect(checks()).toBe(once * 3);
+      // A deleted thread's assignment is gone, which moves the revision.
+      topics.forget("t1");
+      suggestions.checkIfChanged();
+      expect(checks()).toBe(once * 4);
+      roots = [...roots, { id: "t2", title: "Two" }];
+      suggestions.checkIfChanged();
+      expect(checks()).toBe(once * 5);
+      roots = [{ id: "t1", title: "Renamed" }, roots[1]!];
+      suggestions.checkIfChanged();
+      expect(checks()).toBe(once * 5);
+      enabled = true;
+      suggestions.checkIfChanged();
+      expect(checks()).toBe(once * 6);
+      suggestions.dispose();
+    } finally {
+      await host.harness.lifecycle.dispose();
+    }
   });
 });

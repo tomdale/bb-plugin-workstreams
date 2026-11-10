@@ -137,6 +137,8 @@ export class Suggestions {
   private disposed = false;
   private error: string | null = null;
   private failedFingerprint: string | null = null;
+  /** What the last `check` saw; see `checkIfChanged`. */
+  private checked: string | null = null;
 
   constructor(
     private readonly deps: {
@@ -239,6 +241,7 @@ export class Suggestions {
    */
   check(): void {
     if (this.disposed) return;
+    this.checked = this.inputs();
     this.retire();
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
@@ -247,6 +250,27 @@ export class Suggestions {
       this.timer = null;
       if (this.deps.enabled()) void this.run({ manual: false }).catch(() => {});
     }, CHECK_DEBOUNCE_MS);
+  }
+
+  /**
+   * `check`, unless nothing it reads changed since the last one. Besides the
+   * suggestions it keeps itself, it reads the topic tree and assignments,
+   * which move the catalog revision whenever they change, and the visible
+   * roots and the preference.
+   */
+  checkIfChanged(): void {
+    if (this.inputs() !== this.checked) this.check();
+  }
+
+  private inputs(): string {
+    return JSON.stringify([
+      this.deps.topics.revision(),
+      this.deps.enabled(),
+      this.deps
+        .roots()
+        .map((root) => root.id)
+        .sort(),
+    ]);
   }
 
   /**

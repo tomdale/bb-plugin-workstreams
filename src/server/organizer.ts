@@ -72,6 +72,8 @@ export class Organizer {
   private controller: AbortController | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private lastSyncedHash: string | null = null;
+  /** The latest trigger came with an inventory no later trigger predates. */
+  private inventoryFresh = false;
   private forceNextRun = false;
   private activeRun: Promise<OrganizerState> | null = null;
 
@@ -119,8 +121,19 @@ export class Organizer {
     this.controller?.abort();
   }
 
-  trigger(debounceMs = 50): void {
+  /** Counts triggers; a caller passes it back to `trigger` as `inventorySince`. */
+  revision(): number {
+    return this.factRevision;
+  }
+
+  /**
+   * Schedules a pass. `inventorySince` is the revision a caller read before
+   * starting a reconcile that has finished: when no trigger arrived since,
+   * the pass plans from that inventory instead of reconciling again.
+   */
+  trigger(debounceMs = 50, inventorySince?: number): void {
     if (this.disposed) return;
+    this.inventoryFresh = inventorySince === this.factRevision;
     this.factRevision++;
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
@@ -261,7 +274,9 @@ export class Organizer {
     } | null = null;
 
     try {
-      await this.deps.service.reconcile();
+      const fresh = this.inventoryFresh && !isForced;
+      this.inventoryFresh = false;
+      if (!fresh) await this.deps.service.reconcile();
       const allThreads = this.deps.service.threads();
       const forest = buildForest(allThreads);
 

@@ -141,8 +141,8 @@ export default async function plugin(bb: BbPluginApi) {
 
   // Set once the organizer exists; earlier triggers have nothing to start.
   let organizer: Organizer | null = null;
-  const triggerOrganizer = (debounceMs = 50) => {
-    organizer?.trigger(debounceMs);
+  const triggerOrganizer = (debounceMs = 50, inventorySince?: number) => {
+    organizer?.trigger(debounceMs, inventorySince);
   };
 
   const currentPrefs = () => loadPrefs(db);
@@ -591,7 +591,8 @@ export default async function plugin(bb: BbPluginApi) {
         .catch((error) =>
           bb.log.warn(`Categorizing collections failed: ${String(error)}`),
         );
-      suggestions.check();
+      if (rebuild) suggestions.check();
+      else suggestions.checkIfChanged();
       learnProjects();
     },
   });
@@ -864,6 +865,7 @@ export default async function plugin(bb: BbPluginApi) {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
+      const since = organizer?.revision();
       service
         .reconcile()
         .then(() => {
@@ -872,7 +874,7 @@ export default async function plugin(bb: BbPluginApi) {
           void sweepSnoozes();
           projectAssociations.observeActive(service.threads());
           learnProjects();
-          triggerOrganizer(50);
+          triggerOrganizer(50, since);
         })
         .catch((error: unknown) =>
           bb.log.warn(`Reconcile failed: ${String(error)}`),
@@ -961,17 +963,28 @@ export default async function plugin(bb: BbPluginApi) {
     waker?.onFailed(thread.id);
     if (awaitingEvents()) reconcileSoon();
   });
+  /**
+   * Whether a thread's status can change a pass: only the organizer's roots
+   * count, and a thread whose parent is hidden or archived is one.
+   */
+  const organizedRoot = (thread: {
+    visibility: string;
+    parentThreadId?: string | null;
+  }) =>
+    thread.visibility !== "hidden" &&
+    (!thread.parentThreadId ||
+      !service.threads().some((t) => t.id === thread.parentThreadId));
   bb.events.on("thread.idle", ({ thread, lastAssistantText }) => {
     if (awaitingEvents()) reconcileSoon();
     if (thread.visibility === "hidden") return;
     analyzer.onIdle(thread, lastAssistantText);
-    triggerOrganizer(200);
+    if (organizedRoot(thread)) triggerOrganizer(200);
     return recaps.onIdle(thread.id);
   });
   bb.events.on("thread.active", ({ thread }) => {
     waker?.onActive(thread.id);
     analyzer.onActive(thread.id);
-    triggerOrganizer(200);
+    if (organizedRoot(thread)) triggerOrganizer(200);
     // Covers a thread whose first request this run didn't see dispatched.
     void quick.onRunning(thread);
   });

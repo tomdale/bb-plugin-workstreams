@@ -6,6 +6,11 @@ import { TopicStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import type { OrganizerState } from "../../src/server/contract.ts";
 import { AgentRecaps } from "../../src/server/recap.ts";
+import { WorkstreamService } from "../../src/server/service.ts";
+import { Organizer } from "../../src/server/organizer.ts";
+import { Journal } from "../../src/server/journal.ts";
+import type { Analyzer } from "../../src/server/analyzer.ts";
+import { createTestPluginHost } from "./test-host.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 let world: World | null = null;
@@ -763,6 +768,85 @@ describe("organizer pass cost", () => {
       expect(w.threads.get("t1")?.sectionId).toBe(section!.id);
     });
     expect(created).toEqual(["Lantern", "Compass"]);
+  });
+});
+
+describe("organizer triggers", () => {
+  it("runs a pass for a root's turn, not for a hidden thread's or a child's", async () => {
+    world = await fakeWorld();
+    const w = world;
+    const root = w.addThread("root", { title: "Root" });
+    const child = w.addThread("child", { parentThreadId: "root" });
+    const orphan = w.addThread("orphan", { parentThreadId: "archived" });
+    const hidden = w.addThread("worker", { visibility: "hidden" });
+    await w.harness.behavior.callRpc("refresh", null);
+    await rebuildOrg(w);
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 300));
+    // Let the passes that project learning's first sweep schedules finish.
+    await settle();
+    const reconcile = vi.spyOn(WorkstreamService.prototype, "reconcile");
+    const passesAfter = async (thread: typeof root) => {
+      reconcile.mockClear();
+      await w.harness.behavior.emitThreadEvent("thread.active", { thread });
+      await settle();
+      return reconcile.mock.calls.length;
+    };
+    expect(await passesAfter(hidden)).toBe(0);
+    expect(await passesAfter(child)).toBe(0);
+    expect(await passesAfter(root)).toBeGreaterThan(0);
+    // Its parent isn't visible, so the organizer files it as a root.
+    expect(await passesAfter(orphan)).toBeGreaterThan(0);
+  });
+
+  it("plans from a reconcile that just finished unless another trigger came first", async () => {
+    let listings = 0;
+    const host = createTestPluginHost({
+      pluginId: "organizer-inventory",
+      sdk: {
+        threads: {
+          list: async () => {
+            listings++;
+            return [];
+          },
+        },
+        threadSections: { list: async () => [] },
+      } as never,
+    });
+    try {
+      const db = openDatabase(host.bb);
+      const journal = new Journal(db);
+      const service = new WorkstreamService(
+        () => host.bb.sdk,
+        db,
+        journal,
+        () => {},
+      );
+      const organizer = new Organizer({
+        sdk: () => host.bb.sdk,
+        db,
+        service,
+        topics: new TopicStore(db),
+        analyzer: { get: () => undefined } as unknown as Analyzer,
+        members: async () => [],
+        onChange: () => {},
+      });
+      await organizer.run();
+      const pass = async (fresh: boolean, interrupted: boolean) => {
+        const since = organizer.revision();
+        await service.reconcile();
+        if (interrupted) organizer.trigger(60_000);
+        organizer.trigger(60_000, fresh ? since : undefined);
+        listings = 0;
+        await organizer.run();
+        return listings;
+      };
+      expect(await pass(true, false)).toBe(0);
+      expect(await pass(false, false)).toBe(1);
+      expect(await pass(true, true)).toBe(1);
+      organizer.dispose();
+    } finally {
+      await host.harness.lifecycle.dispose();
+    }
   });
 });
 
