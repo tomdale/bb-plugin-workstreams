@@ -208,13 +208,28 @@ const SLOT_STYLES = [
  * with the slots on either side of it, so the rows below never jump by a
  * gap. Positions come from the slots' heights and gaps in order; nothing is
  * measured per frame.
+ *
+ * Slots are measured when an arrangement is committed and when a slot's
+ * contents change size. A ResizeObserver watches each slot's contents, its
+ * element's children, rather than the slot, whose height the springs own.
+ * A contents size change seen while slots move is measured once they come
+ * to rest, since a moving slot's contents can follow its height.
  */
 class SlotSprings {
   private readonly slots = new Map<string, Slot>();
   private readonly elements = new Map<string, HTMLElement>();
   private order: string[] = [];
-  /** The CSS margin between neighboring slots, read when slots are measured. */
-  private gap = 0;
+  /**
+   * The CSS margin between neighboring slots (`li + li`), read once, when
+   * two slots are first measured; null until then.
+   */
+  private gap: number | null = null;
+  private readonly contents =
+    typeof ResizeObserver === "function"
+      ? new ResizeObserver(() => this.resized())
+      : null;
+  /** A contents size change seen while slots moved, measured at rest. */
+  private resizedWhileMoving = false;
   /** Whether the gaps are written inline. */
   private gapped = false;
   private frame: number | null = null;
@@ -225,8 +240,22 @@ class SlotSprings {
   constructor(private readonly closed: (keys: string[]) => void) {}
 
   attach(key: string, element: HTMLElement | null) {
-    if (element) this.elements.set(key, element);
-    else this.elements.delete(key);
+    const previous = this.elements.get(key);
+    if (previous === element) return;
+    if (previous)
+      for (const child of previous.children) this.contents?.unobserve(child);
+    if (element) {
+      this.elements.set(key, element);
+      for (const child of element.children) this.contents?.observe(child);
+    } else this.elements.delete(key);
+  }
+
+  private resized() {
+    if (this.frame !== null) {
+      this.resizedWhileMoving = true;
+      return;
+    }
+    this.remeasure(performance.now());
   }
 
   /** Whether the slot exists and is still open or opening. */
@@ -342,7 +371,7 @@ class SlotSprings {
    * new height waits until changes have been quiet for `burstMs`, so a row
    * that loses its second line as it leaves keeps its slot until it closes.
    */
-  remeasure(now: number) {
+  private remeasure(now: number) {
     const keys = this.order.filter((key) => !this.slots.get(key)!.leaving);
     const naturals = this.measure(keys);
     let changed = false;
@@ -371,6 +400,7 @@ class SlotSprings {
   }
 
   destroy() {
+    this.contents?.disconnect();
     if (this.frame !== null) cancelAnimationFrame(this.frame);
     this.frame = null;
     if (this.resize !== null) clearTimeout(this.resize);
@@ -392,17 +422,15 @@ class SlotSprings {
       }
     }
     const naturals = new Map<string, number>();
-    let gap = 0;
     for (const key of keys) {
       const element = this.elements.get(key);
-      if (!element) continue;
-      naturals.set(key, element.getBoundingClientRect().height);
-      gap = Math.max(
-        gap,
-        Number.parseFloat(getComputedStyle(element).marginTop) || 0,
-      );
+      if (element) naturals.set(key, element.getBoundingClientRect().height);
     }
-    if (keys.length > 1) this.gap = gap;
+    // The second slot is never first among its siblings, so it carries the
+    // margin; the style is static, so one read lasts the list's life.
+    const second = keys.length > 1 ? this.elements.get(keys[1]!) : undefined;
+    if (this.gap === null && second)
+      this.gap = Number.parseFloat(getComputedStyle(second).marginTop) || 0;
     for (const [element, height, margin] of lifted) {
       element.style.height = height;
       element.style.marginTop = margin;
@@ -428,7 +456,7 @@ class SlotSprings {
           : slot.height.value > 0
             ? 1
             : 0;
-      const gap = out.size === 0 ? 0 : this.gap * Math.min(open, before);
+      const gap = out.size === 0 ? 0 : (this.gap ?? 0) * Math.min(open, before);
       before = Math.max(before, open);
       out.set(key, { top: y + gap, gap });
       y += gap + slot.height.value;
@@ -534,7 +562,7 @@ class SlotSprings {
       style.clipPath = clips.get(key) ?? "";
     }
     const moving = [...this.slots.values()].some((slot) => slot.styled);
-    if (moving && this.gap > 0) {
+    if (moving && this.gap) {
       for (const [key, { gap }] of this.layout()) {
         const element = this.elements.get(key);
         if (element) element.style.marginTop = `${gap}px`;
@@ -566,6 +594,10 @@ class SlotSprings {
     this.advance(time);
     this.draw(time);
     if (this.busy(time)) this.schedule();
+    else if (this.resizedWhileMoving) {
+      this.resizedWhileMoving = false;
+      this.remeasure(time);
+    }
   };
 }
 
@@ -701,10 +733,8 @@ export function useSlotList<T>(
       .join("\n");
     const now = performance.now();
     const previous = arranged.current;
-    if (previous?.signature === arrangement) {
-      engine.remeasure(now);
-      return;
-    }
+    // A slot whose contents changed size reports it (see `SlotSprings`).
+    if (previous?.signature === arrangement) return;
     // Rows arriving at the end that the limit kept out come up from under
     // Show more; the rows it pushes out go back under it.
     const rise = new Set<string>();
