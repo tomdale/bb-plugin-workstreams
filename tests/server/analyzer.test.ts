@@ -5,6 +5,9 @@ import { fakeWorld, type FakeCompletion } from "./fake-bb.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { RECAP_TOOL } from "../../src/domain/recap.ts";
+import { Analyzer } from "../../src/server/analyzer.ts";
+import type { InventoryThread } from "../../src/server/inventory.ts";
+import { createTestPluginHost } from "./test-host.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 let world: World | null = null;
@@ -610,5 +613,50 @@ describe("idle analysis", () => {
       .prepare("SELECT 1 FROM ws_analysis WHERE thread_id = 't1'")
       .get();
     expect(row).toBeUndefined();
+  });
+});
+
+describe("analysis catch-up", () => {
+  it("reads only the stored results of the idle threads it is given", async () => {
+    const host = createTestPluginHost({ pluginId: "catch-up-scope" });
+    try {
+      const db = openDatabase(host.bb);
+      const insert = db.prepare(
+        "INSERT INTO ws_analysis (thread_id, revision, result, at) VALUES (?, ?, ?, 0)",
+      );
+      // Archived history: never parsed by catch-up.
+      for (let i = 0; i < 20; i++)
+        insert.run(`archived-${i}`, 5, JSON.stringify({ threadGoal: "Old" }));
+      insert.run("current", 5, JSON.stringify({ threadGoal: "Now" }));
+      insert.run("stale", 1, JSON.stringify({ threadGoal: "Then" }));
+      const analyzer = new Analyzer({
+        sdk: () => host.bb.sdk,
+        db,
+        inference: null as never,
+        model: async () => null as never,
+        onChange: () => {},
+        log: () => {},
+      });
+      analyzer.dispose();
+      const thread = (id: string, status = "idle") =>
+        ({
+          id,
+          status,
+          latestAttentionAt: 5,
+          parentThreadId: null,
+        }) as InventoryThread;
+      const parse = vi.spyOn(JSON, "parse");
+      const queued = analyzer.catchUp([
+        thread("current"),
+        thread("stale"),
+        thread("busy", "active"),
+      ]);
+      const parsed = parse.mock.calls.length;
+      parse.mockRestore();
+      expect(queued).toBe(1);
+      expect(parsed).toBe(2);
+    } finally {
+      await host.harness.lifecycle.dispose();
+    }
   });
 });

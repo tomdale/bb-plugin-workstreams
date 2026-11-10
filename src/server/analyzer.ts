@@ -235,11 +235,19 @@ export class Analyzer {
    * which covers turns that finished while the plugin was offline.
    */
   catchUp(threads: readonly InventoryThread[]): number {
+    const idle = threads.filter((thread) => thread.status === "idle");
+    // Only these threads' results are read; archived history stays unparsed.
     const stored = new Map(
       (
         this.deps.db
-          .prepare("SELECT thread_id, revision, result FROM ws_analysis")
-          .all() as { thread_id: string; revision: number; result: string }[]
+          .prepare(
+            "SELECT thread_id, revision, result FROM ws_analysis WHERE thread_id IN (SELECT value FROM json_each(?))",
+          )
+          .all(JSON.stringify(idle.map((thread) => thread.id))) as {
+          thread_id: string;
+          revision: number;
+          result: string;
+        }[]
       ).map((row) => {
         const result = readResult(row.result);
         return [
@@ -254,8 +262,7 @@ export class Analyzer {
     );
     const now = this.now();
     let queued = 0;
-    for (const thread of threads) {
-      if (thread.status !== "idle") continue;
+    for (const thread of idle) {
       const previous = stored.get(thread.id);
       // A root that never had a topic is settled even when its latest turn
       // was analyzed, for example after the plugin first loads.
