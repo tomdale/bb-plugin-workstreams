@@ -24,6 +24,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type KeyboardEvent,
   type RefObject,
 } from "react";
@@ -49,6 +50,21 @@ const OTHER_OPTION_LABEL = "Other…";
 const MAX_FREE_TEXT_LENGTH = 4096;
 
 const FOOTER_BUTTON_CLASS = "text-[13px] max-md:pointer-coarse:h-11";
+
+/**
+ * Keeps the displayed draft in the textarea while edits update form state.
+ * Freezing the initial value avoids React rewriting defaultValue on each edit,
+ * which is expensive in BB's thread view. Remount when the question changes.
+ */
+function QuestionDraftTextarea({
+  value,
+  ...props
+}: Omit<ComponentProps<"textarea">, "value" | "defaultValue"> & {
+  value: string;
+}) {
+  const initialValue = useRef(value);
+  return <textarea {...props} defaultValue={initialValue.current} />;
+}
 
 interface QuestionNotesFieldProps {
   label: string;
@@ -77,7 +93,7 @@ function QuestionNotesField({
   }, [value]);
   return (
     <div className={cn("mb-1.5 mt-1", OPTION_TEXT_INDENT)}>
-      <textarea
+      <QuestionDraftTextarea
         ref={ref}
         aria-label={label}
         rows={1}
@@ -362,6 +378,7 @@ function QuestionInputBlock({
               ) : null}
               {checked && showNotes ? (
                 <QuestionNotesField
+                  key={question.id}
                   label={`${question.shortLabel} notes`}
                   value={state.notes}
                   onChange={onNotesChange}
@@ -399,7 +416,8 @@ function QuestionInputBlock({
               void attachFiles(Array.from(event.currentTarget.files ?? []))
             }
           />
-          <textarea
+          <QuestionDraftTextarea
+            key={question.id}
             aria-label={freeformLabel}
             rows={2}
             value={state.otherText}

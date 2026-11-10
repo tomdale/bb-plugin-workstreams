@@ -724,6 +724,7 @@ above the composer:
   advances to the next question or submits the final answer; `Shift+Enter`
   inserts a newline. On a compact viewport with a coarse pointer, `Enter`
   inserts a newline. Answers remain while the viewport or pointer mode changes.
+  Switching between questions or options keeps the text you have typed.
 - Draft answers save automatically to `sessionStorage` (`250 ms` debounce) and
   recover across page reloads or interrupted turns.
 - A question outlives its turn when the turn is interrupted, so it stays

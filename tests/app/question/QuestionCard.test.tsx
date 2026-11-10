@@ -298,6 +298,53 @@ describe("question interaction adapter", () => {
     sessionStorage.clear();
   });
 
+  it("keeps each question's displayed draft without rewriting its initial value", () => {
+    const submit = vi.fn(async (_value: unknown) => undefined);
+    const slot = render(
+      {
+        questions: [
+          { ...singleSelect.questions[0]!, options: [] },
+          {
+            ...singleSelect.questions[0]!,
+            id: "q1",
+            shortLabel: "Hosting",
+            options: [],
+          },
+        ],
+      },
+      { submit },
+    );
+    const first = slot.getByLabelText("Database answer") as HTMLTextAreaElement;
+    fireEvent.change(first, { target: { value: "first draft" } });
+    expect(first.value).toBe("first draft");
+    expect(first.defaultValue).toBe("");
+
+    fireEvent.click(getButtonByText(slot, "Hosting"));
+    const second = slot.getByLabelText("Hosting answer") as HTMLTextAreaElement;
+    expect(second.value).toBe("");
+    fireEvent.change(second, { target: { value: "second draft" } });
+    expect(second.defaultValue).toBe("");
+
+    fireEvent.click(getButtonByText(slot, "Database"));
+    const restored = slot.getByLabelText(
+      "Database answer",
+    ) as HTMLTextAreaElement;
+    expect(restored.value).toBe("first draft");
+    fireEvent.change(restored, { target: { value: "edited draft" } });
+    expect(restored.defaultValue).toBe("first draft");
+    fireEvent.click(getButtonByText(slot, "Hosting"));
+    expect(
+      (slot.getByLabelText("Hosting answer") as HTMLTextAreaElement).value,
+    ).toBe("second draft");
+    fireEvent.click(getButtonByText(slot, "Submit"));
+    expect(submit.mock.calls[0]?.[0]).toEqual({
+      answers: {
+        q0: { selected: [], freeText: "edited draft" },
+        q1: { selected: [], freeText: "second draft" },
+      },
+    });
+  });
+
   it("submits the selected option value", () => {
     const submit = vi.fn(async (_value: unknown) => undefined);
     const slot = render(singleSelect, { submit });
@@ -322,9 +369,11 @@ describe("question interaction adapter", () => {
     expect(
       postgres.parentElement!.contains(slot.getByLabelText("Database notes")),
     ).toBe(true);
-    fireEvent.change(slot.getByLabelText("Database notes"), {
+    const notes = slot.getByLabelText("Database notes") as HTMLTextAreaElement;
+    fireEvent.change(notes, {
       target: { value: "  with pgbouncer  " },
     });
+    expect(notes.defaultValue).toBe("");
     fireEvent.click(getButtonByText(slot, "SQLite"));
     expect(
       (slot.getByLabelText("Database notes") as HTMLTextAreaElement).value,
