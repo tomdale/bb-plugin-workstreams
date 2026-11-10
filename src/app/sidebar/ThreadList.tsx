@@ -966,7 +966,7 @@ export function WorkstreamsThreadList({
             // so the row never moves and the rest-state text stays on the
             // label's baseline. The 1px top-bottom split nudges the chip
             // onto the caps label's optical center.
-            className="ws-suggestions-action -mx-2 -my-[6px] flex shrink-0 cursor-pointer items-center gap-[3px] rounded-md border-transparent border-x-8 border-y-[6px] text-[12px] leading-4 font-medium transition-colors"
+            className="ws-suggestions-action -mx-2 -mb-[2px] -mt-[3px] flex shrink-0 cursor-pointer items-center gap-[3px] rounded-md border-transparent border-x-8 border-b-2 border-t-[3px] text-[12px] leading-4 font-medium transition-colors"
           >
             <Icon name={SPARKLES_ICON} className="size-[13.5px]" aria-hidden />
             Reorganize
