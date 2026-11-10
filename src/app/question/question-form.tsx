@@ -545,7 +545,9 @@ function useScrollFade(ref: RefObject<HTMLElement | null>) {
     );
   }, [ref]);
   // Content height changes with the question and with the answer field.
-  useEffect(update);
+  // Measure once on mount; the observer below handles later size changes.
+  // Repeating these reads after every keystroke can force a full thread layout.
+  useEffect(update, [ref, update]);
   useEffect(() => {
     const node = ref.current;
     if (!node || typeof ResizeObserver === "undefined") return;
@@ -555,6 +557,7 @@ function useScrollFade(ref: RefObject<HTMLElement | null>) {
     return () => observer.disconnect();
   }, [ref, update]);
   return {
+    active: edges.top || edges.bottom,
     onScroll: update,
     style: {
       "--fade-top": edges.top ? "12px" : undefined,
@@ -788,7 +791,7 @@ export function QuestionForm({
         // for the last row's outline.
         className={cn(
           "-mx-2 min-h-0 touch-pan-y overflow-y-auto overscroll-contain px-2 pb-1",
-          FADE_MASK_CLASS,
+          scrollFade.active && FADE_MASK_CLASS,
         )}
         onScroll={scrollFade.onScroll}
         style={scrollFade.style}

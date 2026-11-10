@@ -745,6 +745,7 @@ describe("question interaction adapter", () => {
     const slot = render(singleSelect);
     const scroller =
       slot.container.querySelector<HTMLElement>(".overflow-y-auto")!;
+    expect(scroller.className).not.toContain("mask-image");
     const metrics = { scrollTop: 0, clientHeight: 200, scrollHeight: 500 };
     for (const [key, value] of Object.entries(metrics))
       Object.defineProperty(scroller, key, { configurable: true, value });
@@ -758,6 +759,41 @@ describe("question interaction adapter", () => {
     fireEvent.scroll(scroller);
     expect(scroller.style.getPropertyValue("--fade-bottom")).toBe("");
     expect(scroller.style.getPropertyValue("--fade-top")).toBe("12px");
+    expect(scroller.className).toContain("mask-image");
+
+    Object.defineProperty(scroller, "scrollTop", {
+      configurable: true,
+      value: 0,
+    });
+    Object.defineProperty(scroller, "scrollHeight", {
+      configurable: true,
+      value: 200,
+    });
+    fireEvent.scroll(scroller);
+    expect(scroller.className).not.toContain("mask-image");
+  });
+
+  it("does not read scroll geometry on each freeform edit", () => {
+    const slot = render({
+      questions: [{ ...singleSelect.questions[0]!, options: [] }],
+    });
+    const scroller =
+      slot.container.querySelector<HTMLElement>(".overflow-y-auto")!;
+    const reads = { scrollTop: 0, clientHeight: 0, scrollHeight: 0 };
+    for (const key of Object.keys(reads) as (keyof typeof reads)[]) {
+      Object.defineProperty(scroller, key, {
+        configurable: true,
+        get: () => {
+          reads[key] += 1;
+          return 0;
+        },
+      });
+    }
+    const answer = slot.getByRole("textbox", { name: "Database answer" });
+    for (let index = 1; index <= 60; index++) {
+      fireEvent.change(answer, { target: { value: "x".repeat(index) } });
+    }
+    expect(reads).toEqual({ scrollTop: 0, clientHeight: 0, scrollHeight: 0 });
   });
 
   it("keeps Enter for a newline on a phone's soft keyboard", () => {
