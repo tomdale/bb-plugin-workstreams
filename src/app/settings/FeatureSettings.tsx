@@ -331,7 +331,7 @@ export function ThreadsSettings() {
         {minimizing ? (
           <SettingRow
             label="Title alignment"
-            description="Put the minimized title at the left of the title bar, or in the middle of it."
+            description="Place the minimized title's slot at the left or middle of the title bar. The workstream name and title stay left aligned."
             control={
               <SegmentedControl
                 label="Title alignment"

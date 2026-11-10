@@ -556,12 +556,13 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
   aligned. In **Settings → Workstreams → Threads**, choose **Title on scroll →
   Float** to leave the heading over the thread and let the timeline move beneath
   its shadow, **Title transition → Scroll** to slide both copies as they cross
-  while the heading minimizes, or **Title alignment → Centered** to put the
-  minimized title in the bar's middle. Those last two appear only while the
-  title minimizes. Reduced motion uses the stationary crossfade in the title bar
-  and removes the animation from a pinned heading's step. Switching threads
-  preserves your reading position. When you follow the newest message, the view
-  stays attached to it as the heading loads.
+  while the heading minimizes, or **Title alignment → Centered** to center the
+  minimized title's slot in the bar. Titles and workstream names stay left
+  aligned in every layout. Those last two appear only while the title minimizes.
+  Reduced motion uses the stationary crossfade in the title bar and removes the
+  animation from a pinned heading's step. Switching threads preserves your
+  reading position. When you follow the newest message, the view stays attached
+  to it as the heading loads.
 - **Thread header actions:**
   - **Parent thread** (optional, off by default): Opens the parent thread from a
     delegate's header.
@@ -973,7 +974,7 @@ Open **Settings → Workstreams** to configure:
 | **Threads**           | **Keep titles current**                            | `On`                                        | Automatically titles new threads and updates titles as focus evolves. Outside manual title edits stay locked until cleared.                                                                                                                        |
 | **Threads**           | **Title on scroll**                                | `Minimize`                                  | Minimize shrinks the heading into the title bar as you scroll; `Float` leaves it over the thread, which moves beneath its shadow.                                                                                                                  |
 | **Threads**           | **Title transition**                               | `Fade`                                      | While the title minimizes, `Fade` gently moves the large heading back as the minimized title rises into place, and `Scroll` slides both as they cross. Narrow pinned titles step down at once. Shown only while **Title on scroll** is `Minimize`. |
-| **Threads**           | **Title alignment**                                | `Left`                                      | Where the minimized title sits in the title bar: `Left` after the thread's controls, or `Centered` in the bar's middle. Shown only while **Title on scroll** is `Minimize`.                                                                        |
+| **Threads**           | **Title alignment**                                | `Left`                                      | Where the minimized title's slot sits in the title bar: `Left` after the thread's controls, or `Centered` in the bar's middle. All title and workstream text stays left aligned. Shown only while **Title on scroll** is `Minimize`.               |
 | **Threads**           | **Show parent thread link**                        | `Off`                                       | Shows a parent-thread pill in delegate thread headers.                                                                                                                                                                                             |
 | **Threads**           | **Show archive button**                            | `On`                                        | Shows an Archive button in thread headers.                                                                                                                                                                                                         |
 | **Recap**             | **End turns with a recap**                         | `On`                                        | Gives agents `WorkstreamsRecap` and displays the recap card above the composer.                                                                                                                                                                    |

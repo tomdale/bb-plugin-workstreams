@@ -708,23 +708,6 @@
 .dark .ws-sticky-goal__workstream {
   color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
 }
-/* A centered minimized title (Settings → Workstreams → Threads → Title
-   alignment) sits on the title bar's middle line: the workstream line spans the
-   bar to center its contents, scaling about that center, and the wave icon's
-   optical nudge only serves a left edge, so it goes. */
-.ws-goal-overlay__group[data-ws-align="center"] {
-  transform-origin: 50% 0;
-}
-.ws-goal-overlay__group[data-ws-align="center"] .ws-sticky-goal__workstream {
-  right: 0;
-  left: 0;
-  justify-content: center;
-  transform-origin: 50% 0;
-}
-.ws-goal-overlay__group[data-ws-align="center"] .ws-sticky-goal__title,
-.ws-goal-overlay__group[data-ws-align="center"] .ws-sticky-goal__subtitle {
-  text-align: center;
-}
 /* A reply block's accent: its thread's workstream identity color, or muted
    text when the thread is unfiled. Reply components take label color from it. */
 .ws-reply-accent {

@@ -433,7 +433,7 @@ it("falls back to the first column when BB does not mark it", async () => {
   slot.lifecycle.unmount();
 });
 
-it("centers the minimized title in the title bar when asked to", async () => {
+it("centers the minimized title's slot without centering its text", async () => {
   paneFixture({ recap: false });
   const scroller = document.querySelector<HTMLElement>(
     '[data-test="messages"]',
@@ -469,10 +469,15 @@ it("centers the minimized title in the title bar when asked to", async () => {
     ),
   });
   await waitFor(() => expect(groups().compact).not.toBeNull());
-  // The expanded heading stays with the messages; only the minimized copy
-  // moves to the bar's middle.
+  // The expanded heading stays with the messages; only the minimized copy's
+  // slot moves to the bar's middle.
   expect(groups().expanded!.hasAttribute("data-ws-align")).toBe(false);
-  expect(groups().compact!.getAttribute("data-ws-align")).toBe("center");
+  expect(groups().compact!.hasAttribute("data-ws-align")).toBe(false);
+  expect(
+    getComputedStyle(
+      groups().compact!.querySelector<HTMLElement>(".ws-sticky-goal__title")!,
+    ).textAlign,
+  ).not.toBe("center");
   expect(groups().compact!.style.width).toBe("468px");
   expect(
     overlay()!.querySelector<HTMLElement>('[data-ws-heading="compact"]')!.style

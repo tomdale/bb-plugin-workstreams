@@ -160,7 +160,7 @@ browserTest.skipIf(browserUnavailable)(
 );
 
 browserTest.skipIf(browserUnavailable)(
-  "centers the minimized title's workstream line and text when the group asks for it",
+  "left aligns the minimized workstream line and text within a centered slot",
   { timeout: 30_000 },
   async ({ page }) => {
     await page.setViewportSize({ width: 400, height: 200 });
@@ -196,23 +196,11 @@ browserTest.skipIf(browserUnavailable)(
         };
       });
     const left = await measure();
-    await page.evaluate(() =>
-      document
-        .querySelector(".ws-goal-overlay__group")!
-        .setAttribute("data-ws-align", "center"),
-    );
-    const centered = await measure();
     expect(left.titleAlign).toBe("start");
-    expect(centered.titleAlign).toBe("center");
-    // The line spans the group so its contents can center, instead of sitting
-    // at the icon's optical inset.
     expect(left.justify).toBe("normal");
-    expect(centered.justify).toBe("center");
     expect(left.lineInset.startsWith("-2px/")).toBe(true);
-    expect(centered.lineInset).toBe("0px/0px");
-    // Scaling the compact line shrinks it about its own middle, not its left
-    // edge, so the middle stays on the bar's middle.
-    expect(Math.abs(centered.offsetFromMiddle)).toBeLessThanOrEqual(1);
+    // The compact line scales from its left edge even when the slot itself is
+    // centered in the title bar.
     expect(left.offsetFromMiddle).toBeLessThan(-50);
   },
 );

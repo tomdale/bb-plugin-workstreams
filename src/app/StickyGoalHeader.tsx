@@ -819,7 +819,6 @@ export function StickyGoalHeader(): React.ReactElement | null {
       >
         <div
           className="ws-goal-overlay__group"
-          data-ws-align={centered ? "center" : undefined}
           style={{
             transform: fadeOnly
               ? `translateY(${fadeMotion.compact.y}px) scale(${fadeMotion.compact.scale})`
