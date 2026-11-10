@@ -160,7 +160,7 @@ export const QUEUE_CFG: DrumPatch = {
   loose: true,
   vcap: 44 * 60,
   coverFade: 0.25,
-  tempo: { kind: "constant", ms: 60 },
+  tempo: { kind: "constant", ms: 120 },
 };
 
 /** Named settings the page and the sweeps share. Each overlays DEFAULT_CFG. */

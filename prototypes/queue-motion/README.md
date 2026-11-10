@@ -10,7 +10,7 @@ and recordings of each model.
 The product runs the drum (`src/app/page/queue/drum.ts`) through
 `src/app/page/queue/stackEngine.ts`, which keeps a short row of cards on the
 drum as the queue's pile changes. The drum's settings as shipped are `QUEUE_CFG`
-in `drum.ts`: the `natural` preset with a 60 ms minimum interval, a 3 Hz tap
+in `drum.ts`: the `natural` preset with a 120 ms minimum interval, a 3 Hz tap
 spring and 2640 px/s (44 px/frame at 60 Hz) top speed, a 0.25 covered-card fade,
 and loose clearing while held. The page offers it as the drum's `shipped`
 preset. The lab imports both files, so a rebuild shows the product on this
@@ -291,7 +291,7 @@ The drum's presets:
 
 | Preset              | What changes while a key is held                                                                                           |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `shipped`           | `QUEUE_CFG`: loose clearing after 250 ms, with a minimum 60 ms beat. The checker reports its jumps and held swaps.         |
+| `shipped`           | `QUEUE_CFG`: loose clearing after 250 ms, with a minimum 120 ms beat. The checker reports its jumps and held swaps.        |
 | `natural`           | Nothing. The pace follows card heights: tall cards slow it, short cards speed it up.                                       |
 | `even`              | Planned pacing: presses are spaced by an interval planned from the heights ahead.                                          |
 | `even + held speed` | The same plan at 0.85×, and speed up while held.                                                                           |

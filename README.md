@@ -782,7 +782,7 @@ out above it. Acting on an item, or skipping it, tucks its card under: it drops
 clear of the stack, slips behind it, and rises to the back while the others move
 up a place; going back reverses the path. A card too tall to fit behind the next
 one fades away on its way. A moving card follows a sideways loop and banks
-slightly. Presses are taken one card at a time, at least 60 ms apart and only
+slightly. Presses are taken one card at a time, at least 120 ms apart and only
 when the previous card clears; a press that arrives while one waits is dropped,
 and a press the other way is always taken. Holding `↓` moves cards on, and
 holding `↑` brings them back. Repeats start after 250 ms and run every 25 ms. As

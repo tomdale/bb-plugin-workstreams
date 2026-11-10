@@ -96,7 +96,7 @@ not where the motion starts to look rushed.
 
 | Preset (60 Hz, `npm run sweep -- presets`) | Held ↑ / ↓, cards/s | Interval range | Worst step-to-step change | Max jump, px/frame | Problems       |
 | ------------------------------------------ | ------------------- | -------------- | ------------------------- | ------------------ | -------------- |
-| `shipped`                                  | 10.0 / 11.1         | 83–133 ms      | 1.60×                     | 44                 | 271 / 132 / 12 |
+| `shipped`                                  | 8.3 / 8.3           | 117–133 ms     | 1.14×                     | 44                 | 271 / 128 / 15 |
 | `natural`                                  | 5.0 / 5.2           | 100–367 ms     | 3.00×                     | 24                 | 0              |
 | `even`                                     | 4.0 / 3.9           | 217–283 ms     | 1.15×                     | 24                 | 0              |
 | `even + held speed`                        | 4.7 / 4.6           | 183–250 ms     | 1.18×                     | 31                 | 0              |
@@ -558,7 +558,7 @@ A port into `stackEngine.ts` and the product page has these parts:
   stage takes a mask on every frame, or cuts at the clip line and shows the
   line, is open, and so is the mask's cost over four shadowed cards in the
   product's DOM.
-- **Pace and tap ↑.** The product uses a 60 ms minimum interval with loose
+- **Pace and tap ↑.** The product uses a 120 ms minimum interval with loose
   clearing while held (`QUEUE_CFG`); the cascade runs 83–117 ms held, which
   `pace` sets. Its tap ↑ lands in 550 ms against the natural drum's 483, because
   the card rises from 480 px below. `park` at 360 px lands in 483 ms and shows a
