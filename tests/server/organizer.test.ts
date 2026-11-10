@@ -734,7 +734,7 @@ describe("organizer pass cost", () => {
     // Below six roots, so no category assessment adds reads of its own.
     const many = await passReads(5);
     expect(many.lists).toBe(few.lists);
-    expect(many.recapScans).toBe(0);
+    expect(many).toMatchObject({ assignments: 0, recapScans: 0 });
   });
 
   it("drops a plan whose topics changed while it waited on BB, then applies the new one", async () => {

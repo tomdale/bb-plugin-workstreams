@@ -1,6 +1,7 @@
 import { createTestPluginHost } from "./test-host.ts";
 import { afterEach, expect, it } from "vitest";
 import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
+import { setMeta } from "../../src/server/db.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 import { Journal } from "../../src/server/journal.ts";
@@ -14,6 +15,7 @@ afterEach(async () => {
 
 function world() {
   const threads: ReturnType<typeof makeThreadResponse>[] = [];
+  const listings = { threads: 0, projects: 0 };
   const projects = [
     { id: "p1", name: "One", sources: [] },
     { id: "p2", name: "Two", sources: [] },
@@ -21,15 +23,22 @@ function world() {
   const { bb, harness } = createTestPluginHost({
     sdk: {
       threads: {
-        list: async (args) =>
-          threads
+        list: async (args) => {
+          listings.threads++;
+          return threads
             .filter((t) => Boolean(t.archivedAt) === Boolean(args?.archived))
             .slice(
               args?.offset ?? 0,
               (args?.offset ?? 0) + (args?.limit ?? 100),
-            ),
+            );
+        },
       },
-      projects: { list: async () => projects as never },
+      projects: {
+        list: async () => {
+          listings.projects++;
+          return [...projects] as never;
+        },
+      },
     },
   });
   const db = openDatabase(bb);
@@ -76,6 +85,7 @@ function world() {
   }
   return {
     db,
+    listings,
     topics,
     journal,
     service,
@@ -134,7 +144,8 @@ it("does not count delegates, forks, plugin-created roots, hidden work, or Perso
   expect(w.current().projectId).toBeNull();
   w.add("two");
   w.add("three");
-  await w.learning.reconcile();
+  // Historical roots arrive only with a sweep of BB's threads.
+  await w.learning.reconcile({ sweep: true });
   expect(w.current().projectId).toBe("p1");
 });
 
@@ -294,4 +305,82 @@ it("paginates archived history and declines unavailable project candidates", asy
   await w.learning.reconcile();
   expect(w.current().projectId).toBe("p1");
   expect(w.journal.list()[0]?.threads).toHaveLength(101);
+});
+
+it("plans from stored history after its first sweep, counting archived roots, and sweeps again after a day", async () => {
+  const w = world();
+  w.add("archived-1", { archivedAt: 2 });
+  w.add("archived-2", { archivedAt: 2 });
+  await w.learning.reconcile();
+  expect(w.listings.threads).toBe(2);
+  expect(w.current().projectId).toBeNull();
+
+  // A restart reads no threads, and a new independent root joins the
+  // archived ones without another listing.
+  w.restart();
+  w.addIndependent("fresh", "p1");
+  await w.learning.reconcile();
+  await w.learning.reconcile();
+  expect(w.listings.threads).toBe(2);
+  expect(w.current().projectId).toBe("p1");
+  expect(
+    w.journal
+      .list()[0]!
+      .threads.map((t) => t.id)
+      .sort(),
+  ).toEqual(["archived-1", "archived-2", "fresh"]);
+
+  setMeta(w.db, "project-learning-swept-at", String(Date.now() - 86_400_000));
+  await w.learning.reconcile();
+  expect(w.listings.threads).toBe(4);
+});
+
+it("reads projects again only when stale or when a thread uses one it has not seen", async () => {
+  const w = world();
+  w.history();
+  await w.learning.reconcile();
+  await w.learning.reconcile();
+  expect(w.listings.projects).toBe(1);
+  w.projects.push({ id: "p3", name: "Three", sources: [] });
+  w.addIndependent("elsewhere", "p3");
+  await w.learning.reconcile();
+  expect(w.listings.projects).toBe(2);
+});
+
+it("stops counting a root whose project moved, and forgets one the sweep no longer finds", async () => {
+  const w = world();
+  w.history();
+  w.add("root-3");
+  await w.learning.reconcile();
+  w.addIndependent("other", "p2");
+  await w.learning.reconcile();
+  expect(w.learning.state()).toHaveLength(1);
+
+  // The reconciler sees the active root move to the learned project.
+  const moved = w.threads.find((thread) => thread.id === "other")!;
+  w.learning.observeActive([
+    {
+      id: moved.id,
+      title: "Moved",
+      projectId: "p1",
+    } as Parameters<typeof w.learning.observeActive>[0][number],
+  ]);
+  await w.learning.reconcile();
+  expect(w.learning.state()).toEqual([]);
+
+  // A deletion missed while the plugin was down waits for the sweep.
+  w.threads.splice(
+    w.threads.findIndex((thread) => thread.id === "root-3"),
+    1,
+  );
+  const rows = () =>
+    w.db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM ws_project_root WHERE thread_id = 'root-3'",
+      )
+      .get() as { n: number };
+  await w.learning.reconcile();
+  expect(rows().n).toBe(1);
+  await w.learning.reconcile({ sweep: true });
+  expect(rows().n).toBe(0);
 });

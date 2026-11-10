@@ -495,6 +495,14 @@ const MIGRATIONS = [
   // A suggestion's own model call, so the debug UI can start a thread that
   // carries the prompt and response behind it.
   "ALTER TABLE ws_suggestion ADD COLUMN trace_id TEXT",
+  // The project and title BB last reported for each visible, undeleted root
+  // that nothing derived. Project learning plans from it rather than listing
+  // every thread BB has.
+  `CREATE TABLE ws_project_root (
+    thread_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    name TEXT NOT NULL
+  )`,
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {
