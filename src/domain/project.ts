@@ -116,7 +116,58 @@ type ProjectionOptions<T extends WorkstreamThread> = {
    * when the thread isn't snoozed.
    */
   readonly snoozedUntil?: (thread: T) => number | null | undefined;
+  /**
+   * The projection this one replaces. A row or group whose content is
+   * unchanged keeps the previous object, so a consumer that memoizes on
+   * identity does no work for an unchanged workstream.
+   */
+  readonly previous?: Projection<T>;
 };
+
+/**
+ * The previous row while nothing the row shows has changed. The thread is the
+ * same object again whenever its data is unchanged, because the client shares
+ * SDK snapshots structurally (see `useStableSidebarThreads`).
+ */
+function shareRow<T extends WorkstreamThread>(
+  previous: Row<T> | undefined,
+  next: Row<T>,
+): Row<T> {
+  return previous &&
+    previous.thread === next.thread &&
+    previous.depth === next.depth &&
+    previous.hasChildren === next.hasChildren &&
+    previous.workstreamId === next.workstreamId &&
+    previous.needsYou === next.needsYou
+    ? previous
+    : next;
+}
+
+/** The previous row list while it holds the same rows in the same order. */
+function shareRowList<T extends WorkstreamThread>(
+  previous: readonly Row<T>[] | undefined,
+  rows: readonly Row<T>[],
+): readonly Row<T>[] {
+  if (!previous || previous.length !== rows.length) return rows;
+  return rows.every((row, index) => row === previous[index]) ? previous : rows;
+}
+
+/** The previous group while nothing the group shows has changed. */
+function shareGroup<T extends WorkstreamThread>(
+  previous: Group<T> | undefined,
+  next: Group<T>,
+): Group<T> {
+  return previous &&
+    previous.id === next.id &&
+    previous.name === next.name &&
+    previous.rows === next.rows &&
+    previous.total === next.total &&
+    previous.needsYou === next.needsYou &&
+    previous.lastActiveAt === next.lastActiveAt &&
+    previous.prioritized === next.prioritized
+    ? previous
+    : next;
+}
 
 /**
  * BB's order among pinned threads: the ones the user has reordered come
@@ -235,6 +286,14 @@ export function projectWorkstreams<T extends WorkstreamThread>(
     if (wakeOf(root.thread) === undefined) activeRoots.push(prune(root));
     else snoozedNodes.push(root);
 
+  const previousRows = options.previous?.rowOf;
+  const previousGroups = new Map<string, Group<T>>(
+    [
+      ...(options.previous?.all ?? []),
+      ...(options.previous ? [options.previous.unsorted] : []),
+    ].map((group) => [group.id, group]),
+  );
+
   const rootsBySection = new Map<string, TreeNode<T>[]>();
   for (const root of activeRoots) {
     const key = groupKeyOf(root.thread);
@@ -257,13 +316,13 @@ export function projectWorkstreams<T extends WorkstreamThread>(
       ),
     ];
     for (const node of ordered.flatMap((root) => flatten(root))) {
-      const row: Row<T> = {
+      const row = shareRow(previousRows?.get(node.thread.id), {
         thread: node.thread,
         depth: node.depth,
         hasChildren: node.children.length > 0,
         workstreamId,
         needsYou: needsYou(node.thread),
-      };
+      });
       rows.push(row);
       rowOf.set(node.thread.id, row);
     }
@@ -294,8 +353,9 @@ export function projectWorkstreams<T extends WorkstreamThread>(
 
   const prioritized = new Set(options.order?.prioritized ?? []);
   const group = (id: string, name: string): Group<T> => {
-    const rows = rowsBySection.get(id) ?? [];
-    return {
+    const previous = previousGroups.get(id);
+    const rows = shareRowList(previous?.rows, rowsBySection.get(id) ?? []);
+    return shareGroup(previous, {
       id,
       name,
       rows,
@@ -306,7 +366,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
         ...rows.map((row) => row.thread.latestAttentionAt),
       ),
       prioritized: id !== UNSORTED_ID && prioritized.has(id),
-    };
+    });
   };
 
   const pinned: Group<T>[] = [];
@@ -350,13 +410,13 @@ export function projectWorkstreams<T extends WorkstreamThread>(
     const root = forest.rootOf.get(node.thread.id) ?? node.thread;
     const key = groupKeyOf(root);
     for (const child of flatten(node)) {
-      const row: Row<T> = {
+      const row = shareRow(previousRows?.get(child.thread.id), {
         thread: child.thread,
         depth: child.depth - node.depth,
         hasChildren: child.children.length > 0,
         workstreamId: key === UNSORTED_ID ? null : key,
         needsYou: needsYou(child.thread),
-      };
+      });
       snoozed.push(row);
       rowOf.set(child.thread.id, row);
     }

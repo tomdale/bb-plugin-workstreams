@@ -3,7 +3,7 @@
  * live sidebar threads plus the plugin's own state, run through the shared
  * domain projection.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { useStableSidebarThreads } from "./useStableSidebarThreads.ts";
 import {
@@ -144,22 +144,27 @@ export function useWorkstreams() {
         : undefined,
     [catalog],
   );
-  const projection: Projection<PluginSidebarThread> = useMemo(
-    () =>
-      projectWorkstreams(threads, sections, {
-        now,
-        needsYou: (thread) => {
-          const work = workView(thread, analysis[thread.id], recaps[thread.id]);
-          return needsAttention(thread, work);
-        },
-        order,
-        snoozedUntil: (thread) => {
-          const snooze = snoozes[thread.id];
-          return isSnoozed(snooze, now) ? snooze!.until : undefined;
-        },
-      }),
-    [threads, sections, now, analysis, recaps, order, snoozes],
-  );
+  /** The projection this one replaces: unchanged rows keep their identity. */
+  const previousProjection = useRef<
+    Projection<PluginSidebarThread> | undefined
+  >(undefined);
+  const projection: Projection<PluginSidebarThread> = useMemo(() => {
+    const next = projectWorkstreams(threads, sections, {
+      now,
+      needsYou: (thread) => {
+        const work = workView(thread, analysis[thread.id], recaps[thread.id]);
+        return needsAttention(thread, work);
+      },
+      order,
+      snoozedUntil: (thread) => {
+        const snooze = snoozes[thread.id];
+        return isSnoozed(snooze, now) ? snooze!.until : undefined;
+      },
+      previous: previousProjection.current,
+    });
+    previousProjection.current = next;
+    return next;
+  }, [threads, sections, now, analysis, recaps, order, snoozes]);
   /**
    * What Up Next ranks threads by (see `selectUpNext`), less the focused
    * workstreams, which each surface resolves for itself.

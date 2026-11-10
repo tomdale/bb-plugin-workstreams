@@ -59,10 +59,15 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 
-import { arrangeGroups, focusedSections } from "../../domain/groups.ts";
+import {
+  arrangeGroups,
+  focusedSections,
+  type GroupArrangement,
+} from "../../domain/groups.ts";
 import { selectRecent } from "../../domain/upNext.ts";
 import { initialUpNextState, planSidebarUpNext } from "./upNextState.ts";
 import { useWorkstreams } from "../useWorkstreams.ts";
+import { shareArrangement } from "../shareNodes.ts";
 import { useStableSidebarThreads } from "../useStableSidebarThreads.ts";
 import { useLatest } from "../useLatest.ts";
 import { useSidebarSnooze } from "./useSidebarSnooze.tsx";
@@ -184,10 +189,16 @@ export function WorkstreamsThreadList({
   // Unfiled, a group only while it has threads, follows the populated
   // workstreams. With any workstream focused, the rest (with Unfiled and
   // Dormant) sit hidden behind a toggle below the focused ones.
-  const arrangement = useMemo(
-    () => arrangeGroups(projection, groupSort, ws.topics),
-    [projection, groupSort, ws.topics],
-  );
+  /** The arrangement this one replaces: unchanged groups keep their nodes. */
+  const previousArrangement = useRef<
+    GroupArrangement<PluginSidebarThread> | undefined
+  >(undefined);
+  const arrangement = useMemo(() => {
+    const next = arrangeGroups(projection, groupSort, ws.topics);
+    const shared = shareArrangement(previousArrangement.current, next);
+    previousArrangement.current = shared;
+    return shared;
+  }, [projection, groupSort, ws.topics]);
   const {
     pinned: pinnedGroups,
     populated: populatedGroups,

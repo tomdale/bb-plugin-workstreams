@@ -9,7 +9,6 @@ import {
   foldDefault,
   PLACEMENT_TRAITS,
   type Placement,
-  sameThread,
 } from "./rows.ts";
 import { RowMenu, type RowMenuHandlers } from "./RowMenu.tsx";
 import { type DragHandle } from "./dnd.tsx";
@@ -40,9 +39,10 @@ export type SidebarThreadRowProps = {
 };
 
 /**
- * A list row with stable action identities. Its memo compares every prop,
- * including callbacks, so an unrelated thread update skips the SDK hooks and
- * presentation work in `Row` without retaining stale actions.
+ * A list row with stable action identities. Its memo compares every prop, so
+ * an unrelated thread update skips the SDK hooks and presentation work in
+ * `Row`: a thread whose data is unchanged arrives as the same snapshot object
+ * (see `useStableSidebarThreads`), and its row keeps that thread.
  */
 export const SidebarThreadRow = memo(function SidebarThreadRow({
   thread,
@@ -142,29 +142,4 @@ export const SidebarThreadRow = memo(function SidebarThreadRow({
       </li>
     </RowMenu>
   );
-}, sameSidebarThreadRow);
-
-export function sameSidebarThreadRow(
-  before: SidebarThreadRowProps,
-  after: SidebarThreadRowProps,
-) {
-  return (
-    sameThread(before.thread, after.thread) &&
-    before.depth === after.depth &&
-    before.active === after.active &&
-    before.context === after.context &&
-    before.placement === after.placement &&
-    before.analysis === after.analysis &&
-    before.recap === after.recap &&
-    before.slotWidth === after.slotWidth &&
-    before.snooze === after.snooze &&
-    before.snoozePrefs === after.snoozePrefs &&
-    before.handlers === after.handlers &&
-    before.disclosureExpanded === after.disclosureExpanded &&
-    before.categorized === after.categorized &&
-    before.onNavigate === after.onNavigate &&
-    before.toggleDisclosure === after.toggleDisclosure &&
-    before.handleRef === after.handleRef &&
-    before.handleListeners === after.handleListeners
-  );
-}
+});

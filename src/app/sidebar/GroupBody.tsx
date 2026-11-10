@@ -3,7 +3,6 @@ import {
   memo,
   useCallback,
   useMemo,
-  useRef,
   type CSSProperties,
 } from "react";
 import {
@@ -13,13 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
 import { childIndent } from "./statusSlot.ts";
-import {
-  foldKey,
-  foldDefault,
-  treesOf,
-  visibleEntries,
-  sameThread,
-} from "./rows.ts";
+import { foldKey, foldDefault, treesOf, visibleEntries } from "./rows.ts";
 import {
   DropTarget,
   Sortable,
@@ -58,33 +51,6 @@ export type ThreadTreesProps = {
   choosingTopic: boolean;
   isCollapsed: (id: string, byDefault?: boolean) => boolean;
 };
-
-export function sameRows(
-  before: readonly ThreadRow[],
-  after: readonly ThreadRow[],
-) {
-  return (
-    before.length === after.length &&
-    before.every((row, index) => {
-      const next = after[index]!;
-      return (
-        sameThread(row.thread, next.thread) &&
-        row.depth === next.depth &&
-        row.hasChildren === next.hasChildren &&
-        row.workstreamId === next.workstreamId &&
-        row.needsYou === next.needsYou
-      );
-    })
-  );
-}
-
-export function useStableRows(rows: readonly ThreadRow[]) {
-  const previous = useRef(rows);
-  return useMemo(() => {
-    if (!sameRows(previous.current, rows)) previous.current = rows;
-    return previous.current;
-  }, [rows]);
-}
 
 /** A sortable root and its visible descendants, with drag-only surface updates. */
 export function SortableThreadTree({
@@ -156,8 +122,7 @@ export const ThreadTrees = memo(
     choosingTopic,
     isCollapsed,
   }: ThreadTreesProps) {
-    const stableRows = useStableRows(rows);
-    const trees = useMemo(() => treesOf(stableRows), [stableRows]);
+    const trees = useMemo(() => treesOf(rows), [rows]);
     const items = useMemo(
       () => trees.map((tree) => treeKey(tree[0]!.thread.id)),
       [trees],
@@ -184,7 +149,7 @@ export const ThreadTrees = memo(
   (before, after) =>
     (before.collapsed && after.collapsed) ||
     (before.collapsed === after.collapsed &&
-      sameRows(before.rows, after.rows) &&
+      before.rows === after.rows &&
       before.groupId === after.groupId &&
       before.label === after.label &&
       before.categorized === after.categorized &&
@@ -230,7 +195,7 @@ export function CategorizedTrees({
   | "colorOf"
   | "isCollapsed"
 > & { label?: string }) {
-  const rows = useStableRows(group.rows);
+  const rows = group.rows;
   const categories = useMemo(
     () => categoryRows(rows, group.categories),
     [rows, group.categories],
@@ -357,7 +322,7 @@ export const GroupBody = memo(
   (before, after) =>
     (before.collapsed && after.collapsed) ||
     (before.collapsed === after.collapsed &&
-      sameGroupData(before.group, after.group) &&
+      before.group === after.group &&
       before.renderRow === after.renderRow &&
       before.groupSlot === after.groupSlot &&
       before.choosingTopic === after.choosingTopic &&
@@ -368,26 +333,3 @@ export const GroupBody = memo(
       before.groupCollapsed === after.groupCollapsed &&
       before.toggleGroup === after.toggleGroup),
 );
-
-export function sameGroupData(before: ThreadNode, after: ThreadNode): boolean {
-  return (
-    before.id === after.id &&
-    before.name === after.name &&
-    before.label === after.label &&
-    before.total === after.total &&
-    before.needsYou === after.needsYou &&
-    before.lastActiveAt === after.lastActiveAt &&
-    before.prioritized === after.prioritized &&
-    before.topicId === after.topicId &&
-    before.hasSection === after.hasSection &&
-    before.inline === after.inline &&
-    before.categories === after.categories &&
-    sameRows(before.rows, after.rows) &&
-    before.sectionIds.length === after.sectionIds.length &&
-    before.sectionIds.every((id, index) => id === after.sectionIds[index]) &&
-    before.subgroups.length === after.subgroups.length &&
-    before.subgroups.every((sub, index) =>
-      sameGroupData(sub, after.subgroups[index]!),
-    )
-  );
-}

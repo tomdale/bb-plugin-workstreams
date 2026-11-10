@@ -353,7 +353,11 @@ export function groupRoots<T extends WorkstreamThread>(
   ];
 }
 
-type GroupArrangement<T extends WorkstreamThread> = {
+/**
+ * The workstream groups split into the lists the sidebar draws them in, with
+ * Unfiled and the counts for the groups hidden behind the lower toggle.
+ */
+export type GroupArrangement<T extends WorkstreamThread> = {
   /** Focused workstreams, which pin below Up Next. */
   readonly pinned: readonly WorkstreamNode<T>[];
   /** Every other workstream shown: the ones holding a visible thread. */
