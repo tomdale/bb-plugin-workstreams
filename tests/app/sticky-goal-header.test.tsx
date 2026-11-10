@@ -1572,3 +1572,117 @@ it.each(["fade", "scroll"] as const)(
     }
   },
 );
+
+/** A scroller whose height and position the test moves. */
+function movableScroller() {
+  const scroller = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  const metrics = { height: 2000, fromBottom: 0 };
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, get: () => metrics.height },
+    clientHeight: { configurable: true, value: 400 },
+    scrollTop: {
+      configurable: true,
+      get: () => metrics.height - 400 - metrics.fromBottom,
+      set: () => {},
+    },
+  });
+  const move = (next: Partial<typeof metrics>) =>
+    act(async () => {
+      Object.assign(metrics, next);
+      scroller.dispatchEvent(new Event("scroll"));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+  return { scroller, metrics, move };
+}
+
+/** Room for the minimized title in the title bar, between title and actions. */
+function titleBarRoom() {
+  const header = document.querySelector("header")!;
+  vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 900, 48),
+  );
+  vi.spyOn(
+    header.querySelector(".bb-thread-title")!,
+    "getBoundingClientRect",
+  ).mockReturnValue(new DOMRect(0, 0, 80, 48));
+  vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(700, 0, 100, 48),
+  );
+}
+
+it.each([
+  ["fade", "the title bar"],
+  ["scroll", "the title bar"],
+  ["fade", "the timeline"],
+  ["scroll", "the timeline"],
+] as const)(
+  "does not commit while a streaming reply grows the timeline under a reader at the bottom (%s, minimizing into %s)",
+  async (mode, place) => {
+    paneFixture({ recap: false });
+    const { scroller, metrics, move } = movableScroller();
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 48, 900, 672),
+    );
+    if (place === "the title bar") titleBarRoom();
+    const commits = vi.fn();
+    const slot = await mountHeading(mode, null, commits);
+    try {
+      await waitFor(() =>
+        expect(overlay()?.textContent).toContain("Ship the mobile polish"),
+      );
+      expect(
+        overlay()!
+          .querySelector('[data-ws-heading="expanded"]')!
+          .hasAttribute("data-ws-pinned"),
+      ).toBe(place === "the timeline");
+      await act(() => vi.advanceTimersByTimeAsync(550));
+      await move({});
+      commits.mockClear();
+      for (let line = 0; line < 10; line++)
+        await move({ height: metrics.height + 40 });
+      expect(commits).not.toHaveBeenCalled();
+      // Scrolling up still moves the heading frame by frame in the bar, or
+      // steps it once in the timeline.
+      for (const fromBottom of [30, 60, 90]) await move({ fromBottom });
+      expect(commits.mock.calls.length).toBeGreaterThan(0);
+    } finally {
+      slot.lifecycle.unmount();
+    }
+  },
+);
+
+it("commits a pinned heading only when scrolling crosses its step", async () => {
+  paneFixture({ recap: false });
+  const { scroller, move } = movableScroller();
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 900, 672),
+  );
+  const commits = vi.fn();
+  const slot = await mountHeading("scroll", null, commits);
+  try {
+    await waitFor(() =>
+      expect(overlay()?.textContent).toContain("Ship the mobile polish"),
+    );
+    // The title bar has no room for it, so the heading is pinned.
+    expect(
+      overlay()!
+        .querySelector('[data-ws-heading="expanded"]')!
+        .hasAttribute("data-ws-pinned"),
+    ).toBe(true);
+    await act(() => vi.advanceTimersByTimeAsync(550));
+    await move({});
+    commits.mockClear();
+    const exit = titleExitDistance(14, null, 1);
+    for (const fromBottom of [5, 10, 20, exit - 1]) await move({ fromBottom });
+    expect(commits).not.toHaveBeenCalled();
+    await move({ fromBottom: exit + 1 });
+    await waitFor(() =>
+      expect(root()?.getAttribute("data-collapsed")).toBe("true"),
+    );
+    expect(commits).toHaveBeenCalled();
+  } finally {
+    slot.lifecycle.unmount();
+  }
+});

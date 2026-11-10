@@ -249,9 +249,38 @@ export function useMessageScroller(threadId: string | null): Mount | null {
   return mount?.threadId === threadId ? mount : null;
 }
 
+type ScrollMeasurement = {
+  fromBottom: number;
+  range: number | null;
+  fade: boolean;
+};
+
+/**
+ * What a scroll measurement shows under the current limit and step: two
+ * measurements with the same key draw the same heading.
+ */
+function scrollKey(
+  { fromBottom, range, fade }: ScrollMeasurement,
+  scrollLimit: number,
+  step: number | null,
+): string {
+  const limit = range === null ? scrollLimit : Math.min(scrollLimit, range);
+  const shown = Math.min(fromBottom, limit);
+  return step === null
+    ? `${shown}:${limit}:${fade}`
+    : `${shown >= step}:${fade}`;
+}
+
+/**
+ * The scroller's position, as far as the heading draws it. `step` is null
+ * while the heading tracks the scroll continuously; otherwise the heading
+ * only steps at that distance from the bottom (Infinity: never moves), so
+ * positions on the same side of it render nothing new.
+ */
 function useScrollState(
   scroller: HTMLElement | null,
   scrollLimit: number,
+  step: number | null,
 ): {
   fromBottom: number;
   /** The handoff ends at the oldest reachable message, even on short threads. */
@@ -261,21 +290,22 @@ function useScrollState(
   // detached from its top.
   fade: boolean;
 } {
-  type ScrollMeasurement = {
-    fromBottom: number;
-    range: number | null;
-    fade: boolean;
-  };
   // The raw position lets a preference change apply its new limit in the same
-  // render. Only changes visible under the current limit commit a render, so
-  // scrolling beyond a collapsed heading stays idle.
+  // render. Only changes visible under the current limit and step commit a
+  // render, so scrolling beyond a collapsed heading, or a streaming reply
+  // growing the timeline under a reader at its bottom, stays idle.
   const latest = useRef<ScrollMeasurement>({
     fromBottom: 0,
     range: null,
     fade: false,
   });
+  /** The measurement the committed heading was drawn from. */
   const rendered = useRef(latest.current);
   const [, setRendered] = useState(rendered.current);
+  const shown = latest.current;
+  useLayoutEffect(() => {
+    rendered.current = shown;
+  });
   useEffect(() => {
     // A new scroller (another thread) starts expanded until it is measured.
     latest.current = { fromBottom: 0, range: null, fade: false };
@@ -297,16 +327,11 @@ function useScrollState(
           Math.max(0, range - scroller.scrollTop),
         );
         const fade = scroller.scrollTop > 1;
-        latest.current = { fromBottom, range, fade };
-        const next = {
-          fromBottom: Math.min(fromBottom, scrollLimit, range),
-          range,
-          fade,
-        };
+        const next = { fromBottom, range, fade };
+        latest.current = next;
         if (
-          rendered.current.fromBottom === next.fromBottom &&
-          rendered.current.range === range &&
-          rendered.current.fade === fade
+          scrollKey(rendered.current, scrollLimit, step) ===
+          scrollKey(next, scrollLimit, step)
         )
           return;
         rendered.current = next;
@@ -324,13 +349,13 @@ function useScrollState(
       scroller.removeEventListener("scroll", update);
       resize.disconnect();
     };
-  }, [scroller, scrollLimit]);
-  const { range } = latest.current;
+  }, [scroller, scrollLimit, step]);
+  const { range } = shown;
   const limit = range === null ? scrollLimit : Math.min(scrollLimit, range);
   return {
-    fromBottom: Math.min(latest.current.fromBottom, limit),
+    fromBottom: Math.min(shown.fromBottom, limit),
     limit,
-    fade: latest.current.fade,
+    fade: shown.fade,
   };
 }
 
@@ -622,9 +647,18 @@ export function StickyGoalHeader(): React.ReactElement | null {
   );
   const exitDistance = titleExitDistance(base, eyebrow, titleLines);
   const pinned = !!placement && placement.bar === null;
+  // Before the heading settles, while it floats, and in a short pane, the
+  // scroll position moves nothing; pinned, it moves only at one threshold.
+  const step =
+    !settled || floating || placement?.short
+      ? Infinity
+      : pinned
+        ? exitDistance
+        : null;
   const { fromBottom, limit, fade } = useScrollState(
     mount?.scroller ?? null,
     headingScrollLimit(exitDistance, pinned || fadeOnly ? "fade" : "scroll"),
+    step,
   );
   const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
   // A floating heading never makes the move to the compact copy: it stays at
@@ -634,16 +668,16 @@ export function StickyGoalHeader(): React.ReactElement | null {
   // states at a threshold instead of tracking the scroll, and styles.css
   // animates that one move.
   const scrolled = settled ? fromBottom : 0;
-  const step = pinned ? pinnedStep(scrolled, exitDistance) : 0;
+  const pinnedAt = pinned ? pinnedStep(scrolled, exitDistance) : 0;
   const { moved, remaining, progress } = floating
     ? { moved: 0, remaining: exitDistance, progress: 0 }
     : placement?.short
       ? { moved: exitDistance, remaining: 0, progress: 1 }
       : pinned
         ? {
-            moved: exitDistance * step,
-            remaining: exitDistance * (1 - step),
-            progress: step,
+            moved: exitDistance * pinnedAt,
+            remaining: exitDistance * (1 - pinnedAt),
+            progress: pinnedAt,
           }
         : headingScroll(
             scrolled,
