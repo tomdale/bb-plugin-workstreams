@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -37,5 +37,53 @@ describe("the plugin's declared icons", () => {
       expect(svg, path).toContain("currentColor");
       expect(svg, path).not.toMatch(/(?:stroke|fill)="#[0-9a-f]{3,8}"/i);
     }
+  });
+});
+
+/**
+ * Names of BB's own icons that have been seen drawing correctly in the running
+ * app. BB draws any other name as a lightning bolt, silently, so a literal
+ * `<Icon name>` must be one of these or a declared plugin icon. Add a name
+ * here only after seeing it render in BB.
+ */
+const VERIFIED_BB_ICONS = new Set([
+  "Archive",
+  "ArrowRight",
+  "ArrowTurnBackward",
+  "ArrowUp",
+  "Bug",
+  "Check",
+  "ChevronDown",
+  "ChevronLeft",
+  "ChevronRight",
+  "Close",
+  "Edit",
+  "ExternalLink",
+  "Loading",
+  "MoreHorizontal",
+  "Pin",
+  "Plus",
+  "Spinner",
+  "UserRound",
+  "X",
+]);
+
+const sources = (dir: string): string[] =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = resolve(dir, entry.name);
+    if (entry.isDirectory()) return sources(path);
+    return path.endsWith(".tsx") ? [path] : [];
+  });
+
+describe("icon names in the UI", () => {
+  it("are verified BB icons, so none draws as a lightning bolt", () => {
+    const unverified: string[] = [];
+    for (const file of sources(resolve(root, "src"))) {
+      const text = readFileSync(file, "utf8");
+      for (const match of text.matchAll(/<Icon\b[^>]*?\bname="([^"]+)"/g)) {
+        if (!VERIFIED_BB_ICONS.has(match[1]!)) unverified.push(match[1]!);
+      }
+    }
+    expect(unverified).toEqual([]);
   });
 });
