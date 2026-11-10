@@ -177,48 +177,92 @@ export function installColorTokens(colors: ColorPrefs): () => void {
     schedule();
   };
   /**
-   * Whether a mutation can change a root's resolved theme. Content churn — rows,
-   * messages, hover fills, scroll fades — cannot: a root's colors come from its
-   * theme scope and from variables it inherits from its ancestors.
+   * What a style attribute hands down to the colors resolved beneath it: custom
+   * properties, which carry the theme, and the color properties themselves.
+   * Everything else (scroll padding, transforms, sizes) cannot change a palette.
    */
-  const changesTheme = (record: MutationRecord): boolean => {
+  const inheritedStyle = (style: CSSStyleDeclaration): string => {
+    const declared: string[] = [];
+    for (let index = 0; index < style.length; index++) {
+      const name = style.item(index);
+      if (name.startsWith("--") || name === "color" || name === "color-scheme")
+        declared.push(`${name}:${style.getPropertyValue(name)}`);
+    }
+    return declared.sort().join(";");
+  };
+  const scratch = document.createElement("div");
+  /**
+   * Whether a style attribute write changed what the element hands down. The
+   * thread's scroller is an ancestor of every message's roots and takes style
+   * writes while the sticky heading moves, so counting each one as a theme
+   * change would resolve every root's palette on each of those frames.
+   */
+  const handsDownNewStyle = (record: MutationRecord, target: Element) => {
+    if (!(target instanceof HTMLElement)) return true;
+    // A null old value is an attribute that was absent, which is no style.
+    scratch.style.cssText = record.oldValue ?? "";
+    return inheritedStyle(scratch.style) !== inheritedStyle(target.style);
+  };
+  /**
+   * How a mutation bears on the paints. A `theme` change can alter any root's
+   * resolved colors. A `roots` change only brings new roots that need their own
+   * paint; painted roots keep theirs. Content churn — rows, messages, hover
+   * fills, scroll fades — changes neither: a root's colors come from its theme
+   * scope and from variables it inherits from its ancestors.
+   */
+  const changeOf = (record: MutationRecord): "theme" | "roots" | null => {
     const target =
       record.target instanceof Element
         ? record.target
         : record.target.parentElement;
     if (!target || target === style || target.closest("[data-ws-color-reader]"))
-      return false;
+      return null;
     if (record.type === "attributes") {
       const name = record.attributeName;
       if (name === "href" || name === "media" || name === "disabled")
-        return target.matches("link, style");
+        return target.matches("link, style") ? "theme" : null;
+      if (name === "style" && !handsDownNewStyle(record, target)) return null;
       if (target === document.documentElement || target === document.body)
-        return true;
+        return "theme";
       // A theme scope sets the appearance band and can carry its own variables.
       if (
         target.classList.contains("dark") ||
         target.classList.contains("light")
       )
-        return true;
+        return "theme";
       // A root's own class and style set its scope; everything inside it only
       // inherits.
       const scope = target.closest(TOKEN_ROOTS);
-      if (scope) return scope === target;
+      if (scope) return scope === target ? "theme" : null;
       // The rest is inherited, so only a root's ancestors can restyle it.
-      for (const root of roots) if (target.contains(root)) return true;
-      return false;
+      for (const root of roots) if (target.contains(root)) return "theme";
+      return null;
     }
-    if (target.closest("style")) return true;
-    return [...record.addedNodes, ...record.removedNodes].some(
-      (node) =>
-        node instanceof Element &&
-        !node.matches("[data-ws-color-reader]") &&
-        (node.matches(`${TOKEN_ROOTS}, style, link`) ||
-          node.querySelector(`${TOKEN_ROOTS}, style, link`)),
-    );
+    if (target.closest("style")) return "theme";
+    const touchesStyles = (node: Node) =>
+      node instanceof Element &&
+      !node.matches("[data-ws-color-reader]") &&
+      (node.matches("style, link") || node.querySelector("style, link"));
+    const touchesRoots = (node: Node) =>
+      node instanceof Element &&
+      !node.matches("[data-ws-color-reader]") &&
+      (node.matches(TOKEN_ROOTS) || node.querySelector(TOKEN_ROOTS));
+    const changed = [...record.addedNodes, ...record.removedNodes];
+    if (changed.some(touchesStyles)) return "theme";
+    return changed.some(touchesRoots) ? "roots" : null;
   };
   const observer = new MutationObserver((records) => {
-    if (records.some(changesTheme)) reschedule();
+    let change: "theme" | "roots" | null = null;
+    for (const record of records) {
+      const next = changeOf(record);
+      if (next === "theme") {
+        change = next;
+        break;
+      }
+      change ??= next;
+    }
+    if (change === "theme") reschedule();
+    else if (change === "roots") schedule();
   });
   update();
   observer.observe(document.documentElement, {
@@ -226,6 +270,7 @@ export function installColorTokens(colors: ColorPrefs): () => void {
     childList: true,
     characterData: true,
     attributes: true,
+    attributeOldValue: true,
     attributeFilter: ["class", "style", "href", "media", "disabled"],
   });
   media?.addEventListener("change", reschedule);
