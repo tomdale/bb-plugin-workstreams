@@ -101,7 +101,6 @@ import {
   treesOf,
   unfoldedRows,
   visibleEntries,
-  sortedBandRows,
   planBandRows,
   planArchived,
   groupSnoozeRequest,
@@ -328,13 +327,7 @@ export function WorkstreamsThreadList({
       ),
     [projection, ws.showForYou, shownNeedsRows, ws.recentLimit],
   );
-  const {
-    threads: archivedThreads,
-    rows: archivedRows,
-    groups: archivedGroups,
-    unfiled: unsortedArchived,
-    workstreamOf: archivedWorkstreamOf,
-  } = useMemo(
+  const { threads: archivedThreads, rows: archivedRows } = useMemo(
     () => planArchived(archived.threads, sections, ws.showArchived),
     [archived.threads, sections, ws.showArchived],
   );
@@ -709,18 +702,23 @@ export function WorkstreamsThreadList({
         ),
       );
     if (!options.grouped) return renderTrees(planned[0]!.trees);
+    const label = `${placement[0]!.toUpperCase()}${placement.slice(1)}`;
     return planned.map(({ id, name, trees: groupTrees }) => {
+      const key = `${placement}:${id ?? "__unsorted"}`;
+      // Archived threads are many and old, so their groups start closed.
+      const byDefault = placement === "archived";
+      const collapsed = isCollapsed(key, byDefault);
       return (
-        <li key={`${placement}:${id ?? "unsorted"}`} className="list-none">
-          <section
-            aria-label={`${placement[0]!.toUpperCase()}${placement.slice(1)} ${name}`}
-            className="px-1"
+        <li key={key} className="list-none">
+          <BandGroup
+            label={label}
+            name={name ?? UNFILED_NAME}
+            count={groupTrees.length}
+            collapsed={collapsed}
+            onToggle={() => toggle(key, byDefault)}
           >
-            <h3 className="px-1.5 py-0.5 text-[12px] font-medium text-muted-foreground">
-              {name}
-            </h3>
-            <ul className="mt-0.5">{renderTrees(groupTrees)}</ul>
-          </section>
+            {renderTrees(groupTrees)}
+          </BandGroup>
         </li>
       );
     });
@@ -1312,62 +1310,7 @@ export function WorkstreamsThreadList({
               />
             }
           >
-            {bandOptions.archived.grouped
-              ? [
-                  ...archivedGroups,
-                  ...(unsortedArchived.length > 0
-                    ? [
-                        {
-                          id: "__unsorted",
-                          name: UNFILED_NAME,
-                          threads: unsortedArchived,
-                        },
-                      ]
-                    : []),
-                ].map((group) => {
-                  const key = `archived:${group.id}`;
-                  const collapsed = isCollapsed(key, true);
-                  return (
-                    <li key={key} className="list-none">
-                      <ArchivedWorkstreamGroup
-                        name={group.name}
-                        count={group.threads.length}
-                        collapsed={collapsed}
-                        onToggle={() => toggle(key, true)}
-                      >
-                        {sortedBandRows(
-                          group.threads.map((thread) => ({
-                            thread,
-                            depth: 0,
-                            hasChildren: false,
-                            workstreamId: archivedWorkstreamOf(thread),
-                            needsYou: false,
-                          })),
-                          bandOptions.archived.sort,
-                          ws.snoozeOf,
-                        ).map((row) =>
-                          renderRow(
-                            { row, depth: 0, key: row.thread.id },
-                            {
-                              placement: "archived",
-                              times: {
-                                display: now,
-                                projection: projectionNow,
-                              },
-                              showStatusSlot: false,
-                            },
-                          ),
-                        )}
-                      </ArchivedWorkstreamGroup>
-                    </li>
-                  );
-                })
-              : renderBandRows(
-                  archivedRows,
-                  archivedPlan,
-                  "archived",
-                  "archived",
-                )}
+            {renderBandRows(archivedRows, archivedPlan, "archived", "archived")}
             {archived.experimental_archived?.status === "loading" ? (
               <li className="list-none px-2 py-1 text-xs text-muted-foreground">
                 Loading archived threads…
@@ -2035,16 +1978,20 @@ const upNextItemKey = (item: UpNextItem) =>
 const PINNED = "Pinned";
 
 /**
- * A workstream's archived threads, under a compact header that carries its
- * name and count.
+ * One workstream's threads in Recent, Snoozed, or Archived when the band
+ * groups by workstream: a compact header that folds the group and carries its
+ * name and count. `label` is the band's name, for the region's accessible
+ * name.
  */
-function ArchivedWorkstreamGroup({
+function BandGroup({
+  label,
   name,
   count,
   collapsed,
   onToggle,
   children,
 }: {
+  label: string;
   name: string;
   count: number;
   collapsed: boolean;
@@ -2053,7 +2000,7 @@ function ArchivedWorkstreamGroup({
 }) {
   const fold = useFold(!collapsed);
   return (
-    <section aria-label={`Archived ${name}`} className="px-1">
+    <section aria-label={`${label} ${name}`} className="px-1">
       <button
         type="button"
         aria-expanded={!collapsed}
@@ -2077,6 +2024,23 @@ function ArchivedWorkstreamGroup({
  * quieter Recent block (`.ws-band-neutral`). Each sets its rows apart from
  * the workstream list below.
  */
+const BOX_STYLES = {
+  attention: {
+    section: "ws-needs mx-2 mt-0 px-1 pt-1.5 pb-2", // slop-ok: 2 the Up Next band, an established product surface
+    heading:
+      "ws-needs-heading py-0.5 text-[11px] font-semibold uppercase tracking-wide", // slop-ok: 1 the product's section-label style
+  },
+  pinned: {
+    section: "ws-pinned mx-2 mt-0 px-1 pt-1.5 pb-2", // slop-ok: 2 the Pinned band, the Up Next card's quieter neighbor
+    heading: "pb-1 text-[12px] font-medium text-muted-foreground",
+  },
+  neutral: {
+    section: "ws-band-neutral my-1 px-2 py-1", // slop-ok: 2 the neutral band, an established product surface
+    heading:
+      "py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground", // slop-ok: 1 the product's section-label style
+  },
+} as const;
+
 function Band({
   title,
   count,
@@ -2129,32 +2093,20 @@ function Band({
     </>
   );
   if (box) {
+    const styles = BOX_STYLES[box];
     return (
       <section
         aria-label={title}
         data-flip-key={flipKey}
         style={style}
-        className={cn(
-          box === "attention"
-            ? "ws-needs mx-2 mt-0 px-1 pt-1.5 pb-2" // slop-ok: 2 the Needs you band, an established product surface
-            : box === "pinned"
-              ? "ws-pinned mx-2 mt-0 px-1 pt-1.5 pb-2" // slop-ok: 2 the Pinned band, the Up Next card's quieter neighbor
-              : "ws-band-neutral my-1 px-2 py-1", // slop-ok: 2 the neutral band, an established product surface
-        )}
+        className={styles.section}
       >
         <div className="flex items-center gap-1">
           <h2
             className={cn(
               "flex min-w-0 flex-1 items-center gap-1 pr-1.5",
-              box === "attention"
-                ? "py-0.5 text-[11px] font-semibold uppercase tracking-wide" // slop-ok: 1 the product's section-label style
-                : box === "neutral"
-                  ? "py-0.5 text-[11px] font-semibold uppercase tracking-wide" // slop-ok: 1 the product's section-label style
-                  : "pb-1 text-[12px] font-medium",
+              styles.heading,
               markless ? "pl-3.5" : "pl-1.5",
-              box === "attention"
-                ? "ws-needs-heading"
-                : "text-muted-foreground",
             )}
           >
             {heading}

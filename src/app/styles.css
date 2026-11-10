@@ -11,12 +11,17 @@
   border-radius: 6px;
   pointer-events: none;
 }
+/* A band sets --ws-row-hover and --ws-row-active to tint its rows' fills
+   against its own background. */
 .ws-row:not(.ws-row-active):hover::before {
-  background-color: color-mix(in oklab, var(--sidebar-accent) 60%, transparent);
+  background-color: var(
+    --ws-row-hover,
+    color-mix(in oklab, var(--sidebar-accent) 60%, transparent)
+  );
 }
 .ws-row.ws-row-active::before {
   inset: 0;
-  background-color: var(--sidebar-accent);
+  background-color: var(--ws-row-active, var(--sidebar-accent));
 }
 
 .ws-row [data-timestamp="hover"] {
@@ -430,6 +435,8 @@
    `useSlotList` in sidebar/motion.ts). */
 .ws-needs {
   --ws-needs-tone: var(--ws-needs-you-band);
+  --ws-row-hover: color-mix(in oklab, var(--foreground) 6%, transparent);
+  --ws-row-active: color-mix(in oklab, var(--foreground) 9%, transparent);
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -474,12 +481,6 @@
    spacing stays unchanged. */
 .ws-needs li + li {
   margin-top: 3px;
-}
-.ws-needs .ws-row:not(.ws-row-active):hover::before {
-  background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
-}
-.ws-needs .ws-row.ws-row-active::before {
-  background-color: color-mix(in oklab, var(--foreground) 9%, transparent);
 }
 /* The shimmer's gradient is three card widths wide. Translating that layer
    keeps the sweep on the compositor; background-position would repaint it.
@@ -529,6 +530,8 @@
    stays the one thing shouting, drawn with the workstream list's own rows so
    a pinned thread reads the same here and in its workstream. */
 .ws-pinned {
+  --ws-row-hover: color-mix(in oklab, var(--foreground) 7%, transparent);
+  --ws-row-active: color-mix(in oklab, var(--foreground) 10%, transparent);
   border: 1px solid
     color-mix(in oklab, var(--sidebar-border, var(--border)) 100%, transparent);
   border-radius: 8px;
@@ -537,12 +540,6 @@
     var(--sidebar-accent, var(--accent)) 45%,
     var(--sidebar, transparent)
   );
-}
-.ws-pinned .ws-row:not(.ws-row-active):hover::before {
-  background-color: color-mix(in oklab, var(--foreground) 7%, transparent);
-}
-.ws-pinned .ws-row.ws-row-active::before {
-  background-color: color-mix(in oklab, var(--foreground) 10%, transparent);
 }
 
 /* The Recent block: a quiet wash in the foreground color, without the Up

@@ -190,12 +190,6 @@ function compareBandRows(
   return difference || a.thread.id.localeCompare(b.thread.id);
 }
 
-export const sortedBandRows = (
-  rows: readonly ThreadRow[],
-  sort: BandSort,
-  snoozeOf: SnoozeOf,
-) => [...rows].sort((a, b) => compareBandRows(a, b, sort, snoozeOf));
-
 /** Sort entire snoozed trees; their children stay with their roots even when grouped. */
 export function planBandRows(
   rows: readonly ThreadRow[],
@@ -212,7 +206,9 @@ export function planBandRows(
   if (!options.grouped) return [{ id: null, name: null, trees: ordered }];
   const groups = new Map<string | null, ThreadRow[][]>();
   for (const tree of ordered) {
-    const id = tree[0]!.workstreamId;
+    // A workstream the sidebar doesn't list files under Unfiled.
+    const workstreamId = tree[0]!.workstreamId;
+    const id = workstreamId && nameOf.has(workstreamId) ? workstreamId : null;
     const group = groups.get(id) ?? [];
     group.push(tree);
     groups.set(id, group);
@@ -224,18 +220,22 @@ export function planBandRows(
     .map(([id, trees]) => ({ id, name: name(id), trees }));
 }
 
-/** Archived children inherit their root's workstream, including across section changes. */
+/**
+ * The archived threads as flat rows. An archived child inherits its root's
+ * workstream, even across section changes, and a workstream the sidebar
+ * doesn't list files under none.
+ */
 export function planArchived(
   threads: readonly PluginSidebarThread[],
-  sections: readonly { id: string; name: string }[],
+  sections: readonly { id: string }[],
   show: boolean,
 ) {
   const visible = show
     ? threads.filter((t) => t.isArchived && !t.isHidden)
     : [];
   const byId = new Map(visible.map((t) => [t.id, t]));
-  const workstreams = new Map<string, string | null>();
-  for (const thread of visible) {
+  const known = new Set(sections.map((section) => section.id));
+  const rows: ThreadRow[] = visible.map((thread) => {
     let root = thread;
     const seen = new Set([thread.id]);
     while (root.parentThreadId && !seen.has(root.parentThreadId)) {
@@ -244,40 +244,16 @@ export function planArchived(
       seen.add(parent.id);
       root = parent;
     }
-    workstreams.set(thread.id, root.sectionId);
-  }
-  const workstreamOf = (thread: PluginSidebarThread) =>
-    workstreams.get(thread.id) ?? null;
-  const buckets = new Map(
-    sections.map((section) => [section.id, [] as PluginSidebarThread[]]),
-  );
-  const unfiled: PluginSidebarThread[] = [];
-  const rows: ThreadRow[] = visible.map((thread) => {
-    const workstreamId = workstreamOf(thread);
-    const bucket =
-      workstreamId === null ? undefined : buckets.get(workstreamId);
-    if (bucket) bucket.push(thread);
-    if (!workstreamId || !bucket) unfiled.push(thread);
     return {
       thread,
       depth: 0,
       hasChildren: false,
-      workstreamId,
+      workstreamId:
+        root.sectionId && known.has(root.sectionId) ? root.sectionId : null,
       needsYou: false,
     };
   });
-  return {
-    threads: visible,
-    rows,
-    workstreamOf,
-    groups: sections
-      .map((section) => ({
-        ...section,
-        threads: buckets.get(section.id)!,
-      }))
-      .filter((g) => g.threads.length),
-    unfiled,
-  };
+  return { threads: visible, rows };
 }
 
 /** Count every displayed descendant, but send only roots to the subtree snooze operation. */

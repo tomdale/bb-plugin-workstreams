@@ -386,6 +386,11 @@ it("sorts and groups Recent from its section menu and persists the preference", 
   );
   expect(groupRows(slot, "Recent Alpha")).toEqual(["Zulu task"]);
   expect(groupRows(slot, "Recent Beta")).toEqual(["Alpha task"]);
+  // A grouped band folds each group from its header, as Archived does.
+  const alpha = within(slot.getByRole("region", { name: "Recent Alpha" }));
+  fireEvent.click(alpha.getByRole("button", { name: /^Alpha/ }));
+  await waitFor(() => expect(alpha.queryByText("Zulu task")).toBeNull());
+  expect(groupRows(slot, "Recent Beta")).toEqual(["Alpha task"]);
   expect(
     JSON.parse(window.localStorage.getItem("workstreams:v1:band-options")!)
       .recent,

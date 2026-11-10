@@ -6,7 +6,6 @@ import {
   groupSnoozeRequest,
   planArchived,
   planBandRows,
-  sortedBandRows,
   treesOf,
   unfoldedRows,
   visibleEntries,
@@ -28,6 +27,19 @@ const row = (
   needsYou: false,
 });
 const ids = (rows: readonly ThreadRow[]) => rows.map((r) => r.thread.id);
+/** The roots of a band sorted by `sort`, as the flat band lists them. */
+const sortedBand = (
+  rows: readonly ThreadRow[],
+  sort: Parameters<typeof planBandRows>[2]["sort"],
+  snoozeOf: Parameters<typeof planBandRows>[3],
+) =>
+  planBandRows(
+    rows,
+    "recent",
+    { sort, grouped: false },
+    snoozeOf,
+    names,
+  )[0]!.trees.flat();
 const names = new Map([
   ["a", "Alpha"],
   ["b", "Beta"],
@@ -48,7 +60,7 @@ it.each([
     ];
     expect(
       ids(
-        sortedBandRows(rows, sort, (t) => ({
+        sortedBand(rows, sort, (t) => ({
           until: t.id === "a" ? 10 : null,
         })),
       ),
@@ -63,10 +75,7 @@ it("breaks every sort's ties by identity, including indefinite wakes", () => {
     row("a", { title: "Same", latestAttentionAt: 1 }),
   ];
   for (const sort of ["title", "activity", "archived", "wake"] as const)
-    expect(ids(sortedBandRows(rows, sort, () => undefined))).toEqual([
-      "a",
-      "b",
-    ]);
+    expect(ids(sortedBand(rows, sort, () => undefined))).toEqual(["a", "b"]);
 });
 
 it("sorts snoozed roots while keeping descendants in tree order and under their root's workstream", () => {
@@ -117,8 +126,7 @@ it("labels unknown and unfiled workstreams and preserves within-group sorting", 
   );
   expect(grouped.map((g) => [g.name, ids(g.trees.flat())])).toEqual([
     ["Alpha", ["a", "z"]],
-    ["Unfiled", ["loose"]],
-    ["Unfiled", ["unknown"]],
+    ["Unfiled", ["loose", "unknown"]],
   ]);
 });
 
@@ -178,17 +186,13 @@ it("files archived children under their root, excluding hidden and live threads"
     [section("a", "Alpha"), section("b", "Beta")],
     true,
   );
-  expect(archive.groups.map((g) => [g.id, g.threads.map((t) => t.id)])).toEqual(
-    [["a", ["root", "child"]]],
-  );
-  expect(archive.unfiled.map((t) => t.id)).toEqual(["loose", "unknown"]);
   expect(
     archive.rows.map((r) => [r.thread.id, r.workstreamId, r.depth]),
   ).toEqual([
     ["root", "a", 0],
     ["child", "a", 0],
     ["loose", null, 0],
-    ["unknown", "gone", 0],
+    ["unknown", null, 0],
   ]);
   expect(planArchived(threads, [], false).rows).toEqual([]);
 });

@@ -508,7 +508,9 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      `On update`), carrying their delegate subtrees with them while snoozed.
    - **Archived** paginates archived threads via BB's archive list.
    - Each band has a **⋯** menu for **Sort by** (`Recent activity`, `Title A–Z`,
-     `Soonest to wake`, or `Archive date`) and **Group by workstream**.
+     `Soonest to wake`, or `Archive date`) and **Group by workstream**. Grouped
+     bands show each workstream under a header with its count; the header folds
+     the group, and Archived groups start folded.
 
 #### Row indicators and actions
 
