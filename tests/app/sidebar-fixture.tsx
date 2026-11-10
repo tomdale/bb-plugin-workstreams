@@ -66,6 +66,8 @@ export async function mount(
     analysis?: Record<string, unknown>;
     recaps?: Record<string, unknown>;
     pendingSuggestions?: number;
+    /** Extra RPC handlers, such as the organizing suggestions'. */
+    rpc?: Record<string, (input: unknown) => unknown>;
     assignmentError?: string;
     moveWait?: Promise<void>;
     order?: {
@@ -347,6 +349,7 @@ export async function mount(
           },
         };
       },
+      ...options.rpc,
     },
   });
   const rerender = (activeThreadId = props.activeThreadId) =>

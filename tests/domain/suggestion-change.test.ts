@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   changeHeadline,
   changeLines,
+  movingThreadsLine,
   suggestionChange,
   type ChangeContext,
 } from "../../src/domain/suggestion-change.ts";
@@ -271,6 +272,30 @@ describe("changeLines", () => {
       "Agent → bb › Agent (with 2 threads)",
       "Plugins (new)",
     ]);
+  });
+});
+
+describe("movingThreadsLine", () => {
+  const line = (body: Parameters<typeof suggestionChange>[0]) =>
+    movingThreadsLine(suggestionChange(body, context())!);
+
+  it("lists the threads a suggestion moves", () => {
+    expect(line({ op: "merge", from: "toolbelt", into: "bb" })).toBe(
+      "Thread t1, Thread t2",
+    );
+  });
+
+  it("counts the threads that move with a moved group", () => {
+    expect(line({ op: "reparent", topic: "toolbelt", parent: "bb" })).toBe(
+      "2 threads",
+    );
+    expect(line({ op: "merge", from: "auto", into: "toolbelt" })).toBe(
+      "Thread t3 and 1 more",
+    );
+  });
+
+  it("is empty when no thread moves", () => {
+    expect(line({ op: "rename", topic: "todo", name: "Todos" })).toBe("");
   });
 });
 

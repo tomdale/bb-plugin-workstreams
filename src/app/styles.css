@@ -250,17 +250,15 @@
     transparent
   );
 }
-/* The Workstreams heading's Reorganize action: muted purple text with a
-   saturated purple icon; a rounded, tinted chip under the pointer, deeper
-   while pressed, and under keyboard focus. */
+/* The Workstreams heading's suggestion count: muted purple text; a rounded,
+   tinted chip under the pointer, under keyboard focus, and while its
+   flyaway is open, deeper while pressed. */
 .ws-suggestions-action {
   color: var(--ws-suggestions-text);
 }
-.ws-suggestions-action [data-icon] {
-  color: var(--ws-suggestions-accent);
-}
 .ws-suggestions-action:hover,
-.ws-suggestions-action:focus-visible {
+.ws-suggestions-action:focus-visible,
+.ws-suggestions-action[data-state="open"] {
   background-color: color-mix(
     in oklab,
     var(--ws-suggestions-accent) 9%,

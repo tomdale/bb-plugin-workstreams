@@ -13,11 +13,3 @@ export const WORKSTREAM_ICON = "workstreams/workstream";
  * the manifest like the marks above.
  */
 export const TAG_ICON = "workstreams/tag";
-
-/**
- * Sparkles, for the Reorganize action that opens organizing suggestions.
- * BB's icon set has no sparkles or wand (an unknown name draws the
- * lightning-bolt fallback), so it is declared in the manifest like the
- * marks above.
- */
-export const SPARKLES_ICON = "workstreams/sparkles";

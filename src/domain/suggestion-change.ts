@@ -274,6 +274,19 @@ const list = (names: readonly string[]) =>
     ? `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`
     : names.join(" and ");
 
+/**
+ * The threads accepting a suggestion moves, as one line for the sidebar's
+ * suggestions: their titles, then how many more move along with a moved
+ * group, whose titles the change only counts. Empty when no thread moves.
+ */
+export function movingThreadsLine(change: SuggestionChange): string {
+  const titles = change.moves.flatMap((m) => m.threads.map((t) => t.title));
+  const carried = change.moves.reduce((n, m) => n + m.carried, 0);
+  if (!carried) return titles.join(", ");
+  if (titles.length) return `${titles.join(", ")} and ${carried} more`;
+  return carried === 1 ? "1 thread" : `${carried} threads`;
+}
+
 /** Whether accepting moves any visible thread, by itself or with its group. */
 export function movesThreads(change: SuggestionChange): boolean {
   return change.moves.some((m) => m.threads.length > 0 || m.carried > 0);

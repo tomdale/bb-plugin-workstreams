@@ -301,11 +301,11 @@ collection. Volume and recurring category names do not create child topics.
 ### 5. Organizing suggestions
 
 Workstreams proposes changes to the topic tree and applies them only when you
-accept them, on **Organization** (the **Reorganize** action on the Workstreams
-heading links there while suggestions wait) or with
-`bb workstreams suggestions`. Suggestions and categories use the **Organization
-model** (default `anthropic/claude-sonnet-5.5`, reasoning `medium`). Turning off
-organizing suggestions does not disable automatic categories.
+accept them: from the count on the sidebar's Workstreams heading, on **Topics**,
+or with `bb workstreams suggestions`. Suggestions and categories use the
+**Organization model** (default `anthropic/claude-sonnet-5.5`, reasoning
+`medium`). Turning off organizing suggestions does not disable automatic
+categories.
 
 - **Topic divisions:** When placement identifies a distinct lasting area beneath
   a populated first-level topic, Workstreams asks for a complete reviewed filing
@@ -448,8 +448,17 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      only while the header lists threads.
    - Use the **Sort workstreams** menu to order workstreams by **Name A–Z**,
      **Recent activity**, or **Manual order** (drag headers within their tier).
-   - While organizing suggestions wait for review, **Reorganize** appears on the
-     **Workstreams** heading and opens them.
+   - While organizing suggestions wait for review, their count ("2 suggestions")
+     appears on the **Workstreams** heading. Click it to open them below the
+     heading, over the workstreams, so the list underneath doesn't move. Each
+     suggestion takes two lines: what it does ("Merge Payments into Billing")
+     with **Decline** (`×`) and **Accept** (`✓`), then the threads it moves (a
+     count when a whole group moves), blank when none move. A decision applies
+     at once and leaves **Undo** in its place for a few seconds; Activity keeps
+     Undo after that. The foot counts suggestions the tree has since outgrown
+     ("1 out of date") beside **Open Topics**, where you can dismiss them.
+     **Close**, `Esc`, or a click outside closes the list and leaves the rest
+     waiting.
    - Drag a root thread to another workstream to set its **Topic** to that
      workstream's topic; its delegates follow it. Drop on a row to place it
      before or after that root, or on a header to place it first, including a

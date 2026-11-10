@@ -52,7 +52,6 @@ import {
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
-import { SPARKLES_ICON } from "../workstream-icon.ts";
 import { cn } from "@/lib/utils";
 import {
   MENU_ITEM_CLASS,
@@ -89,6 +88,7 @@ import {
   type BandSortOption,
 } from "./useBandOptions.ts";
 import { NameDialog, type NameRequest } from "./NameDialog.tsx";
+import { SuggestionsFlyaway } from "./SuggestionsFlyaway.tsx";
 import { Row } from "./Row.tsx";
 import { hasStatusMark, headerCounts } from "./presentation.ts";
 import {
@@ -932,61 +932,42 @@ export function WorkstreamsThreadList({
       dormantGroups.length +
       projection.unsorted.total >
     0;
-  const suggestionCount = ws.server.pendingSuggestions ?? 0;
   /**
-   * The heading over the workstreams, holding their sort and, while
-   * organizing suggestions wait for review, the action that opens them.
-   * Not a region: each workstream below is one.
+   * The heading over the workstreams, holding the organizing suggestions'
+   * count, which opens them, and the workstreams' sort. Not a region: each
+   * workstream below is one.
    */
   const workstreamsHeading = hasWorkstreams ? (
-    <div
+    <SuggestionsFlyaway
       key="workstreams-heading"
-      className="flex items-center gap-3"
-      style={{
-        height: SIDEBAR_GEOMETRY.sectionHeading.height,
-        marginTop: SIDEBAR_GEOMETRY.sectionHeading.topMargin,
-        marginBottom: SIDEBAR_GEOMETRY.sectionHeading.bottomMargin,
-        paddingLeft: SIDEBAR_GEOMETRY.sectionHeading.leftInset,
-      }}
+      rpc={ws.rpc}
+      count={ws.server.pendingSuggestions ?? 0}
+      onOpenTopics={() => navigate.toPluginPanel("home", { subPath: "topics" })}
     >
-      <h2 className="ws-text-section flex min-w-0 items-center text-muted-foreground">
-        Workstreams
-      </h2>
-      {suggestionCount > 0 ? (
-        <Hint
-          label={
-            suggestionCount === 1
-              ? "1 organizing suggestion"
-              : `${suggestionCount} organizing suggestions`
-          }
+      {(suggestions) => (
+        <div
+          className="flex items-center gap-3 outline-none"
+          style={{
+            height: SIDEBAR_GEOMETRY.sectionHeading.height,
+            marginTop: SIDEBAR_GEOMETRY.sectionHeading.topMargin,
+            marginBottom: SIDEBAR_GEOMETRY.sectionHeading.bottomMargin,
+            paddingLeft: SIDEBAR_GEOMETRY.sectionHeading.leftInset,
+          }}
         >
-          <button
-            type="button"
-            onClick={() =>
-              navigate.toPluginPanel("home", { subPath: "organization" })
+          <h2 className="ws-text-section flex min-w-0 items-center text-muted-foreground">
+            Workstreams
+          </h2>
+          <div className="flex-1" />
+          {suggestions}
+          <SidebarViewOptionsMenu
+            sort={groupSort}
+            onChange={(groupSort) =>
+              void savePrefs({ sidebar: { groupSort } }).catch(report)
             }
-            // A transparent border is the chip: the border-box (what the
-            // hover background paints and the pointer hits) grows 3px up,
-            // 2px down and 8px sideways around the text, and the matching
-            // negative margin keeps the layout box on the heading's line,
-            // so the row never moves and the rest-state text stays on the
-            // label's baseline. The 1px top-bottom split nudges the chip
-            // onto the caps label's optical center.
-            className="ws-suggestions-action -mx-2 -mb-[2px] -mt-[3px] flex shrink-0 cursor-pointer items-center gap-[3px] rounded-md border-transparent border-x-8 border-b-2 border-t-[3px] text-[12px] leading-4 font-medium transition-colors"
-          >
-            <Icon name={SPARKLES_ICON} className="size-[13.5px]" aria-hidden />
-            Reorganize
-          </button>
-        </Hint>
-      ) : null}
-      <div className="flex-1" />
-      <SidebarViewOptionsMenu
-        sort={groupSort}
-        onChange={(groupSort) =>
-          void savePrefs({ sidebar: { groupSort } }).catch(report)
-        }
-      />
-    </div>
+          />
+        </div>
+      )}
+    </SuggestionsFlyaway>
   ) : null;
   /** Everything below the focused workstreams, as one opening block. */
   const lowerBlock = lowerPresence.map((entry) => (
