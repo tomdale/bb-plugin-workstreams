@@ -21,6 +21,7 @@ afterEach(async () => {
   cleanup();
   await world?.harness.lifecycle.dispose();
   world = null;
+  vi.useRealTimers();
 });
 
 function RootComposer() {
@@ -105,14 +106,19 @@ it("resolves the chip after typing stops, even with a mid-flight remount", async
 
 it("stops previewing once the text settles (no classify loop)", async () => {
   const { slot } = await mount();
+  vi.useFakeTimers({
+    toFake: ["setTimeout", "clearTimeout"],
+    shouldAdvanceTime: true,
+  });
   await act(() =>
     slot.behavior.setComposerText("Fix the parser in Alpha so it handles tabs"),
   );
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await act(() => vi.advanceTimersByTimeAsync(1000));
+  expect(screen.getByRole("button", { name: "Topic: Alpha" })).toBeTruthy();
   const previewCalls = () =>
     slot.inspection.rpcCalls.filter((call) => call.method === "preview").length;
   const before = previewCalls();
-  await act(() => new Promise((resolve) => setTimeout(resolve, 3000)));
+  await act(() => vi.advanceTimersByTimeAsync(3000));
   expect(previewCalls()).toBe(before);
 });
 

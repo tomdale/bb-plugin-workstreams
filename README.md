@@ -1398,9 +1398,17 @@ and storage-boundary tests use `createTestPluginHost` to start from an empty
 database. Fixture tests compare the cloned schema and hashes with a fresh
 migration and check isolation, rollback, reopen, and cleanup.
 
-Gallery browser scenarios share a file-scoped Vite server and browser, with at
-most two scenarios running concurrently. Each scenario owns a fresh browser
-context, so cookies, storage, viewport, and theme changes stay isolated.
+Gallery browser scenarios run in separate specimen, sidebar playground, and
+built-from-disk files. Each development server uses a separate dependency cache.
+Specimen and playground files run up to five scenarios concurrently, each in a
+fresh browser context. Each file starts a browser server and kills it during
+teardown.
+
+Vitest caches transformed modules between runs with
+`experimental.fsModuleCache`. Heading settlement and preview-loop tests advance
+fake time past their observation intervals. Compositing tests finish finite
+entrance animations before tracing the running loop; Braille tracing covers a
+full 800 ms cycle.
 
 Component tests mount the real component through the SDK harness without loading
 unrelated UI surfaces. `tests/app/registration.test.tsx` checks the plugin's
@@ -1438,8 +1446,10 @@ machine/runtime information and min/median/p95/max timings. It exits nonzero if
 a test fails, a browser layout test is skipped, or any run takes ten seconds or
 longer. Dependencies and Chrome must already be installed; each run starts a
 fresh process, keeps existing transform caches, and executes every test again.
-To check order independence, run
-`npm test -- --sequence.shuffle --sequence.seed=104729`.
+Add `--workers 12` to compare a different worker count without changing the
+Vitest configuration. Benchmark samples include load averages before and after
+each run; compare timings under similar machine load. To check order
+independence, run `npm test -- --sequence.shuffle --sequence.seed=104729`.
 
 The app draws with its color tokens (`src/app/theme/tokens.css`) and BB's theme
 variables; `tests/app/color-lint.test.ts` fails on Tailwind palette classes and

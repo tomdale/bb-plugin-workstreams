@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     setupFiles: ["tests/setup.ts"],
+    experimental: { fsModuleCache: true },
     // Each process owns its native modules; VM contexts isolate test globals
     // while reusing compiled dependencies. More workers contend with Chrome.
     pool: "vmForks",

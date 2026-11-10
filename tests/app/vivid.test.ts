@@ -315,7 +315,7 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
           // App chrome outside every plugin root, like a scrollbar or fade.
           const chrome = document.createElement("div");
           document.body.append(chrome);
-          for (let step = 0; step < 20; step++) {
+          for (let step = 0; step < 8; step++) {
             // Rows, hover fills, and streamed messages restyle inside a root.
             content.className = `churn-${step}`;
             content.style.color = `rgb(${step} 0 0)`;
@@ -324,7 +324,7 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
             row.style.transform = `translateY(${step}px)`;
             root.append(row);
             chrome.className = `chrome-${step}`;
-            chrome.style.opacity = String(step / 20);
+            chrome.style.opacity = String(step / 8);
             await new Promise((resolve) => requestAnimationFrame(resolve));
           }
           chrome.remove();

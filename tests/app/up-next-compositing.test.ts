@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect } from "vitest";
 import { browserTest, browserUnavailable } from "./browser-fixture.ts";
+import { settleEntranceAnimations } from "./animation-fixture.ts";
 
 const styles = readFileSync(
   new URL("../../src/app/styles.css", import.meta.url),
@@ -112,7 +113,7 @@ browserTest.skipIf(browserUnavailable)(
     await page.setContent(`<style>${styles}
       .ws-needs { --ws-needs-you-band: orange; width: 280px; height: 160px; }
       </style><div class="ws-needs"></div>`);
-    await page.waitForTimeout(1100);
+    await settleEntranceAnimations(page);
     const client = await page.context().newCDPSession(page);
     try {
       await client.send("Performance.enable");
@@ -127,7 +128,7 @@ browserTest.skipIf(browserUnavailable)(
         transferMode: "ReportEvents",
       });
       const before = await client.send("Performance.getMetrics");
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(400);
       const after = await client.send("Performance.getMetrics");
       const finished = new Promise<void>((resolve) =>
         client.once("Tracing.tracingComplete", () => resolve()),

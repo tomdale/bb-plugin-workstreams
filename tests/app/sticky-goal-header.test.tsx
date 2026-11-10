@@ -31,6 +31,7 @@ afterEach(() => {
   cleanup();
   document.body.innerHTML = "";
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 function stubResizeObserver() {
@@ -82,6 +83,10 @@ async function mountHeading(
   onRender?: ProfilerOnRenderCallback,
   threads: Partial<Prefs["threads"]> = {},
 ) {
+  vi.useFakeTimers({
+    toFake: ["setTimeout", "clearTimeout"],
+    shouldAdvanceTime: true,
+  });
   stubResizeObserver();
   const heading = {
     component: onRender
@@ -552,7 +557,7 @@ it.each(["fade", "scroll"] as const)(
       headingScroll: "float",
     });
     await waitFor(() => expect(overlay()).not.toBeNull());
-    await new Promise((resolve) => setTimeout(resolve, 550));
+    await act(() => vi.advanceTimersByTimeAsync(550));
     // Far from the newest message, where minimizing would have swapped in the
     // compact copy.
     scroller.scrollTop = 300;
@@ -636,7 +641,7 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
     ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
   ];
   await waitFor(() => expect(groups()).toHaveLength(2));
-  await new Promise((resolve) => setTimeout(resolve, 550));
+  await act(() => vi.advanceTimersByTimeAsync(550));
   const y = (element: HTMLElement) =>
     Number.parseFloat(
       element.style.transform.match(/translateY\(([-\d.]+)px\)/)![1]!,
@@ -733,7 +738,7 @@ it("eases fixed headings through a gentle handoff and switches modes", async () 
     ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
   ];
   await waitFor(() => expect(groups()).toHaveLength(2));
-  await new Promise((resolve) => setTimeout(resolve, 550));
+  await act(() => vi.advanceTimersByTimeAsync(550));
   const readMotion = () =>
     groups().map((group) => {
       const match = group.style.transform.match(
@@ -882,7 +887,7 @@ it.each(["fade", "scroll"] as const)(
       );
     const exitDistance = titleExitDistance(14, null, 1);
     await waitFor(() => expect(groups()).toHaveLength(2));
-    await new Promise((resolve) => setTimeout(resolve, 550));
+    await act(() => vi.advanceTimersByTimeAsync(550));
     scroller.scrollTop = 100;
     scroller.dispatchEvent(new Event("scroll"));
     await waitFor(() =>
@@ -961,7 +966,7 @@ it("left aligns a pinned title and its goal when title alignment is centered", a
   const goal = () =>
     expanded().querySelector<HTMLElement>(".ws-sticky-goal__subtitle")!;
   await waitFor(() => expect(title().style.transform).toContain("scale(1)"));
-  await new Promise((resolve) => setTimeout(resolve, 550));
+  await act(() => vi.advanceTimersByTimeAsync(550));
   scroller.scrollTop = 580;
   scroller.dispatchEvent(new Event("scroll"));
   await nextFrame();
@@ -1015,7 +1020,7 @@ it.each([false, true])(
       )!;
     try {
       await waitFor(() => expect(title().style.webkitLineClamp).toBe("2"));
-      await new Promise((resolve) => setTimeout(resolve, 550));
+      await act(() => vi.advanceTimersByTimeAsync(550));
       // Two lines move the threshold: an exit distance measured through both
       // of them.
       const exit = titleExitDistance(14, null, 2);
@@ -1088,7 +1093,7 @@ it.each(["fade", "scroll"] as const)(
       ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
     ];
     await waitFor(() => expect(groups()).toHaveLength(2));
-    await new Promise((resolve) => setTimeout(resolve, 550));
+    await act(() => vi.advanceTimersByTimeAsync(550));
     const transforms = groups().map((group) => group.style.transform);
     const plate = overlay()!.querySelector<HTMLElement>(
       ".ws-sticky-goal__plate",
@@ -1165,7 +1170,7 @@ it.each([false, true])(
       );
     const exit = titleExitDistance(14, null, 1);
     await waitFor(() => expect(groups()).toHaveLength(2));
-    await new Promise((resolve) => setTimeout(resolve, 550));
+    await act(() => vi.advanceTimersByTimeAsync(550));
     const expandedHeight = headingHeight(14, false, 1, 0);
     expect(plate().style.transform).toBe("scaleY(1)");
     expect(scroller.style.scrollPaddingTop).toBe(`${expandedHeight}px`);
@@ -1269,8 +1274,7 @@ it("does not scan for a scroller after unrelated DOM updates", async () => {
     queries.mock.calls.filter(
       ([selector]) => selector === "[data-thread-window] .thread-scrollbar",
     ).length;
-  const flush = () =>
-    act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
   await flush();
   queries.mockClear();
 
@@ -1415,10 +1419,10 @@ it.each(["fade", "scroll"] as const)(
     const commits = vi.fn();
     const slot = await mountHeading(mode, null, commits);
     try {
-      await waitFor(() => expect(overlay()).not.toBeNull());
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 550));
-      });
+      await waitFor(() =>
+        expect(overlay()?.textContent).toContain("Ship the mobile polish"),
+      );
+      await act(() => vi.advanceTimersByTimeAsync(550));
       scroller.scrollTop = 350;
       scroller.dispatchEvent(new Event("scroll"));
       await waitFor(() =>

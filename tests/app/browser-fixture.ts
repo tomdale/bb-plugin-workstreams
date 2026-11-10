@@ -13,11 +13,14 @@ const executablePath = [
 export const browserTest = it.extend<{ browser: Browser; page: Page }>({
   browser: [
     async ({}, use) => {
-      const browser = await chromium.launch({ executablePath, headless: true });
+      const server = await chromium.launchServer({
+        executablePath,
+        headless: true,
+      });
       try {
-        await use(browser);
+        await use(await chromium.connect(server.wsEndpoint()));
       } finally {
-        await browser.close();
+        await server.kill();
       }
     },
     { scope: "file" },

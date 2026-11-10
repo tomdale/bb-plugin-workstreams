@@ -237,22 +237,26 @@ it("reconciles duplicate answers when an existing form gains or loses its result
       '[data-timeline-row-id="thread:form:one"] [data-ws-question-history]',
     ),
   ).toBe(originalCard);
-  expect(
-    message.container.querySelector(
-      "[data-ws-delivered-anchor] [data-ws-question-history]",
-    ),
-  ).toBeNull();
+  await waitFor(() =>
+    expect(
+      message.container.querySelector(
+        "[data-ws-delivered-anchor] [data-ws-question-history]",
+      ),
+    ).toBeNull(),
+  );
   message.rerender(view(false));
   await waitFor(() =>
     expect(
       message.container.querySelector(".ws-delivered-question-duplicate"),
     ).toBeNull(),
   );
-  expect(
-    message.container.querySelector(
-      "[data-ws-delivered-anchor] [data-ws-question-history]",
-    ),
-  ).not.toBeNull();
+  await waitFor(() =>
+    expect(
+      message.container.querySelector(
+        "[data-ws-delivered-anchor] [data-ws-question-history]",
+      ),
+    ).not.toBeNull(),
+  );
   overlay.lifecycle.unmount();
 });
 

@@ -12,6 +12,7 @@ import {
 import {
   availableParallelism,
   cpus,
+  loadavg,
   platform,
   release,
   tmpdir,
@@ -25,23 +26,33 @@ const { values } = parseArgs({
   options: {
     runs: { type: "string", default: "5" },
     "output-dir": { type: "string" },
+    workers: { type: "string" },
   },
 });
 const count = Number(values.runs);
 if (!Number.isInteger(count) || count < 1)
   throw new Error("--runs must be a positive integer");
+const workers =
+  values.workers === undefined ? undefined : Number(values.workers);
+if (workers !== undefined && (!Number.isInteger(workers) || workers < 1))
+  throw new Error("--workers must be a positive integer");
+const workerArgs = workers === undefined ? [] : [`--maxWorkers=${workers}`];
 const directory = values["output-dir"]
   ? resolve(values["output-dir"])
   : mkdtempSync(join(tmpdir(), "workstreams-tests-"));
 mkdirSync(directory, { recursive: true });
 const samples = [];
 const command =
-  "npm test -- --reporter=default --reporter=json --outputFile.json=<report>";
+  `npm test -- ${workerArgs.join(" ")} --reporter=default --reporter=json --outputFile.json=<report>`.replaceAll(
+    "  ",
+    " ",
+  );
 for (let run = 1; run <= count; run++) {
   const report = join(directory, `run-${run}.json`);
   const log = join(directory, `run-${run}.log`);
   rmSync(report, { force: true });
   const fd = openSync(log, "w");
+  const loadBefore = loadavg();
   const start = performance.now();
   let result;
   try {
@@ -50,6 +61,7 @@ for (let run = 1; run <= count; run++) {
       [
         "test",
         "--",
+        ...workerArgs,
         "--reporter=default",
         "--reporter=json",
         `--outputFile.json=${report}`,
@@ -90,6 +102,8 @@ for (let run = 1; run <= count; run++) {
   samples.push({
     run,
     seconds,
+    loadBefore,
+    loadAfter: loadavg(),
     exit: result.status,
     signal: result.signal,
     error: result.error?.message,
@@ -114,6 +128,7 @@ const summary = {
     release: release(),
     node: process.version,
   },
+  workers: workers ?? "vitest.config.ts",
   samples,
   distribution: {
     min: times[0],
