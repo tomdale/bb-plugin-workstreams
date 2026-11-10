@@ -1,58 +1,17 @@
-import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect } from "vitest";
-import { spawn, type ChildProcess } from "node:child_process";
-import { once } from "node:events";
 import { THEME_COLORS, TOKEN_ROOTS } from "../../src/domain/colors.ts";
 import { browserTest, browserUnavailable } from "./browser-fixture.ts";
+import { startGalleryServer, type GalleryServer } from "./gallery-server.ts";
 
-let server: ChildProcess;
+let server: GalleryServer | undefined;
 let url: string;
 describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
   beforeAll(async () => {
-    const root = fileURLToPath(new URL("../../", import.meta.url));
-    server = spawn(
-      process.execPath,
-      [
-        `${root}node_modules/vite/bin/vite.js`,
-        root,
-        "--config",
-        `${root}gallery/vite.config.ts`,
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "0",
-      ],
-      { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
-    );
-    url = await new Promise<string>((resolve, reject) => {
-      let output = "";
-      const timer = setTimeout(() => reject(new Error(output)), 50_000);
-      const read = (chunk: Buffer) => {
-        output += chunk.toString();
-        const match = output.match(/http:\/\/127\.0\.0\.1:\d+\//);
-        if (match) {
-          clearTimeout(timer);
-          resolve(match[0] + "tests/app/vivid.html");
-        }
-      };
-      server.stdout!.on("data", read);
-      server.stderr!.on("data", read);
-      server.once("error", (error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
-      server.once("exit", (code) => {
-        clearTimeout(timer);
-        reject(new Error(`Vite exited ${code}: ${output}`));
-      });
-    });
+    server = await startGalleryServer({ serveRepoRoot: true });
+    url = server.url + "tests/app/vivid.html";
   }, 60_000);
   afterAll(async () => {
-    if (server && server.exitCode === null) {
-      const exited = once(server, "exit");
-      server.kill("SIGTERM");
-      await exited;
-    }
+    await server?.stop();
   });
 
   browserTest(

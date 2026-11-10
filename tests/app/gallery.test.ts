@@ -1,73 +1,28 @@
 import { fileURLToPath } from "node:url";
-import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { once } from "node:events";
+import { execFile } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect } from "vitest";
 import { browserTest, browserUnavailable } from "./browser-fixture";
+import { startGalleryServer, type GalleryServer } from "./gallery-server.ts";
 import { SIDEBAR_GEOMETRY } from "../../src/app/sidebar/tokens.ts";
 import { workstreamGap } from "../../src/app/sidebar/workstreamGap.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
 import { DEFAULT_SPINNER } from "../../src/domain/spinner.ts";
 
-let server: ChildProcess | undefined;
+let server: GalleryServer | undefined;
 let url: string;
 
 describe.skipIf(browserUnavailable)("standalone design system gallery", () => {
   beforeAll(async () => {
-    const root = fileURLToPath(new URL("../../", import.meta.url));
-    server = spawn(
-      process.execPath,
-      [
-        `${root}node_modules/vite/bin/vite.js`,
-        "--config",
-        `${root}gallery/vite.config.ts`,
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "0",
-      ],
-      {
-        cwd: root,
-        env: { ...process.env, NO_COLOR: "1" },
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    url = await new Promise<string>((resolve, reject) => {
-      let output = "";
-      const timer = setTimeout(
-        () => reject(new Error(`Gallery did not start: ${output}`)),
-        50_000,
-      );
-      const read = (chunk: Buffer) => {
-        output += chunk.toString();
-        const match = output.match(/http:\/\/127\.0\.0\.1:\d+\//);
-        if (match) {
-          clearTimeout(timer);
-          resolve(match[0]);
-        }
-      };
-      server!.stdout!.on("data", read);
-      server!.stderr!.on("data", read);
-      server!.once("error", (error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
-      server!.once("exit", (code) => {
-        clearTimeout(timer);
-        reject(new Error(`Gallery exited (${code}): ${output}`));
-      });
-    });
+    server = await startGalleryServer();
+    url = server.url;
   }, 60_000);
 
   afterAll(async () => {
-    if (server && server.exitCode === null) {
-      const exited = once(server, "exit");
-      server.kill("SIGTERM");
-      await exited;
-    }
+    await server?.stop();
   });
 
   browserTest.concurrent(

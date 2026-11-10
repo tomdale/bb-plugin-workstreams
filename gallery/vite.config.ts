@@ -56,6 +56,12 @@ export default defineConfig({
   resolve: {
     alias: { "@": fileURLToPath(new URL("..", import.meta.url)) },
   },
+  // A dev server rewrites its dependency cache whenever a page imports a
+  // dependency its startup scan missed. Servers that share one directory swap
+  // each other's optimized files out from under loaded pages, and a page whose
+  // module request meets a 504 never recovers. Tests start several servers at
+  // once, so each names its own directory (see tests/app/gallery-server.ts).
+  cacheDir: process.env.GALLERY_CACHE_DIR || undefined,
   server: { host: "127.0.0.1" },
   build: {
     outDir: "dist",
