@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   type ReactNode,
   type Ref,
 } from "react";
@@ -66,6 +67,65 @@ export function FoldBody({
         <FoldPhase.Provider value={fold.phase}>{children}</FoldPhase.Provider>
       </ul>
     </div>
+  );
+}
+
+/**
+ * Returns focus to a fold's header button when the fold closes while focus
+ * sits inside its rows or a menu it opened, instead of letting the browser
+ * drop focus to `<body>` as those rows unmount. A fold that mounts already
+ * closed leaves focus where it is: the recovery happens only on a real
+ * open-to-closed transition, and only when focus actually belonged to the
+ * fold.
+ *
+ * `root` names the fold's header element (which also holds any menu its
+ * header opens), and `contents` the element its rows live in. Both are
+ * getters so a caller can hand over a ref without coupling to a specific
+ * element type. Focus is read during render, before the commit that closes
+ * the fold removes the rows, so a fold that closes without motion (reduced
+ * motion, or as in tests) can still recover focus to the header.
+ */
+export function useFoldFocusRestore({
+  open,
+  root,
+  contents,
+}: {
+  /** Whether the fold is open (its rows shown). */
+  open: boolean;
+  /** The fold's header element, which holds the button that folds it. */
+  root: () => HTMLElement | null;
+  /** The fold's contents, which lose focus when they unmount. */
+  contents: () => HTMLElement | null;
+}): void {
+  const wasOpen = useRef(open);
+  const focusInside = useRef(false);
+  focusInside.current = focusInsideFold(root(), contents());
+  useEffect(() => {
+    const closing = wasOpen.current && !open;
+    wasOpen.current = open;
+    if (closing && focusInside.current) {
+      root()?.querySelector<HTMLButtonElement>("button")?.focus();
+    }
+    // Refs the getters read are not reactive; only `open` gates the effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+}
+
+/** Whether focus sits in a fold's rows or a menu the fold opened. */
+function focusInsideFold(
+  section: HTMLElement | null,
+  contents: HTMLElement | null,
+): boolean {
+  if (typeof document === "undefined" || !section || !contents) return false;
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement)) return false;
+  if (contents.contains(active)) return true;
+  // A menu opened from the fold portals outside the section, so it is
+  // matched by the portal mark for as long as this section holds the menu's
+  // open trigger.
+  return (
+    active.closest("[data-bb-portaled-overlay]") !== null &&
+    section.querySelector('[data-state="open"][aria-haspopup]') !== null
   );
 }
 

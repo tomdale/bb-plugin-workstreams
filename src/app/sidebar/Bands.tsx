@@ -1,6 +1,6 @@
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
 import { CountPill } from "../primitives/CountPill.tsx";
-import { type CSSProperties, type ReactNode } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,7 @@ import {
 } from "./useBandOptions.ts";
 import { WorkstreamName } from "../WorkstreamName.tsx";
 import { useFold } from "./motion.ts";
-import { FoldBody, FoldChevron } from "./Fold.tsx";
+import { FoldBody, FoldChevron, useFoldFocusRestore } from "./Fold.tsx";
 import { RadioMenuGroup, CheckSlot } from "../primitives/RadioMenuGroup.tsx";
 import { rowActionClass } from "./HoverActions.tsx";
 import { Hint } from "../Hint.tsx";
@@ -45,8 +45,15 @@ export function BandGroup({
   children: ReactNode;
 }) {
   const fold = useFold(!collapsed);
+  const section = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLUListElement | null>(null);
+  useFoldFocusRestore({
+    open: !collapsed,
+    root: () => section.current,
+    contents: () => bodyRef.current,
+  });
   return (
-    <section aria-label={`${label} ${name}`} className="px-1">
+    <section ref={section} aria-label={`${label} ${name}`} className="px-1">
       <button
         type="button"
         aria-expanded={!collapsed}
@@ -57,7 +64,9 @@ export function BandGroup({
         <WorkstreamName name={name} muted className="flex-1 text-[12px]" />
         <span className="tabular-nums">{count}</span>
       </button>
-      <FoldBody fold={fold}>{children}</FoldBody>
+      <FoldBody fold={fold} listRef={bodyRef}>
+        {children}
+      </FoldBody>
     </section>
   );
 }
@@ -119,7 +128,15 @@ export function Band({
   style?: CSSProperties;
   children: ReactNode;
 }) {
-  const fold = useFold(collapsed === undefined || !collapsed);
+  const open = collapsed === undefined || !collapsed;
+  const fold = useFold(open);
+  const section = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLUListElement | null>(null);
+  useFoldFocusRestore({
+    open,
+    root: () => section.current,
+    contents: () => bodyRef.current,
+  });
   const heading = (
     <>
       <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
@@ -165,6 +182,7 @@ export function Band({
   }
   return (
     <section
+      ref={section}
       aria-label={title}
       data-flip-key={flipKey}
       style={style}
@@ -177,12 +195,14 @@ export function Band({
           onClick={toggle}
           className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-sidebar-accent/60" // slop-ok: 1 the product's section-label style
         >
-          <FoldChevron open={!collapsed} />
+          <FoldChevron open={open} />
           {heading}
         </button>
         {menu}
       </div>
-      <FoldBody fold={fold}>{children}</FoldBody>
+      <FoldBody fold={fold} listRef={bodyRef}>
+        {children}
+      </FoldBody>
     </section>
   );
 }

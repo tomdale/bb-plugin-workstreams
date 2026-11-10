@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useCallback, useRef, type CSSProperties, type ReactNode } from "react";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { CountPill } from "../primitives/CountPill.tsx";
@@ -17,7 +11,7 @@ import { SnoozeIcon } from "../snooze/icons.tsx";
 import { WorkstreamName } from "../WorkstreamName.tsx";
 import { useFold, useFoldGap } from "./motion.ts";
 import { FocusIcon } from "./FocusIcon.tsx";
-import { FoldBody, FoldChevron } from "./Fold.tsx";
+import { FoldBody, FoldChevron, useFoldFocusRestore } from "./Fold.tsx";
 import {
   HoverAction,
   HoverMenuButton,
@@ -80,18 +74,11 @@ export function WorkstreamGroup({
   const bodyRef = useRef<HTMLUListElement | null>(null);
   /** The section, for the gap the fold moves below it (see `useFoldGap`). */
   const section = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (!collapsed) return;
-    const root = section.current;
-    const list = bodyRef.current;
-    // Focus that was inside the fold resets to <body> when it unmounts;
-    // move it to the header rather than dropping it from the list.
-    const active = document.activeElement;
-    if ((list && list.contains(active)) || active === document.body)
-      root?.querySelector<HTMLButtonElement>("button")?.focus();
-    // section.current is a ref; only `collapsed` gates the cleanup.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collapsed]);
+  useFoldFocusRestore({
+    open: !collapsed,
+    root: () => section.current,
+    contents: () => bodyRef.current,
+  });
   const label = group.label;
   const isWorkstream = group.hasSection;
   const counts = headerCounts(group, collapsed, prefs?.sidebar);
