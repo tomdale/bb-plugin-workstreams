@@ -39,18 +39,28 @@ import {
 /** The filter row's compact selects, sized to their chosen option. */
 const filterSelectClass = "h-7 w-auto px-2 text-xs";
 
-function day(at: number): string {
-  const date = new Date(at);
+/** An older day's heading, such as "Tue, Mar 3"; one formatter serves every heading. */
+const DAY_FORMAT = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
+
+/** The day heading for a time, relative to when the list is grouped. */
+function dayLabels(): (at: number) => string {
   const today = new Date();
-  const yesterday = new Date(today.getTime() - 86_400_000);
-  if (date.toDateString() === today.toDateString()) return "Today";
-  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-  return date.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  const todayKey = today.toDateString();
+  const yesterdayKey = new Date(today.getTime() - 86_400_000).toDateString();
+  return (at) => {
+    const date = new Date(at);
+    const key = date.toDateString();
+    if (key === todayKey) return "Today";
+    if (key === yesterdayKey) return "Yesterday";
+    return DAY_FORMAT.format(date);
+  };
 }
+
+const NO_CALLS: TraceSummary[] = [];
 
 /** The action filter's value for model calls (debug UI). */
 const MODEL_CALLS = "model-call";
@@ -305,67 +315,86 @@ export function Activity({
     [rpc, load],
   );
 
-  const { shownCalls, callCost, items, hasAnyVisibleActivity, days } =
-    useMemo(() => {
-      const shownEntries = (entries ?? []).filter(
+  const shownEntries = useMemo(
+    () =>
+      (entries ?? []).filter(
         (entry) =>
           !(debug && (action === MODEL_CALLS || failuresOnly || callKind)) &&
           (!workstream || entry.workstreams.some((w) => w.id === workstream)) &&
           (!action ||
             (!debug && action === MODEL_CALLS) ||
             entry.action === action),
-      );
-      const shownCalls =
-        debug && showCalls && (!action || action === MODEL_CALLS)
-          ? calls.filter(
-              (trace) =>
-                (!callKind || trace.kind === callKind) &&
-                (!failuresOnly || trace.status !== "ok") &&
-                (!workstream ||
-                  trace.threads.some(
-                    (id) => workstreamOf?.(id) === workstream,
-                  )),
-            )
-          : [];
-      const callCost = shownCalls.reduce(
-        (sum, trace) => sum + (trace.usage?.cost ?? 0),
-        0,
-      );
-      const items: Item[] = [
-        ...shownEntries.map((entry) => ({
-          kind: "entry" as const,
-          at: entry.at,
-          entry,
-        })),
-        ...shownCalls.map((trace) => ({
-          kind: "call" as const,
-          at: trace.at,
-          trace,
-        })),
-      ].sort((a, b) => b.at - a.at);
-      const hasAnyVisibleActivity =
-        (entries?.length ?? 0) > 0 ||
-        (debug && calls.length > 0) ||
-        Boolean(workstream || action || (debug && (callKind || failuresOnly)));
-      const days: { label: string; items: Item[] }[] = [];
-      for (const item of items) {
-        const label = day(item.at);
-        const last = days[days.length - 1];
-        if (last?.label === label) last.items.push(item);
-        else days.push({ label, items: [item] });
-      }
-      return { shownCalls, callCost, items, hasAnyVisibleActivity, days };
-    }, [
-      entries,
-      calls,
-      debug,
-      action,
-      failuresOnly,
-      callKind,
-      workstream,
-      showCalls,
-      workstreamOf,
-    ]);
+      ),
+    [entries, debug, action, failuresOnly, callKind, workstream],
+  );
+  // Only the workstream filter reads `workstreamOf`, and only for model
+  // calls, so a new page render's lookup reaches nothing else.
+  const callWorkstreamOf = workstream ? workstreamOf : undefined;
+  const { shownCalls, callCost } = useMemo(() => {
+    const shownCalls =
+      debug && showCalls && (!action || action === MODEL_CALLS)
+        ? calls.filter(
+            (trace) =>
+              (!callKind || trace.kind === callKind) &&
+              (!failuresOnly || trace.status !== "ok") &&
+              (!workstream ||
+                trace.threads.some(
+                  (id) => callWorkstreamOf?.(id) === workstream,
+                )),
+          )
+        : NO_CALLS;
+    const callCost = shownCalls.reduce(
+      (sum, trace) => sum + (trace.usage?.cost ?? 0),
+      0,
+    );
+    return { shownCalls, callCost };
+  }, [
+    calls,
+    debug,
+    action,
+    failuresOnly,
+    callKind,
+    workstream,
+    showCalls,
+    callWorkstreamOf,
+  ]);
+  const { items, hasAnyVisibleActivity, days } = useMemo(() => {
+    const items: Item[] = [
+      ...shownEntries.map((entry) => ({
+        kind: "entry" as const,
+        at: entry.at,
+        entry,
+      })),
+      ...shownCalls.map((trace) => ({
+        kind: "call" as const,
+        at: trace.at,
+        trace,
+      })),
+    ].sort((a, b) => b.at - a.at);
+    const hasAnyVisibleActivity =
+      (entries?.length ?? 0) > 0 ||
+      (debug && calls.length > 0) ||
+      Boolean(workstream || action || (debug && (callKind || failuresOnly)));
+    const days: { label: string; items: Item[] }[] = [];
+    const dayOf = dayLabels();
+    for (const item of items) {
+      const label = dayOf(item.at);
+      const last = days[days.length - 1];
+      if (last?.label === label) last.items.push(item);
+      else days.push({ label, items: [item] });
+    }
+    return { items, hasAnyVisibleActivity, days };
+  }, [
+    shownEntries,
+    shownCalls,
+    entries,
+    calls,
+    debug,
+    workstream,
+    action,
+    callKind,
+    failuresOnly,
+  ]);
 
   return (
     <div className="mt-5">
