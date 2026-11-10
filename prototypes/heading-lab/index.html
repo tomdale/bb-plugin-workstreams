@@ -186,23 +186,43 @@
          Playground frame. Nothing below draws part of the heading; it only
          gives the heading a thread pane to sit in and controls to switch.
          ------------------------------------------------------------------ */
+      /* The band and the timeline are chosen separately. The band's color is
+         the color of every gradient the heading draws, and the timeline's is
+         what those gradients are cast over, so the two only have to agree when
+         you want the product's own pairings. */
       :root {
+        --accent: #1a63d8;
         color-scheme: light;
-        --page: #efefef;
+      }
+      :root[data-band="white"] {
+        --page: #ededed;
         --background: #fff;
         --foreground: #0d0d0d;
         --muted-foreground: #676767;
         --border: #e3e3e3;
-        --accent: #1a63d8;
       }
-      :root[data-theme="dark"] {
+      :root[data-band="dark"] {
         color-scheme: dark;
-        --page: #101010;
+        --page: #0f0f0f;
         --background: #000;
         --foreground: #fff;
         --muted-foreground: #9b9b9b;
-        --border: #232323;
+        --border: #242424;
         --accent: #7aa2ff;
+      }
+      :root[data-content="white"] {
+        --content: #fff;
+        --content-fg: #0d0d0d;
+        --content-muted: #4d4d4d;
+        --content-border: #e6e6e6;
+        --content-ok: #14884a;
+      }
+      :root[data-content="dark"] {
+        --content: #050505;
+        --content-fg: #fff;
+        --content-muted: #cfcfcf;
+        --content-border: #2a2a2a;
+        --content-ok: #4ad884;
       }
       * {
         box-sizing: border-box;
@@ -270,7 +290,7 @@
         overflow: hidden;
         border: 1px solid var(--border);
         border-radius: 12px;
-        background: var(--background);
+        background: var(--content);
         box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
       }
       .bar {
@@ -281,6 +301,8 @@
         height: 44px;
         padding: 0 12px;
         border-bottom: 1px solid var(--border);
+        background: var(--background);
+        color: var(--foreground);
       }
       .bar .cluster {
         display: flex;
@@ -317,6 +339,7 @@
         inset: 0;
         overflow-y: auto;
         overscroll-behavior: contain;
+        background: var(--content);
       }
       .column {
         display: flex;
@@ -325,6 +348,7 @@
       }
       .messages {
         padding: 0 22px 40px;
+        color: var(--content-fg);
         font-size: 14px;
         line-height: 1.55;
       }
@@ -336,8 +360,8 @@
         align-items: center;
         gap: 8px;
         padding: 7px 0;
-        border-top: 1px solid var(--border);
-        color: var(--muted-foreground);
+        border-top: 1px solid var(--content-border);
+        color: var(--content-muted);
         font:
           12px/1.4 ui-monospace,
           SFMono-Regular,
@@ -346,7 +370,7 @@
       }
       .row .ok {
         margin-left: auto;
-        color: #14884a;
+        color: var(--content-ok);
       }
       .readout {
         flex: 1 1 240px;
@@ -522,10 +546,12 @@
     </div>
 
     <p class="caption">
-      White surface on purpose: every wash, mask edge, and step in contrast
-      shows against it. The pinned block is a solid band the timeline scrolls
-      under; its own last <code>0.9em</code> fades to half cover and a
-      <code>1.875rem</code> feather finishes the dissolve below it.
+      Set the <b>band</b> and the <b>timeline</b> independently: the band's
+      color is the color of every gradient the heading casts, and the timeline's
+      is what those gradients fall on. A dark band over a white timeline, or a
+      white band over a dark one, puts the most contrast under the veil, which
+      is where a gradient's behaviour is easiest to see. Pairing them the same
+      way (dark with dark, white with white) reproduces what the product shows.
     </p>
 
     <script type="module">
@@ -697,7 +723,10 @@
         goal: true,
         workstream: true,
         width: 380,
-        theme: "light",
+        // The pair the product does not use: a dark band over a light
+        // timeline puts the most contrast under the veil.
+        band: "dark",
+        content: "white",
       };
 
       const GOAL =
@@ -739,12 +768,20 @@
           key: "width",
         },
         {
-          name: "Surface",
+          name: "Band",
           options: [
-            ["light", "White"],
+            ["white", "White"],
             ["dark", "Dark"],
           ],
-          key: "theme",
+          key: "band",
+        },
+        {
+          name: "Timeline",
+          options: [
+            ["white", "White"],
+            ["dark", "Dark"],
+          ],
+          key: "content",
         },
       ];
 
@@ -914,8 +951,10 @@
       }
 
       function draw() {
-        document.documentElement.dataset.theme = state.theme;
-        document.body.classList.toggle("dark", state.theme === "dark");
+        document.documentElement.dataset.band = state.band;
+        document.documentElement.dataset.content = state.content;
+        // The shipped workstream colors key off `.dark`, which follows the band.
+        document.body.classList.toggle("dark", state.band === "dark");
         pane.style.width = `${state.width}px`;
         pane.style.height = "520px";
         setText();
@@ -1162,6 +1201,7 @@
         // --- readout --------------------------------------------------------
         readout.innerHTML = `
           <span>layout</span><b>${pinned ? "pinned" : "title bar"}${state.width < 560 ? " · narrow" : ""}</b>
+          <span>band / timeline</span><b>${state.band} band over ${state.content} timeline</b>
           <span>base / eyebrow</span><b>${base}px / ${eyebrow ? eyebrow.size.toFixed(1) + "px" : "none"}</b>
           <span>heading height</span><b>${height}px · ${lines} title line${lines === 1 ? "" : "s"}</b>
           <span>exit distance</span><b>${exitDistance.toFixed(1)}px</b>

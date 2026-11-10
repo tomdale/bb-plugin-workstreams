@@ -10,16 +10,20 @@ open prototypes/heading-lab/index.html
 
 The heading is a solid band the timeline scrolls under, so its edges only show
 up against content that is moving underneath. The page therefore puts the
-heading over a real scrolling column of messages, on a white surface where every
-wash and step in contrast is visible, with controls for the states that change
-it:
+heading over a real scrolling column of messages, with the band and the timeline
+colored independently so either one can carry the contrast, and with controls
+for the states that change it:
 
 - **Layout** — pinned in the timeline, or minimized into a title bar.
 - **Transition** — `Fade` and `Scroll`, the same two the settings offer.
 - **Title** — a short title, one that fills a line, and one that wraps, since
   wrapping changes the heading's height and the pinned block's threshold.
 - **Pane** — 380, 560, and 760 pixels wide.
-- **Surface** — white (default) or dark.
+- **Band** and **Timeline** — chosen separately. The band's color is the color
+  of every gradient the heading casts and the timeline's is what those gradients
+  fall on, so a dark band over a white timeline (the default) or a white band
+  over a dark one puts maximum contrast under the veil. Pair them to match the
+  product when you want to see what the product shows.
 - **Float**, **Reduced motion**, **Goal line**, **Workstream line** — each state
   on its own, so a change can be isolated to one of them.
 - **Scroll** — jump to the top of the thread, to two pixels either side of the
