@@ -235,6 +235,17 @@ export function useSidebarThreadsPublisher(options?: Options): void {
   useSidebarThreadsSource(store, source, options);
 }
 
+/**
+ * Reads the shared snapshot for `options` on demand, without rendering for
+ * its changes. Something else on screen must feed the view: a wide consumer,
+ * or a narrow one that elected itself (see `useSidebarThreadsSelector`).
+ */
+export function useSidebarThreadsReader(
+  options?: Options,
+): () => SidebarThreads {
+  return storeFor(useSdk(), options).snapshot;
+}
+
 /** Select a stable slice without rerendering for unrelated sidebar changes. */
 export function useSidebarThreadsSelector<T>(
   selector: (snapshot: SidebarThreads) => T,

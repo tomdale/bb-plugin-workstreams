@@ -5,7 +5,9 @@ import {
   nextThreadAfterArchive,
   nextUpNextThreadAfterArchive,
 } from "../../domain/archiveNavigation.ts";
-import { useWorkstreams } from "../useWorkstreams.ts";
+import { useSharedServerActions } from "../serverState.ts";
+import { useSidebarThread } from "../useStableSidebarThreads.ts";
+import { useUpNextReader } from "../useWorkstreams.ts";
 import { claimArchiveNavigation } from "./claims.ts";
 
 /**
@@ -23,10 +25,13 @@ export function useArchiveSuggestion(
   recap: Recap | null,
   continuing = false,
 ) {
-  const ws = useWorkstreams();
-  const { rpc, refresh, projection } = ws;
+  const { rpc, refresh } = useSharedServerActions();
+  const readUpNext = useUpNextReader();
   const actions = experimental_useSidebarThreadActions();
-  const thread = threadId ? projection.rowOf.get(threadId)?.thread : undefined;
+  // The threads the projection lists: hidden and archived ones are not.
+  const listed = useSidebarThread(threadId);
+  const thread =
+    listed && !listed.isHidden && !listed.isArchived ? listed : undefined;
   const recapId = recap?.id ?? null;
   const [eligible, setEligible] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -74,11 +79,10 @@ export function useArchiveSuggestion(
     if (!visible || !threadId || !recapId || busy) return;
     setBusy(true);
     setError(null);
+    const { projection, upNext } = readUpNext();
     const nextThreadId =
-      nextUpNextThreadAfterArchive(projection, threadId, {
-        ...ws.upNextOptions,
-        prioritized: new Set(ws.server.order.prioritized),
-      }) ?? nextThreadAfterArchive(projection, threadId);
+      nextUpNextThreadAfterArchive(projection, threadId, upNext) ??
+      nextThreadAfterArchive(projection, threadId);
     try {
       // The recap card picks its own destination, so the observer that opens
       // the next Up Next thread leaves this archive to it.
