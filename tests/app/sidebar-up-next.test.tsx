@@ -13,7 +13,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it("lists up to ten threads blocked on you, newest first, with the rest behind Show more", async () => {
+it("lists Threads shown threads blocked on you, newest first, with the rest behind Show more", async () => {
   const at = Date.now();
   const base = at - 60_000;
   const ids = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"];
@@ -44,16 +44,23 @@ it("lists up to ten threads blocked on you, newest first, with the rest behind S
     },
   );
   const band = await slot.findByRole("region", { name: "Up Next" });
-  // Unread or not, past ten the least recently active leave.
-  const top = ["l", "k", "j", "i", "h", "g", "f", "e", "d", "c"].map(
-    (id) => `Ask ${id}`,
-  );
+  // Blocked on you or not, the count is the whole list; the newest lead.
+  const top = ["l", "k", "j", "i", "h"].map((id) => `Ask ${id}`);
   expect(groupRows(slot, "Up Next")).toEqual(top);
-  // Show more lists them below the rest, which stay where they were.
-  const more = within(band).getByRole("button", { name: "Show 2 more" });
+  // Show more lists the rest below, which stay where they were.
+  const more = within(band).getByRole("button", { name: "Show 7 more" });
   expect(more.getAttribute("aria-expanded")).toBe("false");
   fireEvent.click(more);
-  expect(groupRows(slot, "Up Next")).toEqual([...top, "Ask b", "Ask a"]);
+  expect(groupRows(slot, "Up Next")).toEqual([
+    ...top,
+    "Ask g",
+    "Ask f",
+    "Ask e",
+    "Ask d",
+    "Ask c",
+    "Ask b",
+    "Ask a",
+  ]);
   fireEvent.click(within(band).getByRole("button", { name: "Show less" }));
   expect(groupRows(slot, "Up Next")).toEqual(top);
   slot.lifecycle.unmount();

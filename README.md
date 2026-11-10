@@ -361,42 +361,48 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    `needs_decision` status) or a turn ready for review is _blocked on you_;
    anything else (complete, waiting, failed) is not. A review or decision whose
    turn ended more than `7` days ago ages out and counts as not blocked; a
-   pending question card or approval never ages out. Candidates rank in six
-   tiers, each newest first by latest turn end:
-   1. Unread threads
-   2. Read questions
-   3. Read reviews
-   4. Other read threads
-   5. Unread **Waiting** threads
-   6. Read **Waiting** threads
+   pending question card or approval never ages out. Candidates rank in tiers,
+   each newest first by latest turn end. With **Prioritize unread threads** on
+   (the default), every unread thread leads every read thread, and the unread
+   ones rank by what their turn left you with:
+   1. Unread threads whose turn failed
+   2. Unread threads blocked on you
+   3. Other unread threads
+   4. Read questions
+   5. Read reviews
+   6. Other read threads
+   7. Read **Waiting** threads
 
-   Unread threads come first by default, newest first, whatever their turn was
-   blocked on; turning off **Unread first** in the Up Next settings ranks each
-   thread by what it was blocked on instead, so a read question can lead an
-   unread review. Waiting threads (the agent reported Waiting on a subagent or
-   timer, or analysis found the work still in progress) rank after every other
-   thread, even read ones. **Prioritize recent threads** in those settings moves
-   the threads whose turn ended within the chosen window above older ones,
-   whatever they were blocked on, and keeps the six tiers inside each group. Up
-   Next then trims from the bottom: threads not blocked on you leave, least
-   urgent first, until **Threads shown** remain (`5` by default); read blocked
-   threads leave until `10` remain; past that, only the `10` most recently
-   active stay, whatever their tier. So Up Next by default shows a few threads,
-   grows only for threads blocked on you, and lists at most `10` on its own. A
-   thread you have read that isn't blocked on you therefore only fills a row
-   nothing more urgent wants; turning **Keep Up Next full** off drops those
-   threads entirely, so Up Next lists just the threads that are unread or
-   blocked on you, fewer than **Threads shown** when there are fewer of them,
-   and nothing when none needs you. **Show N more** lists the trimmed threads
-   that are unread or blocked on you below the rest, and **Show less** collapses
-   them; trimmed read threads not blocked on you stay in Recent and their
-   workstreams. It re-ranks as recaps, read state, and activity change. When the
-   order changes, transforms slide existing rows to their new positions without
-   changing their heights. A row joining Up Next fades in at its destination.
-   With reduced motion enabled, the new order appears without sliding or fading.
-   The thread you have open keeps its row and place until you open another
-   thread. Nested delegates do not appear as separate Up Next entries; find them
-   in their workstream's thread tree.
+   With it off, each thread ranks by its kind alone, so a read question leads an
+   unread review:
+   1. Questions
+   2. Reviews
+   3. Other threads
+   4. **Waiting** threads
+
+   Waiting threads (the agent reported Waiting on a subagent or timer, or
+   analysis found the work still in progress) rank after the other read threads;
+   a Waiting thread nobody has read still leads them, because it has an outcome
+   to see. **Prioritize recent threads** in those settings moves the threads
+   whose turn ended within the chosen window above older ones, whatever they
+   were blocked on, and keeps the tier order inside each group. Up Next then
+   shows the **Threads shown** most urgent threads (`5` by default) and never
+   more: the count is the whole list, and a thread blocked on you is never a
+   reason to grow it past that number. A thread you have read that isn't blocked
+   on you therefore only fills a row nothing more urgent wants; turning **Show
+   read threads** off drops those threads entirely, so Up Next lists just the
+   threads that are unread or blocked on you, fewer than **Threads shown** when
+   there are fewer of them, and nothing when none needs you. **Show N more**
+   lists the threads the count pushed out that are unread or blocked on you,
+   below the rest, and **Show less** collapses them; trimmed read threads not
+   blocked on you stay in Recent and their workstreams. It re-ranks as recaps,
+   read state, and activity change. When the order changes, transforms slide
+   existing rows to their new positions without changing their heights. A row
+   joining Up Next fades in at its destination. With reduced motion enabled, the
+   new order appears without sliding or fading. The thread you have open keeps
+   its row and place until you open another thread. Nested delegates do not
+   appear as separate Up Next entries; find them in their workstream's thread
+   tree.
    - **Focus:** While a focused workstream has a thread blocked on you, Up Next
      applies these rules to focused workstreams' threads only and marks its
      header with the focus icon.
@@ -959,9 +965,9 @@ Open **Settings → Workstreams** to configure:
 | **Sidebar**           | **Up next and workstreams on phones**              | `On`                                        | Replaces BB's flat Recent list on the compact phone Home screen.                                                                                                                                                                                   |
 | **Sidebar**           | **Timestamp**                                      | `Always`                                    | Show each row's age, right after its title, `Always`, `On hover`, or `Never`.                                                                                                                                                                      |
 | **Sidebar**           | **Thread count** / **Waiting count**               | `When collapsed`                            | Show workstream counts `Always`, `When collapsed`, or `Never`.                                                                                                                                                                                     |
-| **Up Next**           | **Threads shown**                                  | `5` (`1–10`)                                | How many rows Up Next shows by default. Threads blocked on you still grow past this count, up to `10`.                                                                                                                                             |
-| **Up Next**           | **Keep Up Next full**                              | `On`                                        | On, threads you have read top up the rows after the ones that need you. Off, Up Next leaves them out, so it holds fewer rows than **Threads shown**, or none, when nothing needs you.                                                              |
-| **Up Next**           | **Unread first**                                   | `On`                                        | On, unread threads come before read ones, newest first. Off, each thread ranks by what its turn was blocked on, so a read question can lead an unread review.                                                                                      |
+| **Up Next**           | **Threads shown**                                  | `5` (`1–10`)                                | How many rows Up Next shows before **Show N more**. The list never grows past this count.                                                                                                                                                          |
+| **Up Next**           | **Show read threads**                              | `On`                                        | On, threads you have already read fill the rows left after the ones blocked on you. Off, it skips threads you have read that aren't blocked on you, so Up Next holds fewer rows than **Threads shown**, or none, when nothing needs you.           |
+| **Up Next**           | **Prioritize unread threads**                      | `On`                                        | On, unread threads lead every read thread, and failed ones lead the unread. Off, each thread ranks by what it's blocked on, so a read question can lead an unread review.                                                                          |
 | **Up Next**           | **Prioritize recent threads**                      | `Don't prioritize`                          | Threads whose turn ended within the chosen window (`Last hour` through `Last week`) lead, whatever they were blocked on. The ranking above still orders the threads inside each group.                                                             |
 | **Working indicator** | **Style**, **Color**, **Track**                    | `Spokes`, `Subtle gray`, `Faded color`      | Choose from `7` spinner shapes (`Spokes`, `Sunburst`, `Arc`, `Orbit`, `Ring`, `Braille`, `Dots`), named or custom `#rrggbb` colors, and track styles for `Arc`/`Orbit`/`Ring`.                                                                     |
 | **Colors**            | **Default colors**, then six colors                | `Workstreams`                               | **Default colors** picks Workstreams' own shades or matching bb theme colors; each color's swatches can override it with a theme color or a custom `#rrggbb`.                                                                                      |

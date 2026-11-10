@@ -98,13 +98,26 @@ describe("selectUpNext", () => {
     ]);
   });
 
-  it("ranks Waiting threads after every other thread, even read ones", () => {
+  it("ranks an unread Waiting thread with the other unread threads", () => {
+    // Waiting is still waiting on something else, so it comes last among read
+    // threads; an unread one has an outcome to see and leads them all.
     expect(
       upNext([t("wu1", 900), t("wr1", 800), t("or1", 1), t("ou1", 2)]),
-    ).toEqual(["ou1", "or1", "wu1", "wr1"]);
+    ).toEqual(["wu1", "ou1", "or1", "wr1"]);
   });
 
-  it("trims Waiting threads first, then the rest from the bottom", () => {
+  it("ranks an unread failed turn first, then threads blocked on you", () => {
+    expect(
+      upNext([
+        t("ou1", 900),
+        t("ou2", 800, { status: "error" }),
+        t("qu1", 700),
+        t("qr1", 950),
+      ]),
+    ).toEqual(["ou2", "qu1", "ou1", "qr1"]);
+  });
+
+  it("shows the most urgent threads and no more", () => {
     expect(
       upNext([
         t("qu1", 1),
@@ -115,7 +128,7 @@ describe("selectUpNext", () => {
         t("or2", 4),
         t("or3", 2),
       ]),
-    ).toEqual(["ou1", "qu1", "or1", "or2", "or3"]);
+    ).toEqual(["qu1", "wu1", "ou1", "or1", "or2"]);
     expect(
       upNext([
         ...[1, 2, 3, 4, 5].map((n) => t(`ou${n}`, 10 - n)),
@@ -124,15 +137,15 @@ describe("selectUpNext", () => {
     ).toEqual(["ou1", "ou2", "ou3", "ou4", "ou5"]);
   });
 
-  it("keeps a trimmed unread Waiting thread behind Show more", () => {
+  it("keeps a trimmed unread thread behind Show more", () => {
     const projection = projectWorkstreams(
-      [...[1, 2, 3, 4, 5].map((n) => t(`or${n}`, 10 - n)), t("wu1", 99)],
+      [...[1, 2, 3, 4, 5, 6].map((n) => t(`ou${n}`, 100 - n)), t("or1", 999)],
       sections,
       { now },
     );
-    expect(ids(selectUpNext(projection, { kindOf, now: clock }).more)).toEqual([
-      "wu1",
-    ]);
+    const selection = selectUpNext(projection, { kindOf, now: clock });
+    expect(ids(selection.rows)).toEqual(["ou1", "ou2", "ou3", "ou4", "ou5"]);
+    expect(ids(selection.more)).toEqual(["ou6"]);
   });
 
   it("lists every thread while there are few", () => {
@@ -189,7 +202,7 @@ describe("selectUpNext", () => {
     ).toEqual(["qu1", "ou1", "ou2", "or1", "or2"]);
   });
 
-  it("drops unread threads not blocked on you once the read ones are gone", () => {
+  it("fills the last rows from the read threads once the unread ones run out", () => {
     expect(
       upNext([
         t("qr1", 10),
@@ -200,25 +213,28 @@ describe("selectUpNext", () => {
         t("ou2", 6),
         t("ou3", 5),
       ]),
-    ).toEqual(["qu1", "ou1", "ou2", "qr1", "rr1"]);
+    ).toEqual(["qu1", "ou1", "ou2", "ou3", "qr1"]);
   });
 
-  it("grows past five for threads blocked on you, read ones included", () => {
-    expect(
-      upNext([
-        t("qu1", 10),
-        t("ru1", 9),
-        t("qr1", 8),
-        t("qr2", 7),
-        t("rr1", 6),
-        t("rr2", 5),
-        t("ou1", 99),
-        t("or1", 98),
-      ]),
-    ).toEqual(["qu1", "ru1", "qr1", "qr2", "rr1", "rr2"]);
+  it("never lists more than Threads shown, however many are blocked on you", () => {
+    const threads = [
+      t("qu1", 10),
+      t("ru1", 9),
+      t("qr1", 8),
+      t("qr2", 7),
+      t("rr1", 6),
+      t("rr2", 5),
+      t("ou1", 99),
+      t("or1", 98),
+    ];
+    const projection = projectWorkstreams(threads, sections, { now });
+    const selection = selectUpNext(projection, { kindOf, now: clock });
+    expect(ids(selection.rows)).toEqual(["qu1", "ru1", "ou1", "qr1", "qr2"]);
+    // The read threads it cut still wait behind Show more, most urgent first.
+    expect(ids(selection.more)).toEqual(["rr1", "rr2"]);
   });
 
-  it("drops read blocked threads, least urgent first, down to ten", () => {
+  it("lands read blocked threads past the count behind Show more", () => {
     const unread = Array.from({ length: 6 }, (_, i) => t(`qu${i}`, 100 - i));
     const read = [
       t("qr1", 50),
@@ -227,23 +243,32 @@ describe("selectUpNext", () => {
       t("rr2", 48),
       t("rr3", 47),
     ];
-    const shown = upNext([...unread, ...read, t("ou1", 300)]);
-    expect(shown).toHaveLength(UP_NEXT_MAX);
-    expect(shown).toEqual([
-      ...unread.map((thread) => thread.id),
+    const projection = projectWorkstreams(
+      [...unread, ...read, t("ou1", 300)],
+      sections,
+      { now },
+    );
+    const selection = selectUpNext(projection, { kindOf, now: clock });
+    expect(ids(selection.rows)).toEqual(["qu0", "qu1", "qu2", "qu3", "qu4"]);
+    expect(ids(selection.more)).toEqual([
+      "qu5",
+      "ou1",
       "qr1",
       "qr2",
       "rr1",
       "rr2",
+      "rr3",
     ]);
   });
 
-  it("keeps only the ten most recently active once unread blocked threads alone exceed ten", () => {
+  it("shows at most the ten the setting allows", () => {
     // Unread threads rank newest first, so the newer reviews lead and the
     // oldest questions leave.
     const questions = Array.from({ length: 8 }, (_, i) => t(`qu${i}`, 100 + i));
     const reviews = Array.from({ length: 4 }, (_, i) => t(`ru${i}`, 200 + i));
-    const shown = upNext([...questions, ...reviews, t("qr1", 999)]);
+    const shown = upNext([...questions, ...reviews, t("qr1", 999)], {
+      shown: UP_NEXT_MAX,
+    });
     expect(shown).toEqual([
       "ru3",
       "ru2",
@@ -402,7 +427,7 @@ describe("selectUpNext", () => {
           t("rr1", 999),
           t("or1", 998),
         ]),
-      ).toEqual(["qu1", "qu0", "rr1"]);
+      ).toEqual(["qu6", "qu5", "qu4", "qu3", "qu2", "qu1", "qu0", "rr1"]);
     });
 
     it("stays within the focused workstreams", () => {
@@ -522,9 +547,9 @@ describe("selectUpNext", () => {
         t("or4", 6),
       ];
       expect(upNext(quiet)).toHaveLength(5);
-      // Trimmed threads not blocked on you leave first, from the bottom.
+      // The rows are the most urgent threads, cut at the chosen count.
       expect(upNext(quiet, { shown: 2 })).toEqual(["qu1", "or1"]);
-      // Threads blocked on you still grow past the chosen count.
+      // Threads blocked on you don't grow the list past that count.
       const blocked = [
         t("qu1", 10),
         t("qr1", 9),
@@ -532,12 +557,7 @@ describe("selectUpNext", () => {
         t("rr1", 7),
         t("or1", 6),
       ];
-      expect(upNext(blocked, { shown: 2 })).toEqual([
-        "qu1",
-        "qr1",
-        "qr2",
-        "rr1",
-      ]);
+      expect(upNext(blocked, { shown: 2 })).toEqual(["qu1", "qr1"]);
     });
 
     it("leaves the trimmed unread threads behind Show more", () => {
@@ -555,18 +575,21 @@ describe("selectUpNext", () => {
       expect(ids(selection.more)).toEqual(["ou1", "ou2"]);
     });
 
-    it("keeps the Show-more ceiling whatever the chosen count", () => {
+    it("never shows more than the count, whatever the count allows", () => {
       const threads = Array.from({ length: 12 }, (_, i) =>
         t(`qu${i}`, 100 + i),
       );
       expect(upNext(threads, { shown: 99 })).toHaveLength(UP_NEXT_MAX);
+      expect(upNext(threads)).toHaveLength(UP_NEXT_LIMIT);
     });
 
-    it("ranks unread with their kind when unread doesn't lead", () => {
+    it("ranks by kind alone when unread threads don't lead", () => {
       const threads = [t("ou1", 200), t("ru1", 100), t("qr1", 90)];
-      expect(upNext(threads)).toEqual(["ou1", "ru1", "qr1"]);
-      // A read question now leads an unread review, and unread only breaks a
-      // kind's tie. Waiting threads still come last, even unread ones.
+      // Unread leads every read thread by default, and a failed turn or a
+      // thread blocked on you leads the unread ones.
+      expect(upNext(threads)).toEqual(["ru1", "ou1", "qr1"]);
+      // Turned off, a read question leads an unread review, and unread only
+      // breaks a kind's tie. Waiting threads come last either way.
       expect(
         upNext([...threads, t("wu1", 300)], { unreadFirst: false }),
       ).toEqual(["qr1", "ru1", "ou1", "wu1"]);

@@ -181,25 +181,25 @@ export function UpNextSettings() {
     { value: "7d", label: "Last week" },
   ];
   const fillDescription = prefs.upNext.fill
-    ? "Adds threads you have read after the ones that need you."
-    : "Leaves out threads you have read that aren't waiting on you, so Up Next can be empty.";
+    ? "Threads you have already read fill the rows left after the ones blocked on you."
+    : "Skips threads you have read that aren't blocked on you.";
   const unreadDescription = prefs.upNext.unreadFirst
-    ? "Unread threads come before read ones, newest first."
-    : "A read question can lead an unread review.";
+    ? "Unread threads lead every read thread; failed ones lead the unread."
+    : "Every thread ranks by what it's blocked on, so a read question can lead an unread review.";
   const window = windows.find(
     (option) => option.value === prefs.upNext.freshWindow,
   );
   const freshDescription =
     window && window.value !== "off"
-      ? `Threads that finished in the ${window.label.toLowerCase()} lead, whatever they are waiting on.`
-      : "Every thread ranks by what it needs from you, however recently it finished.";
+      ? `Threads whose turn ended in the ${window.label.toLowerCase()} lead; the usual order holds inside them.`
+      : "Threads keep their place, however recently their turn ended.";
   return (
     <div className="space-y-3">
       <SettingsSaveError error={error} />
       <SectionRows>
         <SettingRow
           label="Threads shown"
-          description="How many rows Up Next shows by default."
+          description="How many rows Up Next shows before Show more."
           control={
             <Stepper
               label="threads shown"
@@ -211,22 +211,22 @@ export function UpNextSettings() {
           }
         />
         <SettingRow
-          label="Keep Up Next full"
+          label="Show read threads"
           description={fillDescription}
           control={
             <SettingSwitch
-              label="Keep Up Next full"
+              label="Show read threads"
               checked={prefs.upNext.fill}
               onChange={(next) => update({ upNext: { fill: next } })}
             />
           }
         />
         <SettingRow
-          label="Unread first"
+          label="Prioritize unread threads"
           description={unreadDescription}
           control={
             <SettingSwitch
-              label="Unread first"
+              label="Prioritize unread threads"
               checked={prefs.upNext.unreadFirst}
               onChange={(unreadFirst) => update({ upNext: { unreadFirst } })}
             />

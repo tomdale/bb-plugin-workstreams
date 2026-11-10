@@ -244,8 +244,10 @@ it("saves Up Next's row count, fill, unread order, and recent window", async () 
   expect(shown.textContent).toBe("5");
   fireEvent.click(slot.getByRole("button", { name: "Increase threads shown" }));
   await waitFor(() => expect(shown.textContent).toBe("6"));
-  fireEvent.click(slot.getByRole("switch", { name: "Keep Up Next full" }));
-  fireEvent.click(slot.getByRole("switch", { name: "Unread first" }));
+  fireEvent.click(slot.getByRole("switch", { name: "Show read threads" }));
+  fireEvent.click(
+    slot.getByRole("switch", { name: "Prioritize unread threads" }),
+  );
   fireEvent.click(
     slot.getByRole("button", { name: "Prioritize recent threads" }),
   );
@@ -271,32 +273,40 @@ it("describes each Up Next setting as it is set now", async () => {
   const slot = await mount("up-next");
   expect(
     await slot.findByText(
-      "Adds threads you have read after the ones that need you.",
+      "Threads you have already read fill the rows left after the ones blocked on you.",
     ),
   ).toBeTruthy();
   expect(
-    slot.getByText("Unread threads come before read ones, newest first."),
+    slot.getByText(
+      "Unread threads lead every read thread; failed ones lead the unread.",
+    ),
   ).toBeTruthy();
-  fireEvent.click(slot.getByRole("switch", { name: "Keep Up Next full" }));
-  fireEvent.click(slot.getByRole("switch", { name: "Unread first" }));
+  fireEvent.click(slot.getByRole("switch", { name: "Show read threads" }));
+  fireEvent.click(
+    slot.getByRole("switch", { name: "Prioritize unread threads" }),
+  );
   expect(
     await slot.findByText(
-      "Leaves out threads you have read that aren't waiting on you, so Up Next can be empty.",
+      "Skips threads you have read that aren't blocked on you.",
     ),
   ).toBeTruthy();
   expect(
-    slot.getByText("A read question can lead an unread review."),
+    slot.getByText(
+      "Every thread ranks by what it's blocked on, so a read question can lead an unread review.",
+    ),
   ).toBeTruthy();
   // The labels hold still while the lines under them follow the setting.
-  expect(slot.getByRole("switch", { name: "Keep Up Next full" })).toBeTruthy();
-  expect(slot.getByRole("switch", { name: "Unread first" })).toBeTruthy();
+  expect(slot.getByRole("switch", { name: "Show read threads" })).toBeTruthy();
+  expect(
+    slot.getByRole("switch", { name: "Prioritize unread threads" }),
+  ).toBeTruthy();
 });
 
 it("describes the recent-thread window it is set to", async () => {
   const slot = await mount("up-next");
   expect(
     await slot.findByText(
-      "Every thread ranks by what it needs from you, however recently it finished.",
+      "Threads keep their place, however recently their turn ended.",
     ),
   ).toBeTruthy();
   fireEvent.click(
@@ -305,7 +315,7 @@ it("describes the recent-thread window it is set to", async () => {
   fireEvent.click(await slot.findByRole("option", { name: "Last day" }));
   expect(
     await slot.findByText(
-      "Threads that finished in the last day lead, whatever they are waiting on.",
+      "Threads whose turn ended in the last day lead; the usual order holds inside them.",
     ),
   ).toBeTruthy();
 });

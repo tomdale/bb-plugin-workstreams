@@ -188,9 +188,11 @@ it("resets Show more after the extra rows disappear", () => {
   const threads = Array.from({ length: 12 }, (_, i) =>
     thread(`q${i}`, { hasPendingInteraction: true, latestAttentionAt: i }),
   );
+  // The count is the whole list, so every blocked thread past it waits behind
+  // Show more.
   const closed = view(threads);
-  expect(closed.rows).toHaveLength(10);
-  expect(closed.moreCount).toBe(2);
+  expect(closed.rows).toHaveLength(5);
+  expect(closed.moreCount).toBe(7);
   const open = view(threads, null, closed.state, { expanded: true });
   expect(open.rows).toHaveLength(12);
   expect(open.moreCount).toBe(0);
@@ -198,7 +200,7 @@ it("resets Show more after the extra rows disappear", () => {
   expect(fewer.expanded).toBe(false);
   expect(
     view(threads, null, fewer.state, { expanded: fewer.expanded }).rows,
-  ).toHaveLength(10);
+  ).toHaveLength(5);
 });
 
 it("does not count an anchored overflow row twice in Show more", () => {

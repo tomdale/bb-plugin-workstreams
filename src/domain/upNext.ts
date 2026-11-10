@@ -13,38 +13,36 @@
  * blocked on the user elsewhere wait outside Up Next.
  *
  * Candidates rank by tier, then by latest attention (BB's turn-end time,
- * the one unread compares against), newest first. Unread threads lead by
- * default: an unread thread has an outcome the user hasn't seen, whatever
- * its turn was blocked on. The tiers are then:
+ * the one unread compares against), newest first. With "Prioritize unread
+ * threads" on, every unread thread leads every read thread, and the unread
+ * threads rank by what their turn leaves the user with: a failed turn first,
+ * then a thread blocked on the user, then the rest. Read threads follow in
+ * their kind's order:
  *
- * 1. unread            2. read questions  3. read reviews
- * 4. other read        5. unread waiting  6. read waiting
+ * 1. unread, failed   2. unread, blocked on the user   3. unread, other
+ * 4. read questions   5. read reviews   6. other read   7. read waiting
  *
- * With unread threads not leading (`unreadFirst` off), each thread keeps its
- * kind's tier and unread only breaks ties, so a read question leads an unread
- * review:
+ * With that setting off (`unreadFirst`), each thread keeps its kind's tier and
+ * unread only breaks ties, so a read question leads an unread review:
  *
  * 1. questions  2. reviews  3. other  4. waiting
  *
- * Either way "Waiting" threads are still waiting on something else (a
- * subagent, a timer), so they come after every other thread, even read ones.
+ * "Waiting" threads are still waiting on something else (a subagent, a timer),
+ * so they rank after the other read threads; a Waiting thread nobody has read
+ * leads them, because it has an outcome to see.
  *
  * "Prioritize recent threads" (`freshWithinMs`) puts the threads whose turn
  * ended inside that window above every other thread, before any of this
  * applies; inside each of the two groups the order is the same one above.
  *
- * The list then trims from the least urgent end: threads not blocked on the
- * user leave, bottom first, until `shown` (see {@link UP_NEXT_LIMIT}) remain;
- * read blocked threads leave until {@link UP_NEXT_MAX} remain; and past that,
- * only the most recently active {@link UP_NEXT_MAX} stay, whatever their
- * tier. So Up Next always holds a few threads, grows only for threads
- * blocked on the user, and stays short enough to act on. The trimmed
- * threads that are unread or blocked on the user wait behind Show more,
- * whether or not unread threads lead. A thread that is read and not blocked
- * on the user therefore only fills a row nothing more urgent wants, and with
- * `fill` off ("Fill with recent threads" in settings) none of them fills one:
- * Up Next lists just the threads that are unread or blocked on the user, and
- * can be empty.
+ * Up Next then shows the `shown` most urgent of them (see
+ * {@link UP_NEXT_LIMIT}), and never more: the rest are Trimmed, and those that
+ * are unread or blocked on the user wait behind Show more. So the list stays
+ * short enough to act on, and a thread blocked on the user is never a reason
+ * to grow it. A thread that is read and not blocked on the user only fills a
+ * row nothing more urgent wants, and with `fill` off ("Show read threads" in
+ * settings) none of them fills one: Up Next lists just the threads that are
+ * unread or blocked on the user, and can be empty.
  *
  * Nested threads never appear on their own (BB doesn't mark a delegate
  * unread when its turn ends); they show under their root's row. Parent
@@ -64,7 +62,7 @@ import { buildForest } from "./tree.ts";
  * another count (see `UP_NEXT_SHOWN` in domain/prefs.ts).
  */
 export const UP_NEXT_LIMIT = 5;
-/** Up Next never lists more than this many rows, Show more included. */
+/** The most rows the Threads shown setting allows Up Next to list. */
 export const UP_NEXT_MAX = 10;
 /** How long a finished turn's review or decision stays blocked on the user. */
 export const UP_NEXT_STALE_AFTER_MS = 7 * DAY_MS;
@@ -126,6 +124,11 @@ export type UpNextOptions<T extends UpNextThread> = {
    */
   readonly shown?: number;
   /** Unread threads rank above every other thread. True when absent. */
+  /**
+   * Rank unread threads above every read thread, and within them a failed turn
+   * first, then one blocked on the user. False ranks each thread by its kind
+   * alone. True when absent.
+   */
   readonly unreadFirst?: boolean;
   /**
    * Threads whose turn ended within this window rank above older ones, in
@@ -214,16 +217,21 @@ const KIND_TIER: Record<UpNextKind, number> = {
   waiting: 3,
 };
 
+/** Read threads keep their kind's order below every unread thread. */
+const READ_TIER_OFFSET = 3;
+
 /** Tier rank, 0 most urgent; see the module comment. */
 function tierOf(
   kind: UpNextKind,
   unread: boolean,
+  failed: boolean,
   unreadFirst: boolean,
 ): number {
   if (!unreadFirst) return KIND_TIER[kind];
-  // A waiting thread ranks last either way, ahead of read waiting threads.
-  if (kind === "waiting") return unread ? 4 : 5;
-  return unread ? 0 : KIND_TIER[kind] + 1;
+  if (!unread) return KIND_TIER[kind] + READ_TIER_OFFSET;
+  // What an unread thread leaves the user with, most urgent first.
+  if (failed) return 0;
+  return isBlockedOnUser(kind) ? 1 : 2;
 }
 
 const byAttention = (a: Row<WorkstreamThread>, b: Row<WorkstreamThread>) =>
@@ -269,7 +277,12 @@ export function selectUpNext<T extends UpNextThread>(
         fresh:
           freshWithinMs > 0 &&
           options.now - row.thread.latestAttentionAt <= freshWithinMs,
-        tier: tierOf(kind, row.thread.isUnread, unreadFirst),
+        tier: tierOf(
+          kind,
+          row.thread.isUnread,
+          row.thread.status === "error",
+          unreadFirst,
+        ),
         prioritized:
           row.workstreamId !== null &&
           (options.prioritized?.has(row.workstreamId) ?? false),
@@ -284,43 +297,17 @@ export function selectUpNext<T extends UpNextThread>(
 
   const focused = ranked.some((entry) => entry.prioritized && entry.onYou);
   const pool = focused ? ranked.filter((entry) => entry.prioritized) : ranked;
-  let shown = pool;
-  /** Drops `removable` entries from the least urgent end until `target`. */
-  const trim = (
-    target: number,
-    removable: (entry: (typeof ranked)[number]) => boolean,
-  ) => {
-    let excess = shown.length - target;
-    if (excess <= 0) return;
-    const kept: typeof ranked = [];
-    for (const entry of [...shown].reverse()) {
-      if (excess > 0 && removable(entry)) excess -= 1;
-      else kept.push(entry);
-    }
-    shown = kept.reverse();
-  };
   // What the user has to act on: everything else is filler, and with `fill`
   // off none of it fills a row, so Up Next may stop short of `shown`.
   const actionable = pool.filter((entry) => entry.onYou || entry.unread).length;
-  trim(
-    fill ? shownCount : Math.min(shownCount, actionable),
-    (entry) => !entry.onYou,
-  );
-  trim(UP_NEXT_MAX, (entry) => entry.onYou && !entry.unread);
-  if (shown.length > UP_NEXT_MAX) {
-    const newest = new Set(
-      shown
-        .map((entry) => entry.row)
-        .sort(byAttention)
-        .slice(0, UP_NEXT_MAX),
-    );
-    shown = shown.filter((entry) => newest.has(entry.row));
-  }
+  const target = fill ? shownCount : Math.min(shownCount, actionable);
+  const shown = pool.slice(0, target);
   const inUpNext = new Set(shown);
   return {
     rows: shown.map((entry) => entry.row),
     more: pool
-      .filter((entry) => !inUpNext.has(entry) && (entry.unread || entry.onYou))
+      .slice(target)
+      .filter((entry) => entry.unread || entry.onYou)
       .map((entry) => entry.row),
     focused,
   };

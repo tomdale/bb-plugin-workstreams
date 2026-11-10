@@ -225,8 +225,8 @@ it("skips unchanged Up Next rows with generated workstream colors", async () => 
     threads,
     prefs: { showForYou: true, showSnoozed: false },
   });
-  await waitFor(() => expect(slot.getAllByRole("link")).toHaveLength(10));
-  fireEvent.click(slot.getByRole("button", { name: "Show 110 more" }));
+  await waitFor(() => expect(slot.getAllByRole("link")).toHaveLength(5));
+  fireEvent.click(slot.getByRole("button", { name: "Show 115 more" }));
   await waitFor(() => expect(slot.getAllByRole("link")).toHaveLength(120));
 
   ages.mockClear();
