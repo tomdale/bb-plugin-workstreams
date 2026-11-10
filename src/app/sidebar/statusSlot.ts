@@ -38,14 +38,15 @@ export function slotContentWidth(
   kind: SlotContent,
   shape: SpinnerStyle["shape"],
 ): number {
-  if (kind !== "disclosure" && dotMark(kind)) return DOT_PX;
+  // The chevron's ink is narrower than a dot's box; its button spreads past
+  // the slot (see Row).
+  if (kind === "disclosure" || dotMark(kind)) return DOT_PX;
   switch (kind) {
     case "working":
     case "waiting":
       return SPINNER_WIDTH_PX[shape];
     default:
-      // The failure circle, the pencil, and the disclosure chevron sit in a
-      // full 14px box.
+      // The failure circle and the pencil sit in a full 14px box.
       return FULL_SLOT_PX;
   }
 }
@@ -66,7 +67,8 @@ export function slotWidthOf(
 ): number {
   let width = 0;
   for (const row of rows) {
-    if (row.hasChildren) width = Math.max(width, FULL_SLOT_PX);
+    if (row.hasChildren)
+      width = Math.max(width, slotContentWidth("disclosure", shape));
     const mark = slotMarkFor(row.thread, work(row.thread) ?? { kind: "none" });
     if (mark) width = Math.max(width, slotContentWidth(mark.kind, shape));
   }

@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { workstreamHue } from "../../src/domain/workstreamHue.ts";
+import { childIndent } from "../../src/app/sidebar/statusSlot.ts";
 import { section, sidebarThread } from "./fixtures.ts";
 import { groupRows, mount } from "./sidebar-fixture.tsx";
 beforeEach(() => {
@@ -463,7 +464,7 @@ describe("small groups", () => {
     expect(
       parseFloat(delegate.style.paddingLeft) -
         parseFloat(root.style.paddingLeft),
-    ).toBe(20);
+    ).toBe(childIndent(8));
     slot.lifecycle.unmount();
   });
 

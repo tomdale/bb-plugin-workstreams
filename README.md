@@ -544,10 +544,10 @@ weight. Unread titles use medium weight.
   turn keeps its circle until the thread runs again, so reading the row does not
   clear it. Blocked threads show no mark. Rows in a list share one mark column,
   as wide as the widest mark any of them draws, so titles keep one left edge. A
-  list with only dots has a narrow column; one with a spinner, failure circle,
-  draft pencil, or a thread that has children widens it, and the titles slide
-  over as marks come and go. The spinner shape chosen in Settings sets its own
-  width.
+  list with only dots has a narrow column, and a thread that has children adds
+  its chevron without widening it. A spinner, failure circle, or draft pencil
+  widens the column, and the titles slide over as marks come and go. The spinner
+  shape chosen in Settings sets its own width.
 - **Hover actions:** **Archive** and **Snooze** (click to snooze with your
   default preset; rest the pointer for `350 ms` to open the snooze menu, or
   click **Wake now** on a snoozed row). Thread rows and workstream headers share

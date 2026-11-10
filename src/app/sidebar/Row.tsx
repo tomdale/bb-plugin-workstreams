@@ -191,14 +191,17 @@ export function Row({
         ) : null}
         {disclosure ? (
           // Sits in the status slot: always shown when the slot is otherwise
-          // empty, and swapped in for the status mark on hover.
+          // empty, and swapped in for the status mark on hover. The 12px
+          // chevron's ink is far narrower than its box, so the slot needs
+          // no more width than a dot; the button spreads 3px past each side
+          // to stay a 14px target.
           <RowPressButton
             aria-label={
               disclosure.expanded ? "Hide child threads" : "Show child threads"
             }
             aria-expanded={disclosure.expanded}
             onClick={disclosure.toggle}
-            className="ws-disclosure absolute inset-0 flex cursor-pointer items-center justify-center rounded text-muted-foreground hover:text-foreground"
+            className="ws-disclosure absolute inset-y-0 -inset-x-[3px] flex cursor-pointer items-center justify-center rounded text-muted-foreground hover:text-foreground"
           >
             <Icon
               name={disclosure.expanded ? "ChevronDown" : "ChevronRight"}

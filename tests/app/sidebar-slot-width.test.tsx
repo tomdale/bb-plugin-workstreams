@@ -115,7 +115,8 @@ describe("slot content widths", () => {
     expect(slotContentWidth("needs-you", "spokes")).toBe(8);
     expect(slotContentWidth("review", "arc")).toBe(8);
     expect(slotContentWidth("done", "arc")).toBe(8);
-    for (const kind of ["error", "draft", "disclosure"] as const)
+    expect(slotContentWidth("disclosure", "spokes")).toBe(8);
+    for (const kind of ["error", "draft"] as const)
       expect(slotContentWidth(kind, "arc")).toBe(FULL_SLOT_PX);
   });
 
@@ -246,6 +247,21 @@ describe.skipIf(browserUnavailable)("slot geometry in the browser", () => {
         (typeof measured)[number],
       ];
       expect(child.slotLeft).toBe(parent.titleLeft);
+    },
+  );
+
+  browserTest(
+    "keeps a parent's chevron from widening a list of dots",
+    { timeout: 30_000 },
+    async ({ page }) => {
+      const measured = await rows(page, [
+        row("parent", asking),
+        row("child", { parentThreadId: "parent", ...asking }),
+        row("other"),
+      ]);
+      expect(measured.map((r) => r.slot)).toEqual([8, 8, 8]);
+      const at = (title: string) => measured.find((r) => r.title === title)!;
+      expect(at("child").slotLeft).toBe(at("parent").titleLeft);
     },
   );
 });
