@@ -66,6 +66,15 @@ function QuestionDraftTextarea({
   return <textarea {...props} defaultValue={initialValue.current} />;
 }
 
+/**
+ * Whether the browser sizes a textarea to its text from CSS alone. Older
+ * Safari does not, and there the field measures itself after each edit.
+ */
+const FIELD_SIZING =
+  typeof CSS !== "undefined" &&
+  typeof CSS.supports === "function" &&
+  CSS.supports("field-sizing", "content");
+
 interface QuestionNotesFieldProps {
   label: string;
   value: string;
@@ -87,7 +96,7 @@ function QuestionNotesField({
   const ref = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const node = ref.current;
-    if (!node) return;
+    if (FIELD_SIZING || !node) return;
     node.style.height = "auto";
     node.style.height = `${node.scrollHeight}px`;
   }, [value]);
@@ -103,7 +112,8 @@ function QuestionNotesField({
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKeyDown}
         className={cn(
-          "block max-h-28 w-full resize-none rounded-md border border-border bg-background/50 px-2.5 py-1.5 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring/50 focus-visible:ring-1 focus-visible:ring-ring/30",
+          // Content sizing ignores `rows`, so the minimum is one line.
+          "block min-h-[calc(1lh+0.75rem+2px)] max-h-28 w-full resize-none rounded-md field-sizing-content border border-border bg-background/50 px-2.5 py-1.5 text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring/50 focus-visible:ring-1 focus-visible:ring-ring/30",
           LABEL_CLASS,
         )}
       />
