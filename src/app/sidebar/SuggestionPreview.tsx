@@ -5,7 +5,8 @@
  * rows are indented beside a guide line. A row that leaves is dimmed and
  * crossed out; one that lands, appears or changes takes its workstream's
  * color, as the sidebar draws that workstream, and counts are visible
- * threads. A landing row's count opens the threads that arrive.
+ * threads, in muted text. A landing row's count opens the threads that
+ * arrive.
  */
 import { useState, type CSSProperties } from "react";
 import { Icon } from "@/components/ui/icon";
@@ -117,17 +118,14 @@ function Row({ row, colors }: { row: PreviewRow; colors?: PreviewColors }) {
         aria-expanded={open}
         aria-label={`${open ? "Hide" : "Show"} ${plural(row.arriving.length)} arriving in ${row.name}`}
         onClick={() => setOpen(!open)}
-        className="-mx-0.5 cursor-pointer rounded px-0.5 text-[11px] tabular-nums text-(--ws-preview-accent) underline decoration-dotted underline-offset-2 hover:bg-state-hover"
+        // Quiet like any count until the pointer or focus finds it, then a
+        // chip; it stays filled while its threads are listed.
+        className="-ml-0.5 -mr-1 cursor-pointer rounded px-1 text-[11px] tabular-nums text-muted-foreground outline-none hover:bg-state-hover hover:text-foreground focus-visible:bg-state-hover focus-visible:text-foreground aria-expanded:bg-state-hover aria-expanded:text-foreground"
       >
         {row.count}
       </button>
     ) : (
-      <span
-        className={cn(
-          "text-[11px] tabular-nums text-muted-foreground",
-          landing && "text-(--ws-preview-accent)",
-        )}
-      >
+      <span className="text-[11px] tabular-nums text-muted-foreground">
         {row.count}
       </span>
     );
