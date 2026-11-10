@@ -1503,7 +1503,6 @@ export class TopicStore {
    */
   visibleAssignments(): Record<string, TopicAssignment> {
     const entities = this.list();
-    const byId = new Map(entities.map((e) => [e.id, e]));
     const parents = new Map(
       (
         this.db
@@ -1520,12 +1519,7 @@ export class TopicStore {
              WHERE thread_id IN (SELECT thread_id FROM ws_seen_thread
                UNION SELECT parent_thread_id FROM ws_seen_thread)`,
           )
-          .all() as {
-          thread_id: string;
-          entity_id: string | null;
-          evidence: string | null;
-          source: string;
-        }[]
+          .all() as (SubjectRow & { thread_id: string })[]
       ).map((row) => [row.thread_id, row]),
     );
     const result: Record<string, TopicAssignment> = {};
@@ -1538,30 +1532,12 @@ export class TopicStore {
         if (!parent) break;
         rootId = parent;
       }
-      const inheritedFrom = rootId !== threadId ? rootId : null;
-      const subject = subjects.get(rootId);
-      const entity = subject?.entity_id ? byId.get(subject.entity_id) : null;
-      result[threadId] = entity
-        ? {
-            threadId,
-            entityId: entity.id,
-            status: "assigned",
-            provenance: readSource(subject!.source),
-            label: topicPath(entity.id, entities),
-            ancestorIds: topicAncestors(entity.id, entities),
-            evidence: subject!.evidence ?? null,
-            inheritedFrom,
-          }
-        : {
-            threadId,
-            entityId: null,
-            status: "unresolved",
-            provenance: subject ? readSource(subject.source) : null,
-            label: null,
-            ancestorIds: [],
-            evidence: subject?.evidence ?? null,
-            inheritedFrom,
-          };
+      result[threadId] = resolveAssignment(
+        threadId,
+        rootId,
+        subjects.get(rootId),
+        entities,
+      );
     }
     return result;
   }
