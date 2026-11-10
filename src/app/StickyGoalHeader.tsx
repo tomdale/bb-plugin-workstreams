@@ -846,8 +846,15 @@ export function StickyGoalHeader(): React.ReactElement | null {
             "--ws-plate-height": `${fadeAnchor}px`,
             // In scroll mode, the plate's shadow shrinks to the bar fade's
             // length, never shorter than that much of its own.
-            "--ws-plate-fade-scale":
-              scalePinned || (fadeOnly && (!pinned || reduceMotion))
+            // A pinned heading keeps a solid plate, so the fade beneath it
+            // follows the plate's height: full length under the large heading,
+            // as short as the title bar's fade once the compact block takes
+            // over. In the bar a fading plate's shadow leaves with the plate's
+            // opacity, so only the scroll handoff shrinks it there. Reduced
+            // motion swaps the pinned fade at the endpoint, with the plate.
+            "--ws-plate-fade-scale": pinned
+              ? plateFadeScale(reduceMotion ? Number(collapsed) : progress)
+              : fadeOnly
                 ? 1
                 : plateFadeScale(progress),
             "--ws-fade-below-plate": fade && plateHeight > 0 ? plateOpacity : 0,

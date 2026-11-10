@@ -185,7 +185,12 @@ export function headingBackdropOpacity(progress: number): number {
  */
 export const BAR_FADE_RATIO = 3 / 12;
 
-/** Fraction of the plate's shadow still drawn as the heading collapses. */
+/**
+ * Fraction of the plate's shadow still drawn as the heading collapses. A
+ * heading pinned in the timeline keeps a solid plate and follows this same
+ * curve, so a compact pinned block never carries the large heading's long
+ * shadow.
+ */
 export function plateFadeScale(progress: number): number {
   return 1 - progress * (1 - BAR_FADE_RATIO);
 }

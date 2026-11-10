@@ -876,11 +876,14 @@ it.each(["fade", "scroll"] as const)(
     expect(groups().map((group) => Number(group.style.opacity))).toEqual([
       1, 0,
     ]);
-    expect(
-      overlay()!
-        .querySelector<HTMLElement>(".ws-goal-background")!
-        .style.getPropertyValue("--ws-plate-fade-scale"),
-    ).toBe("1");
+    const midFadeScale = () =>
+      Number(
+        overlay()!
+          .querySelector<HTMLElement>(".ws-goal-background")!
+          .style.getPropertyValue("--ws-plate-fade-scale"),
+      );
+    expect(midFadeScale()).toBeGreaterThan(BAR_FADE_RATIO);
+    expect(midFadeScale()).toBeLessThan(1);
 
     scroller.scrollTop = 0;
     scroller.dispatchEvent(new Event("scroll"));
@@ -892,6 +895,9 @@ it.each(["fade", "scroll"] as const)(
       expect(Number(match[1])).toBeCloseTo(finalY);
       expect(Number(match[2])).toBeCloseTo(pinnedTitleScale(1));
     });
+    // The compact pinned block carries the title bar's short fade, not the
+    // large heading's long one.
+    expect(midFadeScale()).toBe(BAR_FADE_RATIO);
     expect(groups().map((group) => Number(group.style.opacity))).toEqual([
       1, 0,
     ]);
@@ -1143,6 +1149,11 @@ it("swaps a pinned backdrop at the endpoint under reduced motion", async () => {
     `scaleY(${compactHeight / expandedHeight})`,
   );
   expect(scroller.style.scrollPaddingTop).toBe(`${compactHeight}px`);
+  expect(
+    overlay()!
+      .querySelector<HTMLElement>(".ws-goal-background")!
+      .style.getPropertyValue("--ws-plate-fade-scale"),
+  ).toBe(String(BAR_FADE_RATIO));
   slot.lifecycle.unmount();
 });
 
