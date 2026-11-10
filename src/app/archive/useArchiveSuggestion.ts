@@ -6,6 +6,7 @@ import {
   nextUpNextThreadAfterArchive,
 } from "../../domain/archiveNavigation.ts";
 import { useWorkstreams } from "../useWorkstreams.ts";
+import { claimArchiveNavigation } from "./claims.ts";
 
 /**
  * Recaps whose Archive the user passed up by continuing the thread. Clearing
@@ -79,7 +80,15 @@ export function useArchiveSuggestion(
         prioritized: new Set(ws.server.order.prioritized),
       }) ?? nextThreadAfterArchive(projection, threadId);
     try {
-      await rpc.call("archive", { threadId, recapId });
+      // The recap card picks its own destination, so the observer that opens
+      // the next Up Next thread leaves this archive to it.
+      const release = claimArchiveNavigation(threadId);
+      try {
+        await rpc.call("archive", { threadId, recapId });
+      } catch (cause) {
+        release();
+        throw cause;
+      }
       if (nextThreadId) actions.open(nextThreadId);
       await refresh();
     } catch (cause) {

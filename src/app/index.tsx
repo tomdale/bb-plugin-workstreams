@@ -39,6 +39,7 @@ import {
   headerSnoozers,
 } from "./snooze/SnoozeHeaderAction.tsx";
 import { SnoozeSettings } from "./snooze/SnoozeSettings.tsx";
+import { AdvanceAfterLeaving } from "./upNext/AdvanceAfterLeaving.tsx";
 import {
   NextUpCommandBridge,
   openNextUpThread,
@@ -96,6 +97,10 @@ export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({
     id: "next-up-command",
     component: NextUpCommandBridge,
+  });
+  app.slots.experimental_appOverlay({
+    id: "advance-after-leaving",
+    component: AdvanceAfterLeaving,
   });
   app.slots.experimental_appOverlay({
     id: "debug-command",

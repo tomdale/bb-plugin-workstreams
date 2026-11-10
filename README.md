@@ -420,8 +420,11 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    highlight and marks change at once, and **Show N more** and **Show less**
    apply without waiting. With reduced motion enabled, the new order appears at
    once, with nothing fading. The thread you have open keeps its row and place
-   until you open another thread. Nested delegates do not appear as separate Up
-   Next entries; find them in their workstream's thread tree.
+   until you open another thread. Putting that thread away moves you on:
+   snoozing it, or archiving it from anywhere, opens the next row of Up Next
+   after it, wrapping to the top, so you land on the work that is next and not
+   on the composer. Nested delegates do not appear as separate Up Next entries;
+   find them in your workstream's thread tree.
    - **Focus:** While a focused workstream has a thread blocked on you, Up Next
      applies these rules to focused workstreams' threads only and marks its
      header with the focus icon.
@@ -998,6 +1001,9 @@ when you snooze never wakes it.
   thread and marks it unread.
 - Sending a message to a snoozed thread or clicking **Wake now** wakes it
   immediately.
+- Snoozing the thread you have open opens the next thread in **Up Next** (the
+  row after it, wrapping to the top) once the snooze lands, so the next thing to
+  look at comes with it. Snoozing another thread leaves you where you are.
 
 ---
 

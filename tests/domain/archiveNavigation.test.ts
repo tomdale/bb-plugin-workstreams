@@ -1,9 +1,11 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   nextThreadAfterArchive,
+  nextUpNextRowAfterLeaving,
   nextUpNextThread,
   nextUpNextThreadAfterArchive,
 } from "../../src/domain/archiveNavigation.ts";
+import { selectUpNext } from "../../src/domain/upNext.ts";
 import { projectWorkstreams, DAY_MS } from "../../src/domain/project.ts";
 import { thread } from "./fixtures.ts";
 
@@ -230,4 +232,70 @@ it("advances within Unfiled", () => {
   );
   expect(nextThreadAfterArchive(projection, "a")).toBe("b");
   expect(nextThreadAfterArchive(projection, "b")).toBe("a");
+});
+
+describe("nextUpNextRowAfterLeaving", () => {
+  const listing = [
+    thread("first", {
+      sectionId: "ws",
+      hasPendingInteraction: true,
+      latestAttentionAt: 300,
+    }),
+    thread("second", {
+      sectionId: "ws",
+      hasPendingInteraction: true,
+      latestAttentionAt: 200,
+    }),
+    thread("third", {
+      sectionId: "ws",
+      hasPendingInteraction: true,
+      latestAttentionAt: 100,
+    }),
+  ];
+  const rowsFor = () =>
+    selectUpNext(projectWorkstreams(listing, sections, { now: 0 }), upNext())
+      .rows;
+
+  it("takes the row after the thread that left, wrapping to the top", () => {
+    expect(
+      nextUpNextRowAfterLeaving(rowsFor(), "first", new Set(["first"]))?.thread
+        .id,
+    ).toBe("second");
+    expect(
+      nextUpNextRowAfterLeaving(rowsFor(), "third", new Set(["third"]))?.thread
+        .id,
+    ).toBe("first");
+  });
+
+  it("skips everything leaving with it, and stops when nothing is left", () => {
+    expect(
+      nextUpNextRowAfterLeaving(
+        rowsFor(),
+        "first",
+        new Set(["first", "second"]),
+      )?.thread.id,
+    ).toBe("third");
+    expect(
+      nextUpNextRowAfterLeaving(
+        rowsFor(),
+        "first",
+        new Set(["first", "second", "third"]),
+      ),
+    ).toBeNull();
+  });
+
+  it("starts at the top for a thread Up Next doesn't list", () => {
+    expect(
+      nextUpNextRowAfterLeaving(rowsFor(), "elsewhere", new Set(["elsewhere"]))
+        ?.thread.id,
+    ).toBe("first");
+    // Null asks for the top itself, which is where the next Up Next command
+    // starts when no thread is open.
+    expect(
+      nextUpNextRowAfterLeaving(rowsFor(), null, new Set())?.thread.id,
+    ).toBe("first");
+    expect(
+      nextUpNextRowAfterLeaving([], "first", new Set(["first"])),
+    ).toBeNull();
+  });
 });

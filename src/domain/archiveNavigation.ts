@@ -8,10 +8,10 @@ import {
 } from "./upNext.ts";
 
 /**
- * Where to go once `threadId` is archived: the top of Up Next when that
- * thread is blocked on the user or unread. Otherwise null, and the caller
- * stays in the workstream (see `nextThreadAfterArchive`) rather than jump to
- * a read thread that wants nothing.
+ * Where the recap card's Archive goes once `threadId` is archived: the top of
+ * Up Next when that thread is blocked on the user or unread. Otherwise null,
+ * and the caller stays in the workstream (see `nextThreadAfterArchive`) rather
+ * than jump to a read thread that wants nothing.
  */
 export function nextUpNextThreadAfterArchive<T extends UpNextThread>(
   projection: Projection<T>,
@@ -38,14 +38,41 @@ export function nextUpNextThread<T extends UpNextThread>(
   threadId: string | null,
   options: UpNextOptions<T>,
 ): Row<T> | null {
-  const { rows } = selectUpNext(projection, options);
-  if (rows.length === 0) return null;
-  const index = threadId
+  return nextUpNextRowAfterLeaving(
+    selectUpNext(projection, options).rows,
+    threadId,
+    new Set(),
+  );
+}
+
+/**
+ * The Up Next row to open once `threadId` has left it along with everything in
+ * `leaving` (the threads snoozed or archived with it): the row after it,
+ * wrapping to the top, skipping the threads going away too. A thread `rows`
+ * doesn't list starts at the top, and null `threadId` asks for the top itself.
+ * Null when nothing is left to open.
+ *
+ * `rows` is Up Next's order as it stood while `threadId` was still listed: a
+ * thread that has left Up Next can no longer say where it sat, so the caller
+ * reads the order before the thread goes rather than after.
+ */
+export function nextUpNextRowAfterLeaving<T extends UpNextThread>(
+  rows: readonly Row<T>[],
+  threadId: string | null,
+  leaving: ReadonlySet<string>,
+): Row<T> | null {
+  // -1 starts the walk at the top, which is where an unlisted thread and a
+  // null threadId both hand the user off.
+  const start = threadId
     ? rows.findIndex((row) => row.thread.id === threadId)
     : -1;
-  if (index < 0) return rows[0] ?? null;
-  if (rows.length < 2) return null;
-  return rows[(index + 1) % rows.length] ?? null;
+  for (let step = 1; step <= rows.length; step++) {
+    const row = rows[(start + step) % rows.length];
+    if (!row) continue;
+    if (row.thread.id === threadId || leaving.has(row.thread.id)) continue;
+    return row;
+  }
+  return null;
 }
 
 /** Follow group order, wrapping at the end without leaving the workstream. */
