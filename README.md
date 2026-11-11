@@ -1062,7 +1062,7 @@ multiple machines are connected. |
 | **Advanced** | **Composer routing diagnostics** | `On`         | The **Debug** disclosure under the new-thread composer: confidence, inputs, and the server's notes on each routing step. |
 | **Advanced** | **Reply diagnostics**            | `On`         | **Raw agent output** and reply syntax diagnosis on assistant replies.                                                    |
 | **Advanced** | **Thread Info and context card** | `On`         | The **Workstreams Debug** section listing the metadata Workstreams accumulated for a thread.                             |
-| **Advanced** | **Debug thread buttons**         | `On`         | The thread button beside an AI-generated result: it starts a thread carrying that result and the model calls behind it.  |
+| **Advanced** | **Debug thread buttons**         | `On`         | The beaker button beside an AI-generated result: it starts a thread carrying that result and the model calls behind it.  |
 | **Advanced** | **Debug threads project**        | Home project | Where those debug threads start, so their agent can read the prompts and code behind the result.                         |
 
 ### Gateway vs. provider worker models
@@ -1246,7 +1246,7 @@ What the UI shows:
   `tidy`) and **Failures only**, view total reported cost for the filtered
   calls, or click **Clear traces…** to delete recorded model traces while
   keeping the Activity log intact.
-- **Debug in a new thread:** Every AI-generated result carries a small thread
+- **Debug in a new thread:** Every AI-generated result carries a small beaker
   button: an organizing suggestion in the sidebar or Topics, the composer's
   routing preview, a thread's topic and analysis, a project association, an
   Activity event, or a recorded model call. It starts a visible thread in the

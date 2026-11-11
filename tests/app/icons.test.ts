@@ -48,13 +48,13 @@ describe("the plugin's declared icons", () => {
  */
 const VERIFIED_BB_ICONS = new Set([
   "Archive",
+  "Beaker",
   "ArrowRight",
   "ArrowTurnBackward",
   "ArrowUp",
   "Bug",
   "Check",
   "ChevronDown",
-  "ChildThread",
   "ChevronLeft",
   "ChevronRight",
   "Close",

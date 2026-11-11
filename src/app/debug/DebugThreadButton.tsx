@@ -105,7 +105,7 @@ export function DebugThreadButton({
       )}
     >
       <Icon
-        name="ChildThread"
+        name="Beaker"
         aria-hidden
         className={cn(
           "size-3.5",
