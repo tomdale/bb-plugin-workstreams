@@ -9,9 +9,11 @@
  * the path it would have, or for a merge to the topic it folds into; the
  * threads that come along are counted, not listed, except a merged topic's
  * own threads. A topic a suggestion creates on its own has no `from`.
+ *
+ * `changeDelta` states the same change as data, for drawing the sidebar after.
  */
 import type { Split, TidyEdit } from "./tidy.ts";
-import { topicAncestors } from "./topics.ts";
+import { assertTopicLevels, topicAncestors } from "./topics.ts";
 
 type PathPart = {
   readonly name: string;
@@ -30,11 +32,6 @@ export type ChangeMove = {
   readonly threads: readonly { readonly id: string; readonly title: string }[];
   /** Further visible threads that move along with a moved topic. */
   readonly carried: number;
-  /** The threads `carried` counts. */
-  readonly carriedThreads?: readonly {
-    readonly id: string;
-    readonly title: string;
-  }[];
 };
 
 /**
@@ -79,6 +76,188 @@ export type ChangeContext = {
 };
 
 const normalize = (name: string) => name.trim().toLowerCase();
+
+/**
+ * Accepting a suggestion as data: the topics it creates, renames, moves or
+ * removes, and the threads it files elsewhere, all by id. A client applies it
+ * to the topics and filing it already holds (`applyDelta`) to see the tree
+ * after accepting, so the server never needs to know how the client lays the
+ * sidebar out.
+ */
+export type ChangeDelta = {
+  /**
+   * Topics the change creates, renames or moves, each as it would be
+   * after. A topic the change creates has no id yet, so its id here starts
+   * with `new:` and stands for it within this delta only.
+   */
+  readonly topics: readonly DeltaTopic[];
+  /** Topics that no longer exist, such as a merged topic. */
+  readonly removed: readonly string[];
+  /**
+   * Threads whose topic changes, archived and hidden ones included; null for
+   * Unfiled. Only the threads a client draws matter to it.
+   */
+  readonly assignments: readonly {
+    readonly threadId: string;
+    readonly topicId: string | null;
+  }[];
+};
+
+export type DeltaTopic = {
+  readonly id: string;
+  readonly name: string;
+  readonly parentId: string | null;
+};
+
+/** The id a delta gives a topic the change creates. */
+export const newTopicId = (parentId: string | null, name: string) =>
+  `new:${parentId ?? ""}/${normalize(name)}`;
+
+/**
+ * What accepting `body` would change, as data, or null when a topic or thread
+ * it names no longer exists, it still needs a topic another suggestion
+ * creates, or the result would break the two-level limit. It follows what the
+ * topic store does for each kind of change, which a test holds it to.
+ */
+export function changeDelta(
+  body: TidyEdit | Split,
+  context: ChangeContext,
+): ChangeDelta | null {
+  try {
+    return delta(body, context);
+  } catch {
+    return null;
+  }
+}
+
+function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
+  const before = new Map(
+    context.topics.map((t) => [
+      t.id,
+      { id: t.id, name: t.name, parentId: t.parentId },
+    ]),
+  );
+  const topics = new Map<string, DeltaTopic>(before);
+  const filing = new Map(Object.entries(context.threadTopic));
+  const topic = (ref: string | null) => {
+    if (ref === null) return null;
+    const found = topics.get(ref);
+    if (!found) throw new Error("That topic is gone.");
+    return found;
+  };
+  const edit = (id: string, change: Partial<DeltaTopic>) =>
+    topics.set(id, { ...topic(id)!, ...change });
+  const childrenOf = (id: string) =>
+    [...topics.values()].filter((t) => t.parentId === id);
+  const file = (threadId: string, to: string | null) => {
+    if (!filing.has(threadId)) throw new Error("That thread is gone.");
+    filing.set(threadId, to);
+  };
+
+  if ("subgroups" in body) {
+    const parent = topic(body.topicId)!;
+    for (const group of body.subgroups) {
+      // A subgroup with no threads is not created.
+      if (group.threadIds.length === 0) continue;
+      const aliasesOf = (id: string) =>
+        context.topics.find((t) => t.id === id)?.aliases ?? [];
+      const existing = childrenOf(parent.id).find(
+        (child) =>
+          normalize(child.name) === normalize(group.name) ||
+          aliasesOf(child.id).some(
+            (alias) => normalize(alias) === normalize(group.name),
+          ),
+      );
+      const id = existing?.id ?? newTopicId(parent.id, group.name);
+      if (!existing)
+        topics.set(id, {
+          id,
+          name: group.name.trim(),
+          parentId: parent.id,
+        });
+      for (const threadId of group.threadIds) file(threadId, id);
+    }
+  } else {
+    switch (body.op) {
+      case "move":
+        topic(body.topic);
+        file(body.thread, body.topic);
+        break;
+      case "rename":
+        edit(body.topic, { name: body.name.trim() });
+        break;
+      case "reparent":
+        topic(body.parent);
+        edit(body.topic, {
+          parentId: body.parent,
+          ...(body.name === undefined ? {} : { name: body.name.trim() }),
+        });
+        break;
+      case "create": {
+        topic(body.parent);
+        const id = newTopicId(body.parent, body.name);
+        topics.set(id, { id, name: body.name.trim(), parentId: body.parent });
+        for (const child of body.children) edit(child, { parentId: id });
+        break;
+      }
+      case "merge": {
+        const into = topic(body.into)!;
+        const from = topic(body.from)!;
+        // A target inside the source takes the source's place first.
+        if (topicAncestors(into.id, [...topics.values()]).includes(from.id))
+          edit(into.id, { parentId: from.parentId });
+        // The merged topic's threads and subtopics join the target's; a
+        // subtopic whose name the target's own subtopic has merges into it.
+        const fold = (source: string, target: string) => {
+          for (const [threadId, at] of filing)
+            if (at === source) filing.set(threadId, target);
+          for (const child of childrenOf(source)) {
+            if (child.id === target) continue;
+            const twin = childrenOf(target).find(
+              (other) =>
+                other.id !== child.id &&
+                normalize(other.name) === normalize(child.name),
+            );
+            if (twin) fold(child.id, twin.id);
+            else edit(child.id, { parentId: target });
+          }
+          topics.delete(source);
+        };
+        fold(from.id, into.id);
+        break;
+      }
+    }
+  }
+  assertTopicLevels([...topics.values()]);
+  return {
+    topics: [...topics.values()].filter((t) => {
+      const was = before.get(t.id);
+      return !was || was.name !== t.name || was.parentId !== t.parentId;
+    }),
+    removed: [...before.keys()].filter((id) => !topics.has(id)),
+    assignments: [...filing]
+      .filter(([threadId, to]) => context.threadTopic[threadId] !== to)
+      .map(([threadId, topicId]) => ({ threadId, topicId })),
+  };
+}
+
+/**
+ * The topics and filing after accepting: `delta` applied to `topics` and to
+ * `filing`, each root thread's topic id (null for Unfiled).
+ */
+export function applyDelta(
+  topics: readonly DeltaTopic[],
+  filing: Readonly<Record<string, string | null>>,
+  change: ChangeDelta,
+): { topics: DeltaTopic[]; filing: Record<string, string | null> } {
+  const next = new Map(topics.map((t) => [t.id, t]));
+  for (const id of change.removed) next.delete(id);
+  for (const t of change.topics) next.set(t.id, t);
+  const after = { ...filing };
+  for (const { threadId, topicId } of change.assignments)
+    after[threadId] = topicId;
+  return { topics: [...next.values()], filing: after };
+}
 
 /**
  * The moves accepting `body` would make, or null when a topic or thread it
@@ -136,7 +315,6 @@ function describe(
       .map(([id]) => thread(id));
   const carry = (threads: ReturnType<typeof thread>[]) => ({
     carried: threads.length,
-    ...(threads.length ? { carriedThreads: threads } : {}),
   });
   /** A topic moving from its own path to `to`, with its threads counted. */
   const topicMove = (ref: string, to: TopicPlace): ChangeMove => ({
@@ -296,8 +474,8 @@ const list = (names: readonly string[]) => names.join(" and ");
 
 /**
  * Names in a headline, which is one line: two read as themselves, and three
- * or more as their count. The preview beside a headline draws every one of
- * them, and a list of five only truncates.
+ * or more as their count. The drawing beside a headline shows every one of
+ * them, and a list of five only wraps.
  */
 const namedOrCounted = (all: readonly string[], noun: string) =>
   all.length > 2 ? `${all.length} ${noun}` : list(all);
@@ -312,7 +490,7 @@ export function movesThreads(change: SuggestionChange): boolean {
  * Automations into PR Upkeep and Design", "Move “Fix CI” to Evals", "Move
  * Workforest under bb". The destination is always named, so a list of
  * headlines reads as a list of changes; a spread of three or more
- * destinations is their count, as the preview names each one.
+ * destinations is their count, as the drawing shows each one.
  */
 export function changeHeadline(change: SuggestionChange): string {
   const [first] = change.moves;

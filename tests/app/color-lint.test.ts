@@ -74,12 +74,6 @@ const ALLOWED: { file: string; text: string; reason: string }[] = [
     reason: "a workstream's identity color, from its hue",
   },
   {
-    file: "src/app/sidebar/SuggestionsFlyaway.tsx",
-    text: "rgb(0 0 0 / 0.4)",
-    reason:
-      "the dim behind the open suggestions flyaway: BB's dialog overlay (black at 40%), outside the plugin's themed roots",
-  },
-  {
     file: "src/app/header/ParentLink.tsx",
     text: "oklch(0.72 0.13 ${threadHue(parent.id)})",
     reason: "a thread's identity color, from its hue",

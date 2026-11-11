@@ -189,7 +189,14 @@ function unavailable(path: string): object {
 
 // The service proxies have no successful result type: every invocation throws.
 const sdk = unavailable("sdk") as PluginBrowserBbSdk;
-const useRpc = (() => unavailable("rpc")) as PluginSdkApp["useRpc"];
+// Calls reject rather than throw, so a view that reads preferences on mount
+// shows its defaults, as it does before the real plugin answers.
+const rpc = {
+  call: async () => {
+    throw new Error("Gallery has no BB service: rpc.call");
+  },
+};
+const useRpc = (() => rpc) as unknown as PluginSdkApp["useRpc"];
 const navigate: BbNavigate = {
   toThread: (...args) => localAction("toThread", ...args),
   toProject: (...args) => localAction("toProject", ...args),

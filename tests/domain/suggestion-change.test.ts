@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyDelta,
+  changeDelta,
   changeHeadline,
   changeLines,
+  newTopicId,
   suggestionChange,
   type ChangeContext,
 } from "../../src/domain/suggestion-change.ts";
@@ -161,7 +164,6 @@ describe("suggestionChange", () => {
           to: at("bb", "Todo Plugin", "Alert Investigations"),
           threads: [],
           carried: 1,
-          carriedThreads: listed("t4"),
         },
       ],
     });
@@ -179,7 +181,6 @@ describe("suggestionChange", () => {
         to: at("bb", "Agent"),
         threads: [],
         carried: 2,
-        carriedThreads: listed("t3", "t4"),
       },
     ]);
     expect(
@@ -190,12 +191,12 @@ describe("suggestionChange", () => {
     ).toMatchObject({ from: at("bb", "Todo Plugin"), to: at("Todo Plugin") });
   });
 
-  it("lists and counts only visible threads moving with a topic", () => {
+  it("counts only visible threads moving with a topic", () => {
     const hidden = context({ visible: (id) => id !== "t4" && id !== "t1" });
     expect(
       suggestionChange({ op: "reparent", topic: "agent", parent: "bb" }, hidden)
         ?.moves[0],
-    ).toMatchObject({ carried: 1, carriedThreads: listed("t3") });
+    ).toMatchObject({ carried: 1 });
     expect(
       suggestionChange({ op: "merge", from: "toolbelt", into: "bb" }, hidden)
         ?.moves[0]?.threads,
@@ -406,5 +407,266 @@ describe("changeHeadline", () => {
         children: [],
       }),
     ).toBe("Create Plugins under bb");
+  });
+});
+
+describe("changeDelta", () => {
+  /**
+   * Billing holds Invoices and Payments; Docs holds two threads; Infra holds
+   * one beside no subtopics; "Automations" is empty. t9 is archived work
+   * filed under Payments.
+   */
+  const world = (extra: Partial<ChangeContext> = {}): ChangeContext => ({
+    topics: [
+      topic("billing", "Billing"),
+      topic("invoices", "Invoices", "billing"),
+      topic("payments", "Payments", "billing", ["Pay"]),
+      topic("docs", "Docs"),
+      topic("infra", "Infra"),
+      topic("auto", "Automations"),
+      topic("web", "Web"),
+      topic("invoices-web", "Invoices", "web"),
+    ],
+    threadTopic: {
+      i1: "invoices",
+      p1: "payments",
+      p2: "payments",
+      t9: "payments",
+      d1: "docs",
+      d2: "docs",
+      f1: "infra",
+      u1: null,
+      w1: "invoices-web",
+    },
+    title: (id) => `Thread ${id}`,
+    ...extra,
+  });
+
+  it("refiles a thread, and files an unfiled one", () => {
+    expect(
+      changeDelta({ op: "move", thread: "d1", topic: "infra" }, world()),
+    ).toEqual({
+      topics: [],
+      removed: [],
+      assignments: [{ threadId: "d1", topicId: "infra" }],
+    });
+    expect(
+      changeDelta({ op: "move", thread: "u1", topic: "docs" }, world())
+        ?.assignments,
+    ).toEqual([{ threadId: "u1", topicId: "docs" }]);
+  });
+
+  it("moves nothing for a rename, and names the topic as it will be", () => {
+    expect(
+      changeDelta(
+        { op: "rename", topic: "docs", name: " Documentation " },
+        world(),
+      ),
+    ).toEqual({
+      topics: [{ id: "docs", name: "Documentation", parentId: null }],
+      removed: [],
+      assignments: [],
+    });
+  });
+
+  it("reparents a topic, with or without a new name", () => {
+    expect(
+      changeDelta({ op: "reparent", topic: "docs", parent: "billing" }, world())
+        ?.topics,
+    ).toEqual([{ id: "docs", name: "Docs", parentId: "billing" }]);
+    expect(
+      changeDelta(
+        {
+          op: "reparent",
+          topic: "invoices",
+          parent: null,
+          name: "Billing Docs",
+        },
+        world(),
+      )?.topics,
+    ).toEqual([{ id: "invoices", name: "Billing Docs", parentId: null }]);
+  });
+
+  it("merges a topic into another: threads follow and the source is removed", () => {
+    expect(
+      changeDelta({ op: "merge", from: "docs", into: "infra" }, world()),
+    ).toEqual({
+      topics: [],
+      removed: ["docs"],
+      assignments: [
+        { threadId: "d1", topicId: "infra" },
+        { threadId: "d2", topicId: "infra" },
+      ],
+    });
+  });
+
+  it("moves archived assignments along with a merge", () => {
+    const merged = changeDelta(
+      { op: "merge", from: "payments", into: "invoices" },
+      world({ visible: (id) => id !== "t9" }),
+    )!;
+    expect(merged.assignments.map((a) => a.threadId).sort()).toEqual([
+      "p1",
+      "p2",
+      "t9",
+    ]);
+  });
+
+  it("merges a topic with subtopics, joining subtopics of the same name", () => {
+    expect(
+      changeDelta({ op: "merge", from: "web", into: "billing" }, world()),
+    ).toEqual({
+      topics: [],
+      removed: ["web", "invoices-web"],
+      assignments: [{ threadId: "w1", topicId: "invoices" }],
+    });
+  });
+
+  it("lets a merge target inside the source take the source's place", () => {
+    const merged = changeDelta(
+      { op: "merge", from: "billing", into: "payments" },
+      world(),
+    )!;
+    expect(merged.removed).toEqual(["billing"]);
+    expect(merged.topics).toEqual(
+      expect.arrayContaining([
+        { id: "payments", name: "Payments", parentId: null },
+        { id: "invoices", name: "Invoices", parentId: "payments" },
+      ]),
+    );
+  });
+
+  it("creates a topic, adopting the topics it names", () => {
+    const created = changeDelta(
+      {
+        op: "create",
+        name: "Money",
+        description: "",
+        parent: null,
+        children: ["docs", "infra"],
+      },
+      world(),
+    )!;
+    expect(created.topics).toEqual(
+      expect.arrayContaining([
+        { id: newTopicId(null, "Money"), name: "Money", parentId: null },
+        { id: "docs", name: "Docs", parentId: newTopicId(null, "Money") },
+        { id: "infra", name: "Infra", parentId: newTopicId(null, "Money") },
+      ]),
+    );
+    expect(
+      changeDelta(
+        {
+          op: "create",
+          name: "Ops",
+          description: "",
+          parent: null,
+          children: [],
+        },
+        world(),
+      ),
+    ).toEqual({
+      topics: [{ id: newTopicId(null, "Ops"), name: "Ops", parentId: null }],
+      removed: [],
+      assignments: [],
+    });
+  });
+
+  it("splits a topic into new subtopics and reuses a matching one", () => {
+    const split = changeDelta(
+      {
+        topicId: "docs",
+        subgroups: [
+          { name: "Guides", description: "", threadIds: ["d1"] },
+          { name: "Reference", description: "", threadIds: ["d2"] },
+          { name: "Unused", description: "", threadIds: [] },
+        ],
+      },
+      world(),
+    )!;
+    expect(split.topics).toEqual([
+      { id: newTopicId("docs", "Guides"), name: "Guides", parentId: "docs" },
+      {
+        id: newTopicId("docs", "Reference"),
+        name: "Reference",
+        parentId: "docs",
+      },
+    ]);
+    expect(split.assignments).toEqual([
+      { threadId: "d1", topicId: newTopicId("docs", "Guides") },
+      { threadId: "d2", topicId: newTopicId("docs", "Reference") },
+    ]);
+    // A subgroup named like an existing subtopic, or its alias, files into it.
+    expect(
+      changeDelta(
+        {
+          topicId: "billing",
+          subgroups: [
+            { name: "pay", description: "", threadIds: ["p1", "t9"] },
+          ],
+        },
+        world(),
+      ),
+    ).toEqual({
+      topics: [],
+      removed: [],
+      assignments: [],
+    });
+  });
+
+  it("is null when a topic or thread it names is gone", () => {
+    expect(
+      changeDelta({ op: "move", thread: "gone", topic: "docs" }, world()),
+    ).toBeNull();
+    expect(
+      changeDelta({ op: "move", thread: "d1", topic: "gone" }, world()),
+    ).toBeNull();
+    expect(
+      changeDelta({ op: "rename", topic: "gone", name: "X" }, world()),
+    ).toBeNull();
+    expect(
+      changeDelta(
+        {
+          topicId: "docs",
+          subgroups: [{ name: "A", description: "", threadIds: ["gone"] }],
+        },
+        world(),
+      ),
+    ).toBeNull();
+  });
+
+  it("is null while it needs a topic another suggestion creates", () => {
+    expect(
+      changeDelta({ op: "move", thread: "d1", topic: "new:Money" }, world()),
+    ).toBeNull();
+  });
+
+  it("is null when the result would pass two levels", () => {
+    expect(
+      changeDelta(
+        { op: "reparent", topic: "docs", parent: "invoices" },
+        world(),
+      ),
+    ).toBeNull();
+    expect(
+      changeDelta(
+        { op: "reparent", topic: "billing", parent: "docs" },
+        world(),
+      ),
+    ).toBeNull();
+  });
+
+  it("applies to topics and filing without changing its inputs", () => {
+    const context = world();
+    const change = changeDelta(
+      { op: "merge", from: "docs", into: "infra" },
+      context,
+    )!;
+    const filing = { ...context.threadTopic };
+    const after = applyDelta(context.topics, filing, change);
+    expect(after.topics.map((t) => t.id)).not.toContain("docs");
+    expect(after.filing.d1).toBe("infra");
+    expect(filing.d1).toBe("docs");
+    expect(context.topics.map((t) => t.id)).toContain("docs");
   });
 });

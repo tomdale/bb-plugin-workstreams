@@ -1,8 +1,10 @@
 import { topicMigrationInput } from "../domain/topicMigration.ts";
 import { categoryGenerationSchema } from "../domain/categories.ts";
 import type { LayoutNode } from "../domain/layout.ts";
-import type { SuggestionChange } from "../domain/suggestion-change.ts";
-import type { SuggestionPreview } from "../domain/suggestion-preview.ts";
+import type {
+  ChangeDelta,
+  SuggestionChange,
+} from "../domain/suggestion-change.ts";
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { questionHistorySchema } from "./questions/history.ts";
 import {
@@ -261,27 +263,22 @@ const suggestionChangeSchema: z.ZodType<SuggestionChange> = z.object({
       to: topicPlaceSchema,
       threads: z.array(z.object({ id: z.string(), title: z.string() })),
       carried: z.number(),
-      carriedThreads: z
-        .array(z.object({ id: z.string(), title: z.string() }))
-        .optional(),
     }),
   ),
 });
 
-const previewRowSchema = z.object({
-  kind: z.enum(["topic", "thread", "threads", "more"]),
-  name: z.string(),
-  depth: z.union([z.literal(0), z.literal(1)]),
-  mark: z.enum(["same", "gone", "new"]),
-  count: z.number().optional(),
-  created: z.boolean().optional(),
-  within: z.string().optional(),
-  arriving: z.array(z.object({ id: z.string(), title: z.string() })).optional(),
-});
-
-const suggestionPreviewSchema: z.ZodType<SuggestionPreview> = z.object({
-  before: z.array(previewRowSchema),
-  after: z.array(previewRowSchema),
+const suggestionDeltaSchema: z.ZodType<ChangeDelta> = z.object({
+  topics: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      parentId: z.string().nullable(),
+    }),
+  ),
+  removed: z.array(z.string()),
+  assignments: z.array(
+    z.object({ threadId: z.string(), topicId: z.string().nullable() }),
+  ),
 });
 
 const suggestionsStateSchema = z.object({
@@ -296,8 +293,8 @@ const suggestionsStateSchema = z.object({
       decidedAt: z.number().nullable(),
       problem: z.string().nullable(),
       change: suggestionChangeSchema.nullable(),
-      /** The sidebar rows accepting it touches, now and after. */
-      preview: suggestionPreviewSchema.nullable().default(null),
+      /** Accepting it as data, which the client draws the sidebar after from. */
+      delta: suggestionDeltaSchema.nullable().default(null),
       headline: z.string(),
       /**
        * The model call that proposed it, while that trace is still stored;

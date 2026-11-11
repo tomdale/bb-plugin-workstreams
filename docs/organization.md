@@ -164,6 +164,17 @@ context without losing recognizable identities or distinctions between topics.
 Matching top-level prefix names can also produce deterministic reparent
 suggestions.
 
+Each waiting suggestion reaches the app with its `change` (what moves, as the
+sentence and the CLI state it) and a `delta`: the topics the change creates,
+renames, moves or removes and the filing it changes, by id. The sidebar's review
+applies the delta to the topics and filing it holds and lays both states out
+with the sidebar's own code (`layoutGroups`, `arrangeGroups`, the user's sort),
+so the server never sends a finished sidebar. A test accepts every kind of
+change and compares the topic tree and filing with the delta applied to the tree
+before it. A change that needs a topic another suggestion creates, or files
+threads that joined its split since, has no delta; the review says it can't be
+drawn and still offers the decision.
+
 Every proposed and accepted edit passes leaf-only and depth guards. Accepted
 suggestions are recorded in Activity with a guarded snapshot for Undo. Undo
 requires the tree and assignments to still match and cannot reinstate an invalid

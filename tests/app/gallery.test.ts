@@ -176,6 +176,79 @@ describe.skipIf(browserUnavailable)("gallery specimens", () => {
   );
 
   browserTest.concurrent(
+    "reviews suggestions with ribbons between the two sidebars, keys, Undo, and a compact drop-down",
+    async ({ page }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.goto(`${server.url}#suggestions-review`);
+      const group = (name: string) =>
+        page.getByRole("group", { name, exact: true });
+      const wide = group("Seven suggestions");
+      await wide
+        .getByRole("button", {
+          name: "Split Support Tools into 5 workstreams",
+          exact: true,
+        })
+        .waitFor();
+      // The split's five flows are ribbons laid out between the two sidebars.
+      const ribbons = wide.getByRole("button", {
+        name: /^\d+ threads? to Support Tools: /,
+      });
+      expect(await ribbons.count()).toBe(5);
+      const box = await ribbons.first().boundingBox();
+      expect(box!.width).toBeGreaterThan(100);
+      expect(box!.height).toBeGreaterThan(4);
+      await ribbons.first().hover();
+      const card = wide.getByRole("tooltip");
+      await card.waitFor();
+      expect(await card.textContent()).toMatch(/\d+ threads/);
+      await page.mouse.move(0, 0);
+      await card.waitFor({ state: "detached" });
+
+      // A decision keeps its row's place, with Undo, and the keys step.
+      await wide
+        .getByRole("button", {
+          name: "Merge Release Notes into Docs",
+          exact: true,
+        })
+        .click();
+      await page.keyboard.press("a");
+      await wide.getByRole("button", { name: /^Undo/ }).waitFor();
+      // The decided row stays where it was in the list, the rest unmoved.
+      const rows = wide.getByRole("listitem");
+      const texts = await rows.allTextContents();
+      expect(texts).toHaveLength(7);
+      expect(texts[0]).toBe("Split Support Tools into 5 workstreams");
+      expect(texts.filter((t) => t.startsWith("Accepted: Merge"))).toHaveLength(
+        1,
+      );
+      // The keys belong to the review that holds the focus.
+      expect(
+        await group("One suggestion")
+          .getByRole("button", { name: /^Undo/ })
+          .count(),
+      ).toBe(0);
+      await page.keyboard.press("u");
+      await wide
+        .getByRole("button", { name: "Accept: Merge Release Notes into Docs" })
+        .waitFor();
+
+      const compact = group("Compact viewport");
+      const trigger = compact.getByRole("button", { name: /1 of 3/ });
+      await trigger.click();
+      await page
+        .getByRole("menuitem", { name: /Rename User Research/ })
+        .click();
+      await compact
+        .getByRole("button", { name: /^Rename User Research/ })
+        .waitFor();
+      expect(errors).toEqual([]);
+    },
+    60_000,
+  );
+
+  browserTest.concurrent(
     "places Change labels in a gutter and distinguishes every check status",
     async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });

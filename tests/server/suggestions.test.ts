@@ -118,6 +118,13 @@ describe("split suggestions", () => {
         carried: 0,
       })),
     });
+    // The wire carries it as data too: two new topics, and six threads filed.
+    expect(split!.delta?.topics.map((t) => [t.name, t.parentId])).toEqual([
+      ["Planning", auto.id],
+      ["Triggers", auto.id],
+    ]);
+    expect(split!.delta?.removed).toEqual([]);
+    expect(split!.delta?.assignments).toHaveLength(6);
     // Nothing changes until it's accepted.
     expect(topics.subtopics(auto.id)).toBe(0);
 

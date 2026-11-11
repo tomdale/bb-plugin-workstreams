@@ -14,6 +14,7 @@ import { questionExample } from "./examples/questions";
 import { recapExample } from "./examples/recaps";
 import { settingsExample } from "./examples/settings";
 import { overlaysExample } from "./examples/overlays";
+import { suggestionsExample } from "./examples/suggestions";
 import { primitiveExamples } from "./examples/primitives";
 import { WorkstreamIcon } from "../src/app/WorkstreamIcon";
 import { WorkstreamName } from "../src/app/WorkstreamName";
@@ -546,6 +547,7 @@ export const examples: GalleryExample[] = [
   ...primitiveExamples,
   settingsExample,
   overlaysExample,
+  suggestionsExample,
   recapExample,
   questionExample,
   {

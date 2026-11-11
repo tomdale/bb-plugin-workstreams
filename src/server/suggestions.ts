@@ -27,15 +27,13 @@ import {
   type TreeState,
 } from "../domain/tidy.ts";
 import {
+  changeDelta,
   changeHeadline,
   suggestionChange,
   type ChangeContext,
+  type ChangeDelta,
   type SuggestionChange,
 } from "../domain/suggestion-change.ts";
-import {
-  suggestionPreview,
-  type SuggestionPreview,
-} from "../domain/suggestion-preview.ts";
 import { topicPath } from "../domain/topic-path.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal } from "./journal.ts";
@@ -68,6 +66,12 @@ type SuggestionView = {
    * still exists.
    */
   change: SuggestionChange | null;
+  /**
+   * Accepting it as data, for drawing the sidebar after. Null when `change`
+   * is, and when it can't be drawn: it needs a topic another suggestion
+   * creates, or threads that joined its group are still to be filed.
+   */
+  delta: ChangeDelta | null;
   /** What it does in a sentence, while `change` is known; else `summary`. */
   headline: string;
   /** The model call that proposed it, while that trace is still stored. */
@@ -217,7 +221,7 @@ export class Suggestions {
               ? row.detail
               : null,
         change: review?.change ?? null,
-        preview: review?.preview ?? null,
+        delta: review?.delta ?? null,
         arrivals: review?.arrivals ?? [],
         headline: review?.change ? changeHeadline(review.change) : row.summary,
         traceId: row.trace_id,
@@ -718,7 +722,7 @@ export class Suggestions {
     known: { topics: readonly Topic[]; titles: ReadonlyMap<string, string> },
   ): {
     change: SuggestionChange | null;
-    preview: SuggestionPreview | null;
+    delta: ChangeDelta | null;
     arrivals: { id: string; title: string }[];
   } {
     const body = JSON.parse(row.body) as TidyEdit | Split;
@@ -756,7 +760,9 @@ export class Suggestions {
     };
     return {
       change: suggestionChange(edit, context),
-      preview: suggestionPreview(edit, context),
+      // Threads that joined a split's group are filed by a model call when
+      // it is accepted, so the filing after is not known yet.
+      delta: now?.arrivals.length ? null : changeDelta(edit, context),
       arrivals: (now?.arrivals ?? []).map((id) => ({
         id,
         title: context.title(id),

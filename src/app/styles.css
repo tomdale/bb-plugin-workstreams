@@ -299,8 +299,8 @@
   );
 }
 /* The Workstreams heading's suggestion count: muted purple text; a rounded,
-   tinted chip under the pointer, under keyboard focus, and while its
-   flyaway is open, deeper while pressed. */
+   tinted chip under the pointer, under keyboard focus, and while the
+   suggestions are open, deeper while pressed. */
 .ws-suggestions-action {
   color: var(--ws-suggestions-text);
 }
@@ -321,62 +321,144 @@
   );
 }
 
-/* A suggestion's before and after (SuggestionPreview): a landing row takes
-   its workstream's identity color, and threads wear a small ring. */
-.ws-preview-accent {
-  --ws-preview-accent: var(
-    --ws-color-light,
-    oklch(46% 0.16 var(--ws-hue, 250))
-  );
+/* The dim behind the suggestions modal fades in as fast as the modal settles,
+   so a click on the count answers at once. */
+body:has([data-ws-suggestions])
+  > [data-bb-portaled-overlay][data-state="open"].inset-0 {
+  --tw-animation-duration: 80ms;
 }
-.dark .ws-preview-accent {
-  --ws-preview-accent: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
+
+/* The two small sidebars of the suggestions review (SuggestionMiniatures).
+   A workstream the change touches, and the ribbon that carries its threads,
+   take their identity color (`workstreamColorStyle` sets --ws-color-*); the
+   rest stays quiet gray. */
+.ws-mini-accent {
+  --ws-mini-color: var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)));
 }
-/* The tree connector of a run of nested rows: each row draws the trunk from
-   its top to its middle and a short arm there, and every row but the last
-   carries the trunk on to its bottom, so the pieces meet end to end on whole
-   pixels in one solid color. The first row's trunk starts under the parent's
-   text. */
-.ws-preview-run {
-  --ws-preview-guide: color-mix(
-    in oklab,
-    var(--muted-foreground) 40%,
-    var(--popover)
-  );
+.dark .ws-mini-accent {
+  --ws-mini-color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
 }
-.ws-preview-run > * {
-  position: relative;
+.ws-mini {
+  --ws-mini-mid: 64px;
+  --ws-mini-ribbon: 0.13;
+  --ws-mini-ribbon-on: 0.28;
+  --ws-mini-ribbon-thin: 0.34;
+  --ws-mini-ribbon-thin-on: 0.6;
+  --ws-mini-tick: 0.3;
 }
-.ws-preview-run > *::before {
-  content: "";
-  position: absolute;
-  left: -12px;
-  top: 0;
-  width: 8px;
-  height: 9px;
-  border-left: 1px solid var(--ws-preview-guide);
-  border-bottom: 1px solid var(--ws-preview-guide);
+.dark .ws-mini {
+  --ws-mini-ribbon: 0.15;
+  --ws-mini-ribbon-on: 0.3;
+  --ws-mini-tick: 0.26;
 }
-.ws-preview-run > :first-child::before {
-  top: -2px;
-  height: 11px;
+/* The two columns and the gap the ribbons cross, sharing one width. The wide
+   layout leaves room beside them for the card that lists a ribbon's threads. */
+.ws-mini-caps,
+.ws-mini-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--ws-mini-mid) minmax(0, 1fr);
 }
-.ws-preview-run > :not(:last-child)::after {
-  content: "";
-  position: absolute;
-  left: -12px;
-  top: 9px;
+.ws-mini-wrap,
+.ws-mini-caps {
+  width: max(300px, min(440px, 100% - 186px));
+}
+.ws-mini[data-compact] .ws-mini-wrap,
+.ws-mini[data-compact] .ws-mini-caps {
+  width: 100%;
+}
+.ws-mini-scroll {
+  scrollbar-width: none;
+}
+.ws-mini-group {
+  margin-bottom: 3px;
+}
+.ws-mini-group.ws-mini-sub {
+  margin: 0 0 0 10px;
+}
+.ws-mini-name {
+  display: block;
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 450;
+  color: var(--muted-foreground);
+}
+.ws-mini-prefix {
+  color: var(--muted-foreground);
+  font-weight: 450;
+}
+.ws-mini-group[data-hot] > .ws-mini-name {
+  color: var(--ws-mini-color, var(--foreground));
+  font-weight: 600;
+}
+.ws-mini-tick {
+  display: block;
+  height: 2px;
+  margin: 1px 0 0 8px;
+  max-width: calc(100% - 16px);
+  border-radius: 1px;
+  background: var(--muted-foreground);
+  opacity: var(--ws-mini-tick);
+}
+.ws-mini-tick[data-flow] {
+  background: var(--ws-mini-color);
+  opacity: 0.95;
+}
+.ws-mini-ribbon {
+  fill: var(--ws-mini-color);
+  fill-opacity: var(--ws-mini-ribbon);
+  stroke: none;
+  outline: none;
+  pointer-events: auto;
+  transition: fill-opacity 120ms ease;
+}
+.ws-mini-ribbon[data-thin] {
+  fill-opacity: var(--ws-mini-ribbon-thin);
+}
+.ws-mini-ribbon[data-on] {
+  fill-opacity: var(--ws-mini-ribbon-on);
+}
+.ws-mini-ribbon[data-thin][data-on] {
+  fill-opacity: var(--ws-mini-ribbon-thin-on);
+}
+.ws-mini-ribbon:focus-visible {
+  stroke: var(--ws-mini-color);
+  stroke-width: 1;
+  stroke-opacity: 0.8;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ws-mini-ribbon {
+    transition: none;
+  }
+}
+/* "3 rows above" and "3 rows below" sit over the first and last lines of their
+   sidebar, hiding the rows an edge would cut in half. */
+.ws-mini-note {
+  width: calc((100% - var(--ws-mini-mid)) / 2);
+}
+.ws-mini-note-after {
+  left: calc((100% - var(--ws-mini-mid)) / 2 + var(--ws-mini-mid));
+}
+.ws-mini-note-now {
+  left: 0;
+}
+/* The card listing a ribbon's threads: beside the drawing where there is
+   room, over its foot on a narrow screen. */
+.ws-mini-titles {
+  left: calc(100% + 16px);
+  width: 170px;
+}
+.ws-mini[data-compact] .ws-mini-titles {
+  top: auto !important;
   bottom: 0;
-  border-left: 1px solid var(--ws-preview-guide);
-}
-.ws-preview-ring {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 6px;
-  border: 1.25px solid currentColor;
-  border-radius: 9999px;
-  vertical-align: 1px;
+  left: 0;
+  right: 0;
+  width: auto;
+  z-index: 2;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--popover);
+  box-shadow: 0 6px 16px color-mix(in oklab, var(--foreground) 25%, transparent);
 }
 
 /* StatusDot's workstream dot takes the topic's hue (`workstreamColorStyle`

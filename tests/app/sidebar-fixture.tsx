@@ -84,6 +84,8 @@ export async function mount(
     >;
     snoozePrefs?: Record<string, unknown>;
     sections?: ReturnType<typeof section>[];
+    /** Each root thread's topic id, in the catalog's assignments. */
+    assignments?: Record<string, string>;
     /** The topic tree and section bindings that nest workstreams. */
     catalog?: {
       entities: {
@@ -214,8 +216,10 @@ export async function mount(
                     thread.id,
                     {
                       threadId: thread.id,
-                      entityId: null,
-                      status: "unresolved",
+                      entityId: options.assignments?.[thread.id] ?? null,
+                      status: options.assignments?.[thread.id]
+                        ? "assigned"
+                        : "unresolved",
                       provenance: null,
                       label: null,
                       ancestorIds: [],

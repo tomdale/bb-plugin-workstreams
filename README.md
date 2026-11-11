@@ -345,13 +345,15 @@ categories.
 - **Memory:** Tidy sees the topics you filed threads under, the suggestions you
   accepted, and the ones you declined; a suggestion identical to a declined one
   is never proposed again.
-- **Review and undo:** Each suggestion names what moves and where, shows the
-  change in a line or two in the app and in `bb workstreams suggestions`, and
-  says why it can't apply when the tree changed since. A headline names one or
+- **Review and undo:** Each suggestion is a plain sentence saying what it does
+  ("Merge Payments into Billing") and, in the app, a drawing of the sidebar now
+  and after accepting that one change, with a ribbon from the threads it moves.
+  `bb workstreams suggestions` lists each move instead, and both say why a
+  suggestion can't apply when the tree changed since. A sentence names one or
   two destinations and counts three or more ("Split Agent Skills into 5
-  workstreams"), since the preview beside it names each one. Accepting one
-  records it in Activity with **Undo**, which restores the topic tree and
-  assignments as they were while nothing has changed since.
+  workstreams"), since the drawing shows each one. Accepting one records it in
+  Activity with **Undo**, which restores the topic tree and assignments as they
+  were while nothing has changed since.
 
 ---
 
@@ -481,23 +483,32 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    - Use the **Sort workstreams** menu to order workstreams by **Name A–Z**,
      **Recent activity**, or **Manual order** (drag headers within their tier).
    - While organizing suggestions wait for review, their count ("2 suggestions")
-     appears on the **Workstreams** heading. Click it to open them below the
-     heading, over the workstreams and the edge of the thread, so the list
-     underneath doesn't move; the rest of the app dims while they're open. Each
-     suggestion starts with a dimmed line saying what it does ("Merge Payments
-     into Billing") beside **Decline** (`×`) and **Accept** (`✓`), then draws
-     the sidebar rows it touches as they are, an arrow, and as they would be.
-     Workstreams are bold and threads have a ring; nested rows hang from their
-     parent on a tree connector. Rows that leave are dimmed and crossed out;
-     rows that land or are new take their workstream's color, and numbers are
-     thread counts. Click a landing row's count to list the threads arriving
-     there. Parents show no count, since threads sit in the topics under them.
-     Archived threads move with their topic without being counted, and a topic
-     with no threads to count shows no number. A decision applies at once and
-     leaves **Undo** in its place for a few seconds; Activity keeps Undo after
-     that. The foot counts suggestions the tree has since outgrown ("1 out of
-     date") beside **Open Topics**, where you can dismiss them. **Close**,
-     `Esc`, or a click outside closes the list and leaves the rest waiting.
+     appears on the **Workstreams** heading. Click it to open them in a modal
+     over the app, or a drawer from the bottom on a narrow window. On the left,
+     each suggestion is one sentence, and the selected one is highlighted. On
+     the right, that sentence is the title, with **Decline** and **Accept** at
+     its end and the keys `D` and `A` on them. Below it are two small drawings
+     of the whole sidebar, **Now** and **After accepting** that one change. Each
+     workstream with a visible thread is its name over a tick for each thread,
+     in your sort, with the sidebar's own nesting and name prefixes; dormant
+     workstreams are drawn too, and categories are not. Under **Manual order** a
+     workstream the change creates sits beside the one it grew from in the
+     second drawing. The workstreams the change touches take their colors, and a
+     ribbon runs from the threads that move to where they land; everything else
+     is quiet gray. Rest the pointer on a ribbon, or focus it, to list its
+     threads' titles and their number. A workstream draws about twelve ticks at
+     most, shared out by its threads, so a ribbon's thickness is its real share.
+     If the drawings are taller than the window they scroll together with the
+     touched rows in view and count the rows beyond the edge. A decision applies
+     at once. Its row keeps its place with **Undo** for six seconds (`U` undoes
+     the latest), then dims until the modal closes, and the highlight moves to
+     the next suggestion; `J` and `K` step between them. The **⋯** menu holds
+     **Accept all**, **Reject all** and **Open Topics**, and the foot counts
+     suggestions the tree has since outgrown ("1 out of date"). If the tree
+     changes while the modal is open, a suggestion that no longer applies stays
+     where it was, dimmed and out of date, with its buttons off. **Close**,
+     `Esc`, or a click outside closes the modal and leaves the rest waiting;
+     deciding the last one closes it once its Undo has passed.
    - Drag a root thread to another workstream to set its **Topic** to that
      workstream's topic; its delegates follow it. Drop on a row to place it
      before or after that root, or on a header to place it first, including a

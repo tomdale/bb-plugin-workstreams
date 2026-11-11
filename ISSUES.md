@@ -58,6 +58,21 @@ Workstream colors are allocated from a finite palette; a large family or many
 workstreams can produce similar colors. Labels and status text remain necessary;
 color is not an identity or status guarantee.
 
+### Suggestions the review cannot draw
+
+**Evidence:** `src/server/suggestions.ts` (`delta`) and
+`src/app/sidebar/suggestionMiniatures.ts`.
+
+The review draws the sidebar after a suggestion from its `delta`. Two kinds of
+suggestion have none: a change that needs a topic another suggestion of the same
+pass creates, and a split whose group gained threads since it was made, since a
+model call files those threads only when you accept it. Neither shows a drawing,
+and **Accept** still works. The drawing counts root threads, as suggestions do,
+and leaves out categories and snoozed threads, which the sidebar does not list.
+
+**Workaround:** Accept the suggestion that creates the topic first; a split's
+newcomers land where the model files them, which Activity records.
+
 ### An old reply's unfinished results
 
 **Evidence:** `src/domain/reply.ts` (`parse`) and

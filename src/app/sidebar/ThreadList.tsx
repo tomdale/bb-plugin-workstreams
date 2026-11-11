@@ -75,7 +75,7 @@ import { workstreamGap } from "./workstreamGap.ts";
 import { useBandOptions, type BandId } from "./useBandOptions.ts";
 import { GroupedBand } from "./GroupedBand.tsx";
 import { NameDialog, type NameRequest } from "./NameDialog.tsx";
-import { SuggestionsFlyaway } from "./SuggestionsFlyaway.tsx";
+import { SuggestionsChip } from "./SuggestionsChip.tsx";
 import { headerCounts } from "./presentation.ts";
 import {
   FULL_SLOT_PX,
@@ -704,10 +704,17 @@ export function WorkstreamsThreadList({
    * workstream below is one.
    */
   const workstreamsHeading = hasWorkstreams ? (
-    <SuggestionsFlyaway
+    <SuggestionsChip
       key="workstreams-heading"
       rpc={ws.rpc}
-      colors={ws.server.catalog}
+      sidebar={{
+        projection,
+        catalog: ws.server.catalog,
+        sort: groupSort,
+        manualOrder: ws.server.order.workstreams,
+        sections,
+        now: ws.now,
+      }}
       count={ws.server.pendingSuggestions ?? 0}
       onOpenTopics={() => navigate.toPluginPanel("home", { subPath: "topics" })}
     >
@@ -734,7 +741,7 @@ export function WorkstreamsThreadList({
           />
         </div>
       )}
-    </SuggestionsFlyaway>
+    </SuggestionsChip>
   ) : null;
   /** Everything below the focused workstreams, as one opening block. */
   const lowerBlock = lowerPresence.map((entry) => (
