@@ -43,7 +43,7 @@ import { hostContract } from "./inference/contract.ts";
 import { openDatabase } from "./db.ts";
 import { Journal } from "./journal.ts";
 import { Inference } from "./model.ts";
-import { QuickAnalysis, type OpeningThread } from "./quick.ts";
+import { ThreadStart, type OpeningThread } from "./start.ts";
 import { agentReport, reportedStatus } from "../domain/recap.ts";
 import { loadOrder, saveOrder } from "./order.ts";
 import { loadSpinner, saveSpinner } from "./spinner.ts";
@@ -361,8 +361,6 @@ export default async function plugin(bb: BbPluginApi) {
     // Only a new request re-places a thread: topic edits and model changes
     // leave settled topics alone.
     basisOf: (requests, project) => topicBasis({ requests, project }),
-    apply: (threadId, answer, basis, traceId) =>
-      applyTopic(threadId, answer, "full", basis, traceId),
     log: (message) => bb.log.warn(message),
   });
   /**
@@ -434,21 +432,25 @@ export default async function plugin(bb: BbPluginApi) {
     log: (message) => bb.log.warn(message),
     info: (message) => bb.log.info(message),
   });
-  const quick = new QuickAnalysis({
+  const starts = new ThreadStart({
     sdk: () => bb.sdk,
-    db,
     inference,
-    model: async () => currentPrefs().analysis.quickModel,
-    enabled: () => currentPrefs().threads.autoTitle,
+    model: async () => currentPrefs().analysis.placementModel,
+    titles: () => currentPrefs().threads.autoTitle,
     analyzed: (threadId) => analyzer.get(threadId) !== undefined,
-    apply: (threadId, goal, revision, traceId) =>
-      applyGoal(threadId, goal, revision, traceId, "opening"),
+    title: (threadId, title, revision, traceId) =>
+      applyGoal(threadId, title, revision, traceId, "opening"),
     listing: listingOf,
+    question: (thread, request) => placement.question(thread, [request]),
+    unsettled: (threadId) =>
+      topics.assignment(threadId).provenance !== "manual" &&
+      !topics.basis(threadId),
+    file: (threadId, answer, basis, traceId) =>
+      applyTopic(threadId, answer, "full", basis, traceId),
     log: (message) => bb.log.warn(message),
   });
-  bb.onDispose(() => quick.dispose());
+  bb.onDispose(() => starts.dispose());
   bb.onDispose(() => analyzer.dispose());
-  bb.onDispose(() => placement.dispose());
   recaps = new AgentRecaps({
     bb,
     db,
@@ -763,11 +765,6 @@ export default async function plugin(bb: BbPluginApi) {
         null,
         null,
       );
-    if (identity.goal)
-      quick.onDispatch(
-        { thread, attempt: "start-turn", origin: "app", input: { text: "" } },
-        identity.goal,
-      );
   };
   /** The thread a new root was started from, when it was. */
   const startedFrom = (ctx: {
@@ -807,9 +804,8 @@ export default async function plugin(bb: BbPluginApi) {
           ),
         );
     if (!fresh) {
-      // A newer request needs placement from the turn's complete context.
-      if (substantive) placement.cancelFirstRequest(ctx.thread.id);
-      quick.onDispatch(ctx);
+      // A newer request needs the turn's end, with its complete context.
+      if (substantive) starts.cancel(ctx.thread.id);
       return { action: "proceed" };
     }
     const ours = ctx.experimental_submission?.pluginId === bb.pluginId;
@@ -867,9 +863,10 @@ export default async function plugin(bb: BbPluginApi) {
           : null),
       independentRoot,
     );
-    // Only a composer's own Quick analysis replaces the call made here.
-    const preset = identity?.provenance === "automatic" && identity.goal;
-    if (!preset) quick.onDispatch(ctx);
+    // The composer's own title for the text that was sent replaces the one
+    // the start call would write.
+    const preset =
+      identity?.provenance === "automatic" ? identity.goal : undefined;
     setTimeout(() => {
       try {
         if (journal)
@@ -888,8 +885,8 @@ export default async function plugin(bb: BbPluginApi) {
             if (source) placement.hintStart(ctx.thread.id, source, "thread");
           }
           if (identity) fileComposedIdentity(ctx.thread, identity);
-          void placement.onFirstRequest(ctx.thread, ctx.input.text);
         }
+        void starts.onFirstRequest(ctx, preset);
         triggerOrganizer(10);
       } catch (error: unknown) {
         bb.log.warn(`Filing a new thread failed: ${String(error)}`);
@@ -907,7 +904,7 @@ export default async function plugin(bb: BbPluginApi) {
         .reconcile()
         .then(() => {
           analyzer.catchUp(service.threads());
-          quick.sweep(service.threads());
+          starts.sweep(service.threads());
           void sweepSnoozes();
           projectAssociations.observeActive(service.threads());
           learnProjects();
@@ -996,7 +993,7 @@ export default async function plugin(bb: BbPluginApi) {
   bb.events.on("thread.deleted", ({ thread }) => {
     snoozes.clear(thread.id);
     analyzer.forget(thread.id);
-    quick.forget(thread.id);
+    starts.forget(thread.id);
     placement.forget(thread.id);
     recaps.forget(thread.id);
     service.forget(thread.id);
@@ -1030,7 +1027,7 @@ export default async function plugin(bb: BbPluginApi) {
     analyzer.onActive(thread.id);
     if (organizedRoot(thread)) triggerOrganizer(200);
     // Covers a thread whose first request this run didn't see dispatched.
-    void quick.onRunning(thread);
+    void starts.onRunning(thread);
   });
 
   const userFacing = async <T>(work: () => Promise<T>): Promise<T> => {
@@ -1583,7 +1580,7 @@ export default async function plugin(bb: BbPluginApi) {
         entries,
         traces: traces.list({
           link: { kind: "thread", ref: threadId },
-          kinds: ["quick-analysis", "full-analysis", "placement"],
+          kinds: ["start", "full-analysis", "placement", "category-fit"],
           limit: 200,
         }),
       };

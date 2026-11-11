@@ -99,7 +99,7 @@ describe("inference application freshness", () => {
     expect(topics.assignment("t").entityId).toBe(b.id);
   });
   it.each([10, 20])(
-    "does not apply Quick results after idle at attention revision %s",
+    "does not apply the start call's title after idle at attention revision %s",
     async (revision) => {
       const pending = gate();
       world = await fakeWorld({ complete: () => pending.promise });
@@ -110,6 +110,7 @@ describe("inference application freshness", () => {
         title: null,
         status: "starting",
         latestAttentionAt: 10,
+        createdAt: Date.now(),
       });
       await w.harness.registrations.hooks["message.dispatch"]!(
         makeMessageDispatchHookContext({
@@ -122,8 +123,9 @@ describe("inference application freshness", () => {
       w.threads.set("t", { ...t, status: "idle", latestAttentionAt: revision });
       pending.release(answer(a.id));
       await new Promise((resolve) => setTimeout(resolve, 20));
-      expect(topics.assignment("t").provenance).toBeNull();
       expect(w.threads.get("t")?.title).toBeNull();
+      // The topic still files the thread until its turn's end decides.
+      expect(topics.assignment("t").entityId).toBe(a.id);
     },
   );
 });

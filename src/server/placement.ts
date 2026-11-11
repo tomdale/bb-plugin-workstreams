@@ -1,8 +1,9 @@
 /**
- * Placement: one closed-set call settles a root's topic from its
- * requests, when the thread starts and again when a turn ends after a new
- * request. The analyzer asks and applies it alongside Full analysis, with the
- * same freshness checks; the first request is placed here directly.
+ * Placement: what choosing a root's topic reads, and the closed-set call that
+ * asks only that. A thread's start and a turn's end ask the topic together
+ * with their other fields (`question` builds the evidence they share); this
+ * call alone serves a move into a multi-topic group, a topic preview or
+ * repair, and a root that only lacks a topic.
  *
  * Its evidence is the generated title, the first, second, and latest
  * substantive requests, the project, and the checkout, plus hints:
@@ -43,25 +44,6 @@ export type PlacementQuestion = {
   settled?: PlacementOutput;
 };
 
-/** Each first-send attempt is bounded; the turn's end places it otherwise. */
-const FIRST_REQUEST_TIMEOUT_MS = 15_000;
-const FIRST_REQUEST_RETRY_DELAYS_MS = [1_000, 2_000];
-
-function delay(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal.aborted) return reject(signal.reason);
-    const abort = () => {
-      clearTimeout(timer);
-      reject(signal.reason);
-    };
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", abort);
-      resolve();
-    }, ms);
-    signal.addEventListener("abort", abort, { once: true });
-  });
-}
-
 /** Roots that point at other repositories before a checkout coordinates. */
 const COORDINATION_AT = 2;
 
@@ -87,8 +69,6 @@ export class Placement {
   /** Hints recorded before a thread's first request is placed. */
   private readonly startHints = new Map<string, string>();
   private readonly checkouts = new Map<string, string | null>();
-  private readonly firstRequests = new Map<string, AbortController>();
-  private disposed = false;
 
   constructor(
     private readonly deps: {
@@ -100,13 +80,6 @@ export class Placement {
       project: (projectId: string) => Promise<string | null>;
       /** The basis an automatic topic is settled from. */
       basisOf: (requests: readonly string[], project: string | null) => string;
-      /** Applies an answer under the source priority. */
-      apply: (
-        threadId: string,
-        answer: PlacementOutput,
-        basis: string,
-        traceId: string | null,
-      ) => void;
       log: (message: string) => void;
     },
   ) {}
@@ -134,19 +107,7 @@ export class Placement {
       this.startHints.delete(this.startHints.keys().next().value!);
   }
 
-  dispose(): void {
-    this.disposed = true;
-    for (const controller of this.firstRequests.values()) controller.abort();
-    this.firstRequests.clear();
-  }
-
-  cancelFirstRequest(threadId: string): void {
-    this.firstRequests.get(threadId)?.abort();
-    this.firstRequests.delete(threadId);
-  }
-
   forget(threadId: string): void {
-    this.cancelFirstRequest(threadId);
     this.startHints.delete(threadId);
     this.deps.db
       .prepare("DELETE FROM ws_thread_checkout WHERE thread_id = ?")
@@ -233,51 +194,6 @@ export class Placement {
       },
     );
     return { answer: value, traceId };
-  }
-
-  /**
-   * Places a root from its first request, right after it was filed from
-   * where it started. Never rejects; the turn's end places it otherwise.
-   */
-  async onFirstRequest(thread: PlacementThread, text: string): Promise<void> {
-    if (this.disposed || thread.parentThreadId) return;
-    this.firstRequests.get(thread.id)?.abort();
-    const controller = new AbortController();
-    this.firstRequests.set(thread.id, controller);
-    const unsettled = () =>
-      !controller.signal.aborted &&
-      this.deps.topics.assignment(thread.id).provenance !== "manual" &&
-      !this.deps.topics.basis(thread.id);
-    try {
-      for (let attempt = 0; unsettled(); attempt++) {
-        try {
-          const question = await this.question(thread, [text]);
-          if (!question || !unsettled()) return;
-          const { answer, traceId } = await this.ask(thread.id, question, {
-            label: thread.title ?? text.slice(0, 60),
-            timeoutMs: FIRST_REQUEST_TIMEOUT_MS,
-            signal: controller.signal,
-          });
-          // The thread may have been settled or corrected while the call ran.
-          if (!unsettled()) return;
-          this.deps.apply(thread.id, answer, question.basis, traceId);
-          this.startHints.delete(thread.id);
-          return;
-        } catch (error) {
-          if (controller.signal.aborted) return;
-          this.deps.log(`Placing ${thread.id} failed: ${String(error)}`);
-          const wait = FIRST_REQUEST_RETRY_DELAYS_MS[attempt];
-          if (wait === undefined) return;
-          await delay(wait, controller.signal);
-        }
-      }
-    } catch (error) {
-      if (!controller.signal.aborted)
-        this.deps.log(`Placing ${thread.id} failed: ${String(error)}`);
-    } finally {
-      if (this.firstRequests.get(thread.id) === controller)
-        this.firstRequests.delete(thread.id);
-    }
   }
 
   /** The checkout a root ran in when it was last placed. */

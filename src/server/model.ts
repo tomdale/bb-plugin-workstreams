@@ -14,6 +14,12 @@ import {
   type CategoryInput,
 } from "../domain/categories.ts";
 import {
+  parseStart,
+  startPrompt,
+  startSchema,
+  type StartInput,
+} from "../domain/start.ts";
+import {
   parseTurnEnd,
   turnEndPrompt,
   turnEndSchema,
@@ -70,6 +76,11 @@ const withPlacement = (input: TurnEndInput): TurnEndInput => ({
 });
 
 export const MODEL_CALLS = {
+  start: {
+    prompt: (input: StartInput) => startPrompt(input),
+    parse: (text: string, input: StartInput) => parseStart(text, input),
+    schema: (input: StartInput) => startSchema(input),
+  },
   "quick-analysis": {
     prompt: (input: QuickAnalysisInput) => quickAnalysisPrompt(input),
     parse: (text: string, input: QuickAnalysisInput) =>
@@ -182,6 +193,17 @@ export function summarize(
               (category) => `${category.name} (${category.threadIds.length})`,
             )
             .join(", ");
+    }
+    case "start": {
+      const s = value as OutputOf<"start">;
+      return [
+        s.title ? `title “${s.title}”` : "no title",
+        s.topic
+          ? `${topicOf(s.topic, (input as StartInput).placement?.entities) ?? "no topic"}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
     }
     case "category-fit": {
       const fit = value as OutputOf<"category-fit">;

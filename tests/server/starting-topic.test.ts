@@ -1,13 +1,13 @@
 /**
  * How a new root gets its first topic and title: the topic you
  * picked in the composer, the topic of the workstream whose ＋ opened it, the
- * topic of the thread it was started from, or placement of its first
- * request. Quick analysis titles it, reusing the composer's own preview when
- * the text matches.
+ * topic of the thread it was started from, or the start call on its first
+ * request, which also titles it. The composer's own title for the same text
+ * is kept.
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
-import { fakeWorld } from "./fake-bb.ts";
+import { choosesTopic, fakeWorld, isStart } from "./fake-bb.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 
@@ -22,6 +22,7 @@ const isQuick = (prompt: string) =>
   prompt.includes("You name one new agent thread");
 const isPlacement = (prompt: string) =>
   prompt.includes("You file one agent thread under a topic");
+const startCalls = (w: World) => w.completions.filter((c) => isStart(c.prompt));
 
 /**
  * Placement of the first request settles the topic a moment later. Unless a
@@ -80,16 +81,15 @@ async function setup(placed?: () => string | null) {
 }
 
 describe("a new root's first topic", () => {
-  it("is settled by placement of the first request", async () => {
+  it("is settled by the start call on the first request", async () => {
     let docsId = "";
     const { w, corpus, docs, dispatch, settle } = await setup(() => docsId);
     docsId = docs.id;
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
     expect(
-      w.completions.filter((c) => isPlacement(c.prompt)).map((c) => c.prompt),
+      w.completions.filter((c) => choosesTopic(c.prompt)).map((c) => c.prompt),
     ).toEqual([expect.stringContaining("Make the parser handle tabs")]);
-    // Placement outranks Quick analysis's guess.
     expect(corpus.assignment("t1")).toMatchObject({
       entityId: docs.id,
       provenance: "full",
@@ -113,33 +113,31 @@ describe("a new root's first topic", () => {
     });
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
-    const prompt = w.completions.find((c) => isPlacement(c.prompt))!.prompt;
+    const prompt = w.completions.find((c) => choosesTopic(c.prompt))!.prompt;
     expect(prompt).toContain("It was started from the Parser workstream.");
     expect(prompt).toContain("Tabs — Tab handling");
     expect(corpus.assignment("t1").entityId).not.toBe(parser.id);
   });
 
-  it("comes from placement of the first request, while Quick analysis titles it", async () => {
+  it("comes from one start call that also titles it", async () => {
     let parserId = "";
-    const { w, corpus, parser, dispatch, settle, quickCalls } = await setup(
-      () => parserId,
-    );
+    const { w, corpus, parser, dispatch, settle } = await setup(() => parserId);
     parserId = parser.id;
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
-    expect(quickCalls()).toHaveLength(1);
-    expect(quickCalls()[0]!.prompt).toContain("Make the parser handle tabs");
-    // Placement files the thread, so naming it needs no topic tree.
-    expect(quickCalls()[0]!.prompt).not.toContain("<topic_tree>");
+    expect(startCalls(w)).toHaveLength(1);
+    expect(startCalls(w)[0]!.prompt).toContain("Make the parser handle tabs");
+    expect(startCalls(w)[0]!.prompt).toContain("<topic_tree>");
     expect(corpus.assignment("t1")).toMatchObject({
       entityId: parser.id,
       provenance: "full",
     });
-    expect(w.threads.get("t1")?.title).toBe("Parser tab handling");
+    // The title leaves out the name of the topic the same answer chose.
+    expect(w.threads.get("t1")?.title).toBe("Tab handling");
   });
 
-  it("reuses the composer's preview of the same text, with no second call", async () => {
-    const { w, corpus, docs, dispatch, settle, quickCalls } = await setup();
+  it("keeps the composer's preview of the same text until the start call files it", async () => {
+    const { w, corpus, docs, dispatch, settle } = await setup();
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Write the docs",
@@ -152,7 +150,8 @@ describe("a new root's first topic", () => {
     });
     await dispatch("t1", "Write the docs");
     await settle();
-    expect(quickCalls()).toHaveLength(0);
+    // The start call asks only the topic; here it fails, so the preview stands.
+    expect(startCalls(w)).toHaveLength(1);
     expect(corpus.assignment("t1")).toMatchObject({
       entityId: docs.id,
       provenance: "quick",

@@ -13,6 +13,7 @@ export const usageSchema = z.object({
 export type Usage = z.infer<typeof usageSchema>;
 
 export const TRACE_KINDS = [
+  "start",
   "quick-analysis",
   "full-analysis",
   "placement",
@@ -90,6 +91,7 @@ export type NewTrace = Omit<
 
 /** How the inspector and the CLI name each kind of call. */
 export const TRACE_KIND_TITLE: Record<TraceKind, string> = {
+  start: "Title and workstream",
   "quick-analysis": "Quick analysis",
   "full-analysis": "Full analysis",
   placement: "Placement",

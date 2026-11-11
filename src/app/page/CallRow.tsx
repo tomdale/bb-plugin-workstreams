@@ -12,6 +12,11 @@ import { ActivityTerm } from "./ActivityTerm.tsx";
 import { ActivityThreadLink } from "./ActivityThreadLink.tsx";
 
 const EVENT: Record<TraceKind, { label: string; description: string }> = {
+  start: {
+    label: "Title and workstream",
+    description:
+      "When the thread's first request was sent, the model titled the thread and, for a top-level thread, chose its topic or proposed a new one. The turn's end settles both later.",
+  },
   "quick-analysis": {
     label: "Quick analysis",
     description:

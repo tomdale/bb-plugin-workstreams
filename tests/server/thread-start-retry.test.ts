@@ -4,6 +4,7 @@ import { fakeWorld } from "./fake-bb.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import type { Inference } from "../../src/server/model.ts";
 import { Placement } from "../../src/server/placement.ts";
+import { ThreadStart } from "../../src/server/start.ts";
 import { TopicStore } from "../../src/server/topics.ts";
 
 let world: Awaited<ReturnType<typeof fakeWorld>> | undefined;
@@ -31,20 +32,45 @@ async function setup() {
     topics,
     project: async () => "Project",
     basisOf: () => "first-request",
-    apply,
+    log,
+  });
+  const starts = new ThreadStart({
+    sdk: () => world!.bb.sdk,
+    inference: { run, annotate: vi.fn() } as unknown as Inference,
+    model: async () => ({ kind: "gateway", model: "test" }),
+    // Only the topic is asked, so these tests follow filing alone.
+    titles: () => false,
+    analyzed: () => false,
+    title: async () => {},
+    listing: () => ({ group: null, parent: null }),
+    question: (thread, request) => placement.question(thread, [request]),
+    unsettled: (threadId) =>
+      topics.assignment(threadId).provenance !== "manual" &&
+      !topics.basis(threadId),
+    file: apply,
     log,
   });
   const thread = world.addThread("new", { environmentId: null });
+  const first = () =>
+    starts.onFirstRequest({
+      thread,
+      attempt: "start-turn",
+      origin: "cli",
+      input: { text: "Write the docs" },
+    });
   vi.useFakeTimers();
-  return { topic, topics, run, apply, log, placement, thread };
+  return { topic, topics, run, apply, log, starts, first, thread };
 }
 
 const answer = (subjectId: string) => ({
-  value: { subjectId, proposed: null, scopeShift: false },
+  value: {
+    title: null,
+    topic: { subjectId, proposed: null, scopeShift: false },
+  },
   traceId: "success-trace",
 });
 
-describe("first-request placement retries", () => {
+describe("first-request start retries", () => {
   it("retries a failed host call from the first-message dispatch", async () => {
     let topicId = "";
     let attempts = 0;
@@ -160,10 +186,10 @@ describe("first-request placement retries", () => {
   });
 
   it("retries a fetch failure and files the successful answer", async () => {
-    const { topic, topics, run, apply, log, placement, thread } = await setup();
+    const { topic, topics, run, apply, log, first, thread } = await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
     run.mockResolvedValueOnce(answer(topic.id));
-    const pending = placement.onFirstRequest(thread, "Write the docs");
+    const pending = first();
     await vi.advanceTimersByTimeAsync(0);
     expect(run).toHaveBeenCalledTimes(1);
     expect(topics.assignment(thread.id).provenance).toBeNull();
@@ -173,7 +199,7 @@ describe("first-request placement retries", () => {
     expect(log).toHaveBeenCalledOnce();
     expect(apply).toHaveBeenCalledWith(
       thread.id,
-      answer(topic.id).value,
+      answer(topic.id).value.topic,
       "first-request",
       "success-trace",
     );
@@ -184,9 +210,9 @@ describe("first-request placement retries", () => {
   });
 
   it("stops after three failed attempts without changing the topic", async () => {
-    const { topics, run, apply, log, placement, thread } = await setup();
+    const { topics, run, apply, log, first, thread } = await setup();
     run.mockRejectedValue(new TypeError("fetch failed"));
-    const pending = placement.onFirstRequest(thread, "Write the docs");
+    const pending = first();
     await vi.advanceTimersByTimeAsync(3_000);
     await pending;
     expect(run).toHaveBeenCalledTimes(3);
@@ -196,9 +222,9 @@ describe("first-request placement retries", () => {
   });
 
   it("does not retry or overwrite a manual correction made during the delay", async () => {
-    const { topic, topics, run, apply, placement, thread } = await setup();
+    const { topic, topics, run, apply, first, thread } = await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
-    const pending = placement.onFirstRequest(thread, "Write the docs");
+    const pending = first();
     await vi.advanceTimersByTimeAsync(0);
     topics.assign(thread.id, topic.id, { provenance: "manual" });
     await vi.advanceTimersByTimeAsync(1_000);
@@ -209,11 +235,16 @@ describe("first-request placement retries", () => {
   });
 
   it("stops retrying when another analysis settles the thread", async () => {
-    const { topic, topics, run, apply, placement, thread } = await setup();
+    const { topic, topics, run, apply, first, thread } = await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
-    const pending = placement.onFirstRequest(thread, "Write the docs");
+    const pending = first();
     await vi.advanceTimersByTimeAsync(0);
-    topics.applyAnalysis(thread.id, answer(topic.id).value, "full", "later");
+    topics.applyAnalysis(
+      thread.id,
+      answer(topic.id).value.topic,
+      "full",
+      "later",
+    );
     await vi.advanceTimersByTimeAsync(1_000);
     await pending;
     expect(run).toHaveBeenCalledTimes(1);
@@ -222,10 +253,10 @@ describe("first-request placement retries", () => {
   });
 
   it("does not apply an in-flight answer after a manual correction", async () => {
-    const { topic, topics, run, apply, placement, thread } = await setup();
+    const { topic, topics, run, apply, first, thread } = await setup();
     let resolve!: (value: ReturnType<typeof answer>) => void;
     run.mockImplementationOnce(() => new Promise((done) => (resolve = done)));
-    const pending = placement.onFirstRequest(thread, "Write the docs");
+    const pending = first();
     await vi.advanceTimersByTimeAsync(0);
     topics.assign(thread.id, topic.id, { provenance: "manual" });
     resolve(answer(topic.id));
@@ -235,22 +266,22 @@ describe("first-request placement retries", () => {
   });
 
   it("rebuilds the placement question against the current topic tree", async () => {
-    const { topics, run, placement, thread } = await setup();
+    const { topics, run, first, thread } = await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
-    const pending = placement.onFirstRequest(thread, "Write the docs");
+    const pending = first();
     await vi.advanceTimersByTimeAsync(0);
     const newTopic = topics.create("More Docs", "More documentation");
     run.mockResolvedValueOnce(answer(newTopic.id));
     await vi.advanceTimersByTimeAsync(1_000);
     await pending;
-    expect(run.mock.calls[1]![1].entities).toContainEqual(
+    expect(run.mock.calls[1]![1].placement.entities).toContainEqual(
       expect.objectContaining({ id: newTopic.id }),
     );
     expect(topics.assignment(thread.id).entityId).toBe(newTopic.id);
   });
 
   it("aborts an in-flight model call on disposal", async () => {
-    const { run, apply, placement, thread } = await setup();
+    const { run, apply, starts, first } = await setup();
     let signal: AbortSignal | undefined;
     run.mockImplementationOnce((_kind, _input, options) => {
       signal = options.signal;
@@ -258,30 +289,30 @@ describe("first-request placement retries", () => {
         signal!.addEventListener("abort", () => reject(signal!.reason));
       });
     });
-    const pending = placement.onFirstRequest(thread, "Write the docs");
+    const pending = first();
     await vi.advanceTimersByTimeAsync(0);
-    placement.dispose();
+    starts.dispose();
     await pending;
     expect(signal?.aborted).toBe(true);
     expect(apply).not.toHaveBeenCalled();
   });
 
   it("does not start a late dispatch after disposal", async () => {
-    const { run, placement, thread } = await setup();
-    placement.dispose();
-    await placement.onFirstRequest(thread, "Write the docs");
+    const { run, starts, first } = await setup();
+    starts.dispose();
+    await first();
     expect(run).not.toHaveBeenCalled();
   });
 
   it.each(["forget", "dispose"] as const)(
     "%s cancels a pending retry",
     async (action) => {
-      const { run, apply, placement, thread } = await setup();
+      const { run, apply, starts, first } = await setup();
       run.mockRejectedValueOnce(new TypeError("fetch failed"));
-      const pending = placement.onFirstRequest(thread, "Write the docs");
+      const pending = first();
       await vi.advanceTimersByTimeAsync(0);
-      if (action === "forget") placement.forget(thread.id);
-      else placement.dispose();
+      if (action === "forget") starts.forget("new");
+      else starts.dispose();
       await vi.advanceTimersByTimeAsync(3_000);
       await pending;
       expect(run).toHaveBeenCalledTimes(1);

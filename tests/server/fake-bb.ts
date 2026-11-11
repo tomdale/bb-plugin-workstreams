@@ -38,9 +38,22 @@ const PLACEMENT = "You file one agent thread under a topic";
 /** How a turn's end asks for a topic beside its description. */
 const TURN_END_TOPIC = "and decide which topic it belongs under now";
 
-/** Whether a prompt chooses a thread's topic, alone or with its description. */
+/** How a thread's start opens; a root's also files it under a topic. */
+const START = "You name one new agent thread from its opening request";
+const START_TOPIC = `${START} and file it under a topic`;
+
+/** Whether a prompt chooses a thread's topic, alone or with other fields. */
 export const choosesTopic = (prompt: string) =>
-  prompt.includes(PLACEMENT) || prompt.includes(TURN_END_TOPIC);
+  prompt.includes(PLACEMENT) ||
+  prompt.includes(TURN_END_TOPIC) ||
+  prompt.includes(START_TOPIC);
+
+/**
+ * Whether a prompt is a thread's start, which names it. The composer's
+ * preview opens the same way and also chooses a topic.
+ */
+export const isStart = (prompt: string) =>
+  prompt.includes(START) && !prompt.includes(`${START} and choose its topic`);
 
 /** How the prompts that write titles open. */
 const NAMING = [
@@ -102,6 +115,21 @@ function asPlacement(
       : null,
     scopeShift: parsed.scopeShift ?? false,
   });
+}
+
+/** A start names its title `title`; tests write it as `goal`. */
+function asStart(answer: Record<string, unknown>): Record<string, unknown> {
+  const { goal, ...rest } = answer;
+  return { ...rest, title: rest.title ?? goal ?? null };
+}
+function startText(answer: string): string {
+  try {
+    return JSON.stringify(
+      asStart(JSON.parse(answer) as Record<string, unknown>),
+    );
+  } catch {
+    return answer;
+  }
 }
 
 const DEFAULT_ANSWER = JSON.stringify({
@@ -189,10 +217,15 @@ export async function fakeWorld(
       const usage = { input: 100, output: 20, cost: 0.0001 };
       const textOf = (answer: FakeAnswer) =>
         typeof answer === "string" ? answer : answer.text;
-      // A turn's end describes the thread and chooses its topic in one call.
-      // Tests answer the two parts as they did when they were separate
-      // calls: the topic as a placement answer, the rest as an analysis.
-      if (input.prompt.includes(TURN_END_TOPIC)) {
+      // A turn's end describes the thread and chooses its topic in one call,
+      // and a root's start names it and files it. Tests answer the two parts
+      // as they did when they were separate calls: the topic as a placement
+      // answer, the rest as an analysis or opening title.
+      const starting = isStart(input.prompt);
+      if (
+        input.prompt.includes(TURN_END_TOPIC) ||
+        input.prompt.includes(START_TOPIC)
+      ) {
         const ask = async (prompt: string) => textOf(await answer(prompt));
         const answer = async (prompt: string) =>
           (await options.complete?.({
@@ -200,7 +233,9 @@ export async function fakeWorld(
             prompt,
             signal: call.signal,
           })) ?? DEFAULT_ANSWER;
-        const description = await answer(input.prompt);
+        const description = await answer(
+          starting ? input.prompt.replace(START_TOPIC, START) : input.prompt,
+        );
         const reasoning =
           typeof description === "string" ? null : description.reasoning;
         let described: Record<string, unknown>;
@@ -218,11 +253,12 @@ export async function fakeWorld(
             // Without the description's opening, so fakes that tell the two
             // calls apart by it answer this part as placement.
             await ask(
-              `${PLACEMENT}\n\n${input.prompt.replace("You describe one agent thread", "This agent thread")}`,
+              `${PLACEMENT}\n\n${input.prompt.replace("You describe one agent thread", "This agent thread").replace(START_TOPIC, "This new agent thread")}`,
             ),
             new TopicStore(openDatabase(host.bb)).list(),
           ),
         ) as Record<string, unknown>;
+        if (starting) described = asStart(described);
         return {
           ...(reasoning ? { reasoning, stopReason: "stop" } : {}),
           text: JSON.stringify({
@@ -243,9 +279,11 @@ export async function fakeWorld(
       const translate = (text: string) =>
         placing
           ? asPlacement(text, new TopicStore(openDatabase(host.bb)).list())
-          : naming
-            ? asTitleParts(text)
-            : text;
+          : starting
+            ? startText(asTitleParts(text))
+            : naming
+              ? asTitleParts(text)
+              : text;
       return typeof given === "string"
         ? { text: translate(given), usage }
         : { ...given, text: translate(given.text), usage, stopReason: "stop" };

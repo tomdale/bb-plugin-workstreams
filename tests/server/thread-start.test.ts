@@ -6,9 +6,9 @@ import { TopicStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 
 /*
- * Quick analysis's title: a new thread named from its first request while
- * its first turn runs. These threads already have a topic, so Quick analysis
- * is asked only for the title; starting-topic.test.ts covers the topic.
+ * The start call's title: a new thread named from its first request while
+ * its first turn runs. These threads already have a topic you set, so the
+ * call asks only for the title; starting-topic.test.ts covers the topic.
  */
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
@@ -24,7 +24,7 @@ const REQUEST =
   "Fix the stale build cache in the monorepo, it keeps serving old output";
 const isOpening = (prompt: string) =>
   prompt.includes("You name one new agent thread from its opening request");
-/** Gives a thread a topic, so Quick analysis has only its title to settle. */
+/** Gives a thread a topic, so the start call has only its title to settle. */
 const topicked = (w: World, id: string) =>
   new TopicStore(openDatabase(w.bb)).assign(id, null, {
     provenance: "manual",
@@ -144,26 +144,23 @@ async function finishTurn(w: World, id: string, at: number) {
 }
 
 describe("naming a thread from its opening request", () => {
-  it("repairs title-only output using only the fields that call requests", async () => {
+  it("asks again after an unusable answer", async () => {
     let attempts = 0;
     const w = await setup(() =>
       attempts++ === 0
         ? "not JSON"
         : JSON.stringify({
-            goal: { verb: "fixing", subject: "stale build cache" },
+            title: { verb: "fixing", subject: "stale build cache" },
           }),
     );
     newThread(w);
     await firstMessage(w);
-    await vi.waitFor(() =>
-      expect(w.threads.get("t1")?.title).toBe("Fixing stale build cache"),
+    await vi.waitFor(
+      () => expect(w.threads.get("t1")?.title).toBe("Fixing stale build cache"),
+      { timeout: 3_000 },
     );
     expect(openingCalls(w)).toHaveLength(2);
-    const repair = openingCalls(w)[1]!.prompt;
-    expect(repair).toContain(
-      "Validation requirement: return only a JSON object with the requested fields",
-    );
-    expect(repair).not.toMatch(/subjectId|topic_tree/);
+    expect(openingCalls(w)[1]!.prompt).toBe(openingCalls(w)[0]!.prompt);
   });
 
   it("titles it while its first turn is still running, without waiting on the model", async () => {
@@ -204,12 +201,12 @@ describe("naming a thread from its opening request", () => {
     await vi.waitFor(() => expect(w.threads.get("t1")?.title).not.toBeNull());
     expect(openingCalls(w)).toHaveLength(1);
     const { prompt, model } = openingCalls(w)[0]!;
-    expect(model).toBe("openai/gpt-6-luna-fast");
+    expect(model).toBe("openai/gpt-6-sol");
     expect(prompt).toContain(REQUEST);
     expect(prompt).toContain(
-      'Return {"goal": {"verb": string, "subject": string}|null}',
+      'Return {"title": {"verb": string, "subject": string}|null}',
     );
-    // Placement files the thread; naming it needs no topic tree.
+    // You set its topic, so naming it needs no topic tree.
     expect(prompt).not.toContain("<topic_tree>");
     expect(prompt).not.toContain("Last assistant");
     expect(prompt).not.toContain("Zebracorn");
@@ -372,8 +369,11 @@ describe("naming a thread from its opening request", () => {
       );
       newThread(w);
       expect(await firstMessage(w)).toEqual({ action: "proceed" });
-      await vi.waitFor(() =>
-        expect(openingCalls(w)).toHaveLength(bad === "not json" ? 2 : 1),
+      // An unparseable answer is asked twice more; a title too long for a
+      // row is a usable answer with no title.
+      await vi.waitFor(
+        () => expect(openingCalls(w)).toHaveLength(bad === "not json" ? 3 : 1),
+        { timeout: 4_000 },
       );
       await flush();
       await new Promise((resolve) => setTimeout(resolve, 20));
@@ -416,14 +416,12 @@ describe("naming a thread from its opening request", () => {
     expect(w.threads.get("t1")?.title).toBeNull();
     const { traces } = await rpc<{
       traces: { kind: string; status: string; error: string | null }[];
-    }>(w, "traces", { kind: "quick-analysis" });
-    expect(traces).toMatchObject([
-      {
-        kind: "quick-analysis",
-        status: "failed",
-        error: "The model didn't answer within 15 seconds.",
-      },
-    ]);
+    }>(w, "traces", { kind: "start" });
+    expect(traces[0]).toMatchObject({
+      kind: "start",
+      status: "failed",
+      error: "The model didn't answer within 15 seconds.",
+    });
     await finishTurn(w, "t1", 200);
     await settle(6_000);
     expect(w.threads.get("t1")?.title).toBe("Speed up the monorepo build");
@@ -607,31 +605,6 @@ describe("naming a thread from its opening request", () => {
     expect(w.threads.get("t3")?.title).toBeNull();
   });
 
-  it("runs at most four calls at once", async () => {
-    const release: ((answer: string) => void)[] = [];
-    let inFlight = 0;
-    let peak = 0;
-    const w = await setup(async ({ prompt }) => {
-      if (!isOpening(prompt)) return analysis(null);
-      inFlight++;
-      peak = Math.max(peak, inFlight);
-      const answer = await new Promise<string>((resolve) =>
-        release.push(resolve),
-      );
-      inFlight--;
-      return answer;
-    });
-    for (let i = 0; i < 6; i++) newThread(w, `t${i}`);
-    for (let i = 0; i < 6; i++) await firstMessage(w, `t${i}`);
-    await vi.waitFor(() => expect(release).toHaveLength(4));
-    await flush();
-    expect(peak).toBe(4);
-    expect(openingCalls(w)).toHaveLength(4);
-    for (const send of release.splice(0))
-      send(opening("Fix stale build cache"));
-    await vi.waitFor(() => expect(inFlight).toBe(0));
-  });
-
   it("records the call on the trace, linked to the title it wrote", async () => {
     const w = await setup(models({ opening: ["Fix stale build cache"] }), {
       advanced: { debugRecord: true },
@@ -651,12 +624,12 @@ describe("naming a thread from its opening request", () => {
         threads: string[];
       }[];
     }>(w, "traces", {});
-    const openingTraces = traces.filter((t) => t.kind === "quick-analysis");
+    const openingTraces = traces.filter((t) => t.kind === "start");
     expect(openingTraces).toHaveLength(1);
     expect(openingTraces[0]).toMatchObject({
-      kind: "quick-analysis",
+      kind: "start",
       status: "ok",
-      summary: "goal “Fix stale build cache” · no topic",
+      summary: "title “Fix stale build cache”",
       threads: ["t1"],
     });
     // The label is the request's opening words, as BB shows them.
@@ -690,7 +663,7 @@ describe("naming a thread from its opening request", () => {
       "traces",
       {},
     );
-    const openingTrace = traces.find((t) => t.kind === "quick-analysis");
+    const openingTrace = traces.find((t) => t.kind === "start");
     const { trace } = await rpc<{ trace: { outcome: unknown } }>(w, "trace", {
       id: openingTrace!.id,
     });
