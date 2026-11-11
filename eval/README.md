@@ -8,13 +8,14 @@ repository.
 
 Run `node eval/classification.ts` for placement,
 `EVAL_KIND=quick node eval/classification.ts` for the actual Quick prompt,
-output schema, and parser, `EVAL_KIND=start` for the start call (title and
-topic from the opening request), or `EVAL_KIND=turn-end` for the turn-end call
+output schema, and parser, `EVAL_KIND=start` for the start call (title and topic
+from the opening request), or `EVAL_KIND=turn-end` for the turn-end call
 (description and topic from the case's requests as a first turn). Start and
-turn-end choose topics under placement's contract and are scored like it. Quick flattens a synthetic case's requests into one
-opening request; it does not measure conversation trajectories or the production
-repair retry. Placement receives generated titles and optional conflicting
-hints, checkouts, and current assignments; scoped cases also check `scopeShift`.
+turn-end choose topics under placement's contract and are scored like it. Quick
+flattens a synthetic case's requests into one opening request; it does not
+measure conversation trajectories or the production repair retry. Placement
+receives generated titles and optional conflicting hints, checkouts, and current
+assignments; scoped cases also check `scopeShift`.
 
 - `EVAL_MODEL`: model ID; default `openai/gpt-6-sol` for placement,
   `openai/gpt-6-luna-fast` for Quick and start, `openai/gpt-6-sol-fast` for
@@ -88,9 +89,10 @@ synthetic opening requests, each listed under a workstream and sometimes a
 parent thread; `EVAL_KIND=full` runs Full analysis's on the same requests as a
 first turn. `EVAL_KIND=start`, `turn-end`, and `turn-end-follow` run the same
 cases through the start and turn-end calls, which also choose a topic: a root's
-listed group becomes the topic tree, already chosen at a turn's end. `EVAL_KIND=follow` gives Full analysis a title Workstreams wrote and
-a later request: a request that only takes the work to its next step must keep
-the title, and one that changes the goal must rename it. A title passes when it
+listed group becomes the topic tree, already chosen at a turn's end.
+`EVAL_KIND=follow` gives Full analysis a title Workstreams wrote and a later
+request: a request that only takes the work to its next step must keep the
+title, and one that changes the goal must rename it. A title passes when it
 starts with an -ing verb that says what kind of work it is, names its case's
 subject, repeats nothing its listing shows, and fits a sidebar row
 (`EVAL_VISIBLE`, default `34` characters).
@@ -104,10 +106,11 @@ subject, repeats nothing its listing shows, and fits a sidebar row
 ## Thread goals
 
 `node eval/goals.ts` evaluates the production Full analysis prompt, schema, and
-parser (`EVAL_KIND=turn-end`: the turn-end call, choosing a topic beside it) on synthetic implementation, refactoring, design, and audit requests.
-Cases include misleading recap headlines, housekeeping and testing follow-ups, a
-genuine change of purpose, and a user-owned title. Goals must retain the settled
-outcome through intermediate steps and follow changes in user intent.
+parser (`EVAL_KIND=turn-end`: the turn-end call, choosing a topic beside it) on
+synthetic implementation, refactoring, design, and audit requests. Cases include
+misleading recap headlines, housekeeping and testing follow-ups, a genuine
+change of purpose, and a user-owned title. Goals must retain the settled outcome
+through intermediate steps and follow changes in user intent.
 
 - `EVAL_MODEL`: default `openai/gpt-6-sol-fast`
 - `EVAL_REASONING_LEVEL`: default `none`
