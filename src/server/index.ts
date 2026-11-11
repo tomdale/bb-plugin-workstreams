@@ -854,7 +854,9 @@ export default async function plugin(bb: BbPluginApi) {
             rationale: "Started from New thread",
           });
         else service.seeThread(ctx.thread.id, null, ctx.parentThreadId ?? null);
-        if (!ctx.parentThreadId) {
+        // Hidden threads (workflow and subagent workers) are never listed,
+        // so they get no topic and cost no model call.
+        if (!ctx.parentThreadId && ctx.thread.visibility !== "hidden") {
           if (from && topics.inherit(ctx.thread.id, from))
             notify({ slices: ["catalog"], threadIds: [ctx.thread.id] });
           else if (from) {

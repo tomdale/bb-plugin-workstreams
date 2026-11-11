@@ -84,6 +84,38 @@ describe("first-request placement retries", () => {
     });
   });
 
+  it("never places a hidden worker thread", async () => {
+    let placements = 0;
+    world = await fakeWorld({
+      complete: ({ prompt }) => {
+        if (prompt.includes("You file one agent thread under a topic"))
+          placements++;
+        return JSON.stringify({ goal: null, subjectId: null });
+      },
+    });
+    const topics = new TopicStore(openDatabase(world.bb));
+    topics.create("Docs", "Documentation");
+    const thread = world.addThread("worker", {
+      status: "starting",
+      createdAt: Date.now(),
+      environmentId: null,
+      visibility: "hidden",
+    });
+    vi.useFakeTimers();
+    const hook = world.harness.registrations.hooks["message.dispatch"]!;
+    await hook(
+      makeMessageDispatchHookContext({
+        thread,
+        input: { text: "Write the docs" },
+        origin: "cli",
+        parentThreadId: null,
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(placements).toBe(0);
+    expect(topics.assignment(thread.id).provenance).toBeNull();
+  });
+
   it("cancels first-request retries when a newer request arrives", async () => {
     let attempts = 0;
     world = await fakeWorld({
