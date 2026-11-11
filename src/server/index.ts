@@ -22,6 +22,7 @@ import { Placement } from "./placement.ts";
 import { isSubstantiveRequest } from "./requests.ts";
 import { withoutSubagentDeliveries } from "./requestProvenance.ts";
 import { Suggestions } from "./suggestions.ts";
+import { linkSuggestionTraces } from "./suggestionTrace.ts";
 import { ProjectAssociations } from "./projectAssociations.ts";
 import type { ProjectChoice } from "../domain/projectChoice.ts";
 import { workstreamProjectConflict } from "../domain/topicProject.ts";
@@ -637,6 +638,10 @@ export default async function plugin(bb: BbPluginApi) {
     log: (message) => bb.log.warn(message),
   });
   bb.onDispose(() => suggestions.dispose());
+  // Suggestions stored before they kept their call get the one behind them, so
+  // the debug UI works on what is already waiting.
+  const linked = linkSuggestionTraces(db, traces);
+  if (linked) bb.log.info(`Linked ${linked} suggestion(s) to their model call`);
   const reclassification = new Reclassification({
     db,
     sdk: () => bb.sdk,
