@@ -54,16 +54,22 @@ roots, including completed roots. Delegates follow their root without counting
 separately. Header collapse, focus, scrolling, and which view is open do not
 change eligibility. Sibling topics' counts are never combined.
 
-| Existing category state | Eligible roots | Action                                                     |
-| ----------------------- | -------------- | ---------------------------------------------------------- |
-| None                    | 0–5            | Show one thread list                                       |
-| None                    | 6 or more      | Classify the whole collection                              |
-| Active                  | 4 or more      | Keep the generation; reconsider on collection/work changes |
-| Active                  | 0–3            | Discard the generation without a model call                |
+| Existing category state | Eligible roots | Action                                               |
+| ----------------------- | -------------- | ---------------------------------------------------- |
+| None                    | 0–5            | Show one thread list                                 |
+| None                    | 6 or more      | Classify the whole collection                        |
+| Active                  | 4 or more      | Keep the generation; check arrivals and work changes |
+| Active                  | 0–3            | Discard the generation without a model call          |
 
-When a root arrives, leaves, or changes work after a substantive request, the
-classifier receives the whole current collection and its current categories.
-Substantive requests are assessed during dispatch, before Full analysis
+A departing root leaves its category with no model call. When a root arrives or
+changes work after a substantive request, a fit check first asks whether each
+such root fits an existing category as it stands; the check sees the current
+categories, their other members' titles, and the changed roots' requests. When
+every changed root fits, it is filed there and nothing else moves. When one fits
+none, the check fails, or most categories hold one thread, the classifier
+receives the whole current collection and its current categories. A generation
+that records no per-root work (`arranged`) goes to the classifier on its next
+change. Substantive requests are assessed during dispatch, before Full analysis
 finishes. The active collection retains request-version hashes for stale-result
 checks; incoming request text is held temporarily until analyzed context catches
 up. Each assessment fetches bounded first, second, and latest requests,
@@ -72,7 +78,7 @@ memberships, but should preserve the arrangement unless a change offers a
 meaningful organizational benefit. Cosmetic differences and marginal tidiness
 are not reasons to regroup. Threads missing from the current categories join the
 existing category whose theme they share. There is no throttle, periodic
-assessment, recommendation queue, or incremental-only mode.
+assessment, or recommendation queue.
 
 The classifier chooses useful distinctions among these threads, with plain names
 and coherent membership. A category groups threads that share one theme;

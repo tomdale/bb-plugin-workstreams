@@ -280,13 +280,14 @@ category headings use a subdued version of the workstream color:
 - At **6 roots**, the category classifier sees the whole collection and creates
   useful categories. It counts visible, non-archived, unsnoozed roots, including
   completed roots; delegates follow their root and do not count separately.
-- While categories exist, every arrival, departure, or substantive request that
-  changes a root's work causes the classifier to reconsider the whole
-  collection. Requests are assessed when dispatched, without waiting for Full
-  analysis. It sees the current arrangement and should preserve it unless a
-  change offers a meaningful organizational benefit. Cosmetic changes do not
-  justify regrouping. There is no cooldown, periodic assessment, or separate
-  incremental mode.
+- While categories exist, a departing root just leaves its category. When a root
+  arrives or a substantive request changes its work, a quick check asks whether
+  it fits one of the current categories; if every such root fits, it joins that
+  category and nothing else moves. When one fits none, or most categories hold a
+  single thread, the classifier reconsiders the whole collection: it sees the
+  current arrangement and should preserve it unless a change offers a meaningful
+  organizational benefit. Requests are assessed when dispatched, without waiting
+  for the turn to end. There is no cooldown or periodic assessment.
 - At **4–5 roots**, an existing category set remains active. At **3 or fewer**,
   it is discarded without a model call. Reaching 6 again creates a fresh set.
 - Category IDs and memberships survive restarts separately from topic
