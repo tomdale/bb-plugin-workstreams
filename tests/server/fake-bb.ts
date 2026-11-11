@@ -35,6 +35,13 @@ export type FakeCompletion = (call: {
 /** How the placement prompt opens, so a fake can tell it apart. */
 const PLACEMENT = "You file one agent thread under a topic";
 
+/** How a turn's end asks for a topic beside its description. */
+const TURN_END_TOPIC = "and decide which topic it belongs under now";
+
+/** Whether a prompt chooses a thread's topic, alone or with its description. */
+export const choosesTopic = (prompt: string) =>
+  prompt.includes(PLACEMENT) || prompt.includes(TURN_END_TOPIC);
+
 /** How the prompts that write titles open. */
 const NAMING = [
   "You name one new agent thread",
@@ -179,11 +186,58 @@ export async function fakeWorld(
         outputSchema?: Record<string, unknown>;
       };
       completions.push(input);
+      const usage = { input: 100, output: 20, cost: 0.0001 };
+      const textOf = (answer: FakeAnswer) =>
+        typeof answer === "string" ? answer : answer.text;
+      // A turn's end describes the thread and chooses its topic in one call.
+      // Tests answer the two parts as they did when they were separate
+      // calls: the topic as a placement answer, the rest as an analysis.
+      if (input.prompt.includes(TURN_END_TOPIC)) {
+        const ask = async (prompt: string) => textOf(await answer(prompt));
+        const answer = async (prompt: string) =>
+          (await options.complete?.({
+            ...input,
+            prompt,
+            signal: call.signal,
+          })) ?? DEFAULT_ANSWER;
+        const description = await answer(input.prompt);
+        const reasoning =
+          typeof description === "string" ? null : description.reasoning;
+        let described: Record<string, unknown>;
+        try {
+          described = JSON.parse(asTitleParts(textOf(description))) as Record<
+            string,
+            unknown
+          >;
+        } catch {
+          // An unparseable answer stays as written, so it fails to parse.
+          return { text: textOf(description), usage };
+        }
+        const topic = JSON.parse(
+          asPlacement(
+            // Without the description's opening, so fakes that tell the two
+            // calls apart by it answer this part as placement.
+            await ask(
+              `${PLACEMENT}\n\n${input.prompt.replace("You describe one agent thread", "This agent thread")}`,
+            ),
+            new TopicStore(openDatabase(host.bb)).list(),
+          ),
+        ) as Record<string, unknown>;
+        return {
+          ...(reasoning ? { reasoning, stopReason: "stop" } : {}),
+          text: JSON.stringify({
+            ...described,
+            topic: topic.topic,
+            propose: topic.propose,
+            scopeShift: topic.scopeShift,
+          }),
+          usage,
+        };
+      }
       const given = await (options.complete?.({
         ...input,
         signal: call.signal,
       }) ?? DEFAULT_ANSWER);
-      const usage = { input: 100, output: 20, cost: 0.0001 };
       const placing = input.prompt.includes(PLACEMENT);
       const naming = NAMING.some((opening) => input.prompt.includes(opening));
       const translate = (text: string) =>

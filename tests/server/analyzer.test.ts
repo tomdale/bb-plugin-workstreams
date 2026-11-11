@@ -219,10 +219,9 @@ describe("idle analysis", () => {
     w.converse("t1", ["Add themes to the markdown viewer"]);
     await w.harness.behavior.callRpc("refresh", null);
     await w.harness.behavior.runCli(["analyze", "t1"]);
-    const placement = w.completions.find((c) =>
-      c.prompt.includes("You file one agent thread under a topic"),
-    );
-    expect(placement!.prompt).toContain("[viewer] Viewer");
+    // One call describes the turn and chooses the topic by its short ID.
+    expect(w.completions).toHaveLength(1);
+    expect(analyses(w).at(-1)!.prompt).toContain("[viewer] Viewer");
     expect(analyses(w).at(-1)!.prompt).not.toContain(topicId);
     expect(corpus.assignment("t1")).toMatchObject({
       entityId: topicId,

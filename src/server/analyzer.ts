@@ -1,15 +1,18 @@
 /**
- * Full analysis queue. A turn's end schedules it after a short
- * debounce, a new turn cancels the pending run, and at most four runs are in
- * flight, each a Full analysis call and, for a root, a placement call. Results are keyed to the thread's revision, so a result from an
- * older turn renders as pending rather than current.
+ * Turn-end queue. A turn's end schedules a run after a short debounce, a new
+ * turn cancels the pending run, and at most four runs are in flight, each at
+ * most one model call (see `turnEnd.ts`). Results are keyed to the thread's
+ * revision, so a result from an older turn renders as pending rather than
+ * current.
  *
  * What a run asks depends on what changed:
  *
- * - After a new request from you, Full analysis settles the title and goal and
- *   describes the turn when the agent didn't report, and placement settles a
- *   root's topic alongside it (see `Placement`). It keeps a title Workstreams
- *   wrote unless the goal changed, and never names over one you gave.
+ * - After a new request from you, the call settles the title and goal,
+ *   describes the turn when the agent didn't report, and for a root decides
+ *   its topic in the same answer. It keeps a title Workstreams wrote unless
+ *   the goal changed, and never names over one you gave.
+ * - A root that only lacks a topic (an earlier turn was analyzed before it
+ *   had one) gets a placement call alone (see `Placement`).
  * - After a turn with no new request (a waiting check, a bare "continue"),
  *   only the turn's status is new: with an agent report nothing is asked and
  *   the settled title carries forward; without one, only the status is asked.
@@ -27,6 +30,7 @@ import type {
   TitledBy,
 } from "../domain/analysis.ts";
 import type { PlacementOutput } from "../domain/placement.ts";
+import type { TurnEndInput } from "../domain/turnEnd.ts";
 import type { PlacementQuestion, PlacementThread } from "./placement.ts";
 import type { Entity } from "../domain/classify.ts";
 import type { TopicAssignment } from "../domain/topics.ts";
@@ -443,28 +447,37 @@ export class Analyzer {
               { digest: previous?.digest ?? null },
             )
           : null;
-      // Placement runs beside Full analysis; it fails on its own.
-      const placed = placing
-        ? this.deps
-            .placement!.ask(threadId, placing, {
-              label: displayTitle(thread),
-            })
-            .then(
-              (value) => ({ ok: true as const, ...value }),
-              (error: unknown) => ({
-                ok: false as const,
-                error: error instanceof Error ? error.message : String(error),
-              }),
-            )
-        : null;
       const full = force || !settled || previous?.threadGoal === undefined;
+      // Whether the turn needs describing, or only its topic (a root's first
+      // topic after an earlier analysis), or nothing new at all.
+      const describe =
+        !(topicOnly && previous) && !(!full && reported && previous);
+      // One call per turn: the description settles the topic with it. Only a
+      // turn that needs no description asks the topic on its own.
+      const joint = describe && placing && !placing.settled ? placing : null;
+      const placed =
+        placing && !joint
+          ? this.deps
+              .placement!.ask(threadId, placing, {
+                label: displayTitle(thread),
+              })
+              .then(
+                (value) => ({ ok: true as const, ...value }),
+                (error: unknown) => ({
+                  ok: false as const,
+                  error: error instanceof Error ? error.message : String(error),
+                }),
+              )
+          : null;
       let result: StoredAnalysis;
+      /** Why this run's own answer gave no usable topic, when it didn't. */
+      let invalidTopic: string | undefined;
       let topicAnswer: PlacementOutput | null = null;
       let topicTraceId: string | null = null;
-      if (topicOnly && previous) {
+      if (!describe && topicOnly && previous) {
         // Only the topic was missing; the turn's goal and status stand.
         result = { ...previous };
-      } else if (!full && reported && previous) {
+      } else if (!describe && previous && reported) {
         // Nothing new to settle, and the agent said how the turn ended.
         result = {
           ...previous,
@@ -476,7 +489,7 @@ export class Analyzer {
         };
       } else {
         const titledBy = this.titledBy(thread);
-        const input: FullAnalysisInput = {
+        const input: TurnEndInput = {
           title: displayTitle(thread),
           titledBy,
           preserveTitle:
@@ -497,6 +510,7 @@ export class Analyzer {
           lastAssistantText: context.lastAssistantText,
           report: reported?.report ?? null,
           mode: full ? "full" : "status",
+          placement: joint?.input ?? null,
         };
         const model = await this.deps.model();
         const asked = this.now();
@@ -541,16 +555,20 @@ export class Analyzer {
           model: modelLabel(model),
           traceId,
         };
+        invalidTopic = output.topicError;
+        if (joint && output.topic) {
+          topicAnswer = output.topic;
+          topicTraceId = traceId;
+        }
       }
       const placement = await placed;
-      // A failed placement is retried with backoff; a result carried over
-      // keeps no older failure.
+      // A failed or invalid topic is retried with backoff; a result carried
+      // over keeps no older failure.
       const { topicError: _carried, ...current } = result;
       void _carried;
-      result =
-        placement && !placement.ok
-          ? { ...current, topicError: placement.error }
-          : current;
+      const topicError =
+        placement && !placement.ok ? placement.error : invalidTopic;
+      result = topicError ? { ...current, topicError } : current;
       if (placement?.ok) {
         topicAnswer = placement.answer;
         topicTraceId = placement.traceId;
@@ -605,6 +623,8 @@ export class Analyzer {
           : { stored: "no: a newer turn's analysis was already stored" },
       );
       if (stored.changes > 0 && topicAnswer && placing)
+        // Settling the topic from these requests records them as its basis,
+        // so a later turn without a new request doesn't ask again.
         this.deps.topics?.apply(
           threadId,
           topicAnswer,

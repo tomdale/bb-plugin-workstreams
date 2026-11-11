@@ -144,7 +144,24 @@ const PLACEMENT_RULES = `Choose the topic this thread's work belongs to: the mos
 
 A topic about a different product is never a fit, however close: when the requests name the product, platform, or tool the work belongs to, a topic beneath a different owner doesn't fit however closely its description matches, and a new topic under the named owner is the answer. A tool used only as the method for otherwise unspecified work doesn't make the work about that tool, and a bare URL or reference supports at most a product the requests name; with no supported owner, give no topic. When proposing a new first-level topic, use the owner's recognizable product name, not that name joined to a capability or an implementation layer. In this call, propose supplies one new topic; parent names an existing first-level topic or is null. When the product is absent, establish its recognizable product name as the root first. Work on a product's SDK establishes that product first too, rather than a root named for the product plus SDK. An independently named tool product keeps its whole name. Name new topics in Title Case, keeping product names' own spelling. Hints are evidence, not rules.`;
 
-type PlacementChoices = Pick<PlacementInput, "entities" | "within">;
+/**
+ * Where an answer files the thread, as its listing names it: the chosen
+ * topic's path, or a proposal's name; null when it files nothing.
+ */
+export function placedGroup(
+  answer: PlacementOutput,
+  entities: readonly PlacementTopic[],
+): string | null {
+  if (answer.subjectId)
+    return topicAncestors(answer.subjectId, entities)
+      .reverse()
+      .map((id) => entities.find((e) => e.id === id)?.name)
+      .filter(Boolean)
+      .join(": ");
+  return answer.proposed?.name ?? null;
+}
+
+export type PlacementChoices = Pick<PlacementInput, "entities" | "within">;
 
 /**
  * The topics that can hold the thread: the user's group choice constrains both
@@ -166,7 +183,17 @@ export function choosableTopics(input: PlacementChoices): Set<string> {
   );
 }
 
-export function placementPrompt(input: PlacementInput): string {
+/**
+ * The evidence blocks a topic choice reads: the tree, the user's destination,
+ * the thread's title, project, checkout, requests, hints, current topic, and
+ * digest. Calls that settle more than a topic (a thread's start, a turn's end)
+ * pass `title: false` and `requests: false` when they supply those blocks
+ * themselves.
+ */
+export function placementSections(
+  input: PlacementInput,
+  include: { title?: boolean; requests?: boolean; digest?: boolean } = {},
+): string[] {
   const ids = placementIds(input.entities);
   const requests = input.requests.map((text, index) =>
     tagged(
@@ -174,7 +201,7 @@ export function placementPrompt(input: PlacementInput): string {
       excerpt(redact(text), REQUEST_CHARS),
     ),
   );
-  const sections = [
+  return [
     `The topic tree, where indentation expresses parentage and each topic's ID is in square brackets:\n${tagged("topic_tree", treeBlock(input, ids))}`,
     input.within
       ? `The user's destination group:\n${tagged(
@@ -189,7 +216,7 @@ export function placementPrompt(input: PlacementInput): string {
           { id: ids.get(input.within) },
         )}`
       : null,
-    input.title
+    include.title !== false && input.title
       ? `The thread's generated title:\n${tagged("title", line(input.title, 120))}`
       : null,
     input.project
@@ -198,38 +225,79 @@ export function placementPrompt(input: PlacementInput): string {
     input.checkout
       ? `Its checkout:\n${tagged("checkout", line(input.checkout, 200))}`
       : null,
-    `Its requests, oldest first:\n${requests.join("\n")}`,
+    include.requests !== false
+      ? `Its requests, oldest first:\n${requests.join("\n")}`
+      : null,
     input.hints.length
       ? `Hints:\n${input.hints.map((hint) => tagged("hint", line(hint, 300))).join("\n")}`
       : null,
     input.current
       ? `Its current topic${input.current.inherited ? ", from the thread or workstream it was started from" : ""}:\n${tagged("current_topic", line(input.current.label, 200))}`
       : null,
-    input.digest
+    include.digest !== false && input.digest
       ? `The thread's accumulated context, which a single later request refines more often than it replaces:\n${tagged("thread_digest", line(input.digest, 500))}`
       : null,
-  ].filter(Boolean);
+  ].filter((section): section is string => section !== null);
+}
+
+/** The topic fields' rules: what `topic`, `propose`, and `scopeShift` mean. */
+export function placementFields(input: PlacementChoices): string[] {
+  return [
+    `- topic: the ID in square brackets of the chosen topic${input.within ? " within the destination group." : ", or null."}`,
+    `- propose: ${input.within ? "null; group moves choose only existing topics." : 'null, or {"name": string, "description": string, "parent": string|null} for one new topic when none fits; parent is the ID of the topic it belongs inside, or null.'}`,
+    "- scopeShift: true only when the latest request moved the thread to work with a different primary owner than its current topic; otherwise false.",
+    input.within
+      ? "Give an existing topic inside the user's destination group and set propose to null."
+      : "Give a topic or a proposal, never both; both null when the work's owner is unknown.",
+  ];
+}
+
+/** The topic fields as they appear in a call's `Return {…}` line. */
+export function placementKeys(input: PlacementChoices): string[] {
+  return input.within
+    ? ['"topic": string', '"propose": null', '"scopeShift": boolean']
+    : [
+        '"topic": string|null',
+        '"propose": object|null',
+        '"scopeShift": boolean',
+      ];
+}
+
+/** The user's destination, as the topic choice's instruction. */
+export function placementRules(input: PlacementChoices): string {
+  return input.within
+    ? `The user moved this thread into the destination identified by the group block. Choose the existing topic within that group whose scope best covers the thread's work. This destination is the user's decision: the old topic, project, checkout, and hints cannot move it outside that group. Choose a topic without subtopics. Do not propose a new topic or leave the thread unfiled.`
+    : PLACEMENT_RULES;
+}
+
+export function placementPrompt(input: PlacementInput): string {
   return `${HEADER}
 
 You file one agent thread under a topic, for someone who switches between dozens of threads.
 
-${
-  input.within
-    ? `The user moved this thread into the destination identified by the group block. Choose the existing topic within that group whose scope best covers the thread's work. This destination is the user's decision: the old topic, project, checkout, and hints cannot move it outside that group. Choose a topic without subtopics. Do not propose a new topic or leave the thread unfiled.`
-    : PLACEMENT_RULES
-}
+${placementRules(input)}
 
-${sections.join("\n\n")}
+${placementSections(input).join("\n\n")}
 
-Return ${input.within ? '{"topic": string, "propose": null, "scopeShift": boolean}' : '{"topic": string|null, "propose": object|null, "scopeShift": boolean}'}:
-- topic: the ID in square brackets of the chosen topic${input.within ? " within the destination group." : ", or null."}
-- propose: ${input.within ? "null; group moves choose only existing topics." : 'null, or {"name": string, "description": string, "parent": string|null} for one new topic when none fits; parent is the ID of the topic it belongs inside, or null.'}
-- scopeShift: true only when the latest request moved the thread to work with a different primary owner than its current topic; otherwise false.
-${input.within ? "Give an existing topic inside the user's destination group and set propose to null." : "Give a topic or a proposal, never both; both null when the work's owner is unknown."}`;
+Return {${placementKeys(input).join(", ")}}:
+${placementFields(input).join("\n")}`;
 }
 
 /** JSON Schema constrains IDs at generation as well as at parsing. */
 export function placementSchema(
+  input: PlacementChoices,
+): Record<string, unknown> {
+  const properties = placementProperties(input);
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties,
+    required: Object.keys(properties),
+  };
+}
+
+/** The topic fields' JSON Schema, for calls that settle more than a topic. */
+export function placementProperties(
   input: PlacementChoices,
 ): Record<string, unknown> {
   const ids = placementIds(input.entities);
@@ -238,44 +306,39 @@ export function placementSchema(
     .filter(([id]) => allowed.has(id))
     .map(([, short]) => short);
   return {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      topic: input.within
-        ? { type: "string", enum: choices }
-        : { type: ["string", "null"], enum: [null, ...choices] },
-      propose: input.within
-        ? { type: "null" }
-        : {
-            anyOf: [
-              { type: "null" },
-              {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  name: { type: "string" },
-                  description: { type: "string" },
-                  parent: {
-                    type: ["string", "null"],
-                    enum: [
-                      null,
-                      ...[...ids]
-                        .filter(
-                          ([id]) =>
-                            input.entities.find((entity) => entity.id === id)
-                              ?.parentId === null,
-                        )
-                        .map(([, short]) => short),
-                    ],
-                  },
+    topic: input.within
+      ? { type: "string", enum: choices }
+      : { type: ["string", "null"], enum: [null, ...choices] },
+    propose: input.within
+      ? { type: "null" }
+      : {
+          anyOf: [
+            { type: "null" },
+            {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                name: { type: "string" },
+                description: { type: "string" },
+                parent: {
+                  type: ["string", "null"],
+                  enum: [
+                    null,
+                    ...[...ids]
+                      .filter(
+                        ([id]) =>
+                          input.entities.find((entity) => entity.id === id)
+                            ?.parentId === null,
+                      )
+                      .map(([, short]) => short),
+                  ],
                 },
-                required: ["name", "description", "parent"],
               },
-            ],
-          },
-      scopeShift: { type: "boolean" },
-    },
-    required: ["topic", "propose", "scopeShift"],
+              required: ["name", "description", "parent"],
+            },
+          ],
+        },
+    scopeShift: { type: "boolean" },
   };
 }
 
@@ -304,7 +367,15 @@ export function parsePlacement(
   text: string,
   input: PlacementChoices,
 ): PlacementOutput {
-  const parsed = outputSchema.parse(JSON.parse(stripFence(text)));
+  return parsePlacementFields(JSON.parse(stripFence(text)), input);
+}
+
+/** Checks the topic fields of an already-decoded answer (see `parsePlacement`). */
+export function parsePlacementFields(
+  raw: unknown,
+  input: PlacementChoices,
+): PlacementOutput {
+  const parsed = outputSchema.parse(raw);
   if (parsed.topic != null && parsed.propose != null)
     throw new Error("Choose a topic or a proposal, never both.");
   const allowed = choosableTopics(input);

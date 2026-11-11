@@ -11,6 +11,13 @@ import {
   placementSchema,
   type PlacementInput,
 } from "../src/domain/placement.ts";
+import { parseStart, startPrompt, startSchema } from "../src/domain/start.ts";
+import {
+  parseTurnEnd,
+  turnEndPrompt,
+  turnEndSchema,
+  type TurnEndInput,
+} from "../src/domain/turnEnd.ts";
 import {
   gatewayKey,
   gatewayComplete,
@@ -23,11 +30,17 @@ import { cases } from "./classification-cases.ts";
 const apiKey = await gatewayKey();
 if (!apiKey) throw new Error("AI Gateway authentication required");
 const kind = process.env.EVAL_KIND ?? "placement";
-if (kind !== "quick" && kind !== "placement")
-  throw new Error("EVAL_KIND must be quick or placement");
+if (!["quick", "placement", "start", "turn-end"].includes(kind))
+  throw new Error("EVAL_KIND must be quick, placement, start, or turn-end");
 const model =
   process.env.EVAL_MODEL ??
-  (kind === "quick" ? "openai/gpt-6-luna-fast" : "openai/gpt-6-sol");
+  (kind === "quick" || kind === "start"
+    ? "openai/gpt-6-luna-fast"
+    : kind === "turn-end"
+      ? "openai/gpt-6-sol-fast"
+      : "openai/gpt-6-sol");
+/** Start and turn-end calls choose topics under placement's contract. */
+const scoring = kind === "quick" ? "quick" : "placement";
 const reasoningLevel = process.env.EVAL_REASONING_LEVEL ?? "none";
 const repetitions = Number(process.env.EVAL_REPETITIONS ?? 1);
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 20)
@@ -67,10 +80,40 @@ try {
           entities,
           project: test.input.project,
         };
+        // A start reads only the opening request; the case's later requests
+        // join it, as Quick's do.
+        const start = {
+          request: quick.request,
+          project: placement.project,
+          placement: {
+            entities,
+            project: placement.project,
+            checkout: placement.checkout,
+            hints: placement.hints,
+            current: placement.current,
+          },
+        };
+        // A turn's end reads the case's requests as a conversation, the
+        // generated title as one Workstreams wrote, and its digest.
+        const turnEnd: TurnEndInput = {
+          title: placement.title ?? test.input.prompt,
+          titledBy: "workstreams",
+          threadGoal: null,
+          digest: placement.digest ?? null,
+          requests,
+          lastAssistantText: null,
+          report: null,
+          mode: "full",
+          placement: { ...placement, title: null, digest: null },
+        };
         const prompt =
           kind === "quick"
             ? quickAnalysisPrompt(quick)
-            : placementPrompt(placement);
+            : kind === "start"
+              ? startPrompt(start)
+              : kind === "turn-end"
+                ? turnEndPrompt(turnEnd)
+                : placementPrompt(placement);
         const started = Date.now();
         let response: string | null = null;
         let cost: number | undefined;
@@ -92,7 +135,11 @@ try {
             outputSchema:
               kind === "quick"
                 ? quickAnalysisSchema(quick)
-                : placementSchema(placement),
+                : kind === "start"
+                  ? startSchema(start)
+                  : kind === "turn-end"
+                    ? turnEndSchema(turnEnd)
+                    : placementSchema(placement),
           });
           response = completion.text;
           cost = completion.usage.cost;
@@ -102,7 +149,12 @@ try {
             if (parsed.topicError) throw new Error(parsed.topicError);
             topic = parsed;
           } else {
-            const placed = parsePlacement(response, placement);
+            const placed =
+              kind === "start"
+                ? parseStart(response, start).topic!
+                : kind === "turn-end"
+                  ? parseTurnEnd(response, turnEnd).topic!
+                  : parsePlacement(response, placement);
             if (
               test.scopeShift !== undefined &&
               placed.scopeShift !== test.scopeShift
@@ -120,7 +172,7 @@ try {
           // new capability in its product while the product has none.
           const inside = test.expectNew?.inside;
           const intoProduct =
-            kind === "placement" &&
+            scoring === "placement" &&
             !!inside &&
             value.subjectId === inside &&
             takesThreads(inside, test.input.entities);
@@ -146,7 +198,7 @@ try {
                   test.expected,
                   cold,
                   test.expectNew,
-                  kind,
+                  scoring,
                 )),
           });
         } catch (error) {
@@ -183,7 +235,7 @@ await writeFile(
       repetitions,
       accepted,
       acceptance:
-        cold && kind === "placement"
+        cold && scoring === "placement"
           ? "root ownership; hierarchy is advisory for single-topic proposals"
           : "owner, capability, and hierarchy",
       hierarchyMatches: results.filter((r) => r.hierarchy).length,

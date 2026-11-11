@@ -8,7 +8,7 @@ import {
 import { TopicStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { senderOfStart } from "../../src/server/requests.ts";
-import { fakeWorld } from "./fake-bb.ts";
+import { choosesTopic, fakeWorld } from "./fake-bb.ts";
 
 const run = {
   id: "12345678-1234-1234-1234-123456789abc",
@@ -153,9 +153,7 @@ it("keeps subagent reports out of placement and uses the real handoff source", a
   ]);
   await w.harness.behavior.callRpc("refresh", null);
   await w.harness.behavior.runCli(["analyze", "owner"]);
-  const prompt = w.completions.find((c) =>
-    c.prompt.includes("You file one agent thread under a topic"),
-  )!.prompt;
+  const prompt = w.completions.find((c) => choosesTopic(c.prompt))!.prompt;
   expect(prompt).toContain("It continues a thread filed under Cloud BB.");
   expect(prompt).toContain("Use my selected credential.");
   expect(prompt).not.toContain("Full transcript: @thread:thr_worker");
@@ -184,9 +182,7 @@ it("finds earlier user requests past a burst of subagent reports", async () => {
   ]);
   await w.harness.behavior.callRpc("refresh", null);
   await w.harness.behavior.runCli(["analyze", "owner"]);
-  const prompt = w.completions.find((c) =>
-    c.prompt.includes("You file one agent thread under a topic"),
-  )!.prompt;
+  const prompt = w.completions.find((c) => choosesTopic(c.prompt))!.prompt;
   expect(prompt).toContain("Prove cloud BB works");
   expect(prompt).toContain("Use the cloud worker");
   expect(prompt).not.toContain("Full transcript:");
@@ -223,9 +219,7 @@ it("uses the actual spawning agent for placement and continuation", async () => 
   );
   await w.harness.behavior.callRpc("refresh", null);
   await w.harness.behavior.runCli(["analyze", "owner"]);
-  const placement = w.completions.find((c) =>
-    c.prompt.includes("You file one agent thread under a topic"),
-  )!.prompt;
+  const placement = w.completions.find((c) => choosesTopic(c.prompt))!.prompt;
   expect(placement).toContain("It continues a thread filed under Source.");
   expect(analysesFor(w)).toContain("Source objective");
 });
@@ -295,9 +289,7 @@ it("does not place again when only a verified subagent report arrives", async ()
   await w.harness.behavior.callRpc("refresh", null);
   await w.harness.behavior.runCli(["analyze", "owner"]);
   const placements = () =>
-    w.completions.filter((c) =>
-      c.prompt.includes("You file one agent thread under a topic"),
-    ).length;
+    w.completions.filter((c) => choosesTopic(c.prompt)).length;
   const before = placements();
   expect(before).toBe(1);
   w.converse("owner", ["Prove cloud BB works", delivery]);

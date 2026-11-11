@@ -124,15 +124,11 @@ describe("debug mode on", () => {
     expect(summary).toMatchObject({
       status: "ok",
       label: "Alpha parser",
-      summary: "review",
+      summary: "review · no topic",
       threads: ["t1"],
     });
-    // Placement settles the topic beside it.
-    expect(recorded.find((t) => t.kind === "placement")).toMatchObject({
-      status: "ok",
-      summary: "no topic",
-      threads: ["t1"],
-    });
+    // The same call settles the topic: there is no separate placement call.
+    expect(recorded.find((t) => t.kind === "placement")).toBeUndefined();
     const state = await rpc<{
       analysis: Record<string, { traceId: string | null }>;
     }>(w, "state", null);
@@ -142,7 +138,7 @@ describe("debug mode on", () => {
     expect(w.completions.map((c) => c.prompt)).toContain(full.prompt);
     expect(full.system).toContain("Return only the requested JSON");
     expect(full.reasoning).toBe("**Weighing the state**\n\nThe tests pass.");
-    expect(full.response).toBe(JSON.stringify(ANALYSIS));
+    expect(JSON.parse(full.response!)).toMatchObject(ANALYSIS);
     expect(full.parsed).toMatchObject({ status: { recap: ANALYSIS.recap } });
     expect(full.outcome).toMatchObject({
       storedForRevision: expect.any(Number),

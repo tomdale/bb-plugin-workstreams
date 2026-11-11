@@ -13,6 +13,19 @@ import {
   gatewayComplete,
   gatewayKey,
 } from "../src/server/inference/gateway.ts";
+import type { PlacementInput } from "../src/domain/placement.ts";
+import {
+  parseStart,
+  startPrompt,
+  startSchema,
+  type StartInput,
+} from "../src/domain/start.ts";
+import {
+  parseTurnEnd,
+  turnEndPrompt,
+  turnEndSchema,
+  type TurnEndInput,
+} from "../src/domain/turnEnd.ts";
 import { VAGUE_VERBS, followUpCases, titleCases } from "./title-cases.ts";
 
 /**
@@ -24,6 +37,9 @@ import { VAGUE_VERBS, followUpCases, titleCases } from "./title-cases.ts";
  * - `EVAL_KIND=full`: Full analysis names it after its first turn.
  * - `EVAL_KIND=follow`: Full analysis sees a title Workstreams wrote and a
  *   later request, and keeps the title or renames it.
+ * - `EVAL_KIND=start`, `turn-end`, `turn-end-follow`: the same cases through
+ *   the start and turn-end calls, which also choose a topic. A root's listed
+ *   group becomes its topic tree, already chosen at a turn's end.
  *
  * A new title passes when it starts with an -ing verb that says what kind of
  * work it is, names its case's subject, repeats nothing the sidebar already
@@ -34,11 +50,23 @@ import { VAGUE_VERBS, followUpCases, titleCases } from "./title-cases.ts";
 const apiKey = await gatewayKey();
 if (!apiKey) throw new Error("AI Gateway authentication required");
 const kind = process.env.EVAL_KIND ?? "quick";
-if (kind !== "quick" && kind !== "full" && kind !== "follow")
-  throw new Error("EVAL_KIND must be quick, full, or follow");
+const KINDS = [
+  "quick",
+  "full",
+  "follow",
+  "start",
+  "turn-end",
+  "turn-end-follow",
+];
+if (!KINDS.includes(kind))
+  throw new Error(`EVAL_KIND must be one of ${KINDS.join(", ")}`);
 const model =
   process.env.EVAL_MODEL ??
-  (kind === "quick" ? "openai/gpt-6-luna-fast" : "openai/gpt-6-sol-fast");
+  (kind === "quick"
+    ? "openai/gpt-6-luna-fast"
+    : kind === "start"
+      ? "openai/gpt-6-sol"
+      : "openai/gpt-6-sol-fast");
 const reasoningLevel = process.env.EVAL_REASONING_LEVEL ?? "none";
 const repetitions = Number(process.env.EVAL_REPETITIONS ?? 3);
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 20)
@@ -75,8 +103,32 @@ function newTitleProblems(
   return problems;
 }
 
+/**
+ * A topic tree holding a case's listed group ("Atlas: Billing" is a product
+ * and its capability), with the leaf as the topic to choose.
+ */
+function placementFor(
+  group: string | null,
+): Omit<PlacementInput, "requests" | "title"> {
+  const names = (group ?? "").split(":").map((name) => name.trim());
+  const entities = names.filter(Boolean).map((name, i) => ({
+    id: `t${i}`,
+    name,
+    description: null,
+    parentId: i === 0 ? null : `t${i - 1}`,
+    aliases: [],
+  }));
+  return {
+    entities,
+    project: null,
+    checkout: null,
+    hints: [],
+    current: group ? { label: group, inherited: false } : null,
+  };
+}
+
 const jobs: Job[] = [];
-if (kind === "follow")
+if (kind === "follow" || kind === "turn-end-follow")
   for (const test of followUpCases) {
     const input: FullAnalysisInput = {
       title: test.title,
@@ -86,11 +138,23 @@ if (kind === "follow")
       report: { state: "waiting", headline: "Working", latest: [] },
       mode: "full",
     };
+    const turnEnd: TurnEndInput = {
+      ...input,
+      placement: { ...placementFor(null), title: null, requests: [] },
+    };
     jobs.push({
       id: test.id,
-      prompt: fullAnalysisPrompt(input),
-      schema: fullAnalysisSchema(input),
-      parse: (text) => parseFullAnalysis(text, input).goal,
+      ...(kind === "follow"
+        ? {
+            prompt: fullAnalysisPrompt(input),
+            schema: fullAnalysisSchema(input),
+            parse: (text: string) => parseFullAnalysis(text, input).goal,
+          }
+        : {
+            prompt: turnEndPrompt(turnEnd),
+            schema: turnEndSchema(turnEnd),
+            parse: (text: string) => parseTurnEnd(text, turnEnd).goal,
+          }),
       check: (title) =>
         test.expect === "keep"
           ? title && title !== test.title
@@ -104,7 +168,44 @@ if (kind === "follow")
 else
   for (const test of titleCases) {
     const listing = { group: test.group ?? null, parent: test.parent ?? null };
-    if (kind === "quick") {
+    // A child thread is only named; a root chooses its listed group.
+    const placement = test.parent ? null : placementFor(test.group ?? null);
+    if (kind === "start") {
+      const input: StartInput = {
+        request: test.request,
+        project: null,
+        placement: placement && { ...placement, current: null },
+        listing,
+      };
+      jobs.push({
+        id: test.id,
+        prompt: startPrompt(input),
+        schema: startSchema(input),
+        parse: (text) => parseStart(text, input).title,
+        check: (title) => newTitleProblems(title, test),
+      });
+    } else if (kind === "turn-end") {
+      const input: TurnEndInput = {
+        title: test.request.slice(0, 60),
+        titledBy: "none",
+        requests: [{ text: test.request, initial: true }],
+        lastAssistantText: null,
+        mode: "full",
+        listing,
+        placement: placement && {
+          ...placement,
+          title: null,
+          requests: [test.request],
+        },
+      };
+      jobs.push({
+        id: test.id,
+        prompt: turnEndPrompt(input),
+        schema: turnEndSchema(input),
+        parse: (text) => parseTurnEnd(text, input).goal,
+        check: (title) => newTitleProblems(title, test),
+      });
+    } else if (kind === "quick") {
       const input: QuickAnalysisInput = {
         request: test.request,
         entities: null,

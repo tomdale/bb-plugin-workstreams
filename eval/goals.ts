@@ -6,6 +6,12 @@ import {
   type FullAnalysisInput,
 } from "../src/domain/analysis.ts";
 import {
+  parseTurnEnd,
+  turnEndPrompt,
+  turnEndSchema,
+  type TurnEndInput,
+} from "../src/domain/turnEnd.ts";
+import {
   gatewayComplete,
   gatewayKey,
 } from "../src/server/inference/gateway.ts";
@@ -87,6 +93,13 @@ const cases: {
 const apiKey = await gatewayKey();
 if (!apiKey) throw new Error("AI Gateway authentication required");
 const model = process.env.EVAL_MODEL ?? "openai/gpt-6-sol-fast";
+/**
+ * `full` (default) asks Full analysis alone; `turn-end` asks the turn-end
+ * call, which also chooses the thread's topic from a small tree.
+ */
+const kind = process.env.EVAL_KIND ?? "full";
+if (kind !== "full" && kind !== "turn-end")
+  throw new Error("EVAL_KIND must be full or turn-end");
 const reasoningLevel = process.env.EVAL_REASONING_LEVEL ?? "none";
 const repetitions = Number(process.env.EVAL_REPETITIONS ?? 3);
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 20)
@@ -114,6 +127,40 @@ await Promise.all(
         },
         mode: "full",
       };
+      const turnEnd: TurnEndInput = {
+        ...input,
+        placement: {
+          title: null,
+          requests: test.requests,
+          project: null,
+          checkout: null,
+          entities: [
+            {
+              id: "lumen",
+              name: "Lumen",
+              description: "Code review product",
+              parentId: null,
+              aliases: [],
+            },
+            {
+              id: "review",
+              name: "Review",
+              description: "Lumen's review module",
+              parentId: "lumen",
+              aliases: [],
+            },
+            {
+              id: "docs",
+              name: "Docs",
+              description: "Lumen documentation",
+              parentId: "lumen",
+              aliases: [],
+            },
+          ],
+          hints: [],
+          current: { label: "Lumen: Review", inherited: false },
+        },
+      };
       const started = Date.now();
       let response: string | null = null;
       let usage: unknown = null;
@@ -124,12 +171,21 @@ await Promise.all(
           apiKey,
           model,
           reasoningLevel,
-          prompt: fullAnalysisPrompt(input),
-          outputSchema: fullAnalysisSchema(input),
+          prompt:
+            kind === "full"
+              ? fullAnalysisPrompt(input)
+              : turnEndPrompt(turnEnd),
+          outputSchema:
+            kind === "full"
+              ? fullAnalysisSchema(input)
+              : turnEndSchema(turnEnd),
         });
         response = completion.text;
         usage = completion.usage;
-        const output = parseFullAnalysis(response, input);
+        const output =
+          kind === "full"
+            ? parseFullAnalysis(response, input)
+            : parseTurnEnd(response, turnEnd);
         goal = output.threadGoal ?? test.current ?? null;
         if (!goal) problems.push("no outcome");
         if (test.keep && goal !== test.current)

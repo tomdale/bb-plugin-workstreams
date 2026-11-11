@@ -10,7 +10,8 @@
  *   settles the title and thread goal from the user's evolving purpose.
  *   The final reply and agent report provide turn context. Status mode carries
  *   the title and goal forward. Either mode supplies the turn's status when
- *   the agent didn't report one. Placement settles the topic (see placement.ts).
+ *   the agent didn't report one. A turn's end asks these fields together with
+ *   the topic (see turnEnd.ts).
  *
  * Both write a title as two parts, an -ing verb and its subject, which code
  * joins (`composeTitle`), so the form is the output's shape rather than a rule
@@ -67,7 +68,8 @@ type ThreadAnalysis = {
   readonly threadGoal?: string | null;
   /**
    * The accumulated context: what the work is and what it has established.
-   * Settled and carried forward like `threadGoal`; placement reads it.
+   * Settled and carried forward like `threadGoal`: the turn-end call reads
+   * the one it settled last as its own memory.
    */
   readonly digest?: string | null;
   readonly topicError?: string;
@@ -129,7 +131,7 @@ const clipped = (max: number) =>
  * as what you're doing, in two parts code joins. The goal outlasts the steps
  * toward it, so the verb names the overall work, not the latest subtask.
  */
-const TITLE_RULES = `Two parts that read together as "<verb> <subject>", naming the goal you're working toward in this thread, phrased as what you're doing: "Redesigning settings page", "Reviewing Phase 3 rollout", "Fixing export job timeouts", "Explaining cache invalidation".
+export const TITLE_RULES = `Two parts that read together as "<verb> <subject>", naming the goal you're working toward in this thread, phrased as what you're doing: "Redesigning settings page", "Reviewing Phase 3 rollout", "Fixing export job timeouts", "Explaining cache invalidation".
   - verb: the kind of work, as one -ing verb (fixing, reviewing, explaining, investigating, migrating, designing). Choose what the work is, not how the request phrases it: a request that opens "Review PR 1207" is reviewing. It names the overall work, not the latest step: diagnosing, testing, or shipping on the way to a fix is still fixing. Never working, handling, or doing.
   - subject: what the verb acts on, as it reads after the verb: the most specific words that tell this thread apart from similar work ("export job timeouts", not "export issues"), at most 3 words besides an identifier, no articles, lowercase except names and acronyms. With the verb, at most 34 characters: drop the least telling word to fit ("billing export retry queue" becomes "export retry queue"). Keep an identifier the request uses to tell sibling work apart, such as a phase or step number ("Step 2 schema"), but never an opaque ID. Name a pull request or issue by its subject; only when the subject is unknown, by its number ("PR 1207"). Name what a plan or document is about, not the document. Leave out names the listing shows and generic words such as plan, work, task, or changes.`;
 
@@ -137,7 +139,7 @@ const TITLE_RULES = `Two parts that read together as "<verb> <subject>", naming 
 type TitleParts = { readonly verb: string; readonly subject: string };
 
 /** The title field of an output schema: its parts, or null for none. */
-const titleFieldSchema = {
+export const titleFieldSchema = {
   anyOf: [
     { type: "null" },
     {
@@ -149,7 +151,7 @@ const titleFieldSchema = {
   ],
 };
 
-const titlePartsSchema = z
+export const titlePartsSchema = z
   .object({ verb: z.string(), subject: z.string() })
   .nullable()
   .catch(null);
@@ -235,7 +237,7 @@ function dropListedName(
 }
 
 /** The listing as prompt context, or nothing when it says nothing. */
-function listingBlock(listing: ThreadListing | null | undefined) {
+export function listingBlock(listing: ThreadListing | null | undefined) {
   if (!listing?.group && !listing?.parent) return "";
   return [
     'Where the thread is listed. Its title is read beside these, so leave out their names and products and name what tells this thread apart. Under "Atlas: Billing", "Fixing Atlas invoice export" becomes "Fixing invoice export"; under a parent "Building Orion sync", "Reviewing Orion sync Phase 3" becomes "Reviewing Phase 3". When leaving a name out would leave only generic words, name the subject more specifically instead: under "Orion", "Redesigning Orion" becomes "Redesigning settings page".',
@@ -563,6 +565,26 @@ const TITLE_SECTION: Record<TitledBy, string> = {
 };
 
 export function fullAnalysisPrompt(input: FullAnalysisInput): string {
+  const { sections, keys, fields } = fullAnalysisParts(input);
+  return `${HEADER}
+
+You describe one agent thread for someone who switches between dozens of them.
+
+${sections.join("\n\n")}
+
+Return {${keys.join(", ")}}:
+${fields.join("\n")}`;
+}
+
+/**
+ * The prompt's evidence blocks, its `Return {…}` keys, and the rules for each
+ * field, so a turn's end can ask for more than this call's fields.
+ */
+export function fullAnalysisParts(input: FullAnalysisInput): {
+  sections: string[];
+  keys: string[];
+  fields: string[];
+} {
   const report = input.report ?? null;
   const fields: string[] = [];
   const keys: string[] = [];
@@ -606,14 +628,7 @@ export function fullAnalysisPrompt(input: FullAnalysisInput): string {
         ].join("\n"),
       )}`,
     );
-  return `${HEADER}
-
-You describe one agent thread for someone who switches between dozens of them.
-
-${sections.join("\n\n")}
-
-Return {${keys.join(", ")}}:
-${fields.join("\n")}`;
+  return { sections, keys, fields };
 }
 
 /** JSON Schema for exactly the fields the prompt asks for. */
@@ -667,7 +682,7 @@ const fullOutputSchema = z.object({
     .optional(),
 });
 
-type FullAnalysisOutput = {
+export type FullAnalysisOutput = {
   /** A new desired outcome, or null to keep the settled goal. */
   threadGoal: string | null;
   /** A new accumulated context digest, or null to keep the settled one. */
@@ -689,7 +704,17 @@ export function parseFullAnalysis(
     "report" | "mode" | "titledBy" | "listing" | "preserveTitle"
   >,
 ): FullAnalysisOutput {
-  const raw: unknown = JSON.parse(stripFence(text));
+  return parseFullAnalysisFields(JSON.parse(stripFence(text)), input);
+}
+
+/** Checks an already-decoded answer (see `parseFullAnalysis`). */
+export function parseFullAnalysisFields(
+  raw: unknown,
+  input: Pick<
+    FullAnalysisInput,
+    "report" | "mode" | "titledBy" | "listing" | "preserveTitle"
+  >,
+): FullAnalysisOutput {
   const parsed = fullOutputSchema.parse(raw);
   let status: FullAnalysisOutput["status"] = null;
   if (!input.report) {

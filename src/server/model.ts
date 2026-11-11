@@ -10,13 +10,15 @@ import {
   type CategoryInput,
 } from "../domain/categories.ts";
 import {
-  fullAnalysisPrompt,
-  fullAnalysisSchema,
-  parseFullAnalysis,
+  parseTurnEnd,
+  turnEndPrompt,
+  turnEndSchema,
+  type TurnEndInput,
+} from "../domain/turnEnd.ts";
+import {
   parseQuickAnalysis,
   quickAnalysisPrompt,
   quickAnalysisSchema,
-  type FullAnalysisInput,
   type QuickAnalysisInput,
 } from "../domain/analysis.ts";
 import {
@@ -57,6 +59,12 @@ import {
 import { UserError } from "./service.ts";
 import { boundedJson, type TraceStore } from "./trace.ts";
 
+/** A call recorded before turn ends chose topics asks for none. */
+const withPlacement = (input: TurnEndInput): TurnEndInput => ({
+  ...input,
+  placement: input.placement ?? null,
+});
+
 export const MODEL_CALLS = {
   "quick-analysis": {
     prompt: (input: QuickAnalysisInput) => quickAnalysisPrompt(input),
@@ -65,10 +73,10 @@ export const MODEL_CALLS = {
     schema: (input: QuickAnalysisInput) => quickAnalysisSchema(input),
   },
   "full-analysis": {
-    prompt: (input: FullAnalysisInput) => fullAnalysisPrompt(input),
-    parse: (text: string, input: FullAnalysisInput) =>
-      parseFullAnalysis(text, input),
-    schema: (input: FullAnalysisInput) => fullAnalysisSchema(input),
+    prompt: (input: TurnEndInput) => turnEndPrompt(withPlacement(input)),
+    parse: (text: string, input: TurnEndInput) =>
+      parseTurnEnd(text, withPlacement(input)),
+    schema: (input: TurnEndInput) => turnEndSchema(withPlacement(input)),
   },
   placement: {
     prompt: (input: PlacementInput) => placementPrompt(input),
@@ -189,6 +197,11 @@ export function summarize(
         a.status ? a.status.state.replace("_", " ") : "reported",
         a.goal ? `title “${a.goal}”` : null,
         a.threadGoal ? `goal “${a.threadGoal}”` : null,
+        a.topicError
+          ? "invalid topic"
+          : a.topic
+            ? `${topicOf(a.topic, (input as TurnEndInput).placement?.entities) ?? "no topic"}${a.topic.scopeShift ? " (scope shift)" : ""}`
+            : null,
       ]
         .filter(Boolean)
         .join(" · ");
