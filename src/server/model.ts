@@ -4,6 +4,10 @@
  * live call, its debug trace, and a replay from the inspector.
  */
 import {
+  categoryFitPrompt,
+  categoryFitSchema,
+  parseCategoryFit,
+  type CategoryFitInput,
   categoryPrompt,
   categorySchema,
   parseCategories,
@@ -82,6 +86,12 @@ export const MODEL_CALLS = {
     prompt: (input: PlacementInput) => placementPrompt(input),
     parse: (text: string, input: PlacementInput) => parsePlacement(text, input),
     schema: (input: PlacementInput) => placementSchema(input),
+  },
+  "category-fit": {
+    prompt: (input: CategoryFitInput) => categoryFitPrompt(input),
+    parse: (text: string, input: CategoryFitInput) =>
+      parseCategoryFit(text, input),
+    schema: (input: CategoryFitInput) => categoryFitSchema(input),
   },
   categories: {
     prompt: (input: CategoryInput) => categoryPrompt(input),
@@ -172,6 +182,13 @@ export function summarize(
               (category) => `${category.name} (${category.threadIds.length})`,
             )
             .join(", ");
+    }
+    case "category-fit": {
+      const fit = value as OutputOf<"category-fit">;
+      const misfits = Object.values(fit).filter((id) => id === null).length;
+      return misfits
+        ? `${misfits} ${misfits === 1 ? "thread doesn't" : "threads don't"} fit`
+        : "fits current categories";
     }
     case "split": {
       const { split } = value as OutputOf<"split">;

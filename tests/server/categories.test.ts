@@ -5,6 +5,8 @@ import { openDatabase } from "../../src/server/db.ts";
 import type {
   CategoryCollection,
   CategoryDecision,
+  CategoryFit,
+  CategoryFitInput,
   CategoryInput,
 } from "../../src/domain/categories.ts";
 
@@ -46,6 +48,10 @@ function setup() {
   const db = openDatabase(host.bb);
   const state = { collections: [collection()] };
   const classify = vi.fn(async (input: CategoryInput) => decision(input));
+  // By default nothing fits, so every change reaches a rearrangement.
+  const fit = vi.fn(async (input: CategoryFitInput): Promise<CategoryFit> =>
+    Object.fromEntries(input.changed.map((id) => [id, null])),
+  );
   const changed = vi.fn();
   const log = vi.fn();
   const create = () => {
@@ -53,13 +59,14 @@ function setup() {
       db,
       collections: () => state.collections,
       classify,
+      fit,
       changed,
       log,
     });
     engines.push(engine);
     return engine;
   };
-  return { state, classify, changed, log, create, engine: create() };
+  return { state, classify, fit, changed, log, create, engine: create() };
 }
 
 describe("persisted collection categories", () => {
@@ -100,19 +107,52 @@ describe("persisted collection categories", () => {
     expect(classify).toHaveBeenCalledTimes(2);
   });
 
-  it("reconsiders the whole collection on arrival, departure, and changed work without a cooldown", async () => {
-    const { engine, state, classify } = setup();
+  it("checks arrivals and changed work against the categories, rearranging only what doesn't fit", async () => {
+    const { engine, state, classify, fit, changed } = setup();
     await engine.reconcile();
+    expect(fit).not.toHaveBeenCalled();
+    // An arrival that fits none: the whole collection is rearranged.
     state.collections = [collection(7)];
     await engine.reconcile();
+    expect(fit.mock.calls.at(-1)?.[0].changed).toEqual(["t6"]);
+    expect(classify).toHaveBeenCalledTimes(2);
     expect(classify.mock.calls.at(-1)?.[0].roots).toHaveLength(7);
+    // A departure only prunes, with no call.
     state.collections = [collection(5)];
     await engine.reconcile();
-    expect(classify.mock.calls.at(-1)?.[0].roots).toHaveLength(5);
+    expect(fit).toHaveBeenCalledTimes(1);
+    expect(classify).toHaveBeenCalledTimes(2);
+    // Changed work that fits its category stays without a rearrangement.
+    const before = engine.generations()["topic-a"]!;
+    const home = before.categories.find((c) => c.threadIds.includes("t0"))!;
+    fit.mockImplementationOnce(async () => ({ t0: home.id }));
     state.collections[0]!.roots[0]!.workKey = "new substantive request";
     await engine.reconcile();
-    expect(classify).toHaveBeenCalledTimes(4);
-    expect(classify.mock.calls.at(-1)?.[0].roots).toHaveLength(5);
+    expect(fit.mock.calls.at(-1)?.[0].changed).toEqual(["t0"]);
+    expect(classify).toHaveBeenCalledTimes(2);
+    expect(engine.generations()["topic-a"]).toEqual(before);
+    // An arrival that fits joins its category, recorded as a change.
+    const reasons = changed.mock.calls.length;
+    state.collections[0]!.roots.push({ ...collection(6).roots[5]! });
+    fit.mockImplementationOnce(async () => ({ t5: home.id }));
+    await engine.reconcile();
+    expect(classify).toHaveBeenCalledTimes(2);
+    expect(
+      engine.generations()["topic-a"]!.categories.find((c) => c.id === home.id)!
+        .threadIds,
+    ).toContain("t5");
+    expect(changed).toHaveBeenCalledTimes(reasons + 1);
+    expect(changed.mock.calls.at(-1)?.[1]).toMatch(/fits/);
+  });
+
+  it("rearranges when the fit check fails", async () => {
+    const { engine, state, classify, fit, log } = setup();
+    await engine.reconcile();
+    fit.mockRejectedValueOnce(new Error("bad JSON"));
+    state.collections = [collection(7)];
+    await engine.reconcile();
+    expect(classify).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/Checking/));
   });
   it("assesses a dispatched substantive request without waiting for analysis and deduplicates drains", async () => {
     const { engine, classify, create } = setup();
@@ -224,6 +264,8 @@ describe("persisted collection categories", () => {
     );
     state.collections = [collection(7)];
     const run = engine.reconcile();
+    // The arrival fits none, so the rearrangement is in flight.
+    await vi.waitFor(() => expect(resolve).toBeTypeOf("function"));
     state.collections = [collection(3)];
     const collapsed = engine.reconcile();
     expect(engine.generations()).toEqual({});
@@ -286,6 +328,7 @@ describe("persisted collection categories", () => {
     state.collections[0]!.roots[1]!.workKey = "request-2";
     const latest = structuredClone(state.collections);
     const run = engine.reconcile();
+    await vi.waitFor(() => expect(resolve).toBeTypeOf("function"));
     state.collections[0]!.roots = state.collections[0]!.roots.filter(
       (root) => root.id !== "t0",
     );
@@ -347,6 +390,7 @@ describe("persisted collection categories", () => {
       db: openDatabase(hosts[0]!.bb),
       collections: derive,
       classify,
+      fit: async () => ({}),
       changed: vi.fn(),
       log: vi.fn(),
     });

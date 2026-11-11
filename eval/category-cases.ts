@@ -91,6 +91,17 @@ changed.roots[0] = {
   work: "The work has shifted from invoice rounding to team permission inheritance. Implement permission inheritance; billing is out of scope.",
   workKey: "request-2",
 };
+const refined = input(groups, true);
+refined.roots[0] = {
+  ...refined.roots[0]!,
+  work: "Fix invoice rounding in billing, now for multi-currency invoices too.",
+  workKey: "request-2",
+};
+const arrivalAccess = input(
+  [...groups, { name: "New", work: ["Map SSO groups to team roles"] }],
+  true,
+);
+arrivalAccess.current!.categories.pop();
 const departure = input(groups, true);
 departure.roots = departure.roots.filter((root) => !root.id.endsWith("-2"));
 for (const category of departure.current!.categories)
@@ -163,6 +174,17 @@ export const cases: Array<{
       ["1-0", "1-1"],
     ],
     keep: true,
+  },
+  {
+    id: "refined-work",
+    input: refined,
+    partitions: expected,
+    keep: true,
+  },
+  {
+    id: "holdout-arrival-access",
+    input: arrivalAccess,
+    partitions: [expected[0]!, [...expected[1]!, "2-0"]],
   },
   {
     id: "holdout-paraphrase",

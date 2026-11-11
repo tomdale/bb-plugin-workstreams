@@ -17,6 +17,7 @@ export const TRACE_KINDS = [
   "full-analysis",
   "placement",
   "categories",
+  "category-fit",
   "split",
   "tidy",
 ] as const;
@@ -93,6 +94,7 @@ export const TRACE_KIND_TITLE: Record<TraceKind, string> = {
   "full-analysis": "Full analysis",
   placement: "Placement",
   categories: "Categories",
+  "category-fit": "Category check",
   split: "Split suggestion",
   tidy: "Tidy suggestions",
 };

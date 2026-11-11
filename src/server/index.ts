@@ -554,6 +554,30 @@ export default async function plugin(bb: BbPluginApi) {
           },
         )
       ).value,
+    // A cheap check before a whole rearrangement: whether threads that
+    // arrived or changed fit the current categories.
+    fit: async (input, signal) =>
+      (
+        await inference.run(
+          "category-fit",
+          await categoryEvidence(
+            bb.sdk,
+            input,
+            signal,
+            (id, basis) => categories.pendingRequest(id, basis),
+            new Set(input.changed),
+          ),
+          {
+            model: currentPrefs().analysis.quickModel,
+            label: input.label,
+            signal,
+            links: input.changed.map((id) => ({
+              kind: "thread" as const,
+              ref: id,
+            })),
+          },
+        )
+      ).value,
     changed: (topicId, reason) => {
       const label = topics.getById(topicId)
         ? topicPath(topicId, topics.list())

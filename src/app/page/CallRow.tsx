@@ -27,6 +27,11 @@ const EVENT: Record<TraceKind, { label: string; description: string }> = {
     description:
       "The model assessed the topic's current thread collection and proposed an arrangement into contextual categories. Topic assignments are unchanged.",
   },
+  "category-fit": {
+    label: "Category check",
+    description:
+      "The model checked whether threads that arrived in the topic, or whose work changed, fit its current categories. When one didn't, the categories were rearranged.",
+  },
   split: {
     label: "Split suggestion",
     description:

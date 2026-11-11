@@ -254,3 +254,164 @@ export function parseCategories(
     throw new Error("Categories must file every root exactly once.");
   return { ...decision, categories: resolved };
 }
+
+// Fit check ---------------------------------------------------------------
+
+/**
+ * Whether an arrangement is mostly categories of one, which only a full
+ * rearrangement can regroup: filing a newcomer into one of them would keep it.
+ */
+export function mostlySingletons(generation: CategoryGeneration): boolean {
+  const singles = generation.categories.filter(
+    (category) => category.threadIds.length === 1,
+  ).length;
+  return singles * 2 > generation.categories.length;
+}
+
+/**
+ * A fit check: the current arrangement, and the threads that arrived or whose
+ * work changed since it was last settled. Every other thread stays where it is.
+ */
+export type CategoryFitInput = CategoryInput & {
+  current: CategoryGeneration;
+  /** Root IDs to file: arrivals and threads whose work changed. */
+  changed: string[];
+};
+
+/** Each changed thread's category, or null when the arrangement must change. */
+export type CategoryFit = { [rootId: string]: string | null };
+
+export function categoryFitPrompt(input: CategoryFitInput): string {
+  const roots = rootIds(input);
+  const categories = categoryIds(input);
+  const changed = new Set(input.changed);
+  const members = (category: Category) =>
+    input.roots.filter(
+      (root) => category.threadIds.includes(root.id) && !changed.has(root.id),
+    );
+  return `${HEADER}
+
+A topic's current agent threads are arranged into sidebar categories. Some threads are new to the topic or their work changed. Decide whether each of them fits an existing category as it stands.
+
+A thread fits a category when it shares the one theme the category's name and members share. Choose null when no category's theme covers it, when it would fit only by stretching a category's theme, or when it shares a theme with another listed thread that no category covers. A thread's status or stage alone does not establish what it is about.
+
+${tagged("current_topic", clean(input.label, 300))}
+
+The current categories and the threads that stay in them:
+${tagged(
+  "group",
+  input.current.categories
+    .map(
+      (category) =>
+        `- [${categories.get(category.id)}] ${clean(category.name, 80)}: ${
+          members(category)
+            .map((root) => clean(root.title, 120))
+            .join("; ") || "(no other threads)"
+        }`,
+    )
+    .join("\n"),
+)}
+
+The threads to file:
+${tagged(
+  "threads",
+  input.roots
+    .filter((root) => changed.has(root.id))
+    .map(
+      (root) =>
+        `- [${roots.get(root.id)}] ${clean(root.title, 120)}${root.work ? ` — ${clean(root.work, 1200)}` : ""}`,
+    )
+    .join("\n"),
+)}
+
+Return {"threads": [{"thread": string, "category": string|null}]}: every thread to file exactly once, with the ID of the category it fits, or null.`;
+}
+
+export function categoryFitSchema(
+  input: CategoryFitInput,
+): Record<string, unknown> {
+  const roots = rootIds(input);
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      threads: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            thread: {
+              type: "string",
+              enum: input.changed.map((id) => roots.get(id)!),
+            },
+            category: {
+              anyOf: [
+                { type: "null" },
+                { type: "string", enum: [...categoryIds(input).values()] },
+              ],
+            },
+          },
+          required: ["thread", "category"],
+        },
+      },
+    },
+    required: ["threads"],
+  };
+}
+
+const fitSchema = z.object({
+  threads: z.array(
+    z.object({ thread: z.string(), category: z.string().nullable() }),
+  ),
+});
+
+/** Checks that every changed thread got exactly one known answer. */
+export function parseCategoryFit(
+  text: string,
+  input: CategoryFitInput,
+): CategoryFit {
+  const parsed = fitSchema.parse(JSON.parse(stripFence(text)));
+  const roots = new Map([...rootIds(input)].map(([id, short]) => [short, id]));
+  const categories = new Map(
+    [...categoryIds(input)].map(([id, short]) => [short, id]),
+  );
+  const fit: CategoryFit = {};
+  for (const answer of parsed.threads) {
+    const id = roots.get(answer.thread);
+    if (!id || !input.changed.includes(id) || id in fit)
+      throw new Error("The fit check named an unexpected thread.");
+    const category =
+      answer.category === null ? null : categories.get(answer.category);
+    if (category === undefined)
+      throw new Error("The fit check named an unknown category.");
+    fit[id] = category;
+  }
+  if (input.changed.some((id) => !(id in fit)))
+    throw new Error("The fit check left a thread out.");
+  return fit;
+}
+
+/**
+ * The arrangement with every changed thread filed where the check put it, or
+ * null when one doesn't fit and the collection needs rearranging.
+ */
+export function applyCategoryFit(
+  input: CategoryFitInput,
+  fit: CategoryFit,
+): CategoryGeneration | null {
+  if (input.changed.some((id) => !fit[id])) return null;
+  const changed = new Set(input.changed);
+  return {
+    ...input.current,
+    categories: input.current.categories
+      .map((category) => ({
+        ...category,
+        threadIds: [
+          ...category.threadIds.filter((id) => !changed.has(id)),
+          ...input.changed.filter((id) => fit[id] === category.id),
+        ].sort(),
+      }))
+      .filter((category) => category.threadIds.length > 0),
+  };
+}

@@ -2,6 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { placementRequests } from "./requests.ts";
 import { z } from "zod";
 import {
+  applyCategoryFit,
+  mostlySingletons,
+  type CategoryFit,
+  type CategoryFitInput,
   categoryAction,
   categoryGenerationSchema,
   categoryCollectionKey,
@@ -20,6 +24,12 @@ const recordSchema = z.object({
   attemptId: z.string(),
   status: z.enum(["pending", "settled"]),
   work: z.record(z.string(), z.object({ basis: z.string(), key: z.string() })),
+  /**
+   * Each root's work key when the current arrangement was last settled, so a
+   * later change can tell which threads arrived or changed. Absent before an
+   * arrangement settles with it, which asks for a whole new one.
+   */
+  arranged: z.record(z.string(), z.string()).optional(),
   error: z.string().nullable(),
 });
 type Record = z.infer<typeof recordSchema>;
@@ -55,6 +65,11 @@ export class Categories {
         input: CategoryInput,
         signal: AbortSignal,
       ) => Promise<CategoryDecision>;
+      /** Whether changed threads fit the current categories (see `update`). */
+      fit: (
+        input: CategoryFitInput,
+        signal: AbortSignal,
+      ) => Promise<CategoryFit>;
       changed: (topicId: string, reason: string) => void;
       log: (message: string) => void;
     },
@@ -287,7 +302,14 @@ export class Categories {
 
   /**
    * Brings one collection's record up to date. Returns the collections read
-   * again after a classification call, or null when it made none.
+   * again after a model call, or null when it made none.
+   *
+   * With a settled arrangement, a change is first checked against it: a
+   * departure or a title change asks nothing, and threads that arrived or
+   * whose work changed are filed into existing categories when they fit
+   * (`fit`). Only a thread that fits none, an arrangement of mostly
+   * singletons, or a collection with no arrangement yet asks for a whole
+   * new arrangement (`classify`).
    */
   private async update(
     collection: CategoryCollection,
@@ -322,12 +344,14 @@ export class Categories {
     const key = this.key(collection, previous);
     if (previous?.attempted === key && previous.status === "settled")
       return null;
+    const keys = this.workKeys(collection, previous);
     const record: Record = {
       generation: current,
       attempted: key,
       attemptId: randomUUID(),
       status: "pending",
       work: previous?.work ?? {},
+      arranged: previous?.arranged,
       error: null,
     };
     records.set(collection.topicId, record);
@@ -338,29 +362,67 @@ export class Categories {
         "Removed roots that left the collection.",
       );
     else this.save(records);
+    const filed = new Set(current?.categories.flatMap((c) => c.threadIds));
+    const changed =
+      current?.categories.length &&
+      previous?.arranged &&
+      !mostlySingletons(current)
+        ? collection.roots
+            .filter(
+              (root) =>
+                !filed.has(root.id) ||
+                previous.arranged![root.id] !== keys[root.id],
+            )
+            .map((root) => root.id)
+        : null;
     let collections: CategoryCollection[] | null = null;
     try {
+      if (current && changed) {
+        if (changed.length === 0) {
+          this.settle(collection.topicId, record, current, keys, null);
+          return null;
+        }
+        // A failed check costs only the check: the rearrangement decides.
+        const fit = await this.deps
+          .fit({ ...collection, current, changed }, this.controller.signal)
+          .catch((error: unknown) => {
+            if (this.controller.signal.aborted) throw error;
+            this.deps.log(
+              `Checking ${collection.label}'s categories failed: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            return null;
+          });
+        if (this.controller.signal.aborted) return null;
+        collections = this.deps.collections();
+        if (this.stale(collections, collection.topicId, key, record)) {
+          this.pending = true;
+          return collections;
+        }
+        const next =
+          fit && applyCategoryFit({ ...collection, current, changed }, fit);
+        if (next) {
+          this.settle(
+            collection.topicId,
+            record,
+            next,
+            keys,
+            fitReason(collection, next, changed),
+          );
+          return collections;
+        }
+      }
       const answer = await this.deps.classify(
         { ...collection, current },
         this.controller.signal,
       );
       if (this.controller.signal.aborted) return null;
       collections = this.deps.collections();
-      const latest = collections.find(
-        (item) => item.topicId === collection.topicId,
-      );
-      if (
-        !latest ||
-        this.key(latest, this.read().get(collection.topicId)) !== key ||
-        this.read().get(collection.topicId)?.attemptId !== record.attemptId
-      ) {
+      if (this.stale(collections, collection.topicId, key, record)) {
         this.pending = true;
         return collections;
       }
       if (answer.keep) {
-        const fresh = this.read();
-        fresh.set(collection.topicId, { ...record, status: "settled" });
-        this.save(fresh);
+        this.settle(collection.topicId, record, current, keys, null);
         return collections;
       }
       const next: CategoryGeneration = {
@@ -371,18 +433,7 @@ export class Categories {
           threadIds: [...category.threadIds].sort(),
         })),
       };
-      const fresh = this.read();
-      fresh.set(collection.topicId, {
-        generation: next,
-        attempted: key,
-        attemptId: record.attemptId,
-        status: "settled",
-        work: record.work,
-        error: null,
-      });
-      if (JSON.stringify(next) !== JSON.stringify(current))
-        this.commit(fresh, collection.topicId, answer.reason);
-      else this.save(fresh);
+      this.settle(collection.topicId, record, next, keys, answer.reason);
     } catch (error) {
       if (this.controller.signal.aborted) return null;
       const fresh = this.read();
@@ -400,4 +451,74 @@ export class Categories {
     }
     return collections ?? this.deps.collections();
   }
+
+  /** Whether the collection or its record changed while a call ran. */
+  private stale(
+    collections: CategoryCollection[],
+    topicId: string,
+    key: string,
+    record: Record,
+  ): boolean {
+    const latest = collections.find((item) => item.topicId === topicId);
+    return (
+      !latest ||
+      this.key(latest, this.read().get(topicId)) !== key ||
+      this.read().get(topicId)?.attemptId !== record.attemptId
+    );
+  }
+
+  /**
+   * Stores a settled arrangement and the work it was settled from, recording
+   * a change of membership or names in Activity with `reason`.
+   */
+  private settle(
+    topicId: string,
+    record: Record,
+    next: CategoryGeneration | null,
+    keys: { [rootId: string]: string },
+    reason: string | null,
+  ) {
+    const fresh = this.read();
+    fresh.set(topicId, {
+      ...record,
+      generation: next,
+      status: "settled",
+      arranged: next ? keys : undefined,
+      error: null,
+    });
+    if (reason && JSON.stringify(next) !== JSON.stringify(record.generation))
+      this.commit(fresh, topicId, reason);
+    else this.save(fresh);
+  }
+
+  /** Each root's work as the record last saw it (see `key`). */
+  private workKeys(
+    collection: CategoryCollection,
+    record?: Record,
+  ): { [rootId: string]: string } {
+    return Object.fromEntries(
+      collection.roots.map((root) => [
+        root.id,
+        record?.work[root.id]?.basis === root.workKey
+          ? record.work[root.id]!.key
+          : root.workKey,
+      ]),
+    );
+  }
+}
+
+/** Activity's reason for filing changed threads into existing categories. */
+function fitReason(
+  collection: CategoryCollection,
+  next: CategoryGeneration,
+  changed: readonly string[],
+): string {
+  const title = (id: string) =>
+    collection.roots.find((root) => root.id === id)?.title ?? id;
+  return changed
+    .map((id) => {
+      const category = next.categories.find((c) => c.threadIds.includes(id));
+      return `${title(id)} fits ${category?.name ?? "its category"}.`;
+    })
+    .join(" ");
 }

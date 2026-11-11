@@ -10,7 +10,7 @@ afterEach(async () => {
   for (const world of worlds.splice(0)) await world.harness.lifecycle.dispose();
 });
 
-it("exposes persisted categories without changing assignments or native sections; snoozing updates the collection", async () => {
+it("exposes persisted categories without changing assignments or native sections; snoozing prunes the collection", async () => {
   const calls: string[] = [];
   const world = await fakeWorld({
     complete: ({ prompt }) => {
@@ -84,8 +84,15 @@ it("exposes persisted categories without changing assignments or native sections
     until: null,
   });
   await world.harness.behavior.callRpc("organization", { action: "rebuild" });
-  await vi.waitFor(() => expect(calls).toHaveLength(3));
-  expect(calls[2]).not.toContain("Vertex work 5");
+  // A departure leaves the categories without asking the model again.
+  await vi.waitFor(async () =>
+    expect(
+      (await state()).catalog.categories?.[topic.id]?.categories.flatMap(
+        (category) => category.threadIds,
+      ),
+    ).not.toContain("t5"),
+  );
+  expect(calls).toHaveLength(2);
   await world.harness.behavior.callRpc("snooze", {
     threadIds: ["t3", "t4"],
     until: null,
@@ -94,7 +101,7 @@ it("exposes persisted categories without changing assignments or native sections
   await vi.waitFor(async () =>
     expect((await state()).catalog.categories?.[topic.id]).toBeUndefined(),
   );
-  expect(calls).toHaveLength(3);
+  expect(calls).toHaveLength(2);
   expect([...world.threads.values()].map((thread) => thread.sectionId)).toEqual(
     sections,
   );
