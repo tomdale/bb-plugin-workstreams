@@ -382,7 +382,6 @@ function TraceDetail({
           type="button"
           onClick={() => void replay()}
           disabled={replaying}
-          hidden={trace.gate === true}
           title="Makes a paid model call using the recorded prompt. Stores a comparison trace without changing memory or placements."
           className={smallButton}
         >

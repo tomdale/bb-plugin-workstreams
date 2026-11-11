@@ -268,8 +268,6 @@ describe("Workstreams prefs", () => {
       quickModel: { kind: "gateway", model: "google/quick" },
       fullModel: { kind: "gateway", model: "openai/full" },
       placementModel: DEFAULT_MODELS.placement,
-      placementGate: false,
-      placementGateModel: DEFAULT_MODELS.placementGate,
     });
   });
 });

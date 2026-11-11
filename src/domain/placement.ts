@@ -148,8 +148,7 @@ type PlacementChoices = Pick<PlacementInput, "entities" | "within">;
 
 /**
  * The topics that can hold the thread: the user's group choice constrains both
- * generation and parsing, not just the prompt. Placement's gate asks its
- * closed choice over the same set.
+ * generation and parsing, not just the prompt.
  */
 export function choosableTopics(input: PlacementChoices): Set<string> {
   if (input.within && !input.entities.some((e) => e.id === input.within))

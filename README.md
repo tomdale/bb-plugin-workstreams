@@ -251,15 +251,6 @@ and turns without a new request never re-place a thread.
   its checkout have. A checkout whose threads point at other repositories (at
   least two of them name a GitHub repository or a `~/Code` path outside it)
   coordinates work elsewhere, so it gives no hint.
-- **Fast placement:** with **Fast placement** on, the same closed choice is
-  first asked of a decision model (default `openai/gpt-6-luna-decisions`) as a
-  typed question that answers with a topic and its probability. An answer at
-  `0.95` confidence or above settles the topic in a few hundred milliseconds and
-  the placement call is skipped. Everything else — a lower probability, an
-  unfiled answer, a tree too large to ask about, a failed call — is asked of the
-  placement model as usual, so a pick that needs a new topic or a scope shift
-  still gets one. Each gate call is recorded with its probability, and it is not
-  replayable, since the placement model answers the equivalent question.
 - **Provenance:** placement writes `full` topics under the priority above, and
   every update re-validates live thread evidence, assignment state, and
   topic-tree freshness before writing. An answer that supplies both an existing
@@ -1154,8 +1145,6 @@ Open **Settings → Workstreams** to configure:
 | **New threads**       | **Suggestions while typing**                       | `On`                                        | Runs Quick analysis on composer drafts while typing.                                                                                                                                                                                                                                                                |
 | **New threads**       | **Quick analysis model**                           | `openai/gpt-6-luna-fast` (reasoning `none`) | Model used for composer draft previews and first-send Quick analysis (remains active when typing suggestions are off because first-send analysis still uses it).                                                                                                                                                    |
 | **Organization**      | **Placement model**                                | `openai/gpt-6-sol` (reasoning `none`)       | Model that chooses each root's topic from its requests, when it starts and after a new request.                                                                                                                                                                                                                     |
-| **Organization**      | **Fast placement**                                 | `Off`                                       | Asks a decision model placement's closed choice as a typed question, and uses an answer at `0.95` confidence or above so the placement model is skipped. Anything less is asked of the placement model.                                                                                                             |
-| **Organization**      | **Fast placement model**                           | `openai/gpt-6-luna-decisions`               | Decision model that answers placement's question with a topic and its probability. It must run on AI Gateway directly, not as a BB worker.                                                                                                                                                                          |
 
 | **Organization** | **Organizing suggestions** | `On` | Suggests lasting topic
 divisions and tidy edits for review. **Ask now** works either way; categories
