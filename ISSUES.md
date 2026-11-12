@@ -65,11 +65,12 @@ and `stream-deck/src/render.ts`.
 
 The Next key and the keys that open a thread act in every connected BB app, a
 phone included, because BB's thread open and plugin realtime signals reach all
-of them. The keys list Up Next as ranked, without the sidebar's hold on the open
-thread's row, so a thread can change keys as soon as reading it changes its
-rank. The plugin breaks key text into lines using Helvetica Neue's widths as
-Chrome measures them; Stream Deck draws the text itself, so a line can end a
-little short or run slightly long. The plugin supports only macOS.
+of them. The keys leave out the thread open in the BB app that reported last,
+and each app reports when it opens a thread or comes to the front. After you use
+BB on a phone, the keys leave out the phone's thread until the desktop app comes
+to the front again. The plugin breaks key text into lines using Helvetica Neue's
+widths as Chrome measures them; Stream Deck draws the text itself, so a line can
+end a little short or run slightly long. The plugin supports only macOS.
 
 ### Suggestions the review cannot draw
 

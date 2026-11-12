@@ -5,8 +5,12 @@
  *
  * The snapshot ranks threads with the sidebar's own rules (`selectUpNext`),
  * from the same inputs the app's shared projection reads, so the keys list
- * what the sidebar lists once Show more is open. The feed does no work until
- * a Stream Deck connects and stops when the last one leaves.
+ * what the sidebar lists once Show more is open, less the thread open in BB:
+ * a key showing the thread already in front of the user would go nowhere.
+ * Each app reports the thread it has open as it navigates and regains focus,
+ * and the app that reported last is the one in front of the user. The feed
+ * does no work until a Stream Deck connects and stops when the last one
+ * leaves.
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
@@ -57,6 +61,8 @@ export type StreamDeckInputs = {
   readonly groups: Readonly<Record<string, string>>;
   /** Topic id → its workstream color. */
   readonly colors: Readonly<Record<string, TopicColor>>;
+  /** The thread open in the BB app the user used last, left out of Up Next. */
+  readonly viewing?: string | null;
   readonly now: number;
 };
 
@@ -94,6 +100,7 @@ export function streamDeckSnapshot(
     unreadFirst: inputs.upNext.unreadFirst,
     fill: inputs.upNext.fill,
     freshWithinMs: UP_NEXT_FRESH_WINDOWS[inputs.upNext.freshWindow],
+    exclude: (thread) => thread.id === inputs.viewing,
   });
   const names = new Map(sections.map((section) => [section.id, section.name]));
   const toThread = ({
@@ -251,16 +258,24 @@ export class StreamDeckFeed {
 
 const openBody = z.object({ threadId: z.string().min(1).max(200) }).strict();
 
+export type StreamDeck = {
+  /** Something Up Next reads from changed. */
+  changed(): void;
+  /** One app has `threadId` open, or no thread; the latest report wins. */
+  view(threadId: string | null): void;
+};
+
 /**
  * Registers the Stream Deck routes. They take Workstreams' plugin token, so
  * only something that can run `bb plugin token workstreams` reaches them.
- * Returns the feed, which the caller tells about Workstreams' own changes.
  */
 export function registerStreamDeck(
   bb: BbPluginApi,
-  read: () => Promise<StreamDeckInputs>,
-): StreamDeckFeed {
-  const snapshot = async () => streamDeckSnapshot(await read());
+  read: () => Promise<Omit<StreamDeckInputs, "viewing">>,
+): StreamDeck {
+  let viewing: string | null = null;
+  const snapshot = async () =>
+    streamDeckSnapshot({ ...(await read()), viewing });
   const feed = new StreamDeckFeed({
     read: snapshot,
     watch: (changed) => {
@@ -339,5 +354,12 @@ export function registerStreamDeck(
       },
       { auth: "token" },
     );
-  return feed;
+  return {
+    changed: feed.changed,
+    view: (threadId) => {
+      if (threadId === viewing) return;
+      viewing = threadId;
+      feed.changed();
+    },
+  };
 }

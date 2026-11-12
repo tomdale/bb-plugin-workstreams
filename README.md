@@ -617,7 +617,9 @@ Deck 7.1 or later, on the Mac that runs BB, separately from Workstreams.
   through Up Next, and pressing it opens the thread.
 
 The keys rank threads with the sidebar's rules and your **Up Next** settings,
-and update as Up Next changes. They read it from Workstreams' Stream Deck
+and update as Up Next changes. They leave out the thread you have open in BB, so
+every key opens a different thread; with BB open on several devices, that is the
+thread open in the app you used last. They read it from Workstreams' Stream Deck
 routes, which require the plugin token (`bb plugin token workstreams`); the
 Stream Deck plugin gets that token from the `bb` CLI.
 

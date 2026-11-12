@@ -102,6 +102,21 @@ describe("Stream Deck routes", () => {
     expect(snapshot.rows[3]).toMatchObject({ mark: null, unread: false });
   });
 
+  it("leaves out the thread open in the BB app that reported last", async () => {
+    const w = await world({ upNext: { shown: 2 } });
+    const view = (threadId: string | null) =>
+      w.harness.behavior.callRpc("streamDeckViewing", { threadId });
+    await view("ask");
+    // The thread after it moves up, and Show more's first takes its row.
+    let snapshot = await upNext(w);
+    expect(ids(snapshot.rows)).toEqual(["failed", "fresh"]);
+    expect(ids(snapshot.more)).toEqual([]);
+    await view(null);
+    snapshot = await upNext(w);
+    expect(ids(snapshot.rows)).toEqual(["ask", "failed"]);
+    expect(ids(snapshot.more)).toEqual(["fresh"]);
+  });
+
   it("keeps to Threads shown, with the trimmed unread threads in more", async () => {
     const w = await world({ upNext: { shown: 2 } });
     const snapshot = await upNext(w);
@@ -167,6 +182,12 @@ describe("Stream Deck routes", () => {
       timeout: 3_000,
     });
     expect(ids(received()[1]!.rows)).toEqual(["ask", "fresh", "seen"]);
+
+    await w.harness.behavior.callRpc("streamDeckViewing", { threadId: "ask" });
+    await vi.waitFor(() => expect(received()).toHaveLength(3), {
+      timeout: 3_000,
+    });
+    expect(ids(received()[2]!.rows)).toEqual(["fresh", "seen"]);
 
     await socket.close();
     expect(w.watchers.size).toBe(0);

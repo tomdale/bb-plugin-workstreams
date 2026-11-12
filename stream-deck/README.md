@@ -45,10 +45,12 @@ Then drag actions from the **BB Workstreams** category onto the deck.
   it or tap the strip to open the thread. Left alone for 20 seconds, the dial
   returns to the top.
 
-When a press opens a thread, the plugin brings the BB desktop app forward. A key
-that can't show Up Next says why: it can't reach BB, can't get the token, or BB
-has no Workstreams plugin running. After a dropped connection, keys keep the
-last Up Next for 10 seconds while the plugin reconnects.
+Keys and the dial leave out the thread you have open in BB, so each one opens a
+different thread. Opening a thread from a key therefore moves the threads after
+it up one key. When a press opens a thread, the plugin brings the BB desktop app
+forward. A key that can't show Up Next says why: it can't reach BB, can't get
+the token, or BB has no Workstreams plugin running. After a dropped connection,
+keys keep the last Up Next for 10 seconds while the plugin reconnects.
 
 ## Connection
 

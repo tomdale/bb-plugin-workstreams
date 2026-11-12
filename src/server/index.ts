@@ -74,7 +74,7 @@ import { loadPrefs, savePrefs, seedPrefs } from "./prefs.ts";
 import { gatewayModel, type ModelChoice } from "../domain/prefs.ts";
 import { runWorker as completeWithWorker } from "./inference/worker.ts";
 import { registerQueueLab } from "./queueLab.ts";
-import { registerStreamDeck, type StreamDeckFeed } from "./streamDeck.ts";
+import { registerStreamDeck, type StreamDeck } from "./streamDeck.ts";
 
 export { rpcContract } from "./contract.ts";
 
@@ -87,7 +87,7 @@ export default async function plugin(bb: BbPluginApi) {
   seedPrefs(db);
   const journal = new Journal(db);
   // Set once everything Up Next reads from exists; it reads again on changes.
-  let streamDeck: StreamDeckFeed | null = null;
+  let streamDeck: StreamDeck | null = null;
   const changes = new ChangeFeed((signal) => {
     bb.realtime.publish("changed", signal);
     streamDeck?.changed();
@@ -1507,6 +1507,10 @@ export default async function plugin(bb: BbPluginApi) {
     },
     threadUnarchive: async ({ threadId }) => {
       await bb.sdk.threads.unarchive({ threadId });
+      return { ok: true as const };
+    },
+    streamDeckViewing: async ({ threadId }) => {
+      streamDeck?.view(threadId);
       return { ok: true as const };
     },
     recapFiles: async ({ threadIds }) => {

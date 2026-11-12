@@ -821,6 +821,16 @@ export const rpcContract = defineRpcContract({
     output: z.object({ ok: z.literal(true) }),
   },
   /**
+   * The thread this app has open, or null away from threads. Stream Deck keys
+   * leave out the thread open in the app that reported last.
+   */
+  streamDeckViewing: {
+    input: z
+      .object({ threadId: z.string().min(1).max(200).nullable() })
+      .strict(),
+    output: z.object({ ok: z.literal(true) }),
+  },
+  /**
    * Where each thread's files live, to resolve file links in its recap on
    * the Workstreams page queue; threads without an environment, or unreadable, are left out.
    */
