@@ -275,7 +275,7 @@ it("says so when a change moves no thread, and when it can't be drawn", async ()
   });
   const undrawn = suggestion("undrawn", "Move Docs to Ops", merge.change);
   const { review, dialog } = await open([quiet, undrawn]);
-  expect(dialog.textContent).toContain("No thread in the sidebar moves.");
+  expect(dialog.textContent).toContain("No thread moves.");
   fireEvent.click(review.getByRole("button", { name: "Move Docs to Ops" }));
   await review.findByText("The sidebar can't be drawn for this suggestion.");
   // It can still be decided.
@@ -665,4 +665,58 @@ it("is a drawer on a compact viewport, with the list as a drop-down and the butt
       name: "Accept: Rename Beta to Beta site",
     }),
   ).toBeTruthy();
+});
+
+it("draws a change to a workstream whose threads are all out of the sidebar", async () => {
+  const gamma = suggestion(
+    "gamma",
+    "Rename Gamma to Gamma site",
+    {
+      op: "rename",
+      moves: [
+        {
+          from: place("Gamma"),
+          to: place("Gamma site"),
+          threads: [],
+          carried: 0,
+        },
+      ],
+    },
+    {
+      topics: [{ id: "gamma", name: "Gamma site", parentId: null }],
+      removed: [],
+      assignments: [],
+    },
+  );
+  const slot = await mount(undefined, {
+    pendingSuggestions: 1,
+    catalog: {
+      ...catalog,
+      entities: [
+        ...catalog.entities,
+        {
+          id: "gamma",
+          name: "Gamma",
+          description: "",
+          parentId: null,
+          aliases: [],
+        },
+      ],
+    },
+    // "hidden" is a root the sidebar does not list.
+    assignments: { ...assignments, hidden: "gamma" },
+    rpc: { suggestions: () => ({ state: stateOf([gamma]) }) },
+  });
+  fireEvent.click(await slot.findByRole("button", { name: "1 suggestion" }));
+  const dialog = await slot.findByRole("dialog", {
+    name: "Organizing suggestions",
+  });
+  await within(dialog).findByRole("button", {
+    name: "1 thread to Gamma site, 1 not in the sidebar",
+  });
+  expect(dialog.textContent).toContain("1 thread to Gamma site.");
+  expect(dialog.textContent).toContain(
+    "Dashed ticks are threads not in the sidebar",
+  );
+  expect(dialog.querySelectorAll("[data-hidden]").length).toBeGreaterThan(0);
 });

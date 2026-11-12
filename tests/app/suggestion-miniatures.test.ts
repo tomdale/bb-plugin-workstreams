@@ -363,6 +363,100 @@ describe("miniature", () => {
   });
 });
 
+describe("work outside the sidebar", () => {
+  /** Archive holds three threads, none in the sidebar; Docs has threads that are. */
+  const archived = ["a1", "a2", "a3"].map((id) => ({
+    id,
+    title: "",
+    sectionId: null,
+    activeAt: 0,
+    hidden: true,
+  }));
+  const withArchive = (extra: Partial<MiniatureInput> = {}) => {
+    const base = input();
+    return input({
+      topics: [...topics, { id: "archive", name: "Archive", parentId: null }],
+      threads: [...base.threads, ...archived],
+      filing: {
+        ...base.filing,
+        ...Object.fromEntries(archived.map((t) => [t.id, "archive"])),
+      },
+      ...extra,
+    });
+  };
+  const ctx = (): ChangeContext => ({
+    topics: [...topics, { id: "archive", name: "Archive", parentId: null }],
+    threadTopic: {
+      ...context().threadTopic,
+      ...Object.fromEntries(archived.map((t) => [t.id, "archive"])),
+    },
+    title: (id) => id,
+  });
+
+  it("draws no workstream for them while nothing touches it", () => {
+    const m = miniature(
+      withArchive({
+        delta: changeDelta(
+          { op: "move", thread: "d1", topic: "infra" },
+          ctx(),
+        )!,
+      }),
+    )!;
+    expect(labels(m.now)).not.toContain("Archive");
+  });
+
+  it("draws a split of a workstream with no visible thread, as dashed ticks", () => {
+    const m = miniature(
+      withArchive({
+        delta: changeDelta(
+          {
+            topicId: "archive",
+            subgroups: [
+              { name: "Old", description: "", threadIds: ["a1", "a2"] },
+              { name: "Older", description: "", threadIds: ["a3"] },
+            ],
+          },
+          ctx(),
+        )!,
+      }),
+    )!;
+    const before = find(m.now, "Archive");
+    expect(before.hot).toBe(true);
+    expect(before.ticks).toHaveLength(3);
+    expect(before.ticks.every((t) => t.hidden && t.flow !== null)).toBe(true);
+    expect(labels(m.after)).toEqual(
+      expect.arrayContaining(["Archive: Old", "Archive: Older"]),
+    );
+    expect(m.flows.map((f) => [f.threads.length, f.hidden])).toEqual([
+      [0, 2],
+      [0, 1],
+    ]);
+    expect(find(m.after, "Archive: Old").ticks.every((t) => t.hidden)).toBe(
+      true,
+    );
+  });
+
+  it("draws a merge into a workstream with visible threads: dashed ticks arrive after the others", () => {
+    const m = miniature(
+      withArchive({
+        delta: changeDelta(
+          { op: "merge", from: "archive", into: "docs" },
+          ctx(),
+        )!,
+      }),
+    )!;
+    expect(find(m.after, "Docs").ticks.map((t) => t.hidden)).toEqual([
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+    ]);
+    expect(m.flows[0]).toMatchObject({ hidden: 3, threads: [] });
+  });
+});
+
 describe("miniatureBase", () => {
   const row = (id: string, depth: number, title: string | null = id) => ({
     depth,
@@ -404,6 +498,25 @@ describe("miniatureBase", () => {
       sections: ["sec_docs"],
       now: 9,
     });
+  });
+
+  it("adds roots the sidebar does not list that are filed in a topic", () => {
+    const base = miniatureBase(
+      sidebar({
+        entities: topics,
+        groups: { sec_docs: "docs" },
+        assignments: {
+          d1: { entityId: "docs" },
+          old: { entityId: "docs" },
+          child: { entityId: "docs", inheritedFrom: "old" },
+          loose: { entityId: null },
+        },
+      }),
+    )!;
+    expect(base.threads.filter((t) => t.hidden)).toEqual([
+      { id: "old", title: "", sectionId: null, activeAt: 0, hidden: true },
+    ]);
+    expect(base.filing.old).toBe("docs");
   });
 
   it("is null until the topics have been read", () => {

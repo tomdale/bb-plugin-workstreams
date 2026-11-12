@@ -617,12 +617,12 @@ export function SuggestionsReview({
               ? drawing.flows
                   .map(
                     (f) =>
-                      `${plural(f.threads.length, "thread")} to ${
+                      `${plural(f.threads.length + f.hidden, "thread")} to ${
                         f.to.prefix ? `${f.to.prefix}: ` : ""
                       }${f.to.name}`,
                   )
                   .join("; ") + "."
-              : "No thread in the sidebar moves."
+              : "No thread moves."
           }`}
         />
       ) : (

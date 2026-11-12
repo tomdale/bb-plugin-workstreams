@@ -218,7 +218,7 @@ describe.skipIf(browserUnavailable)("gallery specimens", () => {
       // The decided row stays where it was in the list, the rest unmoved.
       const rows = wide.getByRole("listitem");
       const texts = await rows.allTextContents();
-      expect(texts).toHaveLength(7);
+      expect(texts).toHaveLength(8);
       expect(texts[0]).toBe("Split Support Tools into 5 workstreams");
       expect(texts.filter((t) => t.startsWith("Accepted: Merge"))).toHaveLength(
         1,

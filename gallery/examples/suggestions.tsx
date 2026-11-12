@@ -47,7 +47,10 @@ const topics = [
   ["quality", "Quality Checks", null],
   ["web", "Web", null],
   ["onboarding", "Onboarding", null],
+  ["legacy", "Legacy Tools", null],
 ] as const;
+/** Threads filed in Legacy Tools that the sidebar does not list (archived). */
+const ARCHIVED = ["legacy-0", "legacy-1", "legacy-2", "legacy-3", "legacy-4"];
 const titles: Record<string, string[]> = {
   invoices: ["Fixing invoice totals", "Adding invoice export"],
   payments: ["Retrying failed payments", "Reviewing refund rules"],
@@ -154,12 +157,16 @@ const threadList = Object.entries(titles).flatMap(([topic, names], at) =>
     activeAt: NOW - (at * 7 + index) * 3_600_000,
   })),
 );
+const archivedFiling = Object.fromEntries(ARCHIVED.map((id) => [id, "legacy"]));
 const entities = topics.map(([id, name, parentId]) => ({
   id,
   name,
   parentId,
 }));
-const filing = Object.fromEntries(threadList.map((t) => [t.id, t.topic]));
+const filing = {
+  ...Object.fromEntries(threadList.map((t) => [t.id, t.topic])),
+  ...archivedFiling,
+};
 
 const sidebar: SidebarView = (() => {
   const sections = Object.keys(titles).map((topic) => ({
@@ -189,9 +196,14 @@ const sidebar: SidebarView = (() => {
       groups: Object.fromEntries(
         Object.keys(titles).map((topic) => [`sec_${topic}`, topic]),
       ),
-      assignments: Object.fromEntries(
-        threadList.map((t) => [t.id, { entityId: t.topic }]),
-      ),
+      assignments: {
+        ...Object.fromEntries(
+          threadList.map((t) => [t.id, { entityId: t.topic }]),
+        ),
+        ...Object.fromEntries(
+          ARCHIVED.map((id) => [id, { entityId: "legacy" }]),
+        ),
+      },
       colors,
     },
     sort: "alphabetical",
@@ -274,6 +286,11 @@ const reparent = suggest("reparent", {
   op: "reparent",
   topic: "tools",
   parent: "dx",
+});
+const retire = suggest("retire", {
+  op: "rename",
+  topic: "legacy",
+  name: "Retired Tools",
 });
 const group = suggest("group", {
   op: "create",
@@ -401,6 +418,7 @@ function SuggestionsExample() {
               rename,
               reparent,
               refile,
+              retire,
             ]}
           />
         </Variant>

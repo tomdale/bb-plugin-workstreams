@@ -34,6 +34,8 @@ const TITLES_SHOWN = 12;
 const NOTE_PX = 17;
 
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+/** Every thread a flow carries, those outside the sidebar included. */
+const total = (flow: MiniFlow) => flow.threads.length + flow.hidden;
 const labelOf = (to: MiniFlow["to"]) =>
   to.prefix ? `${to.prefix}: ${to.name}` : to.name;
 
@@ -83,7 +85,7 @@ function measure(scroller: HTMLElement, flows: readonly MiniFlow[]): Geometry {
     centers[flow.index] = (b1 + b2) / 2;
     ribbons.push({
       flow: flow.index,
-      thin: flow.threads.length < 3,
+      thin: total(flow) < 3,
       d: `M${x0} ${a1}H${x1}C${mx} ${a1} ${mx} ${b1} ${x2} ${b1}H${x3}V${b2}H${x2}C${mx} ${b2} ${mx} ${a2} ${x1} ${a2}H${x0}Z`,
     });
   });
@@ -172,6 +174,7 @@ function Workstream({
           key={at}
           data-row
           data-flow={tick.flow ?? undefined}
+          data-hidden={tick.hidden ? "" : undefined}
           className={cn("ws-mini-tick", tick.flow !== null && "ws-mini-accent")}
           style={
             {
@@ -213,6 +216,11 @@ export function SuggestionMiniatures({
     () => model.flows.map((flow) => workstreamColorStyle(flow.color)),
     [model.flows],
   );
+  const hasHidden = [...model.now, ...model.after].some(function some(
+    node: MiniWorkstream,
+  ): boolean {
+    return node.ticks.some((tick) => tick.hidden) || node.subs.some(some);
+  });
 
   useLayoutEffect(() => {
     const box = wrap.current;
@@ -317,7 +325,11 @@ export function SuggestionMiniatures({
                     d={ribbon.d}
                     tabIndex={0}
                     role="button"
-                    aria-label={`${plural(f.threads.length, "thread")} to ${labelOf(f.to)}: ${f.threads.map((t) => t.title).join(", ")}`}
+                    aria-label={`${plural(total(f), "thread")} to ${labelOf(f.to)}${
+                      f.threads.length
+                        ? `: ${f.threads.map((t) => t.title).join(", ")}`
+                        : ""
+                    }${f.hidden ? `, ${f.hidden} not in the sidebar` : ""}`}
                     data-thin={ribbon.thin ? "" : undefined}
                     data-on={active === ribbon.flow ? "" : undefined}
                     className="ws-mini-ribbon ws-mini-accent"
@@ -373,7 +385,7 @@ export function SuggestionMiniatures({
               ) : null}
               {flow.to.name}
               <span className="ml-1.5 whitespace-nowrap text-muted-foreground">
-                {plural(flow.threads.length, "thread")}
+                {plural(total(flow), "thread")}
               </span>
             </p>
             {flow.threads.slice(0, TITLES_SHOWN).map((thread) => (
@@ -386,9 +398,20 @@ export function SuggestionMiniatures({
                 and {flow.threads.length - TITLES_SHOWN} more
               </p>
             ) : null}
+            {flow.hidden ? (
+              <p className="m-0 text-muted-foreground">
+                {flow.threads.length ? "and " : ""}
+                {flow.hidden} not in the sidebar
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>
+      {hasHidden ? (
+        <p className="m-0 shrink-0 pt-1.5 text-[11px] leading-4 text-muted-foreground">
+          Dashed ticks are threads not in the sidebar, such as archived ones.
+        </p>
+      ) : null}
     </div>
   );
 }

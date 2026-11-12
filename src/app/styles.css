@@ -403,6 +403,21 @@ body:has([data-ws-suggestions])
   background: var(--ws-mini-color);
   opacity: 0.95;
 }
+/* A thread outside the sidebar: the same tick, in dashes. */
+.ws-mini-tick[data-hidden] {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--muted-foreground) 0 3px,
+    transparent 3px 5px
+  );
+}
+.ws-mini-tick[data-hidden][data-flow] {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--ws-mini-color) 0 3px,
+    transparent 3px 5px
+  );
+}
 .ws-mini-ribbon {
   fill: var(--ws-mini-color);
   fill-opacity: var(--ws-mini-ribbon);

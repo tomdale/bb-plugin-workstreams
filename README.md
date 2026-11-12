@@ -491,24 +491,27 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      of the whole sidebar, **Now** and **After accepting** that one change. Each
      workstream with a visible thread is its name over a tick for each thread,
      in your sort, with the sidebar's own nesting and name prefixes; dormant
-     workstreams are drawn too, and categories are not. Under **Manual order** a
-     workstream the change creates sits beside the one it grew from in the
-     second drawing. The workstreams the change touches take their colors, and a
-     ribbon runs from the threads that move to where they land; everything else
-     is quiet gray. Rest the pointer on a ribbon, or focus it, to list its
-     threads' titles and their number. A workstream draws about twelve ticks at
-     most, shared out by its threads, so a ribbon's thickness is its real share.
-     If the drawings are taller than the window they scroll together with the
-     touched rows in view and count the rows beyond the edge. A decision applies
-     at once. Its row keeps its place with **Undo** for six seconds (`U` undoes
-     the latest), then dims until the modal closes, and the highlight moves to
-     the next suggestion; `J` and `K` step between them. The **⋯** menu holds
-     **Accept all**, **Reject all** and **Open Topics**, and the foot counts
-     suggestions the tree has since outgrown ("1 out of date"). If the tree
-     changes while the modal is open, a suggestion that no longer applies stays
-     where it was, dimmed and out of date, with its buttons off. **Close**,
-     `Esc`, or a click outside closes the modal and leaves the rest waiting;
-     deciding the last one closes it once its Undo has passed.
+     workstreams are drawn too, and categories are not. Threads that are not in
+     the sidebar, such as archived ones, are dashed ticks, drawn only in the
+     workstreams the change touches, so a change to work that is no longer
+     active still shows what it does. Under **Manual order** a workstream the
+     change creates sits beside the one it grew from in the second drawing. The
+     workstreams the change touches take their colors, and a ribbon runs from
+     the threads that move to where they land; everything else is quiet gray.
+     Rest the pointer on a ribbon, or focus it, to list its threads' titles and
+     their number, and how many are not in the sidebar. A workstream draws about
+     twelve ticks at most, shared out by its threads, so a ribbon's thickness is
+     its real share. If the drawings are taller than the window they scroll
+     together with the touched rows in view and count the rows beyond the edge.
+     A decision applies at once. Its row keeps its place with **Undo** for six
+     seconds (`U` undoes the latest), then dims until the modal closes, and the
+     highlight moves to the next suggestion; `J` and `K` step between them. The
+     **⋯** menu holds **Accept all**, **Reject all** and **Open Topics**, and
+     the foot counts suggestions the tree has since outgrown ("1 out of date").
+     If the tree changes while the modal is open, a suggestion that no longer
+     applies stays where it was, dimmed and out of date, with its buttons off.
+     **Close**, `Esc`, or a click outside closes the modal and leaves the rest
+     waiting; deciding the last one closes it once its Undo has passed.
    - Drag a root thread to another workstream to set its **Topic** to that
      workstream's topic; its delegates follow it. Drop on a row to place it
      before or after that root, or on a header to place it first, including a

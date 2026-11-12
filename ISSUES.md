@@ -68,7 +68,8 @@ suggestion have none: a change that needs a topic another suggestion of the same
 pass creates, and a split whose group gained threads since it was made, since a
 model call files those threads only when you accept it. Neither shows a drawing,
 and **Accept** still works. The drawing counts root threads, as suggestions do,
-and leaves out categories and snoozed threads, which the sidebar does not list.
+and leaves out categories. Threads outside the sidebar are drawn as dashed ticks
+without titles, and only in the workstreams a change touches.
 
 **Workaround:** Accept the suggestion that creates the topic first; a split's
 newcomers land where the model files them, which Activity records.

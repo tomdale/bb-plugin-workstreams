@@ -12,7 +12,10 @@
  *
  * What differs from the sidebar, on purpose: every workstream with a visible
  * thread is drawn, including dormant ones and the ones hidden while another
- * is focused; categories are left out; a workstream draws at most `TICK_CAP`
+ * is focused; categories are left out; threads that are not in the sidebar
+ * (archived, hidden or snoozed) are drawn as dashed ticks, but only in the
+ * workstreams the change touches, so a change to work that is no longer
+ * active still shows what it does; a workstream draws at most `TICK_CAP`
  * ticks, shared out by each group's share of its threads; and under manual
  * order the after state puts a new workstream beside the one it grew from, so
  * a flow into it stays short.
@@ -48,6 +51,8 @@ type MiniThread = {
   /** Its workstream's native section; null for Unfiled. */
   readonly sectionId: string | null;
   readonly activeAt: number;
+  /** Not in the sidebar (archived, hidden, snoozed): drawn dashed, only where a change touches. */
+  readonly hidden?: boolean;
 };
 
 /** The topic colors the sidebar draws workstreams in. */
@@ -80,7 +85,13 @@ export type SidebarView = {
     | (MiniColors & {
         readonly entities: readonly DeltaTopic[];
         readonly assignments: Readonly<
-          Record<string, { readonly entityId: string | null }>
+          Record<
+            string,
+            {
+              readonly entityId: string | null;
+              readonly inheritedFrom?: string | null;
+            }
+          >
         >;
       })
     | undefined;
@@ -114,15 +125,30 @@ export function miniatureBase(
         activeAt: row.thread.latestAttentionAt,
       })),
   );
+  // Roots filed in a topic that the sidebar does not list: archived, hidden or
+  // snoozed work. They show only where a change touches their topic.
+  const listed = new Set(threads.map((thread) => thread.id));
+  const unlisted: MiniThread[] = Object.entries(catalog.assignments)
+    .filter(
+      ([id, a]) => !listed.has(id) && !a.inheritedFrom && a.entityId !== null,
+    )
+    .map(([id]) => ({
+      id,
+      title: "",
+      sectionId: null,
+      activeAt: 0,
+      hidden: true,
+    }));
+  const everyone = [...threads, ...unlisted];
   return {
-    threads,
+    threads: everyone,
     topics: catalog.entities.map(({ id, name, parentId }) => ({
       id,
       name,
       parentId,
     })),
     filing: Object.fromEntries(
-      threads.map((thread) => [
+      everyone.map((thread) => [
         thread.id,
         catalog.assignments[thread.id]?.entityId ?? null,
       ]),
@@ -157,6 +183,8 @@ type MiniTick = {
   readonly flow: number | null;
   /** The threads it stands for: one, or several in a capped workstream. */
   readonly threads: number;
+  /** They are not in the sidebar. */
+  readonly hidden: boolean;
   /** Relative length, from the first thread's title. */
   readonly width: number;
 };
@@ -179,7 +207,10 @@ export type MiniFlow = {
   readonly color: TopicColor;
   /** The workstream the threads end up in (or the renamed one). */
   readonly to: { readonly prefix: string | null; readonly name: string };
+  /** The threads in the sidebar that move; the count below excludes none. */
   readonly threads: readonly { readonly id: string; readonly title: string }[];
+  /** Further threads that move but are not in the sidebar, which have no title here. */
+  readonly hidden: number;
 };
 
 export type Miniature = {
@@ -211,14 +242,23 @@ function arrange(
   filing: Readonly<Record<string, string | null>>,
   realSection: ReadonlyMap<string, string>,
   manualOrder: readonly string[],
+  touched: ReadonlySet<string>,
 ): State {
   const known = new Set(topics.map((t) => t.id));
+  const parents = new Set(topics.map((t) => t.parentId));
   const topicOf = (thread: MiniThread) => {
     const id = filing[thread.id] ?? null;
     return id && known.has(id) ? id : null;
   };
+  // Work outside the sidebar is drawn only in a topic the change touches, and
+  // never in one that holds subtopics, whose threads no layout can place.
+  const shown = input.threads.filter((thread) => {
+    if (!thread.hidden) return true;
+    const topic = topicOf(thread);
+    return topic !== null && touched.has(topic) && !parents.has(topic);
+  });
   const counts: Record<string, number> = {};
-  for (const thread of input.threads) {
+  for (const thread of shown) {
     const id = topicOf(thread);
     if (id) counts[id] = (counts[id] ?? 0) + 1;
   }
@@ -239,7 +279,7 @@ function arrange(
     bindings[section] = id;
     sections.push({ id: section, name: byId.get(id)!.name });
   }
-  const threads: Synthetic[] = input.threads.map((thread) => {
+  const threads: Synthetic[] = shown.map((thread) => {
     const topic = topicOf(thread);
     return {
       id: thread.id,
@@ -298,32 +338,37 @@ const tickWidth = (title: string) =>
 
 /**
  * One tick per thread up to `TICK_CAP`; beyond that the ticks are shared out
- * among the groups (those that stay, and each flow) by their number of
- * threads, at least one each, so a ribbon's thickness is its real share.
- * Groups keep their threads together, staying threads first, so a flow's
- * ribbon spans one run of ticks.
+ * among the groups (those that stay, and each flow, with threads outside the
+ * sidebar apart) by their number of threads, at least one each, so a ribbon's
+ * thickness is its real share. Groups keep their threads together, staying
+ * threads first, so a flow's ribbon spans one run of ticks.
  */
 function ticksOf(
-  threads: readonly { title: string; flow: number | null }[],
+  threads: readonly { title: string; flow: number | null; hidden: boolean }[],
 ): MiniTick[] {
-  const groups = new Map<number | null, typeof threads>();
+  type Member = (typeof threads)[number];
+  const key = (t: Member) => `${t.flow ?? -1}:${t.hidden ? 1 : 0}`;
+  const groups = new Map<string, Member[]>();
   for (const thread of [...threads].sort(
-    (a, b) => (a.flow ?? -1) - (b.flow ?? -1),
+    (a, b) =>
+      (a.flow ?? -1) - (b.flow ?? -1) || Number(a.hidden) - Number(b.hidden),
   ))
-    groups.set(thread.flow, [...(groups.get(thread.flow) ?? []), thread]);
-  const ordered = [...groups];
+    groups.set(key(thread), [...(groups.get(key(thread)) ?? []), thread]);
+  const ordered = [...groups.values()];
+  const width = (m: Member) => (m.hidden ? 60 : tickWidth(m.title));
   const total = threads.length;
   if (total <= TICK_CAP)
-    return ordered.flatMap(([flow, members]) =>
+    return ordered.flatMap((members) =>
       members.map((m) => ({
-        flow,
+        flow: m.flow,
+        hidden: m.hidden,
         threads: 1,
-        width: tickWidth(m.title),
+        width: width(m),
       })),
     );
   // Largest remainder, with one tick guaranteed to each group.
   const slots = Math.max(TICK_CAP, ordered.length);
-  const quota = ordered.map(([, members]) => (members.length * slots) / total);
+  const quota = ordered.map((members) => (members.length * slots) / total);
   const given = quota.map((q) => Math.max(1, Math.floor(q)));
   let spare = slots - given.reduce((a, b) => a + b, 0);
   const byRemainder = quota
@@ -332,15 +377,16 @@ function ticksOf(
   for (let k = 0; spare > 0; k = (k + 1) % byRemainder.length, spare--)
     given[byRemainder[k]!.i]!++;
   // A group can hold fewer threads than ticks it was given.
-  return ordered.flatMap(([flow, members], g) => {
+  return ordered.flatMap((members, g) => {
     const n = Math.min(given[g]!, members.length);
     return Array.from({ length: n }, (_, tick) => {
       const from = Math.floor((tick * members.length) / n);
       const to = Math.floor(((tick + 1) * members.length) / n);
       return {
-        flow,
+        flow: members[from]!.flow,
+        hidden: members[from]!.hidden,
         threads: to - from,
-        width: tickWidth(members[from]!.title),
+        width: width(members[from]!),
       };
     });
   });
@@ -362,12 +408,23 @@ function draw(input: MiniatureInput): Miniature {
   const realSection = new Map<string, string>();
   for (const [section, topic] of Object.entries(input.colors?.groups ?? {}))
     if (!realSection.has(topic)) realSection.set(topic, section);
+  // The topics a change touches, whose threads outside the sidebar are drawn.
+  const touchedTopics = new Set([
+    ...input.delta.removed,
+    ...input.delta.topics.map((t) => t.id),
+  ]);
+  for (const { threadId, topicId } of input.delta.assignments) {
+    const was = input.filing[threadId];
+    if (was) touchedTopics.add(was);
+    if (topicId) touchedTopics.add(topicId);
+  }
   const now = arrange(
     input,
     input.topics,
     input.filing,
     realSection,
     input.manualOrder,
+    touchedTopics,
   );
   const next = applyDelta(input.topics, input.filing, input.delta);
   const nextTopics = new Map(next.topics.map((t) => [t.id, t]));
@@ -399,7 +456,14 @@ function draw(input: MiniatureInput): Miniature {
       if (anchor) placed.set(anchor, section);
     }
   }
-  const after = arrange(input, next.topics, next.filing, realSection, manual);
+  const after = arrange(
+    input,
+    next.topics,
+    next.filing,
+    realSection,
+    manual,
+    touchedTopics,
+  );
 
   // A thread flows when its workstream or its workstream's name changes.
   // Flows run in the order of their destinations in the after state, so
@@ -410,6 +474,7 @@ function draw(input: MiniatureInput): Miniature {
     topic: string | null;
     label: string;
     threads: { id: string; title: string }[];
+    hidden: number;
   };
   const pending = new Map<string, Pending>();
   for (const thread of input.threads) {
@@ -418,8 +483,9 @@ function draw(input: MiniatureInput): Miniature {
     if (!was || !will) continue;
     if (was.topic === will.topic && was.label === will.label) continue;
     const key = `${was.topic}\u0000${will.topic}\u0000${will.label}`;
-    const flow = pending.get(key) ?? { ...will, threads: [] };
-    flow.threads.push({ id: thread.id, title: thread.title });
+    const flow = pending.get(key) ?? { ...will, threads: [], hidden: 0 };
+    if (thread.hidden) flow.hidden++;
+    else flow.threads.push({ id: thread.id, title: thread.title });
     pending.set(key, flow);
   }
   const ordered = [...pending.values()].sort(
@@ -430,6 +496,18 @@ function draw(input: MiniatureInput): Miniature {
   ordered.forEach((flow, index) => {
     for (const thread of flow.threads) flowOf.set(thread.id, index);
   });
+  // Threads outside the sidebar follow their flow too.
+  for (const thread of input.threads)
+    if (thread.hidden) {
+      const was = now.placeOf.get(thread.id);
+      const will = after.placeOf.get(thread.id);
+      if (!was || !will) continue;
+      const index = ordered.findIndex(
+        (f) => f.topic === will.topic && f.label === will.label,
+      );
+      if (index >= 0 && !(was.topic === will.topic && was.label === will.label))
+        flowOf.set(thread.id, index);
+    }
 
   // Colors as the sidebar would give them: the topic's own, else, for a
   // topic the change creates, one the server would allocate beside its
@@ -462,6 +540,7 @@ function draw(input: MiniatureInput): Miniature {
     color: colorOf(flow.topic),
     to: split(flow.label, flow.label.includes(": ")),
     threads: flow.threads,
+    hidden: flow.hidden,
   }));
 
   const touched = new Set([
@@ -483,6 +562,9 @@ function draw(input: MiniatureInput): Miniature {
     }
   }
   const title = new Map(input.threads.map((t) => [t.id, t.title]));
+  const hiddenIds = new Set(
+    input.threads.filter((t) => t.hidden).map((t) => t.id),
+  );
   const convert = (
     node: WorkstreamNode<Synthetic>,
     hot: ReadonlySet<string>,
@@ -500,6 +582,7 @@ function draw(input: MiniatureInput): Miniature {
         node.rows.map((row) => ({
           title: title.get(row.thread.id) ?? "",
           flow: flowOf.get(row.thread.id) ?? null,
+          hidden: hiddenIds.has(row.thread.id),
         })),
       ),
       subs: node.subgroups.map((sub) => convert(sub, hot)),
