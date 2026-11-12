@@ -101,6 +101,17 @@ export type ChangeDelta = {
     readonly threadId: string;
     readonly topicId: string | null;
   }[];
+  /**
+   * Every root filed, before the change, in a topic it touches: where a
+   * thread is moving from, a topic that is renamed or merged, or a topic
+   * threads arrive in. The client reads only the filing of the threads its
+   * sidebar lists, so this is how it learns of the archived, hidden and
+   * snoozed threads a change acts on.
+   */
+  readonly held: readonly {
+    readonly threadId: string;
+    readonly topicId: string;
+  }[];
 };
 
 export type DeltaTopic = {
@@ -229,14 +240,31 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
     }
   }
   assertTopicLevels([...topics.values()]);
+  const changed = [...topics.values()].filter((t) => {
+    const was = before.get(t.id);
+    return !was || was.name !== t.name || was.parentId !== t.parentId;
+  });
+  const removed = [...before.keys()].filter((id) => !topics.has(id));
+  const assignments = [...filing]
+    .filter(([threadId, to]) => context.threadTopic[threadId] !== to)
+    .map(([threadId, topicId]) => ({ threadId, topicId }));
+  const touched = new Set([
+    ...changed.map((t) => t.id),
+    ...removed,
+    ...assignments.flatMap(({ threadId, topicId }) => [
+      context.threadTopic[threadId] ?? null,
+      topicId,
+    ]),
+  ]);
   return {
-    topics: [...topics.values()].filter((t) => {
-      const was = before.get(t.id);
-      return !was || was.name !== t.name || was.parentId !== t.parentId;
-    }),
-    removed: [...before.keys()].filter((id) => !topics.has(id)),
-    assignments: [...filing]
-      .filter(([threadId, to]) => context.threadTopic[threadId] !== to)
+    topics: changed,
+    removed,
+    assignments,
+    held: Object.entries(context.threadTopic)
+      .filter(
+        (entry): entry is [string, string] =>
+          entry[1] !== null && touched.has(entry[1]),
+      )
       .map(([threadId, topicId]) => ({ threadId, topicId })),
   };
 }

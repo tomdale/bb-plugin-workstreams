@@ -65,7 +65,7 @@ const input = (extra: Partial<MiniatureInput> = {}): MiniatureInput => ({
   sort: "alphabetical",
   sections: Object.values(sectionOf),
   manualOrder: [],
-  delta: { topics: [], removed: [], assignments: [] },
+  delta: { topics: [], removed: [], assignments: [], held: [] },
   now: NOW,
   ...extra,
 });
@@ -356,6 +356,7 @@ describe("miniature", () => {
             ],
             removed: [],
             assignments: [],
+            held: [],
           },
         }),
       ),
@@ -364,60 +365,38 @@ describe("miniature", () => {
 });
 
 describe("work outside the sidebar", () => {
-  /** Archive holds three threads, none in the sidebar; Docs has threads that are. */
-  const archived = ["a1", "a2", "a3"].map((id) => ({
-    id,
-    title: "",
-    sectionId: null,
-    activeAt: 0,
-    hidden: true,
-  }));
-  const withArchive = (extra: Partial<MiniatureInput> = {}) => {
-    const base = input();
-    return input({
-      topics: [...topics, { id: "archive", name: "Archive", parentId: null }],
-      threads: [...base.threads, ...archived],
-      filing: {
-        ...base.filing,
-        ...Object.fromEntries(archived.map((t) => [t.id, "archive"])),
-      },
-      ...extra,
-    });
-  };
+  /** Archive holds three threads, none in the sidebar; the server names them in `held`. */
+  const archived = ["a1", "a2", "a3"];
   const ctx = (): ChangeContext => ({
     topics: [...topics, { id: "archive", name: "Archive", parentId: null }],
     threadTopic: {
       ...context().threadTopic,
-      ...Object.fromEntries(archived.map((t) => [t.id, "archive"])),
+      ...Object.fromEntries(archived.map((id) => [id, "archive"])),
     },
     title: (id) => id,
   });
+  /** The sidebar's input: Archive is a topic, but no thread of it is listed. */
+  const sidebarWith = (body: TidyEdit | Split) =>
+    input({
+      topics: [...topics, { id: "archive", name: "Archive", parentId: null }],
+      delta: changeDelta(body, ctx())!,
+    });
 
   it("draws no workstream for them while nothing touches it", () => {
     const m = miniature(
-      withArchive({
-        delta: changeDelta(
-          { op: "move", thread: "d1", topic: "infra" },
-          ctx(),
-        )!,
-      }),
+      sidebarWith({ op: "move", thread: "d1", topic: "infra" }),
     )!;
     expect(labels(m.now)).not.toContain("Archive");
   });
 
-  it("draws a split of a workstream with no visible thread, as dashed ticks", () => {
+  it("draws a split of a workstream with no listed thread, as dashed ticks", () => {
     const m = miniature(
-      withArchive({
-        delta: changeDelta(
-          {
-            topicId: "archive",
-            subgroups: [
-              { name: "Old", description: "", threadIds: ["a1", "a2"] },
-              { name: "Older", description: "", threadIds: ["a3"] },
-            ],
-          },
-          ctx(),
-        )!,
+      sidebarWith({
+        topicId: "archive",
+        subgroups: [
+          { name: "Old", description: "", threadIds: ["a1", "a2"] },
+          { name: "Older", description: "", threadIds: ["a3"] },
+        ],
       }),
     )!;
     const before = find(m.now, "Archive");
@@ -436,14 +415,19 @@ describe("work outside the sidebar", () => {
     );
   });
 
-  it("draws a merge into a workstream with visible threads: dashed ticks arrive after the others", () => {
+  it("draws a rename of a workstream with no listed thread", () => {
     const m = miniature(
-      withArchive({
-        delta: changeDelta(
-          { op: "merge", from: "archive", into: "docs" },
-          ctx(),
-        )!,
-      }),
+      sidebarWith({ op: "rename", topic: "archive", name: "Retired" }),
+    )!;
+    expect(find(m.now, "Archive").ticks).toHaveLength(3);
+    expect(find(m.after, "Retired").hot).toBe(true);
+    expect(m.flows).toHaveLength(1);
+    expect(m.flows[0]!.hidden).toBe(3);
+  });
+
+  it("draws a merge into a workstream with listed threads: dashed ticks arrive after the others", () => {
+    const m = miniature(
+      sidebarWith({ op: "merge", from: "archive", into: "docs" }),
     )!;
     expect(find(m.after, "Docs").ticks.map((t) => t.hidden)).toEqual([
       false,
@@ -454,6 +438,15 @@ describe("work outside the sidebar", () => {
       true,
     ]);
     expect(m.flows[0]).toMatchObject({ hidden: 3, threads: [] });
+  });
+
+  it("leaves a thread the sidebar lists to the sidebar's own data", () => {
+    const m = miniature(
+      sidebarWith({ op: "rename", topic: "docs", name: "Guides" }),
+    )!;
+    // Docs' three threads are listed, and `held` names them too.
+    expect(find(m.after, "Guides").ticks.some((t) => t.hidden)).toBe(false);
+    expect(m.flows[0]!.hidden).toBe(0);
   });
 });
 
@@ -498,25 +491,6 @@ describe("miniatureBase", () => {
       sections: ["sec_docs"],
       now: 9,
     });
-  });
-
-  it("adds roots the sidebar does not list that are filed in a topic", () => {
-    const base = miniatureBase(
-      sidebar({
-        entities: topics,
-        groups: { sec_docs: "docs" },
-        assignments: {
-          d1: { entityId: "docs" },
-          old: { entityId: "docs" },
-          child: { entityId: "docs", inheritedFrom: "old" },
-          loose: { entityId: null },
-        },
-      }),
-    )!;
-    expect(base.threads.filter((t) => t.hidden)).toEqual([
-      { id: "old", title: "", sectionId: null, activeAt: 0, hidden: true },
-    ]);
-    expect(base.filing.old).toBe("docs");
   });
 
   it("is null until the topics have been read", () => {

@@ -166,7 +166,10 @@ suggestions.
 
 Each waiting suggestion reaches the app with its `change` (what moves, as the
 sentence and the CLI state it) and a `delta`: the topics the change creates,
-renames, moves or removes and the filing it changes, by id. The sidebar's review
+renames, moves or removes and the filing it changes, by id, plus the roots filed
+in the topics it touches (`held`). The app reads the filing of the threads its
+sidebar lists, so `held` is how it learns of the archived, hidden and snoozed
+threads a change acts on, which it draws as dashed ticks. The sidebar's review
 applies the delta to the topics and filing it holds and lays both states out
 with the sidebar's own code (`layoutGroups`, `arrangeGroups`, the user's sort),
 so the server never sends a finished sidebar. A test accepts every kind of

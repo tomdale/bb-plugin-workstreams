@@ -15,7 +15,7 @@
  * is focused; categories are left out; threads that are not in the sidebar
  * (archived, hidden or snoozed) are drawn as dashed ticks, but only in the
  * workstreams the change touches, so a change to work that is no longer
- * active still shows what it does; a workstream draws at most `TICK_CAP`
+ * active still shows what it does (the delta names them, in `held`); a workstream draws at most `TICK_CAP`
  * ticks, shared out by each group's share of its threads; and under manual
  * order the after state puts a new workstream beside the one it grew from, so
  * a flow into it stays short.
@@ -51,7 +51,7 @@ type MiniThread = {
   /** Its workstream's native section; null for Unfiled. */
   readonly sectionId: string | null;
   readonly activeAt: number;
-  /** Not in the sidebar (archived, hidden, snoozed): drawn dashed, only where a change touches. */
+  /** Not in the sidebar (archived, hidden, snoozed): drawn dashed. */
   readonly hidden?: boolean;
 };
 
@@ -85,13 +85,7 @@ export type SidebarView = {
     | (MiniColors & {
         readonly entities: readonly DeltaTopic[];
         readonly assignments: Readonly<
-          Record<
-            string,
-            {
-              readonly entityId: string | null;
-              readonly inheritedFrom?: string | null;
-            }
-          >
+          Record<string, { readonly entityId: string | null }>
         >;
       })
     | undefined;
@@ -125,30 +119,15 @@ export function miniatureBase(
         activeAt: row.thread.latestAttentionAt,
       })),
   );
-  // Roots filed in a topic that the sidebar does not list: archived, hidden or
-  // snoozed work. They show only where a change touches their topic.
-  const listed = new Set(threads.map((thread) => thread.id));
-  const unlisted: MiniThread[] = Object.entries(catalog.assignments)
-    .filter(
-      ([id, a]) => !listed.has(id) && !a.inheritedFrom && a.entityId !== null,
-    )
-    .map(([id]) => ({
-      id,
-      title: "",
-      sectionId: null,
-      activeAt: 0,
-      hidden: true,
-    }));
-  const everyone = [...threads, ...unlisted];
   return {
-    threads: everyone,
+    threads,
     topics: catalog.entities.map(({ id, name, parentId }) => ({
       id,
       name,
       parentId,
     })),
     filing: Object.fromEntries(
-      everyone.map((thread) => [
+      threads.map((thread) => [
         thread.id,
         catalog.assignments[thread.id]?.entityId ?? null,
       ]),
@@ -404,7 +383,28 @@ export function miniature(input: MiniatureInput): Miniature | null {
   }
 }
 
-function draw(input: MiniatureInput): Miniature {
+function draw(shown: MiniatureInput): Miniature {
+  // The delta names the threads the change acts on that the sidebar does not
+  // list; they are drawn, dashed, where the change touches.
+  const listed = new Set(shown.threads.map((t) => t.id));
+  const unlisted = shown.delta.held.filter((h) => !listed.has(h.threadId));
+  const input: MiniatureInput = {
+    ...shown,
+    threads: [
+      ...shown.threads,
+      ...unlisted.map(({ threadId }) => ({
+        id: threadId,
+        title: "",
+        sectionId: null,
+        activeAt: 0,
+        hidden: true,
+      })),
+    ],
+    filing: {
+      ...shown.filing,
+      ...Object.fromEntries(unlisted.map((h) => [h.threadId, h.topicId])),
+    },
+  };
   const realSection = new Map<string, string>();
   for (const [section, topic] of Object.entries(input.colors?.groups ?? {}))
     if (!realSection.has(topic)) realSection.set(topic, section);

@@ -449,6 +449,12 @@ describe("changeDelta", () => {
       topics: [],
       removed: [],
       assignments: [{ threadId: "d1", topicId: "infra" }],
+      // Where it leaves and where it lands.
+      held: [
+        { threadId: "d1", topicId: "docs" },
+        { threadId: "d2", topicId: "docs" },
+        { threadId: "f1", topicId: "infra" },
+      ],
     });
     expect(
       changeDelta({ op: "move", thread: "u1", topic: "docs" }, world())
@@ -466,6 +472,10 @@ describe("changeDelta", () => {
       topics: [{ id: "docs", name: "Documentation", parentId: null }],
       removed: [],
       assignments: [],
+      held: [
+        { threadId: "d1", topicId: "docs" },
+        { threadId: "d2", topicId: "docs" },
+      ],
     });
   });
 
@@ -497,6 +507,11 @@ describe("changeDelta", () => {
         { threadId: "d1", topicId: "infra" },
         { threadId: "d2", topicId: "infra" },
       ],
+      held: [
+        { threadId: "d1", topicId: "docs" },
+        { threadId: "d2", topicId: "docs" },
+        { threadId: "f1", topicId: "infra" },
+      ],
     });
   });
 
@@ -519,6 +534,10 @@ describe("changeDelta", () => {
       topics: [],
       removed: ["web", "invoices-web"],
       assignments: [{ threadId: "w1", topicId: "invoices" }],
+      held: [
+        { threadId: "i1", topicId: "invoices" },
+        { threadId: "w1", topicId: "invoices-web" },
+      ],
     });
   });
 
@@ -569,6 +588,7 @@ describe("changeDelta", () => {
       topics: [{ id: newTopicId(null, "Ops"), name: "Ops", parentId: null }],
       removed: [],
       assignments: [],
+      held: [],
     });
   });
 
@@ -611,7 +631,18 @@ describe("changeDelta", () => {
       topics: [],
       removed: [],
       assignments: [],
+      held: [],
     });
+  });
+
+  it("names every thread filed in a topic it touches, archived ones included", () => {
+    const held = changeDelta(
+      { op: "rename", topic: "payments", name: "Billing Payments" },
+      world({ visible: (id) => id !== "t9" }),
+    )!.held;
+    expect(held.map((h) => h.threadId).sort()).toEqual(["p1", "p2", "t9"]);
+    // A topic it leaves alone contributes none.
+    expect(held.some((h) => h.threadId === "i1")).toBe(false);
   });
 
   it("is null when a topic or thread it names is gone", () => {

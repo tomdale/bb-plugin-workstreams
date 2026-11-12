@@ -64,6 +64,7 @@ const merge = suggestion(
     topics: [],
     removed: ["alpha"],
     assignments: [{ threadId: "root", topicId: "beta" }],
+    held: [{ threadId: "root", topicId: "alpha" }],
   },
 );
 const rename = suggestion(
@@ -84,6 +85,7 @@ const rename = suggestion(
     topics: [{ id: "beta", name: "Beta site", parentId: null }],
     removed: [],
     assignments: [],
+    held: [{ threadId: "beta", topicId: "beta" }],
   },
 );
 const third = suggestion(
@@ -104,6 +106,7 @@ const third = suggestion(
     topics: [],
     removed: [],
     assignments: [{ threadId: "loose", topicId: "beta" }],
+    held: [{ threadId: "beta", topicId: "beta" }],
   },
 );
 const outdated = suggestion(
@@ -272,6 +275,7 @@ it("says so when a change moves no thread, and when it can't be drawn", async ()
     topics: [{ id: "new:/ops", name: "Ops", parentId: null }],
     removed: [],
     assignments: [],
+    held: [],
   });
   const undrawn = suggestion("undrawn", "Move Docs to Ops", merge.change);
   const { review, dialog } = await open([quiet, undrawn]);
@@ -686,6 +690,8 @@ it("draws a change to a workstream whose threads are all out of the sidebar", as
       topics: [{ id: "gamma", name: "Gamma site", parentId: null }],
       removed: [],
       assignments: [],
+      // The root the sidebar does not list: the server names it.
+      held: [{ threadId: "hidden", topicId: "gamma" }],
     },
   );
   const slot = await mount(undefined, {
@@ -703,8 +709,6 @@ it("draws a change to a workstream whose threads are all out of the sidebar", as
         },
       ],
     },
-    // "hidden" is a root the sidebar does not list.
-    assignments: { ...assignments, hidden: "gamma" },
     rpc: { suggestions: () => ({ state: stateOf([gamma]) }) },
   });
   fireEvent.click(await slot.findByRole("button", { name: "1 suggestion" }));

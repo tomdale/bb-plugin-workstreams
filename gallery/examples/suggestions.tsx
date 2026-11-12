@@ -49,7 +49,10 @@ const topics = [
   ["onboarding", "Onboarding", null],
   ["legacy", "Legacy Tools", null],
 ] as const;
-/** Threads filed in Legacy Tools that the sidebar does not list (archived). */
+/**
+ * Threads filed in Legacy Tools that the sidebar does not list (archived):
+ * the server names them in a suggestion's delta, not the sidebar.
+ */
 const ARCHIVED = ["legacy-0", "legacy-1", "legacy-2", "legacy-3", "legacy-4"];
 const titles: Record<string, string[]> = {
   invoices: ["Fixing invoice totals", "Adding invoice export"],
@@ -196,14 +199,9 @@ const sidebar: SidebarView = (() => {
       groups: Object.fromEntries(
         Object.keys(titles).map((topic) => [`sec_${topic}`, topic]),
       ),
-      assignments: {
-        ...Object.fromEntries(
-          threadList.map((t) => [t.id, { entityId: t.topic }]),
-        ),
-        ...Object.fromEntries(
-          ARCHIVED.map((id) => [id, { entityId: "legacy" }]),
-        ),
-      },
+      assignments: Object.fromEntries(
+        threadList.map((t) => [t.id, { entityId: t.topic }]),
+      ),
       colors,
     },
     sort: "alphabetical",

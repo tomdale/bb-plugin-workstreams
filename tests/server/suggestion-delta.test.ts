@@ -282,3 +282,25 @@ describe("a suggestion's delta equals accepting it", () => {
     await accept(w, kind, body(w.id));
   });
 });
+
+describe("threads the sidebar does not list", () => {
+  it("are named in the delta of a change that touches their topic", async () => {
+    const w = world("delta-held");
+    (
+      w.suggestions as unknown as { propose: (...args: unknown[]) => void }
+    ).propose(
+      "pass",
+      "edit",
+      { op: "rename", topic: w.id.payments!, name: "Pay" },
+      "Because",
+      null,
+    );
+    const [suggestion] = w.suggestions.state().suggestions;
+    // "archived" is filed under Payments but is not among the visible roots.
+    expect(suggestion!.delta!.held.map((h) => h.threadId).sort()).toEqual([
+      "archived",
+      "p1",
+      "p2",
+    ]);
+  });
+});

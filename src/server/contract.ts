@@ -279,6 +279,7 @@ const suggestionDeltaSchema: z.ZodType<ChangeDelta> = z.object({
   assignments: z.array(
     z.object({ threadId: z.string(), topicId: z.string().nullable() }),
   ),
+  held: z.array(z.object({ threadId: z.string(), topicId: z.string() })),
 });
 
 const suggestionsStateSchema = z.object({
