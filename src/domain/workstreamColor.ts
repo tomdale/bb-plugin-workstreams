@@ -164,6 +164,21 @@ export function colorForWorkstream(
   );
 }
 
+/**
+ * The color's dark-surface text step (`--ws-color-dark`) as `#rrggbb`, for
+ * surfaces outside BB that can't read its CSS, such as Stream Deck keys.
+ */
+export function workstreamColorHex(color: TopicColor): string {
+  const encode = (linear: number) => {
+    const c = Math.min(1, Math.max(0, linear));
+    const srgb = c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055;
+    return Math.round(srgb * 255)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${samples(color).dark.rgb.map(encode).join("")}`;
+}
+
 /** Theme-specific CSS values shared by all workstream surfaces. */
 export function workstreamColorStyle(
   color: TopicColor,

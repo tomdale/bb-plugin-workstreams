@@ -1,3 +1,5 @@
 dist/
 node_modules/
 .perf/
+stream-deck/*.sdPlugin/bin/
+stream-deck/*.sdPlugin/logs/

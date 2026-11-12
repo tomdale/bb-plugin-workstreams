@@ -8,7 +8,7 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { registerCli } from "./cli.ts";
 import type { ThreadListing } from "../domain/analysis.ts";
 import { topicPath } from "../domain/topic-path.ts";
-import { displayTitle } from "./inventory.ts";
+import { displayTitle, listActiveThreads, listSections } from "./inventory.ts";
 import { registerAgentInstructions } from "./agents.ts";
 import { Analyzer } from "./analyzer.ts";
 import { RecapArchive } from "./archive.ts";
@@ -74,6 +74,7 @@ import { loadPrefs, savePrefs, seedPrefs } from "./prefs.ts";
 import { gatewayModel, type ModelChoice } from "../domain/prefs.ts";
 import { runWorker as completeWithWorker } from "./inference/worker.ts";
 import { registerQueueLab } from "./queueLab.ts";
+import { registerStreamDeck, type StreamDeckFeed } from "./streamDeck.ts";
 
 export { rpcContract } from "./contract.ts";
 
@@ -85,9 +86,12 @@ export default async function plugin(bb: BbPluginApi) {
   const db = openDatabase(bb);
   seedPrefs(db);
   const journal = new Journal(db);
-  const changes = new ChangeFeed((signal) =>
-    bb.realtime.publish("changed", signal),
-  );
+  // Set once everything Up Next reads from exists; it reads again on changes.
+  let streamDeck: StreamDeckFeed | null = null;
+  const changes = new ChangeFeed((signal) => {
+    bb.realtime.publish("changed", signal);
+    streamDeck?.changed();
+  });
   bb.onDispose(() => changes.dispose());
   const notify = changes.notify;
   const SNOOZES = { slices: ["snoozes"], threadIds: [] } as const;
@@ -1616,6 +1620,26 @@ export default async function plugin(bb: BbPluginApi) {
         });
         return { threadId: thread.id };
       }),
+  });
+
+  streamDeck = registerStreamDeck(bb, async () => {
+    const [threads, sections] = await Promise.all([
+      listActiveThreads(bb.sdk),
+      listSections(bb.sdk),
+    ]);
+    const groups = Object.fromEntries(topics.groups());
+    return {
+      threads,
+      sections,
+      analysis: analyzer.all(),
+      recaps: recaps.all(),
+      order: loadOrder(db),
+      snoozes: snoozes.all(),
+      upNext: currentPrefs().upNext,
+      groups,
+      colors: topicColors.snapshot(topics.list(), groups),
+      now: Date.now(),
+    };
   });
 
   // Clients that stayed connected while the plugin restarted hold the old

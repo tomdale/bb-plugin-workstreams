@@ -58,6 +58,19 @@ Workstream colors are allocated from a finite palette; a large family or many
 workstreams can produce similar colors. Labels and status text remain necessary;
 color is not an identity or status guarantee.
 
+### Stream Deck keys
+
+**Evidence:** `src/server/streamDeck.ts`, `src/app/upNext/StreamDeckBridge.tsx`,
+and `stream-deck/src/render.ts`.
+
+The Next key and the keys that open a thread act in every connected BB app, a
+phone included, because BB's thread open and plugin realtime signals reach all
+of them. The keys list Up Next as ranked, without the sidebar's hold on the open
+thread's row, so a thread can change keys as soon as reading it changes its
+rank. The plugin breaks key text into lines using Helvetica Neue's widths as
+Chrome measures them; Stream Deck draws the text itself, so a line can end a
+little short or run slightly long. The plugin supports only macOS.
+
 ### Suggestions the review cannot draw
 
 **Evidence:** `src/server/suggestions.ts` (`delta`) and

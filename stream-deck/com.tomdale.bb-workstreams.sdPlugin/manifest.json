@@ -1,0 +1,68 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "Name": "BB Workstreams",
+  "Version": "1.0.0.0",
+  "Author": "Tom Dale",
+  "Description": "Shows Up Next from the Workstreams BB plugin and opens its threads in BB.",
+  "UUID": "com.tomdale.bb-workstreams",
+  "Category": "BB Workstreams",
+  "CategoryIcon": "imgs/plugin/category",
+  "Icon": "imgs/plugin/icon",
+  "URL": "https://github.com/tomdale/bb-plugin-workstreams",
+  "CodePath": "bin/plugin.js",
+  "SDKVersion": 3,
+  "Software": {
+    "MinimumVersion": "7.1"
+  },
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "12"
+    }
+  ],
+  "Nodejs": {
+    "Version": "24"
+  },
+  "Actions": [
+    {
+      "Name": "Up Next thread",
+      "UUID": "com.tomdale.bb-workstreams.thread",
+      "Icon": "imgs/actions/thread",
+      "Tooltip": "Shows one thread from Up Next. Press to open it in BB.",
+      "PropertyInspectorPath": "ui/thread.html",
+      "Controllers": ["Keypad"],
+      "SupportedInMultiActions": false,
+      "UserTitleEnabled": false,
+      "States": [{ "Image": "imgs/actions/key" }]
+    },
+    {
+      "Name": "Next Up Next thread",
+      "UUID": "com.tomdale.bb-workstreams.next",
+      "Icon": "imgs/actions/next",
+      "Tooltip": "Opens the next thread in Up Next and counts the threads waiting on you.",
+      "PropertyInspectorPath": "ui/connection.html",
+      "Controllers": ["Keypad"],
+      "SupportedInMultiActions": false,
+      "UserTitleEnabled": false,
+      "States": [{ "Image": "imgs/actions/key" }]
+    },
+    {
+      "Name": "Up Next",
+      "UUID": "com.tomdale.bb-workstreams.dial",
+      "Icon": "imgs/actions/dial",
+      "Tooltip": "Turn to move through Up Next. Press or tap to open the thread in BB.",
+      "PropertyInspectorPath": "ui/connection.html",
+      "Controllers": ["Encoder"],
+      "UserTitleEnabled": false,
+      "Encoder": {
+        "layout": "layouts/up-next.json",
+        "TriggerDescription": {
+          "Rotate": "Move through Up Next",
+          "Push": "Open in BB",
+          "Touch": "Open in BB"
+        }
+      },
+      "States": [{ "Image": "imgs/actions/key" }]
+    }
+  ]
+}

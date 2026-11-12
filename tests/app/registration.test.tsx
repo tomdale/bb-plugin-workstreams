@@ -38,6 +38,8 @@ it("binds UI surfaces to the components exercised by the SDK harness", async () 
   const features = await import("../../src/app/settings/FeatureSettings.tsx");
   const { ColorSettings } =
     await import("../../src/app/settings/ColorSettings.tsx");
+  const { StreamDeckBridge } =
+    await import("../../src/app/upNext/StreamDeckBridge.tsx");
   const { RecapSettings } =
     await import("../../src/app/recap/RecapSettings.tsx");
   const { SnoozeSettings } =
@@ -95,6 +97,7 @@ it("binds UI surfaces to the components exercised by the SDK harness", async () 
     ["sticky-thread-goal", StickyGoalHeader],
     ["color-tokens", ColorTokenStyle],
     ["debug-command", DebugCommandBridge],
+    ["stream-deck", StreamDeckBridge],
   ] as const) {
     expect(app.appOverlays.find((entry) => entry.id === id)?.component).toBe(
       component,

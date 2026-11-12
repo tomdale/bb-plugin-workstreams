@@ -2,7 +2,10 @@ Workstreams is Tom's BB plugin that keeps each open root thread's goal, topic,
 status, and activity current and derives BB sidebar workstreams from root
 topics. The package is the repository root: `src/{app,domain,server}` (React UI,
 pure rules shared by both sides, plugin server), `tests/` mirroring `src/`,
-`eval/` (paid model evals), `components/ui/` (vendored BB registry components).
+`eval/` (paid model evals), `components/ui/` (vendored BB registry components),
+`stream-deck/` (optional Stream Deck plugin, its own npm package). The Stream
+Deck plugin bundles `src/domain/streamDeck.ts`, the Up Next wire format that
+`src/server/streamDeck.ts` serves, so that file imports nothing.
 
 The code and its doc comments are the authority on current behavior; read them
 rather than relying on summaries. These product rules are Tom's decisions:
@@ -42,6 +45,9 @@ BB Plugin SDK limits in tomdale/bb-plugins `docs/bb-sdk-wishlist.md`.
 Checks (repository root): `npm ci`, `npm run typecheck`, `npm test`,
 `npm run build`, `npx prettier --check <changed files>`, then
 `scripts/bb-plugin-smoke <checkout>`, which activates the build in a throwaway
-BB server. The canonical checkout `~/Code/Repos/bb-plugin-workstreams/main` is
-live (the daily BB app loads the plugin from it), so work in a Workforest task
-and follow the `personal-repo-lifecycle` skill.
+BB server. A change under `stream-deck/` or to `src/domain/streamDeck.ts` also
+runs, in `stream-deck/`: `npm ci`, `npm run typecheck`, `npm test`,
+`npm run build`, `npm run validate`. The canonical checkout
+`~/Code/Repos/bb-plugin-workstreams/main` is live (the daily BB app loads the
+plugin from it), so work in a Workforest task and follow the
+`personal-repo-lifecycle` skill.

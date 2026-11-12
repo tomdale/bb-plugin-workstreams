@@ -600,6 +600,27 @@ enabled), Workstreams replaces BB's flat Recent list on the Home screen with:
   Focused workstreams (or a single active workstream) start expanded.
 - A collapsible **Snoozed** section at the bottom.
 
+### Stream Deck
+
+An optional Stream Deck plugin in [stream-deck/](stream-deck/README.md) puts Up
+Next on Stream Deck keys and a Stream Deck + dial. You install it into Stream
+Deck 7.1 or later, on the Mac that runs BB, separately from Workstreams.
+
+- **Up Next thread** keys each show one Up Next thread by position, drawn like
+  its sidebar row: the row's mark, the workstream in its color, and the title.
+  Positions past **Threads shown** continue with the threads **Show N more**
+  lists. Pressing a key opens its thread in BB.
+- The **Next Up Next thread** key shows how many Up Next threads are unread or
+  blocked on you, and pressing it runs **Workstreams: next Up Next thread** in
+  each connected BB app.
+- The **Up Next** dial shows one thread on the touch strip. Turning it moves
+  through Up Next, and pressing it opens the thread.
+
+The keys rank threads with the sidebar's rules and your **Up Next** settings,
+and update as Up Next changes. They read it from Workstreams' Stream Deck
+routes, which require the plugin token (`bb plugin token workstreams`); the
+Stream Deck plugin gets that token from the `bb` CLI.
+
 ### Thread view and header
 
 - **Sticky goal header:** Displays the thread's workstream (in its deterministic

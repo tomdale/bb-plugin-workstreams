@@ -44,6 +44,7 @@ import {
   NextUpCommandBridge,
   openNextUpThread,
 } from "./upNext/NextUpCommand.tsx";
+import { StreamDeckBridge } from "./upNext/StreamDeckBridge.tsx";
 import { DebugCommandBridge, toggleDebugUi } from "./debug/DebugCommand.tsx";
 import {
   ThreadContextDebugSection,
@@ -97,6 +98,10 @@ export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({
     id: "next-up-command",
     component: NextUpCommandBridge,
+  });
+  app.slots.experimental_appOverlay({
+    id: "stream-deck",
+    component: StreamDeckBridge,
   });
   app.slots.experimental_appOverlay({
     id: "advance-after-leaving",
