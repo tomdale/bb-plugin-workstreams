@@ -1272,9 +1272,11 @@ What the UI shows:
   usage, reasoning, and copyable JSON diagnostics.
 - **Reply raw output & syntax diagnostics:** Expand **Raw agent output** on any
   assistant reply (including unclosed `:::reply` blocks and responses where
-  `:::reply` failed to parse or was omitted) to view line-numbered syntax and
-  component diagnostics alongside the raw agent output before parsing, or run
-  `bb workstreams reply <target>` from the CLI.
+  `:::reply` failed to parse) to view line-numbered syntax and component
+  diagnostics alongside the raw agent output before parsing, or run
+  `bb workstreams reply <target>` from the CLI. A message that simply has no
+  `:::reply` block shows its raw output without a syntax diagnosis: the CLI
+  reports its status as `missing`, and the debug UI reports no issue.
 
 ---
 

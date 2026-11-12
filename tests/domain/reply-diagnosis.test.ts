@@ -155,6 +155,13 @@ describe("diagnoseReply", () => {
     },
   );
 
+  it("reports a plain message as missing without calling it an issue", () => {
+    const result = diagnoseReply("Just prose, no reply block here.\n");
+    expect(result.status).toBe("missing");
+    expect(result.issues).toEqual([]);
+    expect(result.reply).toBeNull();
+  });
+
   it("reports workstreams fences outside :::reply or nested in lists", () => {
     const outside = `Explanation.\n\n${componentFence(COMPONENT_EXAMPLES.context)}`;
     const outsideResult = diagnoseReply(outside);

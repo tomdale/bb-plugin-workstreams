@@ -157,12 +157,9 @@ export function diagnoseReply(
           });
       }
     });
-    if (issues.length === 0) {
-      issues.push({
-        line: 1,
-        message: `No ":::${REPLY_BLOCK}" block found in this message.`,
-      });
-    }
+    // A message with no reply block and no opener mistake is a plain message,
+    // not a failed one: the status says the block is absent, and only real
+    // syntax mistakes become issues.
     return { status: "missing", issues, reply: null };
   }
 

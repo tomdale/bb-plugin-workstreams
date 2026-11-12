@@ -1004,6 +1004,67 @@ it("attaches raw output and syntax diagnostics to assistant rows without a Reply
   row.unmount();
 });
 
+it("shows raw output without a syntax issue when a message has no reply block", async () => {
+  const plain = "Ran the tests; all green.";
+  const row = render(
+    <div data-timeline-row-id="t1:assistant:kind:assistant|turn:turn1|parent:root|item:item1">
+      <div data-message-column="">
+        <div data-sidebar-swipe-selectable="true">
+          <p>{plain}</p>
+        </div>
+      </div>
+    </div>,
+  );
+  const overlay = renderSlot(
+    { component: AssistantReplyDebug },
+    {},
+    {
+      sdk: {
+        ...SDK,
+        threads: {
+          ...SDK.threads,
+          events: {
+            list: async () => [
+              {
+                id: "e1",
+                threadId: "t1",
+                createdAt: 0,
+                type: "item/completed",
+                seq: 115,
+                scope: { kind: "turn", turnId: "turn1" },
+                data: {
+                  providerThreadId: "p1",
+                  item: {
+                    type: "agentMessage",
+                    id: "item1",
+                    text: plain,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      rpc: {
+        prefs: () => ({ prefs: { advanced: { debugUi: true } } }),
+      },
+    },
+  );
+  await waitFor(() =>
+    expect(row.container.querySelector("[data-reply-raw]")).not.toBeNull(),
+  );
+  const details = row.container.querySelector<HTMLDetailsElement>(
+    "details[data-reply-raw]",
+  )!;
+  expect(details.getAttribute("data-reply-status")).toBe("missing");
+  expect(row.queryByRole("list", { name: "Reply syntax issues" })).toBeNull();
+  expect(details.textContent).not.toContain('No ":::reply"');
+  expect(details.querySelector('[class*="ws-failure-text"]')).toBeNull();
+  expect(row.getByLabelText("Raw agent output").textContent).toBe(plain);
+  overlay.lifecycle.unmount();
+  row.unmount();
+});
+
 it("leads delivery stages with status marks in their order", async () => {
   const view = await draw(body(COMPONENT_EXAMPLES.delivery));
   const list = view.container.querySelector("[data-reply-delivery-stages]");
