@@ -50,8 +50,8 @@ const topics = [
   ["legacy", "Legacy Tools", null],
 ] as const;
 /**
- * Threads filed in Legacy Tools that the sidebar does not list (archived):
- * the server names them in a suggestion's delta, not the sidebar.
+ * Threads filed in Legacy Tools that are archived: neither the sidebar nor a
+ * suggestion's delta lists them, and a drawing only counts them.
  */
 const ARCHIVED = ["legacy-0", "legacy-1", "legacy-2", "legacy-3", "legacy-4"];
 const titles: Record<string, string[]> = {
@@ -161,6 +161,8 @@ const threadList = Object.entries(titles).flatMap(([topic, names], at) =>
   })),
 );
 const archivedFiling = Object.fromEntries(ARCHIVED.map((id) => [id, "legacy"]));
+/** A thread the sidebar does not list because it is snoozed. */
+const SNOOZED = new Set(["mobile-3"]);
 const entities = topics.map(([id, name, parentId]) => ({
   id,
   name,
@@ -177,18 +179,20 @@ const sidebar: SidebarView = (() => {
     name: entities.find((e) => e.id === topic)!.name,
   }));
   const projection = projectWorkstreams(
-    threadList.map((t) => ({
-      id: t.id,
-      title: t.title,
-      parentThreadId: null,
-      sectionId: `sec_${t.topic}`,
-      isHidden: false,
-      isArchived: false,
-      isPinned: false,
-      hasPendingInteraction: false,
-      latestAttentionAt: t.activeAt,
-      createdAt: t.activeAt,
-    })),
+    threadList
+      .filter((t) => !SNOOZED.has(t.id))
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        parentThreadId: null,
+        sectionId: `sec_${t.topic}`,
+        isHidden: false,
+        isArchived: false,
+        isPinned: false,
+        hasPendingInteraction: false,
+        latestAttentionAt: t.activeAt,
+        createdAt: t.activeAt,
+      })),
     sections,
     { now: NOW },
   );
@@ -215,6 +219,7 @@ const context: ChangeContext = {
   topics: entities,
   threadTopic: filing,
   title: (id) => threadList.find((t) => t.id === id)?.title ?? id,
+  visible: (id) => !ARCHIVED.includes(id),
 };
 
 /** A suggestion as the server would send it: the change, its delta, its sentence. */
@@ -284,6 +289,11 @@ const reparent = suggest("reparent", {
   op: "reparent",
   topic: "tools",
   parent: "dx",
+});
+const mobile = suggest("mobile", {
+  op: "rename",
+  topic: "mobile",
+  name: "Mobile",
 });
 const retire = suggest("retire", {
   op: "rename",
@@ -417,6 +427,7 @@ function SuggestionsExample() {
               reparent,
               refile,
               retire,
+              mobile,
             ]}
           />
         </Variant>

@@ -445,7 +445,7 @@ describe("changeDelta", () => {
   it("refiles a thread, and files an unfiled one", () => {
     expect(
       changeDelta({ op: "move", thread: "d1", topic: "infra" }, world()),
-    ).toEqual({
+    ).toMatchObject({
       topics: [],
       removed: [],
       assignments: [{ threadId: "d1", topicId: "infra" }],
@@ -468,7 +468,7 @@ describe("changeDelta", () => {
         { op: "rename", topic: "docs", name: " Documentation " },
         world(),
       ),
-    ).toEqual({
+    ).toMatchObject({
       topics: [{ id: "docs", name: "Documentation", parentId: null }],
       removed: [],
       assignments: [],
@@ -500,7 +500,7 @@ describe("changeDelta", () => {
   it("merges a topic into another: threads follow and the source is removed", () => {
     expect(
       changeDelta({ op: "merge", from: "docs", into: "infra" }, world()),
-    ).toEqual({
+    ).toMatchObject({
       topics: [],
       removed: ["docs"],
       assignments: [
@@ -530,7 +530,7 @@ describe("changeDelta", () => {
   it("merges a topic with subtopics, joining subtopics of the same name", () => {
     expect(
       changeDelta({ op: "merge", from: "web", into: "billing" }, world()),
-    ).toEqual({
+    ).toMatchObject({
       topics: [],
       removed: ["web", "invoices-web"],
       assignments: [{ threadId: "w1", topicId: "invoices" }],
@@ -584,7 +584,7 @@ describe("changeDelta", () => {
         },
         world(),
       ),
-    ).toEqual({
+    ).toMatchObject({
       topics: [{ id: newTopicId(null, "Ops"), name: "Ops", parentId: null }],
       removed: [],
       assignments: [],
@@ -627,7 +627,7 @@ describe("changeDelta", () => {
         },
         world(),
       ),
-    ).toEqual({
+    ).toMatchObject({
       topics: [],
       removed: [],
       assignments: [],
@@ -635,14 +635,29 @@ describe("changeDelta", () => {
     });
   });
 
-  it("names every thread filed in a topic it touches, archived ones included", () => {
-    const held = changeDelta(
+  it("names the threads filed in a topic it touches, with titles, and leaves archived ones out", () => {
+    const delta = changeDelta(
       { op: "rename", topic: "payments", name: "Billing Payments" },
       world({ visible: (id) => id !== "t9" }),
-    )!.held;
-    expect(held.map((h) => h.threadId).sort()).toEqual(["p1", "p2", "t9"]);
-    // A topic it leaves alone contributes none.
-    expect(held.some((h) => h.threadId === "i1")).toBe(false);
+    )!;
+    expect(delta.held).toEqual([
+      { threadId: "p1", topicId: "payments", title: "Thread p1" },
+      { threadId: "p2", topicId: "payments", title: "Thread p2" },
+    ]);
+  });
+
+  it("counts the archived threads it moves, and does not name them", () => {
+    const delta = changeDelta(
+      { op: "merge", from: "payments", into: "invoices" },
+      world({ visible: (id) => id !== "t9" }),
+    )!;
+    expect(delta.archived).toBe(1);
+    expect(delta.assignments).toHaveLength(3);
+    expect(delta.held.some((h) => h.threadId === "t9")).toBe(false);
+    expect(
+      changeDelta({ op: "move", thread: "d1", topic: "infra" }, world())!
+        .archived,
+    ).toBe(0);
   });
 
   it("is null when a topic or thread it names is gone", () => {

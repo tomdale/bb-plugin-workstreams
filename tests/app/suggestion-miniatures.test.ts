@@ -65,7 +65,14 @@ const input = (extra: Partial<MiniatureInput> = {}): MiniatureInput => ({
   sort: "alphabetical",
   sections: Object.values(sectionOf),
   manualOrder: [],
-  delta: { topics: [], removed: [], assignments: [], held: [] },
+  delta: {
+    topics: [],
+    removed: [],
+    assignments: [],
+    held: [],
+    archived: 0,
+    touched: [],
+  },
   now: NOW,
   ...extra,
 });
@@ -204,7 +211,7 @@ describe("miniature", () => {
     expect(m.flows[0]!.to).toEqual({ prefix: "Billing", name: "Docs" });
   });
 
-  it("draws a change that moves no visible thread with no flows", () => {
+  it("draws a change that moves no thread with no flows, and a workstream it creates as a name", () => {
     const m = miniature(
       input({
         delta: delta({
@@ -217,7 +224,9 @@ describe("miniature", () => {
       }),
     )!;
     expect(m.flows).toEqual([]);
-    expect(labels(m.after)).toEqual(labels(m.now));
+    expect(labels(m.now)).not.toContain("Ops");
+    expect(find(m.after, "Ops")).toMatchObject({ hot: true, ticks: [] });
+    expect(labels(m.after).filter((l) => l !== "Ops")).toEqual(labels(m.now));
   });
 
   it("applies the user's sort to both sides", () => {
@@ -357,6 +366,8 @@ describe("miniature", () => {
             removed: [],
             assignments: [],
             held: [],
+            archived: 0,
+            touched: [],
           },
         }),
       ),
@@ -365,20 +376,27 @@ describe("miniature", () => {
 });
 
 describe("work outside the sidebar", () => {
-  /** Archive holds three threads, none in the sidebar; the server names them in `held`. */
-  const archived = ["a1", "a2", "a3"];
+  /** Snoozed holds three threads, none listed; the server names them in `held`. Gone holds two archived. */
+  const snoozed = ["s1", "s2", "s3"];
+  const archived = ["x1", "x2"];
   const ctx = (): ChangeContext => ({
-    topics: [...topics, { id: "archive", name: "Archive", parentId: null }],
+    topics: [
+      ...topics,
+      { id: "snoozed", name: "Snoozed", parentId: null },
+      { id: "gone", name: "Gone", parentId: null },
+    ],
     threadTopic: {
       ...context().threadTopic,
-      ...Object.fromEntries(archived.map((id) => [id, "archive"])),
+      ...Object.fromEntries(snoozed.map((id) => [id, "snoozed"])),
+      ...Object.fromEntries(archived.map((id) => [id, "gone"])),
     },
-    title: (id) => id,
+    title: (id) => `Title ${id}`,
+    // Archived threads are not in the sidebar's population; snoozed ones are.
+    visible: (id) => !archived.includes(id),
   });
-  /** The sidebar's input: Archive is a topic, but no thread of it is listed. */
   const sidebarWith = (body: TidyEdit | Split) =>
     input({
-      topics: [...topics, { id: "archive", name: "Archive", parentId: null }],
+      topics: ctx().topics as MiniatureInput["topics"],
       delta: changeDelta(body, ctx())!,
     });
 
@@ -386,48 +404,65 @@ describe("work outside the sidebar", () => {
     const m = miniature(
       sidebarWith({ op: "move", thread: "d1", topic: "infra" }),
     )!;
-    expect(labels(m.now)).not.toContain("Archive");
+    expect(labels(m.now)).not.toContain("Snoozed");
+    expect(labels(m.now)).not.toContain("Gone");
   });
 
-  it("draws a split of a workstream with no listed thread, as dashed ticks", () => {
+  it("draws a split of a workstream whose threads are snoozed, as dashed ticks with titles", () => {
     const m = miniature(
       sidebarWith({
-        topicId: "archive",
+        topicId: "snoozed",
         subgroups: [
-          { name: "Old", description: "", threadIds: ["a1", "a2"] },
-          { name: "Older", description: "", threadIds: ["a3"] },
+          { name: "Old", description: "", threadIds: ["s1", "s2"] },
+          { name: "Older", description: "", threadIds: ["s3"] },
         ],
       }),
     )!;
-    const before = find(m.now, "Archive");
+    const before = find(m.now, "Snoozed");
     expect(before.hot).toBe(true);
     expect(before.ticks).toHaveLength(3);
     expect(before.ticks.every((t) => t.hidden && t.flow !== null)).toBe(true);
     expect(labels(m.after)).toEqual(
-      expect.arrayContaining(["Archive: Old", "Archive: Older"]),
+      expect.arrayContaining(["Snoozed: Old", "Snoozed: Older"]),
     );
-    expect(m.flows.map((f) => [f.threads.length, f.hidden])).toEqual([
-      [0, 2],
-      [0, 1],
+    expect(m.flows.map((f) => f.threads.map((t) => t.title))).toEqual([
+      ["Title s1", "Title s2"],
+      ["Title s3"],
     ]);
-    expect(find(m.after, "Archive: Old").ticks.every((t) => t.hidden)).toBe(
-      true,
-    );
   });
 
-  it("draws a rename of a workstream with no listed thread", () => {
+  it("draws a workstream of archived threads as a name alone, and counts them", () => {
     const m = miniature(
-      sidebarWith({ op: "rename", topic: "archive", name: "Retired" }),
+      sidebarWith({
+        topicId: "gone",
+        subgroups: [
+          { name: "Old", description: "", threadIds: ["x1"] },
+          { name: "Older", description: "", threadIds: ["x2"] },
+        ],
+      }),
     )!;
-    expect(find(m.now, "Archive").ticks).toHaveLength(3);
-    expect(find(m.after, "Retired").hot).toBe(true);
-    expect(m.flows).toHaveLength(1);
-    expect(m.flows[0]!.hidden).toBe(3);
+    const before = find(m.now, "Gone");
+    expect(before).toMatchObject({ hot: true, ticks: [] });
+    expect(labels(m.after)).toEqual(
+      expect.arrayContaining(["Gone: Old", "Gone: Older"]),
+    );
+    expect(find(m.after, "Gone: Old").ticks).toEqual([]);
+    expect(m.flows).toEqual([]);
+    expect(m.archived).toBe(2);
   });
 
-  it("draws a merge into a workstream with listed threads: dashed ticks arrive after the others", () => {
+  it("draws a rename of an archived-only workstream", () => {
     const m = miniature(
-      sidebarWith({ op: "merge", from: "archive", into: "docs" }),
+      sidebarWith({ op: "rename", topic: "gone", name: "Retired" }),
+    )!;
+    expect(find(m.now, "Gone").hot).toBe(true);
+    expect(find(m.after, "Retired").ticks).toEqual([]);
+    expect(m.archived).toBe(0);
+  });
+
+  it("draws a merge into a workstream with listed threads: snoozed ticks arrive after the others", () => {
+    const m = miniature(
+      sidebarWith({ op: "merge", from: "snoozed", into: "docs" }),
     )!;
     expect(find(m.after, "Docs").ticks.map((t) => t.hidden)).toEqual([
       false,
@@ -437,7 +472,7 @@ describe("work outside the sidebar", () => {
       true,
       true,
     ]);
-    expect(m.flows[0]).toMatchObject({ hidden: 3, threads: [] });
+    expect(m.flows[0]!.threads).toHaveLength(3);
   });
 
   it("leaves a thread the sidebar lists to the sidebar's own data", () => {
@@ -446,7 +481,6 @@ describe("work outside the sidebar", () => {
     )!;
     // Docs' three threads are listed, and `held` names them too.
     expect(find(m.after, "Guides").ticks.some((t) => t.hidden)).toBe(false);
-    expect(m.flows[0]!.hidden).toBe(0);
   });
 });
 

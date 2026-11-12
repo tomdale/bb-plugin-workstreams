@@ -132,6 +132,25 @@ const refs = (edit: TidyEdit): (string | null)[] => {
   }
 };
 
+/**
+ * The delta as the client receives it: the archived threads it files are
+ * counted (`archived`) but not listed, since a topic can hold thousands and
+ * a drawing never shows them.
+ */
+function wireDelta(
+  delta: ChangeDelta | null,
+  context: ChangeContext,
+): ChangeDelta | null {
+  return delta
+    ? {
+        ...delta,
+        assignments: delta.assignments.filter(
+          ({ threadId }) => context.visible?.(threadId) ?? true,
+        ),
+      }
+    : null;
+}
+
 const TIDY_KEY = "suggestions_tidy";
 
 export class Suggestions {
@@ -762,7 +781,9 @@ export class Suggestions {
       change: suggestionChange(edit, context),
       // Threads that joined a split's group are filed by a model call when
       // it is accepted, so the filing after is not known yet.
-      delta: now?.arrivals.length ? null : changeDelta(edit, context),
+      delta: now?.arrivals.length
+        ? null
+        : wireDelta(changeDelta(edit, context), context),
       arrivals: (now?.arrivals ?? []).map((id) => ({
         id,
         title: context.title(id),

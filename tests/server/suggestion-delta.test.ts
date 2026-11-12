@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   applyDelta,
+  changeDelta,
   type DeltaTopic,
 } from "../../src/domain/suggestion-change.ts";
 import type { Split, TidyEdit } from "../../src/domain/tidy.ts";
@@ -157,6 +158,17 @@ async function accept(
   const [suggestion] = w.suggestions.state().suggestions;
   expect(suggestion?.problem).toBeNull();
   expect(suggestion?.delta).not.toBeNull();
+  // The wire omits archived threads' filing, so the comparison uses the whole
+  // delta, which the server derives from the same tree.
+  const whole = changeDelta(body, {
+    topics: w.topics.list(),
+    threadTopic: Object.fromEntries(
+      Object.values(w.topics.assignments())
+        .filter((a) => !a.inheritedFrom)
+        .map((a) => [a.threadId, a.entityId]),
+    ),
+    title: (id) => id,
+  })!;
   const before = {
     topics: w.topics.list().map((t) => ({
       id: t.id,
@@ -166,11 +178,7 @@ async function accept(
     filing: filingOf(w.topics),
   };
   const existing = new Set(before.topics.map((t) => t.id));
-  const predicted = applyDelta(
-    before.topics,
-    before.filing,
-    suggestion!.delta!,
-  );
+  const predicted = applyDelta(before.topics, before.filing, whole);
   const result = await w.suggestions.decide([suggestion!.id], "accept");
   expect(result.failed).toEqual([]);
   const actual = {
@@ -284,23 +292,30 @@ describe("a suggestion's delta equals accepting it", () => {
 });
 
 describe("threads the sidebar does not list", () => {
-  it("are named in the delta of a change that touches their topic", async () => {
+  it("are left out of the delta when archived, and counted when they move", async () => {
     const w = world("delta-held");
-    (
-      w.suggestions as unknown as { propose: (...args: unknown[]) => void }
-    ).propose(
-      "pass",
-      "edit",
-      { op: "rename", topic: w.id.payments!, name: "Pay" },
-      "Because",
-      null,
-    );
-    const [suggestion] = w.suggestions.state().suggestions;
+    const propose = (body: unknown) =>
+      (
+        w.suggestions as unknown as { propose: (...args: unknown[]) => void }
+      ).propose("pass", "edit", body, "Because", null);
     // "archived" is filed under Payments but is not among the visible roots.
-    expect(suggestion!.delta!.held.map((h) => h.threadId).sort()).toEqual([
-      "archived",
+    propose({ op: "rename", topic: w.id.payments!, name: "Pay" });
+    const [rename] = w.suggestions.state().suggestions;
+    expect(rename!.delta!.held.map((h) => h.threadId).sort()).toEqual([
       "p1",
       "p2",
     ]);
+    expect(rename!.delta!.touched).toContain(w.id.payments);
+    propose({ op: "merge", from: w.id.payments!, into: w.id.invoices! });
+    const merge = w.suggestions.state().suggestions[1]!;
+    expect(merge.delta!.archived).toBe(1);
+    // Only the two listed threads are filed on the wire.
+    expect(merge.delta!.assignments.map((a) => a.threadId).sort()).toEqual([
+      "p1",
+      "p2",
+    ]);
+    expect(merge.delta!.held.some((h) => h.threadId === "archived")).toBe(
+      false,
+    );
   });
 });

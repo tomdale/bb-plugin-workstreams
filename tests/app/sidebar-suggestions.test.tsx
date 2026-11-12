@@ -64,7 +64,9 @@ const merge = suggestion(
     topics: [],
     removed: ["alpha"],
     assignments: [{ threadId: "root", topicId: "beta" }],
-    held: [{ threadId: "root", topicId: "alpha" }],
+    held: [{ threadId: "root", topicId: "alpha", title: "Root task" }],
+    archived: 0,
+    touched: [],
   },
 );
 const rename = suggestion(
@@ -85,7 +87,9 @@ const rename = suggestion(
     topics: [{ id: "beta", name: "Beta site", parentId: null }],
     removed: [],
     assignments: [],
-    held: [{ threadId: "beta", topicId: "beta" }],
+    held: [{ threadId: "beta", topicId: "beta", title: "Beta task" }],
+    archived: 0,
+    touched: [],
   },
 );
 const third = suggestion(
@@ -106,7 +110,9 @@ const third = suggestion(
     topics: [],
     removed: [],
     assignments: [{ threadId: "loose", topicId: "beta" }],
-    held: [{ threadId: "beta", topicId: "beta" }],
+    held: [{ threadId: "beta", topicId: "beta", title: "Beta task" }],
+    archived: 0,
+    touched: [],
   },
 );
 const outdated = suggestion(
@@ -276,6 +282,8 @@ it("says so when a change moves no thread, and when it can't be drawn", async ()
     removed: [],
     assignments: [],
     held: [],
+    archived: 0,
+    touched: [],
   });
   const undrawn = suggestion("undrawn", "Move Docs to Ops", merge.change);
   const { review, dialog } = await open([quiet, undrawn]);
@@ -671,7 +679,7 @@ it("is a drawer on a compact viewport, with the list as a drop-down and the butt
   ).toBeTruthy();
 });
 
-it("draws a change to a workstream whose threads are all out of the sidebar", async () => {
+it("draws a change to a workstream whose threads are snoozed, as dashed ticks with their titles", async () => {
   const gamma = suggestion(
     "gamma",
     "Rename Gamma to Gamma site",
@@ -690,12 +698,60 @@ it("draws a change to a workstream whose threads are all out of the sidebar", as
       topics: [{ id: "gamma", name: "Gamma site", parentId: null }],
       removed: [],
       assignments: [],
-      // The root the sidebar does not list: the server names it.
-      held: [{ threadId: "hidden", topicId: "gamma" }],
+      // A root the sidebar does not list: the server names it.
+      held: [{ threadId: "snoozed", topicId: "gamma", title: "Snoozed work" }],
+      archived: 0,
+      touched: [],
     },
   );
+  const { dialog, review } = await openWith([gamma]);
+  await review.findByRole("button", {
+    name: "1 thread to Gamma site: Snoozed work",
+  });
+  expect(dialog.textContent).toContain("1 thread to Gamma site.");
+  expect(dialog.textContent).toContain("Dashed ticks are snoozed threads");
+  expect(dialog.querySelectorAll("[data-hidden]").length).toBeGreaterThan(0);
+});
+
+it("draws a workstream whose threads are all archived as a name, and counts them", async () => {
+  const gamma = suggestion(
+    "gamma",
+    "Rename Gamma to Gamma site",
+    {
+      op: "rename",
+      moves: [
+        {
+          from: place("Gamma"),
+          to: place("Gamma site"),
+          threads: [],
+          carried: 0,
+        },
+      ],
+    },
+    {
+      topics: [{ id: "gamma", name: "Gamma site", parentId: null }],
+      removed: [],
+      assignments: [],
+      held: [],
+      archived: 5,
+      touched: ["gamma"],
+    },
+  );
+  const { dialog } = await openWith([gamma]);
+  // Both sidebars name it, with no tick and no ribbon.
+  expect(
+    [...dialog.querySelectorAll(".ws-mini-name")].map((n) => n.textContent),
+  ).toEqual(expect.arrayContaining(["Gamma", "Gamma site"]));
+  expect(dialog.querySelectorAll("[data-hidden]").length).toBe(0);
+  expect(dialog.querySelectorAll(".ws-mini-ribbon").length).toBe(0);
+  expect(dialog.textContent).toContain(
+    "5 archived threads also move and aren't drawn.",
+  );
+});
+
+async function openWith(suggestions: Suggestion[]) {
   const slot = await mount(undefined, {
-    pendingSuggestions: 1,
+    pendingSuggestions: suggestions.length,
     catalog: {
       ...catalog,
       entities: [
@@ -709,18 +765,16 @@ it("draws a change to a workstream whose threads are all out of the sidebar", as
         },
       ],
     },
-    rpc: { suggestions: () => ({ state: stateOf([gamma]) }) },
+    assignments,
+    rpc: { suggestions: () => ({ state: stateOf(suggestions) }) },
   });
-  fireEvent.click(await slot.findByRole("button", { name: "1 suggestion" }));
+  fireEvent.click(
+    await slot.findByRole("button", {
+      name: suggestionCountLabel(suggestions.length),
+    }),
+  );
   const dialog = await slot.findByRole("dialog", {
     name: "Organizing suggestions",
   });
-  await within(dialog).findByRole("button", {
-    name: "1 thread to Gamma site, 1 not in the sidebar",
-  });
-  expect(dialog.textContent).toContain("1 thread to Gamma site.");
-  expect(dialog.textContent).toContain(
-    "Dashed ticks are threads not in the sidebar",
-  );
-  expect(dialog.querySelectorAll("[data-hidden]").length).toBeGreaterThan(0);
-});
+  return { slot, dialog, review: within(dialog) };
+}

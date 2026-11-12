@@ -491,15 +491,16 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      of the whole sidebar, **Now** and **After accepting** that one change. Each
      workstream with a visible thread is its name over a tick for each thread,
      in your sort, with the sidebar's own nesting and name prefixes; dormant
-     workstreams are drawn too, and categories are not. Threads that are not in
-     the sidebar, such as archived ones, are dashed ticks, drawn only in the
-     workstreams the change touches, so a change to work that is no longer
-     active still shows what it does. Under **Manual order** a workstream the
-     change creates sits beside the one it grew from in the second drawing. The
-     workstreams the change touches take their colors, and a ribbon runs from
-     the threads that move to where they land; everything else is quiet gray.
-     Rest the pointer on a ribbon, or focus it, to list its threads' titles and
-     their number, and how many are not in the sidebar. A workstream draws about
+     workstreams are drawn too, and categories are not. Snoozed threads, which
+     the sidebar doesn't list, are dashed ticks, drawn only in the workstreams
+     the change touches. A workstream the change touches is always drawn, as a
+     name alone when it has no thread to show. Archived threads are never drawn,
+     only counted under the drawing ("5 archived threads also move"). Under
+     **Manual order** a workstream the change creates sits beside the one it
+     grew from in the second drawing. The workstreams the change touches take
+     their colors, and a ribbon runs from the threads that move to where they
+     land; everything else is quiet gray. Rest the pointer on a ribbon, or focus
+     it, to list its threads' titles and their number. A workstream draws about
      twelve ticks at most, shared out by its threads, so a ribbon's thickness is
      its real share. If the drawings are taller than the window they scroll
      together with the touched rows in view and count the rows beyond the edge.

@@ -102,16 +102,28 @@ export type ChangeDelta = {
     readonly topicId: string | null;
   }[];
   /**
-   * Every root filed, before the change, in a topic it touches: where a
-   * thread is moving from, a topic that is renamed or merged, or a topic
-   * threads arrive in. The client reads only the filing of the threads its
-   * sidebar lists, so this is how it learns of the archived, hidden and
-   * snoozed threads a change acts on.
+   * Every root in the sidebar's population (not archived or hidden) filed,
+   * before the change, in a topic it touches, with its title: where a thread
+   * is moving from, a topic that is renamed or merged, or a topic threads
+   * arrive in. The client reads only the filing of the threads its sidebar
+   * lists, so this is how it learns of the snoozed ones a change acts on.
    */
   readonly held: readonly {
     readonly threadId: string;
     readonly topicId: string;
+    readonly title: string;
   }[];
+  /**
+   * How many of the threads in `assignments` are archived or hidden. Their
+   * number is all a drawing says of them: a topic can hold hundreds.
+   */
+  readonly archived: number;
+  /**
+   * The topics the change touches: the ones it changes, removes or files
+   * threads into or out of. A drawing shows each, even one whose threads are
+   * all archived and so unknown to the client.
+   */
+  readonly touched: readonly string[];
 };
 
 export type DeltaTopic = {
@@ -263,9 +275,19 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
     held: Object.entries(context.threadTopic)
       .filter(
         (entry): entry is [string, string] =>
-          entry[1] !== null && touched.has(entry[1]),
+          entry[1] !== null &&
+          touched.has(entry[1]) &&
+          (context.visible?.(entry[0]) ?? true),
       )
-      .map(([threadId, topicId]) => ({ threadId, topicId })),
+      .map(([threadId, topicId]) => ({
+        threadId,
+        topicId,
+        title: context.title(threadId),
+      })),
+    archived: assignments.filter(
+      ({ threadId }) => !(context.visible?.(threadId) ?? true),
+    ).length,
+    touched: [...touched].filter((id): id is string => id !== null),
   };
 }
 

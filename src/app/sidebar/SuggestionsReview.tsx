@@ -617,12 +617,14 @@ export function SuggestionsReview({
               ? drawing.flows
                   .map(
                     (f) =>
-                      `${plural(f.threads.length + f.hidden, "thread")} to ${
+                      `${plural(f.threads.length, "thread")} to ${
                         f.to.prefix ? `${f.to.prefix}: ` : ""
                       }${f.to.name}`,
                   )
                   .join("; ") + "."
-              : "No thread moves."
+              : drawing.archived
+                ? `${plural(drawing.archived, "archived thread")} move, which isn't drawn.`
+                : "No thread moves."
           }`}
         />
       ) : (

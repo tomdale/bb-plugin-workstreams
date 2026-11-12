@@ -34,8 +34,7 @@ const TITLES_SHOWN = 12;
 const NOTE_PX = 17;
 
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
-/** Every thread a flow carries, those outside the sidebar included. */
-const total = (flow: MiniFlow) => flow.threads.length + flow.hidden;
+const total = (flow: MiniFlow) => flow.threads.length;
 const labelOf = (to: MiniFlow["to"]) =>
   to.prefix ? `${to.prefix}: ${to.name}` : to.name;
 
@@ -325,11 +324,7 @@ export function SuggestionMiniatures({
                     d={ribbon.d}
                     tabIndex={0}
                     role="button"
-                    aria-label={`${plural(total(f), "thread")} to ${labelOf(f.to)}${
-                      f.threads.length
-                        ? `: ${f.threads.map((t) => t.title).join(", ")}`
-                        : ""
-                    }${f.hidden ? `, ${f.hidden} not in the sidebar` : ""}`}
+                    aria-label={`${plural(total(f), "thread")} to ${labelOf(f.to)}: ${f.threads.map((t) => t.title).join(", ")}`}
                     data-thin={ribbon.thin ? "" : undefined}
                     data-on={active === ribbon.flow ? "" : undefined}
                     className="ws-mini-ribbon ws-mini-accent"
@@ -398,18 +393,18 @@ export function SuggestionMiniatures({
                 and {flow.threads.length - TITLES_SHOWN} more
               </p>
             ) : null}
-            {flow.hidden ? (
-              <p className="m-0 text-muted-foreground">
-                {flow.threads.length ? "and " : ""}
-                {flow.hidden} not in the sidebar
-              </p>
-            ) : null}
           </div>
         ) : null}
       </div>
-      {hasHidden ? (
+      {hasHidden || model.archived > 0 ? (
         <p className="m-0 shrink-0 pt-1.5 text-[11px] leading-4 text-muted-foreground">
-          Dashed ticks are threads not in the sidebar, such as archived ones.
+          {hasHidden
+            ? "Dashed ticks are snoozed threads, which the sidebar doesn't list."
+            : null}
+          {hasHidden && model.archived > 0 ? " " : null}
+          {model.archived > 0
+            ? `${plural(model.archived, "archived thread")} also ${model.archived === 1 ? "moves" : "move"} and ${model.archived === 1 ? "isn't" : "aren't"} drawn.`
+            : null}
         </p>
       ) : null}
     </div>
