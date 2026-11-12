@@ -351,8 +351,9 @@ body:has([data-ws-suggestions])
   --ws-mini-ribbon-on: 0.3;
   --ws-mini-tick: 0.26;
 }
-/* The two columns and the gap the ribbons cross, sharing one width. The wide
-   layout leaves room beside them for the card that lists a ribbon's threads. */
+/* The two columns and the gap the ribbons cross, sharing one width. A drawing
+   with ribbons leaves room beside them for the card that lists a ribbon's
+   threads; one without uses the width, so names wrap only when they must. */
 .ws-mini-caps,
 .ws-mini-grid {
   display: grid;
@@ -360,6 +361,10 @@ body:has([data-ws-suggestions])
 }
 .ws-mini-wrap,
 .ws-mini-caps {
+  width: max(300px, min(640px, 100%));
+}
+.ws-mini[data-flows] .ws-mini-wrap,
+.ws-mini[data-flows] .ws-mini-caps {
   width: max(300px, min(440px, 100% - 186px));
 }
 .ws-mini[data-compact] .ws-mini-wrap,

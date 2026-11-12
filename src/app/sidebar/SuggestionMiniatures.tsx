@@ -281,6 +281,7 @@ export function SuggestionMiniatures({
   return (
     <div
       data-compact={compact ? "" : undefined}
+      data-flows={model.flows.length ? "" : undefined}
       className="ws-mini flex min-h-0 flex-1 flex-col"
     >
       <p className="sr-only">{summary}</p>
