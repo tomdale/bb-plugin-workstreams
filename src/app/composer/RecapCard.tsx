@@ -263,7 +263,8 @@ export const RecapText = memo(function RecapText({
 // Labels sit in a gutter beside their row, and above it on narrow cards.
 const ROW_CLASS = `${LABEL_GUTTER_CLASS} py-2 @max-[24rem]/recap:grid-cols-1`;
 
-function useWaitingCountdown(recap: Recap, cancelled: boolean) {
+/** Whole seconds until a waiting recap's status check; 0 once due or cancelled. */
+export function useWaitingCountdown(recap: Recap, cancelled: boolean) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (recap.state !== "waiting" || cancelled) return;

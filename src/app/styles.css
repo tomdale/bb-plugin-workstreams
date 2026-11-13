@@ -1268,3 +1268,130 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
 .ws-subagent-delivery-source {
   display: none;
 }
+
+/* A workstream's Overview (page/overview/Overview.tsx): one grid per row, all
+   on the same tracks, so cells line up as columns. The Summary gets its own
+   column in a wide pane, moves under the title in a narrower one, and each
+   row stacks in a pane too narrow for columns. */
+.ws-overview-row {
+  display: grid;
+  grid-template-columns:
+    136px minmax(0, 200px) minmax(0, 1fr)
+    minmax(0, 250px) 60px;
+  grid-template-areas: "status thread summary next age";
+  column-gap: 20px;
+  align-items: start;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.ws-overview-row:not(.ws-overview-head):hover {
+  background: var(--state-hover);
+}
+.ws-overview-head {
+  padding-top: 0;
+  padding-bottom: 6px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.ws-overview-status {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ws-overview-mark {
+  display: grid;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  place-items: center;
+}
+.ws-overview-main {
+  display: contents;
+}
+.ws-overview-thread {
+  grid-area: thread;
+}
+.ws-overview-summary {
+  grid-area: summary;
+}
+.ws-overview-next {
+  grid-area: next;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.ws-overview-age {
+  grid-area: age;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  /* One text line tall, so the taller action buttons never move the age. */
+  height: 1.45em;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.ws-overview-head .ws-overview-age {
+  color: inherit;
+}
+/* The row's actions take the age's place while they show. */
+.ws-overview-row:hover .ws-overview-updated,
+.ws-overview-row:has(:focus-visible) .ws-overview-updated,
+.ws-overview-row:has([data-state="open"]) .ws-overview-updated {
+  display: none;
+}
+@media (pointer: coarse) {
+  .ws-overview-row .ws-overview-updated {
+    display: inline;
+  }
+}
+@container overview (max-width: 880px) {
+  .ws-overview-row {
+    grid-template-columns: 136px minmax(0, 1fr) minmax(0, 230px) 60px;
+    grid-template-areas: "status thread next age";
+  }
+  .ws-overview-main {
+    display: block;
+    grid-area: thread;
+    min-width: 0;
+  }
+  .ws-overview-main > * {
+    display: block;
+  }
+  .ws-overview-head .ws-overview-summary {
+    display: none;
+  }
+  .ws-overview-row .ws-overview-summary {
+    margin-top: 2px;
+    color: var(--muted-foreground);
+  }
+}
+@container overview (max-width: 600px) {
+  .ws-overview-head {
+    display: none;
+  }
+  .ws-overview {
+    border-top: 1px solid var(--border);
+  }
+  .ws-overview-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "status age"
+      "thread thread"
+      "next next";
+    padding: 12px 0;
+  }
+  .ws-overview-row .ws-overview-status {
+    margin-bottom: 2px;
+    color: var(--muted-foreground);
+    font-size: 12px;
+  }
+  .ws-overview-row .ws-overview-next:not(:empty) {
+    margin-top: 8px;
+  }
+  .ws-overview-mark:empty {
+    display: none;
+  }
+}

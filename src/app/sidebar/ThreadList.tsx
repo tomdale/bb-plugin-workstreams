@@ -100,6 +100,7 @@ import { TraceInspector } from "../debug/Inspector.tsx";
 import { useSidebarDnd, type Drop, groupKey } from "./dnd.tsx";
 import { acceptsThreadDrop, planDrop } from "./drop.ts";
 import { setComposerPreset } from "../composer/preset.ts";
+import { overviewSubPath } from "../page/overview/route.ts";
 import { wakeThreads } from "../snooze/actions.ts";
 import { CustomSnoozeDialog } from "../snooze/CustomSnoozeDialog.tsx";
 
@@ -560,6 +561,14 @@ export function WorkstreamsThreadList({
     },
     [navigate],
   );
+  /** Opens the workstream's Overview on the Workstreams page. */
+  const openOverview = useCallback(
+    (group: ThreadNode) => () => {
+      navigate.toPluginPanel("home", { subPath: overviewSubPath(group.id) });
+      onNavigate();
+    },
+    [navigate, onNavigate],
+  );
   // Colors read only the catalog's section bindings and stored colors, so a
   // filing, which changes its assignments, leaves the group renderers alone.
   const colorBindings = ws.server.catalog?.groups;
@@ -635,6 +644,7 @@ export function WorkstreamsThreadList({
       choosingTopic={choosingTopic}
       colorOf={colorOf}
       newThreadIn={newThreadIn}
+      openOverview={openOverview}
       groupSnoozeOf={groupSnoozeOf}
       isCollapsed={isCollapsed}
       groupCollapsed={groupCollapsed}

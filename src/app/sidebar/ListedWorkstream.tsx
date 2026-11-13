@@ -58,6 +58,7 @@ export const ListedWorkstream = memo(function ListedWorkstream({
   choosingTopic,
   colorOf,
   newThreadIn,
+  openOverview,
   groupSnoozeOf,
   isCollapsed,
   groupCollapsed,
@@ -74,6 +75,10 @@ export const ListedWorkstream = memo(function ListedWorkstream({
   const onNewThread = useMemo(
     () => (unfiled ? undefined : newThreadIn(group)),
     [unfiled, newThreadIn, group],
+  );
+  const onOpenOverview = useMemo(
+    () => openOverview?.(group),
+    [openOverview, group],
   );
   const color = useMemo(
     () => (unfiled ? undefined : colorOf(group)),
@@ -96,6 +101,7 @@ export const ListedWorkstream = memo(function ListedWorkstream({
         toggle={toggle}
         onToggleFocus={onToggleFocus}
         onNewThread={onNewThread}
+        onOpenOverview={onOpenOverview}
         muted={list === "dormant" || unfiled ? true : undefined}
         color={color}
         prefixColor={prefixColor}
@@ -111,6 +117,7 @@ export const ListedWorkstream = memo(function ListedWorkstream({
           choosingTopic={choosingTopic}
           colorOf={colorOf}
           newThreadIn={newThreadIn}
+          openOverview={openOverview}
           groupSnoozeOf={groupSnoozeOf}
           isCollapsed={isCollapsed}
           groupCollapsed={groupCollapsed}
@@ -126,6 +133,7 @@ export const ListedWorkstream = memo(function ListedWorkstream({
       toggle,
       onToggleFocus,
       onNewThread,
+      onOpenOverview,
       color,
       prefixColor,
       snooze,
@@ -135,6 +143,7 @@ export const ListedWorkstream = memo(function ListedWorkstream({
       choosingTopic,
       colorOf,
       newThreadIn,
+      openOverview,
       groupSnoozeOf,
       isCollapsed,
       groupCollapsed,

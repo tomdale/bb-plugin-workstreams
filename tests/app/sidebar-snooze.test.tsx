@@ -340,6 +340,7 @@ describe("snoozing a workstream row", () => {
       snoozePrefs: snoozeSettings(threeHours, untilUpdate),
     });
     expect(items(await headerMenu(slot, "Alpha"))).toEqual([
+      "Overview",
       "Focus",
       "New work",
       "Snooze 3 threads",
@@ -350,7 +351,7 @@ describe("snoozing a workstream row", () => {
         slot.getByRole("button", { name: "Stop focusing on Alpha" }),
       ).toBeTruthy(),
     );
-    expect(items(await headerMenu(slot, "Alpha"))[0]).toBe("Stop focusing");
+    expect(items(await headerMenu(slot, "Alpha"))[1]).toBe("Stop focusing");
     fireEvent.click(screen.getByRole("menuitem", { name: "New work" }));
     expect(slot.inspection.navigateCalls.at(-1)).toEqual({
       method: "toCompose",
@@ -391,7 +392,7 @@ describe("snoozing a workstream row", () => {
     slot.lifecycle.unmount();
   });
 
-  it("offers only Snooze on Unfiled's header", async () => {
+  it("offers only Overview and Snooze on Unfiled's header", async () => {
     const slot = await mount(
       [
         sidebarThread("ask", { sectionId: "sec_a", title: "Asking task" }),
@@ -403,6 +404,7 @@ describe("snoozing a workstream row", () => {
       },
     );
     expect(items(await headerMenu(slot, "Unfiled"))).toEqual([
+      "Overview",
       "Snooze 1 thread",
     ]);
     slot.lifecycle.unmount();

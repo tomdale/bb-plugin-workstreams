@@ -5,7 +5,7 @@
  * and the topic tree), the Gallery (a specimen of every reply-block part),
  * and, with the debug UI on, the model calls. Each opens as a full view.
  */
-import { useCallback, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import type { PluginNavPanelProps } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
@@ -22,17 +22,21 @@ import { Activity } from "./Activity.tsx";
 import { Gallery } from "./Gallery.tsx";
 import { TopicsTab } from "./topics/TopicsTab.tsx";
 import { Queue } from "./queue/Queue.tsx";
+import { BackButton, Overview } from "./overview/Overview.tsx";
+import { setOpenOverview } from "./overview/route.ts";
 
 type View =
   | { kind: "queue" }
   | { kind: "topics" }
   | { kind: "gallery" }
+  | { kind: "overview"; id: string }
   | { kind: "activity"; focus: string | null; modelCalls: boolean };
 
 /**
  * `subPath` deep links open a view: `activity[/<entry>]`, `debug` (model
- * calls), `gallery`, and `topics`. `organization`, `catalog`, and `map` name
- * views that are now part of Topics and still open it.
+ * calls), `gallery`, `topics`, and `overview/<group>` (a sidebar group's id,
+ * or `unsorted` for Unfiled). `organization`, `catalog`, and `map` name views
+ * that are now part of Topics and still open it.
  */
 function viewOf(subPath: string): View {
   const [head, ...rest] = subPath.split("/");
@@ -50,6 +54,8 @@ function viewOf(subPath: string): View {
       modelCalls: false,
     };
   if (head === "gallery") return { kind: "gallery" };
+  if (head === "overview" && rest.length)
+    return { kind: "overview", id: decodeURIComponent(rest.join("/")) };
   if (head === "debug")
     return { kind: "activity", focus: null, modelCalls: true };
   return { kind: "queue" };
@@ -62,6 +68,12 @@ export function WorkstreamsPage({
   const [view, setView] = useState<View>(() => viewOf(subPath));
   useLayoutEffect(() => setView(viewOf(subPath)), [subPath]);
   const { projection } = ws;
+  // The sidebar marks the workstream whose Overview is open.
+  const overviewId = view.kind === "overview" ? view.id : null;
+  useEffect(() => {
+    setOpenOverview(overviewId);
+    return () => setOpenOverview(null);
+  }, [overviewId]);
   const workstreamOf = useCallback(
     (id: string) => projection.rowOf.get(id)?.workstreamId ?? null,
     [projection],
@@ -74,17 +86,18 @@ export function WorkstreamsPage({
         <PageMenu onOpen={setView} />
       </div>
     );
+  if (view.kind === "overview")
+    return (
+      <Overview
+        ws={ws}
+        id={view.id}
+        onBack={() => setView({ kind: "queue" })}
+      />
+    );
   return (
     <div className="h-full min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto box-border w-full max-w-3xl px-5 pb-16 pt-6 md:px-8">
-        <button
-          type="button"
-          onClick={() => setView({ kind: "queue" })}
-          className="-ml-1.5 flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <Icon name="ChevronLeft" className="size-3.5" />
-          Back
-        </button>
+        <BackButton onClick={() => setView({ kind: "queue" })} />
         <h1 className="mt-3 text-[15px] font-semibold tracking-tight">
           {VIEW_TITLES[view.kind]}
         </h1>
@@ -110,6 +123,7 @@ const VIEW_TITLES: Record<View["kind"], string> = {
   queue: "",
   topics: "Topics",
   gallery: "Gallery",
+  overview: "Overview",
   activity: "Activity",
 };
 

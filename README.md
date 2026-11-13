@@ -460,6 +460,9 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      its empty section is deleted on the next organizing pass. Threads and
      topics are kept, so a later thread on that topic gets a workstream again.
      Focusing an empty workstream keeps it no longer than any other.
+   - Click a workstream's name to open its **Overview** on the Workstreams page.
+     The header is highlighted while its Overview is open. Dragging the header
+     by its name still reorders the workstream and opens nothing.
    - Press the chevron beside a workstream's name to collapse or expand its
      threads. The group closes and opens its height over `260 ms` with a fade,
      like rows and bands, so what follows slides rather than jumps, and the
@@ -584,9 +587,10 @@ foreground text without changing title weight. Unread titles use medium weight.
   delegates), **Topic** (switch to **Automatic** or assign any topic in the
   tree), **Rename…**, **Pin / Unpin**, **Mark read / Mark unread**, **Inspect
   model calls…** (when the debug UI is on), **Snooze / Change snooze / Wake
-  now**, **Archive**, and **Delete…**. A workstream header's menu holds its
-  hover actions: **Focus / Stop focusing**, **New work**, and **Snooze \<N\>
-  threads**. On touch screens, a long press opens either menu.
+  now**, **Archive**, and **Delete…**. A workstream header's menu holds
+  **Overview** and its hover actions: **Focus / Stop focusing**, **New work**,
+  and **Snooze \<N\> threads**. On touch screens, a long press opens either
+  menu.
 
 ### Phone Home screen
 
@@ -949,6 +953,54 @@ Each opens as its own view with **Back**. Deep links still work:
 `/plugins/workstreams/home/activity`, `/debug`, and `/topics` (also
 `/organization`).
 
+#### Overview
+
+Click a workstream's name in the sidebar, or choose **Overview** from its
+header's menu, to see that workstream's open threads as a table at
+`/plugins/workstreams/home/overview/<group>`. It lists the root threads the
+header lists in the sidebar: a header that gathers several workstreams lists all
+of theirs, and **Unfiled** has an Overview too. Archived and snoozed threads are
+left out, and delegates get no rows of their own. The heading shows the
+workstream's name in its color and how many threads need you or are ready for
+review. **New work** starts a thread in the workstream, and the **⋯** menu holds
+**Focus / Stop focusing** and **Snooze \<N\> threads**.
+
+Rows are ordered by status, then newest turn first:
+
+| Status           | Summary                                           | Next steps                                                          |
+| ---------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
+| Needs you        | The latest recap line                             | The pending question card's first question, or the needs-you prompt |
+| Ready for review | The recap's headline                              | The recap's review steps, then its next actions                     |
+| Failed           | The last turn failed. Open the thread to see why. | Nothing                                                             |
+| Working          | Nothing, or the message you sent from the table   | Nothing                                                             |
+| Waiting          | The recap's headline                              | The awaited agents' tasks and the status-check countdown            |
+| Complete         | The recap's headline                              | The recap's next actions, or **Archive** when it proposes none      |
+
+A thread whose latest turn has no status yet shows its analysis line when there
+is one. Status marks match the sidebar's: a solid dot while unread and a ring
+once read, and a read Complete thread has no mark. Unread titles use medium
+weight. Everything comes from the recaps and analysis already stored, so opening
+an Overview makes no model calls.
+
+- **Open a thread:** click its title.
+- **Next actions:** click one to send its message to the thread. The message
+  waits `5` seconds behind a receipt that takes the place of the thread counts,
+  where **Undo** keeps it from sending, and the row reads Working with the
+  message until that turn ends. Leaving the page sends a waiting message at
+  once. **Shift-click** opens the thread without sending, so you can edit the
+  action from its recap card.
+- **Archive** in Next steps appears on a complete recap that proposes no next
+  action, once the thread has no turn, queued message, pending question, or
+  background work. It archives the thread with its delegates and leaves a
+  receipt with **Undo**.
+- **Row actions:** hovering or focusing a row shows **Archive** and **Snooze**
+  in place of its age, as on a sidebar row. Snooze confirms in a toast with
+  **Undo**.
+
+Summary has its own column when the page is wider than `880px`. Below that it
+sits under the title, and below `600px` each row stacks its status, title,
+summary, and next steps.
+
 ---
 
 ## Commands and keyboard shortcuts
@@ -1261,14 +1313,14 @@ What gets recorded:
 
 What the UI shows:
 
-- **Thread Inspector:** Click the bug (`Inspect`) button on an Overview row,
-  Activity row, or trace entry to open the side-pane inspector. Inspect every
-  recorded call for a thread, copy the full trace JSON, or click **Run again**
-  to replay the stored prompt against the current model and compare canonical
-  results (`Same result` vs. `Differs in <fields>`) without mutating thread
-  state. Replays use the recorded output schema when available; older traces
-  without one replay without a schema. The current parser interprets the reply,
-  so a comparison can also differ when the output contract has changed.
+- **Thread Inspector:** Click the bug (`Inspect`) button on an Activity row or
+  trace entry to open the side-pane inspector. Inspect every recorded call for a
+  thread, copy the full trace JSON, or click **Run again** to replay the stored
+  prompt against the current model and compare canonical results (`Same result`
+  vs. `Differs in <fields>`) without mutating thread state. Replays use the
+  recorded output schema when available; older traces without one replay without
+  a schema. The current parser interprets the reply, so a comparison can also
+  differ when the output contract has changed.
 - **Thread Info and context card:** Each thread's Info tab and context card gain
   a **Workstreams Debug** section listing the metadata Workstreams accumulated
   for the thread: the settled goal, the context digest, the topic assignment and

@@ -280,11 +280,14 @@ function RowMenuContent({
  * them. Without any action to offer, the header is drawn without a menu.
  */
 export function HeaderMenu({
+  onOverview,
   focus,
   onNewWork,
   snooze,
   children,
 }: {
+  /** Opens the workstream's Overview. */
+  onOverview?: () => void;
   /** Focus on the workstream, or stop. */
   focus?: { focused: boolean; toggle: () => void };
   onNewWork?: () => void;
@@ -299,7 +302,7 @@ export function HeaderMenu({
 }) {
   const portalScope = usePortalScopeProps();
   const { server } = useSharedServerState();
-  if (!focus && !onNewWork && !snooze) return children;
+  if (!onOverview && !focus && !onNewWork && !snooze) return children;
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
@@ -309,13 +312,14 @@ export function HeaderMenu({
           aria-label="Workstream actions"
           className={menuSurfaceClass("48")}
         >
+          {onOverview ? <Item onSelect={onOverview}>Overview</Item> : null}
           {focus ? (
             <Item onSelect={focus.toggle}>
               {focus.focused ? "Stop focusing" : "Focus"}
             </Item>
           ) : null}
           {onNewWork ? <Item onSelect={onNewWork}>New work</Item> : null}
-          {snooze && (focus || onNewWork) ? <Separator /> : null}
+          {snooze && (onOverview || focus || onNewWork) ? <Separator /> : null}
           {snooze ? (
             <ContextMenu.Sub>
               <SubTrigger>{snooze.label}</SubTrigger>

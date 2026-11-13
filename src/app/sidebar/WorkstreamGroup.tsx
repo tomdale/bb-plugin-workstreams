@@ -24,6 +24,7 @@ import {
   type TopicColor,
 } from "../../domain/workstreamColor.ts";
 import { usePrefs } from "../prefs.ts";
+import { useOverviewOpen } from "../page/overview/route.ts";
 import { GroupSnooze, ThreadNode } from "./types.ts";
 
 export type GroupProps = {
@@ -39,6 +40,8 @@ export type GroupProps = {
   toggle: () => void;
   onNewThread?: () => void;
   onToggleFocus?: () => void;
+  /** Opens the workstream's Overview when its name is pressed. */
+  onOpenOverview?: () => void;
   /** Snoozes every thread the group lists; absent while it lists none. */
   snooze?: GroupSnooze;
   muted?: boolean;
@@ -60,6 +63,7 @@ export function WorkstreamGroup({
   toggle,
   onNewThread,
   onToggleFocus,
+  onOpenOverview,
   snooze,
   muted,
   sectionRef,
@@ -70,6 +74,7 @@ export function WorkstreamGroup({
   children,
 }: GroupProps) {
   const { prefs } = usePrefs();
+  const overviewOpen = useOverviewOpen(group.id) && Boolean(onOpenOverview);
   const bodyRef = useRef<HTMLUListElement | null>(null);
   /** The section, for the gap the fold moves below it (see `useFoldGap`). */
   const section = useRef<HTMLElement>(null);
@@ -142,6 +147,7 @@ export function WorkstreamGroup({
           }
         >
           <HeaderMenu
+            onOverview={onOpenOverview}
             focus={
               onToggleFocus
                 ? { focused: group.prioritized, toggle: onToggleFocus }
@@ -153,7 +159,8 @@ export function WorkstreamGroup({
             <div
               ref={handle?.ref}
               {...handle?.listeners}
-              className="group/row relative flex items-center gap-1.5 rounded-md pr-2 transition-[padding] duration-[180ms] ease-out motion-reduce:transition-none"
+              data-overview-open={overviewOpen ? "" : undefined}
+              className="group/row relative flex items-center gap-1.5 rounded-md pr-2 transition-[padding] duration-[180ms] ease-out motion-reduce:transition-none data-[overview-open]:bg-sidebar-accent"
               style={{
                 height: SIDEBAR_GEOMETRY.workstreamHeader.height,
                 paddingLeft: nested
@@ -162,10 +169,23 @@ export function WorkstreamGroup({
               }}
             >
               <span className={headingClass}>
-                {heading}
-                {/* The chevron is the header's only press: the row stays the
-              workstream's drag handle, and a press on the name does
-              nothing. */}
+                {/* A press on the name opens the Overview, and the chevron
+              folds the group. The name leaves pointer downs to the row,
+              which stays the workstream's drag handle: a drag that starts
+              on the name moves the workstream and opens nothing. */}
+                {onOpenOverview ? (
+                  <button
+                    type="button"
+                    onClick={onOpenOverview}
+                    aria-label={`Overview of ${group.name}`}
+                    aria-current={overviewOpen ? "page" : undefined}
+                    className="flex min-w-0 cursor-pointer rounded-sm text-left focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    {heading}
+                  </button>
+                ) : (
+                  heading
+                )}
                 <RowPressButton
                   aria-expanded={!collapsed}
                   aria-label={

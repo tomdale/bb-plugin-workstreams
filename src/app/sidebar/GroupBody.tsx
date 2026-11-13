@@ -162,6 +162,8 @@ export type GroupBodyProps = {
   choosingTopic: boolean;
   colorOf: (group: ThreadNode) => TopicColor;
   newThreadIn: (group: ThreadNode) => () => void;
+  /** Opens a workstream's Overview; absent where the list offers none. */
+  openOverview?: (group: ThreadNode) => () => void;
   groupSnoozeOf: (group: ThreadNode) => GroupSnooze | undefined;
   isCollapsed: (id: string, byDefault?: boolean) => boolean;
   groupCollapsed: (group: ThreadNode) => boolean;
@@ -252,6 +254,7 @@ export function NestedGroup(
     toggleGroup,
     colorOf,
     newThreadIn,
+    openOverview,
     groupSnoozeOf,
     sectionRef,
   } = props;
@@ -261,6 +264,10 @@ export function NestedGroup(
     [toggleGroup, group],
   );
   const onNewThread = useMemo(() => newThreadIn(group), [newThreadIn, group]);
+  const onOpenOverview = useMemo(
+    () => openOverview?.(group),
+    [openOverview, group],
+  );
   return (
     <WorkstreamGroup
       group={group}
@@ -271,6 +278,7 @@ export function NestedGroup(
       collapsed={collapsed}
       toggle={toggleThis}
       onNewThread={onNewThread}
+      onOpenOverview={onOpenOverview}
       snooze={groupSnoozeOf(group)}
     >
       <GroupBody {...props} collapsed={collapsed} />
@@ -319,6 +327,7 @@ export const GroupBody = memo(
       before.choosingTopic === after.choosingTopic &&
       before.colorOf === after.colorOf &&
       before.newThreadIn === after.newThreadIn &&
+      before.openOverview === after.openOverview &&
       before.groupSnoozeOf === after.groupSnoozeOf &&
       before.isCollapsed === after.isCollapsed &&
       before.groupCollapsed === after.groupCollapsed &&

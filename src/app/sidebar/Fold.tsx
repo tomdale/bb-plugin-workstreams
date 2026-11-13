@@ -128,7 +128,9 @@ export function useFoldFocusRestore({
     const closing = wasOpen.current && !open;
     wasOpen.current = open;
     if (closing && focusInside.current) {
-      root()?.querySelector<HTMLButtonElement>("button")?.focus();
+      root()
+        ?.querySelector<HTMLButtonElement>("button[aria-expanded]")
+        ?.focus();
     }
     // Refs the getters read are not reactive; only `open` gates the effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
