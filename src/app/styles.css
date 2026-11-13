@@ -1347,7 +1347,7 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
     display: inline;
   }
 }
-@container overview (max-width: 880px) {
+@container overview (max-width: 1000px) {
   .ws-overview-row {
     grid-template-columns: 136px minmax(0, 1fr) minmax(0, 230px) 60px;
     grid-template-areas: "status thread next age";

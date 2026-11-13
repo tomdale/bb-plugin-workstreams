@@ -997,7 +997,7 @@ an Overview makes no model calls.
   in place of its age, as on a sidebar row. Snooze confirms in a toast with
   **Undo**.
 
-Summary has its own column when the page is wider than `880px`. Below that it
+Summary has its own column when the page is wider than `1000px`. Below that it
 sits under the title, and below `600px` each row stacks its status, title,
 summary, and next steps.
 
