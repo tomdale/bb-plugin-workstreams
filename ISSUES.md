@@ -22,6 +22,21 @@ usage. The requested completion API is recorded in the BB SDK wishlist,
 `docs/bb-sdk-wishlist.md` in tomdale/bb-plugins. Do not infer total spend from
 the sum of reported costs when worker calls exist.
 
+### Snooze in BB's thread menus
+
+**Evidence:** `src/app/snooze/threadAction.ts` and the SDK's
+`PluginThreadActionChoice`, which has only `id`, `label`, `icon`, `selected`,
+and `disabled`.
+
+BB's thread menus and the Quick Actions ring list the snooze presets by name,
+without the wake time each would pick, and mark no default among them. The
+action's `detail` names the default preset, which Quick Actions matches by label
+to light it. Custom… needs this plugin's dialog, so those menus leave it out.
+
+**Workaround:** The thread header's Snooze menu shows wake times and Custom…. A
+choice-level detail and default flag are recorded in the BB SDK wishlist,
+`docs/bb-sdk-wishlist.md` in tomdale/bb-plugins.
+
 ### Topic discovery without a matching known area
 
 **Evidence:** `eval/classification-cases.ts`, `src/domain/classify.ts`, and

@@ -660,6 +660,12 @@ Stream Deck plugin gets that token from the `bb` CLI.
     \<time\>** with a **Wake now** option while snoozed.
   - **Archive** (on by default): Archives the current thread through BB's
     archive flow.
+- **Snooze in BB's thread menus:** On BB builds that take plugin thread actions,
+  BB's thread menus (a sidebar row's menu and right-click menu, and the thread
+  header's menu) list **Snooze** with your presets, after **Wake now** while
+  snoozed. Other plugins that list BB's thread actions offer the same choices;
+  the Quick Actions ring shows them as its Snooze band and lights your default.
+  These menus show preset names without wake times and have no **Custom…**.
 
 ### Agent recap card (`WorkstreamsRecap`)
 
