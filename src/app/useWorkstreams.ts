@@ -18,7 +18,7 @@ import {
 import type { Projection } from "../domain/project.ts";
 import type { Recap } from "../domain/recap.ts";
 import { workView } from "../domain/status.ts";
-import type { UpNextOptions } from "../domain/upNext.ts";
+import { upNextOrder } from "../domain/upNextNavigation.ts";
 import type { ManualOrder } from "../domain/order.ts";
 import { RECENT_LIMIT } from "../domain/prefs.ts";
 import type { StoredAnalysis } from "../server/analyzer.ts";
@@ -32,6 +32,7 @@ import {
 import { useServerStateReader, useSharedServerState } from "./serverState.ts";
 import { usePrefsRealtime, usePrefs, usePrefsSelector } from "./prefs.ts";
 import { projectionStoreFor } from "./sharedProjection.ts";
+import { readSidebarUpNext } from "./upNext/sidebarOrder.ts";
 
 export type ServerState = {
   /**
@@ -113,15 +114,7 @@ export function useWorkstreams() {
   });
   /** What nests the workstreams (see `nestGroups`). */
   const topics: WorkstreamTopics | undefined = useMemo(
-    () =>
-      catalog
-        ? {
-            entities: catalog.entities,
-            bindings: catalog.groups,
-            layout: catalog.layout,
-            categories: catalog.categories,
-          }
-        : undefined,
+    () => topicsOf(catalog),
     // A filing changes the catalog's assignments, which nesting never reads.
     [catalog?.entities, catalog?.groups, catalog?.layout, catalog?.categories],
   );
@@ -160,19 +153,23 @@ export function useWorkstreams() {
   };
 }
 
-/** The projection and Up Next's options, as an action reads them when it runs. */
+/** Up Next as an action reads it when it runs. */
 export type UpNextReading = {
   readonly projection: Projection<PluginSidebarThread>;
-  /** Up Next's options, focused on the stored focused workstreams. */
-  readonly upNext: UpNextOptions<PluginSidebarThread>;
+  /**
+   * Up Next's thread ids in the order navigation walks: the sidebar's drawn
+   * order while a Workstreams sidebar is up, else Up Next ranked under the
+   * sidebar's focus (see `domain/upNextNavigation.ts`).
+   */
+  readonly order: readonly string[];
 };
 
 /**
- * Reads the shared projection on demand, for an action that needs it only
- * when it runs, such as the next-Up-Next command or the recap card's
- * Archive. The surface keeps the server state and preferences live but does
- * not render for their changes, and derives nothing until it reads; the
- * read shares the projection every rendered surface already derived.
+ * Reads Up Next on demand, for an action that needs it only when it runs,
+ * such as the next-Up-Next command. The surface keeps the server state and
+ * preferences live but does not render for their changes, and derives
+ * nothing until it reads; the read shares the projection every rendered
+ * surface already derived.
  *
  * The sidebar's default view must be fed by a wide consumer (see
  * `useSidebarThreadsPublisher`) or by a single-thread lookup on the same
@@ -186,7 +183,7 @@ export function useUpNextReader(): () => UpNextReading {
   const upNextPrefs = usePrefsSelector((prefs) => prefs?.upNext);
   return useCallback(() => {
     const { threads, sections } = readThreads();
-    const { analysis, recaps, order, snoozes } = readServer();
+    const { analysis, recaps, order, snoozes, catalog } = readServer();
     const { projection, now } = shared.read({
       threads,
       sections,
@@ -197,10 +194,27 @@ export function useUpNextReader(): () => UpNextReading {
     });
     return {
       projection,
-      upNext: {
-        ...shared.upNextOptions({ analysis, recaps }, now, upNextPrefs),
-        prioritized: new Set(order.prioritized),
-      },
+      order:
+        readSidebarUpNext() ??
+        upNextOrder(
+          projection,
+          shared.upNextOptions({ analysis, recaps }, now, upNextPrefs),
+          { prioritized: order.prioritized, topics: topicsOf(catalog) },
+        ),
     };
   }, [shared, readThreads, readServer, upNextPrefs]);
+}
+
+/** What nests the workstreams, from the catalog (see `nestGroups`). */
+function topicsOf(
+  catalog: ServerState["catalog"],
+): WorkstreamTopics | undefined {
+  return catalog
+    ? {
+        entities: catalog.entities,
+        bindings: catalog.groups,
+        layout: catalog.layout,
+        categories: catalog.categories,
+      }
+    : undefined;
 }

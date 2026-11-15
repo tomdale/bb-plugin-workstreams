@@ -94,9 +94,10 @@ export function planHome<T extends UpNextThread>(
   },
 ): HomePlan<T> {
   const arranged = arrangeGroups(projection, options.groupSort, options.topics);
+  // Ranked by the same settings as the sidebar's Up Next, so both list the
+  // same threads.
   const selection = selectUpNext(projection, {
-    kindOf: options.kindOf,
-    now: options.now,
+    ...options,
     prioritized: focusedSections(arranged, options.prioritized),
   });
   const upNext =

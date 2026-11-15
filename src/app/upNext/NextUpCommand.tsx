@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { experimental_useSidebarThreadActions } from "@get-bb/plugin-sdk/app";
-import { nextUpNextThread } from "../../domain/archiveNavigation.ts";
+import { nextUpNextThread } from "../../domain/upNextNavigation.ts";
 import { useSidebarThreadsPublisher } from "../useStableSidebarThreads.ts";
 import { useUpNextReader, type UpNextReading } from "../useWorkstreams.ts";
 
@@ -34,9 +34,14 @@ export function NextUpCommandBridge(): null {
   return null;
 }
 
+/**
+ * Opens the Up Next row after `threadId`'s, wrapping to the top: the same
+ * thread archiving or snoozing `threadId` would open (see
+ * `domain/upNextNavigation.ts`).
+ */
 export function openNextUpThread(threadId: string | null): void {
   if (!current) return;
-  const { projection, upNext } = current.read();
-  const next = nextUpNextThread(projection, threadId, upNext)?.thread.id;
+  const { projection, order } = current.read();
+  const next = nextUpNextThread(projection, order, threadId);
   if (next) current.open(next);
 }

@@ -140,7 +140,7 @@ policies apply to conversation excerpts sent for analysis.
   regroups a topic; see `tests/server/grouping-regressions.test.ts`.
 - **Nested Up Next / archive destinations:** Up Next contains only roots, so
   delegates cannot become separate archive destinations in that band. See
-  `tests/domain/upNext.test.ts` and `tests/domain/archiveNavigation.test.ts`.
+  `tests/domain/upNext.test.ts` and `tests/domain/upNextNavigation.test.ts`.
 - **Projection defaults:** The pure forest projection has no stored analysis
   input, so its default attention predicate can only inspect native pending
   interactions. App and CLI callers supply the shared `needsAttention` rule.

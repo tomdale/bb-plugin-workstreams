@@ -64,6 +64,7 @@ import {
 } from "../../domain/groups.ts";
 import { selectRecent } from "../../domain/upNext.ts";
 import { initialUpNextState, planSidebarUpNext } from "./upNextState.ts";
+import { publishSidebarUpNext } from "../upNext/sidebarOrder.ts";
 import { useWorkstreams } from "../useWorkstreams.ts";
 import { shareArrangement } from "../shareNodes.ts";
 import { useStableSidebarThreads } from "../useStableSidebarThreads.ts";
@@ -238,7 +239,9 @@ export function WorkstreamsThreadList({
   const { rows: shownNeedsRows, moreCount, trimmed: trimmedNeeds } = upNext;
   useLayoutEffect(() => {
     upNextState.current = upNext.state;
+    publishSidebarUpNext(upNext.state.shown);
   });
+  useLayoutEffect(() => () => publishSidebarUpNext(null), []);
   const focus = { active: upNext.focused };
   const recentRows = useMemo(
     () =>

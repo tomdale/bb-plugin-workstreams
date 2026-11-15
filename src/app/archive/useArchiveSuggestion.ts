@@ -1,14 +1,7 @@
 import { useEffect, useState } from "react";
-import { experimental_useSidebarThreadActions } from "@get-bb/plugin-sdk/app";
 import type { Recap } from "../../domain/recap.ts";
-import {
-  nextThreadAfterArchive,
-  nextUpNextThreadAfterArchive,
-} from "../../domain/archiveNavigation.ts";
 import { useSharedServerActions } from "../serverState.ts";
 import { useSidebarThread } from "../useStableSidebarThreads.ts";
-import { useUpNextReader } from "../useWorkstreams.ts";
-import { claimArchiveNavigation } from "./claims.ts";
 
 /**
  * Recaps whose Archive the user passed up by continuing the thread. Clearing
@@ -17,8 +10,8 @@ import { claimArchiveNavigation } from "./claims.ts";
 const declined = new Set<string>();
 
 /**
- * Archive on the recap card: offered once the server confirms the thread has no outstanding work, and hidden while the
- * user continues the thread.
+ * Archive on the recap card: offered once the server confirms the thread has
+ * no outstanding work, and hidden while the user continues the thread.
  */
 export function useArchiveSuggestion(
   threadId: string | null,
@@ -26,8 +19,6 @@ export function useArchiveSuggestion(
   continuing = false,
 ) {
   const { rpc, refresh } = useSharedServerActions();
-  const readUpNext = useUpNextReader();
-  const actions = experimental_useSidebarThreadActions();
   // The threads the projection lists: hidden and archived ones are not.
   const listed = useSidebarThread(threadId);
   const thread =
@@ -79,21 +70,10 @@ export function useArchiveSuggestion(
     if (!visible || !threadId || !recapId || busy) return;
     setBusy(true);
     setError(null);
-    const { projection, upNext } = readUpNext();
-    const nextThreadId =
-      nextUpNextThreadAfterArchive(projection, threadId, upNext) ??
-      nextThreadAfterArchive(projection, threadId);
     try {
-      // The recap card picks its own destination, so the observer that opens
-      // the next Up Next thread leaves this archive to it.
-      const release = claimArchiveNavigation(threadId);
-      try {
-        await rpc.call("archive", { threadId, recapId });
-      } catch (cause) {
-        release();
-        throw cause;
-      }
-      if (nextThreadId) actions.open(nextThreadId);
+      // Where the user goes next is `AdvanceAfterLeaving`'s, as it is for an
+      // archive from anywhere else.
+      await rpc.call("archive", { threadId, recapId });
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));

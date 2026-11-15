@@ -1632,6 +1632,7 @@ export default async function plugin(bb: BbPluginApi) {
       listSections(bb.sdk),
     ]);
     const groups = Object.fromEntries(topics.groups());
+    const entities = topics.list();
     return {
       threads,
       sections,
@@ -1641,7 +1642,8 @@ export default async function plugin(bb: BbPluginApi) {
       snoozes: snoozes.all(),
       upNext: currentPrefs().upNext,
       groups,
-      colors: topicColors.snapshot(topics.list(), groups),
+      topics: { entities, layout: organizerInstance.layout() },
+      colors: topicColors.snapshot(entities, groups),
       now: Date.now(),
     };
   });

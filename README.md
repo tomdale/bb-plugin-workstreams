@@ -423,10 +423,17 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    apply without waiting. With reduced motion enabled, the new order appears at
    once, with nothing fading. The thread you have open keeps its row and place
    until you open another thread. Putting that thread away moves you on:
-   snoozing it, or archiving it from anywhere, opens the next row of Up Next
-   after it, wrapping to the top, so you land on the work that is next and not
-   on the composer. Nested delegates do not appear as separate Up Next entries;
-   find them in your workstream's thread tree.
+   snoozing it, or archiving it from anywhere (the recap card, the sidebar, the
+   thread header, or a keyboard shortcut), opens the next row of Up Next after
+   it, wrapping to the top. That is the same thread **Workstreams: next Up Next
+   thread** opens from it, and the row you see below it in the sidebar, even
+   when reading the thread changed its rank or **Show N more** is open. A
+   delegate counts as its root's row. When Up Next has no other thread,
+   archiving a delegate leaves you on its root, and archiving a root opens the
+   next thread in its workstream, then the most recently active thread, so you
+   land on the composer only when no other thread is open. Nested delegates do
+   not appear as separate Up Next entries; find them in your workstream's thread
+   tree.
    - **Focus:** While a focused workstream has a thread blocked on you, Up Next
      applies these rules to focused workstreams' threads only and marks its
      header with the focus icon.
@@ -676,9 +683,8 @@ of each turn using `WorkstreamsRecap`, rendered as a card above the composer:
   - **Complete** (emerald): Shows the turn's goal, completed `latest` bullets
     (none for a short answer, whose goal states the answer), optional follow-up
     action buttons, and an **Archive** suggestion when the thread and all of its
-    delegates, goals, and todos are finished and idle. Archiving opens the top
-    Up Next thread when it is blocked on you or unread, and otherwise the next
-    thread in the same workstream.
+    delegates, goals, and todos are finished and idle. Archiving opens the next
+    Up Next thread, as archiving from anywhere does (see **Up Next**).
   - **Ready for Review** (sky): Adds numbered **Review** steps (`1–3`) and up to
     `8` clickable **Links** (HTTPS URLs or absolute workspace/host file paths,
     including paths with spaces).
@@ -1013,7 +1019,7 @@ summary, and next steps.
 
 | Command / Shortcut                                              | Where                             | Action                                                                                                                             |
 | --------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `Workstreams: next Up Next thread` (`Cmd+Alt+J` / `Ctrl+Alt+J`) | Global command palette / shortcut | Opens the next thread in Up Next, wrapping to the top.                                                                             |
+| `Workstreams: next Up Next thread` (`Cmd+Alt+J` / `Ctrl+Alt+J`) | Global command palette / shortcut | Opens the Up Next row after the open thread's, wrapping to the top: the thread archiving the open thread would open.               |
 | `Workstreams: snooze this thread`                               | Command palette (active thread)   | Snoozes the current thread using your configured **Click to snooze** default preset.                                               |
 | `Workstreams: wake this snoozed thread`                         | Command palette (snoozed thread)  | Wakes the current snoozed thread immediately.                                                                                      |
 | `Workstreams: toggle debug UI`                                  | Global command palette            | Shows or hides the debug UI without touching recording; bind a shortcut in **Settings → Keyboard** (unbound by default).           |

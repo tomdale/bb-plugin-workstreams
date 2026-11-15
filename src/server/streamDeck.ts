@@ -25,6 +25,7 @@ import {
 } from "../domain/streamDeck.ts";
 import type { StoredAnalysis } from "../domain/analysis.ts";
 import type { ManualOrder } from "../domain/order.ts";
+import type { WorkstreamTopics } from "../domain/groups.ts";
 import type { Prefs } from "../domain/prefs.ts";
 import { slotMarkFor } from "../domain/presentation.ts";
 import {
@@ -41,6 +42,7 @@ import {
   selectUpNext,
   UP_NEXT_FRESH_WINDOWS,
 } from "../domain/upNext.ts";
+import { upNextFocus } from "../domain/upNextNavigation.ts";
 import {
   colorForWorkstream,
   workstreamColorHex,
@@ -59,6 +61,8 @@ export type StreamDeckInputs = {
   readonly upNext: Prefs["upNext"];
   /** Section id → topic id, as the catalog binds them. */
   readonly groups: Readonly<Record<string, string>>;
+  /** The topic tree and layout, so focus covers subtopics as in the sidebar. */
+  readonly topics?: Pick<WorkstreamTopics, "entities" | "layout">;
   /** Topic id → its workstream color. */
   readonly colors: Readonly<Record<string, TopicColor>>;
   /** The thread open in the BB app the user used last, left out of Up Next. */
@@ -95,7 +99,11 @@ export function streamDeckSnapshot(
   const selection = selectUpNext(projection, {
     kindOf,
     now,
-    prioritized: new Set(order.prioritized),
+    prioritized: upNextFocus(
+      projection,
+      order.prioritized,
+      inputs.topics && { ...inputs.topics, bindings: inputs.groups },
+    ),
     shown: inputs.upNext.shown,
     unreadFirst: inputs.upNext.unreadFirst,
     fill: inputs.upNext.fill,

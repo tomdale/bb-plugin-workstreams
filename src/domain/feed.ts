@@ -62,9 +62,10 @@ export function planFeed<T extends UpNextThread>(
   },
 ): FeedPlan<T> {
   const arranged = arrangeGroups(projection, options.groupSort, options.topics);
+  // Ranked by the same settings as the sidebar's Up Next, so both list the
+  // same threads.
   const selection = selectUpNext(projection, {
-    kindOf: options.kindOf,
-    now: options.now,
+    ...options,
     prioritized: focusedSections(arranged, options.prioritized),
     // The page is where a Waiting recap's status check is watched and
     // cancelled, so it takes those threads after everything else; the sidebar's

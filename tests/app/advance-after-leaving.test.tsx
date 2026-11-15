@@ -6,15 +6,16 @@ import {
   experimental_useSidebarThreads,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
-import { claimArchiveNavigation } from "../../src/app/archive/claims.ts";
 import { ServerStateRealtime } from "../../src/app/serverState.ts";
 import { AdvanceAfterLeaving } from "../../src/app/upNext/AdvanceAfterLeaving.tsx";
+import { publishSidebarUpNext } from "../../src/app/upNext/sidebarOrder.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
 import type { ThreadSnooze } from "../../src/domain/snooze.ts";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 
 afterEach(() => {
   cleanup();
+  publishSidebarUpNext(null);
   vi.useRealTimers();
 });
 
@@ -185,12 +186,15 @@ it("stays where it is when Up Next has nowhere else to go", async () => {
   expect(slot.inspection.sidebarActionCalls).toEqual([]);
 });
 
-it("leaves the archive to Workstreams when the recap card claimed it", async () => {
+it("follows the order the sidebar draws", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout"] });
   const slot = await mountLoaded("beta", listing(threading()), {});
-  claimArchiveNavigation("beta");
+  // The sidebar holds the open thread where the user found it.
+  await act(async () => publishSidebarUpNext(["beta", "ask", "other"]));
   await archive(slot, "beta");
-  expect(slot.inspection.sidebarActionCalls).toEqual([]);
+  expect(slot.inspection.sidebarActionCalls).toEqual([
+    { method: "open", threadId: "ask" },
+  ]);
 });
 
 it("doesn't open a thread that left before the move was made", async () => {

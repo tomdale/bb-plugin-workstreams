@@ -279,57 +279,28 @@ it("renders a stored card's full values with code formatting and clickable links
   );
 });
 
-it("opens the next thread in the workstream only after archive succeeds", async () => {
-  let resolve!: (value: { ok: boolean }) => void;
-  const archived = new Promise<{ ok: boolean }>((done) => {
-    resolve = done;
-  });
+it("leaves where to go after archiving to the move-away observer", async () => {
+  // Every archive of the thread in view, the recap card's included, lands
+  // where `AdvanceAfterLeaving` sends it, so the card opens nothing itself.
   const slot = await mount({
     archivable: true,
     threads: [
       sidebarThread("t1", { sectionId: "ws", latestAttentionAt: 500 }),
-      sidebarThread("next", { sectionId: "ws", latestAttentionAt: 400 }),
-      sidebarThread("elsewhere", { latestAttentionAt: 450 }),
-    ],
-    archive: () => archived,
-  });
-  fireEvent.click(await slot.findByRole("button", { name: "Archive" }));
-  expect(slot.inspection.sidebarActionCalls).toEqual([]);
-  resolve({ ok: true });
-  await waitFor(() =>
-    expect(slot.inspection.sidebarActionCalls).toEqual([
-      { method: "open", threadId: "next" },
-    ]),
-  );
-});
-
-it("opens the first remaining Up Next thread after archive", async () => {
-  const slot = await mount({
-    archivable: true,
-    threads: [
-      sidebarThread("t1", { sectionId: "ws", latestAttentionAt: 500 }),
-      sidebarThread("waiting-first", {
+      sidebarThread("waiting", {
         sectionId: "ws",
         hasPendingInteraction: true,
         latestAttentionAt: 400,
       }),
-      sidebarThread("waiting-second", {
-        sectionId: "ws",
-        hasPendingInteraction: true,
-        latestAttentionAt: 300,
-      }),
-      sidebarThread("same-workstream", {
-        sectionId: "ws",
-        latestAttentionAt: 200,
-      }),
     ],
   });
   fireEvent.click(await slot.findByRole("button", { name: "Archive" }));
   await waitFor(() =>
-    expect(slot.inspection.sidebarActionCalls).toEqual([
-      { method: "open", threadId: "waiting-first" },
-    ]),
+    expect(
+      slot.inspection.rpcCalls.filter((c) => c.method === "archive"),
+    ).toHaveLength(1),
   );
+  await act(async () => {});
+  expect(slot.inspection.sidebarActionCalls).toEqual([]);
 });
 
 it("does not navigate when archive fails", async () => {
@@ -341,23 +312,6 @@ it("does not navigate when archive fails", async () => {
   });
   fireEvent.click(await slot.findByRole("button", { name: "Archive" }));
   await slot.findByText("Outstanding work");
-  expect(slot.inspection.sidebarActionCalls).toEqual([]);
-});
-
-it("does not leave the workstream when its last thread is archived", async () => {
-  const slot = await mount({
-    archivable: true,
-    threads: [
-      sidebarThread("t1", { sectionId: "ws" }),
-      sidebarThread("elsewhere"),
-    ],
-  });
-  fireEvent.click(await slot.findByRole("button", { name: "Archive" }));
-  await waitFor(() =>
-    expect(
-      slot.inspection.rpcCalls.filter((c) => c.method === "state").length,
-    ).toBeGreaterThan(1),
-  );
   expect(slot.inspection.sidebarActionCalls).toEqual([]);
 });
 

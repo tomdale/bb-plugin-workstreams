@@ -39,6 +39,27 @@ const ids = (rows: readonly { thread: { id: string } }[]) =>
   rows.map((row) => row.thread.id);
 
 describe("planHome", () => {
+  it("ranks Up Next with the user's Up Next settings, as the sidebar does", () => {
+    const projection = projectWorkstreams(
+      [
+        thread("read", { sectionId: "sec_a", latestAttentionAt: now - 1 }),
+        thread("unread", {
+          sectionId: "sec_a",
+          isUnread: true,
+          latestAttentionAt: now - 2,
+        }),
+        thread("older", { sectionId: "sec_a", latestAttentionAt: now - 3 }),
+      ],
+      sections,
+      { now },
+    );
+    const plan = planHome(projection, { ...baseOptions, shown: 1 });
+    expect(ids(plan.upNext!.rows)).toEqual(["unread"]);
+    // "Show read threads" off leaves only the unread one.
+    const unfilled = planHome(projection, { ...baseOptions, fill: false });
+    expect(ids(unfilled.upNext!.rows)).toEqual(["unread"]);
+  });
+
   it("lists workstreams with threads, Unfiled, then Dormant, and skips empty ones", () => {
     const projection = projectWorkstreams(
       [

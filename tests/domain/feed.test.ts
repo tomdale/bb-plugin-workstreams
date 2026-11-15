@@ -28,6 +28,26 @@ function plan(threads: TestThread[], snoozed: string[] = []) {
 }
 
 describe("planFeed", () => {
+  it("ranks Up Next with the user's Up Next settings, as the sidebar does", () => {
+    const projection = projectWorkstreams(
+      [
+        thread("seen", { latestAttentionAt: now - 1 }),
+        thread("new", { isUnread: true, latestAttentionAt: now - 2 }),
+      ],
+      [],
+      { now },
+    );
+    const feed = planFeed(projection, {
+      kindOf,
+      now,
+      prioritized: new Set(),
+      groupSort: "alphabetical",
+      fill: false,
+    });
+    expect(ids(feed.upNext)).toEqual(["new"]);
+    expect(ids(feed.earlier)).toEqual(["seen"]);
+  });
+
   it("lists Up Next with the trimmed threads, then every other open root newest first", () => {
     // Seven read threads not blocked on the user: Up Next keeps five, and
     // the rest are read and not blocked, so they fall to Earlier.

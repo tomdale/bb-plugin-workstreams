@@ -1,27 +1,31 @@
 /**
- * Opens the next Up Next thread when the thread in view leaves the sidebar:
- * when it is snoozed, and when it is archived by anything, since BB and other
- * plugins archive and then leave the user on the composer. Putting a thread
- * away is a decision about what to do next, so the next thing to look at comes
- * with it.
+ * Opens the next thread when the thread in view leaves the sidebar: when it is
+ * snoozed, and when it is archived by anything (the recap card, the sidebar,
+ * the header, BB's shortcut, another plugin), since BB archives and then
+ * leaves the user on the composer. Putting a thread away is a decision about
+ * what to do next, so the next thing to look at comes with it, and it is the
+ * thread the next Up Next command would have opened (see
+ * `domain/upNextNavigation.ts`).
  *
  * Up Next's order is read while the thread is still listed: once it has left,
- * its place in the order is gone with it (see `nextUpNextRowAfterLeaving`). The
- * move waits a beat so whatever the surface that archived it does next lands
- * first, and it stays put when the user has gone somewhere of their own.
+ * its place in the order is gone with it. The move waits a beat so whatever
+ * the surface that archived it does next lands first, and it stays put when
+ * the user has gone somewhere of their own.
  */
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import {
   experimental_useSidebarThreadActions,
   useBbContext,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
-import { nextUpNextRowAfterLeaving } from "../../domain/archiveNavigation.ts";
-import type { Row } from "../../domain/project.ts";
+import type { Projection } from "../../domain/project.ts";
 import { isSnoozed, type ThreadSnooze } from "../../domain/snooze.ts";
-import { selectUpNext } from "../../domain/upNext.ts";
-import { claimedArchiveNavigation } from "../archive/claims.ts";
+import {
+  nextThreadAfterLeaving,
+  upNextOrder,
+} from "../../domain/upNextNavigation.ts";
 import { useWorkstreams } from "../useWorkstreams.ts";
+import { readSidebarUpNext, subscribeSidebarUpNext } from "./sidebarOrder.ts";
 
 /** How long the surface that archived the thread has to finish its own move. */
 const ADVANCE_DELAY_MS = 50;
@@ -30,8 +34,10 @@ const ADVANCE_DELAY_MS = 50;
 type Seen = {
   /** The thread that was in view. */
   readonly viewed: string | null;
-  /** Up Next's order, read while that thread was still in it. */
-  readonly rows: readonly Row<PluginSidebarThread>[];
+  /** The projection while that thread was still in it. */
+  readonly projection: Projection<PluginSidebarThread>;
+  /** Up Next's order then, derived only when a thread leaves. */
+  readonly order: () => readonly string[];
   /** The threads the sidebar listed. */
   readonly listed: ReadonlySet<string>;
   /** Whether `snoozes` holds what the server stored, not the empty default. */
@@ -44,14 +50,22 @@ export function AdvanceAfterLeaving(): null {
   const actions = experimental_useSidebarThreadActions();
   const { threadId } = useBbContext();
   const prioritized = ws.server.order.prioritized;
-  const rows = useMemo(
-    () =>
-      selectUpNext(ws.projection, {
-        ...ws.upNextOptions,
-        prioritized: new Set(prioritized),
-      }).rows,
-    [ws.projection, ws.upNextOptions, prioritized],
+  // Renders when the sidebar draws a new order, so the order a departure
+  // reads is the one the user last saw.
+  const sidebarOrder = useSyncExternalStore(
+    subscribeSidebarUpNext,
+    readSidebarUpNext,
   );
+  const { projection, upNextOptions, topics } = ws;
+  const order = useMemo(() => {
+    if (sidebarOrder) return () => sidebarOrder;
+    let ranked: readonly string[] | undefined;
+    return () =>
+      (ranked ??= upNextOrder(projection, upNextOptions, {
+        prioritized,
+        topics,
+      }));
+  }, [sidebarOrder, projection, upNextOptions, prioritized, topics]);
   const listed = useMemo(
     () => new Set(ws.threads.map((thread) => thread.id)),
     [ws.threads],
@@ -78,7 +92,8 @@ export function AdvanceAfterLeaving(): null {
     const previous = seen.current;
     seen.current = {
       viewed: threadId,
-      rows,
+      projection,
+      order,
       listed,
       snoozesLoaded,
       snoozes,
@@ -99,9 +114,6 @@ export function AdvanceAfterLeaving(): null {
     // Whatever the last departure asked for, this one decides again.
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = null;
-    // Workstreams lands its own archives (the recap card's); consuming the
-    // claim before the route is read keeps it from going stale.
-    if (leftSidebar && claimedArchiveNavigation(departing)) return;
     // The app has already taken the user somewhere else; leave them there.
     if (threadId !== null && threadId !== departing) return;
     // Nothing that is going away in this same change can be where to go next:
@@ -112,9 +124,13 @@ export function AdvanceAfterLeaving(): null {
       for (const [id, snooze] of Object.entries(snoozes))
         if (!isSnoozed(previous.snoozes[id], now) && isSnoozed(snooze, now))
           leaving.add(id);
-    const next = nextUpNextRowAfterLeaving(previous.rows, departing, leaving);
-    if (!next) return;
-    const target = next.thread.id;
+    const target = nextThreadAfterLeaving(
+      previous.projection,
+      previous.order(),
+      departing,
+      leaving,
+    );
+    if (!target) return;
     timer.current = setTimeout(() => {
       timer.current = null;
       const at = route.current;
@@ -123,7 +139,16 @@ export function AdvanceAfterLeaving(): null {
       if (!currentList.current.has(target)) return;
       if (at === null || at === departing) actions.open(target);
     }, ADVANCE_DELAY_MS);
-  }, [ws.status, threadId, rows, listed, snoozesLoaded, snoozes, actions]);
+  }, [
+    ws.status,
+    threadId,
+    projection,
+    order,
+    listed,
+    snoozesLoaded,
+    snoozes,
+    actions,
+  ]);
 
   return null;
 }

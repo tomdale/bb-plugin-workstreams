@@ -1,7 +1,7 @@
 /**
  * The projection every surface of one plugin client shares. The sidebar,
- * phone Home, the page, the recap card's Archive, and the next-Up-Next
- * command all draw the same threads and server state (one shared store
+ * phone Home, the page, the move to the next thread after archiving, and
+ * the next-Up-Next command all draw the same threads and server state (one shared store
  * each), so they derive one projection from them: the first reader after a
  * change computes it, and every other reader gets the same object. Up Next
  * therefore ranks from the same projection, at the same clock reading,
