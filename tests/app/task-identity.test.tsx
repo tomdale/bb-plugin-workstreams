@@ -3,7 +3,10 @@ import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TaskIdentity } from "../../src/app/task/TaskIdentity.tsx";
-import type { Workstream, WorkstreamState } from "../../src/domain/topics.ts";
+import type {
+  Workstream,
+  WorkstreamState,
+} from "../../src/domain/workstreams.ts";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 
 beforeEach(() => {

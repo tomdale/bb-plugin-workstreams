@@ -318,7 +318,7 @@ export function BandOptionsMenu({
             className={cn(MENU_ITEM_CLASS, "gap-2")}
           >
             <CheckSlot />
-            Group by workstream
+            Show by workstream
           </DropdownMenu.CheckboxItem>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>

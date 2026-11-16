@@ -13,7 +13,7 @@
  * `changeDelta` states the same change as data, for drawing the sidebar after.
  */
 import type { Split, TidyEdit } from "./tidy.ts";
-import { assertWorkstreamLevels, workstreamAncestors } from "./topics.ts";
+import { assertWorkstreamLevels, workstreamAncestors } from "./workstreams.ts";
 
 type PathPart = {
   readonly name: string;

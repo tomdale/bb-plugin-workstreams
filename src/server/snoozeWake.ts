@@ -201,9 +201,9 @@ export class SnoozeWaker {
       const root = byId.get(id);
       if (!root || !wakesOnEvents(snooze)) continue;
       const childThreads = descendants(id, children);
-      const rootFacts = wakeThread(root);
+      const threadFacts = wakeThread(root);
       const childFacts = childThreads.map(wakeThread);
-      if (isStalled(rootFacts, childFacts, snooze.at)) {
+      if (isStalled(threadFacts, childFacts, snooze.at)) {
         if (!this.stalled.has(id)) this.stalled.set(id, now);
       } else this.stalled.delete(id);
       const earliest = (condition: Condition, tree: InventoryThread[]) =>
@@ -212,7 +212,7 @@ export class SnoozeWaker {
         wakeEvent(
           {
             snooze,
-            thread: rootFacts,
+            thread: threadFacts,
             children: childFacts,
             stalledSince: this.stalled.get(id),
             hostWaitingSince: earliest("hostWaiting", [root, ...childThreads]),
@@ -241,7 +241,7 @@ export class SnoozeWaker {
   private async checkPullRequest(
     id: string,
     snooze: ThreadSnooze,
-    root: InventoryThread,
+    thread: InventoryThread,
     enabled: SnoozePrefs["events"],
     now: number,
   ): Promise<WakeEvent | null> {
@@ -249,7 +249,7 @@ export class SnoozeWaker {
       enabled["changes-requested"] ||
       enabled["checks-failed"] ||
       enabled["ready-to-merge"];
-    if (!wanted || !root.environmentId) return null;
+    if (!wanted || !thread.environmentId) return null;
     const key = `${id}@${snooze.at}`;
     const last = this.prCheckedAt.get(key);
     if (
@@ -261,7 +261,7 @@ export class SnoozeWaker {
     for (const stale of this.prCheckedAt.keys())
       if (stale.startsWith(`${id}@`)) this.prCheckedAt.delete(stale);
     this.prCheckedAt.set(key, now);
-    const attention = await this.deps.pullRequest(root.environmentId);
+    const attention = await this.deps.pullRequest(thread.environmentId);
     if (attention === undefined) return null;
     // The snooze may have been replaced or ended while the lookup ran.
     const current = this.deps.snoozes.get(id);

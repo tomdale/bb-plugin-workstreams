@@ -20,13 +20,13 @@ import type { ModelChoice } from "../domain/prefs.ts";
 import type {
   WorkstreamChoiceInput,
   WorkstreamChoiceOutput,
-} from "../domain/placement.ts";
-import { workstreamPath } from "../domain/topic-path.ts";
+} from "../domain/workstreamChoice.ts";
+import { workstreamPath } from "../domain/workstream-path.ts";
 import type { Database } from "./db.ts";
 import type { Inference } from "./model.ts";
 import { isSubstantiveRequest, placementRequests } from "./requests.ts";
 import { continuationThreadId } from "./requestProvenance.ts";
-import type { WorkstreamStore } from "./topics.ts";
+import type { WorkstreamStore } from "./workstreams.ts";
 
 type Sdk = BbPluginApi["sdk"];
 

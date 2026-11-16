@@ -21,8 +21,8 @@ import {
   resolveProposal,
   takesThreads,
   workstreamAncestors,
-} from "./topics.ts";
-import { PATH_MARK, PATH_SEPARATOR } from "./topic-path.ts";
+} from "./workstreams.ts";
+import { PATH_MARK, PATH_SEPARATOR } from "./workstream-path.ts";
 
 /** Requests are excerpted to this much each. */
 const REQUEST_CHARS = 1200;

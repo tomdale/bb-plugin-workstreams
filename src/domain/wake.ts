@@ -145,18 +145,18 @@ export function failedAfter(
  * The server wakes the thread once this has held for {@link STALL_GRACE_MS}.
  */
 export function isStalled(
-  root: WakeThread,
+  thread: WakeThread,
   children: readonly WakeThread[],
   since: number,
 ): boolean {
-  const tree = [root, ...children];
+  const tree = [thread, ...children];
   if (
     tree.some(
       (t) => isRunning(t) || t.busy || t.hasPendingInteraction || t.queued,
     )
   )
     return false;
-  if (root.status !== "idle" || turnOutcome(root, -Infinity) !== null)
+  if (thread.status !== "idle" || turnOutcome(thread, -Infinity) !== null)
     return false;
   return children.some(
     (d) => d.status === "error" && (d.failedAt ?? d.latestAttentionAt) > since,

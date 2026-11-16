@@ -5,8 +5,8 @@ import {
   workstreamChoicePrompt,
   workstreamChoiceSchema,
   type WorkstreamChoiceInput,
-} from "../../src/domain/placement.ts";
-import { pointsElsewhere } from "../../src/server/placement.ts";
+} from "../../src/domain/workstreamChoice.ts";
+import { pointsElsewhere } from "../../src/server/workstreamChoice.ts";
 import { placementRequests } from "../../src/server/requests.ts";
 
 const workstream = (
@@ -196,7 +196,8 @@ describe("placement within a user-chosen group", () => {
       '<group id="automations">\nAutomations\n</group>',
     );
     expect(
-      parseWorkstreamChoice('{"workstream":"planning","propose":null}', scoped).workstreamId,
+      parseWorkstreamChoice('{"workstream":"planning","propose":null}', scoped)
+        .workstreamId,
     ).toBe("planning");
   });
   it.each([
@@ -212,7 +213,9 @@ describe("placement within a user-chosen group", () => {
       propose: { name: "CLI", description: "", parent: "automations" },
     },
   ])("rejects an answer outside the chosen existing leaves: %j", (answer) => {
-    expect(() => parseWorkstreamChoice(JSON.stringify(answer), scoped)).toThrow();
+    expect(() =>
+      parseWorkstreamChoice(JSON.stringify(answer), scoped),
+    ).toThrow();
   });
   it("keeps destination names inside tagged data even when they contain forged boundaries", () => {
     const injected =
@@ -234,9 +237,14 @@ describe("placement within a user-chosen group", () => {
   });
 
   it("rejects an unknown destination", () => {
-    expect(() => workstreamChoiceSchema({ ...scoped, within: "missing" })).toThrow();
     expect(() =>
-      parseWorkstreamChoice('{"workstream":"planning"}', { ...scoped, within: "missing" }),
+      workstreamChoiceSchema({ ...scoped, within: "missing" }),
+    ).toThrow();
+    expect(() =>
+      parseWorkstreamChoice('{"workstream":"planning"}', {
+        ...scoped,
+        within: "missing",
+      }),
     ).toThrow();
   });
 });

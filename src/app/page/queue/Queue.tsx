@@ -73,7 +73,7 @@ import { HEADING_BLOCK_MIN_HEIGHT, PAGE_TOP } from "./layout.ts";
 import { useQueueMotion, type Direction } from "./motion.ts";
 import { STACK_WINDOW } from "./stackEngine.ts";
 import { useQueueActions, type Receipt } from "./useQueueActions.ts";
-import { PATH_SEPARATOR } from "../../../domain/topic-path.ts";
+import { PATH_SEPARATOR } from "../../../domain/workstream-path.ts";
 import { counted } from "../../../domain/plural.ts";
 
 type Workstreams = ReturnType<typeof useWorkstreams>;

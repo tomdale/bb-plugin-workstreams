@@ -131,18 +131,20 @@ export class Categories {
     if (!request) return;
     const collections = this.deps.collections();
     const collection = collections.find((item) =>
-      item.roots.some((root) => root.id === threadId),
+      item.threads.some((thread) => thread.id === threadId),
     );
     if (!collection) return;
     const records = this.read();
     const previous = records.get(collection.workstreamId);
     if (
-      categoryAction(previous?.generation ?? null, collection.roots.length) !==
-      "classify"
+      categoryAction(
+        previous?.generation ?? null,
+        collection.threads.length,
+      ) !== "classify"
     )
       return;
-    const basis = collection.roots.find(
-      (root) => root.id === threadId,
+    const basis = collection.threads.find(
+      (thread) => thread.id === threadId,
     )!.workKey;
     const key = `request:${createHash("sha256").update(request).digest("hex")}`;
     if (
@@ -170,12 +172,12 @@ export class Categories {
   private key(collection: CategoryCollection, record?: Record): string {
     return categoryCollectionKey({
       ...collection,
-      roots: collection.roots.map((root) => ({
-        ...root,
+      threads: collection.threads.map((thread) => ({
+        ...thread,
         workKey:
-          record?.work[root.id]?.basis === root.workKey
-            ? record.work[root.id]!.key
-            : root.workKey,
+          record?.work[thread.id]?.basis === thread.workKey
+            ? record.work[thread.id]!.key
+            : thread.workKey,
       })),
     });
   }
@@ -219,7 +221,7 @@ export class Categories {
     );
     for (const [id, record] of records) {
       const collection = collections.get(id);
-      if (!collection || collection.roots.length <= 3) {
+      if (!collection || collection.threads.length <= 3) {
         records.delete(id);
         if (record.generation)
           this.commit(
@@ -230,7 +232,7 @@ export class Categories {
         else this.save(records);
       } else {
         const roots = new Map(
-          collection.roots.map((root) => [root.id, root.workKey]),
+          collection.threads.map((thread) => [thread.id, thread.workKey]),
         );
         const work = Object.fromEntries(
           Object.entries(record.work).filter(
@@ -238,7 +240,7 @@ export class Categories {
           ),
         );
         const pruned = record.generation
-          ? pruneCategories(record.generation, collection.roots)
+          ? pruneCategories(record.generation, collection.threads)
           : null;
         records.set(id, { ...record, work, generation: pruned });
         if (JSON.stringify(pruned) !== JSON.stringify(record.generation)) {
@@ -326,7 +328,7 @@ export class Categories {
     const records = this.read();
     const previous = records.get(collection.workstreamId);
     const generation = previous?.generation ?? null;
-    const action = categoryAction(generation, collection.roots.length);
+    const action = categoryAction(generation, collection.threads.length);
     if (action === "discard") {
       if (previous) {
         records.delete(collection.workstreamId);
@@ -348,7 +350,7 @@ export class Categories {
       return null;
     }
     const current = generation
-      ? pruneCategories(generation, collection.roots)
+      ? pruneCategories(generation, collection.threads)
       : null;
     const key = this.key(collection, previous);
     if (previous?.attempted === key && previous.status === "settled")
@@ -376,13 +378,13 @@ export class Categories {
       current?.categories.length &&
       previous?.arranged &&
       !mostlySingletons(current)
-        ? collection.roots
+        ? collection.threads
             .filter(
-              (root) =>
-                !filed.has(root.id) ||
-                previous.arranged![root.id] !== keys[root.id],
+              (thread) =>
+                !filed.has(thread.id) ||
+                previous.arranged![thread.id] !== keys[thread.id],
             )
-            .map((root) => root.id)
+            .map((thread) => thread.id)
         : null;
     let collections: CategoryCollection[] | null = null;
     try {
@@ -486,7 +488,7 @@ export class Categories {
     workstreamId: string,
     record: Record,
     next: CategoryGeneration | null,
-    keys: { [rootId: string]: string },
+    keys: { [threadId: string]: string },
     reason: string | null,
   ) {
     const fresh = this.read();
@@ -506,13 +508,13 @@ export class Categories {
   private workKeys(
     collection: CategoryCollection,
     record?: Record,
-  ): { [rootId: string]: string } {
+  ): { [threadId: string]: string } {
     return Object.fromEntries(
-      collection.roots.map((root) => [
-        root.id,
-        record?.work[root.id]?.basis === root.workKey
-          ? record.work[root.id]!.key
-          : root.workKey,
+      collection.threads.map((thread) => [
+        thread.id,
+        record?.work[thread.id]?.basis === thread.workKey
+          ? record.work[thread.id]!.key
+          : thread.workKey,
       ]),
     );
   }
@@ -525,7 +527,7 @@ function fitReason(
   changed: readonly string[],
 ): string {
   const title = (id: string) =>
-    collection.roots.find((root) => root.id === id)?.title ?? id;
+    collection.threads.find((thread) => thread.id === id)?.title ?? id;
   return changed
     .map((id) => {
       const category = next.categories.find((c) => c.threadIds.includes(id));

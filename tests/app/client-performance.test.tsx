@@ -15,7 +15,7 @@ import {
 } from "../../src/app/useWorkstreams.ts";
 import { projectWorkstreams } from "../../src/domain/project.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
-import { workstreamIndex } from "../../src/domain/topic-path.ts";
+import { workstreamIndex } from "../../src/domain/workstream-path.ts";
 import { parseSpinner, type SpinnerStyle } from "../../src/domain/spinner.ts";
 import { DEFAULT_SNOOZE_PREFS } from "../../src/domain/snooze.ts";
 import { Row } from "../../src/app/sidebar/Row.tsx";
@@ -898,7 +898,9 @@ it("reuses catalog paths, leaf ordering, and search fields per snapshot", () => 
     expect(shipping.searchText.some((text) => text.includes(query))).toBe(true);
   expect(index.hasExactName("area")).toBe(true);
   expect(index.hasExactName("realm")).toBe(false);
-  expect(workstreamIndex(workstreams.map((workstream) => ({ ...workstream })))).not.toBe(index);
+  expect(
+    workstreamIndex(workstreams.map((workstream) => ({ ...workstream }))),
+  ).not.toBe(index);
 });
 
 it("reuses equal JSON trees and unchanged branches of a nested update", () => {

@@ -3,7 +3,7 @@ import { buildForest, flatten } from "../../src/domain/tree.ts";
 import { rng, thread } from "./fixtures.ts";
 
 const ids = (forest: ReturnType<typeof buildForest>) =>
-  forest.roots.flatMap((root) => flatten(root).map((n) => n.thread.id));
+  forest.threads.flatMap((root) => flatten(root).map((n) => n.thread.id));
 
 describe("buildForest", () => {
   it("nests children under parents at any depth", () => {
@@ -13,8 +13,8 @@ describe("buildForest", () => {
       thread("c", { parentThreadId: "b" }),
       thread("d", { parentThreadId: "c" }),
     ]);
-    expect(forest.roots).toHaveLength(1);
-    const rows = flatten(forest.roots[0]!);
+    expect(forest.threads).toHaveLength(1);
+    const rows = flatten(forest.threads[0]!);
     expect(rows.map((r) => [r.thread.id, r.depth])).toEqual([
       ["a", 0],
       ["b", 1],
@@ -29,7 +29,7 @@ describe("buildForest", () => {
       thread("child", { parentThreadId: "archived-parent" }),
       thread("root"),
     ]);
-    expect(forest.roots.map((r) => r.thread.id).sort()).toEqual([
+    expect(forest.threads.map((r) => r.thread.id).sort()).toEqual([
       "child",
       "root",
     ]);
@@ -42,7 +42,7 @@ describe("buildForest", () => {
       thread("x", { parentThreadId: "z" }),
       thread("z", { parentThreadId: "y" }),
     ]);
-    expect(forest.roots.map((r) => r.thread.id)).toEqual(["x"]);
+    expect(forest.threads.map((r) => r.thread.id)).toEqual(["x"]);
     expect(ids(forest)).toEqual(["x", "y", "z"]);
     expect([...forest.cycleIds].sort()).toEqual(["x", "y", "z"]);
   });

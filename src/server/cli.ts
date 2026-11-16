@@ -41,16 +41,16 @@ import {
 } from "../domain/trace.ts";
 import type { TraceStore } from "./trace.ts";
 import type { StoredOrder } from "./order.ts";
-import type { WorkstreamStore } from "./topics.ts";
-import type { WorkstreamMigration } from "./topicMigration.ts";
+import type { WorkstreamStore } from "./workstreams.ts";
+import type { WorkstreamMigration } from "./workstreamMigration.ts";
 import type { Repair } from "./reclassification.ts";
 import { buildForest } from "../domain/tree.ts";
 import {
   takesThreads,
   type Workstream,
   type WorkstreamAssignment,
-} from "../domain/topics.ts";
-import { workstreamPath } from "../domain/topic-path.ts";
+} from "../domain/workstreams.ts";
+import { workstreamPath } from "../domain/workstream-path.ts";
 import { activeHome } from "../domain/regroup.ts";
 import type { Prefs } from "../domain/prefs.ts";
 import {
@@ -946,7 +946,7 @@ export function registerCli(
             if (!repair) throw new Error("Previews are unavailable.");
             const ids = positionals.thread
               ? [positionals.thread]
-              : buildForest(await listActiveThreads(bb.sdk)).roots.map(
+              : buildForest(await listActiveThreads(bb.sdk)).threads.map(
                   (r) => r.thread.id,
                 );
             const plan = await repair.preview(ids);

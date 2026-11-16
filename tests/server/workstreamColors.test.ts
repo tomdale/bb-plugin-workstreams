@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createTestPluginHost } from "./test-host.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
-import { WorkstreamColors } from "../../src/server/topicColors.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
+import { WorkstreamColors } from "../../src/server/workstreamColors.ts";
 
 const hosts: ReturnType<typeof createTestPluginHost>[] = [];
 function store() {
@@ -54,9 +54,9 @@ describe("topic colors", () => {
     expect(after[two.id]).toEqual(first[two.id]);
     expect(after[parent.id]).toEqual(first[parent.id]);
     const state = workstreamStore.state();
-    expect(new WorkstreamColors(db).snapshot(state.workstreams, state.groups)).toEqual(
-      after,
-    );
+    expect(
+      new WorkstreamColors(db).snapshot(state.workstreams, state.groups),
+    ).toEqual(after);
   });
 
   it("reassigns only moved topics to their new family and releases deleted topics", () => {
@@ -118,9 +118,9 @@ describe("topic colors", () => {
     workstreamStore.bindGroup("sec", workstream.id);
     const first = read();
     const corrupt = [{ ...workstream, parentId: "missing" }];
-    expect(colors.snapshot(corrupt, { sec: workstream.id })[workstream.id]).toEqual(
-      first[workstream.id],
-    );
+    expect(
+      colors.snapshot(corrupt, { sec: workstream.id })[workstream.id],
+    ).toEqual(first[workstream.id]);
     expect(read()[workstream.id]).toEqual(first[workstream.id]);
   });
 });

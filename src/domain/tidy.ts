@@ -6,10 +6,10 @@
  */
 import { z } from "zod";
 import { HEADER, redact, stripFence, tagged } from "./analysis.ts";
-import { promptIds } from "./placement.ts";
-import { takesThreads, workstreamAncestors } from "./topics.ts";
+import { promptIds } from "./workstreamChoice.ts";
+import { takesThreads, workstreamAncestors } from "./workstreams.ts";
 import { startsWith } from "./layout.ts";
-import { PATH_MARK } from "./topic-path.ts";
+import { PATH_MARK } from "./workstream-path.ts";
 
 const TIDY_EDITS_MAX = 8;
 const TIDY_THREADS_PER_WORKSTREAM = 12;

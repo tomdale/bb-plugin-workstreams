@@ -2,10 +2,10 @@ import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { repairPreviewSchema, type RepairPreview } from "./contract.ts";
 import type { Analyzer } from "./analyzer.ts";
-import type { WorkstreamStore } from "./topics.ts";
+import type { WorkstreamStore } from "./workstreams.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import { assignmentEvidence, threadEvidence } from "./evidence.ts";
-import { PATH_SEPARATOR, workstreamPath } from "../domain/topic-path.ts";
+import { PATH_SEPARATOR, workstreamPath } from "../domain/workstream-path.ts";
 const KEY = "repair_preview";
 const LIFETIME = 30 * 60_000;
 function missing(error: unknown): boolean {

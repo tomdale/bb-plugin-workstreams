@@ -6,7 +6,7 @@ import {
   snapshotWorkstreams,
   workstreamsFingerprint,
   WorkstreamStore,
-} from "../../src/server/topics.ts";
+} from "../../src/server/workstreams.ts";
 
 const hosts: ReturnType<typeof createTestPluginHost>[] = [];
 const store = () => {
@@ -60,8 +60,12 @@ describe("a topic holds threads or subtopics, never both", () => {
     workstreamStore.create("Child", "", b.id);
     see("t1");
     workstreamStore.assign("t1", a.id);
-    expect(() => workstreamStore.merge(a.id, b.id)).toThrow(/beside workstreams/);
-    expect(() => workstreamStore.merge(b.id, a.id)).toThrow(/beside workstreams/);
+    expect(() => workstreamStore.merge(a.id, b.id)).toThrow(
+      /beside workstreams/,
+    );
+    expect(() => workstreamStore.merge(b.id, a.id)).toThrow(
+      /beside workstreams/,
+    );
   });
 
   it("files a proposal beneath a topic that holds threads in that topic", () => {
@@ -163,7 +167,9 @@ describe("split", () => {
       workstreamId: triggers!.id,
       provenance: "automatic",
     });
-    expect(workstreamStore.assignment("c").label).toBe("Automations › Triggers");
+    expect(workstreamStore.assignment("c").label).toBe(
+      "Automations › Triggers",
+    );
     expect(workstreamStore.heldThreads(product.id)).toBe(0);
     expect(workstreamStore.revision()).toBeGreaterThan(before);
   });
@@ -240,7 +246,10 @@ describe("restoreWorkstreams", () => {
     const snapshot = snapshotWorkstreams(db, 1);
     workstreamStore.rename(workstream.id, "Beta");
     const fingerprint = workstreamsFingerprint(db);
-    workstreamStore.edit(workstream.id, { projectId: "project", projectSource: "learned" });
+    workstreamStore.edit(workstream.id, {
+      projectId: "project",
+      projectSource: "learned",
+    });
     expect(workstreamsFingerprint(db)).toBe(fingerprint);
     expect(restoreWorkstreams(db, snapshot, fingerprint)).toBe(true);
     expect(workstreamStore.getById(workstream.id)).toMatchObject({

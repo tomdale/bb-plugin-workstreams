@@ -1,8 +1,8 @@
 import { createTestPluginHost } from "./test-host.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { openDatabase } from "../../src/server/db.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
-import { workstreamAncestors } from "../../src/domain/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
+import { workstreamAncestors } from "../../src/domain/workstreams.ts";
 
 const hosts: ReturnType<typeof createTestPluginHost>[] = [];
 const store = () => {
@@ -145,7 +145,9 @@ describe("WorkstreamStore", () => {
     const workstreamStore = new WorkstreamStore(openDatabase(host.bb));
     expect(
       db
-        .prepare("SELECT thread_id, source FROM ws_thread_workstream ORDER BY 1")
+        .prepare(
+          "SELECT thread_id, source FROM ws_thread_workstream ORDER BY 1",
+        )
         .all(),
     ).toEqual([
       { thread_id: "chosen", source: "manual" },
@@ -159,7 +161,9 @@ describe("WorkstreamStore", () => {
     });
     expect(workstreamStore.assignment("cleared").provenance).toBe("manual");
     // Automatic sources keep their priority; only a human choice is promoted.
-    expect(workstreamStore.assignment("classified").provenance).toBe("automatic");
+    expect(workstreamStore.assignment("classified").provenance).toBe(
+      "automatic",
+    );
     expect(workstreamStore.assignment("quick").provenance).toBe("composer");
     // Analysis can no longer replace the choice.
     expect(
@@ -170,7 +174,9 @@ describe("WorkstreamStore", () => {
         "k2",
       ),
     ).toBe(false);
-    expect(workstreamStore.assignment("chosen").workstreamId).toBe(workstream.id);
+    expect(workstreamStore.assignment("chosen").workstreamId).toBe(
+      workstream.id,
+    );
   });
 
   it("resolves aliases and scopes matching names by explicit parent", () => {
@@ -181,8 +187,12 @@ describe("WorkstreamStore", () => {
       "Preferences",
     ]);
     const rightFeature = workstreamStore.create("Settings", "right", right.id);
-    expect(workstreamStore.resolve(" preferences ", left.id)?.id).toBe(leftFeature.id);
-    expect(workstreamStore.resolve("Settings", right.id)?.id).toBe(rightFeature.id);
+    expect(workstreamStore.resolve(" preferences ", left.id)?.id).toBe(
+      leftFeature.id,
+    );
+    expect(workstreamStore.resolve("Settings", right.id)?.id).toBe(
+      rightFeature.id,
+    );
     expect(workstreamStore.resolve("Settings", null)).toBeNull();
   });
 
@@ -198,20 +208,26 @@ describe("WorkstreamStore", () => {
       child.id,
       root.id,
     );
-    expect(() => workstreamStore.create("Nested", "", root.id)).toThrow(/inside itself/);
-    expect(workstreamStore.list().find((item) => item.id === child.id)?.parentId).toBe(
-      root.id,
+    expect(() => workstreamStore.create("Nested", "", root.id)).toThrow(
+      /inside itself/,
     );
+    expect(
+      workstreamStore.list().find((item) => item.id === child.id)?.parentId,
+    ).toBe(root.id);
   });
 
   it("rejects assignment to unknown entities and retains specific subjects under broad placement", () => {
     const { workstreamStore: workstreamStore } = store();
-    expect(() => workstreamStore.assign("thread-x", "missing")).toThrow(/Unknown workstream/);
+    expect(() => workstreamStore.assign("thread-x", "missing")).toThrow(
+      /Unknown workstream/,
+    );
     const broad = workstreamStore.create("Engineering", "");
     const specific = workstreamStore.create("Billing migration", "", broad.id);
     workstreamStore.bindGroup("section-engineering", broad.id);
     workstreamStore.assign("thread-x", specific.id);
-    expect(workstreamStore.assignment("thread-x").workstreamId).toBe(specific.id);
+    expect(workstreamStore.assignment("thread-x").workstreamId).toBe(
+      specific.id,
+    );
   });
 
   it("assignment doesn't move native thread placement", () => {
@@ -256,11 +272,18 @@ describe("WorkstreamStore", () => {
 
   it("merges update references across subjects, groups, and children", () => {
     const { workstreamStore: workstreamStore } = store();
-    const source = workstreamStore.create("OldAlpha", "Old alpha feature", null, [
-      "LegacyAlpha",
-    ]);
+    const source = workstreamStore.create(
+      "OldAlpha",
+      "Old alpha feature",
+      null,
+      ["LegacyAlpha"],
+    );
     const target = workstreamStore.create("NewBeta", "New beta feature");
-    const child = workstreamStore.create("ChildFeature", "Child of alpha", source.id);
+    const child = workstreamStore.create(
+      "ChildFeature",
+      "Child of alpha",
+      source.id,
+    );
     workstreamStore.assign("t-alpha", child.id);
     workstreamStore.bindGroup("sec-alpha", source.id);
 
@@ -368,8 +391,12 @@ describe("WorkstreamStore", () => {
 
     // Mutating child re-assigns root
     workstreamStore.assign("t-grandchild", workstream2.id);
-    expect(workstreamStore.assignment("t-root").workstreamId).toBe(workstream2.id);
-    expect(workstreamStore.assignment("t-child").workstreamId).toBe(workstream2.id);
+    expect(workstreamStore.assignment("t-root").workstreamId).toBe(
+      workstream2.id,
+    );
+    expect(workstreamStore.assignment("t-child").workstreamId).toBe(
+      workstream2.id,
+    );
 
     // Clearing child clears root
     workstreamStore.clear("t-child");
@@ -391,7 +418,10 @@ describe("WorkstreamStore", () => {
       ).run(id, parent, id);
     const product = workstreamStore.create("Lantern", "Product");
     const leaf = workstreamStore.create("Up Next", "Upcoming", product.id);
-    workstreamStore.assign("root", leaf.id, { provenance: "automatic", evidence: "basis" });
+    workstreamStore.assign("root", leaf.id, {
+      provenance: "automatic",
+      evidence: "basis",
+    });
     workstreamStore.assign("cleared", null);
     const ids = ["root", "child", "bare", "cleared", "unseen"];
     const list = vi.spyOn(workstreamStore, "list");
@@ -440,7 +470,9 @@ describe("WorkstreamStore", () => {
   it("updates metadata with validation and bumps revision", () => {
     const { workstreamStore: workstreamStore } = store();
     const root = workstreamStore.create("Platform", "Base platform");
-    const feature = workstreamStore.create("Auth", "Initial auth", root.id, ["Login"]);
+    const feature = workstreamStore.create("Auth", "Initial auth", root.id, [
+      "Login",
+    ]);
     const revBefore = workstreamStore.revision();
 
     // Update description and aliases
@@ -475,14 +507,16 @@ describe("WorkstreamStore", () => {
     );
 
     // Strict create rejects alias colliding with existing name
-    expect(() => workstreamStore.create("Beta", "Beta", null, ["Alpha"])).toThrow(
-      /already names/,
-    );
+    expect(() =>
+      workstreamStore.create("Beta", "Beta", null, ["Alpha"]),
+    ).toThrow(/already names/);
   });
 
   it("atomic updateMetadata validates collisions, supports no-op, and updates revision", () => {
     const { workstreamStore: workstreamStore } = store();
-    const e1 = workstreamStore.create("Billing", "Billing engine", null, ["Invoice"]);
+    const e1 = workstreamStore.create("Billing", "Billing engine", null, [
+      "Invoice",
+    ]);
     const e2 = workstreamStore.create("Payments", "Payments engine");
 
     const revBefore = workstreamStore.revision();
@@ -529,14 +563,20 @@ describe("WorkstreamStore", () => {
 
     expect(workstreamStore.getById(sourceRoot.id)).toBeNull();
     expect(workstreamStore.getById(sourceBackend.id)).toBeNull();
-    expect(workstreamStore.getById(migrations.id)?.parentId).toBe(targetRoot.id);
+    expect(workstreamStore.getById(migrations.id)?.parentId).toBe(
+      targetRoot.id,
+    );
     expect(workstreamStore.getById(queue.id)?.parentId).toBe(targetRoot.id);
     expect(workstreamAncestors(migrations.id, workstreamStore.list())).toEqual([
       migrations.id,
       targetRoot.id,
     ]);
-    expect(workstreamStore.assignment("t-backend").workstreamId).toBe(targetBackend.id);
-    expect(workstreamStore.assignment("t-migrations").workstreamId).toBe(migrations.id);
+    expect(workstreamStore.assignment("t-backend").workstreamId).toBe(
+      targetBackend.id,
+    );
+    expect(workstreamStore.assignment("t-migrations").workstreamId).toBe(
+      migrations.id,
+    );
     expect(workstreamStore.assignment("t-queue").workstreamId).toBe(queue.id);
     expect(workstreamStore.groups().get("sec-backend")).toBe(targetBackend.id);
     expect(workstreamStore.groups().get("sec-migrations")).toBe(migrations.id);
@@ -548,19 +588,30 @@ describe("WorkstreamStore", () => {
     const parentB = workstreamStore.create("ParentB");
 
     // Sibling of target has alias "ConflictAlias" in parentA scope
-    workstreamStore.create("Sibling", "Sibling under A", parentA.id, ["ConflictAlias"]);
-    const target = workstreamStore.create("Target", "Target entity", parentA.id);
-
-    // Source under parentB has alias "ConflictAlias" (valid in parentB scope)
-    const source = workstreamStore.create("Source", "Source entity", parentB.id, [
+    workstreamStore.create("Sibling", "Sibling under A", parentA.id, [
       "ConflictAlias",
     ]);
+    const target = workstreamStore.create(
+      "Target",
+      "Target entity",
+      parentA.id,
+    );
+
+    // Source under parentB has alias "ConflictAlias" (valid in parentB scope)
+    const source = workstreamStore.create(
+      "Source",
+      "Source entity",
+      parentB.id,
+      ["ConflictAlias"],
+    );
     workstreamStore.assign("t-child", source.id);
 
     const revBefore = workstreamStore.revision();
 
     // Merge must throw due to alias collision with Sibling in target's parent scope
-    expect(() => workstreamStore.merge(source.id, target.id)).toThrow(/already/);
+    expect(() => workstreamStore.merge(source.id, target.id)).toThrow(
+      /already/,
+    );
 
     // All entities still exist and are untouched (transaction rolled back)
     expect(workstreamStore.getById(source.id)).not.toBeNull();
@@ -575,7 +626,9 @@ describe("WorkstreamStore", () => {
     const rev1 = workstreamStore.revision();
 
     // Assigning identical entity, provenance, and evidence is a no-op
-    const a2 = workstreamStore.assign("t1", workstream.id, { provenance: "manual" });
+    const a2 = workstreamStore.assign("t1", workstream.id, {
+      provenance: "manual",
+    });
     expect(workstreamStore.revision()).toBe(rev1);
     expect(a2.workstreamId).toBe(workstream.id);
 
@@ -598,12 +651,20 @@ describe("WorkstreamStore", () => {
       scopeShift,
     });
     // Quick fills an empty thread and replaces only its own guess.
-    expect(workstreamStore.applyAnalysis("t", answer(a.id), "composer", null)).toBe(true);
-    expect(workstreamStore.applyAnalysis("t", answer(b.id), "composer", null)).toBe(true);
+    expect(
+      workstreamStore.applyAnalysis("t", answer(a.id), "composer", null),
+    ).toBe(true);
+    expect(
+      workstreamStore.applyAnalysis("t", answer(b.id), "composer", null),
+    ).toBe(true);
     expect(workstreamStore.assignment("t").provenance).toBe("composer");
     // Full settles over quick, and quick never replaces full.
-    expect(workstreamStore.applyAnalysis("t", answer(a.id), "automatic", "k1")).toBe(true);
-    expect(workstreamStore.applyAnalysis("t", answer(b.id), "composer", null)).toBe(false);
+    expect(
+      workstreamStore.applyAnalysis("t", answer(a.id), "automatic", "k1"),
+    ).toBe(true);
+    expect(
+      workstreamStore.applyAnalysis("t", answer(b.id), "composer", null),
+    ).toBe(false);
     expect(workstreamStore.assignment("t")).toMatchObject({
       workstreamId: a.id,
       provenance: "automatic",
@@ -611,12 +672,16 @@ describe("WorkstreamStore", () => {
     });
     // Inherited changes only on a scope shift from Full analysis.
     workstreamStore.assign("i", a.id, { provenance: "inherited" });
-    expect(workstreamStore.applyAnalysis("i", answer(b.id), "automatic", "k2")).toBe(false);
+    expect(
+      workstreamStore.applyAnalysis("i", answer(b.id), "automatic", "k2"),
+    ).toBe(false);
     expect(workstreamStore.basis("i")).toBe("k2");
-    expect(workstreamStore.applyAnalysis("i", answer(b.id), "composer", null)).toBe(false);
-    expect(workstreamStore.applyAnalysis("i", answer(b.id, true), "automatic", "k3")).toBe(
-      true,
-    );
+    expect(
+      workstreamStore.applyAnalysis("i", answer(b.id), "composer", null),
+    ).toBe(false);
+    expect(
+      workstreamStore.applyAnalysis("i", answer(b.id, true), "automatic", "k3"),
+    ).toBe(true);
     expect(workstreamStore.assignment("i")).toMatchObject({
       workstreamId: b.id,
       provenance: "automatic",
@@ -625,7 +690,10 @@ describe("WorkstreamStore", () => {
 
   it("keeps inherited priority when a proposed child still needs a reviewed filing plan", () => {
     const { workstreamStore: workstreamStore } = store();
-    const product = workstreamStore.create("Product", "A multi-capability product");
+    const product = workstreamStore.create(
+      "Product",
+      "A multi-capability product",
+    );
     workstreamStore.assign("i", product.id, { provenance: "inherited" });
     expect(
       workstreamStore.applyAnalysis(
@@ -649,7 +717,9 @@ describe("WorkstreamStore", () => {
       evidence: "new-request",
     });
     expect(workstreamStore.workstreams(product.id)).toBe(0);
-    expect(workstreamStore.divisionRequests()[product.id]?.name).toBe("Billing");
+    expect(workstreamStore.divisionRequests()[product.id]?.name).toBe(
+      "Billing",
+    );
   });
 
   it("lets Full analysis narrow an inherited topic without a scope shift", () => {
@@ -670,19 +740,19 @@ describe("WorkstreamStore", () => {
         "INSERT INTO ws_thread_workstream(thread_id, workstream_id, source) VALUES (?, ?, 'inherited')",
       ).run(id, product.id);
     // A sibling or the same topic is no narrowing.
-    expect(workstreamStore.applyAnalysis("i", answer(other.id), "automatic", "k1")).toBe(
-      false,
-    );
-    expect(workstreamStore.applyAnalysis("i", answer(product.id), "automatic", "k2")).toBe(
-      false,
-    );
+    expect(
+      workstreamStore.applyAnalysis("i", answer(other.id), "automatic", "k1"),
+    ).toBe(false);
+    expect(
+      workstreamStore.applyAnalysis("i", answer(product.id), "automatic", "k2"),
+    ).toBe(false);
     // An existing descendant narrows it, and Quick analysis never does.
-    expect(workstreamStore.applyAnalysis("i", answer(feature.id), "composer", null)).toBe(
-      false,
-    );
-    expect(workstreamStore.applyAnalysis("i", answer(feature.id), "automatic", "k3")).toBe(
-      true,
-    );
+    expect(
+      workstreamStore.applyAnalysis("i", answer(feature.id), "composer", null),
+    ).toBe(false);
+    expect(
+      workstreamStore.applyAnalysis("i", answer(feature.id), "automatic", "k3"),
+    ).toBe(true);
     expect(workstreamStore.assignment("i")).toMatchObject({
       workstreamId: feature.id,
       provenance: "automatic",
@@ -697,7 +767,9 @@ describe("WorkstreamStore", () => {
       ),
     ).toBe(false);
     expect(workstreamStore.assignment("j").workstreamId).toBe(product.id);
-    expect(workstreamStore.divisionRequests()[product.id]?.name).toBe("CLI commands");
+    expect(workstreamStore.divisionRequests()[product.id]?.name).toBe(
+      "CLI commands",
+    );
   });
 
   it("inherits a topic only into a thread with none or a quick guess", () => {
@@ -726,7 +798,9 @@ describe("WorkstreamStore", () => {
     workstreamStore.edit(workstream.id, { projectId: null });
     expect(workstreamStore.prune()).toEqual([]);
     workstreamStore.updateMetadata(workstream.id, { projectAutomatic: true });
-    expect(workstreamStore.prune().map((workstream) => workstream.id)).toEqual([workstream.id]);
+    expect(workstreamStore.prune().map((workstream) => workstream.id)).toEqual([
+      workstream.id,
+    ]);
   });
 
   it("prunes discovered topics nothing uses, deepest first, and keeps yours", () => {

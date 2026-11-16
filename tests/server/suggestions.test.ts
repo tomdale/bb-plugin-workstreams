@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakeWorld } from "./fake-bb.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { getMeta, openDatabase, setMeta } from "../../src/server/db.ts";
 import type { SuggestionsStateWire } from "../../src/server/contract.ts";
 import { Suggestions } from "../../src/server/suggestions.ts";
@@ -862,7 +862,7 @@ describe("suggestion checks after organizer passes", () => {
     try {
       const db = openDatabase(host.bb);
       const workstreamStore = new WorkstreamStore(db);
-      let roots = [{ id: "t1", title: "One" }];
+      let threads = [{ id: "t1", title: "One" }];
       let enabled = false;
       const suggestions = new Suggestions({
         db,
@@ -871,7 +871,7 @@ describe("suggestion checks after organizer passes", () => {
         journal: new Journal(db),
         model: async () => null as never,
         enabled: () => enabled,
-        roots: () => roots,
+        threads: () => threads,
         checkout: () => null,
         coordination: () => [],
         onChange: () => {},
@@ -895,10 +895,10 @@ describe("suggestion checks after organizer passes", () => {
       workstreamStore.forget("t1");
       suggestions.checkIfChanged();
       expect(checks()).toBe(once * 4);
-      roots = [...roots, { id: "t2", title: "Two" }];
+      threads = [...threads, { id: "t2", title: "Two" }];
       suggestions.checkIfChanged();
       expect(checks()).toBe(once * 5);
-      roots = [{ id: "t1", title: "Renamed" }, roots[1]!];
+      threads = [{ id: "t1", title: "Renamed" }, threads[1]!];
       suggestions.checkIfChanged();
       expect(checks()).toBe(once * 5);
       enabled = true;

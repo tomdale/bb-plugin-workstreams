@@ -5,7 +5,7 @@ import {
   continuationThreadId,
   withoutSubagentDeliveries,
 } from "../../src/server/requestProvenance.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { senderOfStart } from "../../src/server/requests.ts";
 import { choosesWorkstream, fakeWorld } from "./fake-bb.ts";
@@ -136,13 +136,23 @@ it("keeps subagent reports out of placement and uses the real handoff source", a
   world = await fakeWorld();
   const w = world;
   const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
-  const sourceWorkstream = workstreamStore.create("Cloud BB", "Running BB in the cloud");
-  const reviewerWorkstream = workstreamStore.create("Shell", "Shell configuration");
+  const sourceWorkstream = workstreamStore.create(
+    "Cloud BB",
+    "Running BB in the cloud",
+  );
+  const reviewerWorkstream = workstreamStore.create(
+    "Shell",
+    "Shell configuration",
+  );
   w.addThread("thr_source", { status: "idle" });
   w.addThread("thr_worker", { status: "idle" });
   w.addThread("owner", { status: "idle", title: "Cloud BB proof" });
-  workstreamStore.assign("thr_source", sourceWorkstream.id, { provenance: "automatic" });
-  workstreamStore.assign("thr_worker", reviewerWorkstream.id, { provenance: "automatic" });
+  workstreamStore.assign("thr_source", sourceWorkstream.id, {
+    provenance: "automatic",
+  });
+  workstreamStore.assign("thr_worker", reviewerWorkstream.id, {
+    provenance: "automatic",
+  });
   w.harness.inspection.sdk.stub("plugins.callRpc", async () => ({
     runs: [run],
   }));
@@ -195,7 +205,9 @@ it("uses the actual spawning agent for placement and continuation", async () => 
   const workstream = workstreamStore.create("Source", "The source work");
   w.addThread("thr_source", { status: "idle" });
   w.addThread("owner", { status: "idle", title: "Build the result" });
-  workstreamStore.assign("thr_source", workstream.id, { provenance: "automatic" });
+  workstreamStore.assign("thr_source", workstream.id, {
+    provenance: "automatic",
+  });
   w.converse("owner", ["Build the result", "Review @thread:thr_other"]);
   w.harness.inspection.sdk.stub(
     "threads.events.list",
@@ -219,7 +231,9 @@ it("uses the actual spawning agent for placement and continuation", async () => 
   );
   await w.harness.behavior.callRpc("refresh", null);
   await w.harness.behavior.runCli(["analyze", "owner"]);
-  const placement = w.completions.find((c) => choosesWorkstream(c.prompt))!.prompt;
+  const placement = w.completions.find((c) =>
+    choosesWorkstream(c.prompt),
+  )!.prompt;
   expect(placement).toContain("It continues a thread in Source.");
   expect(analysesFor(w)).toContain("Source objective");
 });
@@ -244,7 +258,10 @@ it("does not cancel a first-request retry for a verified delivery", async () => 
   });
   const w = world;
   const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
-  workstreamId = workstreamStore.create("Cloud BB", "Running BB in the cloud").id;
+  workstreamId = workstreamStore.create(
+    "Cloud BB",
+    "Running BB in the cloud",
+  ).id;
   w.harness.inspection.sdk.stub("plugins.callRpc", async () => ({
     runs: [run],
   }));

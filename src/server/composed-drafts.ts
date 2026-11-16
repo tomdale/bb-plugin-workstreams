@@ -10,7 +10,7 @@
  * fresh first message against them by text. Either side can arrive first: a
  * dispatch with no matching draft waits briefly for a late report.
  */
-import type { DraftWorkstreamProposal } from "../domain/topics.ts";
+import type { DraftWorkstreamProposal } from "../domain/workstreams.ts";
 import type { ProjectChoice } from "../domain/projectChoice.ts";
 
 /**

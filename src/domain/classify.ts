@@ -1,5 +1,5 @@
 /** A workstream as calls that choose one read it, and a checked workstream answer. */
-import type { DraftWorkstreamProposal } from "./topics.ts";
+import type { DraftWorkstreamProposal } from "./workstreams.ts";
 
 export type Workstream = {
   id: string;

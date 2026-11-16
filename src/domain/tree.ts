@@ -20,7 +20,7 @@ export type TreeNode<T extends TreeThread> = {
 };
 
 type Forest<T extends TreeThread> = {
-  readonly roots: TreeNode<T>[];
+  readonly threads: TreeNode<T>[];
   /** Root thread of each input thread's tree, keyed by thread id. */
   readonly rootOf: ReadonlyMap<string, T>;
   /** Threads whose parent is not in the input; they render as roots. */
@@ -30,7 +30,7 @@ type Forest<T extends TreeThread> = {
 };
 
 type ForestOrder<T> = {
-  roots?: (a: T, b: T) => number;
+  threads?: (a: T, b: T) => number;
   children?: (a: T, b: T) => number;
 };
 
@@ -42,7 +42,7 @@ export function buildForest<T extends TreeThread>(
 ): Forest<T> {
   const present = new Map(threads.map((thread) => [thread.id, thread]));
   const childrenOf = new Map<string, T[]>();
-  const rootCandidates: T[] = [];
+  const threadCandidates: T[] = [];
   const orphanIds: string[] = [];
   for (const thread of present.values()) {
     const parentId = thread.parentThreadId ?? null;
@@ -52,7 +52,7 @@ export function buildForest<T extends TreeThread>(
       childrenOf.set(parentId, siblings);
     } else {
       if (parentId) orphanIds.push(thread.id);
-      rootCandidates.push(thread);
+      threadCandidates.push(thread);
     }
   }
   const childOrder = order.children ?? byId;
@@ -69,7 +69,7 @@ export function buildForest<T extends TreeThread>(
     return { thread, depth, children };
   };
 
-  const roots = rootCandidates.map((root) => grow(root, 0, root));
+  const roots = threadCandidates.map((root) => grow(root, 0, root));
   // Anything unvisited is only reachable through a cycle. Break each cycle at
   // its lowest id so repeated renders agree. Without a cycle every thread is
   // visited by now, and the sorted scan is skipped.
@@ -81,8 +81,8 @@ export function buildForest<T extends TreeThread>(
       roots.push(root);
       for (const node of flatten(root)) cycleIds.push(node.thread.id);
     }
-  if (order.roots) roots.sort((a, b) => order.roots!(a.thread, b.thread));
-  return { roots, rootOf, orphanIds, cycleIds };
+  if (order.threads) roots.sort((a, b) => order.threads!(a.thread, b.thread));
+  return { threads: roots, rootOf, orphanIds, cycleIds };
 }
 
 /** Depth-first rows for rendering; parents precede their children. */

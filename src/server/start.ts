@@ -20,11 +20,11 @@
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { clip, type ThreadListing } from "../domain/analysis.ts";
-import type { WorkstreamChoiceOutput } from "../domain/placement.ts";
+import type { WorkstreamChoiceOutput } from "../domain/workstreamChoice.ts";
 import type { ModelChoice } from "../domain/prefs.ts";
 import type { InventoryThread } from "./inventory.ts";
 import type { Inference } from "./model.ts";
-import type { ChoiceQuestion, ChoiceThread } from "./placement.ts";
+import type { ChoiceQuestion, ChoiceThread } from "./workstreamChoice.ts";
 import { isUserRequest, openingRequest } from "./requests.ts";
 import { threadEvidence } from "./evidence.ts";
 

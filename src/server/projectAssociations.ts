@@ -4,13 +4,13 @@ import type { ProjectChoice } from "../domain/projectChoice.ts";
 import {
   projectLearningPlan,
   type ProjectLearningDecision,
-  type ProjectRoot,
+  type ProjectThread,
 } from "../domain/projectLearning.ts";
-import { workstreamPath } from "../domain/topic-path.ts";
-import { workstreamAncestors, type Workstream } from "../domain/topics.ts";
+import { workstreamPath } from "../domain/workstream-path.ts";
+import { workstreamAncestors, type Workstream } from "../domain/workstreams.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal, JournalEntry } from "./journal.ts";
-import type { WorkstreamStore } from "./topics.ts";
+import type { WorkstreamStore } from "./workstreams.ts";
 import { displayTitle, type InventoryThread } from "./inventory.ts";
 
 type Sdk = BbPluginApi["sdk"];
@@ -176,11 +176,11 @@ export class ProjectAssociations {
   recordChoice(
     thread: Observed,
     choice: ProjectChoice | null | undefined,
-    independentRoot = true,
+    independentThread = true,
   ): void {
     this.observe(thread);
     const source: Source =
-      derived(thread) || !independentRoot
+      derived(thread) || !independentThread
         ? "derived"
         : choice?.projectId === thread.projectId
           ? choice.source
@@ -361,7 +361,7 @@ export class ProjectAssociations {
    * still in the project their choice recorded, and filed in a workstream.
    * Archived roots count.
    */
-  private roots(): ProjectRoot[] {
+  private roots(): ProjectThread[] {
     return this.deps.db
       .prepare(
         `SELECT r.thread_id AS id, r.name, r.project_id AS projectId, s.workstream_id AS workstreamId
@@ -374,7 +374,7 @@ export class ProjectAssociations {
           AND s.workstream_id IS NOT NULL
         ORDER BY r.thread_id`,
       )
-      .all() as ProjectRoot[];
+      .all() as ProjectThread[];
   }
 
   private plan(): ProjectLearningDecision[] {
@@ -398,7 +398,7 @@ export class ProjectAssociations {
           projectId: decision.projectId,
           projectSource: "learned",
         });
-        this.record(workstream, next, "workstreams", decision.roots);
+        this.record(workstream, next, "workstreams", decision.threads);
         changed = true;
       } else {
         const id = createHash("sha256")
@@ -415,7 +415,7 @@ export class ProjectAssociations {
           .prepare("SELECT * FROM ws_project_suggestion WHERE id = ?")
           .get(id) as SuggestionRow | undefined;
         if (row?.status === "declined" || row?.status === "accepted") continue;
-        const evidence = JSON.stringify(decision.roots);
+        const evidence = JSON.stringify(decision.threads);
         if (!row || row.status !== "pending" || row.evidence !== evidence) {
           db.prepare(
             `INSERT INTO ws_project_suggestion (id, workstream_id, association_revision, project_id, evidence, status) VALUES (?, ?, ?, ?, ?, 'pending')
@@ -469,7 +469,7 @@ export class ProjectAssociations {
         workstream.projectRevision !== row.association_revision
       )
         return [];
-      const roots = JSON.parse(row.evidence) as ProjectRoot[];
+      const roots = JSON.parse(row.evidence) as ProjectThread[];
       return [
         {
           id: row.id,
@@ -482,13 +482,13 @@ export class ProjectAssociations {
           toProject: row.project_id ? this.projectName(row.project_id) : null,
           reason: row.project_id
             ? "Threads of their own consistently use a different project."
-            : new Set(roots.map((root) => root.projectId)).size > 1
+            : new Set(roots.map((thread) => thread.projectId)).size > 1
               ? "Threads of their own use different projects."
               : "The project used by these independent roots is unavailable.",
-          threads: roots.map((root) => ({
-            id: root.id,
-            name: root.name,
-            project: this.projectName(root.projectId),
+          threads: roots.map((thread) => ({
+            id: thread.id,
+            name: thread.name,
+            project: this.projectName(thread.projectId),
           })),
         },
       ];
@@ -523,7 +523,7 @@ export class ProjectAssociations {
             "UPDATE ws_project_suggestion SET status = ?, evidence = '[]' WHERE id = ?",
           )
           .run(decision === "accept" ? "accepted" : "declined", id);
-        const roots = JSON.parse(row.evidence) as ProjectRoot[];
+        const roots = JSON.parse(row.evidence) as ProjectThread[];
         if (decision === "accept") {
           const next = this.deps.workstreamStore.edit(workstream.id, {
             projectId: row.project_id,
@@ -567,7 +567,7 @@ export class ProjectAssociations {
     before: Workstream,
     after: Workstream,
     source: "you" | "workstreams",
-    roots: readonly ProjectRoot[],
+    roots: readonly ProjectThread[],
   ): JournalEntry {
     const name = after.projectId
       ? this.projectName(after.projectId)

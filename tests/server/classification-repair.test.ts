@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { fakeWorld } from "./fake-bb.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { openDatabase } from "../../src/server/db.ts";
 let world: Awaited<ReturnType<typeof fakeWorld>> | undefined;
 afterEach(async () => {
@@ -54,7 +54,10 @@ describe("bounded classification repair", () => {
         }),
     });
     const w = world;
-    new WorkstreamStore(openDatabase(w.bb)).create("Pipeline", "Release pipeline");
+    new WorkstreamStore(openDatabase(w.bb)).create(
+      "Pipeline",
+      "Release pipeline",
+    );
     expect(await preview(w)).toMatchObject({
       title: "Release pipeline audit",
       workstreamId: null,

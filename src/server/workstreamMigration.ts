@@ -3,15 +3,15 @@ import {
   workstreamMigrationInput,
   type WorkstreamMigrationInput,
   type WorkstreamMigrationPlan,
-} from "../domain/topicMigration.ts";
+} from "../domain/workstreamMigration.ts";
 import {
   assertWorkstreamLevels,
   takesThreads,
   type Workstream,
-} from "../domain/topics.ts";
-import { pathNames, workstreamPath } from "../domain/topic-path.ts";
+} from "../domain/workstreams.ts";
+import { pathNames, workstreamPath } from "../domain/workstream-path.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
-import type { WorkstreamStore } from "./topics.ts";
+import type { WorkstreamStore } from "./workstreams.ts";
 import type { Journal } from "./journal.ts";
 import { UserError } from "./service.ts";
 

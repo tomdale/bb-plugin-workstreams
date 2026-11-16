@@ -1,7 +1,7 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { SuggestThread } from "../domain/tidy.ts";
 import { requestEvidence } from "./requests.ts";
-import type { WorkstreamStore } from "./topics.ts";
+import type { WorkstreamStore } from "./workstreams.ts";
 
 /** A workstream division reviews archived filing choices as well as current roots. */
 export async function workstreamDivisionEvidence(

@@ -1,12 +1,15 @@
 import { z } from "zod";
-import type { Workstream } from "./topics.ts";
-import { PATH_MARK } from "./topic-path.ts";
+import type { Workstream } from "./workstreams.ts";
+import { PATH_MARK } from "./workstream-path.ts";
 
 export const workstreamMigrationInput = z.object({
   resetThreadIds: z.array(z.string().min(1)).max(1000).default([]),
   choices: z
     .array(
-      z.object({ threadId: z.string().min(1), workstreamId: z.string().min(1) }),
+      z.object({
+        threadId: z.string().min(1),
+        workstreamId: z.string().min(1),
+      }),
     )
     .max(1000)
     .default([]),
@@ -48,5 +51,9 @@ export type WorkstreamMigrationPlan = {
     source: string;
   }>;
   resets: Array<{ threadId: string; from: string; source: string }>;
-  blockers: Array<{ threadId: string | null; workstreamId: string; reason: string }>;
+  blockers: Array<{
+    threadId: string | null;
+    workstreamId: string;
+    reason: string;
+  }>;
 };

@@ -6,7 +6,7 @@ import { useComposer } from "@get-bb/plugin-sdk/app";
 import { NewThreadRouting } from "../../src/app/composer/NewThreadRouting.tsx";
 import { fakeWorld } from "../server/fake-bb.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 
 let world: Awaited<ReturnType<typeof fakeWorld>> | null = null;
 beforeAll(() => {
@@ -58,7 +58,10 @@ async function mount() {
   const alpha = w.addSection("Alpha");
   const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
   seededAlphaId = workstreamStore.create("Alpha", "Alpha effort").id;
-  workstreamStore.edit(seededAlphaId, { projectId: "proj_1", projectSource: "manual" });
+  workstreamStore.edit(seededAlphaId, {
+    projectId: "proj_1",
+    projectSource: "manual",
+  });
   workstreamStore.bindGroup(alpha.id, seededAlphaId);
   w.addThread("a1", { sectionId: alpha.id, title: "Alpha task" });
   await w.harness.behavior.callRpc("refresh", null);
@@ -114,7 +117,9 @@ it("stops previewing once the text settles (no classify loop)", async () => {
     slot.behavior.setComposerText("Fix the parser in Alpha so it handles tabs"),
   );
   await act(() => vi.advanceTimersByTimeAsync(1000));
-  expect(screen.getByRole("button", { name: "Workstream: Alpha" })).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Workstream: Alpha" }),
+  ).toBeTruthy();
   const previewCalls = () =>
     slot.inspection.rpcCalls.filter((call) => call.method === "preview").length;
   const before = previewCalls();
@@ -138,9 +143,9 @@ it("shares one routing model across banners for the same draft", async () => {
   await screen.findAllByRole("button", { name: "Workstream: Alpha" });
   expect(previewCalls()).toBe(1);
   // Both views show the one model's resolved identity.
-  expect(screen.getAllByRole("button", { name: "Workstream: Alpha" })).toHaveLength(
-    2,
-  );
+  expect(
+    screen.getAllByRole("button", { name: "Workstream: Alpha" }),
+  ).toHaveLength(2);
 
   // A keystroke in the other view settles with exactly one more preview.
   await act(() =>

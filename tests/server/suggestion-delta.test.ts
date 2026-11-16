@@ -8,7 +8,7 @@ import type { Split, TidyEdit } from "../../src/domain/tidy.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { Journal } from "../../src/server/journal.ts";
 import { Suggestions } from "../../src/server/suggestions.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { createTestPluginHost } from "./test-host.ts";
 
 /**
@@ -77,7 +77,7 @@ function world(pluginId: string) {
   db.prepare(
     "UPDATE ws_thread_workstream SET workstream_id = ? WHERE thread_id = 's1'",
   ).run(id.support!);
-  const roots = [
+  const threads = [
     "i1",
     "p1",
     "p2",
@@ -97,7 +97,7 @@ function world(pluginId: string) {
     journal: new Journal(db),
     model: async () => null as never,
     enabled: () => false,
-    roots: () => roots,
+    threads: () => threads,
     checkout: () => null,
     coordination: () => [],
     onChange: () => {},
@@ -218,7 +218,11 @@ describe("a suggestion's delta equals accepting it", () => {
       thread: "u1",
       workstream: id.docs!,
     })),
-    edit("rename", (id) => ({ op: "rename", workstream: id.docs!, name: "Guides" })),
+    edit("rename", (id) => ({
+      op: "rename",
+      workstream: id.docs!,
+      name: "Guides",
+    })),
     edit("move-workstream", (id) => ({
       op: "move-workstream",
       workstream: id.docs!,

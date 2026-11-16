@@ -1,4 +1,4 @@
-import type { WorkstreamAssignment } from "../domain/topics.ts";
+import type { WorkstreamAssignment } from "../domain/workstreams.ts";
 
 /** Facts whose changes invalidate an inference about a thread's current work. */
 export function threadEvidence(thread: {

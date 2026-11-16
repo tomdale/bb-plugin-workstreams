@@ -3,7 +3,7 @@ import {
   assertProposalLevels,
   resolveProposal,
   workstreamAncestors,
-} from "../src/domain/topics.ts";
+} from "../src/domain/workstreams.ts";
 import type { ClassifyInput } from "./classification-cases.ts";
 type Result = WorkstreamAnswer;
 /** Evaluation-only synonym sets; production routing never uses them. Score baseline and candidate with the same sets. */

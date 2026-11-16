@@ -19,7 +19,7 @@ afterEach(async () => {
 const collection = (n = 6): CategoryCollection => ({
   workstreamId: "topic-a",
   label: "Vertex",
-  roots: Array.from({ length: n }, (_, i) => ({
+  threads: Array.from({ length: n }, (_, i) => ({
     id: `t${i}`,
     title: `Work ${i}`,
     work: "Purpose",
@@ -33,12 +33,12 @@ const decision = (input: CategoryInput): CategoryDecision => ({
     {
       id: input.current?.categories[0]?.id ?? null,
       name: "One area",
-      threadIds: input.roots.slice(0, 3).map((root) => root.id),
+      threadIds: input.threads.slice(0, 3).map((thread) => thread.id),
     },
     {
       id: input.current?.categories[1]?.id ?? null,
       name: "Another area",
-      threadIds: input.roots.slice(3).map((root) => root.id),
+      threadIds: input.threads.slice(3).map((thread) => thread.id),
     },
   ],
 });
@@ -116,7 +116,7 @@ describe("persisted collection categories", () => {
     await engine.reconcile();
     expect(fit.mock.calls.at(-1)?.[0].changed).toEqual(["t6"]);
     expect(classify).toHaveBeenCalledTimes(2);
-    expect(classify.mock.calls.at(-1)?.[0].roots).toHaveLength(7);
+    expect(classify.mock.calls.at(-1)?.[0].threads).toHaveLength(7);
     // A departure only prunes, with no call.
     state.collections = [collection(5)];
     await engine.reconcile();
@@ -126,14 +126,14 @@ describe("persisted collection categories", () => {
     const before = engine.generations()["topic-a"]!;
     const home = before.categories.find((c) => c.threadIds.includes("t0"))!;
     fit.mockImplementationOnce(async () => ({ t0: home.id }));
-    state.collections[0]!.roots[0]!.workKey = "new substantive request";
+    state.collections[0]!.threads[0]!.workKey = "new substantive request";
     await engine.reconcile();
     expect(fit.mock.calls.at(-1)?.[0].changed).toEqual(["t0"]);
     expect(classify).toHaveBeenCalledTimes(2);
     expect(engine.generations()["topic-a"]).toEqual(before);
     // An arrival that fits joins its category, recorded as a change.
     const reasons = changed.mock.calls.length;
-    state.collections[0]!.roots.push({ ...collection(6).roots[5]! });
+    state.collections[0]!.threads.push({ ...collection(6).threads[5]! });
     fit.mockImplementationOnce(async () => ({ t5: home.id }));
     await engine.reconcile();
     expect(classify).toHaveBeenCalledTimes(2);
@@ -197,7 +197,7 @@ describe("persisted collection categories", () => {
     const { engine, classify, state } = setup();
     await engine.reconcile();
     await engine.requestChanged("t0", "Investigate permissions");
-    state.collections[0]!.roots[0]!.workKey = "analyzed-request-2";
+    state.collections[0]!.threads[0]!.workKey = "analyzed-request-2";
     await engine.reconcile();
     expect(classify).toHaveBeenCalledTimes(3);
     expect(engine.pendingRequest("t0", "request-1")).toBeUndefined();
@@ -206,7 +206,7 @@ describe("persisted collection categories", () => {
   it("does not recategorize for title-only updates", async () => {
     const { engine, state, classify } = setup();
     await engine.reconcile();
-    state.collections[0]!.roots[0]!.title = "New generated title";
+    state.collections[0]!.threads[0]!.title = "New generated title";
     await engine.reconcile();
     expect(classify).toHaveBeenCalledTimes(1);
   });
@@ -341,12 +341,12 @@ describe("persisted collection categories", () => {
           resolve = done;
         }),
     );
-    state.collections[0]!.roots[1]!.workKey = "request-2";
+    state.collections[0]!.threads[1]!.workKey = "request-2";
     const latest = structuredClone(state.collections);
     const run = engine.reconcile();
     await vi.waitFor(() => expect(resolve).toBeTypeOf("function"));
-    state.collections[0]!.roots = state.collections[0]!.roots.filter(
-      (root) => root.id !== "t0",
+    state.collections[0]!.threads = state.collections[0]!.threads.filter(
+      (thread) => thread.id !== "t0",
     );
     void engine.reconcile();
     state.collections = latest;
@@ -385,7 +385,7 @@ describe("persisted collection categories", () => {
   it("supports a keep decision without rewriting category IDs", async () => {
     const { engine, state, classify } = setup();
     await engine.reconcile();
-    state.collections[0]!.roots[0]!.workKey = "request-2";
+    state.collections[0]!.threads[0]!.workKey = "request-2";
     const before = engine.generations();
     classify.mockResolvedValueOnce({
       keep: true,
@@ -426,7 +426,10 @@ describe("persisted collection categories", () => {
 
     // A changed collection is assessed again, without a throttle.
     state.collections = [
-      { ...other, roots: [...other.roots, { ...other.roots[0]!, id: "t9" }] },
+      {
+        ...other,
+        threads: [...other.threads, { ...other.threads[0]!, id: "t9" }],
+      },
       collection(),
       small,
     ];

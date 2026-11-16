@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakeWorld } from "./fake-bb.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import type { RepairPreview } from "../../src/server/contract.ts";
 import { Repair } from "../../src/server/reclassification.ts";
 let world: Awaited<ReturnType<typeof fakeWorld>> | undefined;
@@ -43,9 +43,7 @@ describe("reviewable topic repairs", () => {
     const { w, workstreamStore, a } = await setup();
     workstreamStore.assign("t", a.id);
     const result = await w.harness.behavior.runCli(["preview", "t"]);
-    expect(result.stdout).toContain(
-      "nothing to apply",
-    );
+    expect(result.stdout).toContain("nothing to apply");
     expect(result.stdout).not.toContain("Apply with");
   });
   it("does not reconcile or journal outside moves while previewing from the CLI", async () => {
@@ -55,11 +53,7 @@ describe("reviewable topic repairs", () => {
       ...w.threads.get("t")!,
       sectionId: w.addSection("Outside").id,
     });
-    const result = await w.harness.behavior.runCli([
-      "preview",
-      "t",
-      "--json",
-    ]);
+    const result = await w.harness.behavior.runCli(["preview", "t", "--json"]);
     expect(result.exitCode).toBe(0);
     expect(await w.harness.behavior.callRpc("journal", {})).toEqual(before);
   });
@@ -144,11 +138,7 @@ describe("reviewable topic repairs", () => {
     const human = await w.harness.behavior.runCli(["preview", "t"]);
     expect(human.stdout).toContain("Pipeline Audit:");
     expect(human.stdout).not.toMatch(/[\u001b\u202a-\u202e]/);
-    const json = await w.harness.behavior.runCli([
-      "preview",
-      "t",
-      "--json",
-    ]);
+    const json = await w.harness.behavior.runCli(["preview", "t", "--json"]);
     expect(JSON.parse(json.stdout).rows[0].title).toBe(title);
   });
 
@@ -160,10 +150,7 @@ describe("reviewable topic repairs", () => {
       status: "idle",
     });
     await w.harness.behavior.callRpc("refresh", null);
-    const human = await w.harness.behavior.runCli([
-      "preview",
-      "child",
-    ]);
+    const human = await w.harness.behavior.runCli(["preview", "child"]);
     expect(human.stdout).toContain("Delegate follow-up:");
     expect(human.stdout).not.toContain("child:");
 

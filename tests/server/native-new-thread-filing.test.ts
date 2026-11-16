@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
 import { fakeWorld } from "./fake-bb.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { ComposedDrafts, draftText } from "../../src/server/composed-drafts.ts";
 

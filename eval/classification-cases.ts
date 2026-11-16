@@ -1,5 +1,5 @@
 import type { Workstream } from "../src/domain/classify.ts";
-import type { WorkstreamChoiceInput } from "../src/domain/placement.ts";
+import type { WorkstreamChoiceInput } from "../src/domain/workstreamChoice.ts";
 
 /** One classification case's evidence, as Full analysis is shown it. */
 export type ClassifyInput = {

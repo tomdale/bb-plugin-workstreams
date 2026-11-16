@@ -102,7 +102,7 @@ for (const scenario of cases) {
       for (let attempt = 1; attempt <= 3; attempt++) {
         messages.push({
           role: "user",
-          content: `[Workstreams recap synthetic 1 ${attempt}]\n${reminder} Correction ${attempt} of 3.`,
+          content: `[Workstreams recap synthetic 1 ${attempt}]\n${reminder} Reminder ${attempt} of 3.`,
         });
         const response = await fetch(
           "https://ai-gateway.vercel.sh/v1/chat/completions",

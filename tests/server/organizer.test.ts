@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { makePluginAgentConfigurationContext } from "@get-bb/plugin-sdk/testing";
 import { RECAP_TOOL } from "../../src/domain/recap.ts";
 import { fakeWorld } from "./fake-bb.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import type { OrganizerState } from "../../src/server/contract.ts";
 import { AgentRecaps } from "../../src/server/recap.ts";
@@ -583,9 +583,9 @@ describe("automatic update coordinator lifecycle", () => {
     );
 
     // Completed tasks must be filed in native sections, not Unfiled!
-    const doneRootThread = w.threads.get("done-root");
+    const doneThread = w.threads.get("done-root");
     const doneDocsThread = w.threads.get("done-docs");
-    expect(doneRootThread?.sectionId).not.toBeNull();
+    expect(doneThread?.sectionId).not.toBeNull();
     expect(doneDocsThread?.sectionId).not.toBeNull();
 
     // Each completed root keeps its own topic's workstream.

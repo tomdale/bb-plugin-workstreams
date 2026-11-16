@@ -19,7 +19,7 @@ import {
   sharedWorkstreamId,
   type WorkstreamTree,
 } from "../../domain/groups.ts";
-import { takesThreads } from "../../domain/topics.ts";
+import { takesThreads } from "../../domain/workstreams.ts";
 import type { ReorderChange } from "../useWorkstreams.ts";
 import type { Drop } from "./dnd.tsx";
 

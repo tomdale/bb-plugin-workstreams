@@ -379,7 +379,7 @@ it("sorts and groups Recent from its section menu and persists the preference", 
   });
   fireEvent.click(
     within(await screen.findByRole("menu")).getByRole("menuitemcheckbox", {
-      name: "Group by workstream",
+      name: "Show by workstream",
     }),
   );
   expect(groupRows(slot, "Recent Alpha")).toEqual(["Zulu task"]);

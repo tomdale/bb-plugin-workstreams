@@ -5,7 +5,7 @@ import {
   workstreamChoicePrompt,
   workstreamChoiceSchema,
   type WorkstreamChoiceInput,
-} from "../src/domain/placement.ts";
+} from "../src/domain/workstreamChoice.ts";
 import { parseStart, startPrompt, startSchema } from "../src/domain/start.ts";
 import {
   parseTurnEnd,
@@ -17,7 +17,7 @@ import {
   gatewayKey,
   gatewayComplete,
 } from "../src/server/inference/gateway.ts";
-import { takesThreads } from "../src/domain/topics.ts";
+import { takesThreads } from "../src/domain/workstreams.ts";
 import { scoreClassification } from "./classification-score.ts";
 import { cases } from "./classification-cases.ts";
 
@@ -26,7 +26,7 @@ const apiKey = await gatewayKey();
 if (!apiKey) throw new Error("AI Gateway authentication required");
 const kind = process.env.EVAL_KIND ?? "workstream-choice";
 if (!["workstream-choice", "start", "turn-end"].includes(kind))
-  throw new Error("EVAL_KIND must be placement, start, or turn-end");
+  throw new Error("EVAL_KIND must be workstream-choice, start, or turn-end");
 const model = process.env.EVAL_MODEL ?? "openai/gpt-6.1-sol";
 const reasoningLevel = process.env.EVAL_REASONING_LEVEL ?? "none";
 const repetitions = Number(process.env.EVAL_REPETITIONS ?? 1);

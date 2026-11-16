@@ -47,9 +47,9 @@ function fitInput(test: (typeof cases)[number]): CategoryFitInput | null {
   if (!current || !current.categories.length || mostlySingletons(current))
     return null;
   const filed = new Set(current.categories.flatMap((c) => c.threadIds));
-  const changed = test.input.roots
-    .filter((root) => !filed.has(root.id) || root.workKey !== "request-1")
-    .map((root) => root.id);
+  const changed = test.input.threads
+    .filter((thread) => !filed.has(thread.id) || thread.workKey !== "request-1")
+    .map((thread) => thread.id);
   return changed.length ? { ...test.input, current, changed } : null;
 }
 const partitionKey = (partitions: string[][]) =>

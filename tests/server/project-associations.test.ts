@@ -3,7 +3,7 @@ import { afterEach, expect, it } from "vitest";
 import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { setMeta } from "../../src/server/db.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { Journal } from "../../src/server/journal.ts";
 import { WorkstreamService } from "../../src/server/service.ts";
 import { ProjectAssociations } from "../../src/server/projectAssociations.ts";

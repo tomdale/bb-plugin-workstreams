@@ -187,7 +187,7 @@ export function nextUpNextDeadline<T extends UpNextThread>(
   );
   const wakeOf = options.snoozedUntil ?? (() => undefined);
   let next = Number.POSITIVE_INFINITY;
-  for (const root of buildForest(visible).roots) {
+  for (const root of buildForest(visible).threads) {
     const thread = root.thread;
     if (
       wakeOf(thread) !== undefined ||

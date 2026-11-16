@@ -4,7 +4,7 @@ import {
   workstreamColorStyle,
   type WorkstreamColor,
 } from "../domain/workstreamColor.ts";
-import { PATH_MARK } from "../domain/topic-path.ts";
+import { PATH_MARK } from "../domain/workstream-path.ts";
 
 /** Splits "<Group> › <Workstream>" into its parts; null for a plain name. */
 export function splitWorkstreamName(

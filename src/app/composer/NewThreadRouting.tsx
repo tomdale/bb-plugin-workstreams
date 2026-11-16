@@ -21,7 +21,7 @@ import {
   NO_PROJECT,
   workstreamProject,
   workstreamProjectConflict,
-} from "../../domain/topicProject.ts";
+} from "../../domain/workstreamProject.ts";
 import {
   carryPickedWorkstream,
   preserveProjectChoice,

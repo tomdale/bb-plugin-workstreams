@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
-import { chosenProject } from "../../src/domain/topicProject.ts";
-import type { Workstream } from "../../src/domain/topics.ts";
+import { chosenProject } from "../../src/domain/workstreamProject.ts";
+import type { Workstream } from "../../src/domain/workstreams.ts";
 
 const workstreams: Workstream[] = [
   {

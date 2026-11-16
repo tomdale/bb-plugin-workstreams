@@ -11,7 +11,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { ModelChoice } from "../domain/prefs.ts";
-import type { Workstream } from "../domain/topics.ts";
+import type { Workstream } from "../domain/workstreams.ts";
 import {
   describeEdit,
   editKey,
@@ -34,7 +34,7 @@ import {
   type ChangeDelta,
   type SuggestionChange,
 } from "../domain/suggestion-change.ts";
-import { workstreamPath } from "../domain/topic-path.ts";
+import { workstreamPath } from "../domain/workstream-path.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal } from "./journal.ts";
 import { UserError } from "./service.ts";
@@ -43,7 +43,7 @@ import {
   snapshotWorkstreams,
   workstreamsFingerprint,
   type WorkstreamStore,
-} from "./topics.ts";
+} from "./workstreams.ts";
 
 /** How long an automatic check waits for changes to settle. */
 const CHECK_DEBOUNCE_MS = 2_000;
@@ -112,7 +112,7 @@ type TidyMemo = {
 };
 
 /** A visible root as suggestions read it. */
-type SuggestRoot = { id: string; title: string };
+type TitledThread = { id: string; title: string };
 
 /** An edit that needs a workstream another suggestion of its pass creates. */
 class NotYet extends Error {}
@@ -173,7 +173,7 @@ export class Suggestions {
       /** Whether automatic suggestions are on. */
       enabled: () => boolean;
       /** Visible, non-archived roots. */
-      roots: () => readonly SuggestRoot[];
+      threads: () => readonly TitledThread[];
       splitThreads?: (workstreamId: string) => Promise<SuggestThread[]>;
       checkout: (threadId: string) => string | null;
       coordination: () => string[];
@@ -220,7 +220,7 @@ export class Suggestions {
     const tree = this.tree();
     const known = {
       workstreams: this.deps.workstreamStore.list(),
-      titles: new Map(this.deps.roots().map((r) => [r.id, r.title])),
+      titles: new Map(this.deps.threads().map((r) => [r.id, r.title])),
     };
     return rows.map((row) => {
       const review =
@@ -290,8 +290,8 @@ export class Suggestions {
       this.deps.workstreamStore.revision(),
       this.deps.enabled(),
       this.deps
-        .roots()
-        .map((root) => root.id)
+        .threads()
+        .map((thread) => thread.id)
         .sort(),
     ]);
   }
@@ -520,8 +520,11 @@ export class Suggestions {
         ])
         .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
       this.deps
-        .roots()
-        .map((root) => [root.id, assignments[root.id]?.workstreamId ?? null])
+        .threads()
+        .map((thread) => [
+          thread.id,
+          assignments[thread.id]?.workstreamId ?? null,
+        ])
         .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
     ]);
   }
@@ -529,7 +532,7 @@ export class Suggestions {
   private async tidy(manual: boolean): Promise<void> {
     const memo = this.memo();
     const workstreams = this.deps.workstreamStore.list();
-    const roots = this.deps.roots();
+    const roots = this.deps.threads();
     const fingerprint = this.fingerprint();
     if (!manual) {
       // Older installations have no fingerprint. Adopt the current snapshot
@@ -682,11 +685,11 @@ export class Suggestions {
 
   private threads(): SuggestThread[] {
     const assignments = this.deps.workstreamStore.assignments();
-    return this.deps.roots().map((root) => ({
-      id: root.id,
-      title: root.title,
-      checkout: this.deps.checkout(root.id),
-      workstreamId: assignments[root.id]?.workstreamId ?? null,
+    return this.deps.threads().map((thread) => ({
+      id: thread.id,
+      title: thread.title,
+      checkout: this.deps.checkout(thread.id),
+      workstreamId: assignments[thread.id]?.workstreamId ?? null,
     }));
   }
 
@@ -706,7 +709,7 @@ export class Suggestions {
   /** Names for descriptions; `new:` references read as their names. */
   private names() {
     const workstreams = this.deps.workstreamStore.list();
-    const titles = new Map(this.deps.roots().map((r) => [r.id, r.title]));
+    const titles = new Map(this.deps.threads().map((r) => [r.id, r.title]));
     return {
       workstream: (ref: string | null) => {
         if (ref === null) return "the top level";
@@ -1032,7 +1035,7 @@ export class Suggestions {
             threads.push({
               id: edit.thread,
               name:
-                this.deps.roots().find((r) => r.id === edit.thread)?.title ??
+                this.deps.threads().find((r) => r.id === edit.thread)?.title ??
                 edit.thread,
             });
             break;
@@ -1059,7 +1062,7 @@ export class Suggestions {
   /** What you decided by hand, for tidy's memory. */
   private decisions(): string[] {
     const workstreams = this.deps.workstreamStore.list();
-    const titles = new Map(this.deps.roots().map((r) => [r.id, r.title]));
+    const titles = new Map(this.deps.threads().map((r) => [r.id, r.title]));
     const assignments = this.deps.workstreamStore.assignments();
     const filed = Object.values(assignments)
       .filter(

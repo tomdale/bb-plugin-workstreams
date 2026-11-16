@@ -23,7 +23,7 @@ import {
   type UpNextOptions,
   type UpNextThread,
 } from "./upNext.ts";
-import { pathNames } from "./topic-path.ts";
+import { pathNames } from "./workstream-path.ts";
 
 /** Where a root is filed: its top-level workstream and the path to its own. */
 type FeedPlace = {

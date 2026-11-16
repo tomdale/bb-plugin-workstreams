@@ -11,8 +11,8 @@ import plugin from "../../src/server/index.ts";
 import { savePrefs } from "../../src/server/prefs.ts";
 import type { PrefsPatch } from "../../src/domain/prefs.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
-import { promptIds } from "../../src/domain/placement.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
+import { promptIds } from "../../src/domain/workstreamChoice.ts";
 
 type Thread = ReturnType<typeof makeThreadResponse>;
 type Section = {
@@ -94,7 +94,8 @@ function asPlacement(
   } catch {
     return answer;
   }
-  if (!parsed || typeof parsed !== "object" || "workstream" in parsed) return answer;
+  if (!parsed || typeof parsed !== "object" || "workstream" in parsed)
+    return answer;
   const ids = promptIds(workstreams);
   const short = (id: unknown) =>
     typeof id === "string" ? (ids.get(id) ?? id) : null;
@@ -233,7 +234,9 @@ export async function fakeWorld(
             signal: call.signal,
           })) ?? DEFAULT_ANSWER;
         const description = await answer(
-          starting ? input.prompt.replace(START_WORKSTREAM, START) : input.prompt,
+          starting
+            ? input.prompt.replace(START_WORKSTREAM, START)
+            : input.prompt,
         );
         // A test that answers in the call's own shape is used as written.
         try {

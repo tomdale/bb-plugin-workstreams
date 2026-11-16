@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { resolveProposal, type Workstream } from "../../src/domain/topics.ts";
+import {
+  resolveProposal,
+  type Workstream,
+} from "../../src/domain/workstreams.ts";
 
-const workstream = (id: string, parentId: string | null = null): Workstream => ({
+const workstream = (
+  id: string,
+  parentId: string | null = null,
+): Workstream => ({
   id,
   name: id,
   description: "",

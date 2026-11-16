@@ -1,4 +1,4 @@
-import { PATH_MARK, workstreamPath } from "../domain/topic-path.ts";
+import { PATH_MARK, workstreamPath } from "../domain/workstream-path.ts";
 import {
   workstreamAncestors,
   assertWorkstreamLevels,
@@ -9,7 +9,7 @@ import {
   type WorkstreamState,
   type Workstream,
   type DraftWorkstreamProposal,
-} from "../domain/topics.ts";
+} from "../domain/workstreams.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { getMeta, setMeta, type Database } from "./db.ts";
 
@@ -635,12 +635,12 @@ export class WorkstreamStore {
     return currentId;
   }
 
-  private subject(rootId: string): AssignmentRow | undefined {
+  private subject(threadId: string): AssignmentRow | undefined {
     return this.db
       .prepare(
         "SELECT workstream_id, evidence, source FROM ws_thread_workstream WHERE thread_id = ?",
       )
-      .get(rootId) as AssignmentRow | undefined;
+      .get(threadId) as AssignmentRow | undefined;
   }
 
   /**

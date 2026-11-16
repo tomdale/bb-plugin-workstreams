@@ -18,7 +18,7 @@ const root = (id: string, title: string) => ({
 const input: CategoryFitInput = {
   workstreamId: "harbor",
   label: "Harbor",
-  roots: [
+  threads: [
     root("a", "Invoice rounding"),
     root("b", "Annual plans"),
     root("c", "Role checks"),

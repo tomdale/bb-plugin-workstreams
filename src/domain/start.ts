@@ -3,7 +3,7 @@
  * for a root, chooses its workstream. Pure, so the server, the composer's guess,
  * its trace replays, and the eval share one prompt and parser.
  *
- * Placement is placement's (see placement.ts): the same rules, tree,
+ * Placement is placement's (see workstreamChoice.ts): the same rules, tree,
  * hints, and closed set of answers. The title follows the rules a turn's end
  * uses (`TITLE_RULES`), written as an -ing verb and a subject that code joins,
  * so the form is the output's shape rather than a rule the model may drop.
@@ -33,7 +33,7 @@ import {
   choiceSections,
   type WorkstreamChoiceInput,
   type WorkstreamChoiceOutput,
-} from "./placement.ts";
+} from "./workstreamChoice.ts";
 
 /** The opening request is excerpted to this much. */
 const REQUEST_CHARS = 1500;

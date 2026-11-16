@@ -1,4 +1,4 @@
-import { workstreamAncestors } from "./topics.ts";
+import { workstreamAncestors } from "./workstreams.ts";
 
 /**
  * The workstream a workstream's roots file under: its nearest self-or-ancestor

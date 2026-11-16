@@ -1,5 +1,5 @@
 import { compareGroupNames } from "./group-name-order.ts";
-import type { Workstream } from "./topics.ts";
+import type { Workstream } from "./workstreams.ts";
 
 /**
  * Joins a workstream path in plain text: "bb › Workstreams Plugin". Names may

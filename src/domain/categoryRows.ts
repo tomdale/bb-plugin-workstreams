@@ -14,15 +14,15 @@ export function categoryRows<R extends TreeRow>(
     rows: [] as R[],
   }));
   const unplaced = { id: null, name: null, rows: [] as R[] };
-  const byRoot = new Map<string, number>();
+  const byThread = new Map<string, number>();
   generation.categories.forEach((category, index) => {
     for (const id of category.threadIds)
-      if (!byRoot.has(id)) byRoot.set(id, index);
+      if (!byThread.has(id)) byThread.set(id, index);
   });
   let bucket = unplaced.rows;
   for (const row of rows) {
     if (row.depth === 0) {
-      const index = byRoot.get(row.thread.id);
+      const index = byThread.get(row.thread.id);
       bucket = index === undefined ? unplaced.rows : categories[index]!.rows;
     }
     bucket.push(row);

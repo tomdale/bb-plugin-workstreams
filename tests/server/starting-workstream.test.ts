@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
 import { choosesWorkstream, fakeWorld, isStart } from "./fake-bb.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { openDatabase } from "../../src/server/db.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
@@ -50,8 +50,14 @@ async function setup(placed?: () => string | null) {
   const parser = workstreamStore.create("Parser", "Parser product");
   const docs = workstreamStore.create("Docs", "Docs product");
   // A workstream's threads start in its project.
-  workstreamStore.edit(parser.id, { projectId: "proj_1", projectSource: "manual" });
-  workstreamStore.edit(docs.id, { projectId: "proj_1", projectSource: "manual" });
+  workstreamStore.edit(parser.id, {
+    projectId: "proj_1",
+    projectSource: "manual",
+  });
+  workstreamStore.edit(docs.id, {
+    projectId: "proj_1",
+    projectSource: "manual",
+  });
   workstreamId = parser.id;
   const hook = w.harness.registrations.hooks["message.dispatch"]!;
   const dispatch = async (
@@ -78,18 +84,34 @@ async function setup(placed?: () => string | null) {
   };
   const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
   const quickCalls = () => w.completions.filter((c) => isQuick(c.prompt));
-  return { w, workstreamStore: workstreamStore, parser, docs, dispatch, settle, quickCalls };
+  return {
+    w,
+    workstreamStore: workstreamStore,
+    parser,
+    docs,
+    dispatch,
+    settle,
+    quickCalls,
+  };
 }
 
 describe("a new root's first topic", () => {
   it("is settled by the start call on the first request", async () => {
     let docsId = "";
-    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup(() => docsId);
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      docs,
+      dispatch,
+      settle,
+    } = await setup(() => docsId);
     docsId = docs.id;
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
     expect(
-      w.completions.filter((c) => choosesWorkstream(c.prompt)).map((c) => c.prompt),
+      w.completions
+        .filter((c) => choosesWorkstream(c.prompt))
+        .map((c) => c.prompt),
     ).toEqual([expect.stringContaining("Make the parser handle tabs")]);
     expect(workstreamStore.assignment("t1")).toMatchObject({
       workstreamId: docs.id,
@@ -98,7 +120,13 @@ describe("a new root's first topic", () => {
   });
 
   it("weighs the workstream it was started from when that topic has subtopics", async () => {
-    const { w, workstreamStore: workstreamStore, parser, dispatch, settle } = await setup(() => null);
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      parser,
+      dispatch,
+      settle,
+    } = await setup(() => null);
     workstreamStore.create("Tabs", "Tab handling", parser.id);
     const section = w.addSection("Parser");
     workstreamStore.bindGroup(section.id, parser.id);
@@ -114,7 +142,9 @@ describe("a new root's first topic", () => {
     });
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
-    const prompt = w.completions.find((c) => choosesWorkstream(c.prompt))!.prompt;
+    const prompt = w.completions.find((c) =>
+      choosesWorkstream(c.prompt),
+    )!.prompt;
     expect(prompt).toContain("It was started from the Parser workstream.");
     expect(prompt).toContain("Tabs — Tab handling");
     expect(workstreamStore.assignment("t1").workstreamId).not.toBe(parser.id);
@@ -122,7 +152,13 @@ describe("a new root's first topic", () => {
 
   it("comes from one start call that also titles it", async () => {
     let parserId = "";
-    const { w, workstreamStore: workstreamStore, parser, dispatch, settle } = await setup(() => parserId);
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      parser,
+      dispatch,
+      settle,
+    } = await setup(() => parserId);
     parserId = parser.id;
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
@@ -138,7 +174,13 @@ describe("a new root's first topic", () => {
   });
 
   it("is the composer's preview of exactly the text sent, with no second call", async () => {
-    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      docs,
+      dispatch,
+      settle,
+    } = await setup();
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Write the docs",
@@ -163,11 +205,21 @@ describe("a new root's first topic", () => {
   });
 
   it("files by a preview of earlier text until the start call answers the text sent", async () => {
-    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      docs,
+      dispatch,
+      settle,
+    } = await setup();
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Write the docs",
-      identity: { workstreamId: docs.id, proposal: null, provenance: "automatic" },
+      identity: {
+        workstreamId: docs.id,
+        proposal: null,
+        provenance: "automatic",
+      },
     });
     await dispatch("t1", "Write the docs");
     await settle();
@@ -182,7 +234,13 @@ describe("a new root's first topic", () => {
   });
 
   it("is the topic you picked, which the start call never replaces", async () => {
-    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      docs,
+      dispatch,
+      settle,
+    } = await setup();
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Make the parser handle tabs",
@@ -199,7 +257,13 @@ describe("a new root's first topic", () => {
   });
 
   it("is the topic you picked even in a project other than its workstream's", async () => {
-    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      docs,
+      dispatch,
+      settle,
+    } = await setup();
     workstreamStore.edit(docs.id, {
       projectId: "proj_elsewhere",
       projectSource: "manual",
@@ -218,7 +282,13 @@ describe("a new root's first topic", () => {
   });
 
   it("never files Quick analysis's topic under a workstream with a different project", async () => {
-    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      docs,
+      dispatch,
+      settle,
+    } = await setup();
     workstreamStore.edit(docs.id, {
       projectId: "proj_elsewhere",
       projectSource: "manual",
@@ -226,7 +296,11 @@ describe("a new root's first topic", () => {
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Make the parser handle tabs",
-      identity: { workstreamId: docs.id, proposal: null, provenance: "automatic" },
+      identity: {
+        workstreamId: docs.id,
+        proposal: null,
+        provenance: "automatic",
+      },
     });
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
@@ -234,7 +308,13 @@ describe("a new root's first topic", () => {
   });
 
   it("is the topic of the workstream whose ＋ opened the composer", async () => {
-    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      docs,
+      dispatch,
+      settle,
+    } = await setup();
     const section = w.addSection("Docs");
     workstreamStore.bindGroup(section.id, docs.id);
     await w.harness.behavior.callRpc("draftIdentity", {
@@ -256,7 +336,13 @@ describe("a new root's first topic", () => {
   });
 
   it("is the topic of the thread an agent started it from", async () => {
-    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      docs,
+      dispatch,
+      settle,
+    } = await setup();
     w.addThread("caller", { title: "Caller" });
     workstreamStore.assign("caller", docs.id, { provenance: "automatic" });
     await dispatch("t1", "Make the parser handle tabs", {
@@ -272,7 +358,13 @@ describe("a new root's first topic", () => {
   });
 
   it("isn't given to a child, which follows its parent", async () => {
-    const { w, workstreamStore: workstreamStore, parser, dispatch, settle } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      parser,
+      dispatch,
+      settle,
+    } = await setup();
     w.addThread("parent", { title: "Parent" });
     await dispatch(
       "child",
@@ -283,13 +375,20 @@ describe("a new root's first topic", () => {
     await settle();
     await w.harness.behavior.callRpc("refresh", null);
     expect(workstreamStore.assignment("child").inheritedFrom).toBe("parent");
-    expect(workstreamStore.assignment("parent").workstreamId).not.toBe(parser.id);
+    expect(workstreamStore.assignment("parent").workstreamId).not.toBe(
+      parser.id,
+    );
   });
 });
 
 describe("the composer's preview", () => {
   it("gives a mentioned workstream's topic without a model call, and changes nothing", async () => {
-    const { w, workstreamStore: workstreamStore, docs, quickCalls } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      docs,
+      quickCalls,
+    } = await setup();
     const section = w.addSection("Docs");
     workstreamStore.bindGroup(section.id, docs.id);
     const revision = workstreamStore.revision();

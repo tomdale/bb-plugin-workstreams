@@ -18,8 +18,8 @@
 import { z } from "zod";
 import type { RecapState } from "./recap.ts";
 import { redact } from "./redact.ts";
-import { takesThreads, workstreamAncestors } from "./topics.ts";
-import { pathNames } from "./topic-path.ts";
+import { takesThreads, workstreamAncestors } from "./workstreams.ts";
+import { pathNames } from "./workstream-path.ts";
 
 export { redact };
 

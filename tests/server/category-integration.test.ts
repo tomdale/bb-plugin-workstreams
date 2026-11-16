@@ -1,9 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
 import { fakeWorld } from "./fake-bb.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import type { WorkstreamState } from "../../src/domain/topics.ts";
+import type { WorkstreamState } from "../../src/domain/workstreams.ts";
 
 const worlds: Awaited<ReturnType<typeof fakeWorld>>[] = [];
 afterEach(async () => {

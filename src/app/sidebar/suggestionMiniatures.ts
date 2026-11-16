@@ -41,7 +41,7 @@ import {
 } from "../../domain/workstreamColor.ts";
 import { workstreamHue } from "../../domain/workstreamHue.ts";
 import type { WorkstreamNode } from "../../domain/groups.ts";
-import { PATH_SEPARATOR } from "../../domain/topic-path.ts";
+import { PATH_SEPARATOR } from "../../domain/workstream-path.ts";
 
 /** Most ticks one workstream draws; larger ones share them by group. */
 export const TICK_CAP = 12;

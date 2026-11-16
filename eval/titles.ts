@@ -9,7 +9,7 @@ import {
   gatewayComplete,
   gatewayKey,
 } from "../src/server/inference/gateway.ts";
-import type { WorkstreamChoiceInput } from "../src/domain/placement.ts";
+import type { WorkstreamChoiceInput } from "../src/domain/workstreamChoice.ts";
 import {
   parseStart,
   startPrompt,
@@ -23,7 +23,7 @@ import {
   type TurnEndInput,
 } from "../src/domain/turnEnd.ts";
 import { VAGUE_VERBS, followUpCases, titleCases } from "./title-cases.ts";
-import { pathNames } from "../src/domain/topic-path.ts";
+import { pathNames } from "../src/domain/workstream-path.ts";
 
 /**
  * Paid evaluation of the titles Workstreams writes, through the production
@@ -155,7 +155,10 @@ if (kind === "follow" || kind === "turn-end-follow")
   }
 else
   for (const test of titleCases) {
-    const listing = { workstream: test.group ?? null, parent: test.parent ?? null };
+    const listing = {
+      workstream: test.group ?? null,
+      parent: test.parent ?? null,
+    };
     // A child thread is only named; a root chooses its listed group.
     const choice = test.parent ? null : placementFor(test.group ?? null);
     if (kind === "start") {

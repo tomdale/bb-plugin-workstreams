@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { openDatabase } from "../../src/server/db.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { fakeWorld } from "./fake-bb.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;

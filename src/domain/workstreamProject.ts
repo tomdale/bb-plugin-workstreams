@@ -1,4 +1,4 @@
-import type { Workstream } from "./topics.ts";
+import type { Workstream } from "./workstreams.ts";
 
 export function chosenProject(
   workstreamId: string | null | undefined,

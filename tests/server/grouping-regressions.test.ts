@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakeWorld } from "./fake-bb.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { openDatabase } from "../../src/server/db.ts";
 let world: Awaited<ReturnType<typeof fakeWorld>> | undefined;
 afterEach(async () => {
@@ -46,8 +46,14 @@ describe("grouping regressions", () => {
       expect(atThreshold.counts.totalThreads).toBe(5);
       expect(atThreshold.groups).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ name: "Product › Planning", totalCount: 3 }),
-          expect.objectContaining({ name: "Product › Triggers", totalCount: 2 }),
+          expect.objectContaining({
+            name: "Product › Planning",
+            totalCount: 3,
+          }),
+          expect.objectContaining({
+            name: "Product › Triggers",
+            totalCount: 2,
+          }),
         ]),
       );
 
@@ -73,8 +79,14 @@ describe("grouping regressions", () => {
       expect(merged.counts.totalThreads).toBe(3);
       expect(merged.groups).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ name: "Product › Planning", totalCount: 1 }),
-          expect.objectContaining({ name: "Product › Triggers", totalCount: 2 }),
+          expect.objectContaining({
+            name: "Product › Planning",
+            totalCount: 1,
+          }),
+          expect.objectContaining({
+            name: "Product › Triggers",
+            totalCount: 2,
+          }),
         ]),
       );
     },

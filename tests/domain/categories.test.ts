@@ -12,7 +12,7 @@ import {
 const input = (): CategoryInput => ({
   workstreamId: "workstreams",
   label: "bb: Workstreams Plugin",
-  roots: Array.from({ length: 6 }, (_, i) => ({
+  threads: Array.from({ length: 6 }, (_, i) => ({
     id: `thread-${i}`,
     title: `Work ${i}`,
     work: `Purpose ${i}`,
@@ -59,22 +59,22 @@ describe("category lifecycle", () => {
     const a = input();
     const b = {
       ...a,
-      roots: [...a.roots].reverse().map((root) => ({
-        ...root,
+      threads: [...a.threads].reverse().map((thread) => ({
+        ...thread,
         title: "Retitled",
         work: "Paraphrased purpose",
       })),
     };
     expect(categoryCollectionKey(a)).toBe(categoryCollectionKey(b));
-    b.roots[0]!.workKey = "new substantive request";
+    b.threads[0]!.workKey = "new substantive request";
     expect(categoryCollectionKey(a)).not.toBe(categoryCollectionKey(b));
-    expect(categoryCollectionKey({ ...a, roots: a.roots.slice(1) })).not.toBe(
-      categoryCollectionKey(a),
-    );
+    expect(
+      categoryCollectionKey({ ...a, threads: a.threads.slice(1) }),
+    ).not.toBe(categoryCollectionKey(a));
   });
   it("removes departed roots and empty categories without mutating the snapshot", () => {
     const before = generation();
-    const after = pruneCategories(before, input().roots.slice(0, 2));
+    const after = pruneCategories(before, input().threads.slice(0, 2));
     expect(after).toEqual({
       id: before.id,
       categories: [
@@ -137,7 +137,7 @@ describe("category classifier contract", () => {
         {
           id: "a",
           name: "Sidebar",
-          threadIds: collection.roots.map((root) => root.id),
+          threadIds: collection.threads.map((thread) => thread.id),
         },
       ],
     };

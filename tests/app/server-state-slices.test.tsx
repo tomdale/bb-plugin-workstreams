@@ -14,7 +14,7 @@ import {
   type StateSlice,
 } from "../../src/domain/changes.ts";
 import { DEFAULT_SNOOZE_PREFS } from "../../src/domain/snooze.ts";
-import type { WorkstreamAssignment } from "../../src/domain/topics.ts";
+import type { WorkstreamAssignment } from "../../src/domain/workstreams.ts";
 
 afterEach(cleanup);
 

@@ -13,7 +13,7 @@ import { useComposer } from "@get-bb/plugin-sdk/app";
 import { NewThreadRouting } from "../../src/app/composer/NewThreadRouting.tsx";
 import { fakeWorld } from "../server/fake-bb.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { setComposerPreset } from "../../src/app/composer/preset.ts";
 
 let world: Awaited<ReturnType<typeof fakeWorld>> | null = null;
@@ -81,10 +81,16 @@ async function mount(
   const beta = w.addSection("Beta");
   const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
   const alphaWorkstream = workstreamStore.create("Alpha", "Alpha effort");
-  workstreamStore.edit(alphaWorkstream.id, { projectId: "proj_1", projectSource: "manual" });
+  workstreamStore.edit(alphaWorkstream.id, {
+    projectId: "proj_1",
+    projectSource: "manual",
+  });
   workstreamStore.bindGroup(alpha.id, alphaWorkstream.id);
   const betaWorkstream = workstreamStore.create("Beta", "Beta effort");
-  workstreamStore.edit(betaWorkstream.id, { projectId: "proj_1", projectSource: "manual" });
+  workstreamStore.edit(betaWorkstream.id, {
+    projectId: "proj_1",
+    projectSource: "manual",
+  });
   workstreamStore.bindGroup(beta.id, betaWorkstream.id);
   seededAlphaId = alphaWorkstream.id;
   w.addThread("a1", { sectionId: alpha.id, title: "Alpha task" });
@@ -110,7 +116,8 @@ async function mount(
       });
     });
   };
-  if (options.inherited) setComposerPreset({ workstreamId: alphaWorkstream.id }, "Alpha");
+  if (options.inherited)
+    setComposerPreset({ workstreamId: alphaWorkstream.id }, "Alpha");
   const slot = renderSlot(
     { component: RootComposer },
     {},
@@ -184,7 +191,12 @@ async function mount(
 it.each(["Beta", "No workstream"] as const)(
   "files the displayed %s choice when native dispatch has no submit metadata",
   async (choice) => {
-    const { slot, workstreamStore: workstreamStore, betaWorkstream, dispatchNative } = await mount({});
+    const {
+      slot,
+      workstreamStore: workstreamStore,
+      betaWorkstream,
+      dispatchNative,
+    } = await mount({});
     fireEvent.click(
       await screen.findByRole("button", { name: "Workstream: Automatic" }),
     );
@@ -202,10 +214,12 @@ it.each(["Beta", "No workstream"] as const)(
 );
 
 it("files an inherited topic when native dispatch has no submit metadata", async () => {
-  const { slot, workstreamStore: workstreamStore, alphaWorkstream, dispatchNative } = await mount(
-    {},
-    { inherited: true },
-  );
+  const {
+    slot,
+    workstreamStore: workstreamStore,
+    alphaWorkstream,
+    dispatchNative,
+  } = await mount({}, { inherited: true });
   await screen.findByRole("button", { name: "Workstream: Alpha" });
   const prompt = "Improve parser diagnostics in this workstream";
   await act(() => slot.behavior.setComposerText(prompt));
@@ -217,7 +231,13 @@ it("files an inherited topic when native dispatch has no submit metadata", async
 });
 
 it("files an automatic topic and title when native dispatch has no submit metadata", async () => {
-  const { w, slot, workstreamStore: workstreamStore, alphaWorkstream, dispatchNative } = await mount({});
+  const {
+    w,
+    slot,
+    workstreamStore: workstreamStore,
+    alphaWorkstream,
+    dispatchNative,
+  } = await mount({});
   const prompt = "Fix the parser in Alpha so it handles tabs";
   await act(() => slot.behavior.setComposerText(prompt));
   await screen.findByRole("button", { name: "Workstream: Alpha" });
@@ -236,7 +256,11 @@ it("files an automatic topic and title when native dispatch has no submit metada
 });
 
 it("files a manually proposed topic without submit metadata", async () => {
-  const { slot, workstreamStore: workstreamStore, dispatchNative } = await mount({});
+  const {
+    slot,
+    workstreamStore: workstreamStore,
+    dispatchNative,
+  } = await mount({});
   fireEvent.click(
     await screen.findByRole("button", { name: "Workstream: Automatic" }),
   );
@@ -251,13 +275,19 @@ it("files a manually proposed topic without submit metadata", async () => {
   await act(() => slot.behavior.setComposerText(prompt));
   await dispatchNative(prompt);
   expect(workstreamStore.assignment("composed").workstreamId).toBe(
-    workstreamStore.list().find((workstream) => workstream.name === "Billing")?.id,
+    workstreamStore.list().find((workstream) => workstream.name === "Billing")
+      ?.id,
   );
 });
 
 it("does not wait for identity reporting before native dispatch and files a late report", async () => {
-  const { slot, workstreamStore: workstreamStore, betaWorkstream, dispatchNative, releaseReports } =
-    await mount({}, { deferReports: true });
+  const {
+    slot,
+    workstreamStore: workstreamStore,
+    betaWorkstream,
+    dispatchNative,
+    releaseReports,
+  } = await mount({}, { deferReports: true });
   fireEvent.click(
     await screen.findByRole("button", { name: "Workstream: Automatic" }),
   );
@@ -296,7 +326,10 @@ it("submits classified automatic identity through host metadata and assigns on s
   await dispatch(prompt);
   const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
   const assignment = workstreamStore.assignment("composed");
-  expect(assignment).toMatchObject({ status: "assigned", provenance: "automatic" });
+  expect(assignment).toMatchObject({
+    status: "assigned",
+    provenance: "automatic",
+  });
   // The composer's preview titles the thread, with no second call.
   await waitFor(() =>
     expect(w.threads.get("composed")?.title).toBe("Fixing parser tabs"),

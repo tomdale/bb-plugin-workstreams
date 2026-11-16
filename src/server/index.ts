@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { registerCli } from "./cli.ts";
 import type { ThreadListing } from "../domain/analysis.ts";
-import { workstreamPath } from "../domain/topic-path.ts";
+import { workstreamPath } from "../domain/workstream-path.ts";
 import { displayTitle, listActiveThreads, listSections } from "./inventory.ts";
 import { registerAgentInstructions } from "./agents.ts";
 import { Analyzer } from "./analyzer.ts";
@@ -15,28 +15,28 @@ import { RecapArchive } from "./archive.ts";
 import { Organizer } from "./organizer.ts";
 import { Categories } from "./categories.ts";
 import { categoryEvidence } from "./categoryEvidence.ts";
-import { workstreamDivisionEvidence } from "./topicDivisionEvidence.ts";
-import { WorkstreamMigration } from "./topicMigration.ts";
+import { workstreamDivisionEvidence } from "./splitEvidence.ts";
+import { WorkstreamMigration } from "./workstreamMigration.ts";
 import { buildForest } from "../domain/tree.ts";
-import { WorkstreamChoice } from "./placement.ts";
+import { WorkstreamChoice } from "./workstreamChoice.ts";
 import { isSubstantiveRequest } from "./requests.ts";
 import { withoutSubagentDeliveries } from "./requestProvenance.ts";
 import { Suggestions } from "./suggestions.ts";
 import { linkSuggestionTraces } from "./suggestionTrace.ts";
 import { ProjectAssociations } from "./projectAssociations.ts";
 import type { ProjectChoice } from "../domain/projectChoice.ts";
-import { workstreamProjectConflict } from "../domain/topicProject.ts";
+import { workstreamProjectConflict } from "../domain/workstreamProject.ts";
 import { Repair } from "./reclassification.ts";
 import { sectionMembers } from "./cleanup.ts";
 import { ComposerPreview, type Preview } from "./preview.ts";
-import { WorkstreamStore, workstreamBasis } from "./topics.ts";
-import { WorkstreamColors } from "./topicColors.ts";
+import { WorkstreamStore, workstreamBasis } from "./workstreams.ts";
+import { WorkstreamColors } from "./workstreamColors.ts";
 import { ComposedDrafts, type ComposedIdentity } from "./composed-drafts.ts";
 import {
   workstreamAncestors,
   takesThreads,
   type WorkstreamAssignment,
-} from "../domain/topics.ts";
+} from "../domain/workstreams.ts";
 import { assignmentEvidence, threadEvidence } from "./evidence.ts";
 import { rpcContract, projectChoiceSchema } from "./contract.ts";
 import { hostContract } from "./inference/contract.ts";
@@ -526,15 +526,15 @@ export default async function plugin(bb: BbPluginApi) {
       const snoozed = snoozes.all();
       const now = Date.now();
       const roots = buildForest(service.threads())
-        .roots.map((root) => root.thread)
+        .threads.map((root) => root.thread)
         .filter(
-          (root) =>
-            !root.isHidden &&
-            !root.isArchived &&
-            !isSnoozed(snoozed[root.id], now),
+          (thread) =>
+            !thread.isHidden &&
+            !thread.isArchived &&
+            !isSnoozed(snoozed[thread.id], now),
         );
       const assignments = workstreamStore.assignmentsOf(
-        roots.map((root) => root.id),
+        roots.map((thread) => thread.id),
       );
       return workstreams
         .filter(
@@ -545,16 +545,16 @@ export default async function plugin(bb: BbPluginApi) {
         .map((workstream) => ({
           workstreamId: workstream.id,
           label: workstreamPath(workstream.id, workstreams),
-          roots: roots
+          threads: roots
             .filter(
-              (root) =>
-                assignments.get(root.id)?.workstreamId === workstream.id,
+              (thread) =>
+                assignments.get(thread.id)?.workstreamId === workstream.id,
             )
-            .map((root) => ({
-              id: root.id,
-              title: root.title,
-              work: analysis[root.id]?.goal ?? "",
-              workKey: analysis[root.id]?.requestsKey ?? "",
+            .map((thread) => ({
+              id: thread.id,
+              title: thread.title,
+              work: analysis[thread.id]?.goal ?? "",
+              workKey: analysis[thread.id]?.requestsKey ?? "",
             })),
         }));
     },
@@ -569,7 +569,7 @@ export default async function plugin(bb: BbPluginApi) {
             model: currentPrefs().organize.categoryModel,
             label: input.label,
             signal,
-            links: input.roots.map((root) => ({
+            links: input.threads.map((root) => ({
               kind: "thread" as const,
               ref: root.id,
             })),
@@ -656,9 +656,9 @@ export default async function plugin(bb: BbPluginApi) {
     journal,
     model: async () => currentPrefs().organize.suggestionModel,
     enabled: () => currentPrefs().organize.suggestions,
-    roots: () =>
+    threads: () =>
       buildForest(service.threads())
-        .roots.map((root) => root.thread)
+        .threads.map((root) => root.thread)
         .filter((thread) => !thread.isHidden && !thread.isArchived),
     checkout: (threadId) => workstreamChoice.checkoutOf(threadId),
     coordination: () => workstreamChoice.coordinationWorkspaces(),
@@ -896,7 +896,7 @@ export default async function plugin(bb: BbPluginApi) {
         journaledStarts.delete(journaledStarts.values().next().value!);
     }
     const from = ctx.parentThreadId ? null : startedFrom(ctx);
-    const independentRoot =
+    const independentThread =
       !ctx.parentThreadId &&
       !from &&
       ctx.initiator === "user" &&
@@ -904,10 +904,10 @@ export default async function plugin(bb: BbPluginApi) {
     projectAssociations.recordChoice(
       ctx.thread,
       projectChoice ??
-        (independentRoot && ctx.origin === "cli"
+        (independentThread && ctx.origin === "cli"
           ? { projectId: ctx.thread.projectId, source: "independent" }
           : null),
-      independentRoot,
+      independentThread,
     );
     setTimeout(() => {
       try {
@@ -1052,7 +1052,7 @@ export default async function plugin(bb: BbPluginApi) {
    * Whether a thread's status can change a pass: only the organizer's roots
    * count, and a thread whose parent is hidden or archived is one.
    */
-  const organizedRoot = (thread: {
+  const organizedThread = (thread: {
     visibility: string;
     parentThreadId?: string | null;
   }) =>
@@ -1063,13 +1063,13 @@ export default async function plugin(bb: BbPluginApi) {
     if (awaitingEvents()) reconcileSoon();
     if (thread.visibility === "hidden") return;
     analyzer.onIdle(thread, lastAssistantText);
-    if (organizedRoot(thread)) triggerOrganizer(200);
+    if (organizedThread(thread)) triggerOrganizer(200);
     return recaps.onIdle(thread.id);
   });
   bb.events.on("thread.active", ({ thread }) => {
     waker?.onActive(thread.id);
     analyzer.onActive(thread.id);
-    if (organizedRoot(thread)) triggerOrganizer(200);
+    if (organizedThread(thread)) triggerOrganizer(200);
     // Covers a thread whose first request this run didn't see dispatched.
     void starts.onRunning(thread);
   });

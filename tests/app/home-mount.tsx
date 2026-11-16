@@ -9,7 +9,7 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { HomeSection } from "../../src/app/home/HomeSection.tsx";
-import type { WorkstreamState } from "../../src/domain/topics.ts";
+import type { WorkstreamState } from "../../src/domain/workstreams.ts";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 
 export { section, sidebarThread };

@@ -21,9 +21,9 @@ import {
 } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../../server/contract.ts";
-import { workstreamIndex } from "../../domain/topic-path.ts";
+import { workstreamIndex } from "../../domain/workstream-path.ts";
 import { compareGroupNames } from "../../domain/group-name-order.ts";
-import type { Workstream } from "../../domain/topics.ts";
+import type { Workstream } from "../../domain/workstreams.ts";
 import {
   Command,
   CommandGroup,

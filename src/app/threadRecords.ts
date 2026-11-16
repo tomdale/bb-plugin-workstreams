@@ -8,7 +8,7 @@
 import type { useRpc } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../server/contract.ts";
 import type { Recap } from "../domain/recap.ts";
-import type { WorkstreamAssignment } from "../domain/topics.ts";
+import type { WorkstreamAssignment } from "../domain/workstreams.ts";
 import { readChangedSignal } from "../domain/changes.ts";
 import { shareJson } from "./structuralSharing.ts";
 

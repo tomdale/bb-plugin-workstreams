@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ChangeFeed } from "../../src/server/changes.ts";
 import type { ChangedSignal } from "../../src/domain/changes.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { createTestPluginHost } from "./test-host.ts";
 import { fakeWorld } from "./fake-bb.ts";
 
@@ -77,8 +77,12 @@ describe("client snapshot scope", () => {
     seen.run("orphan", "archived-parent", "Orphan");
     seen.run("other", null, "Other");
     workstreamStore.assign("root", workstream.id, { provenance: "manual" });
-    workstreamStore.assign("archived-parent", workstream.id, { provenance: "automatic" });
-    workstreamStore.assign("archived", workstream.id, { provenance: "composer" });
+    workstreamStore.assign("archived-parent", workstream.id, {
+      provenance: "automatic",
+    });
+    workstreamStore.assign("archived", workstream.id, {
+      provenance: "composer",
+    });
     const all = workstreamStore.assignments();
     const visible = workstreamStore.visibleAssignments();
     expect(Object.keys(visible).sort()).toEqual([

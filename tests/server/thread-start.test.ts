@@ -2,13 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
 import type { PrefsPatch } from "../../src/domain/prefs.ts";
 import { fakeWorld, type FakeCompletion } from "./fake-bb.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { openDatabase } from "../../src/server/db.ts";
 
 /*
  * The start call's title: a new thread named from its first request while
  * its first turn runs. These threads already have a topic you set, so the
- * call asks only for the title; starting-topic.test.ts covers the topic.
+ * call asks only for the title; starting-workstream.test.ts covers the workstream.
  */
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;

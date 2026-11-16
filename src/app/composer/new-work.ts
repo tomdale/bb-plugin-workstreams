@@ -7,7 +7,7 @@ import type { ComposerSelection } from "@get-bb/plugin-sdk/app";
 import type { ProjectChoice } from "../../domain/projectChoice.ts";
 import type { Preview } from "../../server/preview.ts";
 import type { ComposedIdentity } from "../../server/composed-drafts.ts";
-import type { DraftWorkstreamProposal } from "../../domain/topics.ts";
+import type { DraftWorkstreamProposal } from "../../domain/workstreams.ts";
 import { routeDelay } from "./timing.ts";
 import type { WorkstreamTarget } from "./preset.ts";
 

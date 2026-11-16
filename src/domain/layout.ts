@@ -4,8 +4,8 @@
  * shown as the prefix of its children's headers; categories organize rows
  * inside those sections without changing this layout.
  */
-import { assertWorkstreamLevels } from "./topics.ts";
-import { PATH_SEPARATOR } from "./topic-path.ts";
+import { assertWorkstreamLevels } from "./workstreams.ts";
+import { PATH_SEPARATOR } from "./workstream-path.ts";
 
 export type LayoutWorkstream = {
   readonly id: string;

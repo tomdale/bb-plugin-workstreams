@@ -22,7 +22,7 @@ import { upNextOrder } from "../domain/upNextNavigation.ts";
 import type { ManualOrder } from "../domain/order.ts";
 import { RECENT_LIMIT } from "../domain/prefs.ts";
 import type { StoredAnalysis } from "../server/analyzer.ts";
-import type { WorkstreamState } from "../domain/topics.ts";
+import type { WorkstreamState } from "../domain/workstreams.ts";
 import type { WorkstreamTree } from "../domain/groups.ts";
 import {
   isSnoozed,

@@ -3,9 +3,9 @@ import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
 import { fakeWorld } from "./fake-bb.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import type { Inference } from "../../src/server/model.ts";
-import { WorkstreamChoice } from "../../src/server/placement.ts";
+import { WorkstreamChoice } from "../../src/server/workstreamChoice.ts";
 import { ThreadStart } from "../../src/server/start.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 
 let world: Awaited<ReturnType<typeof fakeWorld>> | undefined;
 afterEach(async () => {
@@ -59,7 +59,16 @@ async function setup() {
       input: { text: "Write the docs" },
     });
   vi.useFakeTimers();
-  return { workstream, workstreamStore, run, apply, log, starts, first, thread };
+  return {
+    workstream,
+    workstreamStore,
+    run,
+    apply,
+    log,
+    starts,
+    first,
+    thread,
+  };
 }
 
 const answer = (workstreamId: string) => ({
@@ -186,7 +195,8 @@ describe("first-request start retries", () => {
   });
 
   it("retries a fetch failure and files the successful answer", async () => {
-    const { workstream, workstreamStore, run, apply, log, first, thread } = await setup();
+    const { workstream, workstreamStore, run, apply, log, first, thread } =
+      await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
     run.mockResolvedValueOnce(answer(workstream.id));
     const pending = first();
@@ -222,7 +232,8 @@ describe("first-request start retries", () => {
   });
 
   it("does not retry or overwrite a manual correction made during the delay", async () => {
-    const { workstream, workstreamStore, run, apply, first, thread } = await setup();
+    const { workstream, workstreamStore, run, apply, first, thread } =
+      await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
     const pending = first();
     await vi.advanceTimersByTimeAsync(0);
@@ -235,7 +246,8 @@ describe("first-request start retries", () => {
   });
 
   it("stops retrying when another analysis settles the thread", async () => {
-    const { workstream, workstreamStore, run, apply, first, thread } = await setup();
+    const { workstream, workstreamStore, run, apply, first, thread } =
+      await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
     const pending = first();
     await vi.advanceTimersByTimeAsync(0);
@@ -253,7 +265,8 @@ describe("first-request start retries", () => {
   });
 
   it("does not apply an in-flight answer after a manual correction", async () => {
-    const { workstream, workstreamStore, run, apply, first, thread } = await setup();
+    const { workstream, workstreamStore, run, apply, first, thread } =
+      await setup();
     let resolve!: (value: ReturnType<typeof answer>) => void;
     run.mockImplementationOnce(() => new Promise((done) => (resolve = done)));
     const pending = first();
@@ -270,14 +283,19 @@ describe("first-request start retries", () => {
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
     const pending = first();
     await vi.advanceTimersByTimeAsync(0);
-    const newWorkstream = workstreamStore.create("More Docs", "More documentation");
+    const newWorkstream = workstreamStore.create(
+      "More Docs",
+      "More documentation",
+    );
     run.mockResolvedValueOnce(answer(newWorkstream.id));
     await vi.advanceTimersByTimeAsync(1_000);
     await pending;
     expect(run.mock.calls[1]![1].choice.workstreams).toContainEqual(
       expect.objectContaining({ id: newWorkstream.id }),
     );
-    expect(workstreamStore.assignment(thread.id).workstreamId).toBe(newWorkstream.id);
+    expect(workstreamStore.assignment(thread.id).workstreamId).toBe(
+      newWorkstream.id,
+    );
   });
 
   it("aborts an in-flight model call on disposal", async () => {

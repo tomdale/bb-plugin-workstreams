@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { workstreamPath } from "../../src/domain/topic-path.ts";
+import { workstreamPath } from "../../src/domain/workstream-path.ts";
 it("distinguishes repeated feature names under different component scopes", () => {
   const workstreams = [
     { id: "p", name: "Lantern", parentId: null, description: "", aliases: [] },

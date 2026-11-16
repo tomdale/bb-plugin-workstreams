@@ -14,8 +14,8 @@ import {
   takesThreads,
   type WorkstreamAssignment,
   type Workstream,
-} from "../../domain/topics.ts";
-import { workstreamPath } from "../../domain/topic-path.ts";
+} from "../../domain/workstreams.ts";
+import { workstreamPath } from "../../domain/workstream-path.ts";
 import { compareGroupNames } from "../../domain/group-name-order.ts";
 import { TAG_ICON } from "../workstream-icon.ts";
 

@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { fakeWorld } from "./fake-bb.ts";
-import type { WorkstreamAssignment, WorkstreamState } from "../../src/domain/topics.ts";
+import type {
+  WorkstreamAssignment,
+  WorkstreamState,
+} from "../../src/domain/workstreams.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 let world: World | null = null;
@@ -22,10 +25,13 @@ describe("Catalog and Task Identity RPC Contract", () => {
     const w = world;
 
     // Create an entity in the catalog
-    const { workstream } = (await w.harness.behavior.callRpc("workstreamCreate", {
-      name: "Core Platform",
-      description: "Platform work",
-    })) as { workstream: { id: string } };
+    const { workstream } = (await w.harness.behavior.callRpc(
+      "workstreamCreate",
+      {
+        name: "Core Platform",
+        description: "Platform work",
+      },
+    )) as { workstream: { id: string } };
 
     // Verify catalog RPC returns state
     const cat = (await w.harness.behavior.callRpc(
@@ -50,10 +56,13 @@ describe("Catalog and Task Identity RPC Contract", () => {
       sectionId: alpha.id,
       title: "My Task",
     });
-    const { workstream: eng } = (await w.harness.behavior.callRpc("workstreamCreate", {
-      name: "Engineering",
-      description: "Eng",
-    })) as { workstream: { id: string } };
+    const { workstream: eng } = (await w.harness.behavior.callRpc(
+      "workstreamCreate",
+      {
+        name: "Engineering",
+        description: "Eng",
+      },
+    )) as { workstream: { id: string } };
 
     const assignResult = (await w.harness.behavior.callRpc("threadMove", {
       threadId: thread.id,
@@ -163,14 +172,11 @@ describe("Catalog and Task Identity RPC Contract", () => {
     expect(afterMerge.assignments[thread.id]?.workstreamId).toBe(beta.id);
 
     // Update metadata (description and aliases)
-    const updateRes = (await w.harness.behavior.callRpc(
-      "workstreamUpdate",
-      {
-        workstreamId: beta.id,
-        description: "New beta description",
-        aliases: ["BetaAlias1", "BetaAlias2"],
-      },
-    )) as { workstream: { description: string; aliases: string[] } };
+    const updateRes = (await w.harness.behavior.callRpc("workstreamUpdate", {
+      workstreamId: beta.id,
+      description: "New beta description",
+      aliases: ["BetaAlias1", "BetaAlias2"],
+    })) as { workstream: { description: string; aliases: string[] } };
     expect(updateRes.workstream.description).toBe("New beta description");
     expect(updateRes.workstream.aliases).toContain("BetaAlias1");
   });
@@ -265,9 +271,12 @@ describe("Catalog and Task Identity RPC Contract", () => {
     world = await fakeWorld({
       complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
-    const { workstream } = (await world.harness.behavior.callRpc("workstreamCreate", {
-      name: "Project work",
-    })) as { workstream: { id: string } };
+    const { workstream } = (await world.harness.behavior.callRpc(
+      "workstreamCreate",
+      {
+        name: "Project work",
+      },
+    )) as { workstream: { id: string } };
     const update = (patch: Record<string, unknown>) =>
       world!.harness.behavior.callRpc("workstreamUpdate", {
         workstreamId: workstream.id,
@@ -297,9 +306,9 @@ describe("Catalog and Task Identity RPC Contract", () => {
       complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
     const w = world;
-    const rootThread = w.addThread("t-root", { title: "Root Thread" });
+    const thread = w.addThread("t-root", { title: "Root Thread" });
     const childThread = w.addThread("t-child", {
-      parentThreadId: rootThread.id,
+      parentThreadId: thread.id,
       title: "Child Thread",
     });
     const { workstream: feature } = (await w.harness.behavior.callRpc(
@@ -311,12 +320,12 @@ describe("Catalog and Task Identity RPC Contract", () => {
       workstreamId: feature.id,
     })) as { assignment: WorkstreamAssignment };
     expect(assignRes.assignment.workstreamId).toBe(feature.id);
-    expect(assignRes.assignment.inheritedFrom).toBe(rootThread.id);
+    expect(assignRes.assignment.inheritedFrom).toBe(thread.id);
     const tree = (await w.harness.behavior.callRpc(
       "tree",
       null,
     )) as WorkstreamState;
-    expect(tree.assignments[rootThread.id]?.workstreamId).toBe(feature.id);
+    expect(tree.assignments[thread.id]?.workstreamId).toBe(feature.id);
   });
 
   it("taskReclassify hands the topic back and settles the root with Full analysis", async () => {
@@ -340,18 +349,18 @@ describe("Catalog and Task Identity RPC Contract", () => {
       { name: "Billing", description: "Billing invoices" },
     )) as { workstream: { id: string } };
     workstreamId = billing.id;
-    const rootThread = w.addThread("t-root", {
+    const thread = w.addThread("t-root", {
       title: "Root Billing Work",
       status: "idle",
     });
     const childThread = w.addThread("t-child", {
-      parentThreadId: rootThread.id,
+      parentThreadId: thread.id,
       title: "Child Typo Fix",
     });
     w.converse("t-root", ["Please design billing invoice engine"]);
     w.converse("t-child", ["Fix minor typo in css"]);
     await w.harness.behavior.callRpc("threadMove", {
-      threadId: rootThread.id,
+      threadId: thread.id,
       workstreamId: null,
     });
 
@@ -361,7 +370,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
     expect(reclassRes.assignment).toMatchObject({
       status: "assigned",
       workstreamId: billing.id,
-      inheritedFrom: rootThread.id,
+      inheritedFrom: thread.id,
       provenance: "automatic",
     });
     expect(capturedPrompt).toContain("Please design billing invoice engine");

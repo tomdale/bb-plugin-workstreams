@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   arrangeGroups,
   focusedSections,
-  groupRoots,
+  groupThreads,
   nestGroups,
   sharedWorkstreamId,
   type WorkstreamNode,
@@ -455,12 +455,12 @@ describe("groupRoots", () => {
       tree({ sec_auto: "auto", sec_alerts: "alerts", sec_ws: "ws" }),
     ).populated;
     expect(beacon!.total).toBe(4);
-    expect(groupRoots(beacon!).map((t) => t.id)).toEqual(["a1", "i1", "i2"]);
-    expect(groupRoots(beacon!.workstreams[0]!).map((t) => t.id)).toEqual([
+    expect(groupThreads(beacon!).map((t) => t.id)).toEqual(["a1", "i1", "i2"]);
+    expect(groupThreads(beacon!.workstreams[0]!).map((t) => t.id)).toEqual([
       "i1",
       "i2",
     ]);
-    expect(groupRoots(projection.other)).toEqual([]);
+    expect(groupThreads(projection.other)).toEqual([]);
   });
 });
 
@@ -618,7 +618,7 @@ describe("small groups", () => {
       "  CLI (3) inline",
     ]);
     expect(
-      groupRoots(group!)
+      groupThreads(group!)
         .map((t) => t.id)
         .sort(),
     ).toEqual(

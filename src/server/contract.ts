@@ -1,4 +1,4 @@
-import { workstreamMigrationInput } from "../domain/topicMigration.ts";
+import { workstreamMigrationInput } from "../domain/workstreamMigration.ts";
 import { categoryGenerationSchema } from "../domain/categories.ts";
 import type { LayoutNode } from "../domain/layout.ts";
 import type {

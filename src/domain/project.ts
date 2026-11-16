@@ -189,7 +189,7 @@ export function comparePinned(
 }
 
 /** Pinned roots first in pin order, then most recent attention first. */
-function compareRoots(a: WorkstreamThread, b: WorkstreamThread): number {
+function compareThreads(a: WorkstreamThread, b: WorkstreamThread): number {
   if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
   if (a.isPinned) return comparePinned(a, b);
   return b.latestAttentionAt - a.latestAttentionAt || a.id.localeCompare(b.id);
@@ -232,7 +232,7 @@ export function nextDormancyDeadline<T extends WorkstreamThread>(
     }
     for (const child of node.children) visit(child, key);
   };
-  for (const root of forest.roots) {
+  for (const root of forest.threads) {
     const sectionId = root.thread.sectionId;
     visit(root, sectionId && known.has(sectionId) ? sectionId : OTHER_ID);
   }
@@ -260,7 +260,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
     (thread) => !thread.isHidden && !thread.isArchived,
   );
   const forest = buildForest(visible, {
-    roots: compareRoots,
+    threads: compareThreads,
     children: compareChildren,
   });
   const known = new Set(sections.map((section) => section.id));
@@ -281,9 +281,9 @@ export function projectWorkstreams<T extends WorkstreamThread>(
       })
       .map(prune),
   });
-  const activeRoots: TreeNode<T>[] = [];
-  for (const root of forest.roots)
-    if (wakeOf(root.thread) === undefined) activeRoots.push(prune(root));
+  const activeThreads: TreeNode<T>[] = [];
+  for (const root of forest.threads)
+    if (wakeOf(root.thread) === undefined) activeThreads.push(prune(root));
     else snoozedNodes.push(root);
 
   const previousRows = options.previous?.rowOf;
@@ -294,16 +294,16 @@ export function projectWorkstreams<T extends WorkstreamThread>(
     ].map((group) => [group.id, group]),
   );
 
-  const rootsBySection = new Map<string, TreeNode<T>[]>();
-  for (const root of activeRoots) {
+  const threadsBySection = new Map<string, TreeNode<T>[]>();
+  for (const root of activeThreads) {
     const key = groupKeyOf(root.thread);
-    const roots = rootsBySection.get(key) ?? [];
+    const roots = threadsBySection.get(key) ?? [];
     roots.push(root);
-    rootsBySection.set(key, roots);
+    threadsBySection.set(key, roots);
   }
   const rowsBySection = new Map<string, Row<T>[]>();
   const rowOf = new Map<string, Row<T>>();
-  for (const [key, roots] of rootsBySection) {
+  for (const [key, roots] of threadsBySection) {
     const workstreamId = key === OTHER_ID ? null : key;
     const rows: Row<T>[] = [];
     const ordered = [
@@ -315,7 +315,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
         "first",
       ),
     ];
-    for (const node of ordered.flatMap((root) => flatten(root))) {
+    for (const node of ordered.flatMap((thread) => flatten(thread))) {
       const row = shareRow(previousRows?.get(node.thread.id), {
         thread: node.thread,
         depth: node.depth,
@@ -396,7 +396,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
     a.thread.id.localeCompare(b.thread.id);
   const all = [...rowOf.values()];
   const needsYouRows = all.filter(counts).sort(byAttention);
-  const pinnedThreads = activeRoots
+  const pinnedThreads = activeThreads
     .filter((root) => root.thread.isPinned)
     .map((root) => rowOf.get(root.thread.id)!)
     .sort((a, b) => comparePinned(a.thread, b.thread));
@@ -405,7 +405,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
     wakeOf(node.thread) ?? Number.POSITIVE_INFINITY;
   const snoozed: Row<T>[] = [];
   for (const node of snoozedNodes.sort(
-    (a, b) => wakeRank(a) - wakeRank(b) || compareRoots(a.thread, b.thread),
+    (a, b) => wakeRank(a) - wakeRank(b) || compareThreads(a.thread, b.thread),
   )) {
     const root = forest.rootOf.get(node.thread.id) ?? node.thread;
     const key = groupKeyOf(root);

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { makePluginAgentConfigurationContext } from "@get-bb/plugin-sdk/testing";
 import { fakeWorld, type FakeCompletion } from "./fake-bb.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { RECAP_TOOL } from "../../src/domain/recap.ts";
 import { Analyzer } from "../../src/server/analyzer.ts";

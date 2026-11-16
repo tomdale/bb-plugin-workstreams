@@ -6,7 +6,7 @@
  * to the reconciler's last-seen snapshot, so the reconciler never mistakes a
  * Workstreams change for one made elsewhere.
  */
-import { restoreWorkstreams, WorkstreamStore } from "./topics.ts";
+import { restoreWorkstreams, WorkstreamStore } from "./workstreams.ts";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { Database } from "./db.ts";
 import { getMeta, setMeta } from "./db.ts";
@@ -427,7 +427,7 @@ export class WorkstreamService {
         // Only a root's section decides grouping, so only root moves
         // are worth recording.
         const forest = buildForest(threads);
-        const isRoot = new Set(forest.roots.map((r) => r.thread.id));
+        const isRoot = new Set(forest.threads.map((r) => r.thread.id));
         for (const thread of threads) {
           const before = seen.get(thread.id);
           if (

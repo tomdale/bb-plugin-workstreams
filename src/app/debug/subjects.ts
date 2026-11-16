@@ -9,7 +9,7 @@ import type { DebugSubject } from "../../domain/debug-thread.ts";
 import { workStateLabel } from "../../domain/presentation.ts";
 import { changeLines } from "../../domain/suggestion-change.ts";
 import type { TraceSummary } from "../../domain/trace.ts";
-import type { WorkstreamAssignment } from "../../domain/topics.ts";
+import type { WorkstreamAssignment } from "../../domain/workstreams.ts";
 import type { Preview } from "../../server/preview.ts";
 import type { ProjectSuggestion } from "../../server/projectAssociations.ts";
 import type { SuggestionsStateWire } from "../../server/contract.ts";

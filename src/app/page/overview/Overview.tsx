@@ -109,9 +109,9 @@ export function overviewGroup(
 }
 
 /** The root rows a group lists, its workstreams' included. */
-const rootRows = (group: Listed): ProjectedRow<PluginSidebarThread>[] => [
+const threadRows = (group: Listed): ProjectedRow<PluginSidebarThread>[] => [
   ...group.rows.filter((row) => row.depth === 0),
-  ...(group.workstreams ?? []).flatMap(rootRows),
+  ...(group.workstreams ?? []).flatMap(threadRows),
 ];
 
 export function Overview({
@@ -133,7 +133,7 @@ export function Overview({
     () => overviewGroup({ projection, workstreams }, id),
     [projection, workstreams, id],
   );
-  const roots = useMemo(() => (group ? rootRows(group) : []), [group]);
+  const roots = useMemo(() => (group ? threadRows(group) : []), [group]);
   const other = group?.id === OTHER_ID;
   const { recaps } = ws.server;
   const work = ws.work;

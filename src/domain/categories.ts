@@ -13,7 +13,7 @@ export type Category = {
   threadIds: string[];
 };
 
-export type CategoryRoot = {
+export type CategoryThread = {
   id: string;
   title: string;
   work: string;
@@ -24,7 +24,7 @@ export type CategoryRoot = {
 export type CategoryCollection = {
   workstreamId: string;
   label: string;
-  roots: CategoryRoot[];
+  threads: CategoryThread[];
 };
 
 export const categoryGenerationSchema = z.object({
@@ -56,7 +56,7 @@ export type CategoryDecision = {
 /** Names and status are presentation; only membership and work trigger a call. */
 export function categoryCollectionKey(collection: CategoryCollection): string {
   return JSON.stringify(
-    [...collection.roots]
+    [...collection.threads]
       .sort((a, b) => a.id.localeCompare(b.id))
       .map(({ id, workKey }) => [id, workKey]),
   );
@@ -74,9 +74,9 @@ export function categoryAction(
 /** Departing roots leave immediately, even while inference is in flight. */
 export function pruneCategories(
   generation: CategoryGeneration,
-  roots: readonly { id: string }[],
+  threads: readonly { id: string }[],
 ): CategoryGeneration {
-  const present = new Set(roots.map((root) => root.id));
+  const present = new Set(threads.map((thread) => thread.id));
   return {
     ...generation,
     categories: generation.categories
@@ -91,7 +91,7 @@ export function pruneCategories(
 const clean = (value: string, max: number) =>
   redact(value).replace(/\s+/g, " ").trim().slice(0, max);
 const rootIds = (input: CategoryInput) =>
-  new Map(input.roots.map((root, i) => [root.id, `r${i + 1}`]));
+  new Map(input.threads.map((thread, i) => [thread.id, `r${i + 1}`]));
 const categoryIds = (input: CategoryInput) =>
   new Map(
     (input.current?.categories ?? []).map((category, i) => [
@@ -115,10 +115,10 @@ ${tagged("current_workstream", clean(input.label, 300))}
 
 ${tagged(
   "threads",
-  input.roots
+  input.threads
     .map(
-      (root) =>
-        `- [${roots.get(root.id)}] ${clean(root.title, 120)}${root.work ? ` — ${clean(root.work, 1200)}` : ""}`,
+      (thread) =>
+        `- [${roots.get(thread.id)}] ${clean(thread.title, 120)}${thread.work ? ` — ${clean(thread.work, 1200)}` : ""}`,
     )
     .join("\n"),
 )}
@@ -202,8 +202,8 @@ export function parseCategories(
   input: CategoryInput,
 ): CategoryDecision {
   const decision = decisionSchema.parse(JSON.parse(stripFence(text)));
-  const expected = new Set(input.roots.map((root) => root.id));
-  if (expected.size !== input.roots.length)
+  const expected = new Set(input.threads.map((thread) => thread.id));
+  if (expected.size !== input.threads.length)
     throw new Error("The category collection repeats a root.");
   if (decision.keep) {
     if (
@@ -279,15 +279,16 @@ export type CategoryFitInput = CategoryInput & {
 };
 
 /** Each changed thread's category, or null when the arrangement must change. */
-export type CategoryFit = { [rootId: string]: string | null };
+export type CategoryFit = { [threadId: string]: string | null };
 
 export function categoryFitPrompt(input: CategoryFitInput): string {
   const roots = rootIds(input);
   const categories = categoryIds(input);
   const changed = new Set(input.changed);
   const members = (category: Category) =>
-    input.roots.filter(
-      (root) => category.threadIds.includes(root.id) && !changed.has(root.id),
+    input.threads.filter(
+      (thread) =>
+        category.threadIds.includes(thread.id) && !changed.has(thread.id),
     );
   return `${HEADER}
 
@@ -305,7 +306,7 @@ ${tagged(
       (category) =>
         `- [${categories.get(category.id)}] ${clean(category.name, 80)}: ${
           members(category)
-            .map((root) => clean(root.title, 120))
+            .map((thread) => clean(thread.title, 120))
             .join("; ") || "(no other threads)"
         }`,
     )
@@ -315,11 +316,11 @@ ${tagged(
 The threads to file:
 ${tagged(
   "threads",
-  input.roots
-    .filter((root) => changed.has(root.id))
+  input.threads
+    .filter((thread) => changed.has(thread.id))
     .map(
-      (root) =>
-        `- [${roots.get(root.id)}] ${clean(root.title, 120)}${root.work ? ` — ${clean(root.work, 1200)}` : ""}`,
+      (thread) =>
+        `- [${roots.get(thread.id)}] ${clean(thread.title, 120)}${thread.work ? ` — ${clean(thread.work, 1200)}` : ""}`,
     )
     .join("\n"),
 )}

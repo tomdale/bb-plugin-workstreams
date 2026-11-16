@@ -1,6 +1,6 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { groupCollapseKey, useCollapsed } from "./useCollapsed.ts";
-import type { WorkstreamState } from "../../domain/topics.ts";
+import type { WorkstreamState } from "../../domain/workstreams.ts";
 
 /** What names a group's collapse state: its section, and its workstream when it has one. */
 export type CollapseRef = {

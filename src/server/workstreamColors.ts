@@ -3,7 +3,7 @@ import {
   allocateFamilyColor,
   type WorkstreamColor,
 } from "../domain/workstreamColor.ts";
-import type { Workstream } from "../domain/topics.ts";
+import type { Workstream } from "../domain/workstreams.ts";
 import type { Database } from "./db.ts";
 
 type StoredColor = WorkstreamColor & { workstreamId: string; familyId: string };

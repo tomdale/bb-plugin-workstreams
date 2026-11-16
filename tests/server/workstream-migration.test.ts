@@ -1,7 +1,7 @@
 import { createTestPluginHost } from "./test-host.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WorkstreamMigration } from "../../src/server/topicMigration.ts";
-import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamMigration } from "../../src/server/workstreamMigration.ts";
+import { WorkstreamStore } from "../../src/server/workstreams.ts";
 import { Journal } from "../../src/server/journal.ts";
 import { getMeta, openDatabase, setMeta } from "../../src/server/db.ts";
 
@@ -15,7 +15,11 @@ function setup() {
   const db = openDatabase(host.bb);
   const workstreamStore = new WorkstreamStore(db);
   const product = workstreamStore.create("Harbor");
-  const feature = workstreamStore.create("Code Review", "Review capability", product.id);
+  const feature = workstreamStore.create(
+    "Code Review",
+    "Review capability",
+    product.id,
+  );
   db.prepare(
     "INSERT INTO ws_workstream(id, name, description, parent_id, aliases) VALUES ('old', 'Approvals', 'Approval workflow', ?, '[]')",
   ).run(feature.id);
@@ -138,7 +142,9 @@ describe("reviewed topic migration", () => {
       workstreams: Array<{ id: string }>;
       subjects: Array<{ thread_id: string; workstream_id: string }>;
     };
-    expect(backup.workstreams.some((workstream) => workstream.id === "old")).toBe(true);
+    expect(
+      backup.workstreams.some((workstream) => workstream.id === "old"),
+    ).toBe(true);
     expect(backup.subjects).toContainEqual(
       expect.objectContaining({ thread_id: "deep", workstream_id: "old" }),
     );
@@ -156,7 +162,9 @@ describe("reviewed topic migration", () => {
   it("rejects deleted assignments before applying a reviewed plan", () => {
     const { migration, mapping, db, workstreamStore } = setup();
     const plan = migration.preview(mapping);
-    db.prepare("DELETE FROM ws_thread_workstream WHERE thread_id = 'deep'").run();
+    db.prepare(
+      "DELETE FROM ws_thread_workstream WHERE thread_id = 'deep'",
+    ).run();
     expect(() => migration.apply(plan.id)).toThrow("changed");
     expect(workstreamStore.getById("old")).not.toBeNull();
   });
@@ -198,9 +206,7 @@ describe("reviewed topic migration", () => {
     expect(workstreamStore.state()).toEqual(before);
     expect(
       db
-        .prepare(
-          "SELECT key FROM ws_meta WHERE key LIKE 'migration_backup:%'",
-        )
+        .prepare("SELECT key FROM ws_meta WHERE key LIKE 'migration_backup:%'")
         .all(),
     ).toEqual([]);
   });
@@ -208,7 +214,9 @@ describe("reviewed topic migration", () => {
     const { migration, mapping, feature } = setup();
     expect(() =>
       migration.preview({
-        newWorkstreams: [{ ...mapping.newWorkstreams[0]!, parentId: feature.id }],
+        newWorkstreams: [
+          { ...mapping.newWorkstreams[0]!, parentId: feature.id },
+        ],
       }),
     ).toThrow("two levels");
     expect(() =>
@@ -220,7 +228,9 @@ describe("reviewed topic migration", () => {
   it("includes archived assignments in the filing guard and reviewed plan", () => {
     const { workstreamStore, migration, mapping, feature } = setup();
     expect(workstreamStore.heldThreads(feature.id)).toBe(0);
-    expect(workstreamStore.heldThreads(workstreamStore.resolve("Harbor")!.id)).toBe(1);
+    expect(
+      workstreamStore.heldThreads(workstreamStore.resolve("Harbor")!.id),
+    ).toBe(1);
     const plan = migration.preview(mapping);
     expect(plan.changes.map((change) => change.threadId)).toEqual([
       "broad",

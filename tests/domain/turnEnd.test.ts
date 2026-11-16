@@ -5,7 +5,7 @@ import {
   turnEndSchema,
   type TurnEndInput,
 } from "../../src/domain/turnEnd.ts";
-import type { WorkstreamChoiceInput } from "../../src/domain/placement.ts";
+import type { WorkstreamChoiceInput } from "../../src/domain/workstreamChoice.ts";
 
 const workstream = (id: string, name: string, parentId: string | null) => ({
   id,
@@ -67,7 +67,13 @@ describe("turn-end call", () => {
     expect(prompt).not.toContain("A digest placement must not repeat.");
     expect(prompt.match(/<thread_digest>/g)).toHaveLength(1);
     expect(Object.keys(turnEndSchema(input).properties as object)).toEqual(
-      expect.arrayContaining(["recap", "digest", "title", "workstream", "propose"]),
+      expect.arrayContaining([
+        "recap",
+        "digest",
+        "title",
+        "workstream",
+        "propose",
+      ]),
     );
 
     const alone = { ...input, choice: null };

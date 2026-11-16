@@ -7,13 +7,15 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { workstreamIndex } from "../../src/domain/topic-path.ts";
+import { workstreamIndex } from "../../src/domain/workstream-path.ts";
 import { sidebarThread } from "./fixtures.ts";
 import { mount } from "./sidebar-fixture.tsx";
 
-vi.mock("../../src/domain/topic-path.ts", async (importOriginal) => {
+vi.mock("../../src/domain/workstream-path.ts", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../../src/domain/topic-path.ts")>();
+    await importOriginal<
+      typeof import("../../src/domain/workstream-path.ts")
+    >();
   return { ...actual, workstreamIndex: vi.fn(actual.workstreamIndex) };
 });
 

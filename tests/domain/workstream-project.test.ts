@@ -3,10 +3,13 @@ import {
   NO_PROJECT,
   workstreamProject,
   workstreamProjectConflict,
-} from "../../src/domain/topicProject.ts";
-import type { Workstream } from "../../src/domain/topics.ts";
+} from "../../src/domain/workstreamProject.ts";
+import type { Workstream } from "../../src/domain/workstreams.ts";
 
-const workstream = (id: string, extra: Partial<Workstream> = {}): Workstream => ({
+const workstream = (
+  id: string,
+  extra: Partial<Workstream> = {},
+): Workstream => ({
   id,
   name: id,
   description: "",

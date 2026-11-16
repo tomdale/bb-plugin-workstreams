@@ -40,7 +40,7 @@ import {
   workstreamChoicePrompt,
   workstreamChoiceSchema,
   type WorkstreamChoiceInput,
-} from "../domain/placement.ts";
+} from "../domain/workstreamChoice.ts";
 import {
   TRACE_KIND_TITLE,
   type Trace,

@@ -5,7 +5,7 @@
  * eval share one prompt and parser.
  *
  * The description is the turn-end call's own (see analysis.ts); placement is
- * placement's (see placement.ts), asked only when `placement` is supplied.
+ * placement's (see workstreamChoice.ts), asked only when `placement` is supplied.
  * The digest is this call's own memory: it reads the digest it settled last
  * time and returns a revised one, so a single later request refines what the
  * thread is about instead of replacing it.
@@ -29,7 +29,7 @@ import {
   choiceSections,
   type WorkstreamChoiceInput,
   type WorkstreamChoiceOutput,
-} from "./placement.ts";
+} from "./workstreamChoice.ts";
 
 export type TurnEndInput = DescriptionInput & {
   /**

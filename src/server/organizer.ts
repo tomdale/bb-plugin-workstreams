@@ -6,12 +6,15 @@ import { isComplete, workView } from "../domain/status.ts";
 import type { Analyzer } from "./analyzer.ts";
 import type { CleanupMember } from "./cleanup.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
-import type { WorkstreamStore } from "./topics.ts";
+import type { WorkstreamStore } from "./workstreams.ts";
 import { activeHome } from "../domain/regroup.ts";
 import { layoutGroups, type LayoutNode } from "../domain/layout.ts";
 import { assignmentEvidence } from "./evidence.ts";
-import { workstreamPath } from "../domain/topic-path.ts";
-import type { WorkstreamAssignment, Workstream } from "../domain/topics.ts";
+import { workstreamPath } from "../domain/workstream-path.ts";
+import type {
+  WorkstreamAssignment,
+  Workstream,
+} from "../domain/workstreams.ts";
 import { listSections, type InventoryThread } from "./inventory.ts";
 import type { WorkstreamService } from "./service.ts";
 import type { Journal, NewEntry } from "./journal.ts";
@@ -199,13 +202,13 @@ export class Organizer {
       this.deps.service.threads().map((thread) => [thread.id, thread]),
     );
     return new Map(
-      roots.map((root) => [
-        root.id,
+      roots.map((thread) => [
+        thread.id,
         isComplete(
           workView(
-            current.get(root.id) ?? root,
-            this.deps.analyzer.get(root.id),
-            this.deps.recap?.(root.id),
+            current.get(thread.id) ?? thread,
+            this.deps.analyzer.get(thread.id),
+            this.deps.recap?.(thread.id),
           ),
         ),
       ]),
@@ -218,23 +221,25 @@ export class Organizer {
    */
   private fingerprint(plan: {
     revision: number;
-    roots: readonly InventoryThread[];
+    threads: readonly InventoryThread[];
     completed: ReadonlyMap<string, boolean>;
     assignments: ReadonlyMap<string, WorkstreamAssignment>;
     projected?: ReadonlyMap<string, string | null>;
   }): string {
-    const { roots, completed, assignments, projected } = plan;
+    const { threads, completed, assignments, projected } = plan;
     return createHash("sha256")
       .update(
         JSON.stringify({
           treeRevision: plan.revision,
           layout: this.storedLayout().nodes,
-          roots: roots.map((root) => [
-            root.id,
-            root.title,
-            projected?.has(root.id) ? projected.get(root.id) : root.sectionId,
-            completed.get(root.id),
-            assignmentEvidence(assignments.get(root.id)!),
+          roots: threads.map((thread) => [
+            thread.id,
+            thread.title,
+            projected?.has(thread.id)
+              ? projected.get(thread.id)
+              : thread.sectionId,
+            completed.get(thread.id),
+            assignmentEvidence(assignments.get(thread.id)!),
           ]),
         }),
       )
@@ -249,7 +254,7 @@ export class Organizer {
     const sdk = this.deps.sdk();
 
     let passContext: {
-      roots: InventoryThread[];
+      threads: InventoryThread[];
       isCompletedMap: Map<string, boolean>;
       assignments: ReadonlyMap<string, WorkstreamAssignment>;
       selectedWorkstreamIds: string[];
@@ -267,20 +272,20 @@ export class Organizer {
       const forest = buildForest(allThreads);
 
       // Only independently actionable visible, non-archived roots
-      const roots = forest.roots
+      const roots = forest.threads
         .map((r) => r.thread)
         .filter((t) => !t.isHidden && !t.isArchived);
 
       const factRevision = this.factRevision;
       const revision = this.deps.workstreamStore.revision();
       const isCompletedMap = this.completed(roots);
-      const rootIds = roots.map((root) => root.id);
-      const assignments = this.deps.workstreamStore.assignmentsOf(rootIds);
+      const threadIds = roots.map((thread) => thread.id);
+      const assignments = this.deps.workstreamStore.assignmentsOf(threadIds);
 
       // Check if snapshot is identical to last completed run
       const snapshotHash = this.fingerprint({
         revision,
-        roots,
+        threads: roots,
         completed: isCompletedMap,
         assignments,
       });
@@ -325,7 +330,7 @@ export class Organizer {
       const appliedSectionIds = new Map<string, string | null>();
 
       passContext = {
-        roots,
+        threads: roots,
         isCompletedMap,
         assignments,
         selectedWorkstreamIds,
@@ -343,7 +348,7 @@ export class Organizer {
         JSON.stringify({
           workstreams: workstreams,
           completed: [...completed],
-          assignments: rootIds.map((id) =>
+          assignments: threadIds.map((id) =>
             assignmentEvidence(current.get(id)!),
           ),
         });
@@ -371,7 +376,7 @@ export class Organizer {
           evidence(
             this.deps.workstreamStore.list(),
             this.completed(roots),
-            this.deps.workstreamStore.assignmentsOf(rootIds),
+            this.deps.workstreamStore.assignmentsOf(threadIds),
           ) !== planEvidence
         )
           throw new SupersededPlan();
@@ -454,9 +459,9 @@ export class Organizer {
           }
 
           // Update roots' sectionId in BB
-          for (const root of roots) {
+          for (const thread of roots) {
             assertCurrent();
-            const assignment = assignments.get(root.id);
+            const assignment = assignments.get(thread.id);
             let targetSectionId: string | null = null;
 
             if (
@@ -475,11 +480,11 @@ export class Organizer {
               }
             }
 
-            if ((root.sectionId ?? null) !== targetSectionId) {
+            if ((thread.sectionId ?? null) !== targetSectionId) {
               // The snapshot is from the start of the pass; classification may
               // have taken a while, so write only what still differs.
               const live = await awaitBb(
-                sdk.threads.get({ threadId: root.id }).catch(() => null),
+                sdk.threads.get({ threadId: thread.id }).catch(() => null),
               );
               const from = live?.sectionId ?? null;
               if (
@@ -491,25 +496,25 @@ export class Organizer {
                 assertCurrent();
                 await awaitBb(
                   sdk.threads.update({
-                    threadId: root.id,
+                    threadId: thread.id,
                     sectionId: targetSectionId,
                   }),
                 );
                 changes.moves.push({
-                  threadId: root.id,
-                  title: root.title,
+                  threadId: thread.id,
+                  title: thread.title,
                   from,
                   to: targetSectionId,
                 });
                 this.deps.service.seeThread(
-                  root.id,
+                  thread.id,
                   targetSectionId,
-                  root.parentThreadId ?? null,
-                  root.title,
+                  thread.parentThreadId ?? null,
+                  thread.title,
                 );
               }
             }
-            appliedSectionIds.set(root.id, targetSectionId);
+            appliedSectionIds.set(thread.id, targetSectionId);
           }
 
           // Clean up unused empty sections that belonged to Workstreams
@@ -585,7 +590,7 @@ export class Organizer {
       const finalState = this.assembleOrganizerState({
         status: "idle",
         error: null,
-        roots,
+        threads: roots,
         isCompletedMap,
         assignments,
         selectedWorkstreamIds,
@@ -602,7 +607,7 @@ export class Organizer {
 
       this.lastSyncedHash = this.fingerprint({
         revision,
-        roots,
+        threads: roots,
         completed: isCompletedMap,
         assignments,
         projected: appliedSectionIds,
@@ -625,7 +630,7 @@ export class Organizer {
         const failedState = this.assembleOrganizerState({
           status: "failed",
           error: errMsg,
-          roots: passContext.roots,
+          threads: passContext.threads,
           isCompletedMap: passContext.isCompletedMap,
           assignments: passContext.assignments,
           selectedWorkstreamIds: passContext.selectedWorkstreamIds,
@@ -657,7 +662,7 @@ export class Organizer {
   private assembleOrganizerState(options: {
     status: OrganizerState["status"];
     error: string | null;
-    roots: InventoryThread[];
+    threads: InventoryThread[];
     isCompletedMap: Map<string, boolean>;
     assignments: ReadonlyMap<string, WorkstreamAssignment>;
     selectedWorkstreamIds: string[];
@@ -668,7 +673,7 @@ export class Organizer {
     const {
       status,
       error,
-      roots,
+      threads: roots,
       isCompletedMap,
       assignments,
       selectedWorkstreamIds,
@@ -699,9 +704,9 @@ export class Organizer {
     let activeCount = 0;
     let completedCount = 0;
 
-    for (const root of roots) {
-      const assignment = assignments.get(root.id);
-      const isCompleted = isCompletedMap.get(root.id) ?? false;
+    for (const thread of roots) {
+      const assignment = assignments.get(thread.id);
+      const isCompleted = isCompletedMap.get(thread.id) ?? false;
       if (isCompleted) {
         completedCount++;
       } else {
@@ -714,10 +719,10 @@ export class Organizer {
         !assignment.workstreamId
       ) {
         unresolvedTasks.push({
-          id: root.id,
-          title: root.title,
+          id: thread.id,
+          title: thread.title,
           completed: isCompleted,
-          evidence: evidenceById.get(root.id) ?? null,
+          evidence: evidenceById.get(thread.id) ?? null,
           reason: isCompleted
             ? "Complete; no workstream."
             : "It has no workstream, so it's listed under Other.",
@@ -759,8 +764,8 @@ export class Organizer {
         }
 
         group.threads.push({
-          id: root.id,
-          title: root.title,
+          id: thread.id,
+          title: thread.title,
           completed: isCompleted,
           workstreamId: assignment.workstreamId,
           workstreamLabel,
@@ -769,10 +774,10 @@ export class Organizer {
         });
       } else {
         unresolvedTasks.push({
-          id: root.id,
-          title: root.title,
+          id: thread.id,
+          title: thread.title,
           completed: isCompleted,
-          evidence: evidenceById.get(root.id) ?? null,
+          evidence: evidenceById.get(thread.id) ?? null,
           reason:
             "Its workstream isn't in the sidebar, so it's listed under Other.",
         });

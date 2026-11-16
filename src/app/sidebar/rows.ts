@@ -5,7 +5,7 @@ import {
   type Projection,
   type Row,
 } from "../../domain/project.ts";
-import { groupRoots, type WorkstreamNode } from "../../domain/groups.ts";
+import { groupThreads, type WorkstreamNode } from "../../domain/groups.ts";
 import type { BandSort } from "./useBandOptions.ts";
 
 export type ThreadRow = Row<PluginSidebarThread>;
@@ -274,7 +274,7 @@ export function groupSnoozeRequest(
   if (group.total === 0) return undefined;
   const count = `${group.total} ${group.total === 1 ? "thread" : "threads"}`;
   return {
-    threads: groupRoots(group),
+    threads: groupThreads(group),
     subject: `${count} in ${group.name}`,
     label: `Snooze ${count}`,
   };

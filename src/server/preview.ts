@@ -8,11 +8,11 @@
 import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { ModelChoice } from "../domain/prefs.ts";
-import type { DraftWorkstreamProposal } from "../domain/topics.ts";
-import { workstreamPath } from "../domain/topic-path.ts";
-import type { WorkstreamStore } from "./topics.ts";
+import type { DraftWorkstreamProposal } from "../domain/workstreams.ts";
+import { workstreamPath } from "../domain/workstream-path.ts";
+import type { WorkstreamStore } from "./workstreams.ts";
 import type { Inference } from "./model.ts";
-import type { WorkstreamChoice } from "./placement.ts";
+import type { WorkstreamChoice } from "./workstreamChoice.ts";
 import { UserError } from "./service.ts";
 
 type Sdk = BbPluginApi["sdk"];

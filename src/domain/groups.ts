@@ -21,7 +21,7 @@
 import type { CategoryGeneration } from "./categories.ts";
 import { layoutLabel, type LayoutNode } from "./layout.ts";
 import type { Group, Projection, WorkstreamThread } from "./project.ts";
-import { PATH_SEPARATOR } from "./topic-path.ts";
+import { PATH_SEPARATOR } from "./workstream-path.ts";
 
 /** How workstream groups are ordered: by name, by recent activity, or as dragged. */
 export type GroupSort = "alphabetical" | "activity" | "manual";
@@ -352,12 +352,12 @@ export function nestGroups<T extends WorkstreamThread>(
  * (see `projectWorkstreams`), so every thread the row counts leaves it, and
  * each tree wakes whole, just as if each root had been snoozed by itself.
  */
-export function groupRoots<T extends WorkstreamThread>(
+export function groupThreads<T extends WorkstreamThread>(
   group: Group<T> & { readonly workstreams?: readonly WorkstreamNode<T>[] },
 ): T[] {
   return [
     ...group.rows.filter((row) => row.depth === 0).map((row) => row.thread),
-    ...(group.workstreams ?? []).flatMap((sub) => groupRoots(sub)),
+    ...(group.workstreams ?? []).flatMap((sub) => groupThreads(sub)),
   ];
 }
 

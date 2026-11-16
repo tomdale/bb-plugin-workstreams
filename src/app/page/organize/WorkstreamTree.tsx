@@ -17,9 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { SectionHeading } from "../../primitives/SectionHeading.tsx";
-import type { Workstream } from "../../../domain/topics.ts";
-import { workstreamAncestors } from "../../../domain/topics.ts";
-import { workstreamPath } from "../../../domain/topic-path.ts";
+import type { Workstream } from "../../../domain/workstreams.ts";
+import { workstreamAncestors } from "../../../domain/workstreams.ts";
+import { workstreamPath } from "../../../domain/workstream-path.ts";
 import { compareGroupNames } from "../../../domain/group-name-order.ts";
 import { SelectField } from "../../SelectField.tsx";
 import { ghostButton } from "../controls.ts";

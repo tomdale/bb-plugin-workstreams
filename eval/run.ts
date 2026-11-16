@@ -24,7 +24,7 @@ import {
   parseWorkstreamChoice,
   workstreamChoicePrompt,
   type WorkstreamChoiceInput,
-} from "../src/domain/placement.ts";
+} from "../src/domain/workstreamChoice.ts";
 import {
   gatewayComplete,
   gatewayKey,
@@ -350,7 +350,9 @@ for (const model of models) {
           : Promise.resolve(null),
       ]);
       const parsed = parseDescription(full.text, job.input);
-      const workstream = placed ? parseWorkstreamChoice(placed.text, choice) : null;
+      const workstream = placed
+        ? parseWorkstreamChoice(placed.text, choice)
+        : null;
       return {
         ...base,
         output: {

@@ -4,7 +4,7 @@ import {
   workstreamChoiceSchema,
   parseWorkstreamChoice,
   type WorkstreamChoiceInput,
-} from "../src/domain/placement.ts";
+} from "../src/domain/workstreamChoice.ts";
 import {
   gatewayKey,
   gatewayComplete,

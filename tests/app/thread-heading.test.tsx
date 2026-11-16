@@ -148,7 +148,7 @@ it("uses the root topic's color for a delegate in a different native section", a
     parentThreadId: "root",
     sectionId: "sec_2",
   });
-  const root = sidebarThread("root", { title: "Root", sectionId: "sec_1" });
+  const thread = sidebarThread("root", { title: "Root", sectionId: "sec_1" });
   const slot = await mount(
     child,
     {
@@ -168,7 +168,7 @@ it("uses the root topic's color for a delegate in a different native section", a
         revision: 1,
       },
     },
-    [root],
+    [thread],
   );
   await slot.findByRole("heading", { level: 2 });
   await waitFor(() =>

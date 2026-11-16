@@ -29,11 +29,11 @@ import type {
   ThreadListing,
   TitledBy,
 } from "../domain/analysis.ts";
-import type { WorkstreamChoiceOutput } from "../domain/placement.ts";
+import type { WorkstreamChoiceOutput } from "../domain/workstreamChoice.ts";
 import type { TurnEndInput } from "../domain/turnEnd.ts";
-import type { ChoiceQuestion, ChoiceThread } from "./placement.ts";
+import type { ChoiceQuestion, ChoiceThread } from "./workstreamChoice.ts";
 import type { Workstream } from "../domain/classify.ts";
-import type { WorkstreamAssignment } from "../domain/topics.ts";
+import type { WorkstreamAssignment } from "../domain/workstreams.ts";
 import type { ModelChoice } from "../domain/prefs.ts";
 import type { Database } from "./db.ts";
 import { displayTitle, type InventoryThread } from "./inventory.ts";

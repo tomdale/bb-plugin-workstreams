@@ -19,8 +19,8 @@ import type {
   SnoozeWhen,
   ThreadSnooze,
 } from "../../domain/snooze.ts";
-import type { Workstream } from "../../domain/topics.ts";
-import { workstreamIndex } from "../../domain/topic-path.ts";
+import type { Workstream } from "../../domain/workstreams.ts";
+import { workstreamIndex } from "../../domain/workstream-path.ts";
 import {
   useSharedServerState,
   useSharedServerActions,

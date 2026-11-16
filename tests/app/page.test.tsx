@@ -54,7 +54,7 @@ const analysis = (recap: string, state = "done") => ({
 });
 
 async function mount(
-  tree?: import("../../src/domain/topics.ts").WorkstreamState,
+  tree?: import("../../src/domain/workstreams.ts").WorkstreamState,
   extraThreads: ReturnType<typeof sidebarThread>[] = [],
   rpc: Record<string, (input: unknown) => unknown> = {},
   sdk: RenderSlotOptions["sdk"] = {},

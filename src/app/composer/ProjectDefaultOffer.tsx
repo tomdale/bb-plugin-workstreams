@@ -11,7 +11,7 @@ import type { RpcContract } from "../../server/contract.ts";
 import {
   NO_PROJECT,
   workstreamProjectConflict,
-} from "../../domain/topicProject.ts";
+} from "../../domain/workstreamProject.ts";
 import type { NewWork, NewWorkViewState } from "./new-work.ts";
 
 type Offer = {

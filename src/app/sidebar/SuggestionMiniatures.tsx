@@ -27,7 +27,7 @@ import type {
   Miniature,
   MiniWorkstream,
 } from "./suggestionMiniatures.ts";
-import { PATH_SEPARATOR } from "../../domain/topic-path.ts";
+import { PATH_SEPARATOR } from "../../domain/workstream-path.ts";
 
 /** Titles the card lists before it gives the rest as a count. */
 const TITLES_SHOWN = 12;

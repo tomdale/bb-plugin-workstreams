@@ -59,7 +59,7 @@ import {
   type SidebarView,
 } from "./suggestionMiniatures.ts";
 import type { Feed, Rpc, Suggestion } from "./useSuggestionFeed.ts";
-import { PATH_SEPARATOR } from "../../domain/topic-path.ts";
+import { PATH_SEPARATOR } from "../../domain/workstream-path.ts";
 
 type Decision = "accept" | "decline";
 type Decided = {

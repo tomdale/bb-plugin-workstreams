@@ -35,7 +35,7 @@ function snapshot(title = "Root task"): PluginSidebarThread[] {
 }
 
 /** The same threads with one retitled, so only that thread's data changes. */
-function withRenamedRoot(threads: readonly PluginSidebarThread[]) {
+function withRenamedThread(threads: readonly PluginSidebarThread[]) {
   return [
     { ...threads[0]!, title: "Renamed task", displayTitle: "Renamed task" },
     ...threads.slice(1),
@@ -82,10 +82,14 @@ it("keeps rows and groups that a new projection leaves unchanged", () => {
 it("replaces the row and group of the thread that changed", () => {
   const threads = snapshot();
   const before = project.projectWorkstreams(threads, sections, { now });
-  const after = project.projectWorkstreams(withRenamedRoot(threads), sections, {
-    now,
-    previous: before,
-  });
+  const after = project.projectWorkstreams(
+    withRenamedThread(threads),
+    sections,
+    {
+      now,
+      previous: before,
+    },
+  );
 
   expect(after.rowOf.get("root")).not.toBe(before.rowOf.get("root"));
   expect(after.rowOf.get("root")?.thread.displayTitle).toBe("Renamed task");
@@ -195,7 +199,7 @@ it("keeps unchanged workstream nodes across an arrangement update", () => {
   // A thread in one nested workstream replaces that node and the one heading
   // it, and leaves its sibling alone.
   const changed = project.projectWorkstreams(
-    withRenamedRoot(threads),
+    withRenamedThread(threads),
     sections,
     {
       now,
@@ -225,7 +229,7 @@ it("replaces only the workstream node whose thread changed", () => {
   const after = shareArrangement(
     before,
     arrange(
-      project.projectWorkstreams(withRenamedRoot(threads), sections, {
+      project.projectWorkstreams(withRenamedThread(threads), sections, {
         now,
         previous: projection,
       }),
