@@ -160,10 +160,20 @@ export function WorkstreamGroup({
             <div
               ref={handle?.ref}
               {...handle?.listeners}
+              // Anywhere on the row opens the Overview, as a thread row opens
+              // its thread; the row's own buttons keep their own presses.
+              onClick={
+                onOpenOverview
+                  ? (event) => {
+                      if (!(event.target as Element).closest("button"))
+                        onOpenOverview();
+                    }
+                  : undefined
+              }
               className={cn(
                 "group/row relative flex items-center gap-1.5 rounded-md pr-2 transition-[padding] duration-[180ms] ease-out motion-reduce:transition-none",
                 // The same hover and selected fills as a thread row.
-                onOpenOverview && "ws-row",
+                onOpenOverview && "ws-row cursor-pointer",
                 overviewOpen && "ws-row-active",
               )}
               style={{

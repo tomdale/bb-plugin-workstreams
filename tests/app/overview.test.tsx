@@ -299,6 +299,13 @@ it("opens from a workstream's name and menu in the sidebar", async () => {
     path: "home",
     options: { subPath: "overview/sec_a" },
   });
+  // The rest of the header opens it too, but its chevron only folds the group.
+  const header = name.closest(".group\\/row")!;
+  slot.inspection.navigateCalls.length = 0;
+  fireEvent.click(header);
+  expect(slot.inspection.navigateCalls).toHaveLength(1);
+  fireEvent.click(within(header as HTMLElement).getByLabelText(/^Collapse/));
+  expect(slot.inspection.navigateCalls).toHaveLength(1);
   // The header marks itself while the page shows its Overview.
   expect(name.getAttribute("aria-current")).toBeNull();
   act(() => setOpenOverview("sec_a"));

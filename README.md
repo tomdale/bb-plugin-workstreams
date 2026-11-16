@@ -474,10 +474,10 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      its empty section is deleted on the next organizing pass. Threads and
      topics are kept, so a later thread on that topic gets a workstream again.
      Focusing an empty workstream keeps it no longer than any other.
-   - Click a workstream's name to open its **Overview** on the Workstreams page.
-     The header takes a thread row's hover fill, and its selected fill while its
-     Overview is open. Dragging the header by its name still reorders the
-     workstream and opens nothing.
+   - Click a workstream's header, anywhere but its buttons, to open its
+     **Overview** on the Workstreams page. The header takes a thread row's hover
+     fill, and its selected fill while its Overview is open. Dragging the header
+     by its name still reorders the workstream and opens nothing.
    - Press the chevron beside a workstream's name to collapse or expand its
      threads. The group closes and opens its height over `260 ms` with a fade,
      like rows and bands, so what follows slides rather than jumps, and the
