@@ -47,6 +47,23 @@
   display: flex;
 }
 
+:where(.group\/row):has(:focus-visible) .ws-row-hover-action,
+:where(.group\/row):has([data-state="open"]) .ws-row-hover-action {
+  max-width: calc(var(--spacing) * 6);
+  opacity: 1;
+}
+:where(.group\/row):has(:focus-visible) .ws-row-actions,
+:where(.group\/row):has([data-state="open"]) .ws-row-actions {
+  margin-left: 0;
+}
+:where(.group\/row):has(:focus-visible) .ws-row-aside,
+:where(.group\/row):has([data-state="open"]) .ws-row-aside {
+  display: none;
+}
+:where(.group\/replies):has(:focus-visible) .ws-edit-hint {
+  opacity: 1;
+}
+
 /* Status marks: BB's resolved thread status, drawn by this plugin. The row
    sets --ws-slot-width to the widest mark its list draws (see
    `slotWidthOf`); each mark centers in that width. */
@@ -1212,8 +1229,9 @@ body:has([data-ws-suggestions])
 .ws-has-disclosure > .ws-disclosure:focus-visible {
   opacity: 1;
 }
-.ws-row:hover .ws-has-disclosure > :not(.ws-disclosure),
-.ws-has-disclosure:has(> .ws-disclosure:focus-visible) > :not(.ws-disclosure) {
+.ws-row:hover .ws-has-disclosure > :is(.ws-mark, .ws-dot),
+.ws-has-disclosure:has(> .ws-disclosure:focus-visible)
+  > :is(.ws-mark, .ws-dot) {
   opacity: 0;
 }
 @media (pointer: coarse) {

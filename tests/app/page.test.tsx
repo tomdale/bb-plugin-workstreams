@@ -546,7 +546,6 @@ it("shows the edit hint only on hover, focus, or while ⇧ is held, without movi
   );
   expect(classes()).toContain("opacity-0");
   expect(classes()).toContain("group-hover/replies:opacity-100");
-  expect(classes()).toContain("group-has-[:focus-visible]/replies:opacity-100");
   expect(classes()).not.toContain("hidden");
   expect(classes()).not.toContain("invisible");
   // ⇧ shows it, brighter, whatever the pointer does.

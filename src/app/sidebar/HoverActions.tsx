@@ -32,7 +32,7 @@ const MENU_CLOSE_DELAY_MS = 200;
  * hidden.
  */
 const REVEAL_ON_ROW_HOVER =
-  "max-w-0 overflow-hidden opacity-0 group-hover/row:max-w-6 group-hover/row:opacity-100 group-has-[:focus-visible]/row:max-w-6 group-has-[:focus-visible]/row:opacity-100 group-has-[[data-state=open]]/row:max-w-6 group-has-[[data-state=open]]/row:opacity-100 pointer-coarse:hidden";
+  "ws-row-hover-action max-w-0 overflow-hidden opacity-0 group-hover/row:max-w-6 group-hover/row:opacity-100 pointer-coarse:hidden";
 
 /**
  * The look of every sidebar row action, revealed or always shown, and of
@@ -61,7 +61,7 @@ export function RowActions({
   return (
     <span
       className={cn(
-        "relative -ml-1.5 flex shrink-0 items-center group-hover/row:ml-0 group-has-[:focus-visible]/row:ml-0 group-has-[[data-state=open]]/row:ml-0 has-[[data-revealed]]:ml-0",
+        "ws-row-actions relative -ml-1.5 flex shrink-0 items-center group-hover/row:ml-0 has-[[data-revealed]]:ml-0",
         className,
       )}
     >

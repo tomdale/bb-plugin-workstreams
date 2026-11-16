@@ -399,7 +399,7 @@ export function Answers({
       {editable && answers.length ? (
         <p
           className={cn(
-            "mb-0 ml-14 mt-1 text-xs opacity-0 transition-[opacity,color] duration-200 ease-out group-hover/replies:opacity-100 group-has-[:focus-visible]/replies:opacity-100 max-md:pointer-coarse:hidden",
+            "ws-edit-hint mb-0 ml-14 mt-1 text-xs opacity-0 transition-[opacity,color] duration-200 ease-out group-hover/replies:opacity-100 max-md:pointer-coarse:hidden",
             shift
               ? "text-foreground/70 opacity-100"
               : "text-muted-foreground/80",

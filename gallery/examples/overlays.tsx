@@ -64,7 +64,7 @@ function ActionRow({
           {name}
         </button>
         <span
-          className={`pointer-events-none shrink-0 text-[11px] tabular-nums text-muted-foreground ${revealed ? "hidden" : ""} group-hover/row:hidden group-has-[:focus-visible]/row:hidden group-has-[[data-state=open]]/row:hidden`}
+          className={`ws-row-aside pointer-events-none shrink-0 text-[11px] tabular-nums text-muted-foreground ${revealed ? "hidden" : ""} group-hover/row:hidden`}
         >
           2m
         </span>
