@@ -253,7 +253,7 @@ export function Row({
         ) : null}
       </span>
       {/* Shown until the hover buttons take their place, as in BB's row. */}
-      <span className="ws-row-aside pointer-events-none relative flex shrink-0 items-center gap-1.5 text-[11px] tabular-nums text-muted-foreground/70 empty:hidden group-hover/row:hidden">
+      <span className="ws-row-aside ws-row-details pointer-events-none relative flex shrink-0 items-center gap-1.5 text-[11px] tabular-nums text-muted-foreground/70 empty:hidden group-hover/row:hidden">
         {rowStatus ? (
           <span aria-label={rowStatus.label} role="img">
             <Icon name={rowStatus.icon} className="size-3" />

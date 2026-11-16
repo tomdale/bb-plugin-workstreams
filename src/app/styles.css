@@ -56,8 +56,8 @@
 :where(.group\/row):has([data-state="open"]) .ws-row-actions {
   margin-left: 0;
 }
-:where(.group\/row):has(:focus-visible) .ws-row-aside,
-:where(.group\/row):has([data-state="open"]) .ws-row-aside {
+:where(.group\/row):has(:focus-visible) .ws-row-details,
+:where(.group\/row):has([data-state="open"]) .ws-row-details {
   display: none;
 }
 :where(.group\/replies):has(:focus-visible) .ws-edit-hint {
