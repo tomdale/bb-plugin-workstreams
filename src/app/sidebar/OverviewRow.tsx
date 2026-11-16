@@ -33,12 +33,12 @@ export function OverviewRow({
     inGroup: true,
   });
   return (
-    <li className="list-none">
+    <li className="mb-1 list-none border-b border-border/60 pb-1">
       <div
         className={cn(
-          "ws-row group/row relative flex gap-1.5 rounded-md pr-2 text-[13px] text-muted-foreground",
+          "ws-row group/row relative flex gap-1.5 rounded-md pr-2 text-[13px] font-medium text-foreground",
           heightClass,
-          open && "ws-row-active text-foreground",
+          open && "ws-row-active",
         )}
         style={{ paddingLeft }}
       >
