@@ -33,7 +33,7 @@ code, settings, and tests rather than leaving compatibility shims. Measure
 before optimizing analysis: check live traces and costs, and evaluate prompt or
 model changes with `eval/` (see `eval/README.md`). For profiling, benchmarking,
 or a speedup claim, follow `.agents/skills/measuring-performance/SKILL.md`; it
-holds the recipes for live CDP counters and traces, frame capture, the
+holds the recipes for Chrome CDP counters and traces, frame capture, the
 real-scale fixture, and server pass and payload benchmarks.
 
 Before changing UI, agent tools or instructions, or the SDK dependency, read
