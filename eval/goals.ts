@@ -92,12 +92,12 @@ const cases: {
 
 const apiKey = await gatewayKey();
 if (!apiKey) throw new Error("AI Gateway authentication required");
-const model = process.env.EVAL_MODEL ?? "openai/gpt-6-sol-fast";
+const model = process.env.EVAL_MODEL ?? "openai/gpt-6.1-sol";
 /**
- * `full` (default) asks Full analysis alone; `turn-end` asks the turn-end
- * call, which also chooses the thread's topic from a small tree.
+ * `turn-end` (default) asks the turn-end call, which also chooses the
+ * thread's topic from a small tree; `full` asks Full analysis alone.
  */
-const kind = process.env.EVAL_KIND ?? "full";
+const kind = process.env.EVAL_KIND ?? "turn-end";
 if (kind !== "full" && kind !== "turn-end")
   throw new Error("EVAL_KIND must be full or turn-end");
 const reasoningLevel = process.env.EVAL_REASONING_LEVEL ?? "none";

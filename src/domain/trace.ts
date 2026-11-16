@@ -90,9 +90,9 @@ export type NewTrace = Omit<
 
 /** How the inspector and the CLI name each kind of call. */
 export const TRACE_KIND_TITLE: Record<TraceKind, string> = {
-  start: "Title and workstream",
-  "full-analysis": "Full analysis",
-  placement: "Placement",
+  start: "New thread",
+  "full-analysis": "Turn end",
+  placement: "Workstream choice",
   categories: "Categories",
   "category-fit": "Category check",
   split: "Split suggestion",

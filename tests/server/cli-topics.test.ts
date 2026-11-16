@@ -328,7 +328,7 @@ describe("CLI thread topic commands", () => {
     expect(rootRes.stdout).toContain("Workstream:      Storage");
     expect(rootRes.stdout).toContain("Topic:           Storage: Shelves");
     expect(rootRes.stdout).toContain(
-      "Source:          settled by Full analysis",
+      "Source:          chosen automatically from its requests",
     );
 
     // Child thread inherits root
@@ -342,7 +342,7 @@ describe("CLI thread topic commands", () => {
       "Source:          follows parent thread's topic",
     );
     expect(childRes.stdout).toContain(
-      "Parent source:   settled by Full analysis",
+      "Parent source:   chosen automatically from its requests",
     );
     expect(childRes.stdout).toContain(
       `Follows parent:  @thread:${rootThread.id}`,
@@ -470,7 +470,7 @@ describe("CLI thread topic commands", () => {
     );
   });
 
-  it("thread reclassify on a child settles its root with Full analysis, and organizing asks nothing more", async () => {
+  it("thread reclassify on a child settles its root at once, and organizing asks nothing more", async () => {
     const prompts: string[] = [];
     const { w, corpus, rootThread, childThread, shelves } = await setup({
       onPrompt: (p) => prompts.push(p),

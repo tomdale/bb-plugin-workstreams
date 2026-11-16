@@ -6,21 +6,17 @@ repository.
 
 ## Classification contracts
 
-Run `node eval/classification.ts` for placement,
-`EVAL_KIND=quick node eval/classification.ts` for the actual Quick prompt,
-output schema, and parser, `EVAL_KIND=start` for the start call (title and topic
-from the opening request), or `EVAL_KIND=turn-end` for the turn-end call
-(description and topic from the case's requests as a first turn). Start and
-turn-end choose topics under placement's contract and are scored like it. Quick
-flattens a synthetic case's requests into one opening request; it does not
-measure conversation trajectories or the production repair retry. Placement
-receives generated titles and optional conflicting hints, checkouts, and current
+Run `node eval/classification.ts` with `EVAL_KIND` set to `placement` (the
+default), `start` (title and topic from the opening request), or `turn-end`
+(description and topic from the case's requests as a first turn), each with its
+production prompt, output schema, and parser. A start flattens a synthetic
+case's requests into one opening request; it does not measure conversation
+trajectories or the production repair retry. Every kind receives generated
+titles where it reads them, optional conflicting hints, checkouts, and current
 assignments; scoped cases also check `scopeShift`.
 
-- `EVAL_MODEL`: model ID; default `openai/gpt-6-sol` for placement,
-  `openai/gpt-6-luna-fast` for Quick and start, `openai/gpt-6-sol-fast` for
-  turn-end
-- `EVAL_KIND`: `placement`, `quick`, `start`, or `turn-end`
+- `EVAL_MODEL`: model ID; default `openai/gpt-6.1-sol`
+- `EVAL_KIND`: `placement`, `start`, or `turn-end`
 - `EVAL_REASONING_LEVEL`: explicit gateway effort; default `none`
 - `EVAL_OUTPUT`: JSON report path; default `/tmp/classification-eval.json`
 - `EVAL_COLD=1`: remove known topics
@@ -52,8 +48,11 @@ cases that reject names joining scopes with "and" or commas; stability cases
 also require the explicit keep decision. This measures the supplied collections,
 not production grouping accuracy.
 
-- `EVAL_MODEL`: defaults to the Organization model's shipped default
+- `EVAL_MODEL`: defaults to the Arrange categories model's shipped default
 - `EVAL_REASONING_LEVEL`: defaults to that model's shipped reasoning level
+- `EVAL_KIND`: `rearrange` (default) or `fit`, the cheap check of changed
+  threads against current categories, which defaults to the Name and file new
+  threads model
 - `EVAL_REPETITIONS`: 1–3; default `1`
 - `EVAL_BUDGET`: reported-cost budget with per-call headroom; default `$5`,
   maximum `$10`
@@ -74,7 +73,7 @@ cover titles, sidebar layout, and question cards while the old topic, project,
 and checkout point elsewhere. Every answer must choose an existing leaf within
 the destination; the report also checks the expected topic.
 
-- `EVAL_MODEL`: defaults to the production Placement model
+- `EVAL_MODEL`: defaults to the Name and file new threads model
 - `EVAL_REPETITIONS`: 1–20; default `3`
 - `EVAL_OUTPUT`: default `/tmp/group-drops-eval.json`
 
@@ -84,35 +83,34 @@ scoped contract, not accuracy on all real threads.
 
 ## Titles
 
-`node eval/titles.ts` runs Quick analysis's prompt, schema, and parser on
-synthetic opening requests, each listed under a workstream and sometimes a
-parent thread; `EVAL_KIND=full` runs Full analysis's on the same requests as a
-first turn. `EVAL_KIND=start`, `turn-end`, and `turn-end-follow` run the same
-cases through the start and turn-end calls, which also choose a topic: a root's
-listed group becomes the topic tree, already chosen at a turn's end.
-`EVAL_KIND=follow` gives Full analysis a title Workstreams wrote and a later
-request: a request that only takes the work to its next step must keep the
-title, and one that changes the goal must rename it. A title passes when it
-starts with an -ing verb that says what kind of work it is, names its case's
-subject, repeats nothing its listing shows, and fits a sidebar row
-(`EVAL_VISIBLE`, default `34` characters).
+`node eval/titles.ts` runs synthetic opening requests, each listed under a
+workstream and sometimes a parent thread, through the production prompts,
+schemas, and parsers. `EVAL_KIND=start` (default) asks a thread's start, where a
+root's listed group becomes its topic tree; `turn-end` asks the turn-end call as
+a first turn with that topic already chosen, and `full` asks Full analysis
+alone. `turn-end-follow` (or `follow` for Full analysis alone) gives the call a
+title Workstreams wrote and a later request: a request that only takes the work
+to its next step must keep the title, and one that changes the goal must rename
+it. A title passes when it starts with an -ing verb that says what kind of work
+it is, names its case's subject, repeats nothing its listing shows, and fits a
+sidebar row (`EVAL_VISIBLE`, default `34` characters).
 
-- `EVAL_MODEL`: default `openai/gpt-6-luna-fast` (Quick) or
-  `openai/gpt-6-sol-fast` (Full)
+- `EVAL_MODEL`: default `openai/gpt-6.1-sol`, or `openai/gpt-6-sol-fast` for
+  `full` and `follow`
 - `EVAL_REASONING_LEVEL`: default `none`
 - `EVAL_REPETITIONS`: default `3`
 - `EVAL_OUTPUT`: default `/tmp/title-eval.json`
 
 ## Thread goals
 
-`node eval/goals.ts` evaluates the production Full analysis prompt, schema, and
-parser (`EVAL_KIND=turn-end`: the turn-end call, choosing a topic beside it) on
+`node eval/goals.ts` evaluates the production turn-end prompt, schema, and
+parser, which also chooses a topic (`EVAL_KIND=full`: Full analysis alone), on
 synthetic implementation, refactoring, design, and audit requests. Cases include
 misleading recap headlines, housekeeping and testing follow-ups, a genuine
 change of purpose, and a user-owned title. Goals must retain the settled outcome
 through intermediate steps and follow changes in user intent.
 
-- `EVAL_MODEL`: default `openai/gpt-6-sol-fast`
+- `EVAL_MODEL`: default `openai/gpt-6.1-sol`
 - `EVAL_REASONING_LEVEL`: default `none`
 - `EVAL_REPETITIONS`: 1–20; default `3`
 - `EVAL_OUTPUT`: default `/tmp/goal-eval.json`

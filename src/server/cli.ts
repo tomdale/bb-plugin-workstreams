@@ -84,8 +84,8 @@ function resolveWorkstream(sections: Section[], arg: string): Section | null {
 const TOPIC_SOURCE_LABEL = {
   manual: "set by you",
   inherited: "inherited from where the thread started",
-  full: "settled by Full analysis",
-  quick: "Quick analysis's guess from the first request",
+  full: "chosen automatically from its requests",
+  quick: "shown by the composer for an earlier draft",
   none: "none yet",
 } as const;
 
@@ -1483,7 +1483,7 @@ export function registerCli(
         }),
         "thread reclassify": cliCommand({
           summary:
-            "Hand a thread's topic back to Workstreams and settle it now with Full analysis",
+            "Hand a thread's topic back to Workstreams and choose it again now",
           positionals: [
             {
               name: "thread",

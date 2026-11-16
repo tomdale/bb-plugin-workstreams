@@ -358,7 +358,7 @@ describe("debug mode on", () => {
     expect(list.stdout).toContain("full-analysis");
     const [summary] = await traces(w);
     const shown = await w.harness.behavior.runCli(["trace", summary!.id]);
-    expect(shown.stdout).toContain("Full analysis: Alpha parser");
+    expect(shown.stdout).toContain("Turn end: Alpha parser");
     expect(shown.stdout).toContain("── Reasoning ──");
     expect(shown.stdout).toContain("── Prompt ──");
   });

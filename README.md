@@ -20,9 +20,10 @@ Path installs load from that directory; do not delete it while installed. In
 Tom's checkout, develop in a Workforest task and install only from canonical
 `main` after integration.
 
-1. Open **Settings → Workstreams** and choose the Quick and Full analysis
-   models. The default Gateway models need a connected BB machine with an AI
-   Gateway key; see [model execution](#gateway-vs-provider-worker-models).
+1. Open **Settings → Workstreams** and choose the models that name and file new
+   threads and update threads after each turn. The default Gateway models need a
+   connected BB machine with an AI Gateway key; see
+   [model execution](#gateway-vs-provider-worker-models).
 2. Select **Workstreams** as the sidebar thread list and open **Workstreams** in
    the main navigation to browse the topic tree and organization state.
 3. Start a thread with **Automatic**, or select its **Topic** yourself. To move
@@ -44,7 +45,6 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
 | **Workstream**       | A native BB section bound to one topic in the topic tree.                                                                                                                                                                      |
 | **Category**         | A contextual subdivision of a topic's current sidebar roots. Categories survive restarts separately from topic assignments, appear at `6` roots, and are discarded at `3` or fewer.                                            |
 | **Group**            | A topic as suggestion review names it: where its threads sit in the sidebar, whether or not it has threads and a workstream yet.                                                                                               |
-| **Placement**        | The one model call that chooses a root's topic from its requests, when it starts and after each new request.                                                                                                                   |
 | **Suggestion**       | A proposed lasting topic division or tidy edit that changes nothing until you accept it. Review lists those that move threads apart from those that only tidy groups, which move no thread and decide where future threads go. |
 | **Unfiled**          | Roots that currently have no topic and therefore belong to no workstream.                                                                                                                                                      |
 | **Goal**             | What a thread is for, written as its display title: an -ing verb and its subject ("Redesigning work tab") that leaves out what its workstream and parent thread already say (`2–5` words, under `34` characters).              |
@@ -67,17 +67,17 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
    - `manual` (chosen by you in the composer, sidebar, Workstreams page, or CLI)
      is never overwritten by automatic analysis.
    - `inherited` (from a parent/source thread or a workstream's **＋** button)
-     changes automatically only when placement reports a scope shift or settles
-     a more specific topic beneath it, or when you explicitly apply a reviewed
-     topic-repair plan or accept a suggestion.
-   - `full` (settled by placement from the thread's requests) replaces `quick`
+     changes automatically only when a topic choice reports a scope shift or
+     settles a more specific topic beneath it, or when you explicitly apply a
+     reviewed topic-repair plan or accept a suggestion.
+   - `full` (chosen automatically from the thread's requests) replaces `quick`
      and updates prior `full` assignments.
-   - `quick` (the topic the composer's Quick analysis preview showed) fills only
-     threads without a stronger source.
+   - `quick` (the topic an automatic composer preview showed for earlier text of
+     the draft) fills only threads without a stronger source.
 4. **Agent reports outrank fallback status.** Structured questions
    (`AskUserQuestion`) and agent recaps (`WorkstreamsRecap`) take precedence
-   over Full analysis for thread status, recap text, and `needs you` prompts.
-   Full analysis supplies those fields only when the agent did not report.
+   over the model's own reading of the turn for thread status, recap text, and
+   `needs you` prompts, which it supplies only when the agent did not report.
 5. **A topic holds threads or subtopics, never both.** Once a topic has
    subtopics, every thread in it is in one of them. Assignments, new subtopics,
    moves, and merges that would put threads beside subtopics are refused,
@@ -91,32 +91,45 @@ See [ISSUES.md](ISSUES.md) for current limitations and audit dispositions.
 
 ## How it works
 
-### 1. Starting a thread & Quick analysis
+### 1. Starting a thread
 
 When you compose a new thread, the composer includes a **Topic** control (in
 BB's picker row on wide viewports, or on its own strip above the prompt on
 phones):
 
-- **Automatic (`✦`, default):** Runs **Quick analysis** on your draft while you
-  type (after a `250 ms` pause, or `900 ms` for drafts of `20` characters or
-  fewer) to preview a title and topic. When you send the first request, a
-  matching draft preview is reused immediately without a second model call;
-  otherwise Quick analysis titles the sent request.
+- **Automatic (`✦`, default):** While you type (after a `250 ms` pause, or
+  `900 ms` for drafts of `20` characters or fewer), Workstreams asks for the
+  title and topic the thread would start with and shows the topic. Sending the
+  exact text that answer was for files and titles the thread with it, with no
+  second model call. When you edited the draft after the last answer, the
+  composer's topic files the thread (`quick` provenance) until Workstreams asks
+  the same question about the text you sent.
 - **Explicit workstream reference:** A draft containing `@section:<id>` resolves
   to that section's bound topic without a model call when typing suggestions are
   enabled. For example, `@section:sec_0123456789` uses a native BB section ID,
   not a topic name or topic ID. Run `bb workstreams list` to find section IDs.
-  Unknown or unbound section IDs fall back to Quick analysis. This is a preview
-  shortcut, not a separate destination-workstream control.
+  Unknown or unbound section IDs are asked like any other draft. This is a
+  preview shortcut, not a separate destination-workstream control.
 - **Workstream `＋` button:** Clicking **New work in \<workstream\>** in a
   sidebar group header seeds the composer with that workstream's topic
   (`inherited` provenance). A header whose topic has subtopics can't hold the
-  thread, so placement chooses one of its subtopics, told where it started.
+  thread, so one of its subtopics is chosen, with where it started as a hint.
 - **Forked or spawned threads:** Inherit their source thread's topic
   (`inherited` provenance).
 - **Manual topic selection:** Opening the Topic picker lets you search the topic
   tree, create **New topic "\<query\>"** inline, or choose **No topic**
   (`manual` provenance, keeping the thread **Unfiled**).
+
+When a thread's first request is sent and the composer didn't already answer for
+it, one model call titles the thread and, for a root, chooses its topic (the
+**Name and file new threads** model, default `openai/gpt-6.1-sol`, reasoning
+`none`, `15 s` timeout). The title leaves out the name of the topic the same
+answer chose. A child thread is only titled; it follows its root's topic. An
+answer whose topic is invalid is repaired once and never blocks a valid title.
+Workstreams retries a failed call twice with short delays, then leaves the
+thread to its turn's end; a newer request cancels the retries. Titles only fill
+threads that do not yet have one while the first turn is still running. Hidden
+threads, such as workflow and subagent workers, get neither a title nor a topic.
 
 To associate a workstream with a BB project, open **Workstreams → Topics**,
 click its topic, and choose **Project**. **Automatic** learns an association
@@ -142,105 +155,98 @@ Consistent alternative history suggests another project; mixed history suggests
 declining suppresses that correction while the association is unchanged.
 Acceptance rechecks the history and becomes your explicit choice.
 
-Selecting a topic manually, through Quick analysis, or with the workstream's
-**＋** button updates the new-thread composer to use its project, or No project
-when it has none. Subtopics use their nearest ancestor's project unless
-overridden or disabled. Quick analysis never moves a thread to No project: when
-its topic has no project and you are in one, the topic shows **No topic** and
-the thread stays unfiled.
+Selecting a topic manually, automatically, or with the workstream's **＋**
+button updates the new-thread composer to use its project, or No project when it
+has none. Subtopics use their nearest ancestor's project unless overridden or
+disabled. An automatic topic never moves a thread to No project: when its topic
+has no project and you are in one, the topic shows **No topic** and the thread
+stays unfiled.
 
 If you pick a topic, or start from a workstream's **＋**, and then choose a
 different project, the composer keeps the topic and starts the thread in your
 project. Workstreams leaves that project alone until you pick another topic.
 Under the picker row, **Set <project> as default for <workstream>** makes your
-project the topic's explicit choice; without it the topic keeps its project.
-Quick analysis's topic must match its workstream's project: when they differ,
-sending shows what differs and sends nothing until the project or topic changes,
-and the server never files a thread under Quick analysis's topic when the
-thread's project differs from it. Unavailable projects are not applied. Changing
-the project does not replace the draft or refile existing threads. Workstreams
-records when it supplied the composer's project, including across reloads, so
-those threads cannot reinforce its own inference. Unknown project choices on new
-threads do not count. Historical work with no association can bootstrap
-learning; historical work that already had an association is excluded when its
+project the topic's explicit choice; without it the topic keeps its project. An
+automatic topic must match its workstream's project: when they differ, sending
+shows what differs and sends nothing until the project or topic changes, and the
+server never files a thread under an automatic topic when the thread's project
+differs from it. Unavailable projects are not applied. Changing the project does
+not replace the draft or refile existing threads. Workstreams records when it
+supplied the composer's project, including across reloads, so those threads
+cannot reinforce its own inference. Unknown project choices on new threads do
+not count. Historical work with no association can bootstrap learning;
+historical work that already had an association is excluded when its
 project-choice provenance is unknown.
 
-Quick analysis defaults to schema-constrained `openai/gpt-6-luna-fast` with
-reasoning disabled (`15 s` timeout, up to `4` in-flight calls). A draft
-preview's title and topic validate independently: an invalid topic receives one
-bounded repair attempt within the remaining time budget and never blocks a valid
-title. Opening titles only fill threads that do not yet have a title while the
-first turn is still running.
-
-A new root's first request is also **placed** right away (see below), so the
-thread is filed within a few seconds; the opening title call doesn't choose a
-topic.
-
-### 2. Turn end & Full analysis
+### 2. When a turn ends
 
 When a visible, non-archived thread goes idle after a turn (`5 s` debounce, up
-to `4` concurrent runs), **Full analysis** runs with:
+to `4` concurrent runs), one model call (the **Update threads after each turn**
+model, default `openai/gpt-6.1-sol`, reasoning `none`) reads:
 
 - The thread's opening request, recent substantive user requests (control-only
   replies such as `continue`, `yes`, or `ok` don't count as new requests),
   referenced continuation threads (`@thread:`), and the latest assistant reply.
-- The thread's current title and who gave it, and the latest agent recap if one
-  was recorded.
+- The thread's current title and who gave it, the goal and context digest it
+  settled last time, and the latest agent recap if one was recorded.
+- After a new request to a root whose topic you didn't set: the topic tree, the
+  root's current topic, its project and checkout, and topic hints.
 
-Full analysis settles:
+It settles:
 
 - **Title:** After a turn that followed a new request from you, when **Keep
   titles current** is enabled. A title names the goal you're working toward,
   phrased as what you're doing: an -ing verb that says what kind of work it is
   and the subject it acts on ("Reviewing Phase 1 security", not "Review Phase 1
-  security and boundaries"). Both analyses write it as those two parts, and
+  security and boundaries"). The model writes it as those two parts, and
   Workstreams joins them. The verb names the overall work, not the latest step,
   so a title Workstreams wrote is kept while the thread diagnoses, tests, or
   ships, and replaced when your requests change the goal; a title BB or an agent
   gave the thread is replaced. Titles keep identifiers such as a phase number,
   name a pull request by its subject rather than its number, and leave out what
-  the thread's workstream and parent thread already say: both analyses see both,
-  and a workstream name at the start or right after the verb is dropped from the
-  result. They aim under `34` characters; titles over `48` are dropped rather
-  than clipped. If you rename a thread outside Workstreams, Full analysis stops
-  titling it until the title is cleared.
+  the thread's workstream and parent thread already say: a workstream name at
+  the start or right after the verb is dropped from the result. They aim under
+  `34` characters; titles over `48` are dropped rather than clipped. If you
+  rename a thread outside Workstreams, Workstreams stops titling it until the
+  title is cleared.
 - **Goal:** A concise desired outcome shown below the thread title, independent
   of recap headlines. It is usually one sentence of 12–20 words, with an
   explicit subject and only enough detail to recognize the purpose. It leads
   with success, or with the problem when the motivation would otherwise be
   unclear. Goals follow changes in your purpose, not testing, shipping,
-  housekeeping, or completion updates. Full analysis settles them after new
-  requests even when you gave the thread its title; turns without new requests
-  carry the goal forward. Existing open threads receive goals through analysis
-  catch-up. Until a goal is available, the subtitle is omitted.
+  housekeeping, or completion updates. They are settled after new requests even
+  when you gave the thread its title; turns without new requests carry the goal
+  forward. Existing open threads receive goals through catch-up. Until a goal is
+  available, the subtitle is omitted.
 - **Context digest:** Two or three short sentences recording what the work is,
-  what it has established, and the product or area that owns it. Each settled
-  turn revises the digest in place, so established facts survive later sub-step
-  requests. Placement reads the digest when choosing a topic, so ownership
-  decisions rest on the thread's accumulated context.
+  what it has established, and the product or area that owns it. The same call
+  reads the digest it settled last time and revises it in place, so established
+  facts survive later sub-step requests and a topic decision rests on the
+  thread's accumulated context.
 - **Fallback recap and status:** Only when the agent did not call
-  `WorkstreamsRecap`, Full analysis supplies a one-line recap, work state
-  (`needs_decision`, `review`, `blocked`, `in_progress`, or `done`), and a short
-  `needsYou` prompt when waiting on your decision. Failed turns are marked
-  `error` without running analysis.
+  `WorkstreamsRecap`, a one-line recap, work state (`needs_decision`, `review`,
+  `blocked`, `in_progress`, or `done`), and a short `needsYou` prompt when
+  waiting on your decision. Failed turns are marked `error` with no model call.
+- **Topic:** After a new request to a root, the topic its work belongs to now,
+  usually the one it already has (see below).
 
-### 3. Placement
+### 3. How a topic is chosen
 
-A root's topic is settled by **placement**: a schema-constrained call (default
-`openai/gpt-6-sol`, reasoning `none`) when the thread starts, and again beside
-Full analysis when a turn ends after a new substantive request. If the first
-call fails, Workstreams retries it twice with short delays; after those
-attempts, the turn's end can still place the thread. Topic edits, model changes,
-and turns without a new request never re-place a thread.
+A root's topic is chosen when its first request is sent and again when a turn
+ends after a new substantive request; both calls use the same rules. Topic
+edits, model changes, and turns without a new request never re-file a thread. A
+root that only lacks a topic, for example one analyzed before it had one, is
+filed by a call that asks the topic alone. An invalid topic is refused on its
+own and retried with backoff; the rest of the answer stands.
 
-- **Evidence:** the thread's generated title; its first, second, and latest
-  substantive requests (a routed request is read without its
-  `[bb message from thread:…]` wrapper); the context digest Full analysis
-  settled; its project; and its checkout. Subagent results verified against
-  Subagents' run records are not requests. If those records are unavailable,
-  Workstreams keeps the message rather than discarding a possible user request.
+- **Evidence:** the thread's opening and recent substantive requests (a routed
+  request is read without its `[bb message from thread:…]` wrapper); at a turn's
+  end, its title and context digest; its project; and its checkout. Subagent
+  results verified against Subagents' run records are not requests. If those
+  records are unavailable, Workstreams keeps the message rather than discarding
+  a possible user request.
 - **Closed choice:** only topics without subtopics can be chosen. When none
-  fits, placement may propose one new topic named for a lasting area of work,
+  fits, the answer may propose one new topic named for a lasting area of work,
   never for a task, pull request, or bug. A proposed subtopic of a topic that
   holds threads keeps the thread there and requests a reviewed topic division.
   It does not create children around existing assignments. A second-level topic
@@ -251,11 +257,11 @@ and turns without a new request never re-place a thread.
   its checkout have. A checkout whose threads point at other repositories (at
   least two of them name a GitHub repository or a `~/Code` path outside it)
   coordinates work elsewhere, so it gives no hint.
-- **Provenance:** placement writes `full` topics under the priority above, and
-  every update re-validates live thread evidence, assignment state, and
-  topic-tree freshness before writing. An answer that supplies both an existing
-  topic and a proposal is invalid; the current assignment and catalog stay
-  intact.
+- **Provenance:** automatic choices write `full` topics under the priority
+  above, and every update re-validates live thread evidence, assignment state,
+  and topic-tree freshness before writing. An answer that supplies both an
+  existing topic and a proposal is invalid; the current assignment and catalog
+  stay intact.
 
 ### 4. Organization and categories
 
@@ -308,18 +314,18 @@ collection. Volume and recurring category names do not create child topics.
 
 Workstreams proposes changes to the topic tree and applies them only when you
 accept them: from the count on the sidebar's Workstreams heading, on **Topics**,
-or with `bb workstreams suggestions`. Suggestions and categories use the
-**Organization model** (default `anthropic/claude-sonnet-5.5`, reasoning
-`medium`). Turning off organizing suggestions does not disable automatic
-categories.
+or with `bb workstreams suggestions`. Suggestions use the **Suggest changes**
+model and categories the **Arrange categories** model (both default
+`anthropic/claude-sonnet-5.5`, reasoning `medium`). Turning off organizing
+suggestions does not disable automatic categories.
 
-- **Topic divisions:** When placement identifies a distinct lasting area beneath
-  a populated first-level topic, Workstreams asks for a complete reviewed filing
-  plan. **Ask now** also considers divisions explicitly. A plan must identify
-  supported, independently assignable scopes, useful specificity, and a home for
-  every stored assignment, including archived work. The classifier can conclude
-  that no lasting division is supported. Only acceptance creates the child
-  topics; a second-level topic cannot gain children.
+- **Topic divisions:** When a topic choice identifies a distinct lasting area
+  beneath a populated first-level topic, Workstreams asks for a complete
+  reviewed filing plan. **Ask now** also considers divisions explicitly. A plan
+  must identify supported, independently assignable scopes, useful specificity,
+  and a home for every stored assignment, including archived work. The
+  classifier can conclude that no lasting division is supported. Only acceptance
+  creates the child topics; a second-level topic cannot gain children.
 - **Tidy passes:** At most `8` edits (merge, move under, possibly renamed,
   rename, create a parent for related topics, refile a thread), each with a
   one-line reason. A move under a parent drops the words the names share:
@@ -528,14 +534,14 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      workstream's topic; its delegates follow it. Drop on a row to place it
      before or after that root, or on a header to place it first, including a
      collapsed workstream. Drop in **Unfiled** to clear its topic. When the
-     destination represents several topics, Workstreams uses the Placement model
-     to choose an existing topic within that group. It shows **Choosing a topic
-     in the destination workstream…** while choosing, then saves the choice as a
-     manual topic. The same action works on a parent group's header, including
-     groups whose topics list inline; when that header has no thread list of its
-     own, the chosen subgroup's order applies. If the call fails, returns an
-     invalid topic, or the thread or topic tree changes while it runs, the
-     thread keeps its topic and the sidebar shows an error.
+     destination represents several topics, the **Name and file new threads**
+     model chooses an existing topic within that group. It shows **Choosing a
+     topic in the destination workstream…** while choosing, then saves the
+     choice as a manual topic. The same action works on a parent group's header,
+     including groups whose topics list inline; when that header has no thread
+     list of its own, the chosen subgroup's order applies. If the call fails,
+     returns an invalid topic, or the thread or topic tree changes while it
+     runs, the thread keeps its topic and the sidebar shows an error.
    - Drag root threads within a workstream to set manual thread order (newly
      created roots appear at the top of their workstream; newly created
      workstreams appear at the bottom).
@@ -1115,45 +1121,40 @@ when you snooze never wakes it.
 
 Open **Settings → Workstreams** to configure:
 
-| Section               | Setting                                            | Default                                     | Details                                                                                                                                                                                                                                                                                                             |
-| --------------------- | -------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Sidebar**           | **Up Next**, **Recent**, **Snoozed**, **Archived** | All `On`                                    | Show or hide each band in the Workstreams sidebar.                                                                                                                                                                                                                                                                  |
-| **Sidebar**           | **Threads shown** (under Recent)                   | `5` (`1–20`)                                | Maximum root threads shown in the Recent band.                                                                                                                                                                                                                                                                      |
-| **Sidebar**           | **Up next and workstreams on phones**              | `On`                                        | Replaces BB's flat Recent list on the compact phone Home screen.                                                                                                                                                                                                                                                    |
-| **Sidebar**           | **Timestamp**                                      | `Always`                                    | Show each row's age, right after its title, `Always`, `On hover`, or `Never`.                                                                                                                                                                                                                                       |
-| **Sidebar**           | **Thread count** / **Waiting count**               | `When collapsed`                            | Show workstream counts `Always`, `When collapsed`, or `Never`.                                                                                                                                                                                                                                                      |
-| **Up Next**           | **Threads shown**                                  | `5` (`1–10`)                                | How many rows Up Next shows before **Show N more**. The list never grows past this count.                                                                                                                                                                                                                           |
-| **Up Next**           | **Show read threads**                              | `On`                                        | On, threads you have already read fill the rows left after the ones blocked on you. Off, it skips threads you have read that aren't blocked on you, so Up Next holds fewer rows than **Threads shown**, or none, when nothing needs you.                                                                            |
-| **Up Next**           | **Prioritize unread threads**                      | `On`                                        | On, unread threads come before read ones, and among the unread the ones blocked on you come first. Off, each thread ranks by what it's blocked on, so a read question can come before an unread review.                                                                                                             |
-| **Up Next**           | **Prioritize recent threads**                      | `Don't prioritize`                          | Threads whose turn ended within the chosen window (`Last hour` through `Last week`) come before older ones. Inside that group the tiers above still apply, so unread threads come first, then the ones blocked on you, while with **Prioritize unread threads** off those threads rank by what they are blocked on. |
-| **Working indicator** | **Style**, **Color**, **Track**                    | `Spokes`, `Subtle gray`, `Faded color`      | Choose from `7` spinner shapes (`Spokes`, `Sunburst`, `Arc`, `Orbit`, `Ring`, `Braille`, `Dots`), named or custom `#rrggbb` colors, and track styles for `Arc`/`Orbit`/`Ring`.                                                                                                                                      |
-| **Colors**            | **Use vivid colors**, then six colors              | On                                          | Enhances the active BB theme inside Workstreams. Off uses normal semantic colors. Swatches can follow another theme color or use a custom `#rrggbb`; custom colors bypass vivid enhancement. Both modes follow theme changes and BB's light or dark appearance, even when the system's differs.                     |
-| **Threads**           | **Full analysis model**                            | `openai/gpt-6-sol-fast`                     | Model used at turn end to settle goals and fallback status.                                                                                                                                                                                                                                                         |
-| **Threads**           | **Keep titles current**                            | `On`                                        | Automatically titles new threads and updates titles as focus evolves. Outside manual title edits stay locked until cleared.                                                                                                                                                                                         |
-| **Threads**           | **Title on scroll**                                | `Minimize`                                  | Minimize shrinks the heading into the title bar as you scroll; `Float` leaves it over the thread, which moves beneath its shadow.                                                                                                                                                                                   |
-| **Threads**           | **Title transition**                               | `Fade`                                      | While the title minimizes, `Fade` gently moves the large heading back as the minimized title rises into place, and `Scroll` slides both as they cross. Narrow pinned titles step down at once. Shown only while **Title on scroll** is `Minimize`.                                                                  |
-| **Threads**           | **Title alignment**                                | `Left`                                      | Where the minimized title's slot sits in the title bar: `Left` after the thread's controls, or `Centered` in the bar's middle. All title and workstream text stays left aligned. Shown only while **Title on scroll** is `Minimize`.                                                                                |
-| **Threads**           | **Show parent thread link**                        | `Off`                                       | Shows a parent-thread pill in delegate thread headers.                                                                                                                                                                                                                                                              |
-| **Threads**           | **Show archive button**                            | `On`                                        | Shows an Archive button in thread headers.                                                                                                                                                                                                                                                                          |
-| **Recap**             | **End turns with a recap**                         | `On`                                        | Gives agents `WorkstreamsRecap` and displays the recap card above the composer.                                                                                                                                                                                                                                     |
-| **Recap**             | **Reminders**                                      | `3` (`0–10`)                                | Maximum turn-end reminders sent when an enrolled agent omits a recap (`0` disables reminders).                                                                                                                                                                                                                      |
-| **Recap**             | **Structured replies**                             | `Off`                                       | Agents report each turn with the recap tool, then write the reply as one `:::reply` block that ends the turn. Shown only with the tomdale/bb fork.                                                                                                                                                                  |
-| **Recap**             | **Layout**                                         | `Full` (`Full` / `Compact`)                 | Card layout on desktop (`Compact` is always used on phones), with a live preview carousel.                                                                                                                                                                                                                          |
-| **Recap**             | **Commit hash colors**                             | Theme default                               | Custom `#rrggbb` colors for commit-hash digits and letters, with **Reset**.                                                                                                                                                                                                                                         |
-| **Snooze**            | **Presets**                                        | `4` presets, **Tomorrow morning** default   | `1–6` presets every snooze menu lists before **Custom…**: add, edit, delete, drag to reorder, and choose the **Default** a click uses.                                                                                                                                                                              |
-| **Snooze**            | **Wake on …events** (three groups)                 | All `On`                                    | Which wake events end a snooze that wakes on events (see [Wake events](#wake-events)).                                                                                                                                                                                                                              |
-| **New threads**       | **Home project**                                   | `Don't work in a project`                   | Default project used for background worker fallback when a thread has no project.                                                                                                                                                                                                                                   |
-| **New threads**       | **Suggestions while typing**                       | `On`                                        | Runs Quick analysis on composer drafts while typing.                                                                                                                                                                                                                                                                |
-| **New threads**       | **Quick analysis model**                           | `openai/gpt-6-luna-fast` (reasoning `none`) | Model used for composer draft previews and first-send Quick analysis (remains active when typing suggestions are off because first-send analysis still uses it).                                                                                                                                                    |
-| **Organization**      | **Placement model**                                | `openai/gpt-6-sol` (reasoning `none`)       | Model that chooses each root's topic from its requests, when it starts and after a new request.                                                                                                                                                                                                                     |
-
-| **Organization** | **Organizing suggestions** | `On` | Suggests lasting topic
-divisions and tidy edits for review. **Ask now** works either way; categories
-update independently. | | **Organization** | **Organization model** |
-`anthropic/claude-sonnet-5.5` (`medium`) | Model that categorizes current thread
-collections and writes reviewed topic suggestions. | | **Advanced** | **Analysis
-machine** | Automatic | Enrolled BB machine used for gateway model calls when
-multiple machines are connected. |
+| Section               | Setting                                            | Default                                   | Details                                                                                                                                                                                                                                                                                                             |
+| --------------------- | -------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sidebar**           | **Up Next**, **Recent**, **Snoozed**, **Archived** | All `On`                                  | Show or hide each band in the Workstreams sidebar.                                                                                                                                                                                                                                                                  |
+| **Sidebar**           | **Threads shown** (under Recent)                   | `5` (`1–20`)                              | Maximum root threads shown in the Recent band.                                                                                                                                                                                                                                                                      |
+| **Sidebar**           | **Up next and workstreams on phones**              | `On`                                      | Replaces BB's flat Recent list on the compact phone Home screen.                                                                                                                                                                                                                                                    |
+| **Sidebar**           | **Timestamp**                                      | `Always`                                  | Show each row's age, right after its title, `Always`, `On hover`, or `Never`.                                                                                                                                                                                                                                       |
+| **Sidebar**           | **Thread count** / **Waiting count**               | `When collapsed`                          | Show workstream counts `Always`, `When collapsed`, or `Never`.                                                                                                                                                                                                                                                      |
+| **Up Next**           | **Threads shown**                                  | `5` (`1–10`)                              | How many rows Up Next shows before **Show N more**. The list never grows past this count.                                                                                                                                                                                                                           |
+| **Up Next**           | **Show read threads**                              | `On`                                      | On, threads you have already read fill the rows left after the ones blocked on you. Off, it skips threads you have read that aren't blocked on you, so Up Next holds fewer rows than **Threads shown**, or none, when nothing needs you.                                                                            |
+| **Up Next**           | **Prioritize unread threads**                      | `On`                                      | On, unread threads come before read ones, and among the unread the ones blocked on you come first. Off, each thread ranks by what it's blocked on, so a read question can come before an unread review.                                                                                                             |
+| **Up Next**           | **Prioritize recent threads**                      | `Don't prioritize`                        | Threads whose turn ended within the chosen window (`Last hour` through `Last week`) come before older ones. Inside that group the tiers above still apply, so unread threads come first, then the ones blocked on you, while with **Prioritize unread threads** off those threads rank by what they are blocked on. |
+| **Working indicator** | **Style**, **Color**, **Track**                    | `Spokes`, `Subtle gray`, `Faded color`    | Choose from `7` spinner shapes (`Spokes`, `Sunburst`, `Arc`, `Orbit`, `Ring`, `Braille`, `Dots`), named or custom `#rrggbb` colors, and track styles for `Arc`/`Orbit`/`Ring`.                                                                                                                                      |
+| **Colors**            | **Use vivid colors**, then six colors              | On                                        | Enhances the active BB theme inside Workstreams. Off uses normal semantic colors. Swatches can follow another theme color or use a custom `#rrggbb`; custom colors bypass vivid enhancement. Both modes follow theme changes and BB's light or dark appearance, even when the system's differs.                     |
+| **Threads**           | **Update threads after each turn**                 | `openai/gpt-6.1-sol` (reasoning `none`)   | Model that updates a thread's title, goal, and fallback status when a turn ends, and decides after a new request whether the thread moves to another workstream.                                                                                                                                                    |
+| **Threads**           | **Keep titles current**                            | `On`                                      | Automatically titles new threads and updates titles as focus evolves. Outside manual title edits stay locked until cleared.                                                                                                                                                                                         |
+| **Threads**           | **Title on scroll**                                | `Minimize`                                | Minimize shrinks the heading into the title bar as you scroll; `Float` leaves it over the thread, which moves beneath its shadow.                                                                                                                                                                                   |
+| **Threads**           | **Title transition**                               | `Fade`                                    | While the title minimizes, `Fade` gently moves the large heading back as the minimized title rises into place, and `Scroll` slides both as they cross. Narrow pinned titles step down at once. Shown only while **Title on scroll** is `Minimize`.                                                                  |
+| **Threads**           | **Title alignment**                                | `Left`                                    | Where the minimized title's slot sits in the title bar: `Left` after the thread's controls, or `Centered` in the bar's middle. All title and workstream text stays left aligned. Shown only while **Title on scroll** is `Minimize`.                                                                                |
+| **Threads**           | **Show parent thread link**                        | `Off`                                     | Shows a parent-thread pill in delegate thread headers.                                                                                                                                                                                                                                                              |
+| **Threads**           | **Show archive button**                            | `On`                                      | Shows an Archive button in thread headers.                                                                                                                                                                                                                                                                          |
+| **Recap**             | **End turns with a recap**                         | `On`                                      | Gives agents `WorkstreamsRecap` and displays the recap card above the composer.                                                                                                                                                                                                                                     |
+| **Recap**             | **Reminders**                                      | `3` (`0–10`)                              | Maximum turn-end reminders sent when an enrolled agent omits a recap (`0` disables reminders).                                                                                                                                                                                                                      |
+| **Recap**             | **Structured replies**                             | `Off`                                     | Agents report each turn with the recap tool, then write the reply as one `:::reply` block that ends the turn. Shown only with the tomdale/bb fork.                                                                                                                                                                  |
+| **Recap**             | **Layout**                                         | `Full` (`Full` / `Compact`)               | Card layout on desktop (`Compact` is always used on phones), with a live preview carousel.                                                                                                                                                                                                                          |
+| **Recap**             | **Commit hash colors**                             | Theme default                             | Custom `#rrggbb` colors for commit-hash digits and letters, with **Reset**.                                                                                                                                                                                                                                         |
+| **Snooze**            | **Presets**                                        | `4` presets, **Tomorrow morning** default | `1–6` presets every snooze menu lists before **Custom…**: add, edit, delete, drag to reorder, and choose the **Default** a click uses.                                                                                                                                                                              |
+| **Snooze**            | **Wake on …events** (three groups)                 | All `On`                                  | Which wake events end a snooze that wakes on events (see [Wake events](#wake-events)).                                                                                                                                                                                                                              |
+| **New threads**       | **Home project**                                   | `Don't work in a project`                 | Default project used for background worker fallback when a thread has no project.                                                                                                                                                                                                                                   |
+| **New threads**       | **Suggestions while typing**                       | `On`                                      | Shows a new thread's title and topic in the composer while you type. Sending the text it answered for files the thread there with no second call.                                                                                                                                                                   |
+| **New threads**       | **Name and file new threads**                      | `openai/gpt-6.1-sol` (reasoning `none`)   | Model that titles a new thread and chooses its topic, in the composer and when its first request is sent; it stays in use when typing suggestions are off. It also files a thread dropped on a group of workstreams, previews topic repair, and checks whether changed threads fit their categories.                |
+| **Organization**      | **Organizing suggestions**                         | `On`                                      | Suggests lasting topic divisions and tidy edits for review. **Ask now** works either way; categories update independently.                                                                                                                                                                                          |
+| **Organization**      | **Arrange categories**                             | `anthropic/claude-sonnet-5.5` (`medium`)  | Model that arranges a topic's current threads into categories and rearranges them when a changed thread fits none. Until you choose one, a saved **Suggest changes** model is used.                                                                                                                                 |
+| **Organization**      | **Suggest changes**                                | `anthropic/claude-sonnet-5.5` (`medium`)  | Model that writes topic divisions and tidy edits for review.                                                                                                                                                                                                                                                        |
+| **Advanced**          | **Analysis machine**                               | Automatic                                 | Enrolled BB machine used for gateway model calls when multiple machines are connected.                                                                                                                                                                                                                              |
 
 | Section      | Setting                          | Default      | Details                                                                                                                  |
 | ------------ | -------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
@@ -1172,7 +1173,7 @@ multiple machines are connected. |
 - **AI Gateway models** (the built-in defaults and `pi` models prefixed
   `vercel-ai-gateway/`) run directly on the connected analysis host via
   `~/.pi/agent/auth.json` or `AI_GATEWAY_API_KEY` (`90 s` timeout,
-  schema-constrained JSON for Quick analysis, no silent model fallback).
+  schema-constrained JSON, no silent model fallback).
 - **Other BB provider models** run inside a temporary hidden
   `"Workstreams worker"` BB thread (`120 s` timeout, automatically stopped and
   archived after completion), which takes several seconds longer per call. The
@@ -1201,7 +1202,7 @@ bb workstreams show <workstream> [--json]
 # Inspect current organizer state and agent-report coverage, or force a fresh pass
 bb workstreams organization [--rebuild] [--json]
 
-# Run Full analysis on one thread now, or queue all unanalyzed active threads
+# Update one thread now as its turn's end would, or queue all unanalyzed active threads
 bb workstreams analyze [<thread-id>] [--json]
 
 # Read the activity log (retained for 90 days / 2,000 entries; default --since unit is hours)
@@ -1218,7 +1219,7 @@ bb workstreams suggestions run [--json]
 bb workstreams suggestions accept <id...|all> [--json]
 bb workstreams suggestions decline <id...|all> [--json]
 
-# Inspect recorded Debug-mode model traces (kinds: quick-analysis, full-analysis, placement, categories, split, tidy)
+# Inspect recorded Debug-mode model traces (kinds: start, full-analysis, placement, category-fit, categories, split, tidy)
 bb workstreams trace [<trace-id>] [--thread <id>] [--entry <id>] [--kind <kind>] [--limit 1..500] [--json]
 
 # Inspect an assistant reply's raw output and diagnose :::reply / component syntax issues
@@ -1310,11 +1311,11 @@ Recording and the debug UI are separate settings under **Settings → Workstream
 
 What gets recorded:
 
-- **Trace recording & redaction:** Every Quick analysis, Full analysis,
-  placement, category, split, and tidy model call records its redacted input,
-  prompt, raw response, reasoning summary, parsed output, token usage, cost,
-  duration, and applied outcome. Common secret patterns (`sk-…`, `ghp_…`,
-  `github_pat_…`, `xoxb-…`, `Bearer …`, and
+- **Trace recording & redaction:** Every model call (thread start, turn end,
+  topic choice, category check and arrangement, split, and tidy) records its
+  redacted input, prompt, raw response, reasoning summary, parsed output, token
+  usage, cost, duration, and applied outcome. Common secret patterns (`sk-…`,
+  `ghp_…`, `github_pat_…`, `xoxb-…`, `Bearer …`, and
   `api_key`/`token`/`password`/`secret` assignments) are masked before prompts
   reach a model or trace store. Redaction is best effort, not a security
   boundary; do not put secrets in requests or assume diagnostics are safe to
@@ -1338,16 +1339,17 @@ What the UI shows:
   for the thread: the settled goal, the context digest, the topic assignment and
   its provenance, the settled title, and the latest analysis run's status,
   model, and age. The activity list below the metadata combines related Activity
-  events with the thread's Quick analysis, Full analysis, and Placement calls.
-  Full analysis rows label their historical assessment as **Work status** so it
-  is distinct from the call's completion. Hovering or focusing a row reveals a
-  chevron. Click an event to open every recorded model call behind it, including
-  the exact prompt, reasoning, raw response, and parsed result.
+  events with the thread's start, turn-end, and topic-choice calls. Turn end
+  rows label their historical assessment as **Work status** so it is distinct
+  from the call's completion. Hovering or focusing a row reveals a chevron.
+  Click an event to open every recorded model call behind it, including the
+  exact prompt, reasoning, raw response, and parsed result.
 - **Activity model calls:** Filter the **Activity** tab by **Model calls**
-  (`quick-analysis`, `full-analysis`, `placement`, `categories`, `split`, or
-  `tidy`) and **Failures only**, view total reported cost for the filtered
-  calls, or click **Clear traces…** to delete recorded model traces while
-  keeping the Activity log intact.
+  (**New thread** `start`, **Turn end** `full-analysis`, **Workstream choice**
+  `placement`, **Category check** `category-fit`, **Categories**, **Split
+  suggestion**, or **Tidy suggestions**) and **Failures only**, view total
+  reported cost for the filtered calls, or click **Clear traces…** to delete
+  recorded model traces while keeping the Activity log intact.
 - **Debug in a new thread:** Every AI-generated result carries a small beaker
   button: an organizing suggestion in the sidebar or Topics, the composer's
   routing preview, a thread's topic and analysis, a project association, an
@@ -1359,7 +1361,7 @@ What the UI shows:
   change, and `bb workstreams trace <id>` reprints any call it names. The thread
   starts a turn at once, so it spends tokens like any other thread.
 - **Composer routing diagnostics:** Expand the **Debug** disclosure in the
-  new-thread composer to inspect live Quick-analysis confidence, inputs, token
+  new-thread composer to inspect the live preview's confidence, inputs, token
   usage, reasoning, and copyable JSON diagnostics.
 - **Reply raw output & syntax diagnostics:** Expand **Raw agent output** on any
   assistant reply (including unclosed `:::reply` blocks and responses where

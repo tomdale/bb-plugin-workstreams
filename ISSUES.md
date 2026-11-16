@@ -17,8 +17,8 @@ are parsed and validated, but generation cannot be constrained in the same way
 as a direct Gateway call. Usage, cost, and reasoning metadata are unavailable;
 worker traces use `usage: null`, not fabricated zero usage.
 
-**Workaround:** Use a Gateway model for constrained Quick analysis and reported
-usage. The requested completion API is recorded in the BB SDK wishlist,
+**Workaround:** Use a Gateway model for constrained output and reported usage.
+The requested completion API is recorded in the BB SDK wishlist,
 `docs/bb-sdk-wishlist.md` in tomdale/bb-plugins. Do not infer total spend from
 the sum of reported costs when worker calls exist.
 
@@ -42,15 +42,17 @@ choice-level detail and default flag are recorded in the BB SDK wishlist,
 **Evidence:** `eval/classification-cases.ts`, `src/domain/classify.ts`, and
 `src/domain/placement.ts`.
 
-Quick analysis can choose a similarly described topic under the wrong owner when
-the correct area is absent. Cold discovery can also establish a product without
-its supported capability, or qualify a new root with a capability name.
-Structural validation enforces leaf-only filing and the two-level limit, not
-semantic accuracy. A small synthetic evaluation is not a production accuracy
-estimate.
+A topic choice can pick a similarly described topic under the wrong owner when
+the correct area is absent; in the synthetic eval, faster models such as
+`openai/gpt-6-luna` do this far more often than `openai/gpt-6.1-sol`. Cold
+discovery can also establish a product without its supported capability, or
+qualify a new root with a capability name. Structural validation enforces
+leaf-only filing and the two-level limit, not semantic accuracy. A small
+synthetic evaluation is not a production accuracy estimate.
 
-**Workaround:** Review topic previews and lasting divisions. Placement settles
-the topic from request evidence; manual filing remains authoritative.
+**Workaround:** Review topic previews and lasting divisions. A turn's end
+reconsiders the topic after each new request; manual filing remains
+authoritative.
 
 ### Placement and suggestion evidence
 

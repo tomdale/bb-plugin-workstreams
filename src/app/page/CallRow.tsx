@@ -13,14 +13,14 @@ import { ActivityThreadLink } from "./ActivityThreadLink.tsx";
 
 const EVENT: Record<TraceKind, { label: string; description: string }> = {
   start: {
-    label: "Title and workstream",
+    label: "New thread",
     description:
-      "When the thread's first request was sent, the model titled the thread and, for a top-level thread, chose its topic or proposed a new one. The turn's end settles both later.",
+      "From a draft in the composer or a thread's first request, the model titled the thread and, for a top-level thread, chose its topic or proposed a new one. The turn's end settles both later.",
   },
   "full-analysis": {
-    label: "Full analysis",
+    label: "Turn end",
     description:
-      "After a turn ended, the model settled the thread's goal, and its status when the agent didn't report one. This is an assessment, not proof that a change was applied.",
+      "After a turn ended, the model settled the thread's goal and title, its status when the agent didn't report one, and after a new request its topic. This is an assessment, not proof that a change was applied.",
   },
   categories: {
     label: "Categories",
@@ -43,9 +43,9 @@ const EVENT: Record<TraceKind, { label: string; description: string }> = {
       "The model proposed edits to the topic tree, each with a reason, for you to accept or decline.",
   },
   placement: {
-    label: "Placement",
+    label: "Workstream choice",
     description:
-      "The model chose the thread's topic from its requests, or proposed a new one: when the thread started, or after a new request.",
+      "The model chose the thread's topic alone: within a group you dropped it on, for a topic preview or repair, or for a thread that had none.",
   },
 };
 const STATES: Record<string, { label: string; description: string }> = {
@@ -106,7 +106,7 @@ function CallResult({ trace }: { trace: TraceSummary }) {
         Completed · No result summary recorded
       </p>
     );
-  // Full analysis summaries start with a known status label. Unknown formats
+  // Turn-end summaries start with a known status label. Unknown formats
   // stay intact under Model result rather than being interpreted.
   const [state, ...parts] = trace.summary.split(" · ");
   const lifecycle = trace.kind === "full-analysis" ? STATES[state!] : undefined;

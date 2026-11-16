@@ -44,8 +44,8 @@ function Entry({
 const PROVENANCE_TITLE: Record<string, string> = {
   manual: "set by you",
   inherited: "inherited",
-  full: "settled by Full analysis",
-  quick: "guessed by Quick analysis",
+  full: "chosen automatically from its requests",
+  quick: "shown by the composer for an earlier draft",
 };
 
 function DebugEntries({

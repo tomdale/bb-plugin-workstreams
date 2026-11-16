@@ -59,7 +59,7 @@ it("distinguishes an empty server-filtered trace result from an empty log", asyn
   await slot.findByText("No activity yet.");
   chooseOption(
     await slot.findByRole("combobox", { name: "Filter by model call kind" }),
-    "Title and workstream",
+    "New thread",
   );
   expect(await slot.findByText("No matching activity.")).toBeTruthy();
 });
@@ -139,7 +139,7 @@ it("filters internal calls, exposes metadata and event internals, and opens the 
   expect(slot.getByText("1 model calls shown · $0.0100")).toBeTruthy();
   chooseOption(
     slot.getByRole("combobox", { name: "Filter by model call kind" }),
-    "Title and workstream",
+    "New thread",
   );
   expect(await slot.findByText("bad")).toBeTruthy();
   chooseOption(
@@ -201,7 +201,7 @@ it("connects pagination, realtime, filter changes, and unmount to the loader", a
   cancel.mockClear();
   chooseOption(
     slot.getByRole("combobox", { name: "Filter by model call kind" }),
-    "Title and workstream",
+    "New thread",
   );
   await waitFor(() =>
     expect(load).toHaveBeenLastCalledWith(

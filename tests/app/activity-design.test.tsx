@@ -98,7 +98,7 @@ it("shows what a thread's start named a new thread", async () => {
   const row = (
     await slot.findByText("Fix the stale build cache in the monorepo")
   ).closest("li")!;
-  expect(within(row).getByText("Title and workstream")).toBeTruthy();
+  expect(within(row).getByText("New thread")).toBeTruthy();
   expect(within(row).getByText("Model result:")).toBeTruthy();
   expect(within(row).getByText(/Title: “Fix stale build cache”/)).toBeTruthy();
 });

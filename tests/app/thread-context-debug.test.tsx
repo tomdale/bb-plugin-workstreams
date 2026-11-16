@@ -120,7 +120,7 @@ it("shows the accumulated goal, digest, topic, and analysis run in Debug mode", 
     "The thread evaluates the Workstreams plugin's tidy suggestions across models.",
   );
   expect(text).toContain("bb: Workstreams Plugin");
-  expect(text).toContain("settled by Full analysis");
+  expect(text).toContain("chosen automatically from its requests");
   expect(text).toContain("Settled title");
   expect(text).toContain("Evaluating tidy rename guidance");
   expect(text).toContain("reported by the agent");
@@ -264,9 +264,9 @@ it("lists analysis and journal events and opens every transcript behind an event
   for (const chevron of chevrons)
     expect(chevron.getAttribute("aria-hidden")).toBe("true");
   expect(rows.map((row) => row.textContent)).toEqual([
-    expect.stringContaining("Full analysis"),
+    expect.stringContaining("Turn end"),
     expect.stringContaining("Updated title"),
-    expect.stringContaining("Placement"),
+    expect.stringContaining("Workstream choice"),
   ]);
 
   fireEvent.click(
@@ -276,9 +276,11 @@ it("lists analysis and journal events and opens every transcript behind an event
   );
   const pane = await within(document.body).findByRole("dialog");
   expect(
-    await within(pane).findByRole("button", { name: /Full analysis/ }),
+    await within(pane).findByRole("button", { name: /Turn end/ }),
   ).toBeTruthy();
-  expect(within(pane).getByRole("button", { name: /Placement/ })).toBeTruthy();
+  expect(
+    within(pane).getByRole("button", { name: /Workstream choice/ }),
+  ).toBeTruthy();
   expect(
     slot.inspection.rpcCalls.some(
       (call) =>
@@ -308,7 +310,9 @@ it("lists analysis and journal events and opens every transcript behind an event
     "Raw response for Exact analysis prompt",
   );
 
-  fireEvent.click(within(pane).getByRole("button", { name: /Placement/ }));
+  fireEvent.click(
+    within(pane).getByRole("button", { name: /Workstream choice/ }),
+  );
   await reveal("Raw response");
   await reveal("Prompt");
   expect(await within(pane).findByLabelText("Prompt")).toHaveProperty(

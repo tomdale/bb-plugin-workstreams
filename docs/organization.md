@@ -69,12 +69,12 @@ every changed root fits, it is filed there and nothing else moves. When one fits
 none, the check fails, or most categories hold one thread, the classifier
 receives the whole current collection and its current categories. A generation
 that records no per-root work (`arranged`) goes to the classifier on its next
-change. Substantive requests are assessed during dispatch, before Full analysis
-finishes. The active collection retains request-version hashes for stale-result
-checks; incoming request text is held temporarily until analyzed context catches
-up. Each assessment fetches bounded first, second, and latest requests,
-excluding verified subagent deliveries. It can recategorize all names and
-memberships, but should preserve the arrangement unless a change offers a
+change. Substantive requests are assessed during dispatch, before the turn-end
+call finishes. The active collection retains request-version hashes for
+stale-result checks; incoming request text is held temporarily until analyzed
+context catches up. Each assessment fetches bounded first, second, and latest
+requests, excluding verified subagent deliveries. It can recategorize all names
+and memberships, but should preserve the arrangement unless a change offers a
 meaningful organizational benefit. Cosmetic differences and marginal tidiness
 are not reasons to regroup. Threads missing from the current categories join the
 existing category whose theme they share. There is no throttle, periodic
@@ -110,15 +110,21 @@ Activity.
 
 A root spawned from another thread inherits its topic. New work from a
 workstream inherits its bound topic. A topic with children supplies a placement
-hint rather than an inherited assignment. A matching automatic composer preview
-supplies the topic it showed. Explicit composer choices have manual priority.
+hint rather than an inherited assignment. An automatic composer preview of
+exactly the text sent is the thread's start, settled with `full` provenance; a
+preview of earlier text supplies its topic with `quick` provenance. Explicit
+composer choices have manual priority.
 
-Placement makes one closed-set call on the first request and again beside Full
-analysis after a new substantive request. It sees the generated title, first,
-second, and latest substantive requests, the context digest Full analysis
-settled, project, checkout, and continuation/start hints. Full analysis
-maintains the digest across turns: two or three sentences naming what the work
-is, what it has established, and its owner, revised in place as turns settle. A
+A root's topic is a closed-set choice made in two calls that also do other work:
+a thread's start (`src/domain/start.ts`), which titles it from its first
+request, and a turn's end after a new substantive request
+(`src/domain/turnEnd.ts`), which also settles title, goal, digest, and fallback
+status. Both read placement's evidence and rules (`src/domain/placement.ts`):
+the requests, project, checkout, and continuation/start hints, and at a turn's
+end the title and the context digest that call settled last time. The digest is
+two or three sentences naming what the work is, what it has established, and its
+owner, revised in place as turns settle. A standalone placement call serves only
+group drops, topic previews and repair, and a root that lacks a topic. A
 checkout's usual topic is a hint unless at least two of its threads point at
 other repositories. Title edits, model changes, topic-definition changes, and
 control-only requests do not re-place a thread.
@@ -127,8 +133,7 @@ Only leaf topics within the two-level limit can be chosen. A new first-level
 proposal uses the owner's recognizable product name. With a known first-level
 parent, placement may propose a supported lasting child. A new child beneath a
 populated topic records a division request and keeps the current filing rather
-than creating children around it. Quick's proposal can include one missing
-product ancestor when both product and capability are supported.
+than creating children around it.
 
 Sources follow `manual > inherited > full > quick`. Manual choices survive
 automatic analysis. Full can replace an inherited choice only for a scope shift
@@ -230,5 +235,5 @@ The Organization page and `bb workstreams organization` report native filing,
 active/completed counts, unresolved roots, and report coverage. `--rebuild` runs
 a fresh pass and retries failed category assessments. Debug traces include
 `categories` calls with redacted input, validated output, usage, and latency.
-Activity records automatic and observed changes. Composer preview is Quick
-analysis, not an organization preview.
+Activity records automatic and observed changes. The composer preview is a
+thread's start, not an organization preview.

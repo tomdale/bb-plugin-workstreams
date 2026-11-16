@@ -67,7 +67,7 @@ function TopicButton({
     : !isAutomatic
       ? "chosen by you"
       : provenance === "quick"
-        ? "a quick guess until the first turn ends"
+        ? "the composer's until the thread's start answers"
         : provenance === "inherited"
           ? "from where the thread started"
           : "automatic";
