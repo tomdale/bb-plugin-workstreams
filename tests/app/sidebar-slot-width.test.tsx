@@ -63,45 +63,47 @@ async function geometry(
     `<style>:root { font-size: 16px; font-family: sans-serif; } ul { list-style: none; margin: 0; padding: 0; } .ws-row { width: 280px; }${utilities}${pluginStyles}</style>${region.outerHTML}`,
   );
   return page.evaluate(() =>
-    [...document.querySelectorAll(".ws-row")].map((row) => {
-      const rect = (el: Element) => el.getBoundingClientRect();
-      const slot = row.querySelector(".ws-status-slot")!;
-      const mark = slot.querySelector<HTMLElement>(".ws-dot, .ws-mark");
-      const title = row.querySelector(".ws-text-thread")!;
-      // What a mark draws: its children (by layout width, since a spinning
-      // square's bounding box outgrows its round ink) and the pseudo-elements
-      // that draw it.
-      const ink = (el: HTMLElement) => {
-        const widths = [...el.children].map(
-          (child) => (child as HTMLElement).offsetWidth,
-        );
-        for (const part of ["::before", "::after"])
-          widths.push(parseFloat(getComputedStyle(el, part).width) || 0);
-        const kids = [...el.children].map(rect);
-        if (kids.length > 1)
-          widths.push(
-            Math.max(...kids.map((k) => k.right)) -
-              Math.min(...kids.map((k) => k.left)),
+    [...document.querySelectorAll(".ws-row:has(.ws-status-slot)")].map(
+      (row) => {
+        const rect = (el: Element) => el.getBoundingClientRect();
+        const slot = row.querySelector(".ws-status-slot")!;
+        const mark = slot.querySelector<HTMLElement>(".ws-dot, .ws-mark");
+        const title = row.querySelector(".ws-text-thread")!;
+        // What a mark draws: its children (by layout width, since a spinning
+        // square's bounding box outgrows its round ink) and the pseudo-elements
+        // that draw it.
+        const ink = (el: HTMLElement) => {
+          const widths = [...el.children].map(
+            (child) => (child as HTMLElement).offsetWidth,
           );
-        return Math.max(0, ...widths);
-      };
-      return {
-        title: title.textContent!,
-        slot: rect(slot).width,
-        titleLeft: rect(title).left - rect(row).left,
-        slotLeft: rect(slot).left - rect(row).left,
-        paddingLeft: parseFloat(getComputedStyle(row).paddingLeft),
-        markWidth: mark ? rect(mark).width : 0,
-        markOffset: mark
-          ? rect(mark).left +
-            rect(mark).width / 2 -
-            rect(slot).left -
-            rect(slot).width / 2
-          : 0,
-        gap: mark ? rect(title).left - rect(mark).right : null,
-        ink: mark && !mark.classList.contains("ws-dot") ? ink(mark) : 0,
-      };
-    }),
+          for (const part of ["::before", "::after"])
+            widths.push(parseFloat(getComputedStyle(el, part).width) || 0);
+          const kids = [...el.children].map(rect);
+          if (kids.length > 1)
+            widths.push(
+              Math.max(...kids.map((k) => k.right)) -
+                Math.min(...kids.map((k) => k.left)),
+            );
+          return Math.max(0, ...widths);
+        };
+        return {
+          title: title.textContent!,
+          slot: rect(slot).width,
+          titleLeft: rect(title).left - rect(row).left,
+          slotLeft: rect(slot).left - rect(row).left,
+          paddingLeft: parseFloat(getComputedStyle(row).paddingLeft),
+          markWidth: mark ? rect(mark).width : 0,
+          markOffset: mark
+            ? rect(mark).left +
+              rect(mark).width / 2 -
+              rect(slot).left -
+              rect(slot).width / 2
+            : 0,
+          gap: mark ? rect(title).left - rect(mark).right : null,
+          ink: mark && !mark.classList.contains("ws-dot") ? ink(mark) : 0,
+        };
+      },
+    ),
   );
 }
 

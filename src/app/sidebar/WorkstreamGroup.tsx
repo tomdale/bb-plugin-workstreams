@@ -159,8 +159,12 @@ export function WorkstreamGroup({
             <div
               ref={handle?.ref}
               {...handle?.listeners}
-              data-overview-open={overviewOpen ? "" : undefined}
-              className="group/row relative flex items-center gap-1.5 rounded-md pr-2 transition-[padding] duration-[180ms] ease-out motion-reduce:transition-none data-[overview-open]:bg-sidebar-accent"
+              className={cn(
+                "group/row relative flex items-center gap-1.5 rounded-md pr-2 transition-[padding] duration-[180ms] ease-out motion-reduce:transition-none",
+                // The same hover and selected fills as a thread row.
+                onOpenOverview && "ws-row",
+                overviewOpen && "ws-row-active",
+              )}
               style={{
                 height: SIDEBAR_GEOMETRY.workstreamHeader.height,
                 paddingLeft: nested
