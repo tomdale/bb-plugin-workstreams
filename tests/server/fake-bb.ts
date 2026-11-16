@@ -236,6 +236,14 @@ export async function fakeWorld(
         const description = await answer(
           starting ? input.prompt.replace(START_TOPIC, START) : input.prompt,
         );
+        // A test that answers in the call's own shape is used as written.
+        try {
+          const own = JSON.parse(textOf(description)) as unknown;
+          if (own && typeof own === "object" && "topic" in own)
+            return { text: textOf(description), usage };
+        } catch {
+          // Not JSON: handled below.
+        }
         const reasoning =
           typeof description === "string" ? null : description.reasoning;
         let described: Record<string, unknown>;
@@ -253,7 +261,7 @@ export async function fakeWorld(
             // Without the description's opening, so fakes that tell the two
             // calls apart by it answer this part as placement.
             await ask(
-              `${PLACEMENT}\n\n${input.prompt.replace("You describe one agent thread", "This agent thread").replace(START_TOPIC, "This new agent thread")}`,
+              `${PLACEMENT}\n\n${input.prompt.replace("You describe one agent thread", "This agent thread")}`,
             ),
             new TopicStore(openDatabase(host.bb)).list(),
           ),

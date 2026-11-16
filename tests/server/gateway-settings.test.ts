@@ -166,7 +166,7 @@ it("forwards saved Pi Gateway controls through host RPC and traces the direct pr
     savePrefs(db, {
       advanced: { debugRecord: true },
       analysis: {
-        fullModel: {
+        turnEndModel: {
           kind: "provider",
           providerId: "pi",
           model: "vercel-ai-gateway/openai/test",

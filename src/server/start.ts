@@ -50,6 +50,16 @@ export type OpeningThread = PlacementThread & {
   readonly updatedAt: number;
 };
 
+/**
+ * What the composer's preview already answered for the text sent: its title
+ * (null when the request says nothing), and its topic unless the topic must
+ * still be asked. An omitted title is asked too.
+ */
+export type StartPreset = {
+  readonly title?: string | null;
+  readonly topic?: PlacementOutput;
+};
+
 /** The part of BB's `message.dispatch` context that tells a first message. */
 type OpeningDispatch = {
   readonly thread: OpeningThread;
@@ -140,28 +150,39 @@ export class ThreadStart {
 
   /**
    * A thread's first message was admitted and the thread is filed from where
-   * it started, so the call reads its inherited topic and hints. With
-   * `title` set, the composer already named the text that was sent: that
-   * title is applied as is and only the topic is asked. Never rejects.
+   * it started, so the call reads its inherited topic and hints. What the
+   * composer's preview answered for this text (`preset`) is applied as is,
+   * and only the rest is asked. Never rejects.
    */
   async onFirstRequest(
     ctx: OpeningDispatch,
-    title?: string | null,
+    preset: StartPreset = {},
   ): Promise<void> {
     try {
       if (ctx.attempt !== "start-turn" || ctx.origin === null) return;
       const thread = ctx.thread;
       if (!this.available(thread) || this.tried.has(thread.id)) return;
       this.tried.add(thread.id);
-      if (title && this.deps.titles())
+      const request = ctx.input.text.trim();
+      if (preset.title && this.deps.titles())
         void this.deps
-          .title(thread.id, title, revisionOf(thread), null)
+          .title(thread.id, preset.title, revisionOf(thread), null)
           .catch((error: unknown) =>
             this.deps.log(`Titling ${thread.id} failed: ${String(error)}`),
           );
-      await this.start(thread, ctx.input.text.trim(), {
-        title: !title,
-        topic: true,
+      if (
+        preset.topic &&
+        !thread.parentThreadId &&
+        this.deps.unsettled(thread.id)
+      ) {
+        // The basis records which requests settled the topic.
+        const question = await this.deps.question(thread, request);
+        if (question && this.deps.unsettled(thread.id))
+          this.deps.file(thread.id, preset.topic, question.basis, null);
+      }
+      await this.start(thread, request, {
+        title: preset.title === undefined,
+        topic: preset.topic === undefined,
       });
     } catch (error) {
       this.deps.log(`Starting ${ctx.thread.id} failed: ${String(error)}`);
@@ -249,7 +270,7 @@ export class ThreadStart {
     want: { title: boolean; topic?: boolean },
   ): Promise<void> {
     if (!isUserRequest(request)) return;
-    const title = want.title && this.titleWanted(thread);
+    let title = want.title && this.titleWanted(thread);
     const root = want.topic === true && !thread.parentThreadId;
     if (!title && !(root && this.deps.unsettled(thread.id))) return;
 
@@ -294,14 +315,7 @@ export class ThreadStart {
             },
           );
           if (this.disposed || controller.signal.aborted) return;
-          // The thread may have been filed or corrected while the call ran.
-          if (placing && value.topic && topicWanted())
-            this.deps.file(thread.id, value.topic, placing.basis, traceId);
-          else if (placing)
-            this.deps.inference.annotate(traceId, {
-              topic: "not applied: the thread's topic was settled meanwhile",
-            });
-          if (title)
+          if (title) {
             await this.applyTitle(
               thread,
               value.title,
@@ -309,6 +323,17 @@ export class ThreadStart {
               evidence,
               traceId,
             );
+            title = false;
+          }
+          // An invalid topic is asked again; the title already stands.
+          if (placing && value.topicError) throw new Error(value.topicError);
+          // The thread may have been filed or corrected while the call ran.
+          if (placing && value.topic && topicWanted())
+            this.deps.file(thread.id, value.topic, placing.basis, traceId);
+          else if (placing)
+            this.deps.inference.annotate(traceId, {
+              topic: "not applied: the thread's topic was settled meanwhile",
+            });
           return;
         } catch (error) {
           if (controller.signal.aborted || this.disposed) return;

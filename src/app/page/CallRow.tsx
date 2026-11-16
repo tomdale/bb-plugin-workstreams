@@ -17,11 +17,6 @@ const EVENT: Record<TraceKind, { label: string; description: string }> = {
     description:
       "When the thread's first request was sent, the model titled the thread and, for a top-level thread, chose its topic or proposed a new one. The turn's end settles both later.",
   },
-  "quick-analysis": {
-    label: "Quick analysis",
-    description:
-      "The model titled a new thread and chose its topic from one request: a draft in the composer, or the thread's first request. Placement settles the topic, and Full analysis of the first finished turn settles the title.",
-  },
   "full-analysis": {
     label: "Full analysis",
     description:

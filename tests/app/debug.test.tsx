@@ -160,7 +160,7 @@ it("lists model calls in the Activity log in Debug mode", async () => {
               }),
               summary("tr2", {
                 at: now - 180_000,
-                kind: "quick-analysis",
+                kind: "start",
                 label: "Fix the parser",
                 status: "invalid",
                 error: "Unexpected token",

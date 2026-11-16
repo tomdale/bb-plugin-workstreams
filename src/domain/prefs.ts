@@ -55,21 +55,28 @@ export function gatewayModel(choice: ModelChoice): string | null {
 
 /** Eval-tested defaults (see eval/). */
 export const DEFAULT_MODELS = {
-  /** Quick analysis: a draft or first request, while you wait. */
-  quick: {
+  /**
+   * Names and files a new thread from a draft or its first request, while
+   * you wait, and answers every other closed topic choice.
+   */
+  newThread: {
     kind: "gateway",
-    model: "openai/gpt-6-luna-fast",
+    model: "openai/gpt-6.1-sol",
     reasoningLevel: "none",
   },
-  /** Full analysis: the settled goal and status at a turn's end. */
-  full: { kind: "gateway", model: "openai/gpt-6-sol-fast" },
-  /** Placement: the topic a root's requests belong to, in about a second. */
-  placement: {
+  /** Settles a thread's title, goal, status, and topic when a turn ends. */
+  turnEnd: {
     kind: "gateway",
-    model: "openai/gpt-6-sol",
+    model: "openai/gpt-6.1-sol",
     reasoningLevel: "none",
   },
-  /** Contextual categories and reviewed changes to the topic tree. */
+  /** Arranges a collection's threads into categories. */
+  category: {
+    kind: "gateway",
+    model: "anthropic/claude-sonnet-5.5",
+    reasoningLevel: "medium",
+  },
+  /** Reviewed changes to the topic tree. */
   tidy: {
     kind: "gateway",
     model: "anthropic/claude-sonnet-5.5",
@@ -171,18 +178,22 @@ const GROUPS = {
     suggestions: [z.boolean(), true],
   },
   analysis: {
-    /** Quick analysis: a draft's or first request's goal and topic, in seconds. */
-    quickModel: [modelChoiceSchema, DEFAULT_MODELS.quick],
-    /** Full analysis: settles goal and status when a turn ends. */
-    fullModel: [modelChoiceSchema, DEFAULT_MODELS.full],
-    /** Placement: settles a root's topic from its requests. */
-    placementModel: [modelChoiceSchema, DEFAULT_MODELS.placement],
+    /**
+     * Names and files new threads: the composer's preview, a thread's first
+     * request, a move into a multi-topic group, topic repair, and the
+     * categories fit check.
+     */
+    newThreadModel: [modelChoiceSchema, DEFAULT_MODELS.newThread],
+    /** Updates a thread's title, goal, status, and topic when a turn ends. */
+    turnEndModel: [modelChoiceSchema, DEFAULT_MODELS.turnEnd],
   },
   organize: {
     /** Suggest splits and tidy edits to the topic tree for review. */
     suggestions: [z.boolean(), true],
     /** The model that writes those suggestions. */
     tidyModel: [modelChoiceSchema, DEFAULT_MODELS.tidy],
+    /** The model that arranges a collection's threads into categories. */
+    categoryModel: [modelChoiceSchema, DEFAULT_MODELS.category],
   },
   /** Workstreams' color tokens (domain/colors.ts): a BB theme color or a custom color each. */
   colors: {
@@ -268,20 +279,13 @@ export const prefsPatchSchema = z
 export function parsePrefs(raw: unknown): Prefs {
   const value = raw && typeof raw === "object" ? raw : {};
   const groups = { ...(value as Record<string, unknown>) };
-  // Preferences saved before the two analyses carry their models elsewhere:
-  // the suggestions model ran the quick calls, and the organizing model ran
-  // classification, which Full analysis now does.
-  if (!groups.analysis || typeof groups.analysis !== "object") {
-    const field = (group: string, key: string) => {
-      const g = groups[group];
-      return g && typeof g === "object"
-        ? (g as Record<string, unknown>)[key]
-        : undefined;
-    };
-    groups.analysis = {
-      quickModel: field("newWork", "suggestionsModel"),
-      fullModel: field("organize", "model"),
-    };
+  // Categories were arranged by the suggestions model before they had their
+  // own, so a saved suggestions model carries over to them.
+  const organize = groups.organize;
+  if (organize && typeof organize === "object") {
+    const saved = organize as Record<string, unknown>;
+    if (saved.categoryModel === undefined && saved.tidyModel !== undefined)
+      groups.organize = { ...saved, categoryModel: saved.tidyModel };
   }
   // Debug mode used to be one switch, which also recorded. Recording now has
   // its own switch, and the old value carried the debug UI.

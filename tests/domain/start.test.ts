@@ -78,12 +78,17 @@ describe("start call", () => {
     ).toEqual({ title: "Reviewing Phase 3", topic: null });
   });
 
-  it("fails an answer whose topic can't hold threads, so it files nothing", () => {
-    expect(() =>
-      parseStart(
-        JSON.stringify({ title: null, topic: "atlas", propose: null }),
-        root,
-      ),
-    ).toThrow();
+  it("refuses a topic that can't hold threads and keeps the title", () => {
+    const output = parseStart(
+      JSON.stringify({
+        title: { verb: "Fixing", subject: "export timeouts" },
+        topic: "atlas",
+        propose: null,
+      }),
+      root,
+    );
+    expect(output.topic).toBeNull();
+    expect(output.topicError).toMatch(/Invalid topic/);
+    expect(output.title).toBe("Fixing export timeouts");
   });
 });

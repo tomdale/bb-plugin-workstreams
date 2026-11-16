@@ -1,9 +1,4 @@
 import { writeFile } from "node:fs/promises";
-import {
-  quickAnalysisPrompt,
-  parseQuickAnalysis,
-  quickAnalysisSchema,
-} from "../src/domain/analysis.ts";
 import type { TopicAnswer } from "../src/domain/classify.ts";
 import {
   parsePlacement,
@@ -30,17 +25,9 @@ import { cases } from "./classification-cases.ts";
 const apiKey = await gatewayKey();
 if (!apiKey) throw new Error("AI Gateway authentication required");
 const kind = process.env.EVAL_KIND ?? "placement";
-if (!["quick", "placement", "start", "turn-end"].includes(kind))
-  throw new Error("EVAL_KIND must be quick, placement, start, or turn-end");
-const model =
-  process.env.EVAL_MODEL ??
-  (kind === "quick" || kind === "start"
-    ? "openai/gpt-6-luna-fast"
-    : kind === "turn-end"
-      ? "openai/gpt-6-sol-fast"
-      : "openai/gpt-6-sol");
-/** Start and turn-end calls choose topics under placement's contract. */
-const scoring = kind === "quick" ? "quick" : "placement";
+if (!["placement", "start", "turn-end"].includes(kind))
+  throw new Error("EVAL_KIND must be placement, start, or turn-end");
+const model = process.env.EVAL_MODEL ?? "openai/gpt-6.1-sol";
 const reasoningLevel = process.env.EVAL_REASONING_LEVEL ?? "none";
 const repetitions = Number(process.env.EVAL_REPETITIONS ?? 1);
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 20)
@@ -75,15 +62,10 @@ try {
           current: null,
           ...test.input.placement,
         };
-        const quick = {
-          request: requests.map((r) => r.text).join("\n\n"),
-          entities,
-          project: test.input.project,
-        };
-        // A start reads only the opening request; the case's later requests
-        // join it, as Quick's do.
+        // A start reads only the opening request, so the case's requests
+        // join into one.
         const start = {
-          request: quick.request,
+          request: requests.map((r) => r.text).join("\n\n"),
           project: placement.project,
           placement: {
             entities,
@@ -107,13 +89,11 @@ try {
           placement: { ...placement, title: null, digest: null },
         };
         const prompt =
-          kind === "quick"
-            ? quickAnalysisPrompt(quick)
-            : kind === "start"
-              ? startPrompt(start)
-              : kind === "turn-end"
-                ? turnEndPrompt(turnEnd)
-                : placementPrompt(placement);
+          kind === "start"
+            ? startPrompt(start)
+            : kind === "turn-end"
+              ? turnEndPrompt(turnEnd)
+              : placementPrompt(placement);
         const started = Date.now();
         let response: string | null = null;
         let cost: number | undefined;
@@ -133,37 +113,30 @@ try {
             maxTokens: 4096,
             reasoningLevel,
             outputSchema:
-              kind === "quick"
-                ? quickAnalysisSchema(quick)
-                : kind === "start"
-                  ? startSchema(start)
-                  : kind === "turn-end"
-                    ? turnEndSchema(turnEnd)
-                    : placementSchema(placement),
+              kind === "start"
+                ? startSchema(start)
+                : kind === "turn-end"
+                  ? turnEndSchema(turnEnd)
+                  : placementSchema(placement),
           });
           response = completion.text;
           cost = completion.usage.cost;
-          let topic: TopicAnswer;
-          if (kind === "quick") {
-            const parsed = parseQuickAnalysis(response, quick);
-            if (parsed.topicError) throw new Error(parsed.topicError);
-            topic = parsed;
-          } else {
-            const placed =
-              kind === "start"
-                ? parseStart(response, start).topic!
-                : kind === "turn-end"
-                  ? parseTurnEnd(response, turnEnd).topic!
-                  : parsePlacement(response, placement);
-            if (
-              test.scopeShift !== undefined &&
-              placed.scopeShift !== test.scopeShift
-            )
-              throw new Error(
-                `Expected scopeShift=${test.scopeShift}, received ${placed.scopeShift}`,
-              );
-            topic = placed;
-          }
+          const parsed =
+            kind === "start"
+              ? parseStart(response, start)
+              : kind === "turn-end"
+                ? parseTurnEnd(response, turnEnd)
+                : { topic: parsePlacement(response, placement) };
+          if ("topicError" in parsed && parsed.topicError)
+            throw new Error(parsed.topicError);
+          const topic = parsed.topic!;
+          if (
+            test.scopeShift !== undefined &&
+            topic.scopeShift !== test.scopeShift
+          )
+            throw new Error(
+              `Expected scopeShift=${test.scopeShift}, received ${topic.scopeShift}`,
+            );
           const value: TopicAnswer = {
             subjectId: topic.subjectId,
             proposed: topic.proposed,
@@ -172,7 +145,6 @@ try {
           // new capability in its product while the product has none.
           const inside = test.expectNew?.inside;
           const intoProduct =
-            scoring === "placement" &&
             !!inside &&
             value.subjectId === inside &&
             takesThreads(inside, test.input.entities);
@@ -198,7 +170,6 @@ try {
                   test.expected,
                   cold,
                   test.expectNew,
-                  scoring,
                 )),
           });
         } catch (error) {
@@ -234,10 +205,9 @@ await writeFile(
       split: holdout ? "holdout" : "main",
       repetitions,
       accepted,
-      acceptance:
-        cold && scoring === "placement"
-          ? "root ownership; hierarchy is advisory for single-topic proposals"
-          : "owner, capability, and hierarchy",
+      acceptance: cold
+        ? "root ownership; hierarchy is advisory for single-topic proposals"
+        : "the expected topic",
       hierarchyMatches: results.filter((r) => r.hierarchy).length,
       exactMatches: results.filter((r) => r.exact).length,
       total: results.length,

@@ -84,21 +84,21 @@ it("pages with a stable timestamp/id cursor and refreshes all loaded history fro
 
 it("applies the kind filter on every page and stops at the requested depth", async () => {
   const full = Array.from({ length: TRACE_PAGE }, (_, i) =>
-    trace(`call-${i}`, { kind: "quick-analysis" }),
+    trace(`call-${i}`, { kind: "start" }),
   );
   const traces = vi.fn(async () => full);
   const { loader, sink } = fixture({ traces });
   await loader.load({
     ...query,
-    callKind: "quick-analysis",
+    callKind: "start",
     traceLimit: TRACE_PAGE * 2,
   });
   expect(traces.mock.calls).toEqual([
-    [{ limit: 100, kind: "quick-analysis" }],
+    [{ limit: 100, kind: "start" }],
     [
       {
         limit: 100,
-        kind: "quick-analysis",
+        kind: "start",
         before: { at: 1000, id: "call-99" },
       },
     ],
@@ -124,7 +124,7 @@ it.each(["resolve", "reject"] as const)(
       .mockResolvedValue([trace("filtered")]);
     const { loader, sink } = fixture({ traces });
     const first = loader.load({ ...query, traceLimit: TRACE_PAGE * 2 });
-    await loader.load({ ...query, callKind: "quick-analysis" });
+    await loader.load({ ...query, callKind: "start" });
     sink.calls.mockClear();
     sink.error.mockClear();
     if (completion === "resolve")

@@ -12,6 +12,7 @@
 import { randomUUID } from "node:crypto";
 import { redact } from "../domain/analysis.ts";
 import {
+  TRACE_KINDS,
   traceSchema,
   usageSchema,
   type NewTrace,
@@ -351,12 +352,18 @@ export class TraceStore {
   prune({ force = false } = {}): void {
     if (!force && this.now() - this.prunedAt < PRUNE_EVERY_MS) return;
     this.prunedAt = this.now();
+    // A kind no current call records can't be shown or replayed.
     this.db
       .prepare(
         `DELETE FROM ws_trace WHERE at < @cutoff OR id NOT IN (
-           SELECT id FROM ws_trace ORDER BY at DESC, rowid DESC LIMIT @keep)`,
+           SELECT id FROM ws_trace ORDER BY at DESC, rowid DESC LIMIT @keep)
+           OR kind NOT IN (SELECT value FROM json_each(@kinds))`,
       )
-      .run({ cutoff: this.now() - RETAIN_MS, keep: RETAIN_TRACES });
+      .run({
+        cutoff: this.now() - RETAIN_MS,
+        keep: RETAIN_TRACES,
+        kinds: JSON.stringify(TRACE_KINDS),
+      });
     this.db
       .prepare(
         `DELETE FROM ws_trace WHERE replay_of IS NOT NULL

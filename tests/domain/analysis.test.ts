@@ -7,9 +7,6 @@ import {
   fullAnalysisSchema,
   isCurrent,
   parseFullAnalysis,
-  parseQuickAnalysis,
-  quickAnalysisPrompt,
-  quickAnalysisSchema,
   type FullAnalysisInput,
 } from "../../src/domain/analysis.ts";
 
@@ -330,75 +327,6 @@ describe("Full analysis", () => {
     });
     expect(prompt).not.toContain("sk-abcdefghijklmnopqrstuvwxyz");
     expect(prompt).not.toContain("<project>");
-  });
-});
-
-describe("Quick analysis", () => {
-  it("shows the first request, the project, and the topic tree", () => {
-    const prompt = quickAnalysisPrompt({
-      request: "Fix the Lumen cache",
-      project: "Zebracorn",
-      entities,
-    });
-    expect(prompt).toContain("Fix the Lumen cache");
-    expect(prompt).toContain("<project>\nZebracorn\n</project>");
-    expect(prompt).toContain("[lumen]");
-  });
-
-  it("names a thread without a topic when it has no topic tree", () => {
-    const input = { request: "Fix the Lumen cache", entities: null };
-    const prompt = quickAnalysisPrompt(input);
-    expect(prompt).not.toContain("topic_tree");
-    expect(prompt).not.toContain("subjectId");
-    expect(quickAnalysisSchema(input)).toMatchObject({ required: ["goal"] });
-    expect(
-      parseQuickAnalysis(
-        '{"goal":{"verb":"Fixing","subject":"Lumen cache"}}',
-        input,
-      ),
-    ).toEqual({ goal: "Fixing Lumen cache", subjectId: null, proposed: null });
-  });
-
-  it("parses a goal and topic, treating missing fields as none", () => {
-    expect(
-      parseQuickAnalysis(
-        '{"goal":{"verb":"Fixing","subject":"Lumen cache."},"subjectId":"cache"}',
-        { entities },
-      ),
-    ).toEqual({
-      goal: "Fixing Lumen cache",
-      subjectId: "cache",
-      proposed: null,
-    });
-    expect(parseQuickAnalysis("{}", { entities })).toEqual({
-      goal: null,
-      subjectId: null,
-      proposed: null,
-    });
-  });
-});
-
-describe("strict Quick output schema", () => {
-  it("limits filing to leaves and new parents to first-level topics", () => {
-    expect(quickAnalysisSchema({ entities })).toMatchObject({
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        subjectId: { type: ["string", "null"], enum: [null, "cache"] },
-        proposed: {
-          anyOf: [
-            { type: "null" },
-            {
-              type: "object",
-              properties: {
-                parentId: { type: ["string", "null"], enum: [null, "lumen"] },
-                ancestors: { maxItems: 1 },
-              },
-            },
-          ],
-        },
-      },
-    });
   });
 });
 

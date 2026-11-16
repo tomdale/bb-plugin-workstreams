@@ -31,7 +31,7 @@ it("uses the worker path only when gatewayModel returns null", async () => {
   savePrefs(db, {
     advanced: { debugRecord: true },
     analysis: {
-      fullModel: {
+      turnEndModel: {
         kind: "provider",
         providerId: "openai",
         model: "gpt-5.5",

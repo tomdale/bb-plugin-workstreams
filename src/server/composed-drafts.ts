@@ -15,8 +15,9 @@ import type { ProjectChoice } from "../domain/projectChoice.ts";
 
 /**
  * The topic a composer showed: one you picked (`manual`), the topic of the
- * workstream whose ＋ opened it (`inherited`, by `sectionId`), or Quick
- * analysis's preview (`automatic`), with the goal that titles the thread.
+ * workstream whose ＋ opened it (`inherited`, by `sectionId`), or the start
+ * call's preview (`automatic`), with the title it gives the thread. An
+ * `answered` preview was computed for exactly the text sent.
  */
 export type ComposedIdentity = {
   entityId?: string | null;
@@ -24,6 +25,7 @@ export type ComposedIdentity = {
   provenance?: "manual" | "automatic" | "inherited";
   sectionId?: string | null;
   goal?: string | null;
+  answered?: boolean;
 } | null;
 
 type Draft = {

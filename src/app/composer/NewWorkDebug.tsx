@@ -1,7 +1,7 @@
 /**
  * The New thread composer's Debug section: a collapsed
  * disclosure under the composer with what it takes to judge a preview: the
- * topic and goal, the reason, what Quick analysis was given, the server's
+ * topic and title, the reason, what the start call was given, the server's
  * notes on each step, and the exact prompt and raw response. Copy
  * diagnostics adds the composer's state and activity log.
  */
@@ -13,7 +13,7 @@ import {
 } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
-import type { QuickAnalysisInput } from "../../domain/analysis.ts";
+import type { StartInput } from "../../domain/start.ts";
 import type { Trace } from "../../domain/trace.ts";
 import type { RpcContract } from "../../server/contract.ts";
 import type { Preview } from "../../server/preview.ts";
@@ -88,7 +88,7 @@ export function NewWorkDebug({ newWork }: { newWork: NewWork }) {
   const traceId = decision?.traceId ?? null;
   const loaded = useTrace(traceId);
   const trace = loaded?.trace ?? null;
-  const input = (trace?.input ?? null) as Partial<QuickAnalysisInput> | null;
+  const input = (trace?.input ?? null) as Partial<StartInput> | null;
   const notes = decision?.explanation?.notes ?? [];
   const [copied, setCopied] = useState(false);
   const copy = async () => {
@@ -160,7 +160,7 @@ export function NewWorkDebug({ newWork }: { newWork: NewWork }) {
               </Field>
               <Field label="Project">{input?.project ?? "None"}</Field>
               <Field label="Topics offered">
-                {plural(input?.entities?.length ?? 0, "topic")}
+                {plural(input?.placement?.entities?.length ?? 0, "topic")}
               </Field>
               <Field label="Model">
                 {trace.model} · {seconds(trace.durationMs)}

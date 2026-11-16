@@ -24,7 +24,6 @@ export function scoreClassification(
   expected: string | null,
   cold: boolean,
   expectNew?: { outside?: string; inside?: string },
-  kind: "quick" | "placement" = "quick",
 ) {
   let resolved: ReturnType<typeof resolveProposal> | null = null;
   try {
@@ -117,7 +116,8 @@ export function scoreClassification(
     capability,
     hierarchy,
     exact,
-    // Placement proposes one topic, so an empty tree can establish only its root owner.
-    pass: owner && (kind === "placement" || (capability && hierarchy)),
+    // A call proposes one topic, so an empty tree can establish only its root
+    // owner; capability and hierarchy are advisory.
+    pass: owner,
   };
 }

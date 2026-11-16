@@ -3,11 +3,7 @@ import {
   fullAnalysisPrompt,
   fullAnalysisSchema,
   parseFullAnalysis,
-  parseQuickAnalysis,
-  quickAnalysisPrompt,
-  quickAnalysisSchema,
   type FullAnalysisInput,
-  type QuickAnalysisInput,
 } from "../src/domain/analysis.ts";
 import {
   gatewayComplete,
@@ -32,14 +28,14 @@ import { VAGUE_VERBS, followUpCases, titleCases } from "./title-cases.ts";
  * Paid evaluation of the titles Workstreams writes, through the production
  * prompts, schemas, and parsers; it never applies results to the plugin.
  *
- * - `EVAL_KIND=quick` (default): Quick analysis names a thread from its
- *   opening request.
- * - `EVAL_KIND=full`: Full analysis names it after its first turn.
- * - `EVAL_KIND=follow`: Full analysis sees a title Workstreams wrote and a
- *   later request, and keeps the title or renames it.
- * - `EVAL_KIND=start`, `turn-end`, `turn-end-follow`: the same cases through
- *   the start and turn-end calls, which also choose a topic. A root's listed
- *   group becomes its topic tree, already chosen at a turn's end.
+ * - `EVAL_KIND=start` (default): a thread's start names it from its opening
+ *   request and, for a root, files it; a root's listed group becomes its
+ *   topic tree.
+ * - `EVAL_KIND=turn-end`: the turn-end call names it after its first turn,
+ *   with that topic already chosen; `full` asks Full analysis alone.
+ * - `EVAL_KIND=turn-end-follow`: the turn-end call sees a title Workstreams
+ *   wrote and a later request, and keeps the title or renames it; `follow`
+ *   asks Full analysis alone.
  *
  * A new title passes when it starts with an -ing verb that says what kind of
  * work it is, names its case's subject, repeats nothing the sidebar already
@@ -49,24 +45,15 @@ import { VAGUE_VERBS, followUpCases, titleCases } from "./title-cases.ts";
  */
 const apiKey = await gatewayKey();
 if (!apiKey) throw new Error("AI Gateway authentication required");
-const kind = process.env.EVAL_KIND ?? "quick";
-const KINDS = [
-  "quick",
-  "full",
-  "follow",
-  "start",
-  "turn-end",
-  "turn-end-follow",
-];
+const kind = process.env.EVAL_KIND ?? "start";
+const KINDS = ["full", "follow", "start", "turn-end", "turn-end-follow"];
 if (!KINDS.includes(kind))
   throw new Error(`EVAL_KIND must be one of ${KINDS.join(", ")}`);
 const model =
   process.env.EVAL_MODEL ??
-  (kind === "quick"
-    ? "openai/gpt-6-luna-fast"
-    : kind === "start"
-      ? "openai/gpt-6-sol"
-      : "openai/gpt-6-sol-fast");
+  (kind === "full" || kind === "follow"
+    ? "openai/gpt-6-sol-fast"
+    : "openai/gpt-6.1-sol");
 const reasoningLevel = process.env.EVAL_REASONING_LEVEL ?? "none";
 const repetitions = Number(process.env.EVAL_REPETITIONS ?? 3);
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 20)
@@ -203,19 +190,6 @@ else
         prompt: turnEndPrompt(input),
         schema: turnEndSchema(input),
         parse: (text) => parseTurnEnd(text, input).goal,
-        check: (title) => newTitleProblems(title, test),
-      });
-    } else if (kind === "quick") {
-      const input: QuickAnalysisInput = {
-        request: test.request,
-        entities: null,
-        listing,
-      };
-      jobs.push({
-        id: test.id,
-        prompt: quickAnalysisPrompt(input),
-        schema: quickAnalysisSchema(input),
-        parse: (text) => parseQuickAnalysis(text, input).goal,
         check: (title) => newTitleProblems(title, test),
       });
     } else {

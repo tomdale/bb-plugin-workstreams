@@ -174,6 +174,21 @@ export class Placement {
     };
   }
 
+  /**
+   * What filing a composer draft reads before it is a thread: the tree with
+   * its thread counts and the project the draft would start in.
+   */
+  draft(project: string | null): Omit<PlacementInput, "requests" | "title"> {
+    return {
+      project,
+      checkout: null,
+      entities: this.deps.topics.list(),
+      counts: this.counts(),
+      hints: [],
+      current: null,
+    };
+  }
+
   /** Asks the model; throws when the call fails or its answer is invalid. */
   async ask(
     threadId: string,

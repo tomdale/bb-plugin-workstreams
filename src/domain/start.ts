@@ -54,8 +54,10 @@ export type StartInput = {
 export type StartOutput = {
   /** The opening title, or null when the request doesn't say what the work is. */
   readonly title: string | null;
-  /** The chosen topic, for a root; null for a child thread. */
+  /** The chosen topic, for a root; null for a child thread or an invalid one. */
   readonly topic: PlacementOutput | null;
+  /** Why the answer's topic was refused, when it was. */
+  readonly topicError?: string;
 };
 
 const placementOf = (input: StartInput): PlacementInput | null =>
@@ -112,13 +114,20 @@ const outputSchema = z.object({
 
 /**
  * The checked answer. The title drops names its listing shows: for a root,
- * the topic this answer chose. An invalid topic fails the whole answer, as a
- * placement answer does, so it never files a thread.
+ * the topic this answer chose. An invalid topic is refused on its own
+ * (`topicError`), so it never files a thread and the title still stands.
  */
 export function parseStart(text: string, input: StartInput): StartOutput {
   const raw: unknown = JSON.parse(stripFence(text));
   const placement = placementOf(input);
-  const topic = placement ? parsePlacementFields(raw, placement) : null;
+  let topic: PlacementOutput | null = null;
+  let topicError: string | undefined;
+  if (placement)
+    try {
+      topic = parsePlacementFields(raw, placement);
+    } catch (error) {
+      topicError = `Invalid topic: ${error instanceof Error ? error.message : String(error)}`;
+    }
   const listing = placement
     ? {
         group: topic && placedGroup(topic, placement.entities),
@@ -128,5 +137,6 @@ export function parseStart(text: string, input: StartInput): StartOutput {
   return {
     title: composeTitle(outputSchema.parse(raw).title, listing),
     topic,
+    ...(topicError ? { topicError } : {}),
   };
 }

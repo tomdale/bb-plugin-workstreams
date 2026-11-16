@@ -90,15 +90,15 @@ it("labels a turn the agent reported itself", async () => {
   expect(slot.queryByText("Topic:")).toBeNull();
 });
 
-it("shows what Quick analysis named a new thread", async () => {
+it("shows what a thread's start named a new thread", async () => {
   const slot = await page("goal “Fix stale build cache” · Lumen", {
-    kind: "quick-analysis",
+    kind: "start",
     label: "Fix the stale build cache in the monorepo",
   });
   const row = (
     await slot.findByText("Fix the stale build cache in the monorepo")
   ).closest("li")!;
-  expect(within(row).getByText("Quick analysis")).toBeTruthy();
+  expect(within(row).getByText("Title and workstream")).toBeTruthy();
   expect(within(row).getByText("Model result:")).toBeTruthy();
   expect(within(row).getByText(/Title: “Fix stale build cache”/)).toBeTruthy();
 });

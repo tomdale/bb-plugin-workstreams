@@ -82,7 +82,7 @@ const cases = [
     expected: "labels",
   },
 ];
-const model = process.env.EVAL_MODEL ?? DEFAULT_MODELS.placement.model;
+const model = process.env.EVAL_MODEL ?? DEFAULT_MODELS.newThread.model;
 const repetitions = Number(process.env.EVAL_REPETITIONS ?? 3);
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 20)
   throw new Error("EVAL_REPETITIONS must be 1–20");

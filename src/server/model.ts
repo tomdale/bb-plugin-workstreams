@@ -26,12 +26,6 @@ import {
   type TurnEndInput,
 } from "../domain/turnEnd.ts";
 import {
-  parseQuickAnalysis,
-  quickAnalysisPrompt,
-  quickAnalysisSchema,
-  type QuickAnalysisInput,
-} from "../domain/analysis.ts";
-import {
   parseSplit,
   parseTidy,
   splitPrompt,
@@ -80,12 +74,6 @@ export const MODEL_CALLS = {
     prompt: (input: StartInput) => startPrompt(input),
     parse: (text: string, input: StartInput) => parseStart(text, input),
     schema: (input: StartInput) => startSchema(input),
-  },
-  "quick-analysis": {
-    prompt: (input: QuickAnalysisInput) => quickAnalysisPrompt(input),
-    parse: (text: string, input: QuickAnalysisInput) =>
-      parseQuickAnalysis(text, input),
-    schema: (input: QuickAnalysisInput) => quickAnalysisSchema(input),
   },
   "full-analysis": {
     prompt: (input: TurnEndInput) => turnEndPrompt(withPlacement(input)),
@@ -174,16 +162,6 @@ export function summarize(
           : "no topic"
       : null;
   switch (kind) {
-    case "quick-analysis": {
-      const q = value as OutputOf<"quick-analysis">;
-      return [
-        q.goal ? `goal “${q.goal}”` : "no goal",
-        q.topicError ? "invalid topic (valid title retained)" : null,
-        topicOf(q, (input as QuickAnalysisInput).entities ?? undefined),
-      ]
-        .filter(Boolean)
-        .join(" · ");
-    }
     case "categories": {
       const decision = value as OutputOf<"categories">;
       return decision.keep
@@ -334,8 +312,11 @@ export class Inference {
     const topicError = result.ok
       ? (result.value as { topicError?: string }).topicError
       : undefined;
+    // A thread's start is asked again once when its answer is unusable, so
+    // a valid title survives an invalid topic and the composer still shows
+    // one; other calls are retried by their callers or a later event.
     if (
-      kind === "quick-analysis" &&
+      kind === "start" &&
       ((!result.ok && result.invalid) || topicError) &&
       !options.signal?.aborted
     ) {
@@ -350,14 +331,14 @@ export class Inference {
         });
         const repaired = await this.call(kind, {
           prompt: `${prompt}\n\nValidation requirement: return only a JSON object with the requested fields.${
-            (input as QuickAnalysisInput).entities !== null
-              ? " subjectId must be exactly an ID in square brackets in <topic_tree>, never a name, path, or decorated label. Use null when ownership is unsupported."
+            (input as StartInput).placement !== null
+              ? " topic must be exactly an ID in square brackets in <topic_tree> of a topic without subtopics, never a name, path, or decorated label. Use null when ownership is unsupported."
               : ""
           }`,
           parse: (text) => spec.parse(text, input),
           input,
           model: options.model,
-          outputSchema: quickAnalysisSchema(input as QuickAnalysisInput),
+          outputSchema: startSchema(input as StartInput),
           threadId: options.threadId,
           label: options.label ?? TRACE_KIND_TITLE[kind],
           links: options.links ?? [],
@@ -367,13 +348,13 @@ export class Inference {
           timeoutMs: remaining,
         });
         if (repaired.ok) {
-          const firstGoal = result.ok
-            ? (result.value as OutputOf<"quick-analysis">).goal
+          const firstTitle = result.ok
+            ? (result.value as OutputOf<"start">).title
             : null;
-          const value = repaired.value as OutputOf<"quick-analysis">;
+          const value = repaired.value as OutputOf<"start">;
           result = {
             ...repaired,
-            value: { ...value, goal: value.goal ?? firstGoal },
+            value: { ...value, title: value.title ?? firstTitle },
           };
         } else if (!result.ok) result = repaired;
       }

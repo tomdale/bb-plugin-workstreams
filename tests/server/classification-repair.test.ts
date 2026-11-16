@@ -6,7 +6,7 @@ let world: Awaited<ReturnType<typeof fakeWorld>> | undefined;
 afterEach(async () => {
   await world?.harness.lifecycle.dispose();
 });
-/** The composer's preview, where Quick analysis chooses a topic. */
+/** The composer's preview, which asks the start call for a title and topic. */
 const preview = (w: NonNullable<typeof world>) =>
   w.harness.behavior.callRpc("preview", {
     prompt: "Audit the release pipeline",
@@ -20,22 +20,29 @@ describe("bounded classification repair", () => {
         JSON.stringify(
           n++ === 0
             ? {
-                goal: "Release pipeline audit",
-                subjectId: "Product / Pipelines",
+                title: { verb: "Auditing", subject: "release pipeline" },
+                topic: "Product / Pipelines",
+                propose: null,
+                scopeShift: false,
               }
-            : { goal: null, subjectId: topicId },
+            : {
+                title: null,
+                topic: "pipeline",
+                propose: null,
+                scopeShift: false,
+              },
         ),
     });
     const w = world;
     const topics = new TopicStore(openDatabase(w.bb));
     topicId = topics.create("Pipeline", "Release pipeline").id;
     expect(await preview(w)).toMatchObject({
-      goal: "Release pipeline audit",
+      goal: "Auditing release pipeline",
       subjectId: topicId,
     });
     expect(w.completions).toHaveLength(2);
     expect(w.completions[1]!.prompt).toContain(
-      "subjectId must be exactly an ID in square brackets in <topic_tree>",
+      "topic must be exactly an ID in square brackets in <topic_tree>",
     );
   });
   it("keeps a usable title and leaves topic unresolved after two invalid responses", async () => {

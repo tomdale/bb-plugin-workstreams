@@ -10,7 +10,7 @@ it("discloses truncated thread history without reporting the slice as a total", 
   const traces = Array.from({ length: 201 }, (_, i) => ({
     id: `trace-${i}`,
     at: i,
-    kind: "quick-analysis",
+    kind: "start",
     status: "ok",
     label: `Call ${i}`,
     model: "test/model",

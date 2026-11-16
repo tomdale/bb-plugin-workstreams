@@ -281,10 +281,10 @@ export function ThreadsSettings() {
       <SettingsSaveError error={error} />
       <SectionRows>
         <ModelField
-          label="Full analysis model"
-          description="When a turn ends after a new request, settles the thread's goal (its title, while Keep titles current is on), and its status when the agent didn't report one."
-          choice={prefs.analysis.fullModel}
-          onChange={(fullModel) => update({ analysis: { fullModel } })}
+          label="Update threads after each turn"
+          description="When a turn ends, updates the thread's goal, its title while Keep titles current is on, and its status when the agent didn't report one. After a new request, it also decides whether the thread moves to another workstream."
+          choice={prefs.analysis.turnEndModel}
+          onChange={(turnEndModel) => update({ analysis: { turnEndModel } })}
         />
         <SettingRow
           label="Keep titles current"
@@ -418,7 +418,7 @@ export function NewWorkSettings() {
         />
         <SettingRow
           label="Suggestions while typing"
-          description="Preview a new thread's topic in the composer as you write, using the Quick analysis model."
+          description="Show a new thread's title and workstream in the composer as you write. Sending the text it answered for files the thread there."
           control={
             <SettingSwitch
               label="Suggestions while typing"
@@ -428,10 +428,12 @@ export function NewWorkSettings() {
           }
         />
         <ModelField
-          label="Quick analysis model"
-          description="Titles a new thread and picks its topic from its first request, and previews both in the composer as you type."
-          choice={prefs.analysis.quickModel}
-          onChange={(quickModel) => update({ analysis: { quickModel } })}
+          label="Name and file new threads"
+          description="Titles a new thread and chooses its workstream, in the composer as you write and when its first request is sent. Also files a thread you move into a group of workstreams, and checks whether threads fit their workstream's categories."
+          choice={prefs.analysis.newThreadModel}
+          onChange={(newThreadModel) =>
+            update({ analysis: { newThreadModel } })
+          }
         />
       </SectionRows>
     </div>
@@ -445,14 +447,6 @@ export function OrganizeSettings() {
     <div className="space-y-3">
       <SettingsSaveError error={error} />
       <SectionRows>
-        <ModelField
-          label="Placement model"
-          description="Picks each thread's topic from its requests: when it starts, and again after a new request."
-          choice={prefs.analysis.placementModel}
-          onChange={(placementModel) =>
-            update({ analysis: { placementModel } })
-          }
-        />
         <SettingRow
           label="Organizing suggestions"
           description="Suggest lasting topic divisions and tidy edits. Topic changes wait for your acceptance; categories update automatically."
@@ -465,8 +459,14 @@ export function OrganizeSettings() {
           }
         />
         <ModelField
-          label="Organization model"
-          description="Organizes current thread collections into categories and writes topic suggestions for review."
+          label="Arrange categories"
+          description="Arranges a workstream's threads into categories when it reaches six, and rearranges them when a thread fits none."
+          choice={prefs.organize.categoryModel}
+          onChange={(categoryModel) => update({ organize: { categoryModel } })}
+        />
+        <ModelField
+          label="Suggest changes"
+          description="Writes the workstream splits and tidy edits you review."
           choice={prefs.organize.tidyModel}
           onChange={(tidyModel) => update({ organize: { tidyModel } })}
         />

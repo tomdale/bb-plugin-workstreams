@@ -201,7 +201,11 @@ function mount(
   } = {},
 ) {
   const Component = options.component ?? RootComposer;
-  const route = vi.fn(async () => decision);
+  // A model answer is for the text it was asked about, as the server's is.
+  const route = vi.fn(async (input: unknown) => ({
+    ...decision,
+    answered: (input as { prompt: string }).prompt.trim(),
+  }));
   const routeCancel = vi.fn(async () => ({ canceled: true }));
   const draftIdentity = vi.fn(async () => ({ filed: false }));
   const metadataUpdates = vi.fn(async (input: unknown) => ({
@@ -327,6 +331,7 @@ it("fills the field with the classified identity and submits it through host sub
         proposal: null,
         provenance: "automatic",
         goal: "Alpha parser",
+        answered: true,
       },
     },
   });
@@ -409,6 +414,7 @@ it("submits proposal identity when proposing a new feature", async () => {
         proposal: { name: "Billing", description: "Invoices" },
         provenance: "automatic",
         goal: null,
+        answered: true,
       },
     },
   });
@@ -443,6 +449,7 @@ it("reports the draft's identity so a plain Enter can be filed", async () => {
         proposal: null,
         provenance: "automatic",
         goal: "Alpha parser",
+        answered: true,
       },
     }),
   );

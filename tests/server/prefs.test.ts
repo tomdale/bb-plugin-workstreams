@@ -183,7 +183,7 @@ describe("Workstreams prefs", () => {
     const db = openDatabase(world.bb);
     db.prepare("DELETE FROM ws_meta WHERE key = 'prefs'").run();
     const seeded = seedPrefs(db);
-    expect(seeded.analysis.quickModel).toEqual(DEFAULT_MODELS.quick);
+    expect(seeded.analysis.newThreadModel).toEqual(DEFAULT_MODELS.newThread);
     expect(
       savePrefs(db, {
         sidebar: { recentLimit: 100, showSnoozed: false, showArchived: false },
@@ -193,8 +193,8 @@ describe("Workstreams prefs", () => {
       showSnoozed: false,
       showArchived: false,
     });
-    expect(seedPrefs(db).analysis.quickModel).toEqual(
-      seeded.analysis.quickModel,
+    expect(seedPrefs(db).analysis.newThreadModel).toEqual(
+      seeded.analysis.newThreadModel,
     );
     expect(loadPrefs(db).sidebar).toMatchObject({
       recentLimit: 20,
@@ -257,17 +257,32 @@ describe("Workstreams prefs", () => {
     ).toBe(false);
   });
 
-  it("moves the models of preferences saved before the two analyses", () => {
-    const prefs = parsePrefs({
-      newWork: {
-        suggestionsModel: { kind: "gateway", model: "google/quick" },
-      },
-      organize: { model: { kind: "gateway", model: "openai/full" } },
-    });
-    expect(prefs.analysis).toEqual({
-      quickModel: { kind: "gateway", model: "google/quick" },
-      fullModel: { kind: "gateway", model: "openai/full" },
-      placementModel: DEFAULT_MODELS.placement,
+  it("arranges categories with a saved suggestions model until one is chosen for them", () => {
+    const tidy = { kind: "gateway" as const, model: "openai/custom" };
+    expect(
+      parsePrefs({ organize: { tidyModel: tidy } }).organize,
+    ).toMatchObject({ tidyModel: tidy, categoryModel: tidy });
+    const category = { kind: "gateway" as const, model: "openai/other" };
+    expect(
+      parsePrefs({ organize: { tidyModel: tidy, categoryModel: category } })
+        .organize.categoryModel,
+    ).toEqual(category);
+    expect(parsePrefs({}).organize.categoryModel).toEqual(
+      DEFAULT_MODELS.category,
+    );
+  });
+
+  it("starts the new-thread and turn-end models at their defaults", () => {
+    expect(
+      parsePrefs({
+        analysis: {
+          quickModel: { kind: "gateway", model: "openai/old" },
+          fullModel: { kind: "gateway", model: "openai/old" },
+        },
+      }).analysis,
+    ).toEqual({
+      newThreadModel: DEFAULT_MODELS.newThread,
+      turnEndModel: DEFAULT_MODELS.turnEnd,
     });
   });
 });

@@ -50,3 +50,41 @@ it("removes source-linked trace prompts and recursive replays without deleting u
     await host.harness.lifecycle.dispose();
   }
 });
+
+it("drops stored calls of a kind no current call records", async () => {
+  const host = createTestPluginHost({ pluginId: "trace-retired-kind" });
+  try {
+    const db = openDatabase(host.bb);
+    const traces = new TraceStore(db);
+    const kept = traces.add({
+      at: Date.now(),
+      kind: "start",
+      status: "ok",
+      label: "kept",
+      model: "test",
+      durationMs: 1,
+      replayOf: null,
+      provider: "test",
+      thinking: "off",
+      system: "",
+      prompt: "",
+      input: {},
+      response: "{}",
+      reasoning: null,
+      stopReason: null,
+      parsed: {},
+      outcome: null,
+      usage: null,
+      error: null,
+      summary: null,
+    });
+    db.prepare(
+      "INSERT INTO ws_trace (id, at, kind, status, label, model, duration_ms, replay_of, data) VALUES ('old', ?, 'retired-kind', 'ok', 'old', 'test', 1, NULL, '{}')",
+    ).run(Date.now());
+    traces.prune({ force: true });
+    expect(traces.get("old")).toBeNull();
+    expect(traces.get(kept)).not.toBeNull();
+  } finally {
+    await host.harness.lifecycle.dispose();
+  }
+});

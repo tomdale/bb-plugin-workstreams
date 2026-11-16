@@ -171,9 +171,11 @@ export const reclassificationPlanSchema = z.object({
 export type ReclassificationPlan = z.infer<typeof reclassificationPlanSchema>;
 
 /**
- * The topic the New thread composer shows for a draft. `automatic` is Quick
- * analysis's preview, with the goal it would title the thread with;
- * `inherited` is the topic of the workstream whose ＋ opened the composer.
+ * The topic the New thread composer shows for a draft. `automatic` is the
+ * start call's preview, with the title it would give the thread; `answered`
+ * marks a preview of exactly the text sent, which is then that thread's
+ * start. `inherited` is the topic of the workstream whose ＋ opened the
+ * composer.
  */
 const taskIdentitySubmissionSchema = z.object({
   entityId: z.string().min(1).nullable().optional(),
@@ -181,6 +183,7 @@ const taskIdentitySubmissionSchema = z.object({
   provenance: z.enum(["manual", "automatic", "inherited"]).optional(),
   sectionId: z.string().min(1).nullable().optional(),
   goal: z.string().max(200).nullable().optional(),
+  answered: z.boolean().optional(),
 });
 
 export const projectChoiceSchema = z.object({
@@ -352,8 +355,10 @@ const previewSchema = z.object({
   subject: z.string().nullable(),
   subjectId: z.string().nullable().optional(),
   proposal: draftSubjectProposalSchema.nullable().optional(),
-  /** Quick analysis's goal for the new thread, its opening title. */
+  /** The title the new thread would start with. */
   goal: z.string().nullable().optional(),
+  /** The trimmed draft text a model answer is for. */
+  answered: z.string().nullable().optional(),
   traceId: z.string().nullable(),
   explanation: z
     .object({ notes: z.array(z.string()), durationMs: z.number() })

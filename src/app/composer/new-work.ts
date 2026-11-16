@@ -1,6 +1,6 @@
 /**
- * The New thread composer's state: the new thread's topic, and Quick
- * analysis's preview of it while you type. The topic decides the workstream,
+ * The New thread composer's state: the new thread's topic, and the start
+ * call's preview of its title and topic while you type. The topic decides the workstream,
  * so the composer never asks for one.
  */
 import type { ComposerSelection } from "@get-bb/plugin-sdk/app";
@@ -12,7 +12,7 @@ import { routeDelay } from "./timing.ts";
 import type { WorkstreamTarget } from "./preset.ts";
 
 /**
- * The topic the field shows: one you picked, Quick analysis's preview
+ * The topic the field shows: one you picked, the start call's preview
  * (`automatic`), or the topic of the workstream whose ＋ opened the composer
  * (`inherited`, by `sectionId`, or by topic for a shared-topic header).
  * Previews never replace a picked or inherited topic.
@@ -49,7 +49,7 @@ export type NewWorkState = {
    * and offers to make it the workstream's project.
    */
   projectOverride?: boolean;
-  /** Quick analysis's latest preview of the draft. */
+  /** The start call's latest preview of the draft. */
   decision: Preview | null;
   classifying: boolean;
   error: string | null;
@@ -76,20 +76,23 @@ export function isPicked(identity: IdentityChoice): boolean {
 
 /** What the server files the thread with: the topic the field shows. */
 export function submittedIdentity(
-  state: Pick<NewWorkState, "identity" | "decision">,
+  state: Pick<NewWorkState, "identity" | "decision" | "text">,
 ): ComposedIdentity {
   const identity = state.identity;
   if (!identity) return null;
+  // A preview of exactly this text is the thread's start: its title travels
+  // with its topic, so the server doesn't ask again. A preview of earlier
+  // text still shows its topic, and the server asks after send.
+  const answered =
+    identity.provenance === "automatic" &&
+    !!state.decision?.answered &&
+    state.decision.answered === state.text.trim();
   return {
     entityId: identity.entityId,
     proposal: identity.proposal,
     provenance: identity.provenance,
     ...(identity.sectionId ? { sectionId: identity.sectionId } : {}),
-    // Quick analysis's title travels with its topic, so the server doesn't
-    // ask again for the same text.
-    ...(identity.provenance === "automatic"
-      ? { goal: state.decision?.goal ?? null }
-      : {}),
+    ...(answered ? { goal: state.decision?.goal ?? null, answered } : {}),
   };
 }
 
@@ -180,6 +183,7 @@ function reportsEqual(
     identityA.provenance === identityB.provenance &&
     (identityA.sectionId ?? null) === (identityB.sectionId ?? null) &&
     (identityA.goal ?? null) === (identityB.goal ?? null) &&
+    !!identityA.answered === !!identityB.answered &&
     proposalsEqual(identityA.proposal, identityB.proposal)
   );
 }

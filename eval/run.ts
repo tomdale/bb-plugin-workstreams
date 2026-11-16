@@ -1,5 +1,5 @@
 /**
- * Live evaluation of Full analysis, Quick analysis, and placement.
+ * Live evaluation of Full analysis, a thread's start, and placement.
  * Opt-in and never part of `npm test`: it calls models through Pi's AI
  * Gateway.
  *
@@ -16,11 +16,10 @@ import { performance } from "node:perf_hooks";
 import {
   fullAnalysisPrompt,
   parseFullAnalysis,
-  parseQuickAnalysis,
-  quickAnalysisPrompt,
   type FullAnalysisInput,
   type WorkState,
 } from "../src/domain/analysis.ts";
+import { parseStart, startPrompt } from "../src/domain/start.ts";
 import {
   parsePlacement,
   placementPrompt,
@@ -318,18 +317,16 @@ for (const model of models) {
     };
     try {
       if (job.mode === "opening") {
-        const quick = {
+        const start = {
           request: job.input.requests[0]?.text ?? "",
-          entities: null,
+          project: null,
+          placement: null,
         };
-        const { text, cost } = await complete(
-          model,
-          quickAnalysisPrompt(quick),
-        );
+        const { text, cost } = await complete(model, startPrompt(start));
         return {
           ...base,
           output: null,
-          openingGoal: parseQuickAnalysis(text, quick).goal,
+          openingGoal: parseStart(text, start).title,
           seconds: (performance.now() - started) / 1000,
           cost,
         };

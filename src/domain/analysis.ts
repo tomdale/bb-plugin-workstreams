@@ -1,33 +1,23 @@
 /**
- * Quick analysis and Full analysis: their prompts, output contracts, and the
- * rule that decides whether a stored result is current. Pure, so the server,
- * the app, and the eval runner share one definition.
+ * A thread's description at a turn's end, and what both calls that name a
+ * thread share: the title rules, prompt tags, and the rule that decides
+ * whether a stored result is current. Pure, so the server, the app, and the
+ * eval runner share one definition.
  *
- * - Quick analysis sees one request. A thread's first request gets its
- *   opening title within seconds, before the first turn ends; a draft in the
- *   New thread composer gets a title and a topic to preview.
- * - Full analysis runs when a turn ends. After new requests, full mode
- *   settles the title and thread goal from the user's evolving purpose.
- *   The final reply and agent report provide turn context. Status mode carries
- *   the title and goal forward. Either mode supplies the turn's status when
- *   the agent didn't report one. A turn's end asks these fields together with
- *   the topic (see turnEnd.ts).
+ * Full analysis runs when a turn ends. After new requests, full mode settles
+ * the title and thread goal from the user's evolving purpose. The final reply
+ * and agent report provide turn context. Status mode carries the title and
+ * goal forward. Either mode supplies the turn's status when the agent didn't
+ * report one. A turn's end asks these fields together with the topic (see
+ * turnEnd.ts); a thread's start writes its first title (see start.ts).
  *
- * Both write a title as two parts, an -ing verb and its subject, which code
+ * Titles are written as two parts, an -ing verb and its subject, which code
  * joins (`composeTitle`), so the form is the output's shape rather than a rule
  * the model may drop.
  */
 import { z } from "zod";
 import { redact } from "./redact.ts";
 import { takesThreads, topicAncestors } from "./topics.ts";
-import {
-  CLASSIFICATION_RULES,
-  parseTopic,
-  topicFieldsSchema,
-  topicTreeBlock,
-  type Entity,
-  type TopicAnswer,
-} from "./classify.ts";
 
 export { redact };
 
@@ -51,8 +41,6 @@ export const GOAL_MAX = 48;
 export const THREAD_GOAL_MAX = 240;
 /** A safety bound for the accumulated context digest; oversized output is refused. */
 export const DIGEST_MAX = 480;
-/** A request is excerpted to this much for Quick analysis. */
-const QUICK_REQUEST_CHARS = 1500;
 
 /** A stored Full analysis result, keyed to the turn it describes. */
 type ThreadAnalysis = {
@@ -321,144 +309,6 @@ export const stripFence = (text: string) =>
     .trim()
     .replace(/^```(?:json)?\s*/, "")
     .replace(/\s*```$/, "");
-
-// Quick analysis ----------------------------------------------------------
-
-/**
- * What Quick analysis sees: one request, its project, and, when it also
- * chooses a topic (the composer's preview), the topic tree. A thread's
- * opening title needs no topic: placement files the thread.
- */
-export type QuickAnalysisInput = {
-  readonly request: string;
-  readonly project?: string | null;
-  readonly entities: readonly Entity[] | null;
-  readonly listing?: ThreadListing | null;
-};
-
-export function quickAnalysisPrompt(input: QuickAnalysisInput): string {
-  const project = input.project ? redact(input.project).slice(0, 100) : null;
-  const topics = input.entities;
-  const goal = `- goal: the title wherever threads are listed. ${TITLE_RULES}
-  null when the request doesn't say what the work is (a greeting, or a bare "continue" or "yes").`;
-  return `${HEADER}
-
-You name one new agent thread from its opening request${topics ? " and choose its topic" : ""}, for someone who switches between dozens of threads. Work has only just begun, so name what the request asks for.
-
-${tagged("opening_request", excerpt(redact(input.request), QUICK_REQUEST_CHARS))}
-${project ? `\nThe project the thread runs in:\n${tagged("project", project)}\n` : ""}${input.listing?.group || input.listing?.parent ? `\n${listingBlock(input.listing)}\n` : ""}${
-    topics
-      ? `
-The topic tree, where indentation expresses parentage and each topic's ID is in square brackets:
-${tagged("topic_tree", topicTreeBlock(topics))}
-
-Return {"goal": {"verb": string, "subject": string}|null, "subjectId": string|null, "proposed": object|null}:
-${goal}
-- subjectId / proposed: the most specific supported topic. subjectId copies only the exact identifier inside square brackets in the tree, not its name or path. An execution tool mentioned only as the method for unspecified work does not establish a topic; return both fields null when the work's owner is unknown.
-
-${CLASSIFICATION_RULES}`
-      : `
-Return {"goal": {"verb": string, "subject": string}|null}:
-${goal}`
-  }`;
-}
-
-/** JSON Schema constrains IDs at generation as well as at application. */
-export function quickAnalysisSchema(
-  input: Pick<QuickAnalysisInput, "entities">,
-): Record<string, unknown> {
-  if (!input.entities)
-    return {
-      type: "object",
-      additionalProperties: false,
-      properties: { goal: titleFieldSchema },
-      required: ["goal"],
-    };
-  const nullableId = (ids: string[]) => ({
-    type: ["string", "null"],
-    enum: [null, ...ids],
-  });
-  const ancestor = {
-    type: "object",
-    additionalProperties: false,
-    properties: { name: { type: "string" }, description: { type: "string" } },
-    required: ["name", "description"],
-  };
-  return {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      goal: titleFieldSchema,
-      subjectId: nullableId(
-        input.entities
-          .filter(
-            (entity) =>
-              takesThreads(entity.id, input.entities!) &&
-              topicAncestors(entity.id, input.entities!).length <= 2,
-          )
-          .map((entity) => entity.id),
-      ),
-      proposed: {
-        anyOf: [
-          { type: "null" },
-          {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              name: { type: "string" },
-              description: { type: "string" },
-              parentId: nullableId(
-                input.entities
-                  .filter((entity) => entity.parentId === null)
-                  .map((entity) => entity.id),
-              ),
-              ancestors: { type: "array", items: ancestor, maxItems: 1 },
-            },
-            required: ["name", "description", "parentId", "ancestors"],
-          },
-        ],
-      },
-    },
-    required: ["goal", "subjectId", "proposed"],
-  };
-}
-
-const quickOutputSchema = z.object({
-  goal: titlePartsSchema.optional().default(null),
-});
-
-type QuickAnalysisOutput = {
-  goal: string | null;
-  topicError?: string;
-} & TopicAnswer;
-
-/** Invalid topic fields cannot invalidate an independent title or status. */
-function checkedTopic(
-  raw: unknown,
-  entities: readonly Entity[],
-): TopicAnswer & { topicError?: string } {
-  try {
-    return parseTopic(topicFieldsSchema.parse(raw), entities);
-  } catch {
-    return {
-      subjectId: null,
-      proposed: null,
-      topicError:
-        "Invalid topic: use an exact supplied ID or a supported proposal",
-    };
-  }
-}
-
-export function parseQuickAnalysis(
-  text: string,
-  input: Pick<QuickAnalysisInput, "entities" | "listing">,
-): QuickAnalysisOutput {
-  const raw: unknown = JSON.parse(stripFence(text));
-  const goal = composeTitle(quickOutputSchema.parse(raw).goal, input.listing);
-  return input.entities
-    ? { goal, ...checkedTopic(raw, input.entities) }
-    : { goal, subjectId: null, proposed: null };
-}
 
 // Full analysis -----------------------------------------------------------
 

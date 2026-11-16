@@ -31,17 +31,18 @@ const startCalls = (w: World) => w.completions.filter((c) => isStart(c.prompt));
 async function setup(placed?: () => string | null) {
   let topicId = "";
   world = await fakeWorld({
+    // The fake asks a start's topic as a placement prompt.
     complete: ({ prompt }) =>
-      isQuick(prompt)
-        ? JSON.stringify({
-            goal: "Parser tab handling",
-            subjectId: topicId,
-            proposed: null,
-          })
-        : isPlacement(prompt)
-          ? placed
-            ? JSON.stringify({ subjectId: placed(), proposed: null })
-            : "not json"
+      isPlacement(prompt)
+        ? placed
+          ? JSON.stringify({ subjectId: placed(), proposed: null })
+          : "not json"
+        : isQuick(prompt)
+          ? JSON.stringify({
+              goal: "Parser tab handling",
+              subjectId: topicId,
+              proposed: null,
+            })
           : JSON.stringify({ recap: "r", state: "in_progress" }),
   });
   const w = world;
@@ -136,7 +137,7 @@ describe("a new root's first topic", () => {
     expect(w.threads.get("t1")?.title).toBe("Tab handling");
   });
 
-  it("keeps the composer's preview of the same text until the start call files it", async () => {
+  it("is the composer's preview of exactly the text sent, with no second call", async () => {
     const { w, corpus, docs, dispatch, settle } = await setup();
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
@@ -146,20 +147,41 @@ describe("a new root's first topic", () => {
         proposal: null,
         provenance: "automatic",
         goal: "Docs for tabs",
+        answered: true,
       },
     });
     await dispatch("t1", "Write the docs");
     await settle();
-    // The start call asks only the topic; here it fails, so the preview stands.
+    expect(startCalls(w)).toHaveLength(0);
+    // The preview was the thread's start, so its topic is settled.
+    expect(corpus.assignment("t1")).toMatchObject({
+      entityId: docs.id,
+      provenance: "full",
+    });
+    expect(corpus.basis("t1")).toBeTruthy();
+    expect(w.threads.get("t1")?.title).toBe("Docs for tabs");
+  });
+
+  it("files by a preview of earlier text until the start call answers the text sent", async () => {
+    const { w, corpus, docs, dispatch, settle } = await setup();
+    await w.harness.behavior.callRpc("draftIdentity", {
+      draftKey: "d1",
+      text: "Write the docs",
+      identity: { entityId: docs.id, proposal: null, provenance: "automatic" },
+    });
+    await dispatch("t1", "Write the docs");
+    await settle();
+    // The start call asks title and topic; here the topic part fails, so the
+    // preview's topic stands.
     expect(startCalls(w)).toHaveLength(1);
+    expect(startCalls(w)[0]!.prompt).toContain("<topic_tree>");
     expect(corpus.assignment("t1")).toMatchObject({
       entityId: docs.id,
       provenance: "quick",
     });
-    expect(w.threads.get("t1")?.title).toBe("Docs for tabs");
   });
 
-  it("is the topic you picked, which Quick analysis never replaces", async () => {
+  it("is the topic you picked, which the start call never replaces", async () => {
     const { w, corpus, docs, dispatch, settle } = await setup();
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
@@ -172,7 +194,7 @@ describe("a new root's first topic", () => {
       entityId: docs.id,
       provenance: "manual",
     });
-    // Quick analysis still titles it.
+    // The start call still titles it.
     expect(w.threads.get("t1")?.title).toBe("Parser tab handling");
   });
 
@@ -279,15 +301,16 @@ describe("the composer's preview", () => {
     expect(corpus.revision()).toBe(revision);
   });
 
-  it("previews a draft with Quick analysis and never creates a topic", async () => {
+  it("previews a draft with the start call and never creates a topic", async () => {
     let calls = 0;
     world = await fakeWorld({
       complete: () => {
         calls++;
         return JSON.stringify({
-          goal: "Shelf reservations",
-          subjectId: null,
-          proposed: { name: "Reservations", description: "" },
+          title: { verb: "Reserving", subject: "shelves" },
+          topic: null,
+          propose: { name: "Reservations", description: "", parent: null },
+          scopeShift: false,
         });
       },
     });
@@ -301,7 +324,7 @@ describe("the composer's preview", () => {
     };
     expect(calls).toBe(1);
     expect(preview).toMatchObject({
-      goal: "Shelf reservations",
+      goal: "Reserving shelves",
       subject: "Reservations",
       proposal: { name: "Reservations" },
     });

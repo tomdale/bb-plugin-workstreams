@@ -127,7 +127,7 @@ export function NewThreadRouting() {
         selection?.projectId ??
         (scope.kind === "new-thread" ? scope.projectId : null);
       if (current === projectId) return;
-      // Quick analysis's guess never moves a thread out of its project on a
+      // The preview's workstream never moves a thread out of its project on a
       // workstream with none; it leaves the thread unfiled instead.
       if (
         projectId === NO_PROJECT &&

@@ -55,26 +55,26 @@ async function mount(
 ) {
   let seededAlphaId = "";
   world = await fakeWorld({
-    // Placement of the first request fails here, so the composer's own
-    // preview is what files the thread.
+    // The composer's preview is the start call's answer for the text sent,
+    // so sending it files and titles the thread with no second call.
     complete: ({ prompt }) =>
-      prompt.includes("You file one agent thread under a topic")
-        ? "not json"
-        : JSON.stringify(
-            prompt.includes("You name one new agent thread")
-              ? answer.name === "Billing"
-                ? {
-                    goal: "Invoice export",
-                    subjectId: null,
-                    proposed: { name: "Billing", description: "" },
-                  }
-                : {
-                    goal: "Alpha parser tabs",
-                    subjectId: seededAlphaId,
-                    proposed: null,
-                  }
-              : { recap: "r", state: "done" },
-          ),
+      JSON.stringify(
+        prompt.includes("You name one new agent thread")
+          ? answer.name === "Billing"
+            ? {
+                title: { verb: "Exporting", subject: "invoices" },
+                topic: null,
+                propose: { name: "Billing", description: "", parent: null },
+                scopeShift: false,
+              }
+            : {
+                title: { verb: "Fixing", subject: "parser tabs" },
+                topic: seededAlphaId && "alpha",
+                propose: null,
+                scopeShift: false,
+              }
+          : { recap: "r", state: "done" },
+      ),
   });
   const w = world;
   const alpha = w.addSection("Alpha");
@@ -216,19 +216,23 @@ it("files an inherited topic when native dispatch has no submit metadata", async
   });
 });
 
-it("files an automatic topic and goal when native dispatch has no submit metadata", async () => {
+it("files an automatic topic and title when native dispatch has no submit metadata", async () => {
   const { w, slot, corpus, alphaTopic, dispatchNative } = await mount({});
   const prompt = "Fix the parser in Alpha so it handles tabs";
   await act(() => slot.behavior.setComposerText(prompt));
   await screen.findByRole("button", { name: "Topic: Alpha" });
+  const calls = w.completions.length;
   await dispatchNative(prompt);
-  expect(corpus.assignment("composed")).toMatchObject({
-    entityId: alphaTopic.id,
-    provenance: "quick",
-  });
   await waitFor(() =>
-    expect(w.threads.get("composed")?.title).toBe("Alpha parser tabs"),
+    expect(corpus.assignment("composed")).toMatchObject({
+      entityId: alphaTopic.id,
+      provenance: "full",
+    }),
   );
+  await waitFor(() =>
+    expect(w.threads.get("composed")?.title).toBe("Fixing parser tabs"),
+  );
+  expect(w.completions).toHaveLength(calls);
 });
 
 it("files a manually proposed topic without submit metadata", async () => {
@@ -262,7 +266,8 @@ it("does not wait for identity reporting before native dispatch and files a late
   const prompt = "Improve parser diagnostics before the preview completes";
   await act(() => slot.behavior.setComposerText(prompt));
   await dispatchNative(prompt);
-  expect(corpus.assignment("composed").entityId).toBeNull();
+  // Until the report arrives, the start call files the thread on its own.
+  expect(corpus.assignment("composed").provenance).not.toBe("manual");
   expect(slot.inspection.composer.submits).toHaveLength(0);
   await act(() => releaseReports());
   expect(corpus.assignment("composed")).toMatchObject({
@@ -291,10 +296,10 @@ it("submits classified automatic identity through host metadata and assigns on s
   await dispatch(prompt);
   const corpus = new TopicStore(openDatabase(w.bb));
   const assignment = corpus.assignment("composed");
-  expect(assignment).toMatchObject({ status: "assigned", provenance: "quick" });
+  expect(assignment).toMatchObject({ status: "assigned", provenance: "full" });
   // The composer's preview titles the thread, with no second call.
   await waitFor(() =>
-    expect(w.threads.get("composed")?.title).toBe("Alpha parser tabs"),
+    expect(w.threads.get("composed")?.title).toBe("Fixing parser tabs"),
   );
   expect(w.spawned).toEqual([]);
   expect(w.sent).toEqual([]);

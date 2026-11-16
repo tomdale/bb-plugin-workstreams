@@ -144,7 +144,7 @@ async function finishTurn(w: World, id: string, at: number) {
 }
 
 describe("naming a thread from its opening request", () => {
-  it("asks again after an unusable answer", async () => {
+  it("repairs an unusable answer once", async () => {
     let attempts = 0;
     const w = await setup(() =>
       attempts++ === 0
@@ -160,7 +160,11 @@ describe("naming a thread from its opening request", () => {
       { timeout: 3_000 },
     );
     expect(openingCalls(w)).toHaveLength(2);
-    expect(openingCalls(w)[1]!.prompt).toBe(openingCalls(w)[0]!.prompt);
+    expect(openingCalls(w)[1]!.prompt).toContain(
+      "Validation requirement: return only a JSON object with the requested fields",
+    );
+    // You set its topic, so the repair asks nothing about topics.
+    expect(openingCalls(w)[1]!.prompt).not.toMatch(/topic_tree/);
   });
 
   it("titles it while its first turn is still running, without waiting on the model", async () => {
@@ -201,7 +205,7 @@ describe("naming a thread from its opening request", () => {
     await vi.waitFor(() => expect(w.threads.get("t1")?.title).not.toBeNull());
     expect(openingCalls(w)).toHaveLength(1);
     const { prompt, model } = openingCalls(w)[0]!;
-    expect(model).toBe("openai/gpt-6-sol");
+    expect(model).toBe("openai/gpt-6.1-sol");
     expect(prompt).toContain(REQUEST);
     expect(prompt).toContain(
       'Return {"title": {"verb": string, "subject": string}|null}',
@@ -369,10 +373,10 @@ describe("naming a thread from its opening request", () => {
       );
       newThread(w);
       expect(await firstMessage(w)).toEqual({ action: "proceed" });
-      // An unparseable answer is asked twice more; a title too long for a
-      // row is a usable answer with no title.
+      // An unparseable answer is repaired once on each of three attempts; a
+      // title too long for a row is a usable answer with no title.
       await vi.waitFor(
-        () => expect(openingCalls(w)).toHaveLength(bad === "not json" ? 3 : 1),
+        () => expect(openingCalls(w)).toHaveLength(bad === "not json" ? 6 : 1),
         { timeout: 4_000 },
       );
       await flush();

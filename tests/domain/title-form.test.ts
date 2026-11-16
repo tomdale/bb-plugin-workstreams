@@ -4,9 +4,8 @@ import {
   composeTitle,
   dropListedPrefix,
   fullAnalysisPrompt,
-  parseQuickAnalysis,
-  quickAnalysisPrompt,
 } from "../../src/domain/analysis.ts";
+import { parseStart, startPrompt } from "../../src/domain/start.ts";
 
 const listing = { group: "Streams Plugin: Recap Cards", parent: null };
 
@@ -76,10 +75,11 @@ describe("listing context", () => {
     parent: "Build Harbor Access tunnel",
   };
 
-  it("tells Quick analysis where the thread is listed", () => {
-    const prompt = quickAnalysisPrompt({
+  it("tells a child thread's start where the thread is listed", () => {
+    const prompt = startPrompt({
       request: "Implement Phase 0",
-      entities: null,
+      project: null,
+      placement: null,
       listing: child,
     });
     expect(prompt).toContain(
@@ -89,7 +89,11 @@ describe("listing context", () => {
       "<parent_thread>\nBuild Harbor Access tunnel\n</parent_thread>",
     );
     expect(
-      quickAnalysisPrompt({ request: "Implement Phase 0", entities: null }),
+      startPrompt({
+        request: "Implement Phase 0",
+        project: null,
+        placement: null,
+      }),
     ).not.toContain("listed_under");
   });
 
@@ -111,12 +115,12 @@ describe("listing context", () => {
 
   it("drops a listed name from the titles it parses", () => {
     expect(
-      parseQuickAnalysis(
+      parseStart(
         JSON.stringify({
-          goal: { verb: "restoring", subject: "recap cards task list" },
+          title: { verb: "restoring", subject: "recap cards task list" },
         }),
-        { entities: null, listing },
-      ).goal,
+        { request: "", project: null, placement: null, listing },
+      ).title,
     ).toBe("Restoring task list");
   });
 });

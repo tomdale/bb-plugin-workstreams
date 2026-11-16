@@ -185,7 +185,7 @@ describe("idle analysis", () => {
     await settle(5_000);
     expect(analyses(w)).toHaveLength(1);
     expect(analyses(w)[0]!.prompt).toContain("Fixed; tests pass.");
-    expect(analyses(w)[0]!.model).toBe("openai/gpt-6-sol-fast");
+    expect(analyses(w)[0]!.model).toBe("openai/gpt-6.1-sol");
     const { analysis } = await state(w);
     expect(analysis.t1).toMatchObject({ state: "review", revision: 500 });
   });

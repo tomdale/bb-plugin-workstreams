@@ -166,7 +166,7 @@ describe("debug mode on", () => {
     expect(state.analysis.t1).toBeUndefined();
   });
 
-  it("records a composer preview's Quick analysis", async () => {
+  it("records a composer preview's start call", async () => {
     const w = await setup(true);
     const preview = await rpc<{ traceId: string | null; goal: string | null }>(
       w,
@@ -176,9 +176,9 @@ describe("debug mode on", () => {
     expect(preview.goal).toBe("Alpha parser tabs");
     const full = (await trace(w, preview.traceId!))!;
     expect(full).toMatchObject({
-      kind: "quick-analysis",
+      kind: "start",
       status: "ok",
-      summary: "goal “Alpha parser tabs” · no topic",
+      summary: "title “Alpha parser tabs” · no topic",
     });
   });
 
@@ -388,7 +388,16 @@ describe("composer previews", () => {
             calls.push({
               prompt: call.prompt,
               signal: call.signal,
-              answer: () => resolve(JSON.stringify(QUICK)),
+              // Answered in the start call's own shape, as one call.
+              answer: () =>
+                resolve(
+                  JSON.stringify({
+                    title: { verb: "Alpha", subject: "parser tabs" },
+                    topic: null,
+                    propose: null,
+                    scopeShift: false,
+                  }),
+                ),
             });
           })
         : JSON.stringify(ANALYSIS);
@@ -418,7 +427,7 @@ describe("composer previews", () => {
     expect(await firstSettled).toContain("the draft changed");
     calls[1]!.answer();
     expect((await second).goal).toBe("Alpha parser tabs");
-    const routes = (await traces(w)).filter((t) => t.kind === "quick-analysis");
+    const routes = (await traces(w)).filter((t) => t.kind === "start");
     expect(routes).toHaveLength(1);
     expect(routes[0]).toMatchObject({ status: "ok" });
   });

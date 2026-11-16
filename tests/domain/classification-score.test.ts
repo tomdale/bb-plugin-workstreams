@@ -25,7 +25,7 @@ it("accepts capability synonyms while rejecting flattened required ancestry", ()
   expect(score(["Loom", "Waiting Recap"]).owner).toBe(true);
   expect(score(["Loom", "Waiting Recap"]).hierarchy).toBe(false);
 });
-it("scores cold Placement's single root proposal separately from Quick's hierarchy", () => {
+it("passes a cold single root proposal on its owner alone", () => {
   const c = cases.find((c) => c.id === "waiting-schema")!;
   const value = {
     subjectId: null,
@@ -35,33 +35,22 @@ it("scores cold Placement's single root proposal separately from Quick's hierarc
       parentId: null,
     },
   };
-  expect(
-    scoreClassification(
-      value,
-      c.input,
-      c.expected,
-      true,
-      undefined,
-      "placement",
-    ),
-  ).toMatchObject({ owner: true, hierarchy: false, pass: true });
-  expect(
-    scoreClassification(value, c.input, c.expected, true, undefined, "quick")
-      .pass,
-  ).toBe(false);
+  expect(scoreClassification(value, c.input, c.expected, true)).toMatchObject({
+    owner: true,
+    hierarchy: false,
+    pass: true,
+  });
   expect(
     scoreClassification(
       { ...value, proposed: { ...value.proposed, name: "Harbor" } },
       c.input,
       c.expected,
       true,
-      undefined,
-      "placement",
     ).pass,
   ).toBe(false);
 });
 
-it("rejects a familiar title's wrong capability despite a correct owner", () => {
+it("reports a familiar title's wrong capability as advisory beside a correct owner", () => {
   const c = cases.find((c) => c.id === "misleading-title")!;
   const result = scoreClassification(
     {
@@ -79,7 +68,7 @@ it("rejects a familiar title's wrong capability despite a correct owner", () => 
   );
   expect(result.owner).toBe(true);
   expect(result.capability).toBe(false);
-  expect(result.pass).toBe(false);
+  expect(result.pass).toBe(true);
 });
 
 it("expects a new topic outside the app whose pane only looks like the answer", () => {

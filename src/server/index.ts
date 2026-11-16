@@ -43,7 +43,7 @@ import { hostContract } from "./inference/contract.ts";
 import { openDatabase } from "./db.ts";
 import { Journal } from "./journal.ts";
 import { Inference } from "./model.ts";
-import { ThreadStart, type OpeningThread } from "./start.ts";
+import { ThreadStart, type OpeningThread, type StartPreset } from "./start.ts";
 import { agentReport, reportedStatus } from "../domain/recap.ts";
 import { loadOrder, saveOrder } from "./order.ts";
 import { loadSpinner, saveSpinner } from "./spinner.ts";
@@ -355,7 +355,7 @@ export default async function plugin(bb: BbPluginApi) {
     sdk: () => bb.sdk,
     db,
     inference,
-    model: async () => currentPrefs().analysis.placementModel,
+    model: async () => currentPrefs().analysis.newThreadModel,
     topics,
     project: projectName,
     // Only a new request re-places a thread: topic edits and model changes
@@ -396,7 +396,7 @@ export default async function plugin(bb: BbPluginApi) {
   const analyzer = new Analyzer({
     sdk: () => bb.sdk,
     db,
-    model: async () => currentPrefs().analysis.fullModel,
+    model: async () => currentPrefs().analysis.turnEndModel,
     inference,
     report: (threadId) => {
       const recap = recaps.get(threadId)?.recap;
@@ -435,7 +435,7 @@ export default async function plugin(bb: BbPluginApi) {
   const starts = new ThreadStart({
     sdk: () => bb.sdk,
     inference,
-    model: async () => currentPrefs().analysis.placementModel,
+    model: async () => currentPrefs().analysis.newThreadModel,
     titles: () => currentPrefs().threads.autoTitle,
     analyzed: (threadId) => analyzer.get(threadId) !== undefined,
     title: (threadId, title, revision, traceId) =>
@@ -546,7 +546,7 @@ export default async function plugin(bb: BbPluginApi) {
             categories.pendingRequest(id, basis),
           ),
           {
-            model: currentPrefs().organize.tidyModel,
+            model: currentPrefs().organize.categoryModel,
             label: input.label,
             signal,
             links: input.roots.map((root) => ({
@@ -570,7 +570,7 @@ export default async function plugin(bb: BbPluginApi) {
             new Set(input.changed),
           ),
           {
-            model: currentPrefs().analysis.quickModel,
+            model: currentPrefs().analysis.newThreadModel,
             label: input.label,
             signal,
             links: input.changed.map((id) => ({
@@ -688,8 +688,9 @@ export default async function plugin(bb: BbPluginApi) {
   const previewer = new ComposerPreview({
     sdk: () => bb.sdk,
     topics,
+    placement,
     inference,
-    model: async () => currentPrefs().analysis.quickModel,
+    model: async () => currentPrefs().analysis.newThreadModel,
   });
   // The topic the New thread composer showed, for threads a plain Enter
   // creates without the composer's submit data.
@@ -697,13 +698,15 @@ export default async function plugin(bb: BbPluginApi) {
   const journaledStarts = new Set<string>();
   /**
    * Gives a composed thread the topic its composer showed: one you picked,
-   * the topic of the workstream whose ＋ opened it, or Quick analysis's
-   * preview, whose goal also titles it.
+   * or the topic of the workstream whose ＋ opened it. Returns what the
+   * composer's preview already answered for the thread's start: a preview of
+   * exactly the text sent is its start, title and topic both; a preview of
+   * earlier text files the thread until the start call settles it.
    */
   const fileComposedIdentity = (
     thread: OpeningThread,
     identity: ComposedIdentity,
-  ) => {
+  ): StartPreset | undefined => {
     if (!identity) return;
     const threadId = thread.id;
     // A topic you picked files the thread in whatever project you chose for
@@ -752,8 +755,20 @@ export default async function plugin(bb: BbPluginApi) {
       triggerOrganizer(10);
       return;
     }
-    // Quick analysis already ran on this text in the composer: its topic
-    // files the thread until placement settles it, and its title names it.
+    if (identity.provenance !== "automatic") return;
+    if (identity.answered)
+      return {
+        title: identity.goal ?? null,
+        ...(conflicting
+          ? {}
+          : {
+              topic: {
+                subjectId: identity.entityId ?? null,
+                proposed: identity.proposal ?? null,
+                scopeShift: false,
+              },
+            }),
+      };
     if (!conflicting && (identity.entityId || identity.proposal))
       applyTopic(
         threadId,
@@ -863,10 +878,6 @@ export default async function plugin(bb: BbPluginApi) {
           : null),
       independentRoot,
     );
-    // The composer's own title for the text that was sent replaces the one
-    // the start call would write.
-    const preset =
-      identity?.provenance === "automatic" ? identity.goal : undefined;
     setTimeout(() => {
       try {
         if (journal)
@@ -875,6 +886,7 @@ export default async function plugin(bb: BbPluginApi) {
             rationale: "Started from New thread",
           });
         else service.seeThread(ctx.thread.id, null, ctx.parentThreadId ?? null);
+        let preset: StartPreset | undefined;
         // Hidden threads (workflow and subagent workers) are never listed,
         // so they get no topic and cost no model call.
         if (!ctx.parentThreadId && ctx.thread.visibility !== "hidden") {
@@ -884,7 +896,7 @@ export default async function plugin(bb: BbPluginApi) {
             const source = topics.assignment(from).entityId;
             if (source) placement.hintStart(ctx.thread.id, source, "thread");
           }
-          if (identity) fileComposedIdentity(ctx.thread, identity);
+          if (identity) preset = fileComposedIdentity(ctx.thread, identity);
         }
         void starts.onFirstRequest(ctx, preset);
         triggerOrganizer(10);

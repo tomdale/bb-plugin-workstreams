@@ -512,12 +512,12 @@ it("saves the Show archive button switch, on by default", async () => {
   ).toEqual([{ patch: { threads: { showArchiveButton: false } } }]);
 });
 
-it("saves New threads preferences, keeping the Quick analysis model when suggestions are off", async () => {
+it("saves New threads preferences, keeping the new-threads model when suggestions are off", async () => {
   const slot = await mount("new-work");
   await slot.findByRole("switch", { name: "Suggestions while typing" });
   expect(
     slot.getByText(
-      "Preview a new thread's topic in the composer as you write, using the Quick analysis model.",
+      "Show a new thread's title and workstream in the composer as you write. Sending the text it answered for files the thread there.",
     ),
   ).toBeTruthy();
   fireEvent.click(await slot.findByRole("button", { name: "Home project" }));
@@ -540,7 +540,7 @@ it("saves New threads preferences, keeping the Quick analysis model when suggest
     { patch: { newWork: { homeProjectId: "" } } },
     { patch: { newWork: { suggestions: false } } },
   ]);
-  // Quick analysis still titles new threads, so its model stays available.
+  // A thread's start still names and files it, so its model stays available.
   expect(
     slot.getByTestId("bb-provider-model-picker").getAttribute("data-disabled"),
   ).not.toBe("true");
@@ -566,13 +566,13 @@ it("shows the worker-thread note for a non-gateway analysis model", async () => 
   );
 });
 
-it("shows the Full analysis model with its eval-tested default", async () => {
+it("shows the turn-end model with its eval-tested default", async () => {
   const slot = await mount("threads");
   const picker = await slot.findByTestId("bb-provider-model-picker");
   expect(picker).toBeTruthy();
   expect(
     (picker.querySelector('[aria-label="Model"]') as HTMLInputElement).value,
-  ).toBe("vercel-ai-gateway/openai/gpt-6-sol-fast");
+  ).toBe("vercel-ai-gateway/openai/gpt-6.1-sol");
 });
 
 it("shows the Analysis machine only when more than one machine is connected", async () => {

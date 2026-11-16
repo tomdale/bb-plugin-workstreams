@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   NewWork,
+  submittedIdentity,
   type NewWorkDeps,
   type NewWorkIdentityReport,
 } from "../../src/app/composer/new-work.ts";
@@ -275,13 +276,39 @@ describe("NewWork canonical identity reports", () => {
         provenance: "inherited",
         sectionId: "sec_docs",
       },
+      // The preview answered other text, so its title isn't sent.
       {
         entityId: null,
         proposal: automaticProposal,
         provenance: "automatic",
-        goal: "Export billing data",
       },
     ]);
+  });
+
+  it("sends a preview's title only with the text it answered", () => {
+    const identity = {
+      entityId: null,
+      proposal: automaticProposal,
+      label: "Export",
+      provenance: "automatic" as const,
+    };
+    const decision = { ...preview, answered: "Export billing data" };
+    expect(
+      submittedIdentity({ identity, decision, text: " Export billing data " }),
+    ).toEqual({
+      entityId: null,
+      proposal: automaticProposal,
+      provenance: "automatic",
+      goal: "Export billing data",
+      answered: true,
+    });
+    expect(
+      submittedIdentity({ identity, decision, text: "Export billing data!" }),
+    ).toEqual({
+      entityId: null,
+      proposal: automaticProposal,
+      provenance: "automatic",
+    });
   });
 
   it("dedupes selection refs and provider or model changes but reports project provenance", async () => {

@@ -22,8 +22,8 @@ if (!apiKey) throw new Error("AI Gateway authentication required");
 const model =
   process.env.EVAL_MODEL ??
   (process.env.EVAL_KIND === "fit"
-    ? DEFAULT_MODELS.quick.model
-    : DEFAULT_MODELS.tidy.model);
+    ? DEFAULT_MODELS.newThread.model
+    : DEFAULT_MODELS.category.model);
 const repetitions = Number(process.env.EVAL_REPETITIONS ?? 1);
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 3)
   throw new Error("EVAL_REPETITIONS must be between 1 and 3");
@@ -144,7 +144,8 @@ for (const test of queue) {
       outputSchema: categorySchema(test.input),
       maxTokens: 4096,
       reasoningLevel:
-        process.env.EVAL_REASONING_LEVEL ?? DEFAULT_MODELS.tidy.reasoningLevel,
+        process.env.EVAL_REASONING_LEVEL ??
+        DEFAULT_MODELS.category.reasoningLevel,
       signal: AbortSignal.timeout(60_000),
     });
     response = completion.text;
