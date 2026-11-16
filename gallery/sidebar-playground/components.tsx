@@ -195,8 +195,8 @@ export function mountThread(
   const state = (
     {
       review: "review",
-      complete: "done",
-      decision: "needs_decision",
+      complete: "complete",
+      decision: "needs-input",
       blocked: "blocked",
     } as const
   )[kind as "review" | "complete" | "decision" | "blocked"];
@@ -220,8 +220,8 @@ export function mountThread(
         analysis: {
           state,
           recap: "",
-          needsYou: null,
-          goal: null,
+          ask: null,
+          title: null,
           revision: 0,
           at: 0,
           model: "fixture",

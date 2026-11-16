@@ -171,7 +171,7 @@ it("turns wake events on and off, one at a time", async () => {
   );
   expect(
     slot
-      .getByRole("switch", { name: "Wake on thread events: Done" })
+      .getByRole("switch", { name: "Wake on thread events: Complete" })
       .getAttribute("aria-checked"),
   ).toBe("true");
 });

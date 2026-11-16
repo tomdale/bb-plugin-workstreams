@@ -550,7 +550,7 @@ describe.skipIf(browserUnavailable)("gallery specimens", () => {
         .click();
       expect(
         await page.locator("style[data-ws-color-tokens]").textContent(),
-      ).toContain("--ws-needs-you");
+      ).toContain("--ws-needs-input");
       await page
         .getByRole("navigation", { name: "Design system" })
         .getByRole("link", { name: "Overlays" })

@@ -208,7 +208,7 @@ export function ReplyDebug({
         <Icon name="Bug" aria-hidden className="size-3.5 shrink-0" />
         <span className="shrink-0">Raw agent output</span>
         {firstIssue ? (
-          <span className="min-w-0 truncate text-(--ws-failure-text) group-open/raw:hidden">
+          <span className="min-w-0 truncate text-(--ws-failed-text) group-open/raw:hidden">
             · {formatIssue(firstIssue)}
             {diagnosis.issues.length > 1
               ? ` (+${diagnosis.issues.length - 1} more)`
@@ -226,7 +226,7 @@ export function ReplyDebug({
         {diagnosis.issues.length ? (
           <ul
             aria-label="Reply syntax issues"
-            className="list-disc space-y-1 pl-4 text-(--ws-failure-text)"
+            className="list-disc space-y-1 pl-4 text-(--ws-failed-text)"
           >
             {diagnosis.issues.map((issue, i) => (
               <li key={i}>{formatIssue(issue)}</li>

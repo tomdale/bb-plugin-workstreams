@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import type { QuestionShortcut } from "./question-form-host.tsx";
 
 export const QUESTION_CARD_CLASS =
-  "@container/question relative mx-auto mb-3 w-full min-w-0 max-w-4xl rounded-lg border border-(--ws-needs-you-border) bg-(--ws-needs-you-surface) px-4 py-3 text-foreground";
+  "@container/question relative mx-auto mb-3 w-full min-w-0 max-w-4xl rounded-lg border border-(--ws-needs-input-border) bg-(--ws-needs-input-surface) px-4 py-3 text-foreground";
 
 // The card's type scale, largest to smallest: the question (in the card's
 // amber accent, which replaces a separate state label; a lighter amber than
@@ -14,7 +14,7 @@ export const QUESTION_CARD_CLASS =
 // rest `text-sm`. The answer field must be at least 16px or iOS zooms the page
 // when it takes focus.
 export const PROMPT_CLASS =
-  "text-[20px] leading-[1.3] text-(--ws-needs-you-text) max-md:pointer-coarse:text-[22px] [text-wrap:pretty]";
+  "text-[20px] leading-[1.3] text-(--ws-needs-input-text) max-md:pointer-coarse:text-[22px] [text-wrap:pretty]";
 // The renderer's root sets its own size and color, so the root takes the
 // prompt's here, and code chips stay in the foreground color for legibility.
 export const MARKDOWN_CLASS =
@@ -83,7 +83,7 @@ export function QuestionOptionRow({
           "mt-[2.5px] flex size-3.5 shrink-0 items-center justify-center border transition-colors duration-150 motion-reduce:transition-none max-md:pointer-coarse:mt-[2px] max-md:pointer-coarse:size-[18px]",
           multiSelect ? "rounded" : "rounded-full",
           checked
-            ? "border-(--ws-needs-you-strong) bg-(--ws-needs-you-strong) text-(--ws-needs-you-on-strong)"
+            ? "border-(--ws-needs-input-strong) bg-(--ws-needs-input-strong) text-(--ws-needs-input-on-strong)"
             : readOnly
               ? "border-foreground/55"
               : "border-foreground/55 group-hover:border-foreground/80",

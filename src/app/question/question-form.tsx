@@ -165,9 +165,9 @@ function QuestionTabs({
                 className={cn(
                   "block h-[7px] rounded-full transition-all duration-150 motion-reduce:transition-none",
                   active
-                    ? "w-[18px] bg-(--ws-needs-you-strong)"
+                    ? "w-[18px] bg-(--ws-needs-input-strong)"
                     : answered
-                      ? "w-[7px] bg-[color-mix(in_oklab,var(--ws-needs-you-strong)_70%,transparent)]"
+                      ? "w-[7px] bg-[color-mix(in_oklab,var(--ws-needs-input-strong)_70%,transparent)]"
                       : "w-[7px] bg-foreground/20 group-hover:bg-foreground/40",
                 )}
               />
@@ -179,7 +179,7 @@ function QuestionTabs({
             <Icon
               name="Check"
               aria-hidden
-              className="size-3 shrink-0 text-(--ws-needs-you-text)"
+              className="size-3 shrink-0 text-(--ws-needs-input-text)"
             />
           ) : null}
           <span className="truncate">{current?.question.shortLabel}</span>
@@ -202,7 +202,7 @@ function QuestionTabs({
           className={cn(
             "-mb-px flex min-w-0 max-w-[180px] shrink cursor-pointer items-center gap-1 border-b-2 pb-1.5 pt-0.5 text-[12.5px] font-medium leading-[1.6] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
             active
-              ? "border-(--ws-needs-you-strong) text-foreground"
+              ? "border-(--ws-needs-input-strong) text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
@@ -210,7 +210,7 @@ function QuestionTabs({
             <Icon
               name="Check"
               aria-hidden
-              className="size-3 shrink-0 text-(--ws-needs-you-text)"
+              className="size-3 shrink-0 text-(--ws-needs-input-text)"
             />
           ) : null}
           <span className="truncate">{question.shortLabel}</span>
@@ -856,7 +856,7 @@ export function QuestionForm({
             className="pointer-events-none absolute -inset-x-2 top-0 h-3"
             style={{
               background:
-                "linear-gradient(to bottom, var(--ws-needs-you-surface), transparent), linear-gradient(to bottom, var(--background), transparent)",
+                "linear-gradient(to bottom, var(--ws-needs-input-surface), transparent), linear-gradient(to bottom, var(--background), transparent)",
             }}
           />
         ) : null}
@@ -867,7 +867,7 @@ export function QuestionForm({
             className="pointer-events-none absolute -inset-x-2 bottom-0 h-7"
             style={{
               background:
-                "linear-gradient(to top, var(--ws-needs-you-surface), transparent), linear-gradient(to top, var(--background), transparent)",
+                "linear-gradient(to top, var(--ws-needs-input-surface), transparent), linear-gradient(to top, var(--background), transparent)",
             }}
           />
         ) : null}
@@ -875,7 +875,7 @@ export function QuestionForm({
       {/* An edge-to-edge footer strip like the recap card's, offset by the
           card's px-4 py-3 padding; its controls sit on the content's 16px
           insets (the ghost Cancel's padding is pulled back to match). */}
-      <div className="-mx-4 -mb-3 mt-1.5 flex shrink-0 items-center justify-between gap-2 rounded-b-[calc(var(--radius-lg,0.5rem)-1px)] border-t border-(--ws-needs-you-rule) bg-(--ws-needs-you-footer) px-4 py-1.5">
+      <div className="-mx-4 -mb-3 mt-1.5 flex shrink-0 items-center justify-between gap-2 rounded-b-[calc(var(--radius-lg,0.5rem)-1px)] border-t border-(--ws-needs-input-rule) bg-(--ws-needs-input-footer) px-4 py-1.5">
         <Button
           type="button"
           size="sm"
@@ -890,7 +890,7 @@ export function QuestionForm({
           <p
             role="alert"
             title={error}
-            className="line-clamp-2 min-w-0 flex-1 text-xs leading-snug text-(--ws-failure-text)"
+            className="line-clamp-2 min-w-0 flex-1 text-xs leading-snug text-(--ws-failed-text)"
           >
             {error}
           </p>

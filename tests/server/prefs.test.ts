@@ -56,7 +56,7 @@ describe("Workstreams prefs", () => {
       groupSort: "alphabetical",
       timestamps: "show",
       threadCount: "collapsed",
-      waitingCount: "collapsed",
+      needsYouCount: "collapsed",
     });
   });
 

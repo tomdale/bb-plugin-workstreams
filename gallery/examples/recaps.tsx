@@ -26,13 +26,13 @@ const recapBase = {
   next: [],
   review: [],
   latest: [],
-} satisfies Omit<Recap, "state" | "goal">;
+} satisfies Omit<Recap, "state" | "headline">;
 
 const recaps: Record<Recap["state"], Recap> = {
   complete: {
     ...recapBase,
     state: "complete",
-    goal: "Added the compact release summary",
+    headline: "Added the compact release summary",
     latest: [
       "Long filenames wrap inside the available width",
       {
@@ -47,7 +47,7 @@ const recaps: Record<Recap["state"], Recap> = {
   review: {
     ...recapBase,
     state: "review",
-    goal: "Prepared the release summary for review",
+    headline: "Prepared the release summary for review",
     latest: ["The summary covers the receipt and discount changes"],
     review: [
       {
@@ -63,9 +63,21 @@ const recaps: Record<Recap["state"], Recap> = {
   waiting: {
     ...recapBase,
     state: "waiting",
-    goal: "Waiting for the release checks",
+    headline: "Waiting for the release checks",
     waitingAgents: [
       { threadId: "gallery-agent", task: "Check the narrow layout" },
+    ],
+  },
+  blocked: {
+    ...recapBase,
+    state: "blocked",
+    headline: "Blocked on the missing release token",
+    latest: ["The release script stops at the registry login"],
+    unblock: [
+      {
+        text: "Add RELEASE_TOKEN to the environment",
+        detail: "Then reply here and the release continues",
+      },
     ],
   },
 };
@@ -111,7 +123,7 @@ function recapFor(
       return {
         ...recapBase,
         state,
-        goal:
+        headline:
           state === "waiting"
             ? "Waiting for the release report"
             : "The release summary fits in a narrow pane",
@@ -119,7 +131,7 @@ function recapFor(
     case "long":
       return {
         ...recap,
-        goal:
+        headline:
           state === "waiting"
             ? "Waiting for the release summary and narrow-pane review"
             : "Prepared the release summary and its supporting review instructions",
@@ -181,7 +193,7 @@ function recapFor(
     case "hashes":
       return {
         ...recap,
-        goal:
+        headline:
           state === "waiting"
             ? "Waiting for commit review"
             : "Prepared commits for the release summary",
@@ -327,7 +339,7 @@ function RecapExample() {
                   hashColors={
                     variant.hashColor === "semantic"
                       ? {
-                          digits: "var(--ws-needs-you-text)",
+                          digits: "var(--ws-needs-input-text)",
                           letters: "var(--ws-complete-text)",
                         }
                       : undefined
@@ -363,7 +375,7 @@ import type { Recap } from "../../src/domain/recap";
 const recap: Recap = ${JSON.stringify(recapFor("hashes", "review", []), null, 2)};
 
 <RecapCardPreview recap={recap} layout="full" showArchive={false}
-  hashColors={{ digits: "var(--ws-needs-you-text)", letters: "var(--ws-complete-text)" }} />
+  hashColors={{ digits: "var(--ws-needs-input-text)", letters: "var(--ws-complete-text)" }} />
 
 <RecapCardPreview layout="full"
   recap={{ ...recap, state: "waiting", waitingAgents: [

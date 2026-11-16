@@ -24,7 +24,7 @@ export type ComposedIdentity = {
   proposal?: DraftSubjectProposal | null;
   provenance?: "manual" | "automatic" | "inherited";
   sectionId?: string | null;
-  goal?: string | null;
+  title?: string | null;
   answered?: boolean;
 } | null;
 

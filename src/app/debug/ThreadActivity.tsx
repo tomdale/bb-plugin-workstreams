@@ -35,12 +35,11 @@ type ActivityItem = {
 };
 
 const FULL_ANALYSIS_OUTCOMES: Record<string, string> = {
-  review: "ready for review",
-  "needs decision": "needs your decision",
+  "needs-input": "needs input",
   blocked: "blocked",
-  "in progress": "in progress",
+  review: "ready for review",
+  complete: "complete",
   reported: "reported by the agent",
-  done: "done",
 };
 
 function traceDetail(trace: TraceSummary): string {

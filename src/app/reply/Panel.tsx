@@ -31,9 +31,9 @@ const NEUTRAL = {
  * Passing parts stay neutral, which keeps the recap card the loudest object.
  */
 const FAILURE = {
-  frame: "border-(--ws-failure-border)",
-  header: "border-(--ws-failure-border) bg-(--ws-failure-surface)",
-  title: "text-(--ws-failure-text)",
+  frame: "border-(--ws-failed-border)",
+  header: "border-(--ws-failed-border) bg-(--ws-failed-surface)",
+  title: "text-(--ws-failed-text)",
 };
 
 /** A row's padding inside a panel, on the design's 14px gutter. */

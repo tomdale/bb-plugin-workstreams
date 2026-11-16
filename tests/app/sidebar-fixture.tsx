@@ -170,7 +170,7 @@ export async function mount(
             groupSort: options.settings?.groupSort ?? "alphabetical",
             timestamps: options.settings?.timestamps ?? "show",
             threadCount: options.settings?.threadCount ?? "collapsed",
-            waitingCount: options.settings?.waitingCount ?? "collapsed",
+            needsYouCount: options.settings?.needsYouCount ?? "collapsed",
           },
           threads: {
             autoTitle: true,
@@ -329,7 +329,7 @@ export async function mount(
               groupSort: patch.sidebar.groupSort,
               timestamps: "show",
               threadCount: "collapsed",
-              waitingCount: "collapsed",
+              needsYouCount: "collapsed",
             },
             threads: {
               autoTitle: true,

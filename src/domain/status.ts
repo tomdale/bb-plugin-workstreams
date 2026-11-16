@@ -6,7 +6,7 @@
  * the status of turns the agent didn't report, and the goal either way. The
  * sidebar, the page, the phone Home screen, the CLI, the organizer, and
  * routing all read status through this module so they never disagree about
- * whether a thread is done or waiting on you.
+ * whether a thread is complete or needs you.
  */
 import { isCurrent, type StoredAnalysis } from "./analysis.ts";
 import { reportedAnalysis, type Recap } from "./recap.ts";
@@ -73,7 +73,8 @@ function deriveWorkView(
 ): WorkView {
   // A failed turn gets neither; BB's own error mark says enough.
   if (thread.status === "error") return { kind: "none" };
-  if (recap && thread.status === "idle")
+  // A cancelled Waiting recap no longer describes what the thread is doing.
+  if (recap && !recap.cancelled && thread.status === "idle")
     return {
       kind: "current",
       reported: true,
@@ -89,14 +90,28 @@ function deriveWorkView(
     : { kind: "pending", previous: analysis };
 }
 
-/** Needs you: a pending interaction, or a current needs-decision result. */
-export function needsYou(
+/** Needs input: a pending interaction, or a current needs-input result. */
+export function needsInput(
   thread: { readonly hasPendingInteraction: boolean },
   work: WorkView,
 ): boolean {
   return (
     thread.hasPendingInteraction ||
-    (work.kind === "current" && work.analysis.state === "needs_decision")
+    (work.kind === "current" && work.analysis.state === "needs-input")
+  );
+}
+
+/**
+ * Needs you: Needs input or Blocked, the threads the header count counts.
+ * A finished turn, even one with Next actions, is Complete and not counted.
+ */
+export function needsYou(
+  thread: { readonly hasPendingInteraction: boolean },
+  work: WorkView,
+): boolean {
+  return (
+    needsInput(thread, work) ||
+    (work.kind === "current" && work.analysis.state === "blocked")
   );
 }
 
@@ -113,18 +128,18 @@ export function needsAttention(
     Boolean(
       thread.isUnread &&
       work.kind === "current" &&
-      (work.analysis.state === "done" || work.analysis.state === "review"),
+      (work.analysis.state === "complete" || work.analysis.state === "review"),
     )
   );
 }
 
 /**
  * How a thread's latest turn left things, as Up Next ranks it: waiting on
- * the user for an answer (a pending question or approval, or a turn that
- * ended needing a decision) or a review; still waiting on something else
- * (the agent reported Waiting, or analysis found the work in progress); or
- * anything else, such as complete. A thread asking a question is a
- * `question` even when its latest turn is also ready for review.
+ * the user (a pending question or approval, a turn that ended needing input,
+ * or a blocked turn) or a review; still waiting on an external task (the
+ * agent reported Waiting); or anything else, such as complete. A thread
+ * asking a question is a `question` even when its latest turn is also ready
+ * for review.
  */
 export type UpNextKind = "question" | "review" | "waiting" | "other";
 
@@ -135,14 +150,14 @@ export function upNextKind(
   if (needsYou(thread, work)) return "question";
   if (work.kind !== "current") return "other";
   if (work.analysis.state === "review") return "review";
-  return work.analysis.state === "in_progress" ? "waiting" : "other";
+  return work.analysis.state === "waiting" ? "waiting" : "other";
 }
 
 /**
- * Done: the agent reported its turn complete, or analysis of the current
- * turn found the work finished. Done threads don't count toward a
+ * Complete: the agent reported its turn complete, or analysis of the current
+ * turn found the work finished. Complete threads don't count toward a
  * workstream's active load.
  */
-export function isDone(work: WorkView): boolean {
-  return work.kind === "current" && work.analysis.state === "done";
+export function isComplete(work: WorkView): boolean {
+  return work.kind === "current" && work.analysis.state === "complete";
 }

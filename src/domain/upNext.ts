@@ -9,11 +9,11 @@
  * until it asks for the user or finishes. The queue page takes those Waiting
  * threads too (`includeWaiting`), after everything else, because it is where a
  * Waiting recap's status check is watched and cancelled. A question or a review
- * is blocked on the user; anything else (done, failed) is not. A review or a
+ * is awaiting the user; anything else (done, failed) is not. A review or a
  * needed decision whose turn ended more than {@link UP_NEXT_STALE_AFTER_MS} ago
  * has gone stale and ranks as neither (see `agedKind`). While a focused
- * workstream has a thread blocked on the user, only focused workstreams'
- * threads are candidates; the threads blocked on the user elsewhere wait
+ * workstream has a thread awaiting the user, only focused workstreams'
+ * threads are candidates; the threads awaiting the user elsewhere wait
  * outside Up Next.
  *
  * Candidates rank by tier, then by latest attention (BB's turn-end time,
@@ -23,7 +23,7 @@
  * on the user first, then the rest, however the turn ended. Read threads follow
  * in their kind's order:
  *
- * 1. unread, blocked on the user   2. unread, other
+ * 1. unread, awaiting the user   2. unread, other
  * 3. read questions   4. read reviews   5. other read
  *
  * With that setting off (`unreadFirst`), each thread keeps its kind's tier and
@@ -37,12 +37,12 @@
  *
  * Up Next then shows the `shown` most urgent of them (see
  * {@link UP_NEXT_LIMIT}), and never more: the rest are Trimmed, and those that
- * are unread or blocked on the user wait behind Show more. So the list stays
- * short enough to act on, and a thread blocked on the user is never a reason
- * to grow it. A thread that is read and not blocked on the user only fills a
+ * are unread or awaiting the user wait behind Show more. So the list stays
+ * short enough to act on, and a thread awaiting the user is never a reason
+ * to grow it. A thread that is read and not awaiting the user only fills a
  * row nothing more urgent wants, and with `fill` off ("Show read threads" in
  * settings) none of them fills one: Up Next lists just the threads that are
- * unread or blocked on the user, and can be empty.
+ * unread or awaiting the user, and can be empty.
  *
  * Nested threads never appear on their own (BB doesn't mark a delegate
  * unread when its turn ends); they show under their root's row. Parent
@@ -64,7 +64,7 @@ import { buildForest } from "./tree.ts";
 export const UP_NEXT_LIMIT = 5;
 /** The most rows the Threads shown setting allows Up Next to list. */
 export const UP_NEXT_MAX = 10;
-/** How long a finished turn's review or decision stays blocked on the user. */
+/** How long a finished turn's review or decision stays awaiting the user. */
 export const UP_NEXT_STALE_AFTER_MS = 7 * DAY_MS;
 
 /**
@@ -102,7 +102,7 @@ const RUNNING_STATUSES: ReadonlySet<string> = new Set([
  * The thread's turn is underway and asks nothing of the user, so Up Next
  * leaves it out: there is nothing to act on yet, and it returns, unread,
  * when the turn ends. A pending question card or approval keeps a running
- * thread in, since the agent is waiting on the user.
+ * thread in, since the agent is awaiting the user.
  */
 export function isRunning(
   thread: Pick<UpNextThread, "status" | "hasPendingInteraction">,
@@ -112,7 +112,7 @@ export function isRunning(
 
 /** What Up Next ranks by; every caller that wants Up Next's rows passes it. */
 export type UpNextOptions<T extends UpNextThread> = {
-  /** What each thread is blocked on the user for (see `upNextKind`). */
+  /** What each thread is awaiting the user for (see `upNextKind`). */
   readonly kindOf: (thread: T) => UpNextKind;
   /** The current time, for aging out stale threads (see `agedKind`). */
   readonly now: number;
@@ -125,7 +125,7 @@ export type UpNextOptions<T extends UpNextThread> = {
   readonly shown?: number;
   /**
    * Rank unread threads above every read thread, and within them a thread
-   * blocked on the user first. Failed turns get no boost. False ranks each
+   * awaiting the user first. Failed turns get no boost. False ranks each
    * thread by its kind alone. True when absent.
    */
   readonly unreadFirst?: boolean;
@@ -135,9 +135,9 @@ export type UpNextOptions<T extends UpNextThread> = {
    */
   readonly freshWithinMs?: number;
   /**
-   * Whether read threads that aren't blocked on the user top up the rows the
+   * Whether read threads that aren't awaiting the user top up the rows the
    * unread and blocked-on-you threads leave, as the most recently active of
-   * them. False lists only threads that are unread or blocked on the user, so
+   * them. False lists only threads that are unread or awaiting the user, so
    * Up Next can hold fewer than `shown` rows, or none. True when absent.
    */
   readonly fill?: boolean;
@@ -151,8 +151,8 @@ export type UpNextOptions<T extends UpNextThread> = {
   readonly includeWaiting?: boolean;
 };
 
-/** A question or review: the thread is blocked on the user. */
-export function isBlockedOnUser(kind: UpNextKind): boolean {
+/** A question (Needs input or Blocked) or a review: the thread waits on the user. */
+export function waitsOnUser(kind: UpNextKind): boolean {
   return kind === "question" || kind === "review";
 }
 
@@ -168,14 +168,14 @@ export function agedKind(
   kind: UpNextKind,
   now: number,
 ): UpNextKind {
-  return isBlockedOnUser(kind) &&
+  return waitsOnUser(kind) &&
     !thread.hasPendingInteraction &&
     now - thread.latestAttentionAt > UP_NEXT_STALE_AFTER_MS
     ? "other"
     : kind;
 }
 
-/** The next review or decision's transition out of its blocked tier. */
+/** The next review or decision's transition out of its waiting tier. */
 export function nextUpNextDeadline<T extends UpNextThread>(
   threads: readonly T[],
   options: Pick<UpNextOptions<T>, "kindOf" | "now"> & {
@@ -195,7 +195,7 @@ export function nextUpNextDeadline<T extends UpNextThread>(
       thread.hasPendingInteraction
     )
       continue;
-    if (!isBlockedOnUser(options.kindOf(thread))) continue;
+    if (!waitsOnUser(options.kindOf(thread))) continue;
     // Staleness uses a strict age comparison, so wake just after the boundary.
     const deadline = thread.latestAttentionAt + UP_NEXT_STALE_AFTER_MS + 1;
     if (deadline > options.now) next = Math.min(next, deadline);
@@ -208,13 +208,13 @@ type UpNextSelection<T extends WorkstreamThread> = {
   readonly rows: readonly Row<T>[];
   /**
    * What Show more reveals below `rows`: the trimmed threads that are
-   * unread or blocked on the user, most urgent first. Read threads not
-   * blocked on the user stay out; Recent and the groups list them.
+   * unread or awaiting the user, most urgent first. Read threads not
+   * awaiting the user stay out; Recent and the groups list them.
    */
   readonly more: readonly Row<T>[];
   /**
    * Every ranked thread the row limit kept out, most urgent first: `more`
-   * and the read threads not blocked on the user. Motion reads it to tell a
+   * and the read threads not awaiting the user. Motion reads it to tell a
    * row the limit pushed out from one that stopped needing the user.
    */
   readonly trimmed: readonly Row<T>[];
@@ -246,7 +246,7 @@ function tierOf(
   if (!unreadFirst) return KIND_TIER[kind];
   if (!unread) return KIND_TIER[kind] + READ_TIER_OFFSET;
   // What an unread thread leaves the user with, most urgent first.
-  return isBlockedOnUser(kind) ? 0 : 1;
+  return waitsOnUser(kind) ? 0 : 1;
 }
 
 const byAttention = (a: Row<WorkstreamThread>, b: Row<WorkstreamThread>) =>
@@ -291,7 +291,7 @@ export function selectUpNext<T extends UpNextThread>(
       if (kind === "waiting" && !includeWaiting) return null;
       return {
         row,
-        onYou: isBlockedOnUser(kind),
+        onYou: waitsOnUser(kind),
         unread: row.thread.isUnread,
         fresh:
           freshWithinMs > 0 &&

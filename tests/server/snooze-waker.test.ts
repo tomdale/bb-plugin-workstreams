@@ -191,7 +191,7 @@ it("wakes on a question a delegate raised after the snooze, without the event", 
     thread("d1", { parentThreadId: "t1", hasPendingInteraction: true }),
   ]);
   await waker.check();
-  expect(world.woken.map((w) => w.event)).toEqual(["delegate-needs-you"]);
+  expect(world.woken.map((w) => w.event)).toEqual(["child-needs-input"]);
 });
 
 it("reads a turn's outcome as first known, so re-analysis stays quiet", async () => {
@@ -199,24 +199,24 @@ it("reads a turn's outcome as first known, so re-analysis stays quiet", async ()
   const waker = make();
   snooze("t1");
   world.now = 2_000;
-  world.work.set("t1", "in_progress");
+  world.work.set("t1", "waiting");
   read([thread("t1", { latestAttentionAt: 1_500 })]);
   await waker.check();
-  world.work.set("t1", "done");
+  world.work.set("t1", "complete");
   await waker.check();
   expect(world.woken).toEqual([]);
   // A later turn that ends done wakes it.
   world.now = 3_000;
   read([thread("t1", { latestAttentionAt: 2_500 })]);
   await waker.check();
-  expect(world.woken.map((w) => w.event)).toEqual(["done"]);
+  expect(world.woken.map((w) => w.event)).toEqual(["complete"]);
 });
 
 it("wakes when a delegate's failure leaves the work stuck", async () => {
   const { world, make, read, snooze } = setup();
   const waker = make();
   snooze("t1");
-  world.work.set("t1", "in_progress");
+  world.work.set("t1", "waiting");
   world.now = 2_000;
   const stuck = [
     thread("t1", { latestAttentionAt: 900 }),
@@ -232,7 +232,7 @@ it("wakes when a delegate's failure leaves the work stuck", async () => {
   world.now = 2_000 + STALL_GRACE_MS;
   read(stuck);
   await waker.check();
-  expect(world.woken.map((w) => w.event)).toEqual(["delegate-stalled"]);
+  expect(world.woken.map((w) => w.event)).toEqual(["child-stalled"]);
 });
 
 it("leaves a time-only snooze alone through a question", async () => {

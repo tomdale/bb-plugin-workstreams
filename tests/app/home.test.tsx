@@ -191,7 +191,7 @@ describe("Home screen", () => {
       expect(within(question).getByText("Ship it?")).toBeTruthy();
       // A read needs-you row draws the open ring.
       expect(
-        within(question).getByRole("img", { name: "Needs you" }),
+        within(question).getByRole("img", { name: "Needs input" }),
       ).toBeTruthy();
       // An unread completion draws the green dot, and no inline unread dot.
       expect(
@@ -200,7 +200,9 @@ describe("Home screen", () => {
         }),
       ).toBeTruthy();
       const done = within(band).getByRole("link", { name: /Finished work/ });
-      expect(done.querySelector(".ws-home-mark > .ws-dot-done")).not.toBeNull();
+      expect(
+        done.querySelector(".ws-home-mark > .ws-dot-complete"),
+      ).not.toBeNull();
       expect(done.querySelector(".ws-unread-inline")).toBeNull();
       expect(within(band).getByText("5")).toBeTruthy();
     });
@@ -281,7 +283,7 @@ describe("Home screen", () => {
       const header = within(alpha).getByRole("button", { name: /^Alpha/ });
       expect(header.getAttribute("aria-expanded")).toBe("false");
       // Closed headers carry the waiting count and the total.
-      expect(within(alpha).getByText(/1 waiting on you/)).toBeTruthy();
+      expect(within(alpha).getByText(/1 needs you/)).toBeTruthy();
       expect(header.textContent).toContain("2");
       expect(links(alpha)).toEqual([]);
       fireEvent.click(header);
@@ -438,9 +440,9 @@ describe("Home screen", () => {
       expect(regionNames(slot)).toEqual(["Up Next", "Workstreams", "Zeta"]);
       expect(links(region(slot, "Zeta"))).toEqual(["Zeta asks", "Zeta quiet"]);
       const toggle = slot.getByRole("button", {
-        name: "Show other workstreams, 1 waiting on you, 3 threads",
+        name: "Show other workstreams, 1 needs you, 3 threads",
       });
-      const count = toggle.querySelector(".ws-needs-you-pill");
+      const count = toggle.querySelector(".ws-needs-input-pill");
       expect(count?.textContent).toBe("1");
       expect(
         count?.nextElementSibling?.classList.contains("ws-home-total"),
@@ -584,14 +586,14 @@ describe("Home screen", () => {
 
     const closedHeaderCounts = async (prefs: {
       threadCount: "always" | "collapsed" | "never";
-      waitingCount: "always" | "collapsed" | "never";
+      needsYouCount: "always" | "collapsed" | "never";
     }) => {
       const slot = await mountHome({ threads: sample(), prefs });
       await slot.findByRole("region", { name: "Workstreams" });
       const alpha = region(slot, "Alpha");
       return {
         slot,
-        waiting: () => within(alpha).queryByText(/waiting on you/) !== null,
+        waiting: () => within(alpha).queryByText(/needs? you/) !== null,
         total: () => alpha.querySelector(".ws-home-total") !== null,
       };
     };
@@ -605,7 +607,7 @@ describe("Home screen", () => {
       async (when, [opened, closed]) => {
         const { slot, waiting, total } = await closedHeaderCounts({
           threadCount: when,
-          waitingCount: "never",
+          needsYouCount: "never",
         });
         expect([total(), waiting()]).toEqual([closed, false]);
         open(slot, /^Alpha/);
@@ -622,7 +624,7 @@ describe("Home screen", () => {
       async (when, [opened, closed]) => {
         const { slot, waiting, total } = await closedHeaderCounts({
           threadCount: "never",
-          waitingCount: when,
+          needsYouCount: when,
         });
         expect([waiting(), total()]).toEqual([closed, false]);
         open(slot, /^Alpha/);
@@ -795,18 +797,21 @@ describe("Home screen with a focused workstream", () => {
 
   it.each([
     [
-      { waitingCount: "collapsed", threadCount: "collapsed" },
-      "Show other workstreams, 1 waiting on you, 2 threads",
+      { needsYouCount: "collapsed", threadCount: "collapsed" },
+      "Show other workstreams, 1 needs you, 2 threads",
     ],
     [
-      { waitingCount: "never", threadCount: "always" },
+      { needsYouCount: "never", threadCount: "always" },
       "Show other workstreams, 2 threads",
     ],
     [
-      { waitingCount: "always", threadCount: "never" },
-      "Show other workstreams, 1 waiting on you",
+      { needsYouCount: "always", threadCount: "never" },
+      "Show other workstreams, 1 needs you",
     ],
-    [{ waitingCount: "never", threadCount: "never" }, "Show other workstreams"],
+    [
+      { needsYouCount: "never", threadCount: "never" },
+      "Show other workstreams",
+    ],
   ] as const)(
     "respects count settings on the collapsed toggle: %j",
     async (prefs, name) => {
@@ -853,12 +858,12 @@ describe("Home screen with a focused workstream", () => {
     fireEvent.click(toggle);
     // ...and the other workstream's waiting count uses the same treatment.
     const pill = within(region(slot, "Beta")).getByText(
-      /waiting on you/,
+      /needs? you/,
     ).parentElement!;
-    expect(pill.classList.contains("ws-needs-you-pill")).toBe(true);
+    expect(pill.classList.contains("ws-needs-input-pill")).toBe(true);
     const total = pill.nextElementSibling;
     expect(total?.classList.contains("ws-home-total")).toBe(true);
-    expect(total?.classList.contains("ws-needs-you-pill")).toBe(false);
+    expect(total?.classList.contains("ws-needs-input-pill")).toBe(false);
   });
 });
 
@@ -909,7 +914,7 @@ describe("Home screen accessibility", () => {
     );
     expect(
       slot.getByRole("button", {
-        name: /^Alpha.*1 waiting on you.*2 threads/,
+        name: /^Alpha.*1 needs you.*2 threads/,
       }),
     ).toBeTruthy();
   });

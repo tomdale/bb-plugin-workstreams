@@ -12,8 +12,8 @@ export const STATUS_ROW_CLASS =
 
 /** A row that reports something to act on takes its tone's tint. */
 const ROW_TINT: Partial<Record<CheckStatus, string>> = {
-  failed: "bg-(--ws-failure-surface)",
-  blocked: "bg-(--ws-needs-you-surface)",
+  failed: "bg-(--ws-failed-surface)",
+  blocked: "bg-(--ws-needs-input-surface)",
 };
 
 const TOTAL_STATUSES = ["passed", "failed", "skipped"] as const;

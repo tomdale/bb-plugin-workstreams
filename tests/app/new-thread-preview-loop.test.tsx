@@ -52,7 +52,7 @@ async function mount() {
             subjectId: seededAlphaId,
             proposed: null,
           })
-        : JSON.stringify({ recap: "r", state: "done" }),
+        : JSON.stringify({ recap: "r", state: "complete" }),
   });
   const w = world;
   const alpha = w.addSection("Alpha");

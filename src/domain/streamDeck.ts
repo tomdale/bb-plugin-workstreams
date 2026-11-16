@@ -10,7 +10,7 @@
  */
 
 /** Bumped when a snapshot changes shape in a way older readers would misread. */
-export const STREAM_DECK_PROTOCOL = 1;
+export const STREAM_DECK_PROTOCOL = 2;
 
 /** Route paths under `/api/v1/plugins/workstreams/http`. */
 export const STREAM_DECK_ROUTES = {
@@ -45,10 +45,11 @@ export function isStreamDeckCommand(
 
 /** The sidebar marks a Stream Deck key draws, in the sidebar's precedence. */
 export const STREAM_DECK_MARKS = [
-  "error",
-  "needs-you",
+  "failed",
+  "needs-input",
+  "blocked",
   "review",
-  "done",
+  "complete",
 ] as const;
 export type StreamDeckMark = (typeof STREAM_DECK_MARKS)[number];
 
@@ -63,7 +64,7 @@ export type StreamDeckThread = {
   /** The mark the sidebar row shows before the title, or null for none. */
   readonly mark: StreamDeckMark | null;
   readonly unread: boolean;
-  /** A question or review waits on the user (see `isBlockedOnUser`). */
+  /** A question, blocker, or review waits on the user (see `waitsOnUser`). */
   readonly onYou: boolean;
 };
 

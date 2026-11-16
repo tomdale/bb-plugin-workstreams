@@ -113,7 +113,7 @@ export function UpNextBlock({
               >
                 <button
                   type="button"
-                  className="ws-home-more ws-needs-you-text"
+                  className="ws-home-more ws-needs-input-text"
                   aria-expanded={showMore}
                   onClick={() => setShowMore(!showMore)}
                 >

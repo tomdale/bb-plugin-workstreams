@@ -130,8 +130,8 @@ it("rebuilds at the dormancy and Up Next staleness boundaries", async () => {
   stored.analysis.stale = {
     recap: "Review the result.",
     state: "review",
-    needsYou: null,
-    goal: null,
+    ask: null,
+    title: null,
     revision: staleAt,
     at,
     model: "m",

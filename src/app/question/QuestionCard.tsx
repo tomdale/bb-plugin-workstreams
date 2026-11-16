@@ -161,7 +161,7 @@ export function QuestionInteraction({
       .finally(() => setBusy(false));
   };
   const alert = error ? (
-    <p role="alert" className="mt-2 text-xs text-(--ws-failure-text)">
+    <p role="alert" className="mt-2 text-xs text-(--ws-failed-text)">
       {error}
     </p>
   ) : null;

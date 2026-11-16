@@ -107,7 +107,7 @@ export class Analyzer {
        */
       report?: (threadId: string) => {
         report: AgentReport;
-        status: Pick<StoredAnalysis, "recap" | "state" | "needsYou">;
+        status: Pick<StoredAnalysis, "recap" | "state" | "ask">;
       } | null;
       /** Topics, for settling a root's topic with its goal. */
       topics?: {
@@ -259,7 +259,7 @@ export class Analyzer {
           {
             revision: row.revision,
             needsTopicRetry: Boolean(result?.topicError),
-            needsGoal: result?.threadGoal === undefined,
+            needsGoal: result?.goal === undefined,
           },
         ] as const;
       }),
@@ -420,7 +420,7 @@ export class Analyzer {
         previous &&
         previous.revision >= revision &&
         !previous.topicError &&
-        previous.threadGoal !== undefined &&
+        previous.goal !== undefined &&
         !this.settleTopic.has(threadId)
       )
         return previous;
@@ -430,7 +430,7 @@ export class Analyzer {
         this.settleTopic.delete(threadId) &&
         !force &&
         previous !== undefined &&
-        previous.threadGoal !== undefined &&
+        previous.goal !== undefined &&
         previous.revision >= revision;
 
       const started = this.now();
@@ -447,7 +447,7 @@ export class Analyzer {
               { digest: previous?.digest ?? null },
             )
           : null;
-      const full = force || !settled || previous?.threadGoal === undefined;
+      const full = force || !settled || previous?.goal === undefined;
       // Whether the turn needs describing, or only its topic (a root's first
       // topic after an earlier analysis), or nothing new at all.
       const describe =
@@ -496,7 +496,7 @@ export class Analyzer {
             !force &&
             (settled ||
               (previous !== undefined && previous.revision >= revision)),
-          threadGoal: previous?.threadGoal ?? null,
+          goal: previous?.goal ?? null,
           digest: previous?.digest ?? null,
           continuation: full
             ? await this.continuation(
@@ -536,13 +536,13 @@ export class Analyzer {
           titledBy === "workstreams" ||
           titledBy === "you"
             ? input.title
-            : (previous?.goal ?? null);
+            : (previous?.title ?? null);
         result = {
           ...status,
-          goal: full ? (output.goal ?? kept) : (previous?.goal ?? null),
-          threadGoal: full
-            ? (output.threadGoal ?? previous?.threadGoal ?? null)
-            : (previous?.threadGoal ?? null),
+          title: full ? (output.title ?? kept) : (previous?.title ?? null),
+          goal: full
+            ? (output.goal ?? previous?.goal ?? null)
+            : (previous?.goal ?? null),
           digest: full
             ? (output.digest ?? previous?.digest ?? null)
             : (previous?.digest ?? null),
@@ -744,9 +744,9 @@ export class Analyzer {
         order: "asc",
         limit: "4",
       });
-      return openingOf(first)?.slice(0, 1800) ?? stored?.goal ?? null;
+      return openingOf(first)?.slice(0, 1800) ?? stored?.title ?? null;
     } catch {
-      return stored?.goal ?? null;
+      return stored?.title ?? null;
     }
   }
 

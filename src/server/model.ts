@@ -211,9 +211,9 @@ export function summarize(
     case "full-analysis": {
       const a = value as OutputOf<"full-analysis">;
       return [
-        a.status ? a.status.state.replace("_", " ") : "reported",
-        a.goal ? `title “${a.goal}”` : null,
-        a.threadGoal ? `goal “${a.threadGoal}”` : null,
+        a.status ? a.status.state : "reported",
+        a.title ? `title “${a.title}”` : null,
+        a.goal ? `goal “${a.goal}”` : null,
         a.topicError
           ? "invalid topic"
           : a.topic

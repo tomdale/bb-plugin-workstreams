@@ -135,12 +135,12 @@ if (kind === "follow" || kind === "turn-end-follow")
         ? {
             prompt: fullAnalysisPrompt(input),
             schema: fullAnalysisSchema(input),
-            parse: (text: string) => parseFullAnalysis(text, input).goal,
+            parse: (text: string) => parseFullAnalysis(text, input).title,
           }
         : {
             prompt: turnEndPrompt(turnEnd),
             schema: turnEndSchema(turnEnd),
-            parse: (text: string) => parseTurnEnd(text, turnEnd).goal,
+            parse: (text: string) => parseTurnEnd(text, turnEnd).title,
           }),
       check: (title) =>
         test.expect === "keep"
@@ -189,7 +189,7 @@ else
         id: test.id,
         prompt: turnEndPrompt(input),
         schema: turnEndSchema(input),
-        parse: (text) => parseTurnEnd(text, input).goal,
+        parse: (text) => parseTurnEnd(text, input).title,
         check: (title) => newTitleProblems(title, test),
       });
     } else {
@@ -205,7 +205,7 @@ else
         id: test.id,
         prompt: fullAnalysisPrompt(input),
         schema: fullAnalysisSchema(input),
-        parse: (text) => parseFullAnalysis(text, input).goal,
+        parse: (text) => parseFullAnalysis(text, input).title,
         check: (title) => newTitleProblems(title, test),
       });
     }
@@ -219,7 +219,7 @@ await Promise.all(
     while (cursor < queue.length) {
       const job = queue[cursor++]!;
       const begun = Date.now();
-      let goal: string | null = null;
+      let title: string | null = null;
       let problems: string[];
       try {
         const completion = await gatewayComplete({
@@ -229,14 +229,14 @@ await Promise.all(
           reasoningLevel,
           outputSchema: job.schema,
         });
-        goal = job.parse(completion.text);
-        problems = job.check(goal);
+        title = job.parse(completion.text);
+        problems = job.check(title);
       } catch (e) {
         problems = [String(e)];
       }
       results.push({
         id: job.id,
-        goal,
+        title,
         passed: problems.length === 0,
         problems,
         latencyMs: Date.now() - begun,
@@ -248,12 +248,12 @@ await Promise.all(
 const lines = jobs.map((job) => {
   const runs = results.filter((r) => r.id === job.id);
   const pass = runs.filter((r) => r.passed).length;
-  const goals = [...new Set(runs.map((r) => r.goal ?? "∅"))].join(" | ");
-  return `${pass}/${runs.length} ${job.id}: ${goals}`;
+  const titles = [...new Set(runs.map((r) => r.title ?? "∅"))].join(" | ");
+  return `${pass}/${runs.length} ${job.id}: ${titles}`;
 });
 const passed = results.filter((r) => r.passed).length;
-const titled = results.filter((r) => r.goal) as { goal: string }[];
-const lengths = titled.map((r) => r.goal.length).sort((a, b) => a - b);
+const titled = results.filter((r) => r.title) as { title: string }[];
+const lengths = titled.map((r) => r.title.length).sort((a, b) => a - b);
 await writeFile(
   process.env.EVAL_OUTPUT ?? "/tmp/title-eval.json",
   JSON.stringify({ kind, model, reasoningLevel, results }, null, 2),

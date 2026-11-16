@@ -36,12 +36,13 @@ type Case = {
   project?: string;
   excerpts: string;
   expected: string[];
-  expectedState?: WorkState;
+  /** One state, or the states a reasonable reading allows. */
+  expectedState?: WorkState | WorkState[];
 };
-/** What a run produced: status, goal, and the topic's name. */
+/** What a run produced: status, title, and the topic's name. */
 type Output = {
   state: WorkState | null;
-  goal: string | null;
+  title: string | null;
   subject: string | null;
 };
 type Result = {
@@ -53,12 +54,12 @@ type Result = {
   expected: string[];
   project?: string;
   output: Output | null;
-  /** Quick analysis's goal, in `opening` mode. */
+  /** The start call's title, in `opening` mode. */
   openingGoal?: string | null;
   error?: string;
   seconds: number;
   cost: number;
-  expectedState?: string;
+  expectedState?: WorkState | WorkState[];
 };
 
 const env = process.env;
@@ -197,14 +198,14 @@ function score(results: Result[]) {
       !r.expected.some((e) => norm(e) === norm(r.project!)),
   );
   const stated = cold.filter((r) => r.expectedState);
-  const decisions = stated.filter((r) => r.expectedState === "needs_decision");
+  const accepts = (r: Result) => [r.expectedState ?? []].flat();
+  const asks = stated.filter((r) => r.expectedState === "needs-input");
   const untitled = results.filter((r) => r.mode === "untitled");
   const opening = results.filter((r) => r.mode === "opening");
-  const named = (r: Result) => Boolean(r.output?.goal);
-  // A goal is the thread's title, so a goal that differs from the fixture's
-  // title is a rename.
+  const named = (r: Result) => Boolean(r.output?.title);
+  // A title that differs from the fixture's title is a rename.
   const renamed = (r: Result) =>
-    Boolean(r.output?.goal) && norm(r.output!.goal!) !== norm(r.title);
+    Boolean(r.output?.title) && norm(r.output!.title!) !== norm(r.title);
   const titled = cold.filter((r) => r.output);
   const seconds = results
     .filter((r) => r.mode !== "opening")
@@ -223,23 +224,25 @@ function score(results: Result[]) {
     pairs: `recovered ${pct(recovered, together)}, wrongly merged ${pct(merged, apart)}`,
     anchoredOnProject: anchored.map((r) => r.id),
     state: pct(
-      stated.filter((r) => r.output?.state === r.expectedState).length,
+      stated.filter(
+        (r) => r.output?.state && accepts(r).includes(r.output.state),
+      ).length,
       stated.length,
     ),
-    needsDecisionRecall: pct(
-      decisions.filter((r) => r.output?.state === "needs_decision").length,
-      decisions.length,
+    needsInputRecall: pct(
+      asks.filter((r) => r.output?.state === "needs-input").length,
+      asks.length,
     ),
-    goal: {
+    title: {
       untitledNamed: pct(untitled.filter(named).length, untitled.length),
       renamed: pct(titled.filter(renamed).length, titled.length),
       renamedIds: titled
         .filter(renamed)
-        .map((r) => `${r.set}:${r.id} → ${r.output?.goal}`),
+        .map((r) => `${r.set}:${r.id} → ${r.output?.title}`),
       examples: untitled
         .filter(named)
         .slice(0, 8)
-        .map((r) => `${r.set}:${r.id} → ${r.output?.goal}`),
+        .map((r) => `${r.set}:${r.id} → ${r.output?.title}`),
     },
     opening: {
       named: pct(opening.filter((r) => r.openingGoal).length, opening.length),
@@ -352,7 +355,7 @@ for (const model of models) {
         ...base,
         output: {
           state: parsed.status?.state ?? null,
-          goal: parsed.goal,
+          title: parsed.title,
           subject: topic?.proposed?.name ?? null,
         },
         seconds: (performance.now() - started) / 1000,
@@ -379,10 +382,10 @@ for (const model of models) {
         ...summary,
         anchoredOnProject: summary.anchoredOnProject.length,
         misses: summary.misses.filter(isPublic),
-        goal: {
-          ...summary.goal,
-          renamedIds: summary.goal.renamedIds.filter(isPublic),
-          examples: summary.goal.examples.filter(isPublic),
+        title: {
+          ...summary.title,
+          renamedIds: summary.title.renamedIds.filter(isPublic),
+          examples: summary.title.examples.filter(isPublic),
         },
         opening: {
           ...summary.opening,

@@ -39,11 +39,11 @@ async function setup(placed?: () => string | null) {
           : "not json"
         : isQuick(prompt)
           ? JSON.stringify({
-              goal: "Parser tab handling",
+              title: "Parser tab handling",
               subjectId: topicId,
               proposed: null,
             })
-          : JSON.stringify({ recap: "r", state: "in_progress" }),
+          : JSON.stringify({ recap: "r", state: "needs-input" }),
   });
   const w = world;
   const corpus = new TopicStore(openDatabase(w.bb));
@@ -146,7 +146,7 @@ describe("a new root's first topic", () => {
         entityId: docs.id,
         proposal: null,
         provenance: "automatic",
-        goal: "Docs for tabs",
+        title: "Docs for tabs",
         answered: true,
       },
     });
@@ -318,13 +318,13 @@ describe("the composer's preview", () => {
     const preview = (await world.harness.behavior.callRpc("preview", {
       prompt: "Let people reserve shelves",
     })) as {
-      goal: string | null;
+      title: string | null;
       proposal: { name: string } | null;
       subject: string | null;
     };
     expect(calls).toBe(1);
     expect(preview).toMatchObject({
-      goal: "Reserving shelves",
+      title: "Reserving shelves",
       subject: "Reservations",
       proposal: { name: "Reservations" },
     });

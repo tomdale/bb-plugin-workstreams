@@ -210,7 +210,7 @@ export function WorkstreamsThreadList({
       setLowerExpanded,
     },
   );
-  const { waiting: lowerWaiting, total: lowerTotal } = headerCounts(
+  const { needsYou: lowerNeedsYou, total: lowerTotal } = headerCounts(
     lowerCounts,
     true,
     prefs?.sidebar,
@@ -882,7 +882,7 @@ export function WorkstreamsThreadList({
                               renderOverlayTree(
                                 currentRows.get(slot.item.row.thread.id) ??
                                   slot.item.row,
-                                "needs-you",
+                                "up-next",
                                 needsSlot,
                               )
                             ) : (
@@ -892,7 +892,7 @@ export function WorkstreamsThreadList({
                                   aria-expanded={showMore}
                                   onClick={() => setShowMore((more) => !more)}
                                   className={bandControlClass(
-                                    "ws-needs-you-text",
+                                    "ws-needs-input-text",
                                   )}
                                   style={bandControlStyle}
                                 >
@@ -950,7 +950,7 @@ export function WorkstreamsThreadList({
                     <LowerToggle
                       key="lower-toggle"
                       open={showLower}
-                      waiting={lowerWaiting ? lowerCounts.needsYou : 0}
+                      needsYou={lowerNeedsYou ? lowerCounts.needsYou : 0}
                       total={lowerTotal ? lowerCounts.total : 0}
                       onToggle={toggleLower}
                     />,

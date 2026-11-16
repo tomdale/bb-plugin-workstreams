@@ -126,8 +126,8 @@ export function NewWorkDebug({ newWork }: { newWork: NewWork }) {
               <Field label="Outcome">
                 {decisionTarget(decision)} · {decision.confidence} confidence
               </Field>
-              {decision.goal ? (
-                <Field label="Title">{decision.goal}</Field>
+              {decision.title ? (
+                <Field label="Title">{decision.title}</Field>
               ) : null}
               <Field label="Reason">{decision.reason || "—"}</Field>
             </Fields>

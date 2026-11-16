@@ -62,7 +62,7 @@ const NAMING = [
 ];
 
 /**
- * Tests write a title as one string, `goal: "Fixing the pipeline"`; the
+ * Tests write a title as one string, `title: "Fixing the pipeline"`; the
  * analyses ask for its verb and subject, so split a test's answer for them.
  */
 function asTitleParts(answer: string) {
@@ -72,11 +72,11 @@ function asTitleParts(answer: string) {
   } catch {
     return answer;
   }
-  if (typeof parsed.goal !== "string") return answer;
-  const [verb = "", ...subject] = parsed.goal.split(" ");
+  if (typeof parsed.title !== "string") return answer;
+  const [verb = "", ...subject] = parsed.title.split(" ");
   return JSON.stringify({
     ...parsed,
-    goal: { verb, subject: subject.join(" ") },
+    title: { verb, subject: subject.join(" ") },
   });
 }
 
@@ -135,8 +135,8 @@ function startText(answer: string): string {
 const DEFAULT_ANSWER = JSON.stringify({
   recap: "Fixed the bug; tests pass.",
   state: "review",
-  needsYou: null,
-  goal: null,
+  ask: null,
+  title: null,
   subjectId: null,
   proposed: null,
 });

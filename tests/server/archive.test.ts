@@ -24,11 +24,11 @@ async function report(w: World, threadId: string, state = "complete") {
     RECAP_TOOL,
     {
       state,
-      goal: "Answering a question",
+      headline: "Answering a question",
       latest: state === "waiting" ? [] : ["Answered it"],
       ...(state === "review" ? { review: "Read the answer" } : {}),
       ...(state === "waiting"
-        ? { goal: "Workers are running", timeout: 60 }
+        ? { headline: "Workers are running", timeout: 60 }
         : {}),
     },
     { threadId },

@@ -139,7 +139,7 @@ const RECAP = {
   turnId: "turn",
   at: 1,
   state: "complete",
-  goal: "Building the card",
+  headline: "Building the card",
   latest: ["Card renders"],
   review: [],
   links: [],
@@ -252,7 +252,7 @@ it("renders a stored card's full values with code formatting and clickable links
     turnId: "turn",
     at: 1,
     state: "complete",
-    goal: markdown,
+    headline: markdown,
     latest: [markdown],
     review: [],
     links: [],
@@ -348,7 +348,7 @@ it("renders a linked thread mention in the Waiting goal title", async () => {
     ],
     recap: {
       state: "waiting",
-      goal: "Running tests with @thread:thr_tests",
+      headline: "Running tests with @thread:thr_tests",
       timeout: 60,
       at: Date.now(),
       latest: [],
@@ -377,7 +377,7 @@ it.each(["full", "minimal"])(
   async (layout) => {
     const goal =
       "Fixed **login** with `vc login` and [the guide](https://example.com)";
-    const slot = await mount({ layout, recap: { goal } });
+    const slot = await mount({ layout, recap: { headline: goal } });
     await slot.findByRole("region", { name: "Latest recap" });
     const heading = slot.getByRole("heading", { level: 2 });
     expect(
@@ -403,7 +403,7 @@ it.each(["full", "minimal"])(
 
 const WORKING = {
   state: "waiting",
-  goal: "Workers and tests are running",
+  headline: "Workers and tests are running",
   timeout: 60,
   at: Date.now(),
   latest: [],
@@ -483,7 +483,7 @@ it.each(["full", "minimal"])(
   async (layout) => {
     const slot = await mount({
       layout,
-      recap: { ...WORKING, goal: "Build the release" },
+      recap: { ...WORKING, headline: "Build the release" },
     });
     await slot.findByRole("region", { name: "Latest recap" });
     const heading = slot.getByRole("heading", { name: "Build the release" });
@@ -529,7 +529,7 @@ it.each([1, 2])(
     const slot = await mount({
       recap: {
         ...WORKING,
-        goal: "Building the theme toggle",
+        headline: "Building the theme toggle",
         waitingAgents: agents,
       },
       threads: [
@@ -549,7 +549,7 @@ it.each([1, 2])(
       ["running", "done"].slice(0, agentCount),
     );
     expect(rows[0]!.textContent).toContain("Building the theme toggle UI");
-    expect(rows[0]!.textContent).toContain("Running");
+    expect(rows[0]!.textContent).toContain("Working");
     expect(
       rows[0]!.querySelector("[aria-label='Agent status']")?.className,
     ).toContain("sr-only");
@@ -602,7 +602,7 @@ it("reads hidden agent threads from the server", async () => {
   ]);
   expect(rows[0]!.textContent).toContain("Suite runner");
   expect(rows[0]!.textContent).toContain("Run the suite");
-  expect(rows[0]!.textContent).toContain("Running");
+  expect(rows[0]!.textContent).toContain("Working");
   expect(rows[1]!.textContent).toContain("Agent");
   expect(rows[1]!.textContent).toContain("Unavailable");
   expect(slot.inspection.rpcCalls).toContainEqual({
@@ -616,7 +616,7 @@ it.each([
   [
     { status: "error" as const, runtimeStatus: "error" as const },
     "error",
-    "Errored",
+    "Failed",
   ],
   [
     { status: "idle" as const, runtimeStatus: "provisioning" as const },
@@ -640,7 +640,7 @@ it.each([
 it("shows the Waiting goal as the title in the compact card", async () => {
   const slot = await mount({
     layout: "minimal",
-    recap: { ...WORKING, goal: "Workers are running" },
+    recap: { ...WORKING, headline: "Workers are running" },
   });
   const region = await slot.findByRole("region", { name: "Latest recap" });
   expect(
@@ -688,7 +688,7 @@ it.each(["full", "minimal"])(
     const slot = await mount({
       layout,
       archivable: true,
-      recap: { goal: "Python 3.9 or newer is required", latest: [] },
+      recap: { headline: "Python 3.9 or newer is required", latest: [] },
     });
     const region = await slot.findByRole("region", { name: "Latest recap" });
     expect(
@@ -783,7 +783,8 @@ it.each(["full", "minimal"])(
     const slot = await mount({
       layout,
       recap: {
-        goal: "**Saved [backup notes](/home/test/.bb/backups/recap/README.md) safely**",
+        headline:
+          "**Saved [backup notes](/home/test/.bb/backups/recap/README.md) safely**",
         latest: [
           {
             text: "Backed up recap data",
@@ -871,7 +872,10 @@ it.each([
   async ({ path, files }) => {
     markdownRendering.enabled = true;
     markdownRendering.fileUrls = true;
-    const slot = await mount({ files, recap: { goal: `[notes](${path})` } });
+    const slot = await mount({
+      files,
+      recap: { headline: `[notes](${path})` },
+    });
     const link = await slot.findByRole("link", { name: "notes" });
     link.addEventListener("click", (event) => event.preventDefault());
     fireEvent.click(link);
@@ -884,7 +888,7 @@ it.each(["metaKey", "ctrlKey", "shiftKey", "altKey"])(
   async (modifier) => {
     markdownRendering.enabled = true;
     markdownRendering.fileUrls = true;
-    const slot = await mount({ recap: { goal: "[notes](/tmp/notes.md)" } });
+    const slot = await mount({ recap: { headline: "[notes](/tmp/notes.md)" } });
     const link = await slot.findByRole("link", { name: "notes" });
     link.addEventListener("click", (event) => event.preventDefault());
     fireEvent.click(link, { [modifier]: true });
@@ -899,7 +903,7 @@ it.each(["full", "minimal"])(
     const slot = await mount({
       layout,
       recap: {
-        goal: "Wrote [the plan](Documents/Example App/Production Plan.md)",
+        headline: "Wrote [the plan](Documents/Example App/Production Plan.md)",
         latest: [
           {
             text: "Added [production plan](Documents/Example App/Production Plan.md): roadmap",
@@ -982,7 +986,7 @@ it.each([
     const recap = toRecap(
       recapInputSchema.parse({
         state: "complete",
-        goal: "Wrote the plan",
+        headline: "Wrote the plan",
         latest: [text],
       }),
       { id: recapId, turnId: "turn", at: 1 },
@@ -1051,7 +1055,7 @@ it.each(["full"])(
       },
     });
     const region = await slot.findByRole("region", { name: "Latest recap" });
-    expect(region.textContent).toContain("Ready for Review");
+    expect(region.textContent).toContain("Ready for review");
     expect(slot.getByRole("heading", { name: "Review" })).toBeTruthy();
     // Links belong to the review row, not a section of their own.
     expect(slot.queryByRole("heading", { name: "Links" })).toBeNull();
@@ -1150,7 +1154,7 @@ it.each([
       turnId: "turn",
       at: 1,
       state: "review",
-      goal: "Review the report",
+      headline: "Review the report",
       latest: [],
       review: ["Inspect the report"],
       links: [{ title: "Report", location }],
@@ -1687,7 +1691,7 @@ it("sends no next actions for a waiting recap", async () => {
   const slot = await mount({
     recap: {
       state: "waiting",
-      goal: "Running tests",
+      headline: "Running tests",
       timeout: 60,
       latest: [],
     },

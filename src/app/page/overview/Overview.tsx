@@ -476,22 +476,9 @@ function HeaderMenu({
 
 /** The sidebar's mark for a row's status; a read Complete thread carries none. */
 function markOf(row: Row): SlotMark | null {
-  switch (row.status) {
-    case "needs-you":
-      return { kind: "needs-you", label: row.label };
-    case "review":
-      return { kind: "review", label: row.label };
-    case "failed":
-      return { kind: "error", label: row.label };
-    case "working":
-      return { kind: "working", label: row.label };
-    case "waiting":
-      return { kind: "waiting", label: row.label };
-    case "complete":
-      return row.thread.isUnread ? { kind: "done", label: row.label } : null;
-    case "other":
-      return null;
-  }
+  if (row.status === "other") return null;
+  if (row.status === "complete" && !row.thread.isUnread) return null;
+  return { kind: row.status, label: row.label };
 }
 
 function OverviewTableRow({

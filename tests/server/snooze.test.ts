@@ -190,12 +190,12 @@ it("stores snooze presets, rejects bad changes, and returns them in state", asyn
   });
   // A wake event change keeps the presets and the other events.
   await w.harness.behavior.callRpc("setSnoozePrefs", {
-    patch: { events: { done: false } },
+    patch: { events: { complete: false } },
   });
   expect(await state()).toEqual({
     presets: stored.slice(0, 1),
     default: "evening",
-    events: { ...events, done: false },
+    events: { ...events, complete: false },
   });
   await expect(
     w.harness.behavior.callRpc("setSnoozePrefs", {
@@ -208,6 +208,6 @@ it("stores snooze presets, rejects bad changes, and returns them in state", asyn
   expect(await state()).toEqual({
     presets: stored.slice(0, 1),
     default: "evening",
-    events: { ...events, done: false },
+    events: { ...events, complete: false },
   });
 });

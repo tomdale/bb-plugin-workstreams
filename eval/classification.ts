@@ -80,7 +80,7 @@ try {
         const turnEnd: TurnEndInput = {
           title: placement.title ?? test.input.prompt,
           titledBy: "workstreams",
-          threadGoal: null,
+          goal: null,
           digest: placement.digest ?? null,
           requests,
           lastAssistantText: null,

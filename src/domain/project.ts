@@ -330,7 +330,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
   }
 
   // A child's question folds into its parent when the parent has a newer
-  // turn that also needs a decision (comparing timestamps only). A pending
+  // turn that also needs input (comparing timestamps only). A pending
   // interaction never folds: only the child can answer it.
   const needsYouVia = new Map<string, T[]>();
   const folded = new Set<string>();

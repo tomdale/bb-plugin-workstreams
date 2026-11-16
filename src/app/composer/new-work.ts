@@ -92,7 +92,7 @@ export function submittedIdentity(
     proposal: identity.proposal,
     provenance: identity.provenance,
     ...(identity.sectionId ? { sectionId: identity.sectionId } : {}),
-    ...(answered ? { goal: state.decision?.goal ?? null, answered } : {}),
+    ...(answered ? { title: state.decision?.title ?? null, answered } : {}),
   };
 }
 
@@ -182,7 +182,7 @@ function reportsEqual(
     (identityA.entityId ?? null) === (identityB.entityId ?? null) &&
     identityA.provenance === identityB.provenance &&
     (identityA.sectionId ?? null) === (identityB.sectionId ?? null) &&
-    (identityA.goal ?? null) === (identityB.goal ?? null) &&
+    (identityA.title ?? null) === (identityB.title ?? null) &&
     !!identityA.answered === !!identityB.answered &&
     proposalsEqual(identityA.proposal, identityB.proposal)
   );

@@ -58,10 +58,10 @@ const stateWith = (threadId: string) => ({
   analysis: {
     [threadId]: {
       recap: "Settled the topic",
-      state: "done",
-      needsYou: null,
-      goal: "Evaluating tidy rename guidance",
-      threadGoal: "Evaluate rename guidance across models.",
+      state: "complete",
+      ask: null,
+      title: "Evaluating tidy rename guidance",
+      goal: "Evaluate rename guidance across models.",
       digest:
         "The thread evaluates the Workstreams plugin's tidy suggestions across models.",
       revision: 1,
@@ -174,7 +174,7 @@ it("lists analysis and journal events and opens every transcript behind an event
     at: now - 1_000,
     label: "Evaluate rename guidance",
     summary:
-      "done · title “Evaluate rename guidance” · goal “Keep titles current”",
+      "complete · title “Evaluate rename guidance” · goal “Keep titles current”",
     threads: ["t1"],
   });
   const placement = trace("placement", {
@@ -256,7 +256,7 @@ it("lists analysis and journal events and opens every transcript behind an event
     ),
   ];
   expect(rows[0]?.textContent).not.toContain("·");
-  expect(rows[0]?.textContent).toContain("Work status: done");
+  expect(rows[0]?.textContent).toContain("Work status: complete");
   const chevrons = (activity as HTMLElement).querySelectorAll(
     "[data-activity-chevron]",
   );

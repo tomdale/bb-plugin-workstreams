@@ -16,19 +16,33 @@
  * the model may drop.
  */
 import { z } from "zod";
+import type { RecapState } from "./recap.ts";
 import { redact } from "./redact.ts";
 import { takesThreads, topicAncestors } from "./topics.ts";
 
 export { redact };
 
+/**
+ * How a thread's latest turn left things, as stored. `waiting` comes only from
+ * the agent's recap; analysis infers the other four (`ANALYSIS_STATES`). The
+ * values match the status labels (see `threadStatus`).
+ */
 export const WORK_STATES = [
-  "needs_decision",
-  "review",
+  "needs-input",
   "blocked",
-  "in_progress",
-  "done",
+  "review",
+  "waiting",
+  "complete",
 ] as const;
 export type WorkState = (typeof WORK_STATES)[number];
+
+/** The states analysis may infer for a turn the agent didn't report. */
+export const ANALYSIS_STATES = [
+  "needs-input",
+  "blocked",
+  "review",
+  "complete",
+] as const;
 
 export const RECAP_MAX = 140;
 /**
@@ -36,9 +50,9 @@ export const RECAP_MAX = 140;
  * other list. A sidebar row shows about 34 characters before it truncates, so titles aim there (`TITLE_RULES`);
  * this is BB's own cap for generated titles, past which a title is dropped.
  */
-export const GOAL_MAX = 48;
+export const TITLE_MAX = 48;
 /** A safety bound for a thread goal's short sentence; oversized output is refused. */
-export const THREAD_GOAL_MAX = 240;
+export const GOAL_MAX = 240;
 /** A safety bound for the accumulated context digest; oversized output is refused. */
 export const DIGEST_MAX = 480;
 
@@ -46,17 +60,18 @@ export const DIGEST_MAX = 480;
 type ThreadAnalysis = {
   readonly recap: string;
   readonly state: WorkState;
-  readonly needsYou: string | null;
+  /** What a needs-input or blocked turn asks of the user. */
+  readonly ask: string | null;
   /** The title last settled by analysis. */
-  readonly goal: string | null;
+  readonly title: string | null;
   /**
    * The desired outcome below the title. Undefined requests catch-up for an
    * older row; null records an analysis that couldn't establish an outcome.
    */
-  readonly threadGoal?: string | null;
+  readonly goal?: string | null;
   /**
    * The accumulated context: what the work is and what it has established.
-   * Settled and carried forward like `threadGoal`: the turn-end call reads
+   * Settled and carried forward like `goal`: the turn-end call reads
    * the one it settled last as its own memory.
    */
   readonly digest?: string | null;
@@ -88,7 +103,7 @@ export function clip(text: string, max: number): string {
 }
 
 /** One line, without the quotes or closing period models sometimes add. */
-function cleanGoal(text: string): string {
+function cleanPart(text: string): string {
   return text
     .replace(/\s+/g, " ")
     .trim()
@@ -154,14 +169,14 @@ export function composeTitle(
   listing: ThreadListing | null | undefined,
 ): string | null {
   if (!parts) return null;
-  const verb = cleanGoal(parts.verb).toLowerCase();
-  const subject = cleanGoal(parts.subject);
+  const verb = cleanPart(parts.verb).toLowerCase();
+  const subject = cleanPart(parts.subject);
   if (!verb || !subject) return null;
   const title = dropListedPrefix(
     `${verb[0]!.toUpperCase()}${verb.slice(1)} ${subject}`,
     listing,
   );
-  return title.length <= GOAL_MAX ? title : null;
+  return title.length <= TITLE_MAX ? title : null;
 }
 
 /**
@@ -314,7 +329,7 @@ export const stripFence = (text: string) =>
 
 /** How the thread's agent reported the turn, when it did. */
 export type AgentReport = {
-  readonly state: "complete" | "review" | "waiting";
+  readonly state: RecapState;
   readonly headline: string;
   readonly latest: readonly string[];
 };
@@ -333,7 +348,7 @@ export type FullAnalysisInput = {
   /** Goal-only catch-up leaves the already-settled title untouched. */
   readonly preserveTitle?: boolean;
   /** The settled outcome; null model output keeps it through intermediate steps. */
-  readonly threadGoal?: string | null;
+  readonly goal?: string | null;
   /** The settled context digest; null model output keeps it. */
   readonly digest?: string | null;
   /** Bounded context from an explicitly referenced continuation thread. */
@@ -388,8 +403,8 @@ function conversationBlock(
 }
 
 const STATUS_FIELDS = `- recap: at most ${RECAP_MAX} characters. Where the work stands now, from <last_assistant_message>, whose claims are unverified: the latest concrete result, and what remains or what is being asked. Don't restate the title. Planned or proposed is not done. Don't invent blockers or next steps. If there's no assistant message, say what was asked.
-- state: "needs_decision" when the last message asks the user something specific (a question, a choice, permission, "want me to…?") or needs a step only the user can take; closing boilerplate like "let me know" doesn't count. "review" when a finished deliverable waits on the user to review, test, merge, or ship. "blocked" when waiting on something other than the user. "done" only when the thread has reached a natural end: the latest request is fully answered or completed, and there are no outstanding tasks, unfinished implementation, failing tests, pending follow-ups, or work left for the agent or user. An answered question can be done. A completed intermediate step is not done when the broader requested work remains. Otherwise "in_progress".
-- needsYou: when state is "needs_decision", the ask in at most 80 characters; otherwise null.`;
+- state: "blocked" when the agent likely cannot proceed unless the user intervenes: missing access or credentials, a broken environment, or conflicting requirements. "review" when a finished deliverable waits on the user to review, test, merge, or ship. "complete" only when the thread has reached a natural end: the latest request is fully answered or completed, and there are no outstanding tasks, unfinished implementation, failing tests, pending follow-ups, or work left for the agent or user. An answered question can be complete. A completed intermediate step is not complete when the broader requested work remains. Otherwise "needs-input": the last message asks the user something specific (a question, a choice, permission, "want me to…?"), or the turn stopped with requested work left; closing boilerplate like "let me know" is not an ask.
+- ask: when state is "needs-input" or "blocked", what the user must answer or do, in at most 80 characters; otherwise null.`;
 
 /** The title field, by what the analysis may do with the current title. */
 function titleField(titledBy: TitledBy): string {
@@ -397,11 +412,11 @@ function titleField(titledBy: TitledBy): string {
     titledBy === "workstreams"
       ? "null keeps the current title: return null while it still names the goal, and new parts only when the user's requests changed the goal, not when the work moved to its next step or the wording could be better."
       : "null only when the requests don't say what the work is.";
-  return `- goal: the thread's title. ${TITLE_RULES}
+  return `- title: the thread's title. ${TITLE_RULES}
   An audit or proposal stays an audit or proposal until implementation is requested. ${when}`;
 }
 
-const THREAD_GOAL_RULES = `- threadGoal: the desired outcome of the thread, in one short, explicit sentence, usually 12–20 words. Prefer wording that fits within three lines on a narrow thread pane. Name the subject so it makes sense on its own. Lead with success: what should become possible, clearer, or reliably true for the user. Prefer the concrete benefit over stylistic adjectives such as "quieter" or "better". Lead with the problem only when the motivation would otherwise be unclear. Retain only details needed to recognize the purpose; leave implementation choices, acceptance criteria, progress, and completion claims to the turn recap.
+const GOAL_RULES = `- goal: the desired outcome of the thread, in one short, explicit sentence, usually 12–20 words. Prefer wording that fits within three lines on a narrow thread pane. Name the subject so it makes sense on its own. Lead with success: what should become possible, clearer, or reliably true for the user. Prefer the concrete benefit over stylistic adjectives such as "quieter" or "better". Lead with the problem only when the motivation would otherwise be unclear. Retain only details needed to recognize the purpose; leave implementation choices, acceptance criteria, progress, and completion claims to the turn recap.
   Examples: "Copy the focused thread's link with a customizable keyboard shortcut." "Make the review code easier to navigate without changing its behavior." "Help PR authors see open findings at a glance without losing access to resolved feedback." "Determine whether the action upgrade is safe to retain and which risks need addressing."
   Follow the user's evolving purpose across the conversation. Keep the settled outcome through testing, shipping, housekeeping, side questions, and requests to continue. Change it when the user's purpose changes, such as moving from auditing to implementing or from reviewing code to designing comments. The agent's report describes the latest turn, not the thread's purpose. Return null to keep the settled outcome while it still fits, or when the requests do not establish a purpose; otherwise return the sentence.`;
 
@@ -440,23 +455,23 @@ export function fullAnalysisParts(input: FullAnalysisInput): {
   const keys: string[] = [];
   if (!report) {
     fields.push(STATUS_FIELDS);
-    keys.push('"recap": string', '"state": string', '"needsYou": string|null');
+    keys.push('"recap": string', '"state": string', '"ask": string|null');
   }
   if (input.mode === "full") {
-    fields.push(THREAD_GOAL_RULES, DIGEST_RULES);
-    keys.push('"threadGoal": string|null', '"digest": string|null');
+    fields.push(GOAL_RULES, DIGEST_RULES);
+    keys.push('"goal": string|null', '"digest": string|null');
   }
   const naming = namesThread(input);
   if (naming) {
     fields.push(titleField(input.titledBy));
-    keys.push('"goal": {"verb": string, "subject": string}|null');
+    keys.push('"title": {"verb": string, "subject": string}|null');
   }
   const sections = [
     `${TITLE_SECTION[input.titledBy]}\n${tagged("title", redact(input.title))}`,
   ];
   if (input.mode === "full")
     sections.push(
-      `The settled thread outcome:\n${tagged("thread_goal", redact(input.threadGoal ?? "(not yet established)"))}`,
+      `The settled thread outcome:\n${tagged("thread_goal", redact(input.goal ?? "(not yet established)"))}`,
       `The accumulated thread context:\n${tagged("thread_digest", redact(input.digest ?? "(not yet established)"))}`,
     );
   if (naming && (input.listing?.group || input.listing?.parent))
@@ -491,17 +506,17 @@ export function fullAnalysisSchema(
   const properties: Record<string, unknown> = {};
   if (!input.report) {
     properties.recap = { type: "string" };
-    properties.state = { type: "string", enum: [...WORK_STATES] };
-    properties.needsYou = { type: ["string", "null"] };
+    properties.state = { type: "string", enum: [...ANALYSIS_STATES] };
+    properties.ask = { type: ["string", "null"] };
   }
   if (input.mode === "full") {
-    properties.threadGoal = {
+    properties.goal = {
       type: ["string", "null"],
-      maxLength: THREAD_GOAL_MAX,
+      maxLength: GOAL_MAX,
     };
     properties.digest = { type: ["string", "null"], maxLength: DIGEST_MAX };
   }
-  if (namesThread(input)) properties.goal = titleFieldSchema;
+  if (namesThread(input)) properties.title = titleFieldSchema;
   return {
     type: "object",
     additionalProperties: false,
@@ -513,13 +528,13 @@ export function fullAnalysisSchema(
 const fullOutputSchema = z.object({
   // An unknown state must not discard an otherwise good result.
   recap: clipped(RECAP_MAX).optional(),
-  state: z.enum(WORK_STATES).catch("in_progress").optional(),
-  needsYou: clipped(80).nullable().catch(null).optional(),
-  goal: titlePartsSchema.optional(),
-  threadGoal: z
+  state: z.enum(ANALYSIS_STATES).catch("needs-input").optional(),
+  ask: clipped(80).nullable().catch(null).optional(),
+  title: titlePartsSchema.optional(),
+  goal: z
     .string()
     .transform((text) => text.replace(/\s+/g, " ").trim())
-    .pipe(z.string().min(1).max(THREAD_GOAL_MAX))
+    .pipe(z.string().min(1).max(GOAL_MAX))
     .nullable()
     .catch(null)
     .optional(),
@@ -534,16 +549,16 @@ const fullOutputSchema = z.object({
 
 export type FullAnalysisOutput = {
   /** A new desired outcome, or null to keep the settled goal. */
-  threadGoal: string | null;
+  goal: string | null;
   /** A new accumulated context digest, or null to keep the settled one. */
   digest: string | null;
   /** Present only when the agent didn't report the turn. */
-  status: { recap: string; state: WorkState; needsYou: string | null } | null;
+  status: { recap: string; state: WorkState; ask: string | null } | null;
   /**
    * A new title, or null to keep the current one. Asked only after new
    * requests, and never over a title you gave the thread.
    */
-  goal: string | null;
+  title: string | null;
 };
 
 /** Strips an optional Markdown fence, then validates against what was asked. */
@@ -569,18 +584,23 @@ export function parseFullAnalysisFields(
   let status: FullAnalysisOutput["status"] = null;
   if (!input.report) {
     if (!parsed.recap) throw new Error("The analysis gave no recap.");
-    const state = parsed.state ?? "in_progress";
+    const state = parsed.state ?? "needs-input";
     status = {
       recap: parsed.recap,
       state,
-      needsYou: state === "needs_decision" ? (parsed.needsYou ?? null) : null,
+      ask:
+        state === "needs-input" || state === "blocked"
+          ? (parsed.ask ?? null)
+          : null,
     };
   }
   return {
     status,
-    threadGoal: input.mode === "full" ? (parsed.threadGoal ?? null) : null,
+    goal: input.mode === "full" ? (parsed.goal ?? null) : null,
     digest: input.mode === "full" ? (parsed.digest ?? null) : null,
-    goal: namesThread(input) ? composeTitle(parsed.goal, input.listing) : null,
+    title: namesThread(input)
+      ? composeTitle(parsed.title, input.listing)
+      : null,
   };
 }
 

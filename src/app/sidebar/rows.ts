@@ -10,7 +10,7 @@ import type { BandSort } from "./useBandOptions.ts";
 
 export type ThreadRow = Row<PluginSidebarThread>;
 export type Placement =
-  "group" | "needs-you" | "pinned" | "recent" | "snoozed" | "archived";
+  "group" | "up-next" | "pinned" | "recent" | "snoozed" | "archived";
 type SnoozeOf = (
   thread: PluginSidebarThread,
 ) => { until: number | null } | undefined;
@@ -59,7 +59,7 @@ export const PLACEMENT_TRAITS: Record<Placement, PlacementTraits> = {
     showPin: true,
     inGroup: true,
   },
-  "needs-you": { ...band, attention: true, subtitle: true },
+  "up-next": { ...band, attention: true, subtitle: true },
   pinned: band,
   recent: { ...band, disclosure: false },
   snoozed: { ...band, overlay: false, snooze: "wake" },

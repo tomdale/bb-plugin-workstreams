@@ -31,8 +31,8 @@ function Row({ children }: { children: ReactNode }) {
 const dotTones = [
   { label: "Complete", tone: "bg-(--ws-complete)" },
   { label: "Waiting", tone: "animate-pulse bg-(--ws-waiting)" },
-  { label: "Needs you", tone: "bg-(--ws-needs-you)" },
-  { label: "Failure", tone: "bg-(--ws-failure)" },
+  { label: "Needs you", tone: "bg-(--ws-needs-input)" },
+  { label: "Failure", tone: "bg-(--ws-failed)" },
   { label: "Quiet", tone: "bg-muted-foreground/50" },
 ];
 
@@ -243,7 +243,7 @@ export const primitiveExamples: GalleryExample[] = [
     title: "Status dot",
     group: "Primitives",
     description: "A small colored circle.",
-    source: `import { StatusDot } from "../src/app/primitives/StatusDot";\n\n<StatusDot tone="bg-(--ws-complete)" />\n<StatusDot size="sm" tone="bg-(--ws-needs-you)" />\n<StatusDot size="md" workstream style={workstreamColorStyle(color)} />\n<StatusDot size="md" hollow />`,
+    source: `import { StatusDot } from "../src/app/primitives/StatusDot";\n\n<StatusDot tone="bg-(--ws-complete)" />\n<StatusDot size="sm" tone="bg-(--ws-needs-input)" />\n<StatusDot size="md" workstream style={workstreamColorStyle(color)} />\n<StatusDot size="md" hollow />`,
     render: () => <StatusDotExample />,
   },
   {

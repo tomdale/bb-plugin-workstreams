@@ -49,14 +49,14 @@ export function useGoalContext(threadId: string | null): GoalContext | null {
       [threadId],
     ),
   );
-  const threadGoal = useSharedServerStateSelector((server) =>
-    threadId ? server.analysis[threadId]?.threadGoal : undefined,
+  const settledGoal = useSharedServerStateSelector((server) =>
+    threadId ? server.analysis[threadId]?.goal : undefined,
   );
   const catalog = useSharedServerStateSelector((server) => server.catalog);
   return useMemo(() => {
     if (!selected) return null;
     const title = selected.thread.displayTitle;
-    const goal = threadGoal;
+    const goal = settledGoal;
     return {
       title,
       goal: goal && goal !== title ? goal : null,
@@ -67,5 +67,5 @@ export function useGoalContext(threadId: string | null): GoalContext | null {
           }
         : null,
     };
-  }, [selected, threadGoal, catalog]);
+  }, [selected, settledGoal, catalog]);
 }

@@ -46,7 +46,7 @@ export function slotContentWidth(
     case "waiting":
       return SPINNER_WIDTH_PX[shape];
     default:
-      // The failure circle and the pencil sit in a full 14px box.
+      // The failed and blocked circles sit in a full 14px box.
       return FULL_SLOT_PX;
   }
 }

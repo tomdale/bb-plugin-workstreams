@@ -23,7 +23,7 @@ import {
   type Section,
 } from "../domain/project.ts";
 import type { Recap } from "../domain/recap.ts";
-import { needsAttention, upNextKind, workView } from "../domain/status.ts";
+import { needsYou, upNextKind, workView } from "../domain/status.ts";
 import {
   nextUpNextDeadline,
   UP_NEXT_FRESH_WINDOWS,
@@ -74,11 +74,11 @@ function derive(
     const snooze = snoozes[thread.id];
     return isSnoozed(snooze, now) ? snooze!.until : undefined;
   };
-  const needsYou = (thread: PluginSidebarThread) =>
-    needsAttention(thread, workOf(thread));
+  const needsYouOf = (thread: PluginSidebarThread) =>
+    needsYou(thread, workOf(thread));
   const projection = projectWorkstreams(threads, sections, {
     now,
-    needsYou,
+    needsYou: needsYouOf,
     order,
     snoozedUntil,
     previous,
@@ -89,7 +89,7 @@ function derive(
       .filter((until): until is number => until !== null && until > now),
     nextDormancyDeadline(threads, sections, {
       now,
-      needsYou,
+      needsYou: needsYouOf,
       order,
       snoozedUntil,
     }) ?? Number.POSITIVE_INFINITY,

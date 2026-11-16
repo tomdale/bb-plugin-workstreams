@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { buildForest } from "../domain/tree.ts";
 import type { Recap } from "../domain/recap.ts";
-import { isDone, workView } from "../domain/status.ts";
+import { isComplete, workView } from "../domain/status.ts";
 import type { Analyzer } from "./analyzer.ts";
 import type { CleanupMember } from "./cleanup.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
@@ -215,7 +215,7 @@ export class Organizer {
     return new Map(
       roots.map((root) => [
         root.id,
-        isDone(
+        isComplete(
           workView(
             current.get(root.id) ?? root,
             this.deps.analyzer.get(root.id),

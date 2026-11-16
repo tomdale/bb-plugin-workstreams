@@ -12,30 +12,33 @@ import {
   toRecap,
   reportedAnalysis,
   reportedStatus,
+  withHeadline,
 } from "../../src/domain/recap.ts";
 
 it("counts only rendered thread mentions as chips for visible length", () => {
   const input = {
     state: "complete",
-    goal: "Finished work",
+    headline: "Finished work",
     latest: ["Tests passed"],
   };
   expect(
-    recapInputSchema.safeParse({ ...input, goal: `@thread:${"a".repeat(90)}` })
-      .success,
+    recapInputSchema.safeParse({
+      ...input,
+      headline: `@thread:${"a".repeat(90)}`,
+    }).success,
   ).toBe(true);
   for (const kind of ["project", "section"]) {
     expect(
       recapInputSchema.safeParse({
         ...input,
-        goal: `@${kind}:${"a".repeat(90)}`,
+        headline: `@${kind}:${"a".repeat(90)}`,
       }).success,
     ).toBe(false);
   }
 });
 
 it.each([
-  { goal: "x".repeat(81) },
+  { headline: "x".repeat(81) },
   { latest: ["x".repeat(121)] },
   { next: ["x".repeat(121)] },
   { next: [{ title: "x".repeat(29), message: "Run it" }] },
@@ -56,7 +59,7 @@ it.each([
   expect(
     recapInputSchema.safeParse({
       state: "complete",
-      goal: "Done",
+      headline: "Done",
       latest: [],
       ...patch,
     }).success,
@@ -65,7 +68,8 @@ it.each([
 
 it("distinguishes recap selection from required user input", () => {
   expect(RECAP_TOOL_DESCRIPTION).toMatch(/finished result|async task/i);
-  expect(RECAP_TOOL_DESCRIPTION).toMatch(/input[^.]*question-card tool/i);
+  expect(RECAP_TOOL_DESCRIPTION).toMatch(/blocker only the user can clear/i);
+  expect(RECAP_TOOL_DESCRIPTION).toMatch(/choice[^.]*question-card tool/i);
   expect(RECAP_TOOL_DESCRIPTION).toMatch(/before you write the reply/i);
   expect(RECAP_TOOL_DESCRIPTION).toMatch(/card comes from this call/i);
 });
@@ -93,15 +97,16 @@ it("advertises named parameters on a concrete root object", () => {
   expect(schema).not.toHaveProperty("anyOf");
   expect(Object.keys(schema.properties!)).toEqual([
     "state",
-    "goal",
+    "headline",
     "waitingAgents",
     "latest",
     "timeout",
     "review",
+    "unblock",
     "links",
     "next",
   ]);
-  expect(schema.required).toEqual(["state", "goal"]);
+  expect(schema.required).toEqual(["state", "headline"]);
   expect(schema.additionalProperties).toBe(false);
 });
 
@@ -112,7 +117,7 @@ it("validates state-specific fields at execution", () => {
     required: string[];
     additionalProperties: boolean;
   }>;
-  expect(variants).toHaveLength(3);
+  expect(variants).toHaveLength(4);
   const branch = (state: string) =>
     variants.find((variant) => variant.properties.state?.const === state)!;
   for (const state of ["complete", "review"]) {
@@ -130,9 +135,11 @@ it("validates state-specific fields at execution", () => {
   expect(branch("waiting").required).toContain("timeout");
   expect(branch("waiting").properties).toHaveProperty("review");
   expect(branch("complete").properties).toHaveProperty("review");
+  expect(branch("blocked").required).toContain("unblock");
+  expect(branch("blocked").properties.unblock?.minItems).toBe(1);
   const review = {
     state: "review",
-    goal: "Finished work",
+    headline: "Finished work",
     latest: ["Tests passed"],
     review: "Check navigation",
   };
@@ -143,7 +150,8 @@ it.each([undefined, null, []])("accepts empty unused arrays: %j", (empty) => {
   for (const state of ["complete", "review", "waiting"] as const) {
     const input = {
       state,
-      goal: state === "waiting" ? "Running checks" : "Fixed recap validation",
+      headline:
+        state === "waiting" ? "Running checks" : "Fixed recap validation",
       latest: state === "waiting" ? [] : ["Tests passed"],
       timeout: state === "waiting" ? 60 : undefined,
       review: state === "review" ? ["Inspect the fix"] : empty,
@@ -154,7 +162,7 @@ it.each([undefined, null, []])("accepts empty unused arrays: %j", (empty) => {
       turnId: "t",
       at: 1,
     });
-    expect(recap.goal).toBe(
+    expect(recap.headline).toBe(
       state === "waiting" ? "Running checks" : "Fixed recap validation",
     );
     if (state !== "review") expect(recap.review).toEqual([]);
@@ -166,7 +174,7 @@ it.each(["complete", "review"] as const)(
   (state) => {
     const input = {
       state,
-      goal: "Finished work",
+      headline: "Finished work",
       latest: ["Tests passed"],
       ...(state === "review" ? { review: "Inspect the result" } : {}),
     };
@@ -190,7 +198,7 @@ it("accepts empty review strings only when review is not required", () => {
     expect(
       recapInputSchema.safeParse({
         state,
-        goal: "Fixed validation",
+        headline: "Fixed validation",
         latest: state === "waiting" ? [] : ["Tests passed"],
         ...(state === "waiting" ? { timeout: 60 } : {}),
         review: "",
@@ -201,7 +209,7 @@ it("accepts empty review strings only when review is not required", () => {
     expect(
       recapInputSchema.safeParse({
         state: "review",
-        goal: "Fixed validation",
+        headline: "Fixed validation",
         latest: ["Tests passed"],
         review,
       }).success,
@@ -212,7 +220,7 @@ it("accepts empty review strings only when review is not required", () => {
 it("rejects substantive unused fields and unknown keys", () => {
   const complete = {
     state: "complete",
-    goal: "Fixed validation",
+    headline: "Fixed validation",
     latest: ["Tests passed"],
   };
   for (const patch of [
@@ -230,7 +238,7 @@ it("stores waiting agents and includes their linked tasks in the recap output", 
   const recap = toRecap(
     recapInputSchema.parse({
       state: "waiting",
-      goal: "Building the theme toggle",
+      headline: "Building the theme toggle",
       timeout: 60,
       waitingAgents: [
         { threadId: "thr_ui", task: "Building the theme toggle UI" },
@@ -251,10 +259,10 @@ it("stores waiting agents and includes their linked tasks in the recap output", 
   );
 });
 
-it("uses the goal as the Waiting title and requires a timeout", () => {
+it("uses the headline as the Waiting title and requires a timeout", () => {
   const input = {
     state: "waiting",
-    goal: "Waiting for the settings toggle",
+    headline: "Waiting for the settings toggle",
     timeout: 60,
     links: [],
   };
@@ -264,7 +272,7 @@ it("uses the goal as the Waiting title and requires a timeout", () => {
     at: 1,
   });
   expect(recap).toMatchObject({
-    goal: "Waiting for the settings toggle",
+    headline: "Waiting for the settings toggle",
     timeout: 60,
     latest: [],
     review: [],
@@ -276,7 +284,7 @@ it("uses the goal as the Waiting title and requires a timeout", () => {
   expect(markdown).not.toContain("**Next:");
   expect(markdown).not.toContain("Nothing needed");
   const analysis = reportedAnalysis(recap, { latestAttentionAt: 1 });
-  expect(analysis.state).toBe("in_progress");
+  expect(analysis.state).toBe("waiting");
   expect(analysis.recap).toBe("Waiting for the settings toggle");
 
   const rejects = (patch: Record<string, unknown>) =>
@@ -297,8 +305,12 @@ it("uses the goal as the Waiting title and requires a timeout", () => {
 
 it("accepts a complete recap with no results, and writes only its title", () => {
   for (const input of [
-    { state: "complete", goal: "Python 3.9 or newer is required" },
-    { state: "complete", goal: "Python 3.9 or newer is required", latest: [] },
+    { state: "complete", headline: "Python 3.9 or newer is required" },
+    {
+      state: "complete",
+      headline: "Python 3.9 or newer is required",
+      latest: [],
+    },
   ]) {
     const recap = toRecap(recapInputSchema.parse(input), {
       id: "r",
@@ -315,7 +327,7 @@ it("accepts a complete recap with no results, and writes only its title", () => 
   expect(
     recapInputSchema.safeParse({
       state: "review",
-      goal: "Goal",
+      headline: "Goal",
       latest: [],
       review: "Check it",
     }).success,
@@ -333,17 +345,9 @@ it("marks reported working threads but leaves inferred progress unmarked", async
   expect(
     slotMarkFor(thread, {
       kind: "current",
-      analysis: { state: "in_progress" },
-      reported: true,
+      analysis: { state: "waiting" },
     }),
   ).toEqual({ kind: "waiting", label: "Waiting" });
-  expect(
-    slotMarkFor(thread, {
-      kind: "current",
-      analysis: { state: "in_progress" },
-      reported: false,
-    }),
-  ).toBeNull();
 });
 
 const files = { environmentId: "env_1", root: "/work/", hostId: "host_1" };
@@ -376,7 +380,7 @@ it("opens paths inside the workspace there, and others through the host", () => 
 it("accepts links only for review recaps", () => {
   const input = {
     state: "complete",
-    goal: "Writing a report",
+    headline: "Writing a report",
     latest: ["Report is ready"],
     links: [{ title: "Report", location: "/work/report.md" }],
   };
@@ -394,7 +398,7 @@ it("accepts links only for review recaps", () => {
 it("omits complete links from normalization and stored recap Markdown", () => {
   const input = {
     state: "complete" as const,
-    goal: "Writing a report",
+    headline: "Writing a report",
     latest: ["Report is ready"],
     links: [{ title: "Report", location: "/work/report.md" }],
   };
@@ -411,7 +415,7 @@ it("omits complete links from normalization and stored recap Markdown", () => {
 it("enforces short sentence-case labels and keeps longer context in descriptions", () => {
   const parsed = recapInputSchema.parse({
     state: "complete",
-    goal: "Added dark mode",
+    headline: "Added dark mode",
     latest: ["Theme toggle works"],
     next: [
       "Run the full test suite",
@@ -426,7 +430,7 @@ it("enforces short sentence-case labels and keeps longer context in descriptions
   expect(
     recapInputSchema.safeParse({
       state: "complete",
-      goal: "Added dark mode",
+      headline: "Added dark mode",
       latest: ["Theme toggle works"],
       next: [
         {
@@ -453,7 +457,7 @@ it("accepts next actions for complete and review, never for waiting", () => {
   for (const state of ["complete", "review"] as const) {
     const parsed = recapInputSchema.parse({
       state,
-      goal: "Added dark mode",
+      headline: "Added dark mode",
       latest: ["Theme toggle works"],
       ...(state === "review" ? { review: ["Try the theme toggle"] } : {}),
       next,
@@ -463,7 +467,7 @@ it("accepts next actions for complete and review, never for waiting", () => {
   expect(
     recapInputSchema.safeParse({
       state: "waiting",
-      goal: "Waiting for tests",
+      headline: "Waiting for tests",
       timeout: 120,
       next: ["Check back later"],
     }).success,
@@ -471,7 +475,7 @@ it("accepts next actions for complete and review, never for waiting", () => {
   expect(
     recapInputSchema.parse({
       state: "waiting",
-      goal: "Waiting for tests",
+      headline: "Waiting for tests",
       timeout: 120,
     }).next,
   ).toEqual([]);
@@ -480,7 +484,7 @@ it("accepts next actions for complete and review, never for waiting", () => {
 it("tidies next actions and reports them in the recap Markdown", () => {
   const input = recapInputSchema.parse({
     state: "complete",
-    goal: "Added dark mode.",
+    headline: "Added dark mode.",
     latest: ["Theme toggle works"],
     next: ["Run the full test suite.", "  Open a   pull request  "],
   });
@@ -500,7 +504,7 @@ it("reads stored recaps without next actions as offering none", () => {
     turnId: "t",
     at: 1,
     state: "complete",
-    goal: "Goal",
+    headline: "Goal",
     latest: ["Done"],
     review: [],
     links: [],
@@ -514,7 +518,7 @@ it("keeps legacy string lists and reads structured review JSON", () => {
     turnId: "t",
     at: 1,
     state: "review",
-    goal: "Goal",
+    headline: "Goal",
     latest: ["Legacy result"],
     review: JSON.stringify([
       { text: "Open Settings", detail: "The panel appears" },
@@ -534,7 +538,7 @@ it("reads a stored single review line as one step", () => {
     turnId: "t",
     at: 1,
     state: "review",
-    goal: "Goal",
+    headline: "Goal",
     latest: ["Latest"],
     links: [],
   };
@@ -547,7 +551,7 @@ it("reads a stored single review line as one step", () => {
 it("keeps structured review steps and writes their expectations", () => {
   const input = recapInputSchema.parse({
     state: "review",
-    goal: "Adding dark mode",
+    headline: "Adding dark mode",
     latest: ["Theme toggle works"],
     review: [
       { text: "Open Appearance.", detail: "Dark should be available." },
@@ -567,11 +571,11 @@ it("keeps structured review steps and writes their expectations", () => {
 it("uses the goal as the single Waiting title", () => {
   const parsed = recapInputSchema.parse({
     state: "waiting",
-    goal: "Building UI and running tests in @thread:thr_abc123",
+    headline: "Building UI and running tests in @thread:thr_abc123",
     timeout: 120,
   });
   const recap = toRecap(parsed, { id: "r", turnId: "t", at: 1 });
-  expect(recap.goal).toBe(
+  expect(recap.headline).toBe(
     "Building UI and running tests in @thread:thr_abc123",
   );
   expect(recapMarkdown(recap)).toContain("Building UI and running tests");
@@ -580,7 +584,7 @@ it("uses the goal as the single Waiting title", () => {
 it("rejects the retired step/expect item shape", () => {
   const parsed = recapInputSchema.safeParse({
     state: "review",
-    goal: "Compatibility check",
+    headline: "Compatibility check",
     latest: [{ step: "Implemented generic items", expect: "Kept working" }],
     review: [{ step: "Run tests", expect: "All tests pass" }],
   });
@@ -593,14 +597,14 @@ it("measures inline Markdown by its visible text", () => {
   expect(
     recapInputSchema.safeParse({
       state: "complete",
-      goal: "Fixing",
+      headline: "Fixing",
       latest: [latest],
     }).success,
   ).toBe(true);
   expect(
     recapInputSchema.safeParse({
       state: "complete",
-      goal: "Fixing",
+      headline: "Fixing",
       latest: ["x".repeat(121)],
     }).success,
   ).toBe(false);
@@ -634,4 +638,46 @@ it("splits thread mentions and commit hashes out of a line", () => {
   expect(recapSegments("1234567 deadbeef facade1x")).toEqual([
     { kind: "markdown", text: "1234567 deadbeef facade1x" },
   ]);
+});
+
+it("reports a blocker with the steps only the user can take", () => {
+  const parsed = recapInputSchema.parse({
+    state: "blocked",
+    headline: "Blocked on the missing staging credential",
+    latest: ["The migration is written and committed"],
+    unblock: ["Add QUARRY_STAGING_DB_URL to the environment"],
+  });
+  const recap = toRecap(parsed, { id: "r", turnId: "t", at: 1 });
+  expect(recap).toMatchObject({
+    state: "blocked",
+    unblock: ["Add QUARRY_STAGING_DB_URL to the environment"],
+    next: [],
+    links: [],
+  });
+  expect(recapMarkdown(recap)).toContain("**Blocked**");
+  expect(recapMarkdown(recap)).toContain("**To unblock:**");
+  expect(reportedStatus(recap)).toEqual({
+    recap: "The migration is written and committed",
+    state: "blocked",
+    ask: "Add QUARRY_STAGING_DB_URL to the environment",
+  });
+  expect(() =>
+    recapInputSchema.parse({ state: "blocked", headline: "Blocked" }),
+  ).toThrow();
+  expect(() =>
+    recapInputSchema.parse({
+      state: "complete",
+      headline: "Done",
+      unblock: ["Do something"],
+    }),
+  ).toThrow();
+});
+
+it("accepts the headline under the name earlier sessions were given", () => {
+  expect(withHeadline({ state: "complete", goal: "Fixed it" })).toEqual({
+    state: "complete",
+    headline: "Fixed it",
+  });
+  const current = { state: "complete", headline: "Fixed it" };
+  expect(withHeadline(current)).toBe(current);
 });

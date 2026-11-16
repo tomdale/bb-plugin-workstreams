@@ -15,10 +15,11 @@ import {
   type Group,
   type Section,
 } from "../domain/project.ts";
-import { relativeAge } from "../domain/presentation.ts";
+import { relativeAge, workStateLabel } from "../domain/presentation.ts";
 import { changeLines } from "../domain/suggestion-change.ts";
 import { isCurrent } from "../domain/analysis.ts";
-import { needsAttention, workView } from "../domain/status.ts";
+import { needsYou, workView } from "../domain/status.ts";
+import { isSnoozed, type ThreadSnooze } from "../domain/snooze.ts";
 import type { Analyzer, StoredAnalysis } from "./analyzer.ts";
 import type { Organizer } from "./organizer.ts";
 import {
@@ -251,6 +252,7 @@ export function registerCli(
     arrangement,
     topics,
     currentPrefs,
+    snoozes,
     notify,
     reclassifyTask,
     reclassification,
@@ -260,7 +262,6 @@ export function registerCli(
     /** The sidebar's stored order and prioritized workstreams. */
     arrangement: {
       load(): StoredOrder;
-      setPrioritized(ids: readonly string[]): void;
     };
     service: WorkstreamService;
     journal: Journal;
@@ -272,6 +273,8 @@ export function registerCli(
     topics: TopicStore;
     topicMigration?: TopicMigration;
     currentPrefs?: () => Prefs;
+    /** Every thread's snooze, so snoozed threads leave groups and counts. */
+    snoozes?: () => Readonly<Record<string, ThreadSnooze>>;
     notify?: () => void;
     reclassifyTask?: (input: {
       threadId: string;
@@ -365,8 +368,12 @@ export function registerCli(
       analysis,
       projection: projectWorkstreams(threads, sections, {
         now,
-        needsYou: (thread) => needsAttention(thread, work.get(thread.id)!),
+        needsYou: (thread) => needsYou(thread, work.get(thread.id)!),
         order: arrangement.load(),
+        snoozedUntil: (thread) => {
+          const snooze = snoozes?.()[thread.id];
+          return isSnoozed(snooze, now) ? snooze!.until : undefined;
+        },
       }),
     };
   };
@@ -567,16 +574,12 @@ export function registerCli(
                 stdout: options.json
                   ? JSON.stringify({ ...result, seconds }, null, 2)
                   : [
-                      `${result.state.replace("_", " ")}${result.reported ? " (reported)" : ""} · ${seconds}s · ${result.model}`,
+                      `${workStateLabel(result.state)}${result.reported ? " (reported)" : ""} · ${seconds}s · ${result.model}`,
                       result.recap,
-                      ...(result.goal ? [`Title: ${result.goal}`] : []),
-                      ...(result.threadGoal
-                        ? [`Goal: ${result.threadGoal}`]
-                        : []),
+                      ...(result.title ? [`Title: ${result.title}`] : []),
+                      ...(result.goal ? [`Goal: ${result.goal}`] : []),
                       `Topic: ${topics.assignment(positionals.thread).label ?? "none"}`,
-                      ...(result.needsYou
-                        ? [`Up Next: ${result.needsYou}`]
-                        : []),
+                      ...(result.ask ? [`Asks: ${result.ask}`] : []),
                     ].join("\n"),
               };
             }

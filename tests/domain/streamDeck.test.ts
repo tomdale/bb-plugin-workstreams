@@ -15,7 +15,7 @@ const thread = {
 };
 
 it("reads a snapshot and refuses one this protocol doesn't describe", () => {
-  const snapshot = { protocol: 1, rows: [thread], more: [] };
+  const snapshot = { protocol: 2, rows: [thread], more: [] };
   expect(parseStreamDeckSnapshot(snapshot)).toEqual(snapshot);
   expect(
     parseStreamDeckSnapshot({
@@ -26,7 +26,7 @@ it("reads a snapshot and refuses one this protocol doesn't describe", () => {
   for (const bad of [
     null,
     "rows",
-    { ...snapshot, protocol: 2 },
+    { ...snapshot, protocol: 1 },
     { ...snapshot, more: undefined },
     { ...snapshot, rows: [{ ...thread, mark: "working" }] },
     { ...snapshot, rows: [{ ...thread, title: 4 }] },

@@ -38,26 +38,32 @@ describe("wakesOnEvents", () => {
 describe("turnOutcome", () => {
   it("names a turn that ended after the snooze by how it ended", () => {
     const ended = { latestAttentionAt: AT + 5 };
-    expect(turnOutcome(thread({ ...ended, work: "needs_decision" }), AT)).toBe(
-      "needs-you",
+    expect(turnOutcome(thread({ ...ended, work: "needs-input" }), AT)).toBe(
+      "needs-input",
     );
     expect(turnOutcome(thread({ ...ended, work: "review" }), AT)).toBe(
       "review",
     );
-    expect(turnOutcome(thread({ ...ended, work: "done" }), AT)).toBe("done");
+    expect(turnOutcome(thread({ ...ended, work: "complete" }), AT)).toBe(
+      "complete",
+    );
   });
 
-  it("ignores turns still waiting, blocked, unknown, running, or from before", () => {
+  it("raises a blocked turn's own event", () => {
     const ended = { latestAttentionAt: AT + 5 };
-    expect(turnOutcome(thread({ ...ended, work: "in_progress" }), AT)).toBe(
-      null,
+    expect(turnOutcome(thread({ ...ended, work: "blocked" }), AT)).toBe(
+      "blocked",
     );
-    expect(turnOutcome(thread({ ...ended, work: "blocked" }), AT)).toBe(null);
+  });
+
+  it("ignores turns still waiting, unknown, running, or from before", () => {
+    const ended = { latestAttentionAt: AT + 5 };
+    expect(turnOutcome(thread({ ...ended, work: "waiting" }), AT)).toBe(null);
     expect(turnOutcome(thread({ ...ended, work: null }), AT)).toBe(null);
     expect(
-      turnOutcome(thread({ ...ended, status: "active", work: "done" }), AT),
+      turnOutcome(thread({ ...ended, status: "active", work: "complete" }), AT),
     ).toBe(null);
-    expect(turnOutcome(thread({ work: "done" }), AT)).toBe(null);
+    expect(turnOutcome(thread({ work: "complete" }), AT)).toBe(null);
   });
 });
 
@@ -85,7 +91,7 @@ describe("failedAfter", () => {
 });
 
 describe("isStalled", () => {
-  const root = thread({ id: "root", work: "in_progress" });
+  const root = thread({ id: "root", work: "waiting" });
   const failedDelegate = thread({
     id: "d",
     status: "error",
@@ -113,7 +119,7 @@ describe("isStalled", () => {
   });
 
   it("doesn't hold when the root's turn already wakes it, or the failure is old", () => {
-    expect(isStalled({ ...root, work: "done" }, [failedDelegate], AT)).toBe(
+    expect(isStalled({ ...root, work: "complete" }, [failedDelegate], AT)).toBe(
       false,
     );
     expect(isStalled(root, [{ ...failedDelegate, failedAt: AT - 1 }], AT)).toBe(
@@ -141,13 +147,18 @@ describe("pullRequestEvent", () => {
 });
 
 describe("wakeEvent", () => {
-  const facts = { snooze, root: thread(), delegates: [], now: AT + 1 };
+  const facts = { snooze, thread: thread(), children: [], now: AT + 1 };
 
   it("names the first enabled event, in settings order", () => {
     const root = thread({ latestAttentionAt: AT + 1, work: "review" });
-    expect(wakeEvent({ ...facts, root }, DEFAULT_WAKE_EVENTS)).toBe("review");
+    expect(wakeEvent({ ...facts, thread: root }, DEFAULT_WAKE_EVENTS)).toBe(
+      "review",
+    );
     expect(
-      wakeEvent({ ...facts, root }, { ...DEFAULT_WAKE_EVENTS, review: false }),
+      wakeEvent(
+        { ...facts, thread: root },
+        { ...DEFAULT_WAKE_EVENTS, review: false },
+      ),
     ).toBe(null);
   });
 
@@ -156,19 +167,19 @@ describe("wakeEvent", () => {
       thread({ id: "d", latestAttentionAt: AT + 1, work });
     expect(
       wakeEvent(
-        { ...facts, delegates: [delegate("needs_decision")] },
+        { ...facts, children: [delegate("needs-input")] },
         DEFAULT_WAKE_EVENTS,
       ),
-    ).toBe("delegate-needs-you");
+    ).toBe("child-needs-input");
     expect(
       wakeEvent(
-        { ...facts, delegates: [delegate("review")] },
+        { ...facts, children: [delegate("review")] },
         DEFAULT_WAKE_EVENTS,
       ),
-    ).toBe("delegate-needs-you");
+    ).toBe("child-needs-input");
     expect(
       wakeEvent(
-        { ...facts, delegates: [delegate("done")] },
+        { ...facts, children: [delegate("complete")] },
         DEFAULT_WAKE_EVENTS,
       ),
     ).toBe(null);
@@ -205,6 +216,6 @@ describe("wakeEvent", () => {
         { ...facts, stalledSince: AT + 1, now: AT + 1 + STALL_GRACE_MS },
         DEFAULT_WAKE_EVENTS,
       ),
-    ).toBe("delegate-stalled");
+    ).toBe("child-stalled");
   });
 });

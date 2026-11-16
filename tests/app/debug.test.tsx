@@ -172,11 +172,11 @@ it("lists model calls in the Activity log in Debug mode", async () => {
     );
   const off = page(false);
   expect(await off.findByText("Moved from Unfiled to Beta")).toBeTruthy();
-  expect(off.queryByText("Ready for your review")).toBeNull();
+  expect(off.queryByText("Ready for review")).toBeNull();
   off.unmount();
 
   const on = page(true);
-  const summaryLine = await on.findByText("Ready for your review");
+  const summaryLine = await on.findByText("Ready for review");
   // Newest first: the analysis, the move, then the failed routing call.
   const rows = on.getAllByRole("listitem").map((li) => li.textContent ?? "");
   const order = [

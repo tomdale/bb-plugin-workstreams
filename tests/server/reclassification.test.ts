@@ -14,8 +14,8 @@ async function setup(answer?: (fallback: string) => string | Promise<string>) {
     complete: () => {
       const fallback = JSON.stringify({
         recap: "Working",
-        state: "in_progress",
-        goal: "Unrelated title candidate",
+        state: "needs-input",
+        title: "Unrelated title candidate",
         subjectId: next,
       });
       return answer ? answer(fallback) : fallback;

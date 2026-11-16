@@ -80,8 +80,8 @@ export function draftSubject(decision: Preview, request: string): DebugSubject {
       : "New thread with no topic yet",
     facts: [
       { label: "Request", value: request },
-      ...(decision.goal
-        ? [{ label: "Title it would start with", value: decision.goal }]
+      ...(decision.title
+        ? [{ label: "Title it would start with", value: decision.title }]
         : []),
       {
         label: "Outcome",
@@ -108,8 +108,7 @@ export function analysisSubject({
 }): DebugSubject {
   return {
     surface: "A thread's Info tab and context card",
-    headline:
-      analysis.goal ?? analysis.threadGoal ?? `Thread ${threadId} analysis`,
+    headline: analysis.title ?? analysis.goal ?? `Thread ${threadId} analysis`,
     facts: [
       { label: "Thread", value: threadId },
       ...(assignment
@@ -130,17 +129,15 @@ export function analysisSubject({
       ...(analysis.topicError
         ? [{ label: "Topic error", value: analysis.topicError }]
         : []),
-      ...(analysis.goal
-        ? [{ label: "Settled title", value: analysis.goal }]
+      ...(analysis.title
+        ? [{ label: "Settled title", value: analysis.title }]
         : []),
-      ...(analysis.threadGoal
-        ? [{ label: "Goal", value: analysis.threadGoal }]
-        : []),
+      ...(analysis.goal ? [{ label: "Goal", value: analysis.goal }] : []),
       ...(analysis.digest ? [{ label: "Digest", value: analysis.digest }] : []),
       {
         label: "Status",
-        value: `${workStateLabel(analysis.state, analysis.reported ?? false)}${
-          analysis.needsYou ? `: ${analysis.needsYou}` : ""
+        value: `${workStateLabel(analysis.state)}${
+          analysis.ask ? `: ${analysis.ask}` : ""
         } (${analysis.reported ? "reported by the agent" : "inferred"})`,
       },
       {

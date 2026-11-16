@@ -24,7 +24,7 @@ const EXAMPLES: readonly Example[] = [
       turnId: "preview",
       at: 0,
       state: "complete",
-      goal: "Added dark mode to the Settings page",
+      headline: "Added dark mode to the Settings page",
       latest: [
         "Theme toggle saves to the user's preferences",
         "Every settings panel follows the system theme by default",
@@ -53,7 +53,7 @@ const EXAMPLES: readonly Example[] = [
       turnId: "preview",
       at: 0,
       state: "review",
-      goal: "Added dark mode to the Settings page",
+      headline: "Added dark mode to the Settings page",
       latest: [
         "Theme toggle saves to the user's preferences",
         "Every settings panel follows the system theme by default",
@@ -105,7 +105,7 @@ const EXAMPLES: readonly Example[] = [
       turnId: "preview",
       at: Date.now(),
       state: "waiting",
-      goal: "Building the theme toggle",
+      headline: "Building the theme toggle",
       waitingAgents: [
         { threadId: "preview-ui-agent", task: "Building the theme toggle UI" },
         {

@@ -22,6 +22,7 @@ import {
   unfoldedRows,
   type HomePlan,
 } from "./model.ts";
+import { needYouLabel } from "../../domain/presentation.ts";
 
 type Thread = PluginSidebarThread;
 type CountWhen = "always" | "collapsed" | "never";
@@ -35,7 +36,7 @@ export type HomeEnv = {
   snoozeOf: (thread: Thread) => ThreadSnooze | undefined;
   showAge: boolean;
   threadCount: CountWhen;
-  waitingCount: CountWhen;
+  needsYouCount: CountWhen;
   colorOf: (sectionId: string, topicId?: string | null) => TopicColor;
   isOpen: (id: string, byDefault: boolean) => boolean;
   toggle: (id: string, byDefault: boolean) => void;
@@ -90,8 +91,8 @@ export function WorkstreamGroups({
       env={env}
     />
   );
-  const lowerWaiting =
-    env.waitingCount !== "never" && plan.lowerCounts.needsYou > 0;
+  const lowerNeedsYou =
+    env.needsYouCount !== "never" && plan.lowerCounts.needsYou > 0;
   const lowerTotal = env.threadCount !== "never" && plan.lowerCounts.total > 0;
   const hasGroups = visibleGroups.length > 0 || plan.hasLower;
   const snoozedOpen = plan.snoozed.length > 0 && env.isOpen(SNOOZED_KEY, false);
@@ -129,8 +130,8 @@ export function WorkstreamGroups({
                 !showLower
                   ? [
                       "Show other workstreams",
-                      ...(lowerWaiting
-                        ? [`${plan.lowerCounts.needsYou} waiting on you`]
+                      ...(lowerNeedsYou
+                        ? [needYouLabel(plan.lowerCounts.needsYou)]
                         : []),
                       ...(lowerTotal
                         ? [
@@ -147,9 +148,9 @@ export function WorkstreamGroups({
                   ? "Hide other workstreams"
                   : "Show other workstreams"}
               </span>
-              {!showLower && (lowerWaiting || lowerTotal) ? (
+              {!showLower && (lowerNeedsYou || lowerTotal) ? (
                 <span className="ws-home-counts" aria-hidden="true">
-                  {lowerWaiting ? (
+                  {lowerNeedsYou ? (
                     <CountPill size="roomy">
                       {plan.lowerCounts.needsYou}
                     </CountPill>
@@ -362,11 +363,11 @@ function GroupSection({
             </>
           ) : null}
           <span className="ws-home-counts">
-            {showsCount(env.waitingCount, !open) && group.needsYou > 0 ? (
+            {showsCount(env.needsYouCount, !open) && group.needsYou > 0 ? (
               <CountPill size="roomy">
                 <span aria-hidden="true">{group.needsYou}</span>
                 <span className="sr-only">
-                  , {group.needsYou} waiting on you
+                  , {needYouLabel(group.needsYou)}
                 </span>
               </CountPill>
             ) : null}

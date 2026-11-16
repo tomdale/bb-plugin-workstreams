@@ -18,7 +18,7 @@ const base = {
 const withFeature: Preview = {
   ...base,
   id: "d_feature",
-  goal: "Invoice layout",
+  title: "Invoice layout",
 };
 
 const withProposal: Preview = {
@@ -57,7 +57,7 @@ describe("NewWork model: the draft's topic preview", () => {
       label: "Billing",
       provenance: "automatic",
     });
-    expect(snapshot.decision?.goal).toBe("Invoice layout");
+    expect(snapshot.decision?.title).toBe("Invoice layout");
   });
 
   it("aborts classification in flight when text changes", async () => {

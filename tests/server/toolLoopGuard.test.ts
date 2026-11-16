@@ -78,14 +78,14 @@ function world(disableOnLoop = true) {
         id: `call-${events.length}`,
         tool,
         status: "failed",
-        arguments: { goal: `Wording ${events.length}` },
+        arguments: { headline: `Wording ${events.length}` },
         result,
       },
     });
   const success = (
     result = "ok",
     tool = "WorkstreamsRecap",
-    args: Record<string, unknown> = { goal: "Clarified Up Next rows" },
+    args: Record<string, unknown> = { headline: "Clarified Up Next rows" },
   ) =>
     add("item/completed", {
       item: {
@@ -155,7 +155,7 @@ describe("repeated successful call guard", () => {
     const four = (
       result = "ok",
       tool = "WorkstreamsRecap",
-      args: Record<string, unknown> = { goal: "Clarified Up Next rows" },
+      args: Record<string, unknown> = { headline: "Clarified Up Next rows" },
     ) => {
       for (let i = 0; i < 4; i++) w.success(result, tool, args);
     };
@@ -163,7 +163,7 @@ describe("repeated successful call guard", () => {
     // Same call, new output: the model learned something.
     four("Recap complete");
     // Same output, new arguments: a different question.
-    four("Recap complete", "WorkstreamsRecap", { goal: "Other goal" });
+    four("Recap complete", "WorkstreamsRecap", { headline: "Other goal" });
     // A different tool.
     four("Recap complete", "read", { path: "README.md" });
     await w.observe();

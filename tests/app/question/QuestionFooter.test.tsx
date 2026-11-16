@@ -57,7 +57,7 @@ browserTest.skipIf(browserUnavailable)(
               return layout === "queue" ? (
                 <div data-test-card>
                   <ThreadCard
-                    card={{ kind: "needs", line: null }}
+                    card={{ kind: "needs", label: "Needs input", line: null }}
                     threadId="thread"
                     files={null}
                     age="now"

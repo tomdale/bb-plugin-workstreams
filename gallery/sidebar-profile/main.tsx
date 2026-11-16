@@ -136,7 +136,7 @@ function fixture(groupIndex: number, rowIndex: number) {
   const state = (
     {
       review: "review",
-      complete: "done",
+      complete: "complete",
       blocked: "blocked",
     } as const
   )[kind as "review" | "complete" | "blocked"];
@@ -159,8 +159,8 @@ function fixture(groupIndex: number, rowIndex: number) {
         analysis: {
           state,
           recap: "",
-          needsYou: null,
-          goal: null,
+          ask: null,
+          title: null,
           revision: 0,
           at: 0,
           model: "fixture",

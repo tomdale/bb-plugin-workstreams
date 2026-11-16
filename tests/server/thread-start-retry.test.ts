@@ -80,7 +80,7 @@ describe("first-request start retries", () => {
           if (++attempts === 1) throw new TypeError("fetch failed");
           return JSON.stringify({ subjectId: topicId, proposed: null });
         }
-        return JSON.stringify({ goal: "Write docs", subjectId: null });
+        return JSON.stringify({ title: "Write docs", subjectId: null });
       },
     });
     const topics = new TopicStore(openDatabase(world.bb));
@@ -116,7 +116,7 @@ describe("first-request start retries", () => {
       complete: ({ prompt }) => {
         if (prompt.includes("You file one agent thread under a topic"))
           placements++;
-        return JSON.stringify({ goal: null, subjectId: null });
+        return JSON.stringify({ title: null, subjectId: null });
       },
     });
     const topics = new TopicStore(openDatabase(world.bb));
@@ -150,7 +150,7 @@ describe("first-request start retries", () => {
           attempts++;
           throw new TypeError("fetch failed");
         }
-        return JSON.stringify({ goal: "Write docs", subjectId: null });
+        return JSON.stringify({ title: "Write docs", subjectId: null });
       },
     });
     const topics = new TopicStore(openDatabase(world.bb));

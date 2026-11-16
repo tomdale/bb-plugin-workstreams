@@ -17,10 +17,18 @@ const FAILED_PATH =
   "M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z";
 
 /**
+ * Heroicons' no-symbol (20/solid, MIT): a circle struck through, drawn in
+ * the Needs input color so a blocked thread reads as the user's to clear.
+ */
+const BLOCKED_PATH =
+  "m5.965 4.904 9.131 9.131a6.5 6.5 0 0 0-9.131-9.131Zm8.07 10.192L4.904 5.965a6.5 6.5 0 0 0 9.131 9.131ZM4.343 4.343a8 8 0 1 1 11.314 11.314A8 8 0 0 1 4.343 4.343Z";
+
+/**
  * The mark in a thread row's leading slot (see `slotMarkFor`): an
- * exclamation circle for a failed turn, a spinner for work in flight (grey
- * while the agent waits on a subagent or timer), a dot for the states that
- * wait on the reader (`dotMark`), or a pencil for an unsent draft.
+ * exclamation circle for a failed turn, a struck-through circle for a blocked
+ * one, a spinner for work in flight (grey while the thread waits on an
+ * external task), or a dot for the states that wait on the reader
+ * (`dotMark`).
  */
 export function StatusMark({
   mark,
@@ -41,9 +49,14 @@ export function StatusMark({
       />
     );
   switch (mark.kind) {
-    case "error":
+    case "failed":
+    case "blocked":
       return (
-        <span className="ws-mark ws-failed" role="img" aria-label={aria}>
+        <span
+          className={`ws-mark ws-${mark.kind}`}
+          role="img"
+          aria-label={aria}
+        >
           <svg
             width="13"
             height="13"
@@ -51,7 +64,11 @@ export function StatusMark({
             fill="currentColor"
             aria-hidden="true"
           >
-            <path fillRule="evenodd" d={FAILED_PATH} clipRule="evenodd" />
+            <path
+              fillRule="evenodd"
+              d={mark.kind === "failed" ? FAILED_PATH : BLOCKED_PATH}
+              clipRule="evenodd"
+            />
           </svg>
         </span>
       );
@@ -59,12 +76,6 @@ export function StatusMark({
       return <WorkingMark label={aria} />;
     case "waiting":
       return <WorkingMark label={aria} waiting />;
-    case "draft":
-      return (
-        <span className="ws-mark ws-mark-draft" role="img" aria-label={aria}>
-          ✎
-        </span>
-      );
   }
 }
 

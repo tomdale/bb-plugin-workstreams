@@ -687,10 +687,10 @@ describe.skipIf(browserUnavailable)("gallery sidebar", () => {
             const marks = (
               [
                 [
-                  ".ws-dot-needs-you",
-                  "--ws-needs-you-mark",
+                  ".ws-dot-needs-input",
+                  "--ws-needs-input-mark",
                   "borderTopColor",
-                  "var(--ws-needs-you-text)",
+                  "var(--ws-needs-input-text)",
                 ],
                 [
                   ".ws-dot-review.ws-dot-ring",
@@ -699,14 +699,14 @@ describe.skipIf(browserUnavailable)("gallery sidebar", () => {
                   "var(--ws-review-text)",
                 ],
                 [
-                  ".ws-dot-done",
+                  ".ws-dot-complete",
                   "--ws-complete-mark",
                   "backgroundColor",
                   "var(--ws-complete-text)",
                 ],
                 [
                   ".ws-failed",
-                  "--ws-failure-mark",
+                  "--ws-failed-mark",
                   "color",
                   "var(--destructive-text)",
                 ],

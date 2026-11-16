@@ -73,7 +73,7 @@ async function mount(
                 propose: null,
                 scopeShift: false,
               }
-          : { recap: "r", state: "done" },
+          : { recap: "r", state: "complete" },
       ),
   });
   const w = world;

@@ -30,7 +30,7 @@ browserTest.skipIf(browserUnavailable)(
         await page.setContent(`<style>${styles}${reference}
           body { margin: 0; background: ${background}; }
           .ws-needs {
-            --sidebar: ${background}; --ws-needs-you-band: #e2b659;
+            --sidebar: ${background}; --ws-needs-input-band: #e2b659;
             width: ${width}px; height: 160px; box-sizing: border-box;
           }
         </style><div class="ws-needs reference"></div><div class="ws-needs candidate"></div>`);
@@ -111,7 +111,7 @@ browserTest.skipIf(browserUnavailable)(
   { timeout: 15_000 },
   async ({ page }) => {
     await page.setContent(`<style>${styles}
-      .ws-needs { --ws-needs-you-band: orange; width: 280px; height: 160px; }
+      .ws-needs { --ws-needs-input-band: orange; width: 280px; height: 160px; }
       </style><div class="ws-needs"></div>`);
     await settleEntranceAnimations(page);
     const client = await page.context().newCDPSession(page);

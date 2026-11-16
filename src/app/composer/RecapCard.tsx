@@ -35,6 +35,7 @@ import { useThreadChanged } from "../useChanged.ts";
 import {
   fileTarget,
   itemParts,
+  RECAP_STATE_LABEL,
   recapSegments,
   type Recap,
   type RecapFiles,
@@ -102,6 +103,12 @@ export const ACCENT: Record<
     text: "text-(--ws-complete-text)",
     rules: "[&>section+section]:border-(--ws-complete-rule)",
     footer: "border-(--ws-complete-rule) bg-(--ws-complete-footer)",
+  },
+  blocked: {
+    card: "border-(--ws-needs-input-border) bg-(--ws-needs-input-surface)",
+    text: "text-(--ws-needs-input-text)",
+    rules: "[&>section+section]:border-(--ws-needs-input-rule)",
+    footer: "border-(--ws-needs-input-rule) bg-(--ws-needs-input-footer)",
   },
 };
 
@@ -333,7 +340,7 @@ function agentStatus(thread: AgentThread | undefined): {
     return { label: "Needs input", tone: "input" };
   }
   if (thread.status === "error" || thread.runtimeStatus === "error") {
-    return { label: "Errored", tone: "error" };
+    return { label: "Failed", tone: "error" };
   }
   if (
     STARTING_STATUSES.has(thread.runtimeStatus) ||
@@ -341,7 +348,7 @@ function agentStatus(thread: AgentThread | undefined): {
   ) {
     return { label: "Starting", tone: "running" };
   }
-  if (thread.status === "active") return { label: "Running", tone: "running" };
+  if (thread.status === "active") return { label: "Working", tone: "running" };
   if (thread.status === "stopping") {
     return { label: "Stopping", tone: "running" };
   }
@@ -450,16 +457,16 @@ function useAgentViews(
 
 const AGENT_DOT: Record<AgentTone, string> = {
   running: "bg-(--ws-waiting)",
-  input: "bg-(--ws-needs-you)",
-  error: "bg-(--ws-failure)",
+  input: "bg-(--ws-needs-input)",
+  error: "bg-(--ws-failed)",
   done: "bg-(--ws-complete)",
   unknown: "bg-muted-foreground/50",
 };
 
 const AGENT_LABEL: Record<AgentTone, string> = {
   running: "text-(--ws-waiting-text)",
-  input: "text-(--ws-needs-you-text)",
-  error: "text-(--ws-failure-text)",
+  input: "text-(--ws-needs-input-text)",
+  error: "text-(--ws-failed-text)",
   done: "text-(--ws-complete-text)",
   unknown: "text-muted-foreground",
 };
@@ -610,11 +617,7 @@ function StateLine({
         ACCENT[state].text,
       )}
     >
-      {state === "review"
-        ? "Ready for Review"
-        : state === "waiting"
-          ? "Waiting"
-          : "Complete"}
+      {RECAP_STATE_LABEL[state]}
       {age ? (
         <span className="ml-1 font-normal text-muted-foreground">{age}</span>
       ) : null}
@@ -791,10 +794,11 @@ function Links({
 }
 
 /**
- * The state line and goal, then the rows for the recap's state: awaited
- * agents while waiting, Done and Review for review, results alone when
- * complete. Compact keeps the essential row unlabeled: review steps for
- * review, results when complete.
+ * The state line and headline, then the rows for the recap's state: awaited
+ * agents while waiting, Done and Review for review, Tried and To unblock
+ * when blocked, results alone when complete. Compact keeps the essential row
+ * unlabeled: review steps for review, unblock steps when blocked, results
+ * when complete.
  */
 export const RecapSummary = memo(function RecapSummary({
   recap,
@@ -817,6 +821,8 @@ export const RecapSummary = memo(function RecapSummary({
   const compact = layout === "minimal";
   const body = compact ? COMPACT_BODY_CLASS : BODY_CLASS;
   const review = recap.state === "review" && recap.review.length > 0;
+  const unblock = recap.state === "blocked" ? (recap.unblock ?? []) : [];
+  const blocked = unblock.length > 0;
   const working = recap.state === "waiting";
   // A short answer's complete recap has no results: the card is its title.
   const results = recap.latest.length > 0;
@@ -832,21 +838,33 @@ export const RecapSummary = memo(function RecapSummary({
         <Steps items={recap.review} />
         {links}
       </Row>
+    ) : blocked ? (
+      <Row accent={accent.text}>
+        <Steps items={unblock} />
+      </Row>
     ) : results ? (
       <Row accent={accent.text}>
         <Results done={recap.latest} accent={accent.text} />
       </Row>
     ) : null;
-  } else if (!working && !review && !results) {
+  } else if (!working && !review && !blocked && !results) {
     rows = null;
   } else {
     rows = (
       <>
         {working || !results ? null : (
-          <Row label={review ? "Done" : undefined} accent={accent.text}>
+          <Row
+            label={review ? "Done" : blocked ? "Tried" : undefined}
+            accent={accent.text}
+          >
             <Results done={recap.latest} accent={accent.text} />
           </Row>
         )}
+        {blocked ? (
+          <Row label="To unblock" accent={accent.text}>
+            <Steps items={unblock} />
+          </Row>
+        ) : null}
         {review ? (
           <Row label="Review" accent={accent.text}>
             <Steps items={recap.review} />
@@ -922,7 +940,7 @@ export const RecapSummary = memo(function RecapSummary({
             )}
           >
             <RecapText
-              text={recap.goal}
+              text={recap.headline}
               className="w-full max-w-none"
               typeClass={compact ? COMPACT_GOAL_CLASS : GOAL_CLASS}
             />
@@ -1062,6 +1080,7 @@ const NEXT_ACTION_ACCENT: Record<Recap["state"], string> = {
   waiting: "text-(--ws-waiting-text)",
   review: "text-(--ws-review-text)",
   complete: "text-(--ws-complete-text)",
+  blocked: "text-(--ws-needs-input-text)",
 };
 
 function NextActionItem({
@@ -1430,7 +1449,7 @@ export const CardBody = memo(function CardBody({
             <p
               role="alert"
               className={cn(
-                "min-w-0 text-[11px] text-(--ws-failure-text)",
+                "min-w-0 text-[11px] text-(--ws-failed-text)",
                 PHONE_SECONDARY,
                 recap.next.length > 0 ? "ml-auto" : "mr-auto",
               )}

@@ -113,10 +113,10 @@ async function mountHeading(
             ? {
                 t1: {
                   recap: "Working",
-                  state: "in_progress",
-                  needsYou: null,
-                  goal: null,
-                  threadGoal: goal,
+                  state: "needs-input",
+                  ask: null,
+                  title: null,
+                  goal: goal,
                   revision: 1,
                   at: 1,
                   model: "test",

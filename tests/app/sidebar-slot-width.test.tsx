@@ -114,11 +114,11 @@ describe("slot content widths", () => {
   it("gives each spinner shape a width and the other marks their own", () => {
     for (const shape of SPINNER_SHAPES)
       expect(slotContentWidth("working", shape)).toBe(SPINNER_WIDTH_PX[shape]);
-    expect(slotContentWidth("needs-you", "spokes")).toBe(8);
+    expect(slotContentWidth("needs-input", "spokes")).toBe(8);
     expect(slotContentWidth("review", "arc")).toBe(8);
-    expect(slotContentWidth("done", "arc")).toBe(8);
+    expect(slotContentWidth("complete", "arc")).toBe(8);
     expect(slotContentWidth("disclosure", "spokes")).toBe(8);
-    for (const kind of ["error", "draft"] as const)
+    for (const kind of ["failed", "blocked"] as const)
       expect(slotContentWidth(kind, "arc")).toBe(FULL_SLOT_PX);
   });
 

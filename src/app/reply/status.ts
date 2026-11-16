@@ -30,8 +30,8 @@ export type StatusShape = {
 };
 
 const SUCCESS = "text-(--ws-complete-text)";
-const FAILURE = "text-(--ws-failure-text)";
-const NEEDS_YOU = "text-(--ws-needs-you-text)";
+const FAILURE = "text-(--ws-failed-text)";
+const NEEDS_YOU = "text-(--ws-needs-input-text)";
 const WAITING = "text-(--ws-waiting-text)";
 const MUTED = "text-muted-foreground";
 

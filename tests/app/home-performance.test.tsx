@@ -113,7 +113,7 @@ it("profiles Home parent updates and preserves group folding", async () => {
   );
   expect(
     within(slot.getByRole("region", { name: "Alpha" })).getByRole("img", {
-      name: "Needs you, unread",
+      name: "Needs input, unread",
     }),
   ).toBeTruthy();
 

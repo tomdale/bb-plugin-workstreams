@@ -6,8 +6,8 @@ export const COLOR_TOKENS = [
   "complete",
   "review",
   "waiting",
-  "needsYou",
-  "failure",
+  "needsInput",
+  "failed",
   "suggestion",
 ] as const;
 export type ColorToken = (typeof COLOR_TOKENS)[number];
@@ -17,8 +17,8 @@ export const COLOR_TOKEN_LABEL: Record<ColorToken, string> = {
   complete: "Complete",
   review: "Review",
   waiting: "Waiting",
-  needsYou: "Needs you",
-  failure: "Failure",
+  needsInput: "Needs input",
+  failed: "Failed",
   suggestion: "Suggestions",
 };
 
@@ -27,8 +27,8 @@ export const COLOR_TOKEN_VAR: Record<ColorToken, string> = {
   complete: "--ws-complete",
   review: "--ws-review",
   waiting: "--ws-waiting",
-  needsYou: "--ws-needs-you",
-  failure: "--ws-failure",
+  needsInput: "--ws-needs-input",
+  failed: "--ws-failed",
   suggestion: "--ws-suggestion",
 };
 
@@ -100,8 +100,8 @@ export const DEFAULT_COLORS = {
   complete: { kind: "default" },
   review: { kind: "default" },
   waiting: { kind: "default" },
-  needsYou: { kind: "default" },
-  failure: { kind: "default" },
+  needsInput: { kind: "default" },
+  failed: { kind: "default" },
   suggestion: { kind: "default" },
 } as const satisfies Record<ColorToken, ColorChoice>;
 
@@ -110,8 +110,8 @@ export const THEME_MATCH: Record<ColorToken, ThemeColor> = {
   complete: "success",
   review: "timeline-accent",
   waiting: "pr-merged",
-  needsYou: "attention",
-  failure: "destructive",
+  needsInput: "attention",
+  failed: "destructive",
   suggestion: "pr-merged",
 };
 

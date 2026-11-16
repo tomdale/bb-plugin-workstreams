@@ -26,6 +26,7 @@ import {
 import { usePrefs } from "../prefs.ts";
 import { useOverviewOpen } from "../page/overview/route.ts";
 import { GroupSnooze, ThreadNode } from "./types.ts";
+import { needYouLabel } from "../../domain/presentation.ts";
 
 export type GroupProps = {
   group: ThreadNode;
@@ -239,10 +240,10 @@ export function WorkstreamGroup({
               </RowActions>
               {/* The header's details, as a thread row's age. */}
               <span className="flex shrink-0 items-center gap-1 empty:hidden">
-                {counts.waiting ? (
-                  <CountPill // slop-ok: 2 the product's waiting-count pill, an established header pattern
+                {counts.needsYou ? (
+                  <CountPill // slop-ok: 2 the product's need-you count pill, an established header pattern
                     className="transition-colors duration-300"
-                    title={`${group.needsYou} waiting on you`}
+                    title={needYouLabel(group.needsYou)}
                   >
                     {group.needsYou}
                   </CountPill>

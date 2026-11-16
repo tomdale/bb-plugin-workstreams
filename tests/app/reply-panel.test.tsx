@@ -110,12 +110,12 @@ it("tones a panel that holds a failure at its frame, its header and its title", 
   const failing = draw(checks(["passed", "failed"]));
   const panel = failing.querySelector("[data-reply-panel]")!;
   expect(panel.hasAttribute("data-reply-panel-failure")).toBe(true);
-  expect(panel.className).toContain("border-(--ws-failure-border)");
+  expect(panel.className).toContain("border-(--ws-failed-border)");
   const header = panel.querySelector("[data-reply-panel-header]")!;
-  expect(header.className).toContain("bg-(--ws-failure-surface)");
-  expect(header.className).toContain("border-(--ws-failure-border)");
+  expect(header.className).toContain("bg-(--ws-failed-surface)");
+  expect(header.className).toContain("border-(--ws-failed-border)");
   expect(panel.querySelector("[data-reply-panel-title]")?.className).toContain(
-    "text-(--ws-failure-text)",
+    "text-(--ws-failed-text)",
   );
 });
 
@@ -130,7 +130,7 @@ it("tones a panel holding a blocked row, and leaves a passing one neutral", () =
   const panel = passing.querySelector("[data-reply-panel]")!;
   expect(panel.hasAttribute("data-reply-panel-failure")).toBe(false);
   expect(panel.className).toContain("border-border");
-  expect(panel.className).not.toContain("--ws-failure");
+  expect(panel.className).not.toContain("--ws-failed");
   expect(panel.querySelector("[data-reply-panel-title]")?.className).toContain(
     "text-foreground",
   );
@@ -146,8 +146,8 @@ it("prints every row's status word at the row's edge, in its tone", () => {
   ]);
   expect(words.map((word) => word.className)).toEqual([
     expect.stringContaining("text-(--ws-complete-text)"),
-    expect.stringContaining("text-(--ws-failure-text)"),
-    expect.stringContaining("text-(--ws-needs-you-text)"),
+    expect.stringContaining("text-(--ws-failed-text)"),
+    expect.stringContaining("text-(--ws-needs-input-text)"),
   ]);
 });
 

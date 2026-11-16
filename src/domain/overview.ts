@@ -5,29 +5,29 @@
  * Pure, so the page and tests share one definition.
  */
 import { itemParts, type NextAction, type Recap } from "./recap.ts";
-import { statusRole } from "./presentation.ts";
+import {
+  STATUS_LABEL as THREAD_STATUS_LABEL,
+  threadStatus,
+  type ThreadStatus,
+} from "./presentation.ts";
 import type { WorkView } from "./status.ts";
 import { isRunning } from "./upNext.ts";
 
 /** A row's status, in the order rows are listed. */
 export const OVERVIEW_STATUSES = [
-  "needs-you",
+  "needs-input",
+  "blocked",
   "review",
   "failed",
   "working",
   "waiting",
   "complete",
   "other",
-] as const;
+] as const satisfies readonly (ThreadStatus | "other")[];
 export type OverviewStatus = (typeof OVERVIEW_STATUSES)[number];
 
 const STATUS_LABEL: Record<OverviewStatus, string> = {
-  "needs-you": "Needs you",
-  review: "Ready for review",
-  failed: "Failed",
-  working: "Working",
-  waiting: "Waiting",
-  complete: "Complete",
+  ...THREAD_STATUS_LABEL,
   other: "",
 };
 
@@ -103,22 +103,10 @@ export function overviewStatus(
   work: WorkView,
   sent = false,
 ): OverviewStatus {
-  const role = statusRole(thread.indicator);
   if (sent) return "working";
-  if (role === "error" || thread.status === "error") return "failed";
-  if (role === "working" || isRunning(thread)) return "working";
-  const state = work.kind === "current" ? work.analysis.state : undefined;
-  if (
-    role === "waiting" ||
-    thread.hasPendingInteraction ||
-    state === "needs_decision"
-  )
-    return "needs-you";
-  if (state === "review") return "review";
-  if (state === "in_progress" && work.kind === "current" && work.reported)
-    return "waiting";
-  if (state === "done") return "complete";
-  return "other";
+  const status = threadStatus(thread, work);
+  if (status !== "failed" && isRunning(thread)) return "working";
+  return status ?? "other";
 }
 
 /** One thread's row. `sent` is a message sent from the Overview and not yet answered. */
@@ -143,25 +131,30 @@ export function overviewRow<T extends OverviewThread>(
     return { ...base, summary: null, next: NO_NEXT, recapId: null };
   const analysis = work.kind === "current" ? work.analysis : null;
   const summary = analysis?.recap || null;
-  if (status === "needs-you")
+  if (status === "needs-input" || (status === "blocked" && !recap))
     return {
       ...base,
       summary,
-      next: { ...NO_NEXT, prompt: analysis?.needsYou ?? null },
+      next: { ...NO_NEXT, prompt: analysis?.ask ?? null },
       recapId: null,
     };
   // A stored recap describes the latest turn only while the thread is idle.
   const shown = recap && thread.status === "idle" ? recap : null;
   if (!shown) return { ...base, summary, next: NO_NEXT, recapId: null };
-  const actions = shown.state === "waiting" ? [] : shown.next.slice(0, 3);
+  const actions = shown.next.slice(0, 3);
   return {
     ...base,
     // The agent's own line keeps its Markdown: mentions and commit hashes.
-    summary: shown.goal || summary,
+    summary: shown.headline || summary,
     recapId: shown.id,
     next: {
       prompt: null,
-      steps: shown.state === "review" ? shown.review.map(itemParts) : [],
+      steps:
+        shown.state === "review"
+          ? shown.review.map(itemParts)
+          : shown.state === "blocked"
+            ? (shown.unblock ?? []).map(itemParts)
+            : [],
       actions,
       waiting: shown.state === "waiting" ? shown : null,
       archive:
@@ -184,14 +177,14 @@ export function sortOverviewRows<T extends OverviewThread>(
   );
 }
 
-/** The line under the workstream's name: "17 threads. 1 needs you and 3 are ready for review." */
+/** The line under the workstream's name: "17 threads. 1 needs you and 3 are ready for review." Needs you counts Needs input and Blocked, as the header count does. */
 export function overviewCounts(
   rows: readonly { readonly status: OverviewStatus }[],
 ): string {
   const count = (status: OverviewStatus) =>
     rows.filter((row) => row.status === status).length;
   const total = `${rows.length} ${rows.length === 1 ? "thread" : "threads"}.`;
-  const needs = count("needs-you");
+  const needs = count("needs-input") + count("blocked");
   const review = count("review");
   const parts = [
     needs ? `${needs} ${needs === 1 ? "needs" : "need"} you` : null,

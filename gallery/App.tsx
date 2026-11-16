@@ -29,7 +29,7 @@ import { RecapCardPreview } from "../src/app/composer/RecapCard";
     turnId: "gallery-local",
     at: 0,
     state: "review",
-    goal: "Prepared the release summary",
+    headline: "Prepared the release summary",
     latest: [{ text: "Grouped results with their review steps" }],
     review: [{ text: "Review the receipt and discount changes together" }],
     links: [],
@@ -103,7 +103,7 @@ function IntroductionPreview() {
           turnId: "gallery-local",
           at: 0,
           state: "review",
-          goal: "Prepared the release summary",
+          headline: "Prepared the release summary",
           latest: [{ text: "Grouped results with their review steps" }],
           review: [
             { text: "Review the receipt and discount changes together" },

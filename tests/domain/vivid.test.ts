@@ -117,7 +117,7 @@ describe("vivid colors", () => {
       vivid: true,
       complete: { kind: "theme", color: "timeline-accent" },
       review: { kind: "theme", color: "success" },
-      failure: { kind: "custom", color: "#123456" },
+      failed: { kind: "custom", color: "#123456" },
     };
     for (const dark of [false, true]) {
       const paints = {

@@ -4,6 +4,28 @@ export type Database = ReturnType<BbPluginApi["storage"]["database"]>;
 
 // The established ws_corpus_* table names hold topics, assignments, and section bindings.
 /**
+ * A JSON value read at `path` in `column`, as json_set should write it back:
+ * json_extract alone returns booleans as 0 or 1 and objects as text.
+ */
+const jsonAt = (column: string, path: string) =>
+  `CASE json_type(${column}, '${path}')
+     WHEN 'true' THEN json('true') WHEN 'false' THEN json('false')
+     WHEN 'object' THEN json(json_extract(${column}, '${path}'))
+     WHEN 'array' THEN json(json_extract(${column}, '${path}'))
+     ELSE json_extract(${column}, '${path}') END`;
+
+/** Moves the JSON value at `from` to `to` in `column`, where `from` is set. */
+const moveJson = (
+  table: string,
+  column: string,
+  from: string,
+  to: string,
+  where = "1",
+) =>
+  `UPDATE ${table} SET ${column} = json_remove(json_set(${column}, '${to}', ${jsonAt(column, from)}), '${from}')
+   WHERE ${where} AND json_valid(${column}) AND json_type(${column}, '${from}') IS NOT NULL`;
+
+/**
  * Append-only migration list: statement index is the durable migration ID.
  * Applied entries must stay unchanged, even when later entries remove their
  * tables, so installed databases advance through the same history.
@@ -503,6 +525,89 @@ const MIGRATIONS = [
     project_id TEXT NOT NULL,
     name TEXT NOT NULL
   )`,
+  // Status values match their labels: Needs input (which absorbs a turn that
+  // stopped with work left), Blocked, Ready for review, Waiting, Complete. A
+  // reported turn stored as in progress was a Waiting recap.
+  `UPDATE ws_analysis SET result = json_set(result, '$.state',
+     CASE json_extract(result, '$.state')
+       WHEN 'needs_decision' THEN 'needs-input'
+       WHEN 'done' THEN 'complete'
+       WHEN 'in_progress' THEN CASE WHEN json_extract(result, '$.reported') THEN 'waiting' ELSE 'needs-input' END
+       ELSE json_extract(result, '$.state') END)
+   WHERE json_valid(result) AND json_type(result, '$.state') = 'text'`,
+  // Analysis names the title `title` and the outcome below it `goal`; a row
+  // with no outcome yet keeps none, so catch-up still settles one.
+  moveJson("ws_analysis", "result", "$.goal", "$.title"),
+  moveJson("ws_analysis", "result", "$.threadGoal", "$.goal"),
+  moveJson("ws_analysis", "result", "$.needsYou", "$.ask"),
+  // A recap's heading is its `headline`.
+  moveJson(
+    "ws_agent_recap",
+    "recap",
+    "$.goal",
+    "$.headline",
+    "recap IS NOT NULL",
+  ),
+  moveJson(
+    "ws_meta",
+    "value",
+    "$.colors.needsYou",
+    "$.colors.needsInput",
+    "key = 'prefs'",
+  ),
+  moveJson(
+    "ws_meta",
+    "value",
+    "$.colors.failure",
+    "$.colors.failed",
+    "key = 'prefs'",
+  ),
+  moveJson(
+    "ws_meta",
+    "value",
+    "$.sidebar.waitingCount",
+    "$.sidebar.needsYouCount",
+    "key = 'prefs'",
+  ),
+  // Wake events are named for the statuses and threads they follow; Blocked
+  // starts as the Needs input event was set.
+  `UPDATE ws_meta SET value = json_set(value, '$.events.blocked', ${jsonAt("value", '$.events."needs-you"')})
+   WHERE key = 'snooze-prefs' AND json_valid(value) AND json_type(value, '$.events."needs-you"') IS NOT NULL`,
+  moveJson(
+    "ws_meta",
+    "value",
+    '$.events."needs-you"',
+    '$.events."needs-input"',
+    "key = 'snooze-prefs'",
+  ),
+  moveJson(
+    "ws_meta",
+    "value",
+    '$.events."done"',
+    '$.events."complete"',
+    "key = 'snooze-prefs'",
+  ),
+  moveJson(
+    "ws_meta",
+    "value",
+    '$.events."error"',
+    '$.events."failed"',
+    "key = 'snooze-prefs'",
+  ),
+  moveJson(
+    "ws_meta",
+    "value",
+    '$.events."delegate-needs-you"',
+    '$.events."child-needs-input"',
+    "key = 'snooze-prefs'",
+  ),
+  moveJson(
+    "ws_meta",
+    "value",
+    '$.events."delegate-stalled"',
+    '$.events."child-stalled"',
+    "key = 'snooze-prefs'",
+  ),
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

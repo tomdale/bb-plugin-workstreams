@@ -95,6 +95,15 @@ const cases = [
     waiting: true,
   },
   {
+    id: "blocked",
+    state: "blocked",
+    types: ["context"],
+    request:
+      "The authorized migration of the Quarry staging database is written and committed, but running it fails: staging rejects the connection because QUARRY_STAGING_DB_URL is not set in this environment, and you have no way to obtain the credential. Nothing else remains to try. Report where the work stands and what only the user can do so the migration can run.",
+    expected: ["context"],
+    blocked: true,
+  },
+  {
     id: "body-only",
     state: null,
     types: ["context"],
@@ -341,6 +350,12 @@ for (const task of cases) {
             problems.push(
               "Waiting recap includes completed results or optional actions",
             );
+        }
+        if ("blocked" in task && task.blocked && recap?.state === "blocked") {
+          if (!recap.unblock.length)
+            problems.push("Blocked recap names no step for the user");
+          if (recap.next.length || recap.links.length)
+            problems.push("Blocked recap includes optional actions or links");
         }
         if (
           parts.some(

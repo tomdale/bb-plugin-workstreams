@@ -68,7 +68,7 @@ describe("snoozing", () => {
     expect(fold.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(fold);
     expect(groupRows(slot, "Snoozed")).toEqual([
-      "Asking task, Needs you",
+      "Asking task, Needs input",
       "Napping task",
       "Nap child task",
     ]);
@@ -79,14 +79,14 @@ describe("snoozing", () => {
       within(napRow).getByRole("button", { name: "Hide child threads" }),
     );
     expect(groupRows(slot, "Snoozed")).toEqual([
-      "Asking task, Needs you",
+      "Asking task, Needs input",
       "Napping task",
     ]);
     fireEvent.click(
       within(napRow).getByRole("button", { name: "Show child threads" }),
     );
     expect(groupRows(slot, "Snoozed")).toEqual([
-      "Asking task, Needs you",
+      "Asking task, Needs input",
       "Napping task",
       "Nap child task",
     ]);
@@ -105,17 +105,17 @@ describe("snoozing", () => {
       snoozes: { nap: { until: later(), attentionAt: 0, at: 0 } },
     });
     await waitFor(() =>
-      expect(groupRows(slot, "Alpha")).toEqual(["Asking task, Needs you"]),
+      expect(groupRows(slot, "Alpha")).toEqual(["Asking task, Needs input"]),
     );
     expect(slot.queryByRole("button", { name: /^Snoozed\d*$/ })).toBeNull();
     expect(slot.queryAllByRole("link", { name: "Napping task" })).toHaveLength(
       0,
     );
     expect(groupRows(slot, "Up Next")).toEqual([
-      "Asking task, Needs you",
+      "Asking task, Needs input",
       "Other task",
     ]);
-    expect(groupRows(slot, "Alpha")).toEqual(["Asking task, Needs you"]);
+    expect(groupRows(slot, "Alpha")).toEqual(["Asking task, Needs input"]);
     slot.lifecycle.unmount();
   });
 
@@ -162,7 +162,7 @@ describe("snoozing", () => {
     );
     await waitFor(() =>
       expect(groupRows(slot, "Alpha")).toEqual([
-        "Asking task, Needs you",
+        "Asking task, Needs input",
         "Napping task",
       ]),
     );

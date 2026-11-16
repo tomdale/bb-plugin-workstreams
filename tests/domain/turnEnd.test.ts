@@ -33,7 +33,7 @@ const placement: PlacementInput = {
 const input: TurnEndInput = {
   title: "New thread",
   titledBy: "none",
-  threadGoal: null,
+  goal: null,
   digest: "Atlas viewer work; themes requested.",
   requests: [{ text: "Add themes to the viewer", initial: true }],
   lastAssistantText: "Added a theme picker.",
@@ -47,10 +47,10 @@ const answer = (fields: Record<string, unknown>) =>
   JSON.stringify({
     recap: "Added a theme picker.",
     state: "review",
-    needsYou: null,
-    threadGoal: "Let readers pick a viewer theme.",
+    ask: null,
+    goal: "Let readers pick a viewer theme.",
     digest: "Atlas viewer themes.",
-    goal: { verb: "Adding", subject: "Atlas viewer themes" },
+    title: { verb: "Adding", subject: "Atlas viewer themes" },
     topic: "viewer",
     propose: null,
     scopeShift: false,
@@ -67,7 +67,7 @@ describe("turn-end call", () => {
     expect(prompt).not.toContain("A digest placement must not repeat.");
     expect(prompt.match(/<thread_digest>/g)).toHaveLength(1);
     expect(Object.keys(turnEndSchema(input).properties as object)).toEqual(
-      expect.arrayContaining(["recap", "digest", "goal", "topic", "propose"]),
+      expect.arrayContaining(["recap", "digest", "title", "topic", "propose"]),
     );
 
     const alone = { ...input, placement: null };
@@ -82,7 +82,7 @@ describe("turn-end call", () => {
       proposed: null,
       scopeShift: false,
     });
-    expect(output.goal).toBe("Adding viewer themes");
+    expect(output.title).toBe("Adding viewer themes");
     expect(output.status?.state).toBe("review");
   });
 
@@ -91,6 +91,6 @@ describe("turn-end call", () => {
     expect(output.topic).toBeNull();
     expect(output.topicError).toMatch(/Invalid topic/);
     expect(output.status?.recap).toBe("Added a theme picker.");
-    expect(output.threadGoal).toBe("Let readers pick a viewer theme.");
+    expect(output.goal).toBe("Let readers pick a viewer theme.");
   });
 });

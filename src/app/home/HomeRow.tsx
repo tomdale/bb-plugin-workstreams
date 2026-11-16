@@ -96,7 +96,7 @@ export const HomeThreadRow = memo(function HomeThreadRow({
       }
       ask={
         variant === "attention" && work.kind === "current"
-          ? work.analysis.needsYou
+          ? work.analysis.ask
           : null
       }
       showPin={showPin}

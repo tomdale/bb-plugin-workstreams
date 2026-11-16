@@ -31,10 +31,11 @@ const NOTICE_TEXT: Record<Notice, string> = {
 
 /** The sidebar's mark colors, as they read on a black key. */
 export const MARK_COLOR: Record<StreamDeckMark, string> = {
-  "needs-you": "#f5a524",
+  "needs-input": "#f5a524",
+  blocked: "#f5a524",
   review: "#4c9aff",
-  done: "#3fb950",
-  error: "#f85149",
+  complete: "#3fb950",
+  failed: "#f85149",
 };
 
 // One family: Stream Deck's SVG renderer may not read a fallback list.
@@ -303,7 +304,7 @@ export function nextKey(snapshot: StreamDeckSnapshot | null): string {
   const blocked =
     snapshot !== null && upNextThreads(snapshot).some((thread) => thread.onYou);
   const fill =
-    count === 0 ? "#4a4f57" : blocked ? MARK_COLOR["needs-you"] : "#ffffff";
+    count === 0 ? "#4a4f57" : blocked ? MARK_COLOR["needs-input"] : "#ffffff";
   return svg(
     KEY,
     KEY,

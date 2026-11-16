@@ -172,7 +172,7 @@ describe.skipIf(browserUnavailable)(
           read: title(plain, "Read root"),
           active: title(split, "Active root"),
           child: title(split, "Nested child"),
-          twoLine: title(upNext, "Asking root, Needs you"),
+          twoLine: title(upNext, "Asking root, Needs input"),
           rootRow: row(plain, "Read root"),
           childRow: row(split, "Nested child"),
         });

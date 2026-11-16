@@ -27,7 +27,7 @@ export type Preview = {
   subjectId?: string | null;
   proposal?: DraftSubjectProposal | null;
   /** The title the thread would start with. */
-  goal?: string | null;
+  title?: string | null;
   /**
    * The draft text this answer is for, trimmed. A model answer for exactly
    * the text that is sent is that thread's start; a mentioned workstream has
@@ -104,7 +104,7 @@ export class ComposerPreview {
       subject: label,
       subjectId: topic?.subjectId ?? null,
       proposal: topic?.proposed ?? null,
-      goal: value.title,
+      title: value.title,
       answered: text,
       traceId,
     };

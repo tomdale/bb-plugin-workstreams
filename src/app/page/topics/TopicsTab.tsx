@@ -619,7 +619,7 @@ function Health({
       <StatusDot
         tone={
           status === "failed"
-            ? "bg-(--ws-failure)"
+            ? "bg-(--ws-failed)"
             : working || asking
               ? "animate-pulse bg-(--ws-waiting)"
               : "bg-(--ws-complete)"

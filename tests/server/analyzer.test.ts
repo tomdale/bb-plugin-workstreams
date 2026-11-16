@@ -24,7 +24,7 @@ async function setup(complete?: FakeCompletion) {
       return JSON.stringify({
         recap: "Fixed the bug; tests pass.",
         state: "review",
-        needsYou: null,
+        ask: null,
       });
     },
   });
@@ -33,8 +33,8 @@ async function setup(complete?: FakeCompletion) {
 
 type Analysis = {
   recap: string;
+  title: string | null;
   goal: string | null;
-  threadGoal: string | null;
   state: string;
   revision: number;
   reported?: boolean;
@@ -60,22 +60,22 @@ const analyses = (w: World) =>
 
 describe("idle analysis", () => {
   it("preserves the independent goal through recaps and housekeeping and updates changed intent", async () => {
-    let threadGoal: unknown =
+    let goal: unknown =
       "Make review code easier to navigate without changing its behavior.";
     const w = await setup(() =>
       JSON.stringify({
         recap: "Working",
-        state: "in_progress",
-        threadGoal,
-        goal: { verb: "Refactoring", subject: "review code" },
+        state: "needs-input",
+        goal,
+        title: { verb: "Refactoring", subject: "review code" },
       }),
     );
     w.addThread("t1", { status: "idle", latestAttentionAt: 10 });
     w.converse("t1", ["Refactor the review code without changing behavior"]);
     await w.harness.behavior.callRpc("refresh", null);
     await w.harness.behavior.runCli(["analyze", "t1"]);
-    const original = threadGoal;
-    expect((await state(w)).analysis.t1?.threadGoal).toBe(original);
+    const original = goal;
+    expect((await state(w)).analysis.t1?.goal).toBe(original);
 
     await w.harness.behavior.resolveAgentConfiguration(
       makePluginAgentConfigurationContext({
@@ -88,7 +88,7 @@ describe("idle analysis", () => {
       RECAP_TOOL,
       {
         state: "complete",
-        goal: "Changed directories",
+        headline: "Changed directories",
         latest: ["Fixed local links"],
       },
       { threadId: "t1" },
@@ -98,21 +98,21 @@ describe("idle analysis", () => {
     await idle(w, "t1");
     await settle(6_000);
     expect(analyses(w)).toHaveLength(asked);
-    expect((await state(w)).analysis.t1?.threadGoal).toBe(original);
+    expect((await state(w)).analysis.t1?.goal).toBe(original);
 
-    for (threadGoal of [null, {}, " ", "x".repeat(241)]) {
+    for (goal of [null, {}, " ", "x".repeat(241)]) {
       w.converse("t1", ["Where are the files?"]);
       await w.harness.behavior.runCli(["analyze", "t1"]);
       expect(analyses(w).at(-1)?.prompt).toContain(String(original));
-      expect((await state(w)).analysis.t1?.threadGoal).toBe(original);
+      expect((await state(w)).analysis.t1?.goal).toBe(original);
     }
-    threadGoal =
+    goal =
       "Help PR authors see open findings without losing resolved feedback.";
     w.converse("t1", [
       "Let's design a review comment with open findings and resolved history",
     ]);
     await w.harness.behavior.runCli(["analyze", "t1"]);
-    expect((await state(w)).analysis.t1?.threadGoal).toBe(threadGoal);
+    expect((await state(w)).analysis.t1?.goal).toBe(goal);
   });
 
   it("backfills a current analysis's missing goal without needing a new request or changing its title", async () => {
@@ -120,9 +120,9 @@ describe("idle analysis", () => {
     const w = await setup(() =>
       JSON.stringify({
         recap: "Done",
-        state: "done",
-        threadGoal: "Keep builds fresh without manual cache clearing.",
-        goal: title,
+        state: "complete",
+        goal: "Keep builds fresh without manual cache clearing.",
+        title: title,
       }),
     );
     w.addThread("t1", { status: "idle", latestAttentionAt: 10 });
@@ -132,7 +132,7 @@ describe("idle analysis", () => {
     const db = w.bb.storage.database();
     const previous = (await state(w)).analysis.t1!;
     title = "Changing directories";
-    const { threadGoal: _goal, ...old } = previous;
+    const { goal: _title, ...old } = previous;
     db.prepare("UPDATE ws_analysis SET result = ? WHERE thread_id = 't1'").run(
       JSON.stringify(old),
     );
@@ -141,11 +141,11 @@ describe("idle analysis", () => {
     await w.harness.behavior.runCli(["analyze"]);
     await settle(0);
     expect(analyses(w).length).toBeGreaterThan(asked);
-    expect((await state(w)).analysis.t1?.threadGoal).toBe(
+    expect((await state(w)).analysis.t1?.goal).toBe(
       "Keep builds fresh without manual cache clearing.",
     );
-    expect(analyses(w).at(-1)?.prompt).not.toContain('"goal": {');
-    expect((await state(w)).analysis.t1?.goal).toBe("Fixing stale builds");
+    expect(analyses(w).at(-1)?.prompt).not.toContain('"title": {');
+    expect((await state(w)).analysis.t1?.title).toBe("Fixing stale builds");
     expect(w.threads.get("t1")!.title).toBe("Fixing stale builds");
     const after = analyses(w).length;
     await w.harness.behavior.runCli(["analyze"]);
@@ -202,13 +202,13 @@ describe("idle analysis", () => {
     expect(analyses(w)).toHaveLength(0);
   });
 
-  it("settles a root's goal and topic after a new request", async () => {
+  it("settles a root's title and topic after a new request", async () => {
     let topicId = "";
     const w = await setup(() =>
       JSON.stringify({
         recap: "Building the viewer.",
-        state: "in_progress",
-        goal: "Markdown viewer themes",
+        state: "needs-input",
+        title: "Markdown viewer themes",
         subjectId: topicId,
         proposed: null,
       }),
@@ -227,15 +227,15 @@ describe("idle analysis", () => {
       entityId: topicId,
       provenance: "full",
     });
-    expect((await state(w)).analysis.t1?.goal).toBe("Markdown viewer themes");
+    expect((await state(w)).analysis.t1?.title).toBe("Markdown viewer themes");
   });
 
   it("asks nothing when the agent reported a turn with no new request", async () => {
     const w = await setup(() =>
       JSON.stringify({
         recap: "Working.",
-        state: "in_progress",
-        goal: "Markdown viewer themes",
+        state: "needs-input",
+        title: "Markdown viewer themes",
       }),
     );
     w.addThread("t1", { latestAttentionAt: 10, status: "idle" });
@@ -254,7 +254,11 @@ describe("idle analysis", () => {
     w.turn("t1");
     await w.harness.behavior.callAgentTool(
       RECAP_TOOL,
-      { state: "complete", goal: "Shipped themes", latest: ["Added themes"] },
+      {
+        state: "complete",
+        headline: "Shipped themes",
+        latest: ["Added themes"],
+      },
       { threadId: "t1" },
     );
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -264,9 +268,9 @@ describe("idle analysis", () => {
     const { analysis } = await state(w);
     expect(analysis.t1).toMatchObject({
       revision: 20,
-      state: "done",
+      state: "complete",
       reported: true,
-      goal: "Markdown viewer themes",
+      title: "Markdown viewer themes",
     });
   });
 
@@ -275,7 +279,7 @@ describe("idle analysis", () => {
       JSON.stringify({
         recap: "Waiting on CI.",
         state: "blocked",
-        goal: "Markdown viewer themes",
+        title: "Markdown viewer themes",
       }),
     );
     w.addThread("t1", { latestAttentionAt: 10, status: "idle" });
@@ -287,7 +291,7 @@ describe("idle analysis", () => {
     await idle(w, "t1");
     await settle(6_000);
     const last = analyses(w).at(-1)!.prompt;
-    expect(last).not.toContain('"goal"');
+    expect(last).not.toContain('"title"');
     expect(last).not.toContain('"subjectId"');
     expect((await state(w)).analysis.t1).toMatchObject({
       revision: 20,
@@ -307,7 +311,7 @@ describe("idle analysis", () => {
     expect(corpus.assignment("t1").provenance).toBe("manual");
   });
 
-  it("gives a delegate a status and goal, never a topic of its own", async () => {
+  it("gives a delegate a status and title, never a topic of its own", async () => {
     const w = await setup();
     w.addThread("parent", { status: "idle" });
     w.addThread("child", { parentThreadId: "parent", status: "idle" });
@@ -321,24 +325,23 @@ describe("idle analysis", () => {
     const w = await setup(() => {
       return JSON.stringify({
         recap: "Still making progress",
-        state: "in_progress",
-        goal: "Make onboarding easier to complete",
+        state: "needs-input",
+        title: "Make onboarding easier to complete",
       });
     });
     w.addThread("t1", { latestAttentionAt: 10 });
     await w.harness.behavior.callRpc("refresh", null);
     await w.harness.behavior.runCli(["analyze", "t1"]);
-    expect((await state(w)).analysis.t1?.goal).toBe(
+    expect((await state(w)).analysis.t1?.title).toBe(
       "Make onboarding easier to complete",
     );
 
     const w2 = await setup(() =>
-      JSON.stringify({ recap: "Side question answered", state: "done" }),
+      JSON.stringify({ recap: "Side question answered", state: "complete" }),
     );
     w2.addThread("t2", { latestAttentionAt: 10 });
     await w2.harness.behavior.callRpc("refresh", null);
-    // Seed a prior result to model an existing durable goal. Results stored
-    // before goals became titles also carry the title that was inferred then.
+    // Seed a prior result to model an existing settled title.
     w2.bb.storage
       .database()
       .prepare(
@@ -350,11 +353,10 @@ describe("idle analysis", () => {
         1,
         JSON.stringify({
           recap: "prior",
-          state: "in_progress",
-          needsYou: null,
+          state: "needs-input",
+          ask: null,
           subject: null,
-          title: "Legacy inferred title",
-          goal: "Make onboarding easier to complete",
+          title: "Make onboarding easier to complete",
           drift: null,
           driftSectionId: null,
           revision: 9,
@@ -363,23 +365,21 @@ describe("idle analysis", () => {
         }),
       );
     await w2.harness.behavior.runCli(["analyze", "t2"]);
-    expect(w2.completions.at(-1)?.prompt).not.toContain("Legacy inferred");
-    expect((await state(w2)).analysis.t2?.goal).toBe(
+    expect((await state(w2)).analysis.t2?.title).toBe(
       "Make onboarding easier to complete",
     );
   });
 
-  it("reads a result stored when a thread also had an inferred title", async () => {
+  it("reads a stored result and backfills its missing outcome", async () => {
     const w = await setup();
     w.addThread("t1", { latestAttentionAt: 10 });
     await w.harness.behavior.callRpc("refresh", null);
     const legacy = {
       recap: "Fixed the parser.",
       state: "review",
-      needsYou: null,
+      ask: null,
       subject: "Alpha",
-      title: "Legacy inferred title",
-      goal: "Make onboarding easier to complete",
+      title: "Make onboarding easier to complete",
       drift: null,
       driftSectionId: null,
       revision: 10,
@@ -396,10 +396,8 @@ describe("idle analysis", () => {
     expect(analysis.t1).toMatchObject({
       recap: "Fixed the parser.",
       state: "review",
-      goal: "Make onboarding easier to complete",
+      title: "Make onboarding easier to complete",
     });
-    // The inferred title is not sent to clients.
-    expect(analysis.t1).not.toHaveProperty("title");
     // A current result without an independent outcome is backfilled even
     // when the thread's topic is already settled.
     new TopicStore(openDatabase(w.bb)).assign("t1", null, {
@@ -416,10 +414,9 @@ describe("idle analysis", () => {
     const w = await setup(() =>
       JSON.stringify({
         recap: "Working.",
-        state: "in_progress",
-        goal: "Improving onboarding",
-        threadGoal:
-          "Help new users complete onboarding without needing support.",
+        state: "needs-input",
+        title: "Improving onboarding",
+        goal: "Help new users complete onboarding without needing support.",
       }),
     );
     w.addThread("t1", { latestAttentionAt: 10 });
@@ -431,13 +428,13 @@ describe("idle analysis", () => {
     );
   });
 
-  it("never writes a goal carried over from before the cap as a title", async () => {
-    // Older results kept goals of up to 80 characters; a title stays short.
+  it("never writes a stored title from before the cap as a title", async () => {
+    // Older results kept titles of up to 80 characters; a title stays short.
     const legacy =
       "Make onboarding easier to complete for people who are new here";
     expect(legacy.length).toBeGreaterThan(60);
     const w = await setup(() =>
-      JSON.stringify({ recap: "Working.", state: "in_progress", goal: null }),
+      JSON.stringify({ recap: "Working.", state: "needs-input", title: null }),
     );
     w.addThread("t1", { title: null, latestAttentionAt: 10 });
     await w.harness.behavior.callRpc("refresh", null);
@@ -452,10 +449,10 @@ describe("idle analysis", () => {
         1,
         JSON.stringify({
           recap: "prior",
-          state: "in_progress",
-          needsYou: null,
+          state: "needs-input",
+          ask: null,
           subject: null,
-          goal: legacy,
+          title: legacy,
           drift: null,
           driftSectionId: null,
           revision: 9,
@@ -465,7 +462,7 @@ describe("idle analysis", () => {
       );
     await w.harness.behavior.runCli(["analyze", "t1"]);
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect((await state(w)).analysis.t1?.goal).toBe(legacy);
+    expect((await state(w)).analysis.t1?.title).toBe(legacy);
     expect(w.threads.get("t1")?.title).toBeNull();
   });
 
@@ -483,8 +480,8 @@ describe("idle analysis", () => {
       inFlight--;
       return JSON.stringify({
         recap: "ok",
-        state: "done",
-        goal: "A lasting objective",
+        state: "complete",
+        title: "A lasting objective",
       });
     });
     for (let i = 0; i < 7; i++) w.addThread(`t${i}`, { latestAttentionAt: 10 });
@@ -542,7 +539,7 @@ describe("idle analysis", () => {
       await new Promise<void>((resolve) => release.push(resolve));
       return JSON.stringify({
         recap: prompt.includes("second") ? "second" : "first",
-        state: "done",
+        state: "complete",
       });
     });
     w.addThread("t1", { latestAttentionAt: 1 });
@@ -570,7 +567,7 @@ describe("idle analysis", () => {
   it("backs off after a failure and retries once the thread has a new turn", async () => {
     let fail = true;
     const w = await setup(() =>
-      fail ? "not json" : JSON.stringify({ recap: "ok", state: "done" }),
+      fail ? "not json" : JSON.stringify({ recap: "ok", state: "complete" }),
     );
     w.addThread("t1", { latestAttentionAt: 10 });
     await w.harness.behavior.callRpc("refresh", null);
@@ -596,7 +593,7 @@ describe("idle analysis", () => {
         return JSON.stringify({ subjectId: null, proposed: null });
       }
       await new Promise<void>((resolve) => release.push(resolve));
-      return JSON.stringify({ recap: "late", state: "done" });
+      return JSON.stringify({ recap: "late", state: "complete" });
     });
     w.addThread("t1");
     await w.harness.behavior.callRpc("refresh", null);
@@ -625,9 +622,9 @@ describe("analysis catch-up", () => {
       );
       // Archived history: never parsed by catch-up.
       for (let i = 0; i < 20; i++)
-        insert.run(`archived-${i}`, 5, JSON.stringify({ threadGoal: "Old" }));
-      insert.run("current", 5, JSON.stringify({ threadGoal: "Now" }));
-      insert.run("stale", 1, JSON.stringify({ threadGoal: "Then" }));
+        insert.run(`archived-${i}`, 5, JSON.stringify({ goal: "Old" }));
+      insert.run("current", 5, JSON.stringify({ goal: "Now" }));
+      insert.run("stale", 1, JSON.stringify({ goal: "Then" }));
       const analyzer = new Analyzer({
         sdk: () => host.bb.sdk,
         db,

@@ -48,13 +48,13 @@ export function headerCounts(
   collapsed: boolean,
   prefs?: {
     threadCount?: CountVisibility;
-    waitingCount?: CountVisibility;
+    needsYouCount?: CountVisibility;
   },
 ) {
   const shows = (when: CountVisibility = "collapsed") =>
     when === "always" || (when === "collapsed" && collapsed);
   return {
-    waiting: group.needsYou > 0 && shows(prefs?.waitingCount),
+    needsYou: group.needsYou > 0 && shows(prefs?.needsYouCount),
     total: group.total > 0 && shows(prefs?.threadCount),
   };
 }

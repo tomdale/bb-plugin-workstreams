@@ -10,7 +10,7 @@ afterEach(async () => {
 const preview = (w: NonNullable<typeof world>) =>
   w.harness.behavior.callRpc("preview", {
     prompt: "Audit the release pipeline",
-  }) as Promise<{ goal: string | null; subjectId?: string | null }>;
+  }) as Promise<{ title: string | null; subjectId?: string | null }>;
 describe("bounded classification repair", () => {
   it("repairs an invalid topic ID without losing the independently valid title", async () => {
     let topicId = "";
@@ -37,7 +37,7 @@ describe("bounded classification repair", () => {
     const topics = new TopicStore(openDatabase(w.bb));
     topicId = topics.create("Pipeline", "Release pipeline").id;
     expect(await preview(w)).toMatchObject({
-      goal: "Auditing release pipeline",
+      title: "Auditing release pipeline",
       subjectId: topicId,
     });
     expect(w.completions).toHaveLength(2);
@@ -49,14 +49,14 @@ describe("bounded classification repair", () => {
     world = await fakeWorld({
       complete: () =>
         JSON.stringify({
-          goal: "Release pipeline audit",
+          title: "Release pipeline audit",
           subjectId: "Not an ID",
         }),
     });
     const w = world;
     new TopicStore(openDatabase(w.bb)).create("Pipeline", "Release pipeline");
     expect(await preview(w)).toMatchObject({
-      goal: "Release pipeline audit",
+      title: "Release pipeline audit",
       subjectId: null,
     });
     expect(w.completions).toHaveLength(2);
@@ -65,7 +65,7 @@ describe("bounded classification repair", () => {
     world = await fakeWorld({
       complete: () =>
         JSON.stringify({
-          goal: null,
+          title: null,
           recap: "Review ready",
           state: "review",
           topic: "docs",
@@ -102,7 +102,7 @@ describe("bounded classification repair", () => {
     world = await fakeWorld({
       complete: () =>
         JSON.stringify({
-          goal: "Release pipeline audit",
+          title: "Release pipeline audit",
           recap: "Review ready",
           state: "review",
           subjectId: "Not an ID",
@@ -119,7 +119,7 @@ describe("bounded classification repair", () => {
     const state = (await w.harness.behavior.callRpc("state", null)) as any;
     expect(state.analysis.t).toMatchObject({
       state: "review",
-      goal: "Release pipeline audit",
+      title: "Release pipeline audit",
       topicError: expect.any(String),
     });
   });

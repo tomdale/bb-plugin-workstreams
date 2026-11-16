@@ -115,7 +115,7 @@ export class SnoozeWaker {
 
   /**
    * A question card or approval is pending on a thread: wakes the thread if
-   * it's snoozed, or the snoozed thread it's a delegate of.
+   * it's snoozed, or the snoozed thread it is a child thread of.
    */
   async onInteraction(thread: {
     id: string;
@@ -124,7 +124,7 @@ export class SnoozeWaker {
     const holder = this.snoozedHolder(thread);
     if (!holder) return;
     const event: WakeEvent =
-      holder.id === thread.id ? "needs-you" : "delegate-needs-you";
+      holder.id === thread.id ? "needs-input" : "child-needs-input";
     if (wakesOnEvents(holder.snooze) && this.deps.prefs().events[event])
       await this.deps.wake([{ id: holder.id, at: holder.snooze.at }], event);
   }
@@ -212,13 +212,13 @@ export class SnoozeWaker {
         wakeEvent(
           {
             snooze,
-            root: rootFacts,
-            delegates: delegateFacts,
+            thread: rootFacts,
+            children: delegateFacts,
             stalledSince: this.stalled.get(id),
             hostWaitingSince: earliest("hostWaiting", [root, ...delegates]),
             sendFailedSince: this.since.sendFailed.get(id),
             askingSince: this.since.asking.get(id),
-            delegateAskingSince: earliest("asking", delegates),
+            childAskingSince: earliest("asking", delegates),
             now,
           },
           enabled,

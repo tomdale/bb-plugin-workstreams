@@ -28,6 +28,7 @@ import {
   RECAP_TOOL,
   RECAP_TOOL_DESCRIPTION,
   recapInputSchema,
+  withHeadline,
   recapToolSchema,
   recapMarkdown,
   recapSchema,
@@ -88,6 +89,14 @@ function asksUser(
       interaction.origin.rendererId === ASK_USER_QUESTION_RENDERER_ID)
   );
 }
+
+/**
+ * The stored recap as clients read it: a Waiting recap whose status check was
+ * cancelled carries `cancelled`, so its thread's status falls back to
+ * analysis (see `workView`).
+ */
+const RECAP_COLUMN = `CASE WHEN waiting_cancelled = 1 AND json_extract(recap, '$.state') = 'waiting'
+  THEN json_set(recap, '$.cancelled', json('true')) ELSE recap END AS recap`;
 
 export class AgentRecaps {
   private readonly controller = new AbortController();
@@ -174,7 +183,7 @@ export class AgentRecaps {
       },
       parameters: recapToolSchema,
       execute: async (input, ctx) => {
-        const validated = recapInputSchema.parse(input);
+        const validated = recapInputSchema.parse(withHeadline(input));
         const epoch = this.row(ctx.threadId).epoch;
         this.deps.db
           .prepare("UPDATE ws_agent_recap SET proven = 1 WHERE thread_id = ?")
@@ -413,7 +422,7 @@ export class AgentRecaps {
   /** Every stored recap, archived threads' included. */
   all(): Record<string, Recap> {
     return this.read(
-      "SELECT thread_id, recap FROM ws_agent_recap WHERE recap IS NOT NULL",
+      `SELECT thread_id, ${RECAP_COLUMN} FROM ws_agent_recap WHERE recap IS NOT NULL`,
     );
   }
 
@@ -423,7 +432,7 @@ export class AgentRecaps {
    */
   visible(): Record<string, Recap> {
     return this.read(
-      `SELECT r.thread_id, r.recap FROM ws_agent_recap r
+      `SELECT r.thread_id, ${RECAP_COLUMN} FROM ws_agent_recap r
        JOIN ws_seen_thread t ON t.thread_id = r.thread_id
        WHERE r.recap IS NOT NULL`,
     );
@@ -470,7 +479,8 @@ export class AgentRecaps {
   /**
    * Hides the card on every client; the sidebar keeps the recap's state.
    * Dismissing a waiting card also cancels its status check, durably, so a
-   * restored card stays cancelled.
+   * restored card stays cancelled, and the thread's status falls back to
+   * analysis.
    */
   dismiss(threadId: string, recapId: string) {
     if (this.get(threadId)?.recap.state === "waiting") {

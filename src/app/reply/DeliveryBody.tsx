@@ -44,7 +44,9 @@ export function DeliveryStages({
             key={i}
             data-reply-delivery-stage={stage.status}
             className={`${STAGE_ROW_CLASS} ${pad} ${
-              reportsFailure(stage.status) ? "bg-(--ws-needs-you-surface)" : ""
+              reportsFailure(stage.status)
+                ? "bg-(--ws-needs-input-surface)"
+                : ""
             }`}
           >
             <RailCell rail={i < last}>

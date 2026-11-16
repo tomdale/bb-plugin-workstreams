@@ -75,7 +75,7 @@ function ActionComposerControls({
       {error ? (
         <p
           role="alert"
-          className={`mt-2 ${SECONDARY_CLASS} text-(--ws-failure-text)`}
+          className={`mt-2 ${SECONDARY_CLASS} text-(--ws-failed-text)`}
         >
           {error}
         </p>

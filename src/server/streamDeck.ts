@@ -16,6 +16,7 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
   STREAM_DECK_CHANNEL,
+  STREAM_DECK_MARKS,
   STREAM_DECK_PROTOCOL,
   STREAM_DECK_ROUTES,
   type StreamDeckCommand,
@@ -35,10 +36,10 @@ import {
 } from "../domain/project.ts";
 import type { Recap } from "../domain/recap.ts";
 import { isSnoozed, type ThreadSnooze } from "../domain/snooze.ts";
-import { needsAttention, upNextKind, workView } from "../domain/status.ts";
+import { needsYou, upNextKind, workView } from "../domain/status.ts";
 import {
   agedKind,
-  isBlockedOnUser,
+  waitsOnUser,
   selectUpNext,
   UP_NEXT_FRESH_WINDOWS,
 } from "../domain/upNext.ts";
@@ -71,12 +72,7 @@ export type StreamDeckInputs = {
 };
 
 const TITLE_MAX = 120;
-const SHOWN_MARKS: ReadonlySet<string> = new Set<StreamDeckMark>([
-  "error",
-  "needs-you",
-  "review",
-  "done",
-]);
+const SHOWN_MARKS: ReadonlySet<string> = new Set<string>(STREAM_DECK_MARKS);
 
 export function streamDeckSnapshot(
   inputs: StreamDeckInputs,
@@ -90,7 +86,7 @@ export function streamDeckSnapshot(
   };
   const projection = projectWorkstreams(threads, sections, {
     now,
-    needsYou: (thread) => needsAttention(thread, workOf(thread)),
+    needsYou: (thread) => needsYou(thread, workOf(thread)),
     order,
     snoozedUntil,
   });
@@ -142,7 +138,7 @@ export function streamDeckSnapshot(
           ? (mark.kind as StreamDeckMark)
           : null,
       unread: thread.isUnread,
-      onYou: isBlockedOnUser(agedKind(thread, kindOf(thread), now)),
+      onYou: waitsOnUser(agedKind(thread, kindOf(thread), now)),
     };
   };
   return {

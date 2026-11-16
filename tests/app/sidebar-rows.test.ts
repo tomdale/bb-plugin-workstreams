@@ -161,10 +161,10 @@ it("folds a complete subtree without hiding its next sibling and keeps placement
   ]);
   expect(rows).toEqual(before);
   expect(foldKey("group", "root")).toBe("thread:root");
-  expect(foldKey("needs-you", "root")).toBe("needs-you:thread:root");
+  expect(foldKey("up-next", "root")).toBe("up-next:thread:root");
   expect(foldDefault("group")).toBe(false);
   expect(foldDefault("snoozed")).toBe(false);
-  expect(foldDefault("needs-you")).toBe(true);
+  expect(foldDefault("up-next")).toBe(true);
   expect(foldDefault("recent")).toBe(true);
 });
 
@@ -274,7 +274,7 @@ it("draws an overlay tree flat from its root and a group tree at its own depth",
     visibleEntries(tree, placement, () => false).map(
       ({ depth, key }) => `${key}@${depth}`,
     );
-  expect(entries("needs-you")).toEqual(["child@0", "child/grandchild@1"]);
+  expect(entries("up-next")).toEqual(["child@0", "child/grandchild@1"]);
   expect(entries("group")).toEqual(["child@1", "grandchild@2"]);
   expect(visibleEntries(tree, "pinned", (id) => id === "child")).toHaveLength(
     1,

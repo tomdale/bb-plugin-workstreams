@@ -50,7 +50,7 @@ it("profiles parent updates and preserves row interactions", async () => {
       isUnread: index === 0,
       // A mark from the start keeps the status column open, so a row that
       // gains one later re-renders alone.
-      ...(index === 79 ? { indicator: "draft" } : {}),
+      ...(index === 79 ? { indicator: "waiting-for-input" } : {}),
     }),
   );
   const onNavigate = vi.fn();
@@ -155,11 +155,11 @@ it("profiles parent updates and preserves row interactions", async () => {
   );
   expect(
     within(slot.getByRole("region", { name: "Beta" })).getByRole("img", {
-      name: "Needs you, unread",
+      name: "Needs input, unread",
     }),
   ).toBeTruthy();
   fireEvent.click(
-    slot.getByRole("link", { name: "Changed thread, Needs you" }),
+    slot.getByRole("link", { name: "Changed thread, Needs input" }),
   );
   expect(onNavigate).toHaveBeenCalledOnce();
   expect(slot.inspection.sidebarActionCalls.at(-1)).toMatchObject({
@@ -300,8 +300,8 @@ it("renders only the changed row when one thread's analysis changes", async () =
   );
   const progress = (recap: string, revision: number) => ({
     recap,
-    state: "in_progress",
-    needsYou: null,
+    state: "needs-input",
+    ask: null,
     subject: null,
     goal: null,
     drift: null,

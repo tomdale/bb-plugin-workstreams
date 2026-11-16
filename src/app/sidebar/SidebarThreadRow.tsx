@@ -147,7 +147,7 @@ export const SidebarThreadRow = memo(function SidebarThreadRow({
           slotWidth={slotWidth}
           subtitle={
             traits.subtitle && work.kind === "current"
-              ? work.analysis.needsYou
+              ? work.analysis.ask
               : null
           }
           snoozeAction={snoozeAction}

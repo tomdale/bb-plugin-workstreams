@@ -70,7 +70,7 @@ it("labels status and topic, explains review on focus, and hides metrics by defa
     within(row).getByText("Technical details").closest("details")!.open,
   ).toBe(false);
   const infoButton = within(row).getByRole("button", {
-    name: "About Ready for your review",
+    name: "About Ready for review",
   });
   expect(infoButton.querySelector("svg")).toBeTruthy();
   fireEvent.focus(infoButton);

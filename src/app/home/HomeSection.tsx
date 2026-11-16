@@ -135,7 +135,7 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
     snoozeOf: ws.snoozeOf,
     showAge: (prefs?.sidebar.timestamps ?? "show") === "show",
     threadCount: prefs?.sidebar.threadCount ?? "collapsed",
-    waitingCount: prefs?.sidebar.waitingCount ?? "collapsed",
+    needsYouCount: prefs?.sidebar.needsYouCount ?? "collapsed",
     colorOf: (sectionId, topicId) =>
       colorForWorkstream(sectionId, ws.server.catalog, topicId),
     ...state,

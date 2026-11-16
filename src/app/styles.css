@@ -114,11 +114,10 @@
   position: relative;
 }
 .ws-failed {
-  color: var(--ws-failure-mark);
+  color: var(--ws-failed-mark);
 }
-.ws-mark-draft {
-  color: var(--muted-foreground);
-  font-weight: 400;
+.ws-blocked {
+  color: var(--ws-needs-input-mark);
 }
 
 /* Dots: one per mark, solid while the row is unread and an open ring once
@@ -139,13 +138,13 @@
   background: none;
   box-sizing: border-box;
 }
-.ws-dot-needs-you {
-  --ws-dot: var(--ws-needs-you-mark);
+.ws-dot-needs-input {
+  --ws-dot: var(--ws-needs-input-mark);
 }
 .ws-dot-review {
   --ws-dot: var(--ws-review-mark);
 }
-.ws-dot-done {
+.ws-dot-complete {
   --ws-dot: var(--ws-complete-mark);
 }
 .ws-status-slot > .ws-dot {
@@ -307,16 +306,16 @@
   }
 }
 
-/* Quiet "waiting on you" text in the Needs you color: Up Next's header and
+/* Quiet "need you" text in the Needs input color: Up Next's header and
    Show more, the group count pill, and the decision mark. */
-.ws-needs-you-text {
-  color: color-mix(in oklab, var(--ws-needs-you-soft) 90%, transparent);
+.ws-needs-input-text {
+  color: color-mix(in oklab, var(--ws-needs-input-soft) 90%, transparent);
 }
-.ws-needs-you-pill {
-  color: var(--ws-needs-you-soft);
+.ws-needs-input-pill {
+  color: var(--ws-needs-input-soft);
   background-color: color-mix(
     in oklab,
-    var(--ws-needs-you-soft) 20%,
+    var(--ws-needs-input-soft) 20%,
     transparent
   );
 }
@@ -568,12 +567,12 @@ body:has([data-ws-suggestions])
 
 /* The Up Next block: the threads waiting on Tom, and the sidebar's most
    important element. It follows the Geist warning note: a flat card tinted
-   with the Needs you color, and a hairline border in that color. A slow shimmer
+   with the Needs input color, and a hairline border in that color. A slow shimmer
    keeps it alive, and on arrival the border brightens once. Its rows open and
    close their slots on a spring, so the card's height follows them (see
    `useSlotList` in sidebar/motion.ts). */
 .ws-needs {
-  --ws-needs-tone: var(--ws-needs-you-band);
+  --ws-needs-tone: var(--ws-needs-input-band);
   --ws-row-hover: color-mix(in oklab, var(--foreground) 6%, transparent);
   --ws-row-active: color-mix(in oklab, var(--foreground) 9%, transparent);
   position: relative;
@@ -594,13 +593,13 @@ body:has([data-ws-suggestions])
   }
 }
 /* The card's section label keeps the sidebar's uppercase label style. It uses
-   the softened Needs you tone, not the card's band tone: the same amber pulled
+   the softened Needs input tone, not the card's band tone: the same amber pulled
    toward the foreground, so the title sits on the card rather than glowing. */
 .ws-needs-heading {
-  color: var(--ws-needs-you-soft);
+  color: var(--ws-needs-input-soft);
   letter-spacing: 0.06em;
 }
-/* The waiting-thread count, as a Geist badge in the Needs you color. */
+/* The need-you count, as a Geist badge in the Needs input color. */
 .ws-needs-count {
   display: inline-flex;
   min-width: 18px;
@@ -675,7 +674,7 @@ body:has([data-ws-suggestions])
 }
 
 /* The Pinned block: the threads the user keeps in reach, directly under Up
-   Next in the same floating plate. A quiet card, so the Needs you tint above
+   Next in the same floating plate. A quiet card, so the Needs input tint above
    stays the one thing shouting, drawn with the workstream list's own rows so
    a pinned thread reads the same here and in its workstream. */
 .ws-pinned {

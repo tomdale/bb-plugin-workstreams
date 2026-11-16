@@ -100,7 +100,7 @@ it("removes populated name observations while preserving analysis and topics", a
         .get(),
     ).toEqual({
       revision: 1,
-      result: JSON.stringify({ goal: "Fixing Lumen" }),
+      result: JSON.stringify({ title: "Fixing Lumen" }),
     });
     expect(
       db
@@ -209,7 +209,7 @@ it("rewrites stored review steps and drops the retired recap title", async () =>
     ]);
     expect(stored("t2")).not.toHaveProperty("task");
     expect(stored("t2")).not.toHaveProperty("tasks");
-    expect(stored("t2").goal).toBe("Waiting for tests");
+    expect(stored("t2").headline).toBe("Waiting for tests");
   } finally {
     await host.harness.lifecycle.dispose();
   }
@@ -307,11 +307,11 @@ it("drops undoes, undone_by, and trace_id and rewrites stored analysis keys", as
     });
     expect(JSON.parse(storedAnalysis(db))).toEqual({
       recap: "Working.",
-      state: "in_progress",
-      needsYou: false,
+      state: "needs-input",
       revision: 1,
       at: 3,
       model: "openai/gpt-6-sol",
+      ask: false,
     });
   } finally {
     await host.harness.lifecycle.dispose();

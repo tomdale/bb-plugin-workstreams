@@ -239,7 +239,7 @@ it("does not cancel a first-request retry for a verified delivery", async () => 
         if (++attempts === 1) throw new TypeError("fetch failed");
         return JSON.stringify({ subjectId: topicId, proposed: null });
       }
-      return JSON.stringify({ goal: "Cloud BB proof", subjectId: null });
+      return JSON.stringify({ title: "Cloud BB proof", subjectId: null });
     },
   });
   const w = world;

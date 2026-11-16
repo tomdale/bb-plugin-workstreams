@@ -214,7 +214,7 @@ describe("app colors", () => {
   it("allows token utilities, theme variables, and color-mix", () => {
     const sample = [
       'className="text-(--ws-complete-text) border-(--ws-review-border)"',
-      "color: color-mix(in oklab, var(--ws-needs-you) 20%, transparent);",
+      "color: color-mix(in oklab, var(--ws-needs-input) 20%, transparent);",
       'className="text-muted-foreground bg-background border-border"',
       'href="#main" data-x="#settings"',
     ].join("\n");

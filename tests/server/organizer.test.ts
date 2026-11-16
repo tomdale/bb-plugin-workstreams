@@ -41,8 +41,8 @@ describe("automatic update coordinator lifecycle", () => {
       complete: () =>
         JSON.stringify({
           recap: "working",
-          state: "in_progress",
-          goal: "Lantern work",
+          state: "needs-input",
+          title: "Lantern work",
           subjectId: lanternId,
           proposed: null,
         }),
@@ -70,7 +70,7 @@ describe("automatic update coordinator lifecycle", () => {
     world = await fakeWorld({
       complete: ({ prompt }) => {
         calls.push(prompt);
-        return JSON.stringify({ recap: "r", state: "done" });
+        return JSON.stringify({ recap: "r", state: "complete" });
       },
     });
     const w = world;
@@ -195,11 +195,11 @@ describe("automatic update coordinator lifecycle", () => {
         JSON.stringify({
           revision: now,
           recap: "Finished",
-          state: "done",
-          needsYou: null,
+          state: "complete",
+          ask: null,
           subject: "Shelves",
           drift: null,
-          goal: null,
+          title: null,
           model: "fake",
           traceId: null,
         }),
@@ -333,11 +333,11 @@ describe("automatic update coordinator lifecycle", () => {
         JSON.stringify({
           revision: now,
           recap: "Done",
-          state: "done",
-          needsYou: null,
+          state: "complete",
+          ask: null,
           subject: "Lantern",
           drift: null,
-          goal: null,
+          title: null,
           model: "fake",
           traceId: null,
         }),
@@ -407,7 +407,7 @@ describe("automatic update coordinator lifecycle", () => {
         }
         return JSON.stringify({
           recap: "ok",
-          state: "in_progress",
+          state: "needs-input",
           subject: null,
         });
       },
@@ -481,8 +481,8 @@ describe("automatic update coordinator lifecycle", () => {
       complete: () =>
         JSON.stringify({
           recap: "ok",
-          state: "in_progress",
-          goal: "Task",
+          state: "needs-input",
+          title: "Task",
           subjectId: prodId,
           proposed: null,
         }),
@@ -878,13 +878,13 @@ async function report(w: World, threadId: string, state: string) {
   w.turn(threadId);
   await w.harness.behavior.callAgentTool(
     RECAP_TOOL,
-    { state, goal: "Shipped the fix", latest: ["Fixed it"] },
+    { state, headline: "Shipped the fix", latest: ["Fixed it"] },
     { threadId },
   );
 }
 
 describe("organizer status and Activity", () => {
-  it("counts a thread whose agent reported it complete as done", async () => {
+  it("counts a thread whose agent reported it complete as completed", async () => {
     world = await fakeWorld();
     const w = world;
     const corpus = new TopicStore(openDatabase(w.bb));

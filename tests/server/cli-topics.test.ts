@@ -18,8 +18,8 @@ async function setup(options: { onPrompt?: (prompt: string) => void } = {}) {
       options.onPrompt?.(prompt);
       return JSON.stringify({
         recap: "Working on it",
-        state: "in_progress",
-        goal: "Root shelves task",
+        state: "needs-input",
+        title: "Root shelves task",
         subjectId: shelvesId,
         proposed: null,
       });

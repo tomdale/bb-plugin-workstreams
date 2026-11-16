@@ -12,10 +12,10 @@ const rebuild = (w: NonNullable<typeof world>) =>
   }) as Promise<any>;
 const DONE = JSON.stringify({
   revision: 10,
-  state: "done",
+  state: "complete",
   recap: "Done",
-  goal: null,
-  needsYou: null,
+  title: null,
+  ask: null,
   at: 10,
   model: "test",
 });

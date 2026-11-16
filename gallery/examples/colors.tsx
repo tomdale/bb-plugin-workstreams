@@ -21,7 +21,11 @@ import {
 } from "../../src/domain/colors";
 import { installColorTokens } from "../../src/app/theme/colorTokens";
 import { SettingSwitch } from "../../src/app/settings/ui";
-import { RECAP_STATES, type Recap } from "../../src/domain/recap";
+import {
+  RECAP_STATE_LABEL,
+  RECAP_STATES,
+  type Recap,
+} from "../../src/domain/recap";
 import {
   allocateChildColor,
   allocateFamilyColor,
@@ -140,7 +144,7 @@ function recapFor(recapState: Recap["state"]): Recap {
     turnId: "gallery-local",
     at: 0,
     state: recapState,
-    goal:
+    headline:
       recapState === "waiting"
         ? "Waiting for the release checks"
         : "Prepared the release notes",
@@ -186,7 +190,7 @@ function Identity({ family }: { family: TopicColor }) {
 
 export function ColorsExample({
   initialPrefs = defaults,
-  initialToken = "needsYou",
+  initialToken = "needsInput",
 }: ColorsExampleProps) {
   const [prefs, setPrefs] = useState<ColorPrefs>(() => ({ ...initialPrefs }));
   const [token, setToken] = useState<ColorToken>(initialToken);
@@ -459,7 +463,7 @@ export function ColorsExample({
         <div className="p-3" style={sampleStyle}>
           <Variants>
             {RECAP_STATES.map((state) => (
-              <Variant key={state} label={COLOR_TOKEN_LABEL[state]}>
+              <Variant key={state} label={RECAP_STATE_LABEL[state]}>
                 <RecapCardPreview recap={recapFor(state)} layout="full" />
               </Variant>
             ))}
@@ -496,7 +500,7 @@ import { installColorTokens } from "../../src/app/theme/colorTokens";
 import { RecapCardPreview } from "../../src/app/composer/RecapCard";
 
 const prefs: ColorPrefs = { ...DEFAULT_COLORS, vivid: true,
-  needsYou: { kind: "custom", color: "#ff00ff" } };
+  needsInput: { kind: "custom", color: "#ff00ff" } };
 
 useLayoutEffect(() => installColorTokens(prefs), [prefs]);
 <RecapCardPreview recap={recap} layout="full" />`,

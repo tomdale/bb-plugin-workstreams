@@ -89,12 +89,12 @@ describe("Stream Deck routes", () => {
           level: 0,
         }),
       },
-      mark: "needs-you",
+      mark: "needs-input",
       unread: true,
       onYou: true,
     });
     expect(snapshot.rows[1]).toMatchObject({
-      mark: "error",
+      mark: "failed",
       unread: true,
       onYou: false,
       workstream: null,
@@ -196,7 +196,7 @@ describe("Stream Deck routes", () => {
 
 describe("StreamDeckFeed", () => {
   const snapshot = (rows: string[]): StreamDeckSnapshot => ({
-    protocol: 1,
+    protocol: 2,
     rows: rows.map((id) => ({
       id,
       title: id,

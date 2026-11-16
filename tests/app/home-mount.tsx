@@ -29,7 +29,7 @@ export type SidebarPrefs = Partial<{
   groupSort: "alphabetical" | "activity" | "manual";
   timestamps: "show" | "hover" | "hide";
   threadCount: "always" | "collapsed" | "never";
-  waitingCount: "always" | "collapsed" | "never";
+  needsYouCount: "always" | "collapsed" | "never";
 }>;
 
 export type HomeOptions = {
@@ -68,7 +68,7 @@ function prefsResponse(prefs: SidebarPrefs = {}) {
         groupSort: "alphabetical",
         timestamps: "show",
         threadCount: "collapsed",
-        waitingCount: "collapsed",
+        needsYouCount: "collapsed",
         ...prefs,
       },
     },
@@ -163,8 +163,8 @@ export async function mountHome(options: HomeOptions = {}) {
 export function decisionFor(revision: number, ask = "Decide?") {
   return {
     recap: "Asked.",
-    state: "needs_decision",
-    needsYou: ask,
+    state: "needs-input",
+    ask,
     subject: null,
     drift: null,
     driftSectionId: null,
@@ -181,7 +181,7 @@ export function recapOf(state: "complete" | "review" | "waiting") {
     turnId: "turn",
     at: Date.now(),
     state,
-    goal: "Shipping",
+    headline: "Shipping",
     latest: [`Reported ${state}`],
     review: state === "review" ? ["Try it"] : [],
     links: [],

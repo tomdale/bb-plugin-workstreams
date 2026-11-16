@@ -119,7 +119,7 @@ const countVisibility = z.enum(["always", "collapsed", "never"]);
  */
 const GROUPS = {
   sidebar: {
-    /** The Up Next section: threads waiting on the user. */
+    /** The Up Next section: threads awaiting the user. */
     showForYou: [z.boolean(), true],
     /** The Recent band: the most recently active threads. */
     showRecent: [z.boolean(), true],
@@ -137,8 +137,8 @@ const GROUPS = {
     timestamps: [z.enum(["show", "hover", "hide"]), "show"],
     /** When workstream headers show their thread count. */
     threadCount: [countVisibility, "collapsed"],
-    /** When workstream headers show their waiting-on-you count. */
-    waitingCount: [countVisibility, "collapsed"],
+    /** When workstream headers show how many threads need you. */
+    needsYouCount: [countVisibility, "collapsed"],
   },
   upNext: {
     /** How many rows Up Next shows before Show more. */
@@ -147,8 +147,8 @@ const GROUPS = {
     unreadFirst: [z.boolean(), true],
     /**
      * Top up Up Next's rows with recently active threads that are read and not
-     * blocked on the user. Off, it lists only threads that are unread or
-     * blocked on the user (see `selectUpNext`).
+     * awaiting the user. Off, it lists only threads that are unread or
+     * awaiting the user (see `selectUpNext`).
      */
     fill: [z.boolean(), true],
     /**
@@ -201,8 +201,8 @@ const GROUPS = {
     complete: [colorChoiceSchema, DEFAULT_COLORS.complete],
     review: [colorChoiceSchema, DEFAULT_COLORS.review],
     waiting: [colorChoiceSchema, DEFAULT_COLORS.waiting],
-    needsYou: [colorChoiceSchema, DEFAULT_COLORS.needsYou],
-    failure: [colorChoiceSchema, DEFAULT_COLORS.failure],
+    needsInput: [colorChoiceSchema, DEFAULT_COLORS.needsInput],
+    failed: [colorChoiceSchema, DEFAULT_COLORS.failed],
     suggestion: [colorChoiceSchema, DEFAULT_COLORS.suggestion],
   },
   advanced: {

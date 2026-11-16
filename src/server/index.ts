@@ -248,11 +248,11 @@ export default async function plugin(bb: BbPluginApi) {
   // Retention also applies while recording is off and nothing new arrives.
   traces.prune({ force: true });
   /**
-   * Gives a thread its goal as its title, when the retitle policy and the
+   * Gives a thread its settled title, when the retitle policy and the
    * `autoTitle` preference allow it (`service.retitle`), and records the
    * outcome on the call's trace.
    */
-  const applyGoal = async (
+  const applyTitle = async (
     threadId: string,
     goal: string,
     revision: number,
@@ -420,10 +420,10 @@ export default async function plugin(bb: BbPluginApi) {
       // and settle how a snoozed thread's turn ended.
       triggerOrganizer();
       if (awaitingEvents()) void checkWakeEvents();
-      if (result.goal)
-        void applyGoal(
+      if (result.title)
+        void applyTitle(
           threadId,
-          result.goal,
+          result.title,
           result.revision,
           result.traceId,
           "analysis",
@@ -439,7 +439,7 @@ export default async function plugin(bb: BbPluginApi) {
     titles: () => currentPrefs().threads.autoTitle,
     analyzed: (threadId) => analyzer.get(threadId) !== undefined,
     title: (threadId, title, revision, traceId) =>
-      applyGoal(threadId, title, revision, traceId, "opening"),
+      applyTitle(threadId, title, revision, traceId, "opening"),
     listing: listingOf,
     question: (thread, request) => placement.question(thread, [request]),
     unsettled: (threadId) =>
@@ -533,7 +533,7 @@ export default async function plugin(bb: BbPluginApi) {
             .map((root) => ({
               id: root.id,
               title: root.title,
-              work: analysis[root.id]?.threadGoal ?? "",
+              work: analysis[root.id]?.goal ?? "",
               workKey: analysis[root.id]?.requestsKey ?? "",
             })),
         }));
@@ -758,7 +758,7 @@ export default async function plugin(bb: BbPluginApi) {
     if (identity.provenance !== "automatic") return;
     if (identity.answered)
       return {
-        title: identity.goal ?? null,
+        title: identity.title ?? null,
         ...(conflicting
           ? {}
           : {
@@ -1677,10 +1677,6 @@ export default async function plugin(bb: BbPluginApi) {
     topicMigration,
     arrangement: {
       load: () => loadOrder(db),
-      setPrioritized: (ids) => {
-        saveOrder(db, { kind: "prioritized", ids });
-        notify(ORDER);
-      },
     },
     service,
     journal,
@@ -1691,6 +1687,7 @@ export default async function plugin(bb: BbPluginApi) {
     traces,
     topics,
     currentPrefs,
+    snoozes: () => snoozes.all(),
     notify,
     reclassifyTask,
     suggestions,

@@ -132,11 +132,11 @@ it("updates header counts when the group is collapsed", async () => {
         indicator: "waiting-for-input",
       }),
     ],
-    { settings: { threadCount: when, waitingCount: when } },
+    { settings: { threadCount: when, needsYouCount: when } },
   );
   const alpha = within(slot.getByRole("region", { name: "Alpha" }));
   const counts = () => [
-    alpha.queryByTitle("1 waiting on you") !== null,
+    alpha.queryByTitle("1 needs you") !== null,
     alpha.queryAllByText("1", { selector: "span" }).length,
   ];
   await waitFor(() => expect(counts()).toEqual([expanded, expanded ? 2 : 0]));
@@ -429,7 +429,7 @@ it("shows Up Next and Recent as overlays without removing group rows", async () 
   // Up Next takes the question and the four newest others; Recent carries
   // on with the next one.
   expect(groupRows(slot, "Up Next")).toEqual([
-    "Asking task, Needs you",
+    "Asking task, Needs input",
     "Other 1",
     "Other 2",
     "Other 3",
@@ -459,15 +459,15 @@ it("shows Up Next and Recent as overlays without removing group rows", async () 
   ).toBeNull();
   expect(groupRows(slot, "Beta")).toContain("Other 5 child");
   expect(groupRows(slot, "Beta")).toHaveLength(6);
-  expect(groupRows(slot, "Alpha")).toEqual(["Asking task, Needs you"]);
+  expect(groupRows(slot, "Alpha")).toEqual(["Asking task, Needs input"]);
   const alpha = within(slot.getByRole("region", { name: "Alpha" }));
-  expect(alpha.queryByTitle("1 waiting on you")).toBeNull();
+  expect(alpha.queryByTitle("1 needs you")).toBeNull();
   expect(alpha.queryByText("1", { selector: "span" })).toBeNull();
   fireEvent.click(alpha.getByRole("button", { name: "Collapse Alpha" }));
-  expect(alpha.getByTitle("1 waiting on you")).toBeTruthy();
+  expect(alpha.getByTitle("1 needs you")).toBeTruthy();
   expect(alpha.getAllByText("1", { selector: "span" })).toHaveLength(2);
   fireEvent.click(alpha.getByRole("button", { name: "Expand Alpha" }));
-  expect(alpha.queryByTitle("1 waiting on you")).toBeNull();
+  expect(alpha.queryByTitle("1 needs you")).toBeNull();
   slot.lifecycle.unmount();
 });
 

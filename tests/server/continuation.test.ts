@@ -44,8 +44,8 @@ describe("what Full analysis reads besides the thread", () => {
       complete: () =>
         JSON.stringify({
           recap: "Working",
-          state: "in_progress",
-          goal: "Building release pipeline",
+          state: "needs-input",
+          title: "Building release pipeline",
         }),
     });
     const w = world;
@@ -63,7 +63,7 @@ describe("what Full analysis reads besides the thread", () => {
     const last = w.completions
       .filter((c) => c.prompt.includes("You describe one agent thread"))
       .at(-1)!;
-    expect(last.prompt).not.toContain("- goal:");
+    expect(last.prompt).not.toContain("- title:");
   });
 
   it("keeps credentials in a request out of the prompt and what it stores", async () => {
@@ -71,8 +71,8 @@ describe("what Full analysis reads besides the thread", () => {
       complete: () =>
         JSON.stringify({
           recap: "Working",
-          state: "in_progress",
-          goal: "Auditing release pipeline",
+          state: "needs-input",
+          title: "Auditing release pipeline",
         }),
     });
     const w = world;

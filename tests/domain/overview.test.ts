@@ -24,8 +24,8 @@ const thread = (overrides: Partial<OverviewThread> = {}): OverviewThread => ({
 const analysis = (state: StoredAnalysis["state"]): StoredAnalysis => ({
   recap: "Analysis recap",
   state,
-  needsYou: state === "needs_decision" ? "Pick one" : null,
-  goal: "Analysis goal",
+  ask: state === "needs-input" ? "Pick one" : null,
+  title: "Analysis goal",
   revision: 100,
   at: 100,
   model: "test",
@@ -38,7 +38,7 @@ const recap = (
   toRecap(
     recapInputSchema.parse({
       state,
-      goal: "Shipped `abc1234`",
+      headline: "Shipped `abc1234`",
       latest: state === "waiting" ? [] : ["Reported result"],
       ...(state === "review"
         ? { review: ["Open the page", "Click Save"] }
@@ -63,7 +63,7 @@ const row = (
 describe("overviewStatus", () => {
   it("reads a finished thread as Complete whether or not it is read", () => {
     const read = thread();
-    expect(overviewStatus(read, workView(read, analysis("done")))).toBe(
+    expect(overviewStatus(read, workView(read, analysis("complete")))).toBe(
       "complete",
     );
   });
@@ -82,17 +82,17 @@ describe("overviewStatus", () => {
     );
     const asking = thread({ status: "active", hasPendingInteraction: true });
     expect(overviewStatus(asking, workView(asking, undefined))).toBe(
-      "needs-you",
+      "needs-input",
     );
   });
 
-  it("reads an agent's waiting recap as Waiting, and unreported progress as other", () => {
+  it("reads an agent's waiting recap as Waiting, and unreported unfinished work as Needs input", () => {
     const idle = thread();
     expect(
       overviewStatus(idle, workView(idle, undefined, recap("waiting"))),
     ).toBe("waiting");
-    expect(overviewStatus(idle, workView(idle, analysis("in_progress")))).toBe(
-      "other",
+    expect(overviewStatus(idle, workView(idle, analysis("needs-input")))).toBe(
+      "needs-input",
     );
   });
 });
@@ -139,8 +139,8 @@ describe("overviewRow", () => {
   });
 
   it("shows what a thread asks of the user", () => {
-    const result = row(thread(), analysis("needs_decision"));
-    expect(result.status).toBe("needs-you");
+    const result = row(thread(), analysis("needs-input"));
+    expect(result.status).toBe("needs-input");
     expect(result.summary).toBe("Analysis recap");
     expect(result.next.prompt).toBe("Pick one");
   });
@@ -157,11 +157,11 @@ describe("overviewRow", () => {
   it("leaves a working thread's cells empty and explains a failed one", () => {
     const working = row(
       thread({ status: "active", indicator: "runtime" }),
-      analysis("done"),
+      analysis("complete"),
     );
     expect(working).toMatchObject({ status: "working", summary: null });
     expect(working.next.actions).toEqual([]);
-    expect(row(thread({ status: "error" }), analysis("done")).summary).toBe(
+    expect(row(thread({ status: "error" }), analysis("complete")).summary).toBe(
       FAILED_SUMMARY,
     );
   });
@@ -179,12 +179,18 @@ describe("overviewRow", () => {
 describe("sortOverviewRows", () => {
   it("lists rows by what they need, newest turn first within a status", () => {
     const rows = sortOverviewRows([
-      row(thread({ id: "done-old", latestAttentionAt: 1 }), analysis("done")),
+      row(
+        thread({ id: "done-old", latestAttentionAt: 1 }),
+        analysis("complete"),
+      ),
       row(thread({ id: "working", status: "active", indicator: "runtime" })),
-      row(thread({ id: "done-new", latestAttentionAt: 9 }), analysis("done")),
+      row(
+        thread({ id: "done-new", latestAttentionAt: 9 }),
+        analysis("complete"),
+      ),
       row(thread({ id: "failed", status: "error" })),
       row(thread({ id: "review" }), analysis("review")),
-      row(thread({ id: "needs" }), analysis("needs_decision")),
+      row(thread({ id: "needs" }), analysis("needs-input")),
       row(thread({ id: "waiting" }), undefined, recap("waiting")),
     ]);
     expect(rows.map((r) => r.thread.id)).toEqual([
@@ -206,9 +212,9 @@ describe("overviewCounts", () => {
 
   it("counts the threads and the ones waiting on the user", () => {
     expect(
-      overviewCounts(rows("needs-you", "review", "review", "complete")),
+      overviewCounts(rows("needs-input", "review", "review", "complete")),
     ).toBe("4 threads. 1 needs you and 2 are ready for review.");
-    expect(overviewCounts(rows("needs-you", "needs-you"))).toBe(
+    expect(overviewCounts(rows("needs-input", "needs-input"))).toBe(
       "2 threads. 2 need you.",
     );
     expect(overviewCounts(rows("review"))).toBe(

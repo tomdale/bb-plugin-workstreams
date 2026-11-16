@@ -22,7 +22,7 @@ const preview: Preview = {
   subject: "Export",
   subjectId: null,
   proposal: automaticProposal,
-  goal: "Export billing data",
+  title: "Export billing data",
   traceId: "trace_1",
 };
 
@@ -299,7 +299,7 @@ describe("NewWork canonical identity reports", () => {
       entityId: null,
       proposal: automaticProposal,
       provenance: "automatic",
-      goal: "Export billing data",
+      title: "Export billing data",
       answered: true,
     });
     expect(

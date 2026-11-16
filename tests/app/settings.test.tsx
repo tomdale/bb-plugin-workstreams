@@ -121,7 +121,7 @@ it("renders four compact sidebar toggles and saves their preferences", async () 
     expect(await slot.findByRole("switch", { name: label })).toBeTruthy();
   }
   const sections = slot.getByRole("region", { name: "Sections" });
-  for (const label of ["Timestamp", "Thread count", "Waiting count"])
+  for (const label of ["Timestamp", "Thread count", "Threads that need you"])
     expect(
       within(sections).queryByRole("radiogroup", { name: label }),
     ).toBeNull();
@@ -181,8 +181,8 @@ it.each([
     ],
   ],
   [
-    "Waiting count",
-    "waitingCount",
+    "Threads that need you",
+    "needsYouCount",
     [
       ["Always", "always"],
       ["Never", "never"],
@@ -289,7 +289,7 @@ it("describes each Up Next setting as it is set now", async () => {
   const slot = await mount("up-next");
   expect(
     await slot.findByText(
-      "Threads you have already read fill the rows left after the ones blocked on you.",
+      "Threads you have already read fill the rows left after the ones that need your answer or review.",
     ),
   ).toBeTruthy();
   expect(slot.getByText("Unread threads come before read ones.")).toBeTruthy();
@@ -299,12 +299,12 @@ it("describes each Up Next setting as it is set now", async () => {
   );
   expect(
     await slot.findByText(
-      "Skips threads you have read that aren't blocked on you.",
+      "Skips threads you have read that don't need your answer or review.",
     ),
   ).toBeTruthy();
   expect(
     slot.getByText(
-      "Every thread ranks by what it's blocked on, so a read question can come before an unread review.",
+      "Every thread ranks by what it needs from you, so a read question can come before an unread review.",
     ),
   ).toBeTruthy();
   // The labels hold still while the lines under them follow the setting.
@@ -327,7 +327,7 @@ it("describes the recent-thread window it is set to", async () => {
   fireEvent.click(await slot.findByRole("option", { name: "Last day" }));
   expect(
     await slot.findByText(
-      "Threads whose turn ended in the last day come before older ones. Inside that group, unread threads come first, then the ones blocked on you.",
+      "Threads whose turn ended in the last day come before older ones. Inside that group, unread threads come first, then the ones that need your answer or review.",
     ),
   ).toBeTruthy();
   // The order inside the window is the unread setting's to decide.
@@ -336,7 +336,7 @@ it("describes the recent-thread window it is set to", async () => {
   );
   expect(
     await slot.findByText(
-      "Threads whose turn ended in the last day come before older ones. Inside that group, threads rank by what they're blocked on.",
+      "Threads whose turn ended in the last day come before older ones. Inside that group, threads rank by what they need from you.",
     ),
   ).toBeTruthy();
 });
@@ -733,8 +733,8 @@ it("lists every color token with what it draws with now", async () => {
     "Complete",
     "Review",
     "Waiting",
-    "Needs you",
-    "Failure",
+    "Needs input",
+    "Failed",
     "Suggestions",
   ])
     expect(
@@ -822,7 +822,7 @@ it("switches the default set and names each defaulted token's theme color", asyn
   expect(setPrefsInputs(slot)).toEqual([
     { patch: { colors: { vivid: false } } },
   ]);
-  const picker = await openPicker(slot, "Needs you");
+  const picker = await openPicker(slot, "Needs input");
   // The Default swatch now names the theme color it stands for.
   expect(
     picker.getByRole("radio", { name: "Default (Attention)" }),

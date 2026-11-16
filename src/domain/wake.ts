@@ -1,13 +1,13 @@
 /**
  * Wake events: what can end a snooze before its time. A snooze that wakes on
- * events (every "Until there's an update" snooze, and a timed one whose preset or
- * Custom… choice says so) ends at the first enabled event that happens after
- * it was set, or at its time, whichever comes first.
+ * events (every "On update" snooze, and a timed one whose preset or Custom…
+ * choice says so) ends at the first enabled event that happens after it was
+ * set, or at its time, whichever comes first.
  *
  * The list is deliberately narrow. Only outcomes that ask something of the
- * user count: a turn that ends needing a decision, ready for review, done, or
- * failed; a queued message that failed to send; a delegate that needs the
- * user or whose failure left the work stuck; a machine restart that left a
+ * user count: a turn that ends needing input, blocked, ready for review,
+ * complete, or failed; a queued message that failed to send; a child thread
+ * that needs the user or whose failure left the work stuck; a machine restart that left a
  * run stuck; and pull request feedback. Progress inside a turn (a turn
  * starting, an automatic retry, a background job) never wakes a thread, and
  * neither does bookkeeping (titles, moves, pins, re-analysis).
@@ -20,14 +20,15 @@ import type { ThreadSnooze } from "./snooze.ts";
 
 /** Every wake event, grouped and ordered as settings lists them. */
 export const WAKE_EVENTS = [
-  { id: "needs-you", group: "thread", label: "Needs you" },
+  { id: "needs-input", group: "thread", label: "Needs input" },
+  { id: "blocked", group: "thread", label: "Blocked" },
   { id: "review", group: "thread", label: "Ready for review" },
-  { id: "done", group: "thread", label: "Done" },
-  { id: "error", group: "thread", label: "Error" },
+  { id: "complete", group: "thread", label: "Complete" },
+  { id: "failed", group: "thread", label: "Failed" },
   { id: "send-failed", group: "thread", label: "Message fails to send" },
   { id: "host-stalled", group: "thread", label: "Machine restart stops it" },
-  { id: "delegate-needs-you", group: "delegates", label: "Needs you" },
-  { id: "delegate-stalled", group: "delegates", label: "Fails and work stops" },
+  { id: "child-needs-input", group: "children", label: "Needs input" },
+  { id: "child-stalled", group: "children", label: "Fails and work stops" },
   { id: "changes-requested", group: "pr", label: "Changes requested" },
   { id: "checks-failed", group: "pr", label: "Checks failed" },
   { id: "ready-to-merge", group: "pr", label: "Ready to merge" },
@@ -41,7 +42,7 @@ export const WAKE_EVENT_IDS = WAKE_EVENTS.map((event) => event.id) as [
 
 export const WAKE_EVENT_GROUPS = [
   { id: "thread", label: "Wake on thread events" },
-  { id: "delegates", label: "Wake on delegate events" },
+  { id: "children", label: "Wake on child thread events" },
   { id: "pr", label: "Wake on pull request events" },
 ] as const;
 
@@ -75,9 +76,9 @@ export const wakesOnEvents = (snooze: ThreadSnooze): boolean =>
 export const ERROR_GRACE_MS = 60_000;
 
 /**
- * How long work must stay stuck (a delegate failed and nothing recovered, or
- * a run waits for its machine) before it wakes the thread. Long enough for a
- * parent to react to its delegate's failure, or a machine to reconnect.
+ * How long work must stay stuck (a child thread failed and nothing recovered,
+ * or a run waits for its machine) before it wakes the thread. Long enough for
+ * a parent to react to its child's failure, or a machine to reconnect.
  */
 export const STALL_GRACE_MS = 5 * 60_000;
 
@@ -108,20 +109,17 @@ export type WakeThread = {
 const isRunning = (thread: WakeThread) => RUNNING.has(thread.status);
 
 /**
- * The event a turn that ended after `since` raises: a needed decision, a
- * review, or done. A turn that ended waiting or blocked on something else
- * raises nothing.
+ * The event a turn that ended after `since` raises: its status, unless it
+ * ended Waiting on an external task, which raises nothing.
  */
 export function turnOutcome(
   thread: WakeThread,
   since: number,
-): "needs-you" | "review" | "done" | null {
+): "needs-input" | "blocked" | "review" | "complete" | null {
   if (thread.status !== "idle" || thread.latestAttentionAt <= since)
     return null;
-  if (thread.work === "needs_decision") return "needs-you";
-  if (thread.work === "review") return "review";
-  if (thread.work === "done") return "done";
-  return null;
+  if (thread.work === null || thread.work === "waiting") return null;
+  return thread.work;
 }
 
 /**
@@ -141,18 +139,17 @@ export function failedAfter(
 }
 
 /**
- * Work under a root is stuck: nothing in the tree is running, queued, or
- * asking the user anything; the root's latest turn didn't end done, ready
- * for review, or needing a decision (those wake it on their own); and a
- * delegate failed after `since`. The server wakes the root once this has
- * held for {@link STALL_GRACE_MS}.
+ * Work under a thread is stuck: nothing in the tree is running, queued, or
+ * asking the user anything; the thread's latest turn didn't end with a
+ * status that wakes it on its own; and a child thread failed after `since`.
+ * The server wakes the thread once this has held for {@link STALL_GRACE_MS}.
  */
 export function isStalled(
   root: WakeThread,
-  delegates: readonly WakeThread[],
+  children: readonly WakeThread[],
   since: number,
 ): boolean {
-  const tree = [root, ...delegates];
+  const tree = [root, ...children];
   if (
     tree.some(
       (t) => isRunning(t) || t.busy || t.hasPendingInteraction || t.queued,
@@ -161,7 +158,7 @@ export function isStalled(
     return false;
   if (root.status !== "idle" || turnOutcome(root, -Infinity) !== null)
     return false;
-  return delegates.some(
+  return children.some(
     (d) => d.status === "error" && (d.failedAt ?? d.latestAttentionAt) > since,
   );
 }
@@ -190,7 +187,7 @@ export function pullRequestEvent(
 }
 
 /**
- * What the server knows about a snoozed root when it checks wake events.
+ * What the server knows about a snoozed thread when it checks wake events.
  * Each `…Since` is when a lasting condition began, as the server knows it:
  * no later than its true start, and -Infinity when it began before the
  * server could tell. A condition counts only when it began at or after the
@@ -198,19 +195,19 @@ export function pullRequestEvent(
  */
 type WakeFacts = {
   readonly snooze: ThreadSnooze;
-  readonly root: WakeThread;
-  /** The root's delegates, at any depth. */
-  readonly delegates: readonly WakeThread[];
-  /** Since when work under the root has been stuck (see `isStalled`). */
+  readonly thread: WakeThread;
+  /** The thread's child threads, at any depth. */
+  readonly children: readonly WakeThread[];
+  /** Since when work under the thread has been stuck (see `isStalled`). */
   readonly stalledSince?: number;
-  /** Since when the root or a delegate has been waiting for its machine. */
+  /** Since when the thread or a child thread has been waiting for its machine. */
   readonly hostWaitingSince?: number;
-  /** Since when a queued message for the root has failed to send. */
+  /** Since when a queued message for the thread has failed to send. */
   readonly sendFailedSince?: number;
-  /** Since when the root has had a question card or approval pending. */
+  /** Since when the thread has had a question card or approval pending. */
   readonly askingSince?: number;
-  /** Since when a delegate has had a question card or approval pending. */
-  readonly delegateAskingSince?: number;
+  /** Since when a child thread has had a question card or approval pending. */
+  readonly childAskingSince?: number;
   readonly now: number;
 };
 
@@ -226,14 +223,14 @@ export function wakeEvent(
   facts: WakeFacts,
   enabled: WakeEvents,
 ): WakeEvent | null {
-  const { snooze, root, delegates, now } = facts;
+  const { snooze, thread: root, children, now } = facts;
   const since = snooze.at;
   const raised = new Set<WakeEvent>();
   const outcome = turnOutcome(root, since);
   if (outcome) raised.add(outcome);
-  if (began(facts.askingSince, since)) raised.add("needs-you");
-  if (began(facts.delegateAskingSince, since)) raised.add("delegate-needs-you");
-  if (failedAfter(root, since, now)) raised.add("error");
+  if (began(facts.askingSince, since)) raised.add("needs-input");
+  if (began(facts.childAskingSince, since)) raised.add("child-needs-input");
+  if (failedAfter(root, since, now)) raised.add("failed");
   if (began(facts.sendFailedSince, since)) raised.add("send-failed");
   if (
     began(facts.hostWaitingSince, since) &&
@@ -241,16 +238,18 @@ export function wakeEvent(
   )
     raised.add("host-stalled");
   if (
-    delegates.some((d) => {
-      const ended = turnOutcome(d, since);
-      return ended === "needs-you" || ended === "review";
+    children.some((child) => {
+      const ended = turnOutcome(child, since);
+      return (
+        ended === "needs-input" || ended === "blocked" || ended === "review"
+      );
     })
   )
-    raised.add("delegate-needs-you");
+    raised.add("child-needs-input");
   if (
     facts.stalledSince !== undefined &&
     now - facts.stalledSince >= STALL_GRACE_MS
   )
-    raised.add("delegate-stalled");
+    raised.add("child-stalled");
   return WAKE_EVENT_IDS.find((id) => raised.has(id) && enabled[id]) ?? null;
 }

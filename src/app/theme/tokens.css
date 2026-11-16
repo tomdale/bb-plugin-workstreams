@@ -97,51 +97,47 @@
     var(--ws-waiting-text) 16%,
     transparent
   );
-  --ws-needs-you: var(--attention);
-  --ws-needs-you-text: oklch(
-    from var(--ws-needs-you)
+  --ws-needs-input: var(--attention);
+  --ws-needs-input-text: oklch(
+    from var(--ws-needs-input)
       clamp(var(--ws-text-min-l), l, var(--ws-text-max-l)) c h
   );
-  --ws-needs-you-strong: var(--ws-needs-you-text);
-  --ws-needs-you-on-strong: var(--canvas);
-  --ws-needs-you-soft: var(--ws-needs-you-text);
-  --ws-needs-you-mark: var(--ws-needs-you-text);
-  --ws-needs-you-band: var(--ws-needs-you);
-  --ws-needs-you-border: color-mix(
+  --ws-needs-input-strong: var(--ws-needs-input-text);
+  --ws-needs-input-on-strong: var(--canvas);
+  --ws-needs-input-soft: var(--ws-needs-input-text);
+  --ws-needs-input-mark: var(--ws-needs-input-text);
+  --ws-needs-input-band: var(--ws-needs-input);
+  --ws-needs-input-border: color-mix(
     in oklab,
-    var(--ws-needs-you) 75%,
+    var(--ws-needs-input) 75%,
     transparent
   );
-  --ws-needs-you-surface: color-mix(
+  --ws-needs-input-surface: color-mix(
     in oklab,
-    var(--ws-needs-you) 6%,
+    var(--ws-needs-input) 6%,
     transparent
   );
-  --ws-needs-you-footer: color-mix(
+  --ws-needs-input-footer: color-mix(
     in oklab,
-    var(--ws-needs-you) 4%,
+    var(--ws-needs-input) 4%,
     transparent
   );
-  --ws-needs-you-rule: color-mix(
+  --ws-needs-input-rule: color-mix(
     in oklab,
-    var(--ws-needs-you-text) 16%,
+    var(--ws-needs-input-text) 16%,
     transparent
   );
-  --ws-failure: var(--destructive);
-  --ws-failure-text: var(--destructive-text);
-  --ws-failure-strong: var(--ws-failure-text);
-  --ws-failure-on-strong: var(--canvas);
-  --ws-failure-soft: var(--ws-failure-text);
-  --ws-failure-mark: var(--ws-failure-text);
-  --ws-failure-band: var(--ws-failure);
-  --ws-failure-border: color-mix(in oklab, var(--ws-failure) 75%, transparent);
-  --ws-failure-surface: color-mix(in oklab, var(--ws-failure) 6%, transparent);
-  --ws-failure-footer: color-mix(in oklab, var(--ws-failure) 4%, transparent);
-  --ws-failure-rule: color-mix(
-    in oklab,
-    var(--ws-failure-text) 16%,
-    transparent
-  );
+  --ws-failed: var(--destructive);
+  --ws-failed-text: var(--destructive-text);
+  --ws-failed-strong: var(--ws-failed-text);
+  --ws-failed-on-strong: var(--canvas);
+  --ws-failed-soft: var(--ws-failed-text);
+  --ws-failed-mark: var(--ws-failed-text);
+  --ws-failed-band: var(--ws-failed);
+  --ws-failed-border: color-mix(in oklab, var(--ws-failed) 75%, transparent);
+  --ws-failed-surface: color-mix(in oklab, var(--ws-failed) 6%, transparent);
+  --ws-failed-footer: color-mix(in oklab, var(--ws-failed) 4%, transparent);
+  --ws-failed-rule: color-mix(in oklab, var(--ws-failed-text) 16%, transparent);
   --ws-suggestion: var(--pr-merged);
   --ws-suggestion-text: var(--pr-merged);
   --ws-suggestion-strong: var(--ws-suggestion-text);

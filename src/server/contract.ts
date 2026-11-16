@@ -34,10 +34,10 @@ import { changeStampSchema, stateSliceSchema } from "../domain/changes.ts";
 const analysisSchema = z.object({
   recap: z.string(),
   state: z.enum(WORK_STATES),
-  needsYou: z.string().nullable(),
+  ask: z.string().nullable(),
   // The title last settled by analysis, separate from the outcome below it.
+  title: z.string().nullable().default(null),
   goal: z.string().nullable().default(null),
-  threadGoal: z.string().nullable().default(null),
   digest: z.string().nullable().default(null),
   topicError: z.string().optional(),
   revision: z.number(),
@@ -182,7 +182,7 @@ const taskIdentitySubmissionSchema = z.object({
   proposal: draftSubjectProposalSchema.nullable().optional(),
   provenance: z.enum(["manual", "automatic", "inherited"]).optional(),
   sectionId: z.string().min(1).nullable().optional(),
-  goal: z.string().max(200).nullable().optional(),
+  title: z.string().max(200).nullable().optional(),
   answered: z.boolean().optional(),
 });
 
@@ -356,7 +356,7 @@ const previewSchema = z.object({
   subjectId: z.string().nullable().optional(),
   proposal: draftSubjectProposalSchema.nullable().optional(),
   /** The title the new thread would start with. */
-  goal: z.string().nullable().optional(),
+  title: z.string().nullable().optional(),
   /** The trimmed draft text a model answer is for. */
   answered: z.string().nullable().optional(),
   traceId: z.string().nullable(),

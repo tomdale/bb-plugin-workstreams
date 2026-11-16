@@ -148,10 +148,10 @@ export function SidebarSettings() {
             (threadCount) => update({ sidebar: { threadCount } }),
           )}
           {choice(
-            "Waiting count",
-            prefs.sidebar.waitingCount,
+            "Threads that need you",
+            prefs.sidebar.needsYouCount,
             countOptions,
-            (waitingCount) => update({ sidebar: { waitingCount } }),
+            (needsYouCount) => update({ sidebar: { needsYouCount } }),
           )}
         </SectionRows>
       </SettingsGroup>
@@ -181,19 +181,19 @@ export function UpNextSettings() {
     { value: "7d", label: "Last week" },
   ];
   const fillDescription = prefs.upNext.fill
-    ? "Threads you have already read fill the rows left after the ones blocked on you."
-    : "Skips threads you have read that aren't blocked on you.";
+    ? "Threads you have already read fill the rows left after the ones that need your answer or review."
+    : "Skips threads you have read that don't need your answer or review.";
   const unreadDescription = prefs.upNext.unreadFirst
     ? "Unread threads come before read ones."
-    : "Every thread ranks by what it's blocked on, so a read question can come before an unread review.";
+    : "Every thread ranks by what it needs from you, so a read question can come before an unread review.";
   const window = windows.find(
     (option) => option.value === prefs.upNext.freshWindow,
   );
   // Inside the window the tiers decide, which is the unread setting's order, so
   // the second sentence follows that setting too.
   const withinWindow = prefs.upNext.unreadFirst
-    ? "unread threads come first, then the ones blocked on you."
-    : "threads rank by what they're blocked on.";
+    ? "unread threads come first, then the ones that need your answer or review."
+    : "threads rank by what they need from you.";
   const freshDescription =
     window && window.value !== "off"
       ? `Threads whose turn ended in the ${window.label.toLowerCase()} come before older ones. Inside that group, ${withinWindow}`

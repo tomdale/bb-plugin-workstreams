@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  GOAL_MAX,
+  TITLE_MAX,
   composeTitle,
   dropListedPrefix,
   fullAnalysisPrompt,
@@ -139,7 +139,7 @@ describe("composeTitle", () => {
     expect(composeTitle(null, null)).toBeNull();
     expect(composeTitle({ verb: "Fixing", subject: " " }, null)).toBeNull();
     expect(
-      composeTitle({ verb: "Fixing", subject: "x".repeat(GOAL_MAX) }, null),
+      composeTitle({ verb: "Fixing", subject: "x".repeat(TITLE_MAX) }, null),
     ).toBeNull();
   });
 });

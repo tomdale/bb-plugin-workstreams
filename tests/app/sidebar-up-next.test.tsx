@@ -30,8 +30,8 @@ it("lists Threads shown threads blocked on you, newest first, with the rest behi
           id,
           {
             recap: "Asked.",
-            state: "needs_decision",
-            needsYou: "Decide?",
+            state: "needs-input",
+            ask: "Decide?",
             subject: null,
             drift: null,
             driftSectionId: null,
@@ -45,7 +45,7 @@ it("lists Threads shown threads blocked on you, newest first, with the rest behi
   );
   const band = await slot.findByRole("region", { name: "Up Next" });
   // Blocked on you or not, the count is the whole list; the newest lead.
-  const top = ["l", "k", "j", "i", "h"].map((id) => `Ask ${id}, Needs you`);
+  const top = ["l", "k", "j", "i", "h"].map((id) => `Ask ${id}, Needs input`);
   expect(groupRows(slot, "Up Next")).toEqual(top);
   // Show more lists the rest below, which stay where they were.
   const more = within(band).getByRole("button", { name: "Show 7 more" });
@@ -53,13 +53,13 @@ it("lists Threads shown threads blocked on you, newest first, with the rest behi
   fireEvent.click(more);
   expect(groupRows(slot, "Up Next")).toEqual([
     ...top,
-    "Ask g, Needs you",
-    "Ask f, Needs you",
-    "Ask e, Needs you",
-    "Ask d, Needs you",
-    "Ask c, Needs you",
-    "Ask b, Needs you",
-    "Ask a, Needs you",
+    "Ask g, Needs input",
+    "Ask f, Needs input",
+    "Ask e, Needs input",
+    "Ask d, Needs input",
+    "Ask c, Needs input",
+    "Ask b, Needs input",
+    "Ask a, Needs input",
   ]);
   fireEvent.click(within(band).getByRole("button", { name: "Show less" }));
   expect(groupRows(slot, "Up Next")).toEqual(top);
@@ -70,8 +70,8 @@ it("ranks a current needs-decision result as a question, but not a stale one", a
   const at = Date.now();
   const result = (revision: number) => ({
     recap: "Asked whether to ship.",
-    state: "needs_decision",
-    needsYou: "Ship it?",
+    state: "needs-input",
+    ask: "Ship it?",
     subject: null,
     drift: null,
     driftSectionId: null,
@@ -100,15 +100,15 @@ it("ranks a current needs-decision result as a question, but not a stale one", a
     within(band)
       .getAllByRole("link")
       .map((a) => a.getAttribute("aria-label")),
-  ).toEqual(["Fresh ask, Needs you", "Stale ask"]);
+  ).toEqual(["Fresh ask, Needs input", "Stale ask"]);
   // Each row carries what it asks, under the title.
   expect(band.textContent).toContain("Ship it?");
-  expect(within(band).getAllByRole("img", { name: "Needs you" })).toHaveLength(
-    1,
-  );
+  expect(
+    within(band).getAllByRole("img", { name: "Needs input" }),
+  ).toHaveLength(1);
   expect(
     within(slot.getByRole("region", { name: "Unfiled" })).getAllByRole("img", {
-      name: "Needs you",
+      name: "Needs input",
     }),
   ).toHaveLength(1);
   slot.lifecycle.unmount();
@@ -140,7 +140,7 @@ it("holds a result marked read on selection until another thread opens", async (
         turnId: "turn",
         at: 10,
         state: "complete",
-        goal: "Shipping",
+        headline: "Shipping",
         latest: ["Finished"],
         review: [],
         links: [],
@@ -209,7 +209,7 @@ it("marks the agent's reported state, which outranks analysis", async () => {
     turnId: "turn",
     at,
     state,
-    goal: "Shipping",
+    headline: "Shipping",
     latest: [`Reported ${state}`],
     review: state === "review" ? ["Try it"] : [],
     links: [],
@@ -230,8 +230,8 @@ it("marks the agent's reported state, which outranks analysis", async () => {
           id,
           {
             recap: "Asked whether to ship.",
-            state: "needs_decision",
-            needsYou: "Ship it?",
+            state: "needs-input",
+            ask: "Ship it?",
             subject: null,
             drift: null,
             driftSectionId: null,
@@ -268,8 +268,8 @@ it("keeps Up Next open and names each row's workstream", async () => {
   const at = Date.now();
   const asks = (revision: number) => ({
     recap: "Asked whether to ship.",
-    state: "needs_decision",
-    needsYou: "Ship it?",
+    state: "needs-input",
+    ask: "Ship it?",
     subject: null,
     drift: null,
     driftSectionId: null,

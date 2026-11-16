@@ -44,7 +44,7 @@ const entry = {
 const analysis = (recap: string, state = "done") => ({
   recap,
   state,
-  needsYou: null,
+  ask: null,
   subject: "Alpha",
   drift: null,
   driftSectionId: null,
@@ -105,7 +105,7 @@ async function mount(
               turnId: "t1",
               at: now,
               state: "review",
-              goal: "Built the feed",
+              headline: "Built the feed",
               latest: ["Tests pass"],
               review: ["Open the page"],
               links: [],
@@ -143,7 +143,7 @@ const press = (key: string, options: { shiftKey?: boolean } = {}) =>
 it("shows one item at a time, Up Next first, with how many are left", async () => {
   const slot = await mount();
   await waitFor(() => expect(heading(slot)).toBe("Beta question"));
-  expect(slot.getByText("Needs your decision")).toBeTruthy();
+  expect(slot.getByText("Needs input")).toBeTruthy();
   expect(slot.getByText("Asked which API to use")).toBeTruthy();
   expect(slot.getByRole("navigation", { name: "Queue" }).textContent).toBe(
     "1 of 2",
@@ -647,7 +647,7 @@ it.each([false, true])(
     const form = await slot.findByRole("region", {
       name: "Question needs your answer",
     });
-    expect(slot.queryByText("Needs your decision")).toBeNull();
+    expect(slot.queryByText("Needs input")).toBeNull();
     expect(slot.queryByRole("button", { name: /^Reply/ })).toBeNull();
     expect(form.closest("[data-card-content]")).toBeTruthy();
     fireEvent.click(slot.getByText("Cards"));
@@ -851,7 +851,7 @@ it("shows the waiting recap countdown and retains cancellation after restore", a
     turnId: "turn",
     at: Date.now(),
     state: "waiting",
-    goal: "Waiting for the build",
+    headline: "Waiting for the build",
     latest: [],
     review: [],
     links: [],

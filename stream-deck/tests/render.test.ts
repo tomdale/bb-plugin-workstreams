@@ -20,7 +20,7 @@ const thread = (
   id: "thr_1",
   title: "Adding Stream Deck support",
   workstream: { name: "bb: Workstreams Plugin", color: "#9ec5ff" },
-  mark: "needs-you",
+  mark: "needs-input",
   unread: true,
   onYou: true,
   ...overrides,
@@ -29,7 +29,7 @@ const thread = (
 const snapshot = (
   rows: StreamDeckThread[],
   more: StreamDeckThread[] = [],
-): StreamDeckSnapshot => ({ protocol: 1, rows, more });
+): StreamDeckSnapshot => ({ protocol: 2, rows, more });
 
 /** The text each `<text>` element draws, in order. */
 const texts = (svg: string) =>
@@ -93,7 +93,7 @@ it("names a workstream's area without its owner", () => {
 it("counts Up Next threads that are unread or wait on you", () => {
   const value = snapshot(
     [thread(), thread({ unread: false, onYou: false, mark: null })],
-    [thread({ unread: true, onYou: false, mark: "done" })],
+    [thread({ unread: true, onYou: false, mark: "complete" })],
   );
   expect(waitingCount(value)).toBe(2);
   expect(texts(nextKey(value))).toEqual(["2", "Up Next"]);

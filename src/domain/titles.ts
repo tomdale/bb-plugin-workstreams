@@ -5,7 +5,7 @@
  * retain title ownership until cleared.
  */
 
-import { GOAL_MAX } from "./analysis.ts";
+import { TITLE_MAX } from "./analysis.ts";
 
 /** What Workstreams knows about one thread's title. */
 export type TitleRecord = {
@@ -75,7 +75,7 @@ export function retitleDecision(args: {
   const { thread, suggestion } = args;
   if (!suggestion) return { ok: false, reason: "no-suggestion" };
   // Goals stored before titles were capped can be longer than BB allows.
-  if (suggestion.length > GOAL_MAX) return { ok: false, reason: "too-long" };
+  if (suggestion.length > TITLE_MAX) return { ok: false, reason: "too-long" };
   if (same(suggestion, thread.displayTitle))
     return { ok: false, reason: "unchanged" };
   if (args.basis === "opening") {

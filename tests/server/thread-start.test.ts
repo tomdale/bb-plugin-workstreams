@@ -66,9 +66,9 @@ function gate() {
   return { answer, release };
 }
 
-const opening = (goal: string | null) => JSON.stringify({ goal });
-const analysis = (goal: string | null) =>
-  JSON.stringify({ recap: "Working.", state: "in_progress", goal });
+const opening = (title: string | null) => JSON.stringify({ title });
+const analysis = (title: string | null) =>
+  JSON.stringify({ recap: "Working.", state: "needs-input", title });
 
 /** Answers each kind of call from its own queue; the last answer repeats. */
 function models(answers: {

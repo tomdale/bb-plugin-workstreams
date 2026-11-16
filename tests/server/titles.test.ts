@@ -32,8 +32,8 @@ async function setup(goals: (string | null)[], prefs?: PrefsPatch) {
     complete: ({ prompt }) =>
       JSON.stringify({
         recap: "Working.",
-        state: "in_progress",
-        goal: prompt.includes("You describe one agent thread")
+        state: "needs-input",
+        title: prompt.includes("You describe one agent thread")
           ? (goals[Math.min(call++, goals.length - 1)] ?? null)
           : null,
       }),
@@ -161,9 +161,9 @@ describe("keeping thread titles current", () => {
     expect(await retitles(w)).toEqual([]);
     // The goal is still kept, as the context for the next analysis.
     const { analysis } = await rpc<{
-      analysis: Record<string, { goal: string | null }>;
+      analysis: Record<string, { title: string | null }>;
     }>(w, "state", null);
-    expect(analysis.t1?.goal).toBe("Explain build caching");
+    expect(analysis.t1?.title).toBe("Explain build caching");
   });
 
   it("does nothing when the goal is null or the setting is off", async () => {

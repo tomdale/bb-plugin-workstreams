@@ -21,10 +21,16 @@ export const RECAP_TOOL = "WorkstreamsRecap";
 export const RECAP_CORRECTION = `Your turn ended without a recap. Any answer you already gave is visible to the user: do not repeat it and do not add a reply block. Finish any remaining authorized work, then call ${RECAP_TOOL}, which the app draws as the card above the composer, and end the turn with one short line. Everything else belongs in the recap's fields, not in that line. Call ${RECAP_TOOL} once: calling it again with the same arguments means you are stuck, not finishing. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
 
 /**
- * How a turn's result stands: complete, awaiting review, or waiting on an async task.
- * A turn that needs the user's answer ends with a question card instead.
+ * How a turn's result stands: complete, awaiting review, waiting on an async
+ * task, or blocked until the user intervenes. A turn that needs the user's
+ * answer to a specific choice ends with a question card instead.
  */
-export const RECAP_STATES = ["complete", "review", "waiting"] as const;
+export const RECAP_STATES = [
+  "complete",
+  "review",
+  "waiting",
+  "blocked",
+] as const;
 export type RecapState = (typeof RECAP_STATES)[number];
 
 /**
@@ -100,6 +106,8 @@ const storedRecapItemSchema: z.ZodType<StoredRecapItem> = z.union([
 /** One review action, optionally with the result the user should see. */
 const reviewStepSchema = recapItemSchema(160);
 type ReviewStep = RecapItem;
+/** One step only the user can take to unblock the thread. */
+const unblockStepSchema = recapItemSchema(160);
 
 /** A suggested action can separate its short button title from its message. */
 const nextActionSchema = z.union([
@@ -164,14 +172,14 @@ const waitingAgentSchema = z
 export type WaitingAgent = z.infer<typeof waitingAgentSchema>;
 
 /**
- * The tool's parameters. The limits keep each line glanceable: a goal
- * heading, short results, acceptance checks, and optional review targets.
+ * The tool's parameters. The limits keep each line glanceable: a headline,
+ * short results, acceptance checks, and optional review targets.
  */
 const recapFields = z
   .object({
     state: z.enum(RECAP_STATES),
-    goal: line(80).describe(
-      "Present-tense fact about this turn, -ing for waiting; at most 80 characters",
+    headline: line(80).describe(
+      "What this turn did, in past tense for complete and review, -ing for waiting, and naming the blocker for blocked; at most 80 characters",
     ),
     waitingAgents: z
       .array(waitingAgentSchema)
@@ -204,6 +212,13 @@ const recapFields = z
       .optional()
       .describe(
         "Required for review. Send each distinct action as its own array item; separate items render as a numbered list. Items can be strings or { text, detail } objects with optional secondary text. At most 160 characters each.",
+      ),
+    unblock: z
+      .array(unblockStepSchema)
+      .max(3)
+      .optional()
+      .describe(
+        "Blocked only, and required then: one to three steps only the user can take so the work can continue, each its own item. Items can be strings or { text, detail } objects. At most 160 characters each.",
       ),
     links: z
       .array(linkSchema)
@@ -246,6 +261,18 @@ const fullWaitingAgentSchema = waitingAgentSchema.extend({ task: line() });
 export const recapToolSchema = recapFields;
 
 /**
+ * Sessions started before the headline had its name still call the tool with
+ * the field they were given, `goal`; a running session keeps its tool list
+ * until it restarts.
+ */
+export function withHeadline(input: unknown): unknown {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const { goal, ...rest } = input as Record<string, unknown>;
+  if (goal === undefined || "headline" in rest) return input;
+  return { ...rest, headline: goal };
+}
+
+/**
  * The state-specific contract checked before accepting a recap. A review
  * recap needs at least one result alongside its steps.
  */
@@ -259,8 +286,9 @@ export const recapInputSchema = z
         .union([z.array(z.never()).max(0), z.literal("")])
         .nullable()
         .optional(),
-      // A short answer's goal states the answer and needs no results.
+      // A short answer's headline states the answer and needs no results.
       latest: recapFields.shape.latest,
+      unblock: z.array(z.never()).max(0).optional(),
       links: z
         .array(linkSchema)
         .max(0, "Links are review targets and belong only in a review recap.")
@@ -275,11 +303,28 @@ export const recapInputSchema = z
         z.array(recapItemSchema(160)).min(1).max(3),
         z.string().trim().min(1),
       ]),
+      unblock: z.array(z.never()).max(0).optional(),
     }),
     recapFields.extend({
       state: z.literal("waiting"),
       timeout: z.number().int().min(1).max(86400),
       latest: z.array(z.never()).max(0).default([]),
+      next: z.array(z.never()).max(0).default([]),
+      review: z
+        .union([z.array(z.never()).max(0), z.literal("")])
+        .nullable()
+        .optional(),
+      links: z
+        .array(linkSchema)
+        .max(0, "Links are review targets and belong only in a review recap.")
+        .default([]),
+      unblock: z.array(z.never()).max(0).optional(),
+    }),
+    recapFields.extend({
+      state: z.literal("blocked"),
+      timeout: z.null().optional(),
+      waitingAgents: z.array(z.never()).max(0).default([]),
+      unblock: z.array(unblockStepSchema).min(1).max(3),
       next: z.array(z.never()).max(0).default([]),
       review: z
         .union([z.array(z.never()).max(0), z.literal("")])
@@ -314,7 +359,7 @@ export const recapSchema = z
     turnId: z.string(),
     at: z.number(),
     state: z.enum(RECAP_STATES),
-    goal: z.string(),
+    headline: z.string(),
     waitingAgents: z.array(fullWaitingAgentSchema).optional(),
     latest: z.array(storedRecapItemSchema).default([]),
     timeout: z.number().optional(),
@@ -323,9 +368,13 @@ export const recapSchema = z
       (value) => storedRecapItems(value),
       z.array(storedRecapItemSchema),
     ),
+    /** What the user must do; present only when the state is blocked. */
+    unblock: z.array(storedRecapItemSchema).optional(),
     links: z.array(fullLinkSchema),
     /** Suggested next messages, offered as buttons; empty while waiting. */
     next: z.array(fullNextActionSchema).default([]),
+    /** A Waiting recap whose status check was cancelled; set on read, never stored. */
+    cancelled: z.literal(true).optional(),
   })
   .transform(({ waitingAgents, ...recap }) => ({
     ...recap,
@@ -380,7 +429,7 @@ export function toRecap(
   return {
     ...meta,
     state: input.state,
-    goal: tidy(input.goal),
+    headline: tidy(input.headline),
     latest: input.latest.map(tidyRecapItem),
     ...(input.state === "waiting"
       ? {
@@ -395,12 +444,15 @@ export function toRecap(
       input.state === "review"
         ? reviewSteps(input.review).map(tidyRecapItem)
         : [],
+    ...(input.state === "blocked"
+      ? { unblock: input.unblock.map(tidyRecapItem) }
+      : {}),
     links:
       input.state === "review"
         ? input.links.map((item) => ({ ...item, title: tidy(item.title) }))
         : [],
     next:
-      input.state === "waiting"
+      input.state === "waiting" || input.state === "blocked"
         ? []
         : input.next.map((action) =>
             typeof action === "string"
@@ -440,15 +492,18 @@ function tidyRecapItem(item: RecapItem): StoredRecapItem {
   };
 }
 
+/** Each recap state's status label (see `STATUS_LABEL`). */
+export const RECAP_STATE_LABEL: Record<RecapState, string> = {
+  complete: "Complete",
+  review: "Ready for review",
+  waiting: "Waiting",
+  blocked: "Blocked",
+};
+
 export function recapMarkdown(recap: Recap): string {
-  const state =
-    recap.state === "complete"
-      ? "Complete"
-      : recap.state === "waiting"
-        ? "Waiting"
-        : "Ready for review";
+  const state = RECAP_STATE_LABEL[recap.state];
   const markdown = [
-    `**${state}** · ${recap.goal}`,
+    `**${state}** · ${recap.headline}`,
     ...(recap.state === "waiting"
       ? [
           ...(recap.waitingAgents ?? []).map(
@@ -457,6 +512,9 @@ export function recapMarkdown(recap: Recap): string {
           `Check status in ${recap.timeout}s`,
         ]
       : recap.latest.map((item) => `- ${recapItemText(item)}`)),
+    recap.unblock?.length
+      ? `\n**To unblock:**\n${recap.unblock.map((step) => `- ${recapItemText(step)}`).join("\n")}`
+      : null,
     recap.review.length === 1
       ? `\n**Review:** ${reviewStepText(recap.review[0]!)}`
       : recap.review.length
@@ -482,7 +540,7 @@ export function recapMarkdown(recap: Recap): string {
 
 /** The tool's description, as the agent sees it in its tool list. */
 export const RECAP_TOOL_DESCRIPTION =
-  "Report a finished result or an async task this thread must resume; this sets the visible card and sidebar state. Required user input belongs in the available question-card tool, not a recap or next action. Call it before you write the reply: the card comes from this call.";
+  "Report a finished result, an async task this thread must resume, or a blocker only the user can clear; this sets the visible card and sidebar state. A specific choice for the user belongs in the available question-card tool, not a recap or next action. Call it before you write the reply: the card comes from this call.";
 
 /**
  * Instructions for every thread that has the recap tool. They state the
@@ -492,30 +550,29 @@ export const RECAP_TOOL_DESCRIPTION =
  * register rather than reaching agents cut short.
  */
 export const RECAP_INSTRUCTIONS = `Finish authorized work, then report it with ${RECAP_TOOL} before you write the reply: the card comes from that call, so make it the turn's last tool call. The reply follows as the turn's last text, with nothing written after it. When required input or approval is missing, use the available question-card tool and wait instead, with the explanation in the reply before that card. Keep collaborating while requested work remains; an intermediate step is not completion.
-State describes the responsibilities this thread owns under the user's request. Work continuing elsewhere affects this recap only while this thread owns follow-up; a route that leaves the destination owning the follow-up is complete, and its next names how the destination reports back. Use complete when all work this thread owns is finished; review for a finished result awaiting inspection, testing, merging, or shipping; waiting only for an async task whose result this thread needs to resume owned work.
+State describes the responsibilities this thread owns under the user's request. Work continuing elsewhere affects this recap only while this thread owns follow-up; a route that leaves the destination owning the follow-up is complete, and its next names how the destination reports back. Use complete when all work this thread owns is finished; review for a finished result awaiting inspection, testing, merging, or shipping; waiting only for an async task whose result this thread needs to resume owned work; blocked when you likely cannot continue unless the user intervenes, such as missing access, a broken environment, or conflicting requirements.
 Write terse sentence-case inline Markdown without closing periods. Limits count visible text, not link targets. @thread:<id> mentions render as chips; lowercase commit hashes render shortened with copy support when bare or alone in backticks, not links.
-goal: purpose in past tense for complete/review, -ing for waiting, at most 80 characters; a short factual answer states the answer itself and omits latest, review, links, and next.
+headline: purpose in past tense for complete/review, -ing for waiting, the blocker for blocked, at most 80 characters; a short factual answer states the answer itself and omits latest, review, links, and next.
 latest: 1–3 concrete results, most important first, about 12 words each; omit for a short answer. Advice states the recommendation itself, not an implemented change, and offers the action it proposes as Next. review: required for review state, 1–3 distinct steps to inspect or try the result and what to expect; UI steps include how to reach and exercise it. Items may be strings or { text, detail } with optional secondary detail; keep separate items, not semicolon-joined steps.
-waiting: goal names the awaited task; timeout is required, a realistic polling interval in seconds. The card prompts a status check at expiry if the turn is still current. Add { threadId, task } per awaited agent in waitingAgents; with several, goal names their shared outcome. Omit latest, review, links, and next.
+waiting: headline names the awaited task; timeout is required, a realistic polling interval in seconds. The card prompts a status check at expiry if the turn is still current. Add { threadId, task } per awaited agent in waitingAgents; with several, headline names their shared outcome. Omit latest, review, links, and next.
+blocked: unblock is required, 1–3 steps only the user can take; latest may say what was tried. Omit review, links, and next.
 links: review targets only, as absolute paths or HTTPS URLs; source files qualify only for requested source review.
 next: required for complete and review; only a short factual answer with nothing left open omits it. Next names each thing the recap leaves open: a pull request unopened, unmerged, or awaiting review; a result only the user can check on their own machine or display; a decision they still own; a step named but not done; an optional improvement or unauthorized change you recommended; for a handoff, how the destination reports back. These are optional future requests, not blocking approval or automatic execution; an unauthorized action belongs here, not in a question card, unless the recap cannot stand without the answer. Do authorized continuations yourself. Prefer { title, message, description? }: a 2–4-word button label of at most 28 characters, the self-contained plain-text request it sends, at most 120 characters, and optional hover context of at most 120. A string is both label and request. Whitespace and closing periods are normalized. The user decides whether to archive the thread.
-Advice-only example: {"state":"complete","goal":"Recommended renaming the label","latest":["Renaming matches the stored value without changing execution"],"next":[{"title":"Rename the label","message":"Rename the setting label and add a regression test"}]}.`;
+Advice-only example: {"state":"complete","headline":"Recommended renaming the label","latest":["Renaming matches the stored value without changing execution"],"next":[{"title":"Rename the label","message":"Rename the setting label and add a regression test"}]}.`;
 
 /** How the agent's report of a turn reads as a status. */
 export function reportedStatus(recap: Recap): {
   recap: string;
   state: WorkState;
-  needsYou: null;
+  ask: string | null;
 } {
   return {
-    recap: plainText(recapItemText(recap.latest[0] ?? recap.goal)),
-    state:
-      recap.state === "complete"
-        ? "done"
-        : recap.state === "waiting"
-          ? "in_progress"
-          : "review",
-    needsYou: null,
+    recap: plainText(recapItemText(recap.latest[0] ?? recap.headline)),
+    state: recap.state,
+    ask:
+      recap.state === "blocked" && recap.unblock?.[0]
+        ? plainText(itemParts(recap.unblock[0]).text)
+        : null,
   };
 }
 
@@ -523,7 +580,7 @@ export function reportedStatus(recap: Recap): {
 export function agentReport(recap: Recap): AgentReport {
   return {
     state: recap.state,
-    headline: plainText(recap.goal),
+    headline: plainText(recap.headline),
     latest: recap.latest.map((item) => plainText(recapItemText(item))),
   };
 }
@@ -531,7 +588,7 @@ export function agentReport(recap: Recap): AgentReport {
 /**
  * A thread's work as its agent reported it, in analysis's shape: the recap's
  * state and first result over `base`, a current analysis that still supplies
- * the goal. The agent's report outranks analysis for the turn it describes.
+ * the title and goal. The agent's report outranks analysis for the turn it describes.
  */
 export function reportedAnalysis(
   recap: Recap,
@@ -539,7 +596,7 @@ export function reportedAnalysis(
   base?: StoredAnalysis,
 ): StoredAnalysis {
   return {
-    goal: base?.goal ?? null,
+    title: base?.title ?? null,
     model: "agent",
     traceId: null,
     ...base,

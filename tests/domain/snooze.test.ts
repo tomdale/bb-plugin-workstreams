@@ -237,15 +237,15 @@ describe("preferences", () => {
     const prefs = parseSnoozePrefs({
       presets: [preset("a")],
       default: "a",
-      events: { done: false, review: "yes" },
+      events: { complete: false, review: "yes" },
     });
-    expect(prefs.events.done).toBe(false);
+    expect(prefs.events.complete).toBe(false);
     expect(prefs.events.review).toBe(true);
     expect(prefs.events["checks-failed"]).toBe(true);
     // A change names only the events it turns on or off.
-    const changed = applySnoozePrefsPatch(prefs, { events: { error: false } });
-    expect(changed.events.done).toBe(false);
-    expect(changed.events.error).toBe(false);
+    const changed = applySnoozePrefsPatch(prefs, { events: { failed: false } });
+    expect(changed.events.complete).toBe(false);
+    expect(changed.events.failed).toBe(false);
     expect(
       snoozePrefsPatchSchema.safeParse({ events: { someday: true } }).success,
     ).toBe(false);

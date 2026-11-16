@@ -62,7 +62,7 @@ const identityDecision: Preview = {
   reason: "Belongs in Alpha",
   subject: "Alpha",
   subjectId: "ent_alpha",
-  goal: "Alpha parser",
+  title: "Alpha parser",
 };
 
 function RootComposer() {
@@ -330,7 +330,7 @@ it("fills the field with the classified identity and submits it through host sub
         entityId: "ent_alpha",
         proposal: null,
         provenance: "automatic",
-        goal: "Alpha parser",
+        title: "Alpha parser",
         answered: true,
       },
     },
@@ -354,7 +354,7 @@ it("leaves a preview with no topic out of the host submit metadata", async () =>
     confidence: "low",
     subject: null,
     subjectId: null,
-    goal: null,
+    title: null,
   };
   const { slot, route } = mount(unsure);
   await typePrompt(slot, "Something vague");
@@ -413,7 +413,7 @@ it("submits proposal identity when proposing a new feature", async () => {
         entityId: null,
         proposal: { name: "Billing", description: "Invoices" },
         provenance: "automatic",
-        goal: null,
+        title: null,
         answered: true,
       },
     },
@@ -448,7 +448,7 @@ it("reports the draft's identity so a plain Enter can be filed", async () => {
         entityId: "ent_alpha",
         proposal: null,
         provenance: "automatic",
-        goal: "Alpha parser",
+        title: "Alpha parser",
         answered: true,
       },
     }),

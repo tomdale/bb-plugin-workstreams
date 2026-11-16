@@ -22,6 +22,7 @@ import { FoldBody, FoldChevron, useFoldFocusRestore } from "./Fold.tsx";
 import { RadioMenuGroup, CheckSlot } from "../primitives/RadioMenuGroup.tsx";
 import { rowActionClass } from "./HoverActions.tsx";
 import { Hint } from "../Hint.tsx";
+import { needYouLabel } from "../../domain/presentation.ts";
 
 /**
  * One workstream's threads in Recent, Snoozed, or Archived when the band
@@ -332,13 +333,13 @@ export function BandOptionsMenu({
  */
 export function LowerToggle({
   open,
-  waiting,
+  needsYou,
   total,
   onToggle,
 }: {
   open: boolean;
-  /** Threads waiting on the user among the hidden ones; 0 shows none. */
-  waiting: number;
+  /** Threads awaiting the user among the hidden ones; 0 shows none. */
+  needsYou: number;
   /** Hidden threads; 0 shows no count. */
   total: number;
   onToggle: () => void;
@@ -354,7 +355,7 @@ export function LowerToggle({
           ? undefined
           : [
               "Show other workstreams",
-              ...(waiting ? [`${waiting} waiting on you`] : []),
+              ...(needsYou ? [needYouLabel(needsYou)] : []),
               ...(total
                 ? [`${total} ${total === 1 ? "thread" : "threads"}`]
                 : []),
@@ -373,13 +374,13 @@ export function LowerToggle({
       <span className="underline-offset-2 group-hover/lower:underline">
         {open ? "Hide other workstreams" : "Show other workstreams"}
       </span>
-      {!open && (waiting || total) ? (
+      {!open && (needsYou || total) ? (
         <span
           className="ml-auto flex shrink-0 items-center gap-1"
           aria-hidden="true"
         >
-          {waiting ? (
-            <CountPill>{waiting}</CountPill> // slop-ok: 2 the product's waiting-count pill, an established header pattern
+          {needsYou ? (
+            <CountPill>{needsYou}</CountPill> // slop-ok: 2 the product's need-you count pill, an established header pattern
           ) : null}
           {total ? (
             <span className="text-[11px] tabular-nums text-muted-foreground">

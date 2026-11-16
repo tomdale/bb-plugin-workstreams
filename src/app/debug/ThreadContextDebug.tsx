@@ -13,7 +13,7 @@ import {
   experimental_InfoSection as InfoSection,
   type ExperimentalThreadContextCardProps,
 } from "@get-bb/plugin-sdk/app";
-import { relativeAge } from "../../domain/presentation.ts";
+import { relativeAge, workStateLabel } from "../../domain/presentation.ts";
 import {
   useSharedServerStateSelector,
   useThreadRecordSelector,
@@ -85,9 +85,9 @@ function DebugEntries({
     );
   return (
     <Container className={className} data-ws-context-debug>
-      {analysis?.threadGoal ? (
+      {analysis?.goal ? (
         <Entry label="Goal" icon="Target">
-          {analysis.threadGoal}
+          {analysis.goal}
         </Entry>
       ) : null}
       {analysis?.digest ? (
@@ -105,15 +105,15 @@ function DebugEntries({
             : ""}
         </Entry>
       ) : null}
-      {analysis?.goal ? (
+      {analysis?.title ? (
         <Entry label="Settled title" icon="Edit">
-          {analysis.goal}
+          {analysis.title}
         </Entry>
       ) : null}
       {analysis ? (
         <Entry label="Status" icon="ChartColumn">
-          {analysis.state}
-          {analysis.needsYou ? `: ${analysis.needsYou}` : ""} (
+          {workStateLabel(analysis.state)}
+          {analysis.ask ? `: ${analysis.ask}` : ""} (
           {analysis.reported ? "reported by the agent" : "inferred"})
         </Entry>
       ) : null}

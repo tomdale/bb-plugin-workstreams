@@ -92,11 +92,11 @@ describe("color choices", () => {
     const prefs = parsePrefs({
       colors: {
         complete: { kind: "custom", color: "url(x)" },
-        failure: { kind: "custom", color: "#aa0000" },
+        failed: { kind: "custom", color: "#aa0000" },
       },
     });
     expect(prefs.colors.complete).toEqual(DEFAULT_COLORS.complete);
-    expect(prefs.colors.failure).toEqual({ kind: "custom", color: "#aa0000" });
+    expect(prefs.colors.failed).toEqual({ kind: "custom", color: "#aa0000" });
     expect(prefs.colors.review).toEqual(DEFAULT_COLORS.review);
     expect(prefs.colors.vivid).toBe(true);
     expect(parsePrefs({ colors: { vivid: "neon" } }).colors.vivid).toBe(true);
@@ -158,15 +158,15 @@ describe("colorTokenCss", () => {
     const css = colorTokenCss({
       ...defaults,
       vivid: false,
-      failure: { kind: "custom", color: "#aa0000" },
+      failed: { kind: "custom", color: "#aa0000" },
     });
     expect(css).toContain("--ws-complete: var(--success);");
     expect(css).toContain("--ws-complete-text: var(--success-foreground);");
     expect(css).toContain("--ws-review: var(--timeline-accent);");
-    expect(css).toContain("--ws-needs-you: var(--attention);");
+    expect(css).toContain("--ws-needs-input: var(--attention);");
     // A token the user set keeps that choice.
-    expect(css).toContain("--ws-failure: #aa0000;");
-    expect(css).not.toContain("--ws-failure: var(--destructive);");
+    expect(css).toContain("--ws-failed: #aa0000;");
+    expect(css).not.toContain("--ws-failed: var(--destructive);");
   });
 
   it("resolves what each token draws with for its caption", () => {
@@ -189,7 +189,7 @@ describe("colorTokenCss", () => {
   it("outranks the zero-specificity defaults with a scoped selector", () => {
     const css = colorTokenCss({
       ...defaults,
-      failure: { kind: "custom", color: "#aa0000" },
+      failed: { kind: "custom", color: "#aa0000" },
     });
     expect(css.startsWith('[data-bb-plugin="workstreams"], ')).toBe(true);
   });
@@ -267,7 +267,7 @@ describe("colorTokenCss", () => {
   it("drops values that bypassed validation instead of writing them", () => {
     const css = colorTokenCss({
       ...defaults,
-      failure: { kind: "custom", color: "red; } * { color: red" },
+      failed: { kind: "custom", color: "red; } * { color: red" },
       review: { kind: "theme", color: "nope" },
     } as unknown as ColorPrefs);
     expect(css).not.toContain("red; }");

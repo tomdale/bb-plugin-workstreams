@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  GOAL_MAX,
+  TITLE_MAX,
   RECAP_MAX,
-  THREAD_GOAL_MAX,
+  GOAL_MAX,
   fullAnalysisPrompt,
   fullAnalysisSchema,
   isCurrent,
@@ -40,7 +40,7 @@ describe("Full analysis", () => {
     const input: FullAnalysisInput = {
       ...base,
       titledBy: "you",
-      threadGoal: "Keep builds fresh without clearing the cache manually.",
+      goal: "Keep builds fresh without clearing the cache manually.",
       report: {
         state: "complete",
         headline: "Changed directories",
@@ -48,7 +48,7 @@ describe("Full analysis", () => {
       },
     };
     const prompt = fullAnalysisPrompt(input);
-    expect(prompt).toContain('"threadGoal": string|null');
+    expect(prompt).toContain('"goal": string|null');
     expect(prompt).toContain("usually 12–20 words");
     expect(prompt).toContain("Lead with success");
     expect(prompt).toContain(
@@ -57,20 +57,20 @@ describe("Full analysis", () => {
     expect(prompt).toContain(
       "<thread_goal>\nKeep builds fresh without clearing the cache manually.",
     );
-    expect(prompt).not.toContain('"goal": {');
-    expect(fullAnalysisSchema(input)).toHaveProperty("properties.threadGoal");
+    expect(prompt).not.toContain('"title": {');
+    expect(fullAnalysisSchema(input)).toHaveProperty("properties.goal");
     expect(
       parseFullAnalysis(
         JSON.stringify({
-          threadGoal: "Keep builds fresh without clearing the cache manually.",
-          goal: { verb: "Changing", subject: "directories" },
+          goal: "Keep builds fresh without clearing the cache manually.",
+          title: { verb: "Changing", subject: "directories" },
         }),
         input,
       ),
     ).toMatchObject({
-      goal: null,
+      title: null,
       status: null,
-      threadGoal: "Keep builds fresh without clearing the cache manually.",
+      goal: "Keep builds fresh without clearing the cache manually.",
     });
   });
 
@@ -89,8 +89,8 @@ describe("Full analysis", () => {
       parseFullAnalysis(
         JSON.stringify({
           recap: "Done",
-          state: "done",
-          threadGoal: null,
+          state: "complete",
+          goal: null,
           digest: "  The thread\n evaluates tidy guidance.  ",
         }),
         base,
@@ -99,7 +99,7 @@ describe("Full analysis", () => {
     for (const digest of [null, "", 42, "x".repeat(481)]) {
       expect(
         parseFullAnalysis(
-          JSON.stringify({ recap: "Done", state: "done", digest }),
+          JSON.stringify({ recap: "Done", state: "complete", digest }),
           base,
         ),
       ).toMatchObject({ digest: null });
@@ -111,39 +111,32 @@ describe("Full analysis", () => {
   });
 
   it("rejects malformed outcomes without losing other analysis fields", () => {
-    for (const threadGoal of [
-      null,
-      "",
-      "  ",
-      42,
-      {},
-      "x".repeat(THREAD_GOAL_MAX + 1),
-    ]) {
+    for (const goal of [null, "", "  ", 42, {}, "x".repeat(GOAL_MAX + 1)]) {
       expect(
         parseFullAnalysis(
-          JSON.stringify({ recap: "Done", state: "done", threadGoal }),
+          JSON.stringify({ recap: "Done", state: "complete", goal }),
           base,
         ),
-      ).toMatchObject({ status: { state: "done" }, threadGoal: null });
+      ).toMatchObject({ status: { state: "complete" }, goal: null });
     }
     expect(
       parseFullAnalysis(
         JSON.stringify({
           recap: "Done",
-          threadGoal: "  Keep builds\n fresh.  ",
+          goal: "  Keep builds\n fresh.  ",
         }),
         base,
-      ).threadGoal,
+      ).goal,
     ).toBe("Keep builds fresh.");
     const statusOnly = { ...base, mode: "status" } as const;
     expect(fullAnalysisSchema(statusOnly)).not.toHaveProperty(
-      "properties.threadGoal",
+      "properties.goal",
     );
     expect(
       parseFullAnalysis(
-        JSON.stringify({ recap: "Done", threadGoal: "Unexpected change" }),
+        JSON.stringify({ recap: "Done", goal: "Unexpected change" }),
         statusOnly,
-      ).threadGoal,
+      ).goal,
     ).toBeNull();
   });
 
@@ -151,18 +144,18 @@ describe("Full analysis", () => {
     const parsed = parseFullAnalysis(
       JSON.stringify({
         recap: "Needs a choice",
-        state: "needs_decision",
-        needsYou: "a".repeat(120),
+        state: "needs-input",
+        ask: "a".repeat(120),
       }),
       base,
     );
-    expect(parsed.status?.needsYou).toHaveLength(80);
+    expect(parsed.status?.ask).toHaveLength(80);
   });
   it("asks for status and goal, never a topic, after a new request with no report", () => {
     const prompt = fullAnalysisPrompt(base);
     expect(prompt).toContain('"recap": string');
     expect(prompt).toContain(
-      '"goal": {"verb": string, "subject": string}|null',
+      '"title": {"verb": string, "subject": string}|null',
     );
     expect(prompt).not.toContain("subjectId");
     expect(prompt).not.toContain("topic_tree");
@@ -175,19 +168,19 @@ describe("Full analysis", () => {
       keeps,
     );
     const yours = { ...base, titledBy: "you" } as const;
-    expect(fullAnalysisPrompt(yours)).not.toContain("- goal:");
+    expect(fullAnalysisPrompt(yours)).not.toContain("- title:");
     expect(fullAnalysisPrompt(yours)).toContain("which the user gave it");
-    expect(fullAnalysisSchema(yours)).not.toHaveProperty("properties.goal");
-    expect(fullAnalysisSchema(base)).toHaveProperty("properties.goal");
+    expect(fullAnalysisSchema(yours)).not.toHaveProperty("properties.title");
+    expect(fullAnalysisSchema(base)).toHaveProperty("properties.title");
     expect(
       parseFullAnalysis(
         JSON.stringify({
           recap: "Done",
-          state: "done",
-          goal: { verb: "fixing", subject: "build cache" },
+          state: "complete",
+          title: { verb: "fixing", subject: "build cache" },
         }),
         yours,
-      ).goal,
+      ).title,
     ).toBeNull();
   });
 
@@ -197,22 +190,22 @@ describe("Full analysis", () => {
     expect(required(base)).toEqual([
       "recap",
       "state",
-      "needsYou",
-      "threadGoal",
-      "digest",
+      "ask",
       "goal",
+      "digest",
+      "title",
     ]);
     expect(required({ ...base, mode: "status" })).toEqual([
       "recap",
       "state",
-      "needsYou",
+      "ask",
     ]);
     expect(
       required({
         ...base,
         report: { state: "complete", headline: "Done", latest: [] },
       }),
-    ).toEqual(["threadGoal", "digest", "goal"]);
+    ).toEqual(["goal", "digest", "title"]);
   });
 
   it("doesn't ask for status the agent already reported", () => {
@@ -223,28 +216,28 @@ describe("Full analysis", () => {
     expect(prompt).toContain("reported this turn as complete");
     expect(prompt).not.toContain('"recap": string');
     const parsed = parseFullAnalysis(
-      '{"goal":{"verb":"fixing","subject":"stale build cache"}}',
+      '{"title":{"verb":"fixing","subject":"stale build cache"}}',
       { ...base, report: { state: "complete", headline: "x", latest: [] } },
     );
     expect(parsed).toEqual({
       status: null,
-      threadGoal: null,
+      goal: null,
       digest: null,
-      goal: "Fixing stale build cache",
+      title: "Fixing stale build cache",
     });
   });
 
   it("asks only for status when no new request arrived", () => {
     const input: FullAnalysisInput = { ...base, mode: "status" };
     const prompt = fullAnalysisPrompt(input);
-    expect(prompt).not.toContain('"goal"');
+    expect(prompt).not.toContain('"title"');
     expect(
       parseFullAnalysis('{"recap":"Waiting on CI","state":"blocked"}', input),
     ).toEqual({
-      status: { recap: "Waiting on CI", state: "blocked", needsYou: null },
-      threadGoal: null,
-      digest: null,
+      status: { recap: "Waiting on CI", state: "blocked", ask: null },
       goal: null,
+      digest: null,
+      title: null,
     });
   });
 
@@ -262,16 +255,16 @@ describe("Full analysis", () => {
         JSON.stringify({
           recap: "x ".repeat(200),
           state: "review",
-          needsYou: "Approve?",
-          goal: { verb: "Fixing", subject: "y".repeat(GOAL_MAX) },
+          ask: "Approve?",
+          title: { verb: "Fixing", subject: "y".repeat(TITLE_MAX) },
         }) +
         "\n```",
       base,
     );
     expect(parsed.status!.recap.length).toBeLessThanOrEqual(RECAP_MAX);
-    expect(parsed.status!.needsYou).toBeNull();
-    expect(parsed.goal).toBeNull();
-    expect(() => parseFullAnalysis('{"state":"done"}', base)).toThrow();
+    expect(parsed.status!.ask).toBeNull();
+    expect(parsed.title).toBeNull();
+    expect(() => parseFullAnalysis('{"state":"complete"}', base)).toThrow();
   });
 
   it("wraps each request and the reply in tags inside the conversation", () => {

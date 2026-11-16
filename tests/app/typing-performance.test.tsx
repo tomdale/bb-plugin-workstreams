@@ -43,7 +43,7 @@ it.each([1, 2] as const)(
       reason: "Parser changes",
       subject: "Alpha",
       subjectId: "ent_alpha",
-      goal: "Parser diagnostics",
+      title: "Parser diagnostics",
     };
     const draftIdentity = vi.fn(async (_input: unknown) => ({ filed: false }));
     const preview = vi.fn(async () => decision);

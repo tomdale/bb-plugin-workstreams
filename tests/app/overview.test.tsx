@@ -18,10 +18,10 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const analysis = (recap: string, state: string, needsYou: string | null) => ({
+const analysis = (recap: string, state: string, ask: string | null) => ({
   recap,
   state,
-  needsYou,
+  ask,
   revision: Date.now() + 60_000,
   at: Date.now(),
   model: "m",
@@ -80,7 +80,7 @@ async function mount(
           ...emptyState(),
           analysis: {
             asks: {
-              ...analysis("Two APIs fit", "needs_decision", "Pick an API"),
+              ...analysis("Two APIs fit", "needs-input", "Pick an API"),
               revision: now - 60_000,
             },
           },
@@ -90,7 +90,7 @@ async function mount(
               turnId: "t1",
               at: now,
               state: "review",
-              goal: "Built the feed",
+              headline: "Built the feed",
               latest: ["Tests pass"],
               review: ["Open the page"],
               links: [],
@@ -101,7 +101,7 @@ async function mount(
               turnId: "t2",
               at: now,
               state: "complete",
-              goal: "Merged the fix",
+              headline: "Merged the fix",
               latest: [],
               review: [],
               links: [],
@@ -144,7 +144,7 @@ it("lists a workstream's root threads by status with summary and next steps", as
       title!.textContent,
     ]),
   ).toEqual([
-    ["Needs you", "Needs a decision"],
+    ["Needs input", "Needs a decision"],
     ["Ready for review", "Feed ready"],
     ["Working", "Still running"],
     ["Complete", "Finished work"],

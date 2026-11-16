@@ -18,7 +18,7 @@ function gate() {
 const answer = (id: string, goal = "Build Alpha") =>
   JSON.stringify({
     recap: "Working",
-    state: "in_progress",
+    state: "needs-input",
     goal,
     subjectId: id,
     proposed: null,

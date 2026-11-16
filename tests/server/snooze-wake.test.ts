@@ -52,7 +52,7 @@ async function endTurn(
     RECAP_TOOL,
     {
       state,
-      goal: "Did the work",
+      headline: "Did the work",
       latest: state === "waiting" ? [] : ["Did it"],
       ...(state === "review" ? { review: ["Look at it"] } : {}),
       ...(state === "waiting" ? { timeout: 600 } : {}),
@@ -104,7 +104,7 @@ it("wakes a timed snooze early only when it was set to wake on events", async ()
 it("leaves a snooze alone when its wake event is turned off", async () => {
   const w = await world();
   await w.harness.behavior.callRpc("setSnoozePrefs", {
-    patch: { events: { done: false } },
+    patch: { events: { complete: false } },
   });
   await snooze(w, null);
   await endTurn(w, "t1", "complete");
@@ -124,7 +124,7 @@ it("wakes a snoozed thread when it or a delegate asks a question", async () => {
 
   await snooze(w, null);
   await w.harness.behavior.callRpc("setSnoozePrefs", {
-    patch: { events: { "needs-you": false } },
+    patch: { events: { "needs-input": false } },
   });
   await ask("t1");
   expect(Object.keys(await snoozes(w))).toEqual(["t1"]);

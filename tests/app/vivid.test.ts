@@ -356,7 +356,7 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
     "draws light without a dark class, whatever the system appearance",
     async ({ page }) => {
       const lightness = () =>
-        page.locator('[data-ws-color-preview="needsYou"]').evaluate((el) => {
+        page.locator('[data-ws-color-preview="needsInput"]').evaluate((el) => {
           // Painting the color reads it back as sRGB, whatever its syntax.
           const canvas = document.createElement("canvas");
           canvas.width = canvas.height = 1;
@@ -385,7 +385,7 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
         await expect
           .poll(() => toggle.getAttribute("aria-checked"))
           .toBe(String(vivid));
-        // Needs you has no BB text twin, so its text is clamped to the
+        // Needs input has no BB text twin, so its text is clamped to the
         // appearance's band: dark text on a light page, light on a dark one.
         await page.evaluate(() => (document.documentElement.className = ""));
         await page.evaluate(
@@ -426,7 +426,7 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
           name,
         );
       await expect
-        .poll(() => declared("--ws-needs-you-text"))
+        .poll(() => declared("--ws-needs-input-text"))
         .toMatch(/^oklch\(\d/);
       await page.evaluate(() => {
         const theme = document.createElement("style");
@@ -436,9 +436,9 @@ describe.skipIf(browserUnavailable)("vivid settings in a browser", () => {
         document.head.append(theme);
       });
       await expect
-        .poll(() => declared("--ws-needs-you-text"))
+        .poll(() => declared("--ws-needs-input-text"))
         .toBe(
-          "oklch(from var(--ws-needs-you) clamp(var(--ws-text-min-l), l, var(--ws-text-max-l)) c h)",
+          "oklch(from var(--ws-needs-input) clamp(var(--ws-text-min-l), l, var(--ws-text-max-l)) c h)",
         );
       expect(await declared("--ws-review-text")).toMatch(/^oklch\(\d/);
     },

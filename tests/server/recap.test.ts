@@ -20,7 +20,7 @@ afterEach(async () => {
 
 const RECAP = {
   state: "complete",
-  goal: "Porting handoffs into Workstreams",
+  headline: "Porting handoffs into Workstreams",
   latest: ["Moved the recap tool into Workstreams."],
 };
 
@@ -123,7 +123,7 @@ it("keeps the recap available when its workspace cannot be read", async () => {
     latest: ["Wrote [the plan](docs/Project Plan.md)"],
   });
   expect(await s.card()).toMatchObject({
-    recap: { goal: RECAP.goal },
+    recap: { headline: RECAP.headline },
     files: { environmentId: "env_1", root: null, hostId: null },
   });
 });
@@ -131,7 +131,7 @@ it("keeps the recap available when its workspace cannot be read", async () => {
 describe("waiting status checks", () => {
   const waiting = {
     state: "waiting",
-    goal: "Waiting for test worker",
+    headline: "Waiting for test worker",
     timeout: 10,
   };
   const nudges = (s: Awaited<ReturnType<typeof world>>) =>
@@ -407,7 +407,7 @@ describe("agent recaps", () => {
     await expect(s.report({ state: "complete" })).rejects.toThrow();
     await expect(s.report({ ...RECAP, state: "review" })).rejects.toThrow();
     await expect(
-      s.report({ state: "continuing", goal: "Working" }),
+      s.report({ state: "continuing", headline: "Working" }),
     ).rejects.toThrow();
     expect((await s.card()).recap).toBeNull();
     await s.report();
@@ -535,7 +535,7 @@ describe("agent recaps", () => {
     const output = await s.report({
       ...RECAP,
       state: "waiting",
-      goal: "Workers are running",
+      headline: "Workers are running",
       latest: [],
       timeout: 60,
     });
@@ -543,7 +543,7 @@ describe("agent recaps", () => {
     expect(s.corrections()).toHaveLength(0);
     expect((await s.card()).recap).toMatchObject({
       state: "waiting",
-      goal: "Workers are running",
+      headline: "Workers are running",
       review: [],
     });
     expect(output).toContain("**Waiting**");
@@ -560,11 +560,11 @@ describe("agent recaps", () => {
     s.w.turn("t1");
     const output = await s.report({
       state: "complete",
-      goal: "Python 3.9 or newer is required",
+      headline: "Python 3.9 or newer is required",
     });
     expect((await s.card()).recap).toMatchObject({
       state: "complete",
-      goal: "Python 3.9 or newer is required",
+      headline: "Python 3.9 or newer is required",
       latest: [],
     });
     expect(output).toBe("**Complete** · Python 3.9 or newer is required");

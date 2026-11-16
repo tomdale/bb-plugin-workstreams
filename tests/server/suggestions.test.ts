@@ -35,7 +35,7 @@ async function setup(answers: {
             })
           : prompt.includes(TIDY)
             ? (answers.tidy?.(prompt) ?? { edits: [] })
-            : { recap: "r", state: "in_progress" }),
+            : { recap: "r", state: "needs-input" }),
       ),
   });
   const w = world;

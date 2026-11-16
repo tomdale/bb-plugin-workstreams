@@ -639,7 +639,7 @@ export function Queue({
             key: id,
             frame: threadFrame(
               id === thread?.id && pendingQuestion
-                ? { kind: "needs", line: null }
+                ? { kind: "needs", label: "Needs input", line: null }
                 : shownCard,
             ),
             node: (

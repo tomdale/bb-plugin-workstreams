@@ -115,12 +115,12 @@ async function mount(
   } as never);
 }
 
-const analysis = (goal: string) => ({
+const analysis = (title: string) => ({
   recap: "r",
-  state: "in_progress",
-  needsYou: null,
+  state: "needs-input",
+  ask: null,
   subject: null,
-  goal,
+  title,
   drift: null,
   driftSectionId: null,
   revision: 1,
@@ -201,9 +201,9 @@ it("shows the analyzed outcome even while running, never the latest recap headli
   const goal = "Keep builds fresh without clearing the cache manually.";
   const slot = await mount(thread, {
     analysis: {
-      t1: { ...analysis("Fix stale build cache"), threadGoal: goal },
+      t1: { ...analysis("Fix stale build cache"), goal: goal },
     },
-    recaps: { t1: { goal: "Changed directories", state: "review", at: 2 } },
+    recaps: { t1: { headline: "Changed directories", state: "review", at: 2 } },
   });
   await slot.findByRole("heading", { level: 2 });
   expect(slot.getByLabelText("goal").textContent).toBe(goal);
@@ -213,10 +213,12 @@ it("shows the analyzed outcome even while running, never the latest recap headli
 
 it("omits an unknown or repeated outcome rather than falling back to recaps", async () => {
   const thread = sidebarThread("t1", { title: "Fix stale build cache" });
-  for (const threadGoal of [undefined, null, "Fix stale build cache"]) {
+  for (const goal of [undefined, null, "Fix stale build cache"]) {
     const slot = await mount(thread, {
-      analysis: { t1: { ...analysis("Fix stale build cache"), threadGoal } },
-      recaps: { t1: { goal: "Changed directories", state: "review", at: 2 } },
+      analysis: { t1: { ...analysis("Fix stale build cache"), goal } },
+      recaps: {
+        t1: { headline: "Changed directories", state: "review", at: 2 },
+      },
     });
     await slot.findByRole("heading", { level: 2 });
     expect(slot.getByLabelText("goal").textContent).toBe("none");

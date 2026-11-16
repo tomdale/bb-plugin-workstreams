@@ -9,7 +9,7 @@ import type { Discovery } from "../src/discovery.ts";
 const ROUTES = "/api/v1/plugins/workstreams/http/stream-deck";
 
 const snapshot = (id: string): StreamDeckSnapshot => ({
-  protocol: 1,
+  protocol: 2,
   rows: [
     {
       id,

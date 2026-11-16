@@ -258,12 +258,12 @@ export const SUGGESTION_FRAME = "border-border";
 
 const NEUTRAL = { card: "border-border", text: "text-muted-foreground" };
 const NEEDS = {
-  card: "border-(--ws-needs-you-border) bg-(--ws-needs-you-surface)",
-  text: "text-(--ws-needs-you-text)",
+  card: "border-(--ws-needs-input-border) bg-(--ws-needs-input-surface)",
+  text: "text-(--ws-needs-input-text)",
 };
 const FAILED = {
-  card: "border-[color-mix(in_oklab,var(--ws-failure)_55%,transparent)]",
-  text: "text-(--ws-failure-text)",
+  card: "border-[color-mix(in_oklab,var(--ws-failed)_55%,transparent)]",
+  text: "text-(--ws-failed-text)",
 };
 
 function PlainCard({
@@ -281,7 +281,7 @@ function PlainCard({
       : card.kind === "working"
         ? ["Working", card.line]
         : card.kind === "needs"
-          ? ["Needs your decision", card.line]
+          ? [card.label, card.line]
           : card.kind === "failed"
             ? ["Failed", "The last turn failed. Open the thread to see why."]
             : [card.label, card.line];

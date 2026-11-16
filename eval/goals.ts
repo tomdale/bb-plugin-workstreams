@@ -114,7 +114,7 @@ await Promise.all(
       const input: FullAnalysisInput = {
         title: "Reviewing code",
         titledBy: test.titledBy ?? "workstreams",
-        threadGoal: test.current ?? null,
+        goal: test.current ?? null,
         requests: test.requests.map((text, index) => ({
           text,
           initial: index === 0,
@@ -186,11 +186,11 @@ await Promise.all(
           kind === "full"
             ? parseFullAnalysis(response, input)
             : parseTurnEnd(response, turnEnd);
-        goal = output.threadGoal ?? test.current ?? null;
+        goal = output.goal ?? test.current ?? null;
         if (!goal) problems.push("no outcome");
         if (test.keep && goal !== test.current)
           problems.push("changed outcome for an intermediate step");
-        if (test.titledBy === "you" && output.goal !== null)
+        if (test.titledBy === "you" && output.title !== null)
           problems.push("renamed user title");
         const lower = goal?.toLowerCase() ?? "";
         for (const words of test.must)

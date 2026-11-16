@@ -37,10 +37,10 @@ type Trace = Summary & {
 const ANALYSIS = {
   recap: "Fixed the parser; tests pass.",
   state: "review",
-  needsYou: null,
-  goal: null,
+  ask: null,
+  title: null,
 };
-const QUICK = { goal: "Alpha parser tabs", subjectId: null, proposed: null };
+const QUICK = { title: "Alpha parser tabs", subjectId: null, proposed: null };
 const isQuick = (prompt: string) =>
   prompt.includes("You name one new agent thread");
 
@@ -168,12 +168,12 @@ describe("debug mode on", () => {
 
   it("records a composer preview's start call", async () => {
     const w = await setup(true);
-    const preview = await rpc<{ traceId: string | null; goal: string | null }>(
+    const preview = await rpc<{ traceId: string | null; title: string | null }>(
       w,
       "preview",
       { prompt: "Fix the Alpha parser's handling of nested blocks" },
     );
-    expect(preview.goal).toBe("Alpha parser tabs");
+    expect(preview.title).toBe("Alpha parser tabs");
     const full = (await trace(w, preview.traceId!))!;
     expect(full).toMatchObject({
       kind: "start",
@@ -184,7 +184,7 @@ describe("debug mode on", () => {
 
   it("links an applied title to the analysis that suggested it", async () => {
     const w = await setup(true, () =>
-      JSON.stringify({ ...ANALYSIS, goal: "Nested block parsing" }),
+      JSON.stringify({ ...ANALYSIS, title: "Nested block parsing" }),
     );
     w.threads.set("t1", { ...w.threads.get("t1")!, title: null });
     await analyze(w, "t1");
@@ -418,7 +418,7 @@ describe("composer previews", () => {
       (error: unknown) => String(error),
     );
     await started(calls, 1);
-    const second = rpc<{ goal: string | null }>(w, "preview", {
+    const second = rpc<{ title: string | null }>(w, "preview", {
       prompt: `${prompt} and spaces`,
       draftKey: "draft-1",
     });
@@ -426,7 +426,7 @@ describe("composer previews", () => {
     expect(calls[0]!.signal?.aborted).toBe(true);
     expect(await firstSettled).toContain("the draft changed");
     calls[1]!.answer();
-    expect((await second).goal).toBe("Alpha parser tabs");
+    expect((await second).title).toBe("Alpha parser tabs");
     const routes = (await traces(w)).filter((t) => t.kind === "start");
     expect(routes).toHaveLength(1);
     expect(routes[0]).toMatchObject({ status: "ok" });
@@ -438,7 +438,7 @@ describe("composer previews", () => {
     const mine = rpc(w, "preview", { prompt, draftKey: "mine" }).catch(
       () => "aborted",
     );
-    const other = rpc<{ goal: string | null }>(w, "preview", {
+    const other = rpc<{ title: string | null }>(w, "preview", {
       prompt,
       draftKey: "other",
     });
@@ -451,6 +451,6 @@ describe("composer previews", () => {
       canceled: false,
     });
     calls[1]!.answer();
-    expect((await other).goal).toBe("Alpha parser tabs");
+    expect((await other).title).toBe("Alpha parser tabs");
   });
 });

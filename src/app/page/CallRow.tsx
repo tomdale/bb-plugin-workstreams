@@ -49,33 +49,28 @@ const EVENT: Record<TraceKind, { label: string; description: string }> = {
   },
 };
 const STATES: Record<string, { label: string; description: string }> = {
-  review: {
-    label: "Ready for your review",
+  "needs-input": {
+    label: "Needs input",
     description:
-      "A deliverable is ready for you to review, test, merge, or ship.",
-  },
-  "needs decision": {
-    label: "Needs your decision",
-    description:
-      "The model found a specific question, choice, permission request, or next step that only you can resolve.",
+      "The model found a specific question, choice, or permission request for you, or requested work the turn left unfinished.",
   },
   blocked: {
     label: "Blocked",
     description:
-      "The model judged that work is waiting on something other than your input.",
+      "The model judged that the agent likely can't continue unless you step in, for example to grant access or fix the environment.",
   },
-  "in progress": {
-    label: "In progress",
+  review: {
+    label: "Ready for review",
     description:
-      "The model judged that the request still has outstanding work. This does not mean an agent is currently running.",
+      "A deliverable is ready for you to review, test, merge, or ship.",
   },
   reported: {
     label: "Reported by the agent",
     description:
       "The thread's agent reported how the turn ended, so the model wasn't asked for its status.",
   },
-  done: {
-    label: "Done",
+  complete: {
+    label: "Complete",
     description:
       "The model judged that the latest request is complete with no outstanding tasks. This is an assessment, not independent verification.",
   },

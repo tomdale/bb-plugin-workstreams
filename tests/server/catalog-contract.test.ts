@@ -42,7 +42,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
 
   it("taskAssign sets a topic yourself, which files the thread by it", async () => {
     world = await fakeWorld({
-      complete: () => JSON.stringify({ recap: "r", state: "done" }),
+      complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
     const w = world;
     const alpha = w.addSection("Alpha");
@@ -93,7 +93,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
 
   it("catalogRename, catalogReparent, and catalogMerge maintain referential integrity", async () => {
     world = await fakeWorld({
-      complete: () => JSON.stringify({ recap: "r", state: "done" }),
+      complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
     const w = world;
 
@@ -177,7 +177,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
 
   it("catalog and state reads are pure and do not increment catalog revision", async () => {
     world = await fakeWorld({
-      complete: () => JSON.stringify({ recap: "r", state: "done" }),
+      complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
     const w = world;
 
@@ -205,7 +205,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
 
   it("catalogUpdateMetadata updates metadata atomically and handles no-ops and collisions", async () => {
     world = await fakeWorld({
-      complete: () => JSON.stringify({ recap: "r", state: "done" }),
+      complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
     const w = world;
 
@@ -263,7 +263,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
 
   it("persists, validates, preserves, and clears a topic's optional project", async () => {
     world = await fakeWorld({
-      complete: () => JSON.stringify({ recap: "r", state: "done" }),
+      complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
     const { entity } = (await world.harness.behavior.callRpc("catalogCreate", {
       name: "Project work",
@@ -294,7 +294,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
 
   it("taskAssign on a child sets its root's topic", async () => {
     world = await fakeWorld({
-      complete: () => JSON.stringify({ recap: "r", state: "done" }),
+      complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
     const w = world;
     const rootThread = w.addThread("t-root", { title: "Root Thread" });
@@ -327,8 +327,8 @@ describe("Catalog and Task Identity RPC Contract", () => {
         capturedPrompt = call.prompt;
         return JSON.stringify({
           recap: "Designing the invoice engine",
-          state: "in_progress",
-          goal: "Billing invoice engine",
+          state: "needs-input",
+          title: "Billing invoice engine",
           subjectId: topicId,
           proposed: null,
         });

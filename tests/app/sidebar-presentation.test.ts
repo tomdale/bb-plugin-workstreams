@@ -13,8 +13,8 @@ const options = { showPin: true, timestamps: "show" as const, age: "1m" };
 const analysis = (state: StoredAnalysis["state"]): StoredAnalysis => ({
   state,
   recap: "Shipped it",
-  needsYou: null,
-  goal: "Ship",
+  ask: null,
+  title: "Ship",
   revision: 100,
   at: 100,
   model: "test",
@@ -27,38 +27,38 @@ it.each(["always", "collapsed", "never"] as const)(
       expect(
         headerCounts({ total: 3, needsYou: 1 }, collapsed, {
           threadCount: when,
-          waitingCount: when,
+          needsYouCount: when,
         }),
       ).toEqual({
-        waiting: when === "always" || (when === "collapsed" && collapsed),
+        needsYou: when === "always" || (when === "collapsed" && collapsed),
         total: when === "always" || (when === "collapsed" && collapsed),
       });
       expect(
         headerCounts({ total: 0, needsYou: 0 }, collapsed, {
           threadCount: when,
-          waitingCount: when,
+          needsYouCount: when,
         }),
-      ).toEqual({ waiting: false, total: false });
+      ).toEqual({ needsYou: false, total: false });
     }
   },
 );
 
 it.each([
   [
-    { waitingCount: "collapsed", threadCount: "collapsed" },
-    { waiting: true, total: true },
+    { needsYouCount: "collapsed", threadCount: "collapsed" },
+    { needsYou: true, total: true },
   ],
   [
-    { waitingCount: "never", threadCount: "always" },
-    { waiting: false, total: true },
+    { needsYouCount: "never", threadCount: "always" },
+    { needsYou: false, total: true },
   ],
   [
-    { waitingCount: "always", threadCount: "never" },
-    { waiting: true, total: false },
+    { needsYouCount: "always", threadCount: "never" },
+    { needsYou: true, total: false },
   ],
   [
-    { waitingCount: "never", threadCount: "never" },
-    { waiting: false, total: false },
+    { needsYouCount: "never", threadCount: "never" },
+    { needsYou: false, total: false },
   ],
 ] as const)(
   "uses independent count preferences for a collapsed lower-workstream toggle: %j",
@@ -71,11 +71,11 @@ it.each([
 
 it("defaults to showing counts on collapsed headers", () => {
   expect(headerCounts({ total: 3, needsYou: 1 }, false)).toEqual({
-    waiting: false,
+    needsYou: false,
     total: false,
   });
   expect(headerCounts({ total: 3, needsYou: 1 }, true)).toEqual({
-    waiting: true,
+    needsYou: true,
     total: true,
   });
 });
@@ -106,7 +106,7 @@ it.each([true, false])(
 );
 
 it("shows no mark or completion suffix for inferred completion", () => {
-  const work = workView(thread, analysis("done"));
+  const work = workView(thread, analysis("complete"));
   expect(hasStatusMark(thread, work)).toBe(false);
   expect(presentRow(thread, work, options)).toMatchObject({
     accessibleName: "Task",
@@ -115,10 +115,10 @@ it("shows no mark or completion suffix for inferred completion", () => {
 });
 
 it("marks a completed turn only until the row is read", () => {
-  const work = workView(thread, analysis("done"));
+  const work = workView(thread, analysis("complete"));
   const unread = sidebarThread("u", { title: "Task", isUnread: true });
   expect(presentRow(unread, work, options).slotMark).toEqual({
-    kind: "done",
+    kind: "complete",
     label: "Complete",
   });
   expect(presentRow(unread, work, options).accessibleName).toBe(
@@ -128,10 +128,10 @@ it("marks a completed turn only until the row is read", () => {
 });
 
 it("marks a decision as needs you everywhere, Up Next included", () => {
-  const work = workView(thread, analysis("needs_decision"));
+  const work = workView(thread, analysis("needs-input"));
   expect(hasStatusMark(thread, work)).toBe(true);
   expect(presentRow(thread, work, options).accessibleName).toContain(
-    "Needs you",
+    "Needs input",
   );
 });
 
@@ -144,18 +144,21 @@ it("marks a review verdict as ready for review", () => {
   });
 });
 
-it("marks a turn the agent reported waiting as waiting, not an inferred one", () => {
+it("marks a waiting turn as Waiting and a blocked one as Blocked", () => {
   const work = {
     kind: "current" as const,
-    analysis: analysis("in_progress"),
+    analysis: analysis("waiting"),
     reported: true,
   };
   expect(presentRow(thread, work, options).slotMark).toEqual({
     kind: "waiting",
     label: "Waiting",
   });
-  const inferred = workView(thread, analysis("in_progress"));
-  expect(presentRow(thread, inferred, options).slotMark).toBeNull();
+  const blocked = workView(thread, analysis("blocked"));
+  expect(presentRow(thread, blocked, options).slotMark).toEqual({
+    kind: "blocked",
+    label: "Blocked",
+  });
 });
 
 it("marks a failed turn over a verdict, and working over everything", () => {
@@ -164,7 +167,7 @@ it("marks a failed turn over a verdict, and working over everything", () => {
     title: "Task",
     indicator: "unread-error",
   });
-  expect(presentRow(failed, work, options).slotMark?.kind).toBe("error");
+  expect(presentRow(failed, work, options).slotMark?.kind).toBe("failed");
   const running = sidebarThread("r", { title: "Task", indicator: "runtime" });
   expect(presentRow(running, work, options).slotMark?.kind).toBe("working");
 });
@@ -176,7 +179,7 @@ it("keeps the failure mark after the failed turn is read", () => {
   expect(hasStatusMark(read, undefined)).toBe(true);
   expect(presentRow(read, undefined, options)).toMatchObject({
     accessibleName: "Task, Failed",
-    slotMark: { kind: "error", label: "Failed" },
+    slotMark: { kind: "failed", label: "Failed" },
   });
   // An unread failed thread adds the inline unread dot beside that mark.
   const unread = sidebarThread("u", {
@@ -184,7 +187,7 @@ it("keeps the failure mark after the failed turn is read", () => {
     status: "error",
     isUnread: true,
   });
-  expect(presentRow(unread, undefined, options).slotMark?.kind).toBe("error");
+  expect(presentRow(unread, undefined, options).slotMark?.kind).toBe("failed");
 });
 
 it("reserves a shared status slot when any row has a slot mark", () => {

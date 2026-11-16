@@ -13,7 +13,7 @@ afterEach(async () => {
 async function setup() {
   world = await fakeWorld({
     complete: () =>
-      JSON.stringify({ recap: "r", state: "in_progress", subject: null }),
+      JSON.stringify({ recap: "r", state: "needs-input", subject: null }),
   });
   return world;
 }
@@ -265,13 +265,14 @@ describe("cli", () => {
     expect(w.threads.get("t1")?.title).toBe("Old focus");
   });
 
-  it("counts unread completed roots as needing attention just like the app", async () => {
+  it("counts threads that need input or are blocked, not unread completed ones, as the app does", async () => {
+    let state = "complete";
     const w = await fakeWorld({
       complete: () =>
         JSON.stringify({
           recap: "Finished",
-          state: "done",
-          goal: "Fix parser",
+          state,
+          title: "Fix parser",
           subjectId: null,
           proposed: null,
         }),
@@ -281,18 +282,19 @@ describe("cli", () => {
     w.converse("t1", ["Fix the parser"]);
     await rpc(w, "refresh", null);
     await w.harness.behavior.runCli(["analyze", "t1"]);
-    const result = JSON.parse(
-      (await w.harness.behavior.runCli(["show", "unfiled", "--json"])).stdout,
-    );
-    expect(result.needsYou).toBe(1);
-    expect(result.rows[0].needsYou).toBe(true);
-    const thread = w.threads.get("t1")!;
-    w.threads.set("t1", { ...thread, lastReadAt: thread.latestAttentionAt });
-    const read = JSON.parse(
-      (await w.harness.behavior.runCli(["show", "unfiled", "--json"])).stdout,
-    );
-    expect(read.needsYou).toBe(0);
-    expect(read.rows[0].needsYou).toBe(false);
+    const show = async () =>
+      JSON.parse(
+        (await w.harness.behavior.runCli(["show", "unfiled", "--json"])).stdout,
+      );
+    const complete = await show();
+    expect(complete.needsYou).toBe(0);
+    expect(complete.rows[0].needsYou).toBe(false);
+    for (state of ["needs-input", "blocked"]) {
+      await w.harness.behavior.runCli(["analyze", "t1"]);
+      const asking = await show();
+      expect(asking.needsYou).toBe(1);
+      expect(asking.rows[0].needsYou).toBe(true);
+    }
   });
 
   it("labels analyze catch-up errors as global stale state", async () => {

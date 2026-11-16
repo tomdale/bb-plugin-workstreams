@@ -53,7 +53,7 @@ export class RecapArchive {
     const recap = this.deps.recaps.get(thread.id)?.recap;
     if (recap) return recap.state === "complete";
     const analysis = this.deps.analyzer.get(thread.id);
-    return isCurrent(analysis, thread) && analysis.state === "done";
+    return isCurrent(analysis, thread) && analysis.state === "complete";
   }
 
   private async eligible(
@@ -66,6 +66,7 @@ export class RecapArchive {
       !recap ||
       recap.id !== recapId ||
       recap.state === "waiting" ||
+      recap.state === "blocked" ||
       thread.archivedAt !== null ||
       thread.visibility === "hidden" ||
       !archiveIdle(thread)

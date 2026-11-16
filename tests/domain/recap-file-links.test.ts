@@ -119,7 +119,7 @@ it("normalizes links in the recap's timeline Markdown as well as the card", () =
     turnId: "turn",
     at: 1,
     state: "review",
-    goal: "Wrote [the plan](docs/My Plan.md)",
+    headline: "Wrote [the plan](docs/My Plan.md)",
     latest: [
       {
         text: "Read [the report](docs/My Report.md)",

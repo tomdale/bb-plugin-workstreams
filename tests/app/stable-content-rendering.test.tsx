@@ -94,7 +94,7 @@ const RECAP: Recap = {
   turnId: "turn1",
   at: 1,
   state: "complete",
-  goal: "Build the card",
+  headline: "Build the card",
   latest: ["First result", "Second result"],
   review: [],
   links: [],

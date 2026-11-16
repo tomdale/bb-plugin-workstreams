@@ -16,7 +16,7 @@ const recap = (state: Recap["state"]): Recap => ({
   turnId: "turn",
   at: Date.now(),
   state,
-  goal: "Updated the card stack",
+  headline: "Updated the card stack",
   latest: ["Question answers resume the tool"],
   review: state === "review" ? ["Answer a question"] : [],
   links:
@@ -70,8 +70,8 @@ it.each<{ card: QueueCard; label: string; line: string }>([
     line: "Building the plugin",
   },
   {
-    card: { kind: "needs", line: "Choose a layout" },
-    label: "Needs your decision",
+    card: { kind: "needs", label: "Needs input", line: "Choose a layout" },
+    label: "Needs input",
     line: "Choose a layout",
   },
   {

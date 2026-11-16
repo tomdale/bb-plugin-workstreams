@@ -115,7 +115,7 @@ describe("focused workstreams", () => {
     // The rules then apply to the focused workstream's threads alone.
     await waitFor(() =>
       expect(groupRows(slot, "Up Next")).toEqual([
-        "Ask z1, Needs you",
+        "Ask z1, Needs input",
         "Zeta quiet",
       ]),
     );
@@ -126,13 +126,13 @@ describe("focused workstreams", () => {
     // The toggle and revealed groups use the same attention treatment for
     // threads blocked on you.
     const toggle = slot.getByRole("button", {
-      name: "Show other workstreams, 2 waiting on you, 4 threads",
+      name: "Show other workstreams, 2 need you, 4 threads",
     });
-    const count = toggle.querySelector(".ws-needs-you-pill");
+    const count = toggle.querySelector(".ws-needs-input-pill");
     expect(count?.textContent).toBe("2");
     expect(count?.nextElementSibling?.textContent).toBe("4");
     expect(count?.nextElementSibling?.className).not.toContain(
-      "ws-needs-you-pill",
+      "ws-needs-input-pill",
     );
     fireEvent.click(toggle);
     expect(slot.getByRole("region", { name: "Alpha" })).toBeTruthy();
@@ -147,11 +147,11 @@ describe("focused workstreams", () => {
         .getByRole("button", { name: "Expand Alpha" })
         .getAttribute("aria-expanded"),
     ).toBe("false");
-    const waiting = alpha.getByTitle("1 waiting on you");
-    expect(waiting.className).toContain("ws-needs-you-pill");
+    const waiting = alpha.getByTitle("1 needs you");
+    expect(waiting.className).toContain("ws-needs-input-pill");
     const total = waiting.nextElementSibling;
     expect(total?.textContent).toBe("1");
-    expect(total?.className).not.toContain("ws-needs-you-pill");
+    expect(total?.className).not.toContain("ws-needs-input-pill");
 
     // With nothing in a focused workstream blocked on you, Up Next shows
     // every workstream.
@@ -175,8 +175,8 @@ describe("focused workstreams", () => {
     );
     await waitFor(() =>
       expect(groupRows(unfocused, "Up Next")).toEqual([
-        "Ask a1, Needs you",
-        "Ask b1, Needs you",
+        "Ask a1, Needs input",
+        "Ask b1, Needs input",
         "Zeta quiet",
         "Read recap",
       ]),
@@ -189,14 +189,14 @@ describe("focused workstreams", () => {
     ).toBeNull();
     expect(
       unfocused.getByRole("button", {
-        name: "Show other workstreams, 2 waiting on you, 3 threads",
+        name: "Show other workstreams, 2 need you, 3 threads",
       }),
     ).toBeTruthy();
     unfocused.lifecycle.unmount();
   });
 
   it("wires count preferences to the collapsed toggle and hides counts when expanded", async () => {
-    const settings = { waitingCount: "never", threadCount: "always" };
+    const settings = { needsYouCount: "never", threadCount: "always" };
     const name = "Show other workstreams, 2 threads";
     const slot = await mount(
       [
@@ -214,7 +214,7 @@ describe("focused workstreams", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(toggle);
     const hide = slot.getByRole("button", { name: "Hide other workstreams" });
-    expect(hide.querySelector(".ws-needs-you-pill")).toBeNull();
+    expect(hide.querySelector(".ws-needs-input-pill")).toBeNull();
     expect(hide.textContent).toBe("Hide other workstreams");
     slot.lifecycle.unmount();
   });
@@ -290,7 +290,7 @@ describe("focused workstreams", () => {
     });
     await waitFor(() =>
       expect(groupRows(slot, "Up Next")).toEqual([
-        "Ask a1, Needs you",
+        "Ask a1, Needs input",
         "Zeta task",
       ]),
     );
@@ -298,23 +298,23 @@ describe("focused workstreams", () => {
     slot.selectThread("a1");
     await waitFor(() =>
       expect(groupRows(slot, "Up Next")).toEqual([
-        "Ask a1, Needs you",
-        "Ask z1, Needs you",
+        "Ask a1, Needs input",
+        "Ask z1, Needs input",
       ]),
     );
     // Group counts include the held row, irrespective of its Up Next position.
     expect(
       slot.getByRole("button", {
-        name: "Show other workstreams, 1 waiting on you, 1 thread",
+        name: "Show other workstreams, 1 needs you, 1 thread",
       }),
     ).toBeTruthy();
     slot.selectThread("z1");
     await waitFor(() =>
-      expect(groupRows(slot, "Up Next")).toEqual(["Ask z1, Needs you"]),
+      expect(groupRows(slot, "Up Next")).toEqual(["Ask z1, Needs input"]),
     );
     expect(
       slot.getByRole("button", {
-        name: "Show other workstreams, 1 waiting on you, 1 thread",
+        name: "Show other workstreams, 1 needs you, 1 thread",
       }),
     ).toBeTruthy();
     slot.lifecycle.unmount();
@@ -338,7 +338,7 @@ describe("focused workstreams", () => {
         order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
       });
       await waitFor(() =>
-        expect(groupRows(slot, "Up Next")).toEqual(["Ask a1, Needs you"]),
+        expect(groupRows(slot, "Up Next")).toEqual(["Ask a1, Needs input"]),
       );
       threads.push(asking("z1", "sec_z", 200));
       slot.selectThread(null);
@@ -357,7 +357,7 @@ describe("focused workstreams", () => {
       expect(leaving.style.overflow).toBe("hidden");
       expect(slotOf("z1").style.height).not.toBe("");
       await waitFor(() =>
-        expect(groupRows(slot, "Up Next")).toEqual(["Ask z1, Needs you"]),
+        expect(groupRows(slot, "Up Next")).toEqual(["Ask z1, Needs input"]),
       );
       slot.lifecycle.unmount();
     } finally {
