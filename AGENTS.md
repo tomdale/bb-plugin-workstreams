@@ -31,7 +31,10 @@ reports, use the terms `README.md` and the app already use; do not coin new
 ones. `ISSUES.md` records known limits. When a feature is retired, delete its
 code, settings, and tests rather than leaving compatibility shims. Measure
 before optimizing analysis: check live traces and costs, and evaluate prompt or
-model changes with `eval/` (see `eval/README.md`).
+model changes with `eval/` (see `eval/README.md`). For profiling, benchmarking,
+or a speedup claim, follow `.agents/skills/measuring-performance/SKILL.md`; it
+holds the recipes for live CDP counters and traces, frame capture, the
+real-scale fixture, and server pass and payload benchmarks.
 
 Before changing UI, agent tools or instructions, or the SDK dependency, read
 `.agents/skills/bb-plugin-guidelines/SKILL.md`, installed from
