@@ -11,7 +11,7 @@
  * its place in the order is gone with it. The move waits a beat so whatever
  * the surface that archived it does next lands first, and it stays put when
  * the user has gone somewhere of their own. A toast says what left and offers
- * to go back, since the archive or snooze may not have been the user's (see
+ * Undo, since the archive or snooze may not have been the user's (see
  * `moveNotice.ts`).
  */
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
@@ -60,7 +60,7 @@ export function AdvanceAfterLeaving(): null {
     subscribeSidebarUpNext,
     readSidebarUpNext,
   );
-  const { projection, upNextOptions, topics } = ws;
+  const { projection, upNextOptions, topics, rpc, setSnoozes } = ws;
   const order = useMemo(() => {
     if (sidebarOrder) return () => sidebarOrder;
     let ranked: readonly string[] | undefined;
@@ -148,7 +148,22 @@ export function AdvanceAfterLeaving(): null {
         reason: snoozed ? "snoozed" : "archived",
         leftTitle: titleOf(previous.projection, departing),
         openedTitle: titleOf(previous.projection, target),
-        goBack: () => actions.open(departing),
+        undo: async () => {
+          if (snoozed)
+            await setSnoozes(
+              [
+                {
+                  id: departing,
+                  latestAttentionAt:
+                    previous.projection.rowOf.get(departing)?.thread
+                      .latestAttentionAt,
+                },
+              ],
+              "wake",
+            );
+          else await rpc.call("threadUnarchive", { threadId: departing });
+          actions.open(departing);
+        },
       });
     }, ADVANCE_DELAY_MS);
   }, [
@@ -160,6 +175,8 @@ export function AdvanceAfterLeaving(): null {
     snoozesLoaded,
     snoozes,
     actions,
+    rpc,
+    setSnoozes,
   ]);
 
   return null;

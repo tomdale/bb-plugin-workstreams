@@ -82,6 +82,8 @@ function mount(viewed: string, sidebarThreads: Listing, snoozes: Snoozes) {
     settings: {},
     rpc: {
       prefs: () => ({ prefs: parsePrefs({}) }),
+      threadUnarchive: () => ({ ok: true }),
+      unsnooze: () => ({ ok: true }),
       state: () => ({
         ...emptyState(),
         analysis: {},
@@ -224,7 +226,7 @@ it("doesn't open a thread that left before the move was made", async () => {
   expect(slot.inspection.sidebarActionCalls).toEqual([]);
 });
 
-it("says what left and offers to go back when it moves the user", async () => {
+it("says what left and offers Undo, which unarchives and reopens it", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout"] });
   const slot = await mountLoaded("beta", listing(threading()), {});
   await archive(slot, "beta");
@@ -232,12 +234,35 @@ it("says what left and offers to go back when it moves the user", async () => {
   const [title, options] = toast.mock.calls[0]!;
   expect(title).toBe("“Title beta” was archived");
   expect(options.description).toBe("Opened “Title other”");
-  expect(options.action.label).toBe("Go back");
-  options.action.onClick();
+  expect(options.action.label).toBe("Undo");
+  await act(async () => options.action.onClick());
+  expect(
+    slot.inspection.rpcCalls.filter((c) => c.method === "threadUnarchive"),
+  ).toEqual([expect.objectContaining({ input: { threadId: "beta" } })]);
   expect(slot.inspection.sidebarActionCalls).toEqual([
     { method: "open", threadId: "other" },
     { method: "open", threadId: "beta" },
   ]);
+});
+
+it("wakes a snoozed thread on Undo and reopens it", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout"] });
+  const snoozes: Snoozes = {};
+  const slot = await mountLoaded("beta", listing(threading()), snoozes);
+  await snooze(slot, snoozes, "beta");
+  const [, options] = toast.mock.calls[0]!;
+  await act(async () => options.action.onClick());
+  expect(
+    slot.inspection.rpcCalls.filter((c) => c.method === "unsnooze"),
+  ).toEqual([
+    expect.objectContaining({
+      input: expect.objectContaining({ threadIds: ["beta"] }),
+    }),
+  ]);
+  expect(slot.inspection.sidebarActionCalls.at(-1)).toEqual({
+    method: "open",
+    threadId: "beta",
+  });
 });
 
 it("names a snooze made elsewhere, and leaves this app's snoozes to their own toast", async () => {
