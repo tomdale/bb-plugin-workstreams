@@ -4,15 +4,15 @@ import { useOverviewOpen } from "../page/overview/route.ts";
 import { OVERVIEW_ICON } from "../workstream-icon.ts";
 import { rowGeometry } from "./rowGeometry.ts";
 
-/** The Overview mark's drawn size, and the least room its slot gives it. */
+/** The Overview mark's drawn size. */
 const ICON_PX = 12;
 
 /**
  * The first row of a workstream's group: opens the workstream's Overview on
  * the Workstreams page, and shows as the active row while that Overview is
- * open. It sits where a root thread row does, with its mark in the group's
- * status slot so "Overview" starts at the thread titles' edge; a group whose
- * threads draw no mark has no slot, and the mark makes its own room.
+ * open. It sits where a root thread row does. The mark is not a status, so it
+ * is part of the label: it starts at the thread titles' edge, past the group's
+ * status slot when threads draw one.
  */
 export function OverviewRow({
   groupId,
@@ -49,9 +49,14 @@ export function OverviewRow({
           onClick={onOpen}
           className="absolute inset-0 cursor-pointer rounded-md"
         />
+        {slotWidth > 0 ? (
+          <span aria-hidden className="shrink-0" style={{ width: slotWidth }} />
+        ) : null}
         <span
-          className="pointer-events-none relative flex h-3.5 shrink-0 items-center justify-center"
-          style={{ width: slotWidth > 0 ? slotWidth : ICON_PX }}
+          className={cn(
+            "pointer-events-none relative flex min-w-0 items-center gap-1.5",
+            leadingClass,
+          )}
         >
           <Icon
             name={OVERVIEW_ICON}
@@ -59,14 +64,7 @@ export function OverviewRow({
             className="shrink-0"
             style={{ width: ICON_PX, height: ICON_PX }}
           />
-        </span>
-        <span
-          className={cn(
-            "pointer-events-none relative min-w-0 truncate",
-            leadingClass,
-          )}
-        >
-          Overview
+          <span className="truncate">Overview</span>
         </span>
       </div>
     </li>
