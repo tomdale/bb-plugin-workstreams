@@ -58,6 +58,10 @@ deterministic, so two agreeing runs per arm suffice. Record the one-minute load
 average with each timed sample, as `scripts/benchmark-tests.mjs` does, and rerun
 any pair taken under different load.
 
+Report the numbers from the first arm set before building anything new. Reach
+for a new harness only when the existing scripts cannot answer the question, and
+send the numbers you already have while you build it.
+
 | Reference                           | Read when                                                             |
 | ----------------------------------- | --------------------------------------------------------------------- |
 | `references/bb-instrumentation.md`  | Level 1: bb diagnostics, traces, browser marks, perf seed, benchmarks |

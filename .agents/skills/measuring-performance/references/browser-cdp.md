@@ -8,6 +8,10 @@ stylesheets in one session (`scripts/profile-shimmer.mjs`).
 `scripts/profile-sidebar.mjs` builds `gallery/sidebar-profile` with 64 rows,
 runs `--runs` samples (default 3, at most 20, so pass ten or more for a
 duration), and compares them against a saved `--baseline <sidebar.json>` report.
+Its five scenarios are `initial-render`, `hover`, `expand-collapse`,
+`animation`, and `react-commits`, and it mounts a build that imports
+`react-dom/profiling`, so use its numbers for before/after deltas within one
+build; a profiling React inflates their absolute values.
 `prototypes/queue-motion/capture/record.mjs` captures screencast frames.
 
 For the running app, open `$BB_SERVER_URL` in `playwright-core` (a devDependency
