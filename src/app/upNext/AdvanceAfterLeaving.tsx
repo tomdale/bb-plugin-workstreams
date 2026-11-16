@@ -10,7 +10,9 @@
  * Up Next's order is read while the thread is still listed: once it has left,
  * its place in the order is gone with it. The move waits a beat so whatever
  * the surface that archived it does next lands first, and it stays put when
- * the user has gone somewhere of their own.
+ * the user has gone somewhere of their own. A toast says what left and offers
+ * to go back, since the archive or snooze may not have been the user's (see
+ * `moveNotice.ts`).
  */
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import {
@@ -25,6 +27,8 @@ import {
   upNextOrder,
 } from "../../domain/upNextNavigation.ts";
 import { useWorkstreams } from "../useWorkstreams.ts";
+import { wasSnoozedHere } from "../snooze/actions.ts";
+import { announceMove } from "./moveNotice.ts";
 import { readSidebarUpNext, subscribeSidebarUpNext } from "./sidebarOrder.ts";
 
 /** How long the surface that archived the thread has to finish its own move. */
@@ -137,7 +141,15 @@ export function AdvanceAfterLeaving(): null {
       // A thread that left before the delay was up is no place to go, and a
       // route the user chose is theirs.
       if (!currentList.current.has(target)) return;
-      if (at === null || at === departing) actions.open(target);
+      if (at !== null && at !== departing) return;
+      actions.open(target);
+      if (snoozed && wasSnoozedHere(departing)) return;
+      announceMove({
+        reason: snoozed ? "snoozed" : "archived",
+        leftTitle: titleOf(previous.projection, departing),
+        openedTitle: titleOf(previous.projection, target),
+        goBack: () => actions.open(departing),
+      });
     }, ADVANCE_DELAY_MS);
   }, [
     ws.status,
@@ -152,3 +164,6 @@ export function AdvanceAfterLeaving(): null {
 
   return null;
 }
+
+const titleOf = (projection: Projection<PluginSidebarThread>, id: string) =>
+  projection.rowOf.get(id)?.thread.displayTitle ?? "Untitled thread";

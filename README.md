@@ -437,9 +437,11 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    delegate counts as its root's row. When Up Next has no other thread,
    archiving a delegate leaves you on its root, and archiving a root opens the
    next thread in its workstream, then the most recently active thread, so you
-   land on the composer only when no other thread is open. Nested delegates do
-   not appear as separate Up Next entries; find them in your workstream's thread
-   tree.
+   land on the composer only when no other thread is open. A toast names the
+   thread that left and the one that opened, with **Go back**, since a script or
+   another device may have archived or snoozed it; a snooze you made in this app
+   shows its own toast with **Undo** instead. Nested delegates do not appear as
+   separate Up Next entries; find them in your workstream's thread tree.
    - **Focus:** While a focused workstream has a thread blocked on you, Up Next
      applies these rules to focused workstreams' threads only and marks its
      header with the focus icon.

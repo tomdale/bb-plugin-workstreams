@@ -20,6 +20,22 @@ const message = (cause: unknown) =>
   cause instanceof Error ? cause.message : String(cause);
 
 /**
+ * Threads this app snoozed in the last minute, with when. The snooze toast
+ * already tells the user what happened, so the toast for moving on from a
+ * snoozed thread (see `upNext/moveNotice.ts`) is left to snoozes made
+ * elsewhere.
+ */
+const snoozedHere = new Map<string, number>();
+const SNOOZED_HERE_MS = 60_000;
+
+/** Whether this app snoozed `threadId` within the last minute. */
+export function wasSnoozedHere(threadId: string, now = Date.now()): boolean {
+  for (const [id, at] of snoozedHere)
+    if (now - at > SNOOZED_HERE_MS) snoozedHere.delete(id);
+  return snoozedHere.has(threadId);
+}
+
+/**
  * Snoozes threads and confirms it in a toast with Undo, because their rows
  * leave view at once. Undo gives each thread back the snooze `previous`
  * reported for it before this one, or wakes it; `previous` is read before
@@ -58,6 +74,8 @@ export function snoozeThreads<T extends SnoozeTarget>(
         toast.error(message(cause)),
       );
   };
+  const at = Date.now();
+  for (const thread of threads) snoozedHere.set(thread.id, at);
   setSnoozes(threads, when).then(
     () =>
       toast(

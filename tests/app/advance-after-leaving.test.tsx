@@ -2,11 +2,15 @@
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { act, cleanup } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+
+const toast = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast }));
 import {
   experimental_useSidebarThreads,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
 import { ServerStateRealtime } from "../../src/app/serverState.ts";
+import { snoozeThreads } from "../../src/app/snooze/actions.ts";
 import { AdvanceAfterLeaving } from "../../src/app/upNext/AdvanceAfterLeaving.tsx";
 import { publishSidebarUpNext } from "../../src/app/upNext/sidebarOrder.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
@@ -15,6 +19,7 @@ import { emptyState, section, sidebarThread } from "./fixtures.ts";
 
 afterEach(() => {
   cleanup();
+  toast.mockClear();
   publishSidebarUpNext(null);
   vi.useRealTimers();
 });
@@ -217,4 +222,46 @@ it("doesn't open a thread that left before the move was made", async () => {
     await vi.advanceTimersByTimeAsync(100);
   });
   expect(slot.inspection.sidebarActionCalls).toEqual([]);
+});
+
+it("says what left and offers to go back when it moves the user", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout"] });
+  const slot = await mountLoaded("beta", listing(threading()), {});
+  await archive(slot, "beta");
+  expect(toast).toHaveBeenCalledOnce();
+  const [title, options] = toast.mock.calls[0]!;
+  expect(title).toBe("“Title beta” was archived");
+  expect(options.description).toBe("Opened “Title other”");
+  expect(options.action.label).toBe("Go back");
+  options.action.onClick();
+  expect(slot.inspection.sidebarActionCalls).toEqual([
+    { method: "open", threadId: "other" },
+    { method: "open", threadId: "beta" },
+  ]);
+});
+
+it("names a snooze made elsewhere, and leaves this app's snoozes to their own toast", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout"] });
+  const snoozes: Snoozes = {};
+  const slot = await mountLoaded("beta", listing(threading()), snoozes);
+  await snooze(slot, snoozes, "beta");
+  expect(toast.mock.calls.map(([title]) => title)).toEqual([
+    "“Title beta” was snoozed",
+  ]);
+  toast.mockClear();
+  delete snoozes.beta;
+  const here = await mountLoaded("other", listing(threading()), snoozes);
+  snoozeThreads(async () => {}, [{ id: "other" }], {
+    until: Date.now() + 3_600_000,
+    events: false,
+  });
+  await snooze(here, snoozes, "other");
+  expect(here.inspection.sidebarActionCalls).toContainEqual({
+    method: "open",
+    threadId: "ask",
+  });
+  // Only the snooze's own toast, with its Undo.
+  expect(toast.mock.calls.map(([title]) => title)).toEqual([
+    expect.stringMatching(/^Snoozed /),
+  ]);
 });
