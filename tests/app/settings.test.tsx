@@ -11,6 +11,7 @@ import { afterEach, expect, it } from "vitest";
 import { ColorSettings } from "../../src/app/settings/ColorSettings.tsx";
 import {
   AdvancedSettings,
+  ModelsSettings,
   NewWorkSettings,
   OrganizeSettings,
   SidebarSettings,
@@ -30,7 +31,21 @@ const SURFACES = [
   "Thread Info and context card",
 ];
 
+/** The model pickers the Models section holds, in order, with their defaults. */
+const MODELS = [
+  ["Name and file new threads", "vercel-ai-gateway/openai/gpt-6.1-sol"],
+  ["Update threads after each turn", "vercel-ai-gateway/openai/gpt-6.1-sol"],
+  ["Arrange categories", "vercel-ai-gateway/anthropic/claude-sonnet-5.5"],
+  ["Suggest changes", "vercel-ai-gateway/anthropic/claude-sonnet-5.5"],
+] as const;
+
 afterEach(cleanup);
+
+/** The settings row labeled `label`: its label sits two levels inside it. */
+function settingRow(slot: Awaited<ReturnType<typeof mount>>, label: string) {
+  return slot.getByText(label, { selector: "p" }).parentElement!
+    .parentElement as HTMLElement;
+}
 
 async function mount(
   sectionId: string,
@@ -50,6 +65,7 @@ async function mount(
     threads: ThreadsSettings,
     "new-work": NewWorkSettings,
     organize: OrganizeSettings,
+    models: ModelsSettings,
     advanced: AdvancedSettings,
   };
   const section = {
@@ -475,7 +491,6 @@ it("saves the Titles and parent-link switches", async () => {
     { patch: { threads: { autoTitle: false } } },
     { patch: { threads: { showParentLink: true } } },
   ]);
-  expect(slot.getByTestId("bb-provider-model-picker")).toBeTruthy();
 });
 
 it("surfaces settings save failures and reverts optimistic state", async () => {
@@ -512,7 +527,7 @@ it("saves the Show archive button switch, on by default", async () => {
   ).toEqual([{ patch: { threads: { showArchiveButton: false } } }]);
 });
 
-it("saves New threads preferences, keeping the new-threads model when suggestions are off", async () => {
+it("saves New threads preferences", async () => {
   const slot = await mount("new-work");
   await slot.findByRole("switch", { name: "Suggestions while typing" });
   expect(
@@ -540,49 +555,106 @@ it("saves New threads preferences, keeping the new-threads model when suggestion
     { patch: { newWork: { homeProjectId: "" } } },
     { patch: { newWork: { suggestions: false } } },
   ]);
-  // A thread's start still names and files it, so its model stays available.
-  expect(
-    slot.getByTestId("bb-provider-model-picker").getAttribute("data-disabled"),
-  ).not.toBe("true");
+});
+
+it("keeps every model picker in Models, none in the feature sections", async () => {
+  for (const [id, toggle] of [
+    ["threads", "Keep titles current"],
+    ["new-work", "Suggestions while typing"],
+    ["organize", "Organizing suggestions"],
+  ] as const) {
+    const section = await mount(id);
+    await section.findByRole("switch", { name: toggle });
+    expect(section.queryByTestId("bb-provider-model-picker")).toBeNull();
+    section.lifecycle.unmount();
+  }
+  const models = await mount("models");
+  const pickers = await models.findAllByTestId("bb-provider-model-picker");
+  expect(pickers).toHaveLength(MODELS.length);
+  MODELS.forEach(([label, model], index) => {
+    const picker = within(settingRow(models, label)).getByTestId(
+      "bb-provider-model-picker",
+    );
+    // Rows follow a thread's life: named, updated, then organized.
+    expect(picker).toBe(pickers[index]);
+    expect(
+      (within(picker).getByLabelText("Model") as HTMLInputElement).value,
+    ).toBe(model);
+  });
+});
+
+it("saves each model to its own preference", async () => {
+  const slot = await mount("models");
+  await slot.findAllByTestId("bb-provider-model-picker");
+  const keys = [
+    { analysis: "newThreadModel" },
+    { analysis: "turnEndModel" },
+    { organize: "categoryModel" },
+    { organize: "tidyModel" },
+  ];
+  for (const [label] of MODELS) {
+    const row = within(settingRow(slot, label));
+    fireEvent.change(row.getByLabelText("Provider ID"), {
+      target: { value: "openai" },
+    });
+    fireEvent.change(row.getByLabelText("Model"), {
+      target: { value: "gpt-4.1" },
+    });
+    fireEvent.click(
+      row.getByRole("button", { name: "Apply execution selection" }),
+    );
+  }
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
+    ).toHaveLength(keys.length),
+  );
+  const patches = slot.inspection.rpcCalls
+    .filter((call) => call.method === "setPrefs")
+    .map((call) => (call.input as { patch: Record<string, object> }).patch);
+  keys.forEach((key, index) => {
+    const [group, pref] = Object.entries(key)[0]!;
+    expect(Object.keys(patches[index]!)).toEqual([group]);
+    expect(
+      (patches[index]![group] as Record<string, { model: string }>)[pref]
+        ?.model,
+    ).toBe("gpt-4.1");
+  });
 });
 
 it("shows the worker-thread note for a non-gateway analysis model", async () => {
-  const slot = await mount("threads");
-  await slot.findByTestId("bb-provider-model-picker");
-  expect(
-    slot.queryByText(/hidden worker thread and takes several seconds longer/i),
-  ).toBeNull();
-  const model = slot.getByLabelText("Model") as HTMLInputElement;
-  const provider = slot.getByLabelText("Provider ID") as HTMLInputElement;
-  fireEvent.change(provider, { target: { value: "openai" } });
-  fireEvent.change(model, { target: { value: "gpt-4.1" } });
+  const slot = await mount("models");
+  await slot.findAllByTestId("bb-provider-model-picker");
+  const note = /hidden worker thread and takes several seconds longer/i;
+  expect(slot.queryByText(note)).toBeNull();
+  const row = within(settingRow(slot, "Update threads after each turn"));
+  fireEvent.change(row.getByLabelText("Provider ID"), {
+    target: { value: "openai" },
+  });
+  fireEvent.change(row.getByLabelText("Model"), {
+    target: { value: "gpt-4.1" },
+  });
   fireEvent.click(
-    slot.getByRole("button", { name: "Apply execution selection" }),
+    row.getByRole("button", { name: "Apply execution selection" }),
   );
-  await waitFor(() =>
-    expect(
-      slot.getByText(/hidden worker thread and takes several seconds longer/i),
-    ).toBeTruthy(),
-  );
-});
-
-it("shows the turn-end model with its eval-tested default", async () => {
-  const slot = await mount("threads");
-  const picker = await slot.findByTestId("bb-provider-model-picker");
-  expect(picker).toBeTruthy();
-  expect(
-    (picker.querySelector('[aria-label="Model"]') as HTMLInputElement).value,
-  ).toBe("vercel-ai-gateway/openai/gpt-6.1-sol");
+  // Only the row whose model changed gains the note.
+  await waitFor(() => expect(slot.getAllByText(note)).toHaveLength(1));
+  expect(row.getByText(note)).toBeTruthy();
 });
 
 it("shows the Analysis machine only when more than one machine is connected", async () => {
-  const alone = await mount("advanced", {
+  const alone = await mount("models", {
     machines: [{ id: "m1", name: "Laptop" }],
   });
-  await alone.findByRole("switch", { name: "Debug UI" });
+  await alone.findAllByTestId("bb-provider-model-picker");
+  await waitFor(() =>
+    expect(
+      alone.inspection.rpcCalls.some((call) => call.method === "machines"),
+    ).toBe(true),
+  );
   expect(alone.queryByRole("button", { name: "Analysis machine" })).toBeNull();
   alone.lifecycle.unmount();
-  const several = await mount("advanced", {
+  const several = await mount("models", {
     machines: [
       { id: "m1", name: "Laptop" },
       { id: "m2", name: "Studio" },
@@ -591,15 +663,14 @@ it("shows the Analysis machine only when more than one machine is connected", as
   expect(
     await several.findByRole("button", { name: "Analysis machine" }),
   ).toBeTruthy();
-  fireEvent.click(several.getByRole("switch", { name: "Debug UI" }));
+  fireEvent.click(several.getByRole("button", { name: "Analysis machine" }));
+  fireEvent.click(await several.findByRole("option", { name: "Studio" }));
   await waitFor(() =>
     expect(
-      several.inspection.rpcCalls.some(
-        (call) =>
-          call.method === "setPrefs" &&
-          JSON.stringify(call.input).includes('"debugUi":true'),
-      ),
-    ).toBe(true),
+      several.inspection.rpcCalls
+        .filter((call) => call.method === "setPrefs")
+        .map((call) => call.input),
+    ).toEqual([{ patch: { advanced: { hostId: "m2" } } }]),
   );
 });
 

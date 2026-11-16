@@ -23,6 +23,7 @@ import { HomeSection } from "./home/HomeSection.tsx";
 import { WorkstreamsPage } from "./page/Page.tsx";
 import {
   AdvancedSettings,
+  ModelsSettings,
   NewWorkSettings,
   OrganizeSettings,
   SidebarSettings,
@@ -241,6 +242,11 @@ export default definePluginApp((app) => {
     id: "organize",
     title: "Organization",
     component: OrganizeSettings,
+  });
+  app.slots.settingsSection({
+    id: "models",
+    title: "Models",
+    component: ModelsSettings,
   });
   app.slots.settingsSection({
     id: "advanced",

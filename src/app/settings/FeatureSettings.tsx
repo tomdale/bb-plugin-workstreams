@@ -280,12 +280,6 @@ export function ThreadsSettings() {
     <div className="space-y-3">
       <SettingsSaveError error={error} />
       <SectionRows>
-        <ModelField
-          label="Update threads after each turn"
-          description="When a turn ends, updates the thread's goal, its title while Keep titles current is on, and its status when the agent didn't report one. After a new request, it also decides whether the thread moves to another workstream."
-          choice={prefs.analysis.turnEndModel}
-          onChange={(turnEndModel) => update({ analysis: { turnEndModel } })}
-        />
         <SettingRow
           label="Keep titles current"
           description="Title new threads promptly and update titles to follow their current substantive focus. Titles you edit outside Workstreams stay fixed until you clear them."
@@ -427,14 +421,6 @@ export function NewWorkSettings() {
             />
           }
         />
-        <ModelField
-          label="Name and file new threads"
-          description="Titles a new thread and chooses its workstream, in the composer as you write and when its first request is sent. Also files a thread you move into a group of workstreams, and checks whether threads fit their workstream's categories."
-          choice={prefs.analysis.newThreadModel}
-          onChange={(newThreadModel) =>
-            update({ analysis: { newThreadModel } })
-          }
-        />
       </SectionRows>
     </div>
   );
@@ -458,27 +444,19 @@ export function OrganizeSettings() {
             />
           }
         />
-        <ModelField
-          label="Arrange categories"
-          description="Arranges a workstream's threads into categories when it reaches six, and rearranges them when a thread fits none."
-          choice={prefs.organize.categoryModel}
-          onChange={(categoryModel) => update({ organize: { categoryModel } })}
-        />
-        <ModelField
-          label="Suggest changes"
-          description="Writes the workstream splits and tidy edits you review."
-          choice={prefs.organize.tidyModel}
-          onChange={(tidyModel) => update({ organize: { tidyModel } })}
-        />
       </SectionRows>
     </div>
   );
 }
 
-export function AdvancedSettings() {
+/**
+ * Every model Workstreams calls, in the order a thread meets them, and the
+ * machine whose AI Gateway key runs the gateway ones. That machine picker
+ * appears only when there is more than one to choose from.
+ */
+export function ModelsSettings() {
   const { prefs, update, error } = useFeaturePrefs();
   const rpc = useRpc<RpcContract>();
-  const { status: projectStatus, projects } = experimental_useSidebarThreads();
   const [machines, setMachines] = useState<
     { id: string; name: string }[] | null
   >(null);
@@ -504,6 +482,61 @@ export function AdvancedSettings() {
       label: machine.name,
     })) ?? []),
   ];
+  return (
+    <div className="space-y-3">
+      <SettingsSaveError error={error} />
+      <SectionRows>
+        <ModelField
+          label="Name and file new threads"
+          description="Titles a new thread and chooses its workstream, in the composer as you write and when its first request is sent. Also files a thread you move into a group of workstreams, and checks whether threads fit their workstream's categories."
+          choice={prefs.analysis.newThreadModel}
+          onChange={(newThreadModel) =>
+            update({ analysis: { newThreadModel } })
+          }
+        />
+        <ModelField
+          label="Update threads after each turn"
+          description="When a turn ends, updates the thread's goal, its title while Keep titles current is on, and its status when the agent didn't report one. After a new request, it also decides whether the thread moves to another workstream."
+          choice={prefs.analysis.turnEndModel}
+          onChange={(turnEndModel) => update({ analysis: { turnEndModel } })}
+        />
+        <ModelField
+          label="Arrange categories"
+          description="Arranges a workstream's threads into categories when it reaches six, and rearranges them when a thread fits none."
+          choice={prefs.organize.categoryModel}
+          onChange={(categoryModel) => update({ organize: { categoryModel } })}
+        />
+        <ModelField
+          label="Suggest changes"
+          description="Writes the workstream splits and tidy edits you review."
+          choice={prefs.organize.tidyModel}
+          onChange={(tidyModel) => update({ organize: { tidyModel } })}
+        />
+        {machines && machines.length > 1 ? (
+          <SettingRow
+            label="Analysis machine"
+            description="Machine whose Pi key is used for AI Gateway calls."
+            control={
+              <SettingsPicker
+                label="Analysis machine"
+                value={prefs.advanced.hostId}
+                options={machineOptions}
+                placeholder="Use any connected machine"
+                onChange={(hostId) => update({ advanced: { hostId } })}
+                className="w-56"
+              />
+            }
+          />
+        ) : null}
+      </SectionRows>
+    </div>
+  );
+}
+
+export function AdvancedSettings() {
+  const { prefs, update, error } = useFeaturePrefs();
+  const { status: projectStatus, projects } = experimental_useSidebarThreads();
+  if (!prefs) return <Loading />;
   /**
    * What the debug UI shows, one row per surface. Each switch is a `debug*`
    * preference beside `debugUi`; only this list decides which of them exists,
@@ -535,22 +568,6 @@ export function AdvancedSettings() {
       {/* slop-ok: 2 every Workstreams settings section draws this card, and BB
           frames its own settings the same way */}
       <SectionRows>
-        {machines && machines.length > 1 ? (
-          <SettingRow
-            label="Analysis machine"
-            description="Machine whose Pi key is used for AI Gateway calls."
-            control={
-              <SettingsPicker
-                label="Analysis machine"
-                value={prefs.advanced.hostId}
-                options={machineOptions}
-                placeholder="Use any connected machine"
-                onChange={(hostId) => update({ advanced: { hostId } })}
-                className="w-56"
-              />
-            }
-          />
-        ) : null}
         <SettingRow
           label="Record model calls"
           description="Saves each model call's prompt, reasoning, and response, redacting common secrets, for 7 days."
