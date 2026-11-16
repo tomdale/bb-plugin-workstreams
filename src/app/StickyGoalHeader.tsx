@@ -209,12 +209,13 @@ function useAttachedScroller(threadId: string | null): Mount | null {
 
     // The host replaces the pane in several commits. Coalesce attachment and
     // geometry reads into a frame so mutation delivery does not force layout
-    // between those commits.
+    // between those commits. The heading then commits within that frame, so
+    // a transcript that arrives with its column paints with its heading.
     const scheduleAttach = () => {
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
-        attach();
+        flushSync(attach);
       });
     };
     refresh.current = scheduleAttach;
@@ -289,7 +290,9 @@ function useColumnFilled(mount: Mount | null): boolean {
     const fill = () => {
       observer.disconnect();
       clearTimeout(timer);
-      setFilled(mount);
+      // Mutation delivery precedes paint; committing here draws the heading
+      // in the frame that first shows the transcript.
+      flushSync(() => setFilled(mount));
     };
     const observer = new MutationObserver(() => {
       if (hasText(mount.column)) fill();
@@ -368,28 +371,32 @@ function useScrollState(
   useLayoutEffect(() => {
     rendered.current = shown;
   });
-  useEffect(() => {
+  /** The scroller whose first measurement has been taken. */
+  const measuredScroller = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
     // A new scroller (another thread) starts expanded until it is measured.
     latest.current = { fromBottom: 0, range: null, fade: false };
     rendered.current = latest.current;
     setRendered(latest.current);
   }, [scroller]);
-  useEffect(() => {
-    if (!scroller) return;
+  useLayoutEffect(() => {
+    if (!scroller) {
+      measuredScroller.current = null;
+      return;
+    }
     let frame = 0;
+    const read = (): ScrollMeasurement => {
+      const range = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+      const fromBottom = Math.min(
+        range,
+        Math.max(0, range - scroller.scrollTop),
+      );
+      return { fromBottom, range, fade: scroller.scrollTop > 1 };
+    };
     const update = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const range = Math.max(
-          0,
-          scroller.scrollHeight - scroller.clientHeight,
-        );
-        const fromBottom = Math.min(
-          range,
-          Math.max(0, range - scroller.scrollTop),
-        );
-        const fade = scroller.scrollTop > 1;
-        const next = { fromBottom, range, fade };
+        const next = read();
         latest.current = next;
         if (
           scrollKey(rendered.current, scrollLimit, step) ===
@@ -402,7 +409,17 @@ function useScrollState(
         flushSync(() => setRendered(next));
       });
     };
-    update();
+    if (measuredScroller.current === scroller) {
+      update();
+    } else {
+      // The first reading commits before paint, so a heading never paints a
+      // frame after the transcript it belongs to.
+      measuredScroller.current = scroller;
+      const next = read();
+      latest.current = next;
+      rendered.current = next;
+      setRendered(next);
+    }
     scroller.addEventListener("scroll", update, { passive: true });
     const resize = new ResizeObserver(update);
     resize.observe(scroller);
@@ -563,8 +580,10 @@ function usePlacement(
   centered: boolean,
 ): Placement | null {
   const [placement, setPlacement] = useState<Placement | null>(null);
-  useEffect(() => {
+  const placedMount = useRef<Mount | null>(null);
+  useLayoutEffect(() => {
     if (!mount) {
+      placedMount.current = null;
       setPlacement(null);
       return;
     }
@@ -580,7 +599,14 @@ function usePlacement(
         setPlacement((prev) => (samePlacement(prev, next) ? prev : next));
       });
     };
-    measure();
+    if (placedMount.current === mount) {
+      measure();
+    } else {
+      // A new column is placed before paint, like its first scroll reading.
+      placedMount.current = mount;
+      const next = measurePlacement(mount, base, centered, inset);
+      setPlacement((prev) => (samePlacement(prev, next) ? prev : next));
+    }
     // The column grows with every streamed line, but the placement depends
     // only on its width. Its height matters only until a prose message has
     // rendered and given the text inset; until then each new message may.
@@ -662,14 +688,15 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const hasEyebrow = !!context?.workstream;
   const phone = useMediaQuery(PHONE_QUERY);
   const eyebrow = hasEyebrow ? eyebrowMetrics(base, phone) : null;
-  // On a phone the title may take two lines; it is measured, once placed.
-  const measureRef = useRef<HTMLHeadingElement>(null);
+  // On a phone the title may take two lines; it is measured once drawn. The
+  // drawn elements are state, so measuring follows the commit that adds them.
+  const [titleProbe, setTitleProbe] = useState<HTMLHeadingElement | null>(null);
   const [wrappedLines, setWrappedLines] = useState(1);
   const title = context?.title;
   const paneWidth = placement?.pane.width ?? 0;
   const narrow = placement?.narrow ?? false;
   useLayoutEffect(() => {
-    const probe = measureRef.current;
+    const probe = titleProbe;
     if (!narrow || !probe) {
       setWrappedLines(1);
       return;
@@ -678,14 +705,14 @@ export function StickyGoalHeader(): React.ReactElement | null {
     setWrappedLines(
       Math.min(2, Math.max(1, Math.round(probe.scrollHeight / line))),
     );
-  }, [narrow, title, paneWidth, base, hasEyebrow]);
+  }, [narrow, title, paneWidth, base, hasEyebrow, titleProbe]);
   const titleLines = narrow ? wrappedLines : 1;
-  const goalRef = useRef<HTMLDivElement>(null);
+  const [goalElement, setGoalElement] = useState<HTMLDivElement | null>(null);
   const [goalLines, setGoalLines] = useState(1);
   const goal = context?.goal;
   const placed = placement !== null;
   useLayoutEffect(() => {
-    const element = goalRef.current;
+    const element = goalElement;
     // Measure the clamped element: its visible height, not all its overflow,
     // is the space the header's plate and reserved gap must cover.
     const measure = () => {
@@ -704,7 +731,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
     const resize = new ResizeObserver(measure);
     resize.observe(element);
     return () => resize.disconnect();
-  }, [goal, paneWidth, base, mount, placed]);
+  }, [goal, paneWidth, base, mount, placed, goalElement]);
   const height = headingHeight(
     base,
     hasEyebrow,
@@ -931,7 +958,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
           </h2>
           {narrow && (
             <h2
-              ref={measureRef}
+              ref={setTitleProbe}
               aria-hidden
               className="ws-sticky-goal__title ws-sticky-goal__probe"
               style={{
@@ -944,7 +971,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
           )}
           {context.goal && (
             <div
-              ref={goalRef}
+              ref={setGoalElement}
               className="ws-sticky-goal__subtitle"
               style={{
                 fontSize: base * SUBTITLE_SIZE,

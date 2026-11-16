@@ -75,9 +75,13 @@ function paneFixture(text: string | null) {
   vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
     new DOMRect(0, 48, 900, 672),
   );
-  const replaceColumn = () => {
+  const replaceColumn = (text = "") => {
     const next = document.createElement("div");
     next.setAttribute("data-scroll-attached", "");
+    if (text)
+      next.append(
+        Object.assign(document.createElement("div"), { textContent: text }),
+      );
     column().replaceWith(next);
     return next;
   };
@@ -197,6 +201,29 @@ it("draws the destination's title once, expanded, across a thread switch", async
   expect(opacity("expanded")).toBe(1);
   slot.lifecycle.unmount();
   expect(header().hasAttribute("data-ws-hide-title")).toBe(false);
+});
+
+it("draws a warm switch's heading in the frame its column attaches", async () => {
+  const pane = paneFixture("Earlier transcript");
+  const slot = mountHeading();
+  await waitFor(() => expect(opacity("expanded")).toBe(1));
+  selection.threadId = "t2";
+  slot.lifecycle.rerender(<StickyGoalHeader />);
+  await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+  pane.replaceColumn("Destination transcript");
+  // Mutation delivery schedules the attachment; a frame callback queued after
+  // it runs once the attachment has committed, before that frame paints.
+  await Promise.resolve();
+  const title = await new Promise<string | null | undefined>((resolve) =>
+    requestAnimationFrame(() =>
+      resolve(
+        document.querySelector('[data-ws-heading="expanded"] h2')?.textContent,
+      ),
+    ),
+  );
+  expect(title).toBe("Building suggestions");
+  slot.lifecycle.unmount();
 });
 
 it("draws the heading for a column that stays empty", async () => {
