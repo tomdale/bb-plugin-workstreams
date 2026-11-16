@@ -622,8 +622,9 @@ function usePlacement(
   return placement;
 }
 
-// BB scrolls a fresh thread to its newest message while content loads. Hold
-// the expanded heading still briefly rather than following those initial shifts.
+// BB scrolls a fresh thread to its newest message while its transcript lays
+// out. Hold the expanded heading still briefly from the transcript's arrival
+// rather than following those initial shifts.
 const SETTLE_MS = 500;
 
 function useSettled(mount: Mount | null): boolean {
@@ -655,7 +656,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const attached = useAttachedScroller(threadId);
   const mount = attached?.threadId === threadId ? attached : null;
   const filled = useColumnFilled(mount);
-  const settled = useSettled(mount);
+  const settled = useSettled(filled ? mount : null);
   const base = mount?.baseFontSize ?? 14;
   const placement = usePlacement(mount, base, centered);
   const hasEyebrow = !!context?.workstream;

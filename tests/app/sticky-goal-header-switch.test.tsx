@@ -62,12 +62,13 @@ function paneFixture(text: string | null) {
   const clientHeight = 600;
   const scrollHeight = () =>
     column().textContent?.trim() ? 3000 : clientHeight;
+  let fromBottom = 0;
   Object.defineProperties(scroller, {
     clientHeight: { configurable: true, value: clientHeight },
     scrollHeight: { configurable: true, get: scrollHeight },
     scrollTop: {
       configurable: true,
-      get: () => scrollHeight() - clientHeight,
+      get: () => Math.max(0, scrollHeight() - clientHeight - fromBottom),
       set: () => {},
     },
   });
@@ -80,7 +81,12 @@ function paneFixture(text: string | null) {
     column().replaceWith(next);
     return next;
   };
-  return { replaceColumn };
+  /** BB's late transcript layout moving the reader off the newest message. */
+  const shiftReader = (distance: number) => {
+    fromBottom = distance;
+    scroller.dispatchEvent(new Event("scroll"));
+  };
+  return { replaceColumn, shiftReader };
 }
 
 function mountHeading() {
@@ -126,13 +132,21 @@ const opacity = (copy: "expanded" | "compact") =>
 
 /** What the title bar and the heading show at each animation frame. */
 function recordFrames() {
-  const frames: { coreTitle: boolean; expanded: number; compact: number }[] =
-    [];
+  const frames: {
+    coreTitle: boolean;
+    expanded: number;
+    compact: number;
+    collapsed: boolean;
+  }[] = [];
   let frame = requestAnimationFrame(function sample() {
     frames.push({
       coreTitle: !header().hasAttribute("data-ws-hide-title"),
       expanded: opacity("expanded"),
       compact: opacity("compact"),
+      collapsed:
+        document
+          .querySelector("[data-workstreams-sticky-goal]")
+          ?.getAttribute("data-collapsed") === "true",
     });
     frame = requestAnimationFrame(sample);
   });
@@ -150,23 +164,36 @@ it("draws the destination's title once, expanded, across a thread switch", async
   slot.lifecycle.rerender(<StickyGoalHeader />);
   await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
   const column = pane.replaceColumn();
-  await act(() => new Promise((resolve) => setTimeout(resolve, 200)));
+  // The empty column outlasts the heading's settling delay, as a slow
+  // transcript does.
+  for (const wait of [50, 700])
+    await act(() => new Promise((resolve) => setTimeout(resolve, wait)));
   expect(drawn("expanded")).toBeNull();
   expect(drawn("compact")).toBeNull();
 
   await act(async () => {
-    column.innerHTML = "<div>Destination transcript</div>";
+    column.append(
+      Object.assign(document.createElement("div"), {
+        textContent: "Destination transcript",
+      }),
+    );
   });
   await waitFor(() =>
     expect(
       document.querySelector('[data-ws-heading="expanded"] h2')?.textContent,
     ).toBe("Building suggestions"),
   );
-  await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+  for (const distance of [160, 40, 0]) {
+    await act(async () => {
+      pane.shiftReader(distance);
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
+  }
   recording.stop();
 
   expect(recording.frames.some((frame) => frame.coreTitle)).toBe(false);
   expect(recording.frames.some((frame) => frame.compact > 0)).toBe(false);
+  expect(recording.frames.some((frame) => frame.collapsed)).toBe(false);
   expect(opacity("expanded")).toBe(1);
   slot.lifecycle.unmount();
   expect(header().hasAttribute("data-ws-hide-title")).toBe(false);
