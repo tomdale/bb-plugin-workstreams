@@ -7,6 +7,7 @@ import { hasStatusMark } from "../sidebar/presentation.ts";
 import { FocusIcon } from "../sidebar/FocusIcon.tsx";
 import { HIDDEN_NOW, HomeThreadRow } from "./HomeRow.tsx";
 import { presenceProps, useSlotList } from "../sidebar/motion.ts";
+import { counted } from "../../domain/plural.ts";
 
 /** One of Up Next's slots on Home: a row, or Show more below the rows. */
 type Item =
@@ -97,7 +98,7 @@ export function UpNextBlock({
         {rows.length > 1 ? (
           <span className="ws-needs-count">
             <span aria-hidden="true">{rows.length}</span>
-            <span className="sr-only">, {rows.length} threads</span>
+            <span className="sr-only">, {counted(rows.length, "thread")}</span>
           </span>
         ) : null}
       </h2>

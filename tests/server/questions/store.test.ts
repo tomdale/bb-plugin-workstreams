@@ -296,6 +296,29 @@ describe("durable questions", () => {
     await host.harness.lifecycle.dispose();
   });
 
+  it("hides and shows a card while its question stays open", async () => {
+    const { host, store } = setup();
+    const id = store().open("thread", {
+      questions: [
+        {
+          id: "q0",
+          prompt: "Ship it?",
+          shortLabel: "Ship",
+          options: [],
+          multiSelect: false,
+          allowFreeText: true,
+        },
+      ],
+    });
+    expect(store().pending("thread")).toMatchObject({ id, hidden: false });
+    store().setHidden("thread", id, true);
+    expect(store().pending("thread")).toMatchObject({ id, hidden: true });
+    store().setHidden("thread", id, false);
+    expect(store().pending("thread")).toMatchObject({ id, hidden: false });
+    expect(() => store().setHidden("thread", "gone", true)).toThrow();
+    await host.harness.lifecycle.dispose();
+  });
+
   it("retains questions on send failure and rejects empty answers", async () => {
     const { host, send, store } = setup();
     const payload = {

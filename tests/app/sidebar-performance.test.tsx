@@ -58,7 +58,7 @@ it("profiles parent updates and preserves row interactions", async () => {
     activeThreadId: "thread-0",
     onNavigate,
     settings: {
-      showForYou: false,
+      showUpNext: false,
       showRecent: false,
       showSnoozed: false,
       showArchived: false,
@@ -230,7 +230,7 @@ it("does no row or tree work on a minute tick when ages are hidden", async () =>
     {
       settings: {
         timestamps: "hide",
-        showForYou: false,
+        showUpNext: false,
         showRecent: false,
         showSnoozed: false,
         showArchived: false,
@@ -266,7 +266,7 @@ it("retains a row's previous time while its visible age is unchanged", async () 
     ],
     {
       settings: {
-        showForYou: false,
+        showUpNext: false,
         showRecent: false,
         showSnoozed: false,
         showArchived: false,
@@ -317,7 +317,7 @@ it("renders only the changed row when one thread's analysis changes", async () =
     realtime: true,
     activeThreadId: null,
     settings: {
-      showForYou: false,
+      showUpNext: false,
       showRecent: false,
       showSnoozed: false,
       showArchived: false,

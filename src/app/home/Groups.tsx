@@ -73,7 +73,7 @@ export function WorkstreamGroups({
   }, [plan.tiered]);
   const lowerShown = !plan.tiered || showLower;
   const visibleGroups = [
-    ...plan.pinned,
+    ...plan.focused,
     ...(lowerShown
       ? [...plan.populated, ...(plan.other ? [plan.other] : [])]
       : []),
@@ -120,7 +120,7 @@ export function WorkstreamGroups({
               </button>
             ) : null}
           </div>
-          {plan.pinned.map((group) => renderGroup(group))}
+          {plan.focused.map((group) => renderGroup(group))}
           {plan.tiered && plan.hasLower ? (
             <button
               type="button"

@@ -63,7 +63,7 @@ describe("Home screen", () => {
         sidebarThread(`t${i}`, { title: `Task ${i}`, sectionId: "sec_vertex" }),
       ),
       sections: [section("sec_vertex", "Vertex")],
-      prefs: { showForYou: false, showRecent: false },
+      prefs: { showUpNext: false, showRecent: false },
       tree: {
         workstreams: [
           {
@@ -249,7 +249,7 @@ describe("Home screen", () => {
     it("can be turned off in the sidebar settings", async () => {
       const slot = await mountHome({
         threads: sample(),
-        prefs: { showForYou: false },
+        prefs: { showUpNext: false },
       });
       await slot.findByRole("region", { name: "Workstreams" });
       expect(slot.queryByRole("region", { name: "Up Next" })).toBeNull();
@@ -845,7 +845,7 @@ describe("Home screen with a focused workstream", () => {
           latestAttentionAt: minutes(4),
         }),
       ],
-      prefs: { showForYou: false },
+      prefs: { showUpNext: false },
       order: { focused: ["sec_z"] },
     });
     await slot.findAllByRole("region", { name: "Workstreams" });

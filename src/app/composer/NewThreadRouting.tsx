@@ -290,7 +290,7 @@ export function NewThreadRouting() {
           )}
           {noteSlot ? createPortal(offer, noteSlot) : offer}
           {state.error ? (
-            <p key={state.errors} role="alert" className="ws-suggestion-error">
+            <p key={state.errors} role="alert" className="ws-composer-error">
               {state.error}
             </p>
           ) : null}

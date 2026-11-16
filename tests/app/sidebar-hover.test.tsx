@@ -139,9 +139,7 @@ describe("row hover buttons", () => {
     fireEvent.click(custom);
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(
-      within(dialog).getByRole("radio", { name: "Until there's an update" }),
-    );
+    fireEvent.click(within(dialog).getByRole("radio", { name: "On update" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Snooze" }));
     await waitFor(() =>
       expect(
@@ -250,7 +248,7 @@ describe("row hover buttons", () => {
         sidebarThread("beta", { sectionId: "sec_b", title: "Beta task" }),
       ],
       {
-        settings: { showRecent: false, showForYou: false },
+        settings: { showRecent: false, showUpNext: false },
         sections: [
           sidebarSection("sec_a", "Alpha"),
           sidebarSection("sec_b", "Beta"),
@@ -359,7 +357,7 @@ describe("row hover buttons", () => {
 
   it("names the view menus and archive action in hints", async () => {
     const slot = await mountWithBands(undefined, {
-      settings: { showForYou: false },
+      settings: { showUpNext: false },
     });
     const recent = await slot.findByRole("button", { name: "Recent options" });
     const sort = slot.getByRole("button", { name: "Sort workstreams" });

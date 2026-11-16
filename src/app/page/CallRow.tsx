@@ -2,6 +2,7 @@ import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import {
   TRACE_KIND_TITLE,
+  TRACE_STATUS_TITLE,
   type TraceKind,
   type TraceSummary,
 } from "../../domain/trace.ts";
@@ -38,7 +39,7 @@ const EVENT: Record<TraceKind, { label: string; description: string }> = {
       "The model assessed whether a top-level workstream splits into lasting workstreams, and where each thread would go, for you to accept or decline.",
   },
   tidy: {
-    label: "Tidy suggestions",
+    label: "Suggested changes",
     description:
       "The model proposed changes to your workstreams and groups, each with a reason, for you to accept or decline.",
   },
@@ -81,11 +82,7 @@ function CallResult({ trace }: { trace: TraceSummary }) {
     return (
       <div className="mt-1 text-xs text-destructive">
         <ActivityTerm
-          label={
-            trace.status === "invalid"
-              ? "Response not usable"
-              : "Model call failed"
-          }
+          label={TRACE_STATUS_TITLE[trace.status]}
           description={
             trace.status === "invalid"
               ? "The model responded, but its output could not be validated. Workstreams did not use the result."

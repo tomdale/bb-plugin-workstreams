@@ -194,7 +194,7 @@ export function WorkstreamsThreadList({
     return shared;
   }, [projection, groupSort, ws.workstreams]);
   const {
-    pinned: pinnedGroups,
+    focused: focusedGroups,
     populated: populatedGroups,
     dormant: dormantGroups,
     tiered,
@@ -215,7 +215,7 @@ export function WorkstreamsThreadList({
     true,
     prefs?.sidebar,
   );
-  const pinnedGroupItems = useGroupItems(pinnedGroups);
+  const focusedGroupItems = useGroupItems(focusedGroups);
   const populatedGroupItems = useGroupItems(populatedGroups);
   const dormantGroupItems = useGroupItems(dormantGroups);
   const focused = useMemo(
@@ -702,7 +702,7 @@ export function WorkstreamsThreadList({
       </Band>
     ) : null;
   const hasWorkstreams =
-    pinnedGroups.length +
+    focusedGroups.length +
       populatedGroups.length +
       dormantGroups.length +
       projection.other.total >
@@ -938,10 +938,10 @@ export function WorkstreamsThreadList({
               workstreamsHeading,
               <SortableContext
                 key="pinned"
-                items={pinnedGroupItems}
+                items={focusedGroupItems}
                 strategy={verticalListSortingStrategy}
               >
-                {renderGroupList(pinnedGroups, "pinned")}
+                {renderGroupList(focusedGroups, "focused")}
               </SortableContext>,
               ...(hasLower
                 ? [

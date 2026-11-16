@@ -201,7 +201,9 @@ describe("Topic control", () => {
     fireEvent.click(button);
     const automatic = await screen.findByRole("button", { name: /^Automatic/ });
     expect(automatic.getAttribute("aria-pressed")).toBe("false");
-    expect(automatic.textContent).toContain("Let Workstreams choose");
+    expect(automatic.textContent).toContain(
+      "Workstreams chooses from your requests",
+    );
     const chosen = screen.getByRole("button", { name: /^Platform › Auth/ });
     expect(chosen.getAttribute("aria-pressed")).toBe("true");
     slot.lifecycle.unmount();

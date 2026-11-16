@@ -34,18 +34,18 @@ const hashColor = z
   .nullable()
   .catch(null);
 
-export const CORRECTIONS = { min: 0, max: 10, fallback: 3 } as const;
+export const REMINDERS = { min: 0, max: 10, fallback: 3 } as const;
 
 export const recapPrefsSchema = z.object({
   /** Agents get the recap tool and are asked for a recap after each turn. */
   required: z.boolean().catch(true),
   /** Automatic reminders per turn when an agent ends it without a recap. */
-  corrections: z
+  reminders: z
     .number()
     .int()
-    .catch(CORRECTIONS.fallback)
+    .catch(REMINDERS.fallback)
     .transform((value) =>
-      Math.min(CORRECTIONS.max, Math.max(CORRECTIONS.min, value)),
+      Math.min(REMINDERS.max, Math.max(REMINDERS.min, value)),
     ),
   layout: z.enum(RECAP_LAYOUTS).catch("full"),
   /** Agents end each turn with a `:::reply` block the app draws. */
@@ -60,7 +60,7 @@ export function parseRecapPrefs(raw: unknown): RecapPrefs {
   const value = raw && typeof raw === "object" ? raw : {};
   return recapPrefsSchema.parse({
     required: true,
-    corrections: CORRECTIONS.fallback,
+    reminders: REMINDERS.fallback,
     layout: "full",
     replies: false,
     hashDigits: null,

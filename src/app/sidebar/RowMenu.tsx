@@ -185,7 +185,9 @@ function RowMenuContent({
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span>Automatic</span>
                       <span className="truncate text-[11px] text-muted-foreground">
-                        {automatic ? currentLabel : "Let Workstreams choose"}
+                        {automatic
+                          ? currentLabel
+                          : "Workstreams chooses from your requests"}
                       </span>
                     </span>
                     {automatic ? (

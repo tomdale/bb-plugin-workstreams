@@ -18,7 +18,7 @@ export const RECAP_TOOL = "WorkstreamsRecap";
  * with: a step that is only a tool call emits no text, and a model with no way
  * to finish keeps making the same call until something stops it.
  */
-export const RECAP_CORRECTION = `Your turn ended without a recap. Any answer you already gave is visible to the user: do not repeat it and do not add a reply block. Finish any remaining authorized work, then call ${RECAP_TOOL}, which the app draws as the card above the composer, and end the turn with one short line. Everything else belongs in the recap's fields, not in that line. Call ${RECAP_TOOL} once: calling it again with the same arguments means you are stuck, not finishing. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
+export const RECAP_REMINDER = `Your turn ended without a recap. Any answer you already gave is visible to the user: do not repeat it and do not add a reply block. Finish any remaining authorized work, then call ${RECAP_TOOL}, which the app draws as the card above the composer, and end the turn with one short line. Everything else belongs in the recap's fields, not in that line. Call ${RECAP_TOOL} once: calling it again with the same arguments means you are stuck, not finishing. If you need the user's input instead, ask through the available question-card tool; the question ends the turn.`;
 
 /**
  * How a turn's result stands: complete, awaiting review, waiting on an async

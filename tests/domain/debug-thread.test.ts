@@ -22,7 +22,7 @@ const trace = (overrides: Partial<Trace> = {}): Trace => ({
   at: Date.UTC(2026, 1, 1, 11, 30),
   kind: "tidy",
   status: "ok",
-  label: "12 threads, 4 topics",
+  label: "12 threads, 4 workstreams",
   model: "anthropic/claude-sonnet-5.5",
   durationMs: 4_200,
   replayOf: null,
@@ -33,7 +33,7 @@ const trace = (overrides: Partial<Trace> = {}): Trace => ({
   provider: "gateway",
   thinking: "medium",
   system: "Organize the topic tree.",
-  prompt: "You tidy topics.\nTopics: Billing, Payments",
+  prompt: "You tidy workstreams.\nTopics: Billing, Payments",
   input: null,
   response: '{"edits":[{"op":"merge"}]}',
   reasoning: "Payments only holds billing threads.",
@@ -82,8 +82,10 @@ describe("debugThreadMessage", () => {
   });
 
   it("carries the prompt, response, parsed result, and what was applied", () => {
-    expect(message).toContain("### Tidy suggestions: 12 threads, 4 topics");
-    expect(message).toContain("You tidy topics.");
+    expect(message).toContain(
+      "### Suggested changes: 12 threads, 4 workstreams",
+    );
+    expect(message).toContain("You tidy workstreams.");
     expect(message).toContain('{"edits":[{"op":"merge"}]}');
     expect(message).toContain('"applied": "recorded"');
     expect(message).toContain("Payments only holds billing threads.");
@@ -121,13 +123,13 @@ describe("debugThreadMessage", () => {
       subject({
         facts: [
           { label: "Detail", value: "" },
-          { label: "Kind", value: "Tidy edit" },
+          { label: "Kind", value: "Suggested change" },
         ],
       }),
       [],
     );
     expect(lines).not.toContain("- Detail");
-    expect(lines).toContain("- Kind: Tidy edit");
+    expect(lines).toContain("- Kind: Suggested change");
   });
 
   it("drops a call's sections it has nothing for", () => {

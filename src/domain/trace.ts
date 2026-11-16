@@ -96,11 +96,11 @@ export const TRACE_KIND_TITLE: Record<TraceKind, string> = {
   categories: "Categories",
   "category-fit": "Category check",
   split: "Split suggestion",
-  tidy: "Tidy suggestions",
+  tidy: "Suggested changes",
 };
 
 export const TRACE_STATUS_TITLE: Record<TraceStatus, string> = {
   ok: "Used",
-  invalid: "Invalid response",
-  failed: "Call failed",
+  invalid: "Response not usable",
+  failed: "Model call failed",
 };

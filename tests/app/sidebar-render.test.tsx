@@ -95,7 +95,7 @@ it("samples snooze choices when a menu opens rather than when its row rendered",
   const slot = await mount(
     [sidebarThread("root", { sectionId: "sec_a", title: "Root task" })],
     {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       snoozePrefs: snoozeSettings(thirtyMinutes),
     },
   );
@@ -244,9 +244,7 @@ it("shows archived threads grouped by workstream and loads another page", async 
     .getByRole("link", { name: "Archived task" })
     .closest(".ws-row")!;
   expect(betaRow.textContent).not.toContain("Beta");
-  const other = within(
-    slot.getByRole("region", { name: "Archived Other" }),
-  );
+  const other = within(slot.getByRole("region", { name: "Archived Other" }));
   fireEvent.click(other.getByRole("button", { name: /Other/ }));
   expect(groupRows(slot, "Archived Other")).toEqual(["Archived loose task"]);
   const archivedRegion = slot.getByRole("region", { name: "Archived" });
@@ -285,7 +283,7 @@ it("sorts workstreams alphabetically by default and lets the view menu change so
       sidebarThread("loose", { title: "Loose task" }),
     ],
     {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       order: { workstreams: ["sec_z", "sec_b", "sec_a"], threads: {} },
     },
   );
@@ -323,7 +321,7 @@ it("sorts workstreams alphabetically by default and lets the view menu change so
 
 it("shows Unfiled after the populated workstreams, and nothing for an emptied one", async () => {
   const slot = await mount(undefined, {
-    settings: { showRecent: false, showForYou: false, groupSort: "manual" },
+    settings: { showRecent: false, showUpNext: false, groupSort: "manual" },
     order: { workstreams: ["sec_z", "sec_b", "sec_a"], threads: {} },
   });
   await waitFor(() =>
@@ -364,7 +362,7 @@ it("sorts and groups Recent from its section menu and persists the preference", 
         latestAttentionAt: 200,
       }),
     ],
-    { settings: { showForYou: false } },
+    { settings: { showUpNext: false } },
   );
   const menuButton = await slot.findByRole("button", {
     name: "Recent options",
@@ -514,7 +512,7 @@ it("keeps child disclosures beneath the sticky Up Next card", async () => {
 it("keeps focus and menus out of a folded group", async () => {
   const slot = await mount(
     [sidebarThread("root", { sectionId: "sec_a", title: "Root task" })],
-    { settings: { showRecent: false, showForYou: false } },
+    { settings: { showRecent: false, showUpNext: false } },
   );
   const region = slot.getByRole("region", { name: "Alpha" });
   const header = within(region).getByRole("button", {

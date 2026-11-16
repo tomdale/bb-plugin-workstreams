@@ -46,7 +46,7 @@ export type SnoozeDraft = {
 };
 
 /**
- * Whether a draft wakes early on events: always for "Until there's an update",
+ * Whether a draft wakes early on events: always for "On update",
  * else the user's choice, else the kind's default.
  */
 function draftWakesOnEvents(draft: SnoozeDraft): boolean {
@@ -150,7 +150,7 @@ const KIND_LABELS: Readonly<Record<SnoozeDraftKind, string>> = {
   duration: "Duration",
   time: "Time",
   date: "Date",
-  activity: "Until there's an update",
+  activity: "On update",
 };
 
 /** Weekdays from Monday, the order a week reads in. */
@@ -223,7 +223,7 @@ export function SnoozeRuleFields({
     return (
       <div className="space-y-3">
         <RadioGroup
-          aria-label="Snooze kind"
+          aria-label="Wake"
           value={draft.kind}
           onValueChange={(kind) => set({ kind: kind as SnoozeDraftKind })}
           className="gap-2.5"
@@ -257,7 +257,7 @@ export function SnoozeRuleFields({
     <div className="space-y-2">
       {kinds.length > 1 ? (
         <SegmentedControl
-          label="Snooze kind"
+          label="Wake"
           value={draft.kind}
           options={kinds.map((kind) => ({
             value: kind,
@@ -272,7 +272,7 @@ export function SnoozeRuleFields({
   );
 }
 
-/** The chosen kind's own fields; Until there's an update has none. */
+/** The chosen kind's own fields; On update has none. */
 function KindFields({
   draft,
   set,

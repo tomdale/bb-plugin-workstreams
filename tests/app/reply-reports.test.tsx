@@ -296,7 +296,7 @@ it("copies the exact request without submitting it", async () => {
   expect(
     view.container.querySelector("[data-reply-action-request]")?.textContent,
   ).toBe("Review\nwith all conditions");
-  fireEvent.click(screen.getByRole("button", { name: "Copy request" }));
+  fireEvent.click(screen.getByRole("button", { name: "Copy" }));
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "Copied" })).toBeDefined(),
   );
@@ -312,14 +312,12 @@ it("reports clipboard failures and leaves requests and drafts intact", async () 
   const view = draw(
     actions([{ title: "Review", message: "Review the change" }]),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Copy request" }));
+  fireEvent.click(screen.getByRole("button", { name: "Copy" }));
   await waitFor(() =>
-    expect(screen.getByRole("alert").textContent).toBe(
-      "Could not copy the request",
-    ),
+    expect(screen.getByRole("alert").textContent).toBe("Couldn't copy it"),
   );
   expect(view.inspection.composer.text).toBe("");
-  expect(screen.getByRole("button", { name: "Copy request" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Copy" })).toBeDefined();
 });
 
 it("renders all next actions and leaves already-owned work as information without controls", () => {

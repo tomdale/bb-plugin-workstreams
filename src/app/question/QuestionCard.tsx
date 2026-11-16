@@ -60,6 +60,10 @@ function useAnchor(threadId: string): HTMLElement | null {
  * A card outlives its turn so an interrupted question stays answerable. It
  * does not outlive the user writing their own message instead, which
  * supersedes the question; that send closes the card.
+ *
+ * Dismiss hides the card and leaves the question open, as a recap card's
+ * dismissal does: Show question brings it back, and the agent keeps waiting
+ * until the user answers or sends a message.
  */
 export function QuestionAnchor() {
   const composer = useComposer();
@@ -85,18 +89,20 @@ export function QuestionAnchor() {
         dismiss,
       });
     } catch {
-      setError("Could not send your answer. Please try again.");
+      setError("Couldn't send your answer.");
       setBusy(false);
     }
   };
-  const showsCard = Boolean(pending?.recoverable) && !native;
+  const recoverable = Boolean(pending?.recoverable) && !native;
+  const showsCard = recoverable && !pending?.hidden;
+  const answersInOwnWords = recoverable || Boolean(pending?.hidden);
   useEffect(() => {
-    if (!showsCard || !pending) return;
-    // Only a recovered card leaves the composer free to send, so a submission
-    // here is the user answering the thread in their own words instead.
+    if (!answersInOwnWords || !pending) return;
+    // A recovered or dismissed card leaves the composer free to send, so a
+    // submission here is the user answering the thread in their own words.
     return composer.onSubmitted(() => {
       void rpc
-        .call("question_recover", {
+        .call(recoverable ? "question_recover" : "question_answer", {
           threadId: pending.threadId,
           id: pending.id,
           value: null,
@@ -105,7 +111,24 @@ export function QuestionAnchor() {
         // A question resolved elsewhere simply closes on the next poll.
         .catch(() => undefined);
     });
-  }, [composer, pending, rpc, showsCard]);
+  }, [composer, pending, rpc, recoverable, answersInOwnWords]);
+  const setHidden = (hidden: boolean) => {
+    if (!pending) return;
+    setError(null);
+    void rpc
+      .call("question_hide", {
+        threadId: pending.threadId,
+        id: pending.id,
+        hidden,
+      })
+      .catch(() =>
+        setError(
+          hidden
+            ? "Couldn't dismiss the question."
+            : "Couldn't show the question.",
+        ),
+      );
+  };
   const anchorRef = useCallback(
     (node: HTMLElement | null) => {
       if (!threadId) return;
@@ -130,9 +153,33 @@ export function QuestionAnchor() {
             disabled={busy}
             cancelDisabled={busy}
             onSubmit={(answers) => void recover({ answers }, false)}
-            onCancel={() => void recover(null, true)}
+            onCancel={() => setHidden(true)}
             error={error}
           />
+        </div>
+      ) : null}
+      {pending?.hidden ? (
+        // Like Show recap: a zero-height anchor whose button floats over the
+        // thread's bottom edge and takes no space of its own.
+        <div className="relative mx-auto h-0 w-full max-w-4xl">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="absolute bottom-3 right-1 h-8 gap-2 rounded-full border-border bg-background px-3.5 text-xs font-medium text-foreground shadow-md hover:bg-accent max-md:pointer-coarse:h-10"
+            onClick={() => setHidden(false)}
+          >
+            <span
+              aria-hidden="true"
+              className="size-1.5 rounded-full bg-current text-(--ws-needs-input-text)"
+            />
+            Show question
+          </Button>
+          {error ? (
+            <p role="alert" className="sr-only">
+              {error}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -149,16 +196,28 @@ export function QuestionInteraction({
     [interaction.payload],
   );
   const anchor = useAnchor(interaction.threadId);
+  const pending = usePendingQuestion(interaction.threadId);
+  const rpc = useRpc<RpcContract>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const handleCancel = () => {
     setBusy(true);
     setError(null);
     void cancel()
-      .catch(() =>
-        setError("Could not dismiss the question. Please try again."),
-      )
+      .catch(() => setError("Couldn't dismiss the question."))
       .finally(() => setBusy(false));
+  };
+  /** Dismiss hides the card; the question stays open (see QuestionAnchor). */
+  const handleDismiss = () => {
+    if (!pending) return handleCancel();
+    setError(null);
+    void rpc
+      .call("question_hide", {
+        threadId: pending.threadId,
+        id: pending.id,
+        hidden: true,
+      })
+      .catch(() => setError("Couldn't dismiss the question."));
   };
   const alert = error ? (
     <p role="alert" className="mt-2 text-xs text-(--ws-failed-text)">
@@ -184,11 +243,11 @@ export function QuestionInteraction({
           void submit(
             JSON.parse(JSON.stringify({ answers })) as JsonValue,
           ).catch(() => {
-            setError("Could not send your answer. Please try again.");
+            setError("Couldn't send your answer.");
             setBusy(false);
           });
         }}
-        onCancel={handleCancel}
+        onCancel={handleDismiss}
         error={error}
       />
     </>
@@ -206,7 +265,7 @@ export function QuestionInteraction({
         disabled={busy}
         onClick={handleCancel}
       >
-        Cancel
+        Dismiss
       </Button>
     </>
   );
@@ -214,19 +273,21 @@ export function QuestionInteraction({
   return (
     <>
       <span className="ws-question-portaled" hidden />
-      {createPortal(
-        <div
-          className={QUESTION_CARD_CLASS}
-          role="region"
-          aria-label="Question needs your answer"
-          data-ws-question-card=""
-          // First in the composer stack, like the recap card it replaces.
-          style={{ order: -1 }}
-        >
-          {body}
-        </div>,
-        anchor,
-      )}
+      {pending?.hidden
+        ? null
+        : createPortal(
+            <div
+              className={QUESTION_CARD_CLASS}
+              role="region"
+              aria-label="Question needs your answer"
+              data-ws-question-card=""
+              // First in the composer stack, like the recap card it replaces.
+              style={{ order: -1 }}
+            >
+              {body}
+            </div>,
+            anchor,
+          )}
     </>
   );
 }

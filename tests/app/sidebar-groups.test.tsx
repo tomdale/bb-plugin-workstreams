@@ -96,13 +96,14 @@ describe("nested workstreams", () => {
     activeThreadId: null,
     sections: nestedSections,
     tree,
-    settings: { showRecent: false, showForYou: false },
+    settings: { showRecent: false, showUpNext: false },
   };
 
   it("draws a topic's workstreams as subgroups of its group", async () => {
     const slot = await mount(nestedThreads(), options);
     // The catalog arrives after the first frame, which draws flat groups.
-    const top = () => slot.getByRole("region", { name: "Beacon › Automations" });
+    const top = () =>
+      slot.getByRole("region", { name: "Beacon › Automations" });
     const alerts = () =>
       within(top()).getByRole("region", {
         name: "Beacon › Automations › Alert Investigations",
@@ -206,9 +207,9 @@ describe("nested workstreams", () => {
         const workstream = slot.getByRole("region", {
           name: "Beacon › Automations › Alert Investigations",
         });
-        expect(workstream.querySelector(".ws-workstream-name")?.textContent).toBe(
-          "Alert Investigations",
-        );
+        expect(
+          workstream.querySelector(".ws-workstream-name")?.textContent,
+        ).toBe("Alert Investigations");
         expect(
           (workstream as HTMLElement).style.getPropertyValue("--ws-hue"),
         ).toBe("35");
@@ -281,7 +282,8 @@ describe("nested workstreams", () => {
 
   it("snoozes a top-level group with its subgroups, and a subgroup alone", async () => {
     const slot = await mount(nestedThreads(), options);
-    const top = () => slot.getByRole("region", { name: "Beacon › Automations" });
+    const top = () =>
+      slot.getByRole("region", { name: "Beacon › Automations" });
     await waitFor(() =>
       within(top()).getByRole("region", { name: "Beacon › Automations › CLI" }),
     );
@@ -372,7 +374,7 @@ describe("small groups", () => {
             },
           ],
         },
-        settings: { showRecent: false, showForYou: false },
+        settings: { showRecent: false, showUpNext: false },
       },
     );
     const top = () => slot.getByRole("region", { name: "Automations" });
@@ -411,7 +413,7 @@ describe("small groups", () => {
     );
     const slot = await mount(threads, {
       sections: [section("sec_vertex", "Vertex")],
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       tree: {
         workstreams: [
           {
@@ -462,8 +464,7 @@ describe("small groups", () => {
     expect(tree(child)).toBe(tree(root));
     expect(tree(arrival).className).not.toContain("pl-3");
     expect(
-      parseFloat(child.style.paddingLeft) -
-        parseFloat(root.style.paddingLeft),
+      parseFloat(child.style.paddingLeft) - parseFloat(root.style.paddingLeft),
     ).toBe(childIndent(8));
     slot.lifecycle.unmount();
   });
@@ -474,7 +475,7 @@ describe("small groups", () => {
     );
     const slot = await mount(threads, {
       sections: [section("sec_ws", "bb › Workstreams Plugin")],
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       tree: {
         workstreams: [
           {
@@ -530,7 +531,7 @@ describe("small groups", () => {
       [sidebarThread("v1", { sectionId: "sec_vertex", title: "Vertex task" })],
       {
         sections: [section("sec_vertex", "Vertex")],
-        settings: { showRecent: false, showForYou: false },
+        settings: { showRecent: false, showUpNext: false },
       },
     );
     const group = await slot.findByRole("region", { name: "Vertex" });
@@ -558,7 +559,7 @@ describe("small groups", () => {
           section("sec_y", "Yak"),
           section("sec_z", "Zebra"),
         ],
-        settings: { showRecent: false, showForYou: false },
+        settings: { showRecent: false, showUpNext: false },
       },
     );
     await waitFor(() => expect(groupRows(slot, "Yak")).toEqual(["Y task"]));
@@ -617,7 +618,7 @@ describe("small groups", () => {
           section("sec_prompting", "Prompting"),
           section("sec_quality", "Quality"),
         ],
-        settings: { showRecent: false, showForYou: false },
+        settings: { showRecent: false, showUpNext: false },
       },
     );
     await waitFor(() =>

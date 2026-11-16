@@ -25,7 +25,6 @@ import {
   AdvancedSettings,
   ModelsSettings,
   NewWorkSettings,
-  OrganizeSettings,
   SidebarSettings,
   ThreadsSettings,
   UpNextSettings,
@@ -81,7 +80,7 @@ export default definePluginApp((app) => {
   });
   app.slots.experimental_threadContextCardSection?.({
     id: "workstreams-debug",
-    title: "Workstreams Debug",
+    title: "Workstreams debug",
     group: "4_debug",
     component: ThreadContextDebugSection,
   });
@@ -237,11 +236,6 @@ export default definePluginApp((app) => {
     id: "new-work",
     title: "New threads",
     component: NewWorkSettings,
-  });
-  app.slots.settingsSection({
-    id: "organize",
-    title: "Organization",
-    component: OrganizeSettings,
   });
   app.slots.settingsSection({
     id: "models",

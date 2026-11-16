@@ -8,7 +8,7 @@ export const COLOR_TOKENS = [
   "waiting",
   "needsInput",
   "failed",
-  "suggestion",
+  "automatic",
 ] as const;
 export type ColorToken = (typeof COLOR_TOKENS)[number];
 
@@ -19,7 +19,7 @@ export const COLOR_TOKEN_LABEL: Record<ColorToken, string> = {
   waiting: "Waiting",
   needsInput: "Needs input",
   failed: "Failed",
-  suggestion: "Suggestions",
+  automatic: "Automatic",
 };
 
 /** The CSS custom property that carries each token. */
@@ -29,7 +29,7 @@ export const COLOR_TOKEN_VAR: Record<ColorToken, string> = {
   waiting: "--ws-waiting",
   needsInput: "--ws-needs-input",
   failed: "--ws-failed",
-  suggestion: "--ws-suggestion",
+  automatic: "--ws-automatic",
 };
 
 /**
@@ -102,7 +102,7 @@ export const DEFAULT_COLORS = {
   waiting: { kind: "default" },
   needsInput: { kind: "default" },
   failed: { kind: "default" },
-  suggestion: { kind: "default" },
+  automatic: { kind: "default" },
 } as const satisfies Record<ColorToken, ColorChoice>;
 
 /** The semantic BB theme color for each default token. */
@@ -112,7 +112,7 @@ export const THEME_MATCH: Record<ColorToken, ThemeColor> = {
   waiting: "pr-merged",
   needsInput: "attention",
   failed: "destructive",
-  suggestion: "pr-merged",
+  automatic: "pr-merged",
 };
 
 export type ColorPrefs = Record<ColorToken, ColorChoice> & {

@@ -300,7 +300,7 @@ describe.skipIf(browserUnavailable)(
             sections,
             settings: {
               showRecent: false,
-              showForYou: false,
+              showUpNext: false,
               showArchived: true,
             },
             archived: {
@@ -329,7 +329,10 @@ describe.skipIf(browserUnavailable)(
           }) as HTMLElement;
         const type = await measure(page, {
           headerPlain: byText(heading("Prompting", "Prompting"), "Prompting"),
-          headerOwner: byText(heading("Studio › App", "Studio › App"), "Studio"),
+          headerOwner: byText(
+            heading("Studio › App", "Studio › App"),
+            "Studio",
+          ),
           headerArea: byText(heading("Studio › App", "Studio › App"), "App"),
           archivedPlain: byText(
             archivedHeading("Archived Prompting", "Prompting"),

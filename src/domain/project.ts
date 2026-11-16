@@ -104,7 +104,7 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 type ProjectionOptions<T extends WorkstreamThread> = {
   readonly now: number;
   readonly dormantAfterMs?: number;
-  /** Whether a thread needs Tom. Defaults to a live pending interaction. */
+  /** Whether a thread needs the user. Defaults to a live pending interaction. */
   readonly needsYou?: (thread: T) => boolean;
   /**
    * The user's drag-and-drop order for workstreams and threads, and the
@@ -369,7 +369,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
     });
   };
 
-  const pinned: Group<T>[] = [];
+  const focusedGroups: Group<T>[] = [];
   const groups: Group<T>[] = [];
   const dormant: Group<T>[] = [];
   const allGroups: Group<T>[] = [];
@@ -386,7 +386,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
   for (const g of allGroups) {
     if (g.total === 0) continue;
     const quiet = options.now - g.lastActiveAt > dormantAfterMs;
-    if (g.focused) pinned.push(g);
+    if (g.focused) focusedGroups.push(g);
     else if (quiet && g.needsYou === 0) dormant.push(g);
     else groups.push(g);
   }
@@ -425,7 +425,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
   return {
     needsYou: needsYouRows,
     pinnedThreads,
-    groups: [...pinned, ...groups],
+    groups: [...focusedGroups, ...groups],
     all: allGroups,
     other: group(OTHER_ID, OTHER_NAME),
     dormant,

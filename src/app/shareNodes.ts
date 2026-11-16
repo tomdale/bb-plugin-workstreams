@@ -29,7 +29,7 @@ export function shareArrangement<T extends WorkstreamThread>(
 
   return {
     ...next,
-    pinned: shareList(previous?.pinned, next.pinned, share),
+    focused: shareList(previous?.focused, next.focused, share),
     populated: shareList(previous?.populated, next.populated, share),
     dormant: shareList(previous?.dormant, next.dormant, share),
     other: share(next.other),
@@ -46,7 +46,7 @@ function nodesIn<T extends WorkstreamThread>(
     node.workstreams.forEach(visit);
   };
   [
-    ...arrangement.pinned,
+    ...arrangement.focused,
     ...arrangement.populated,
     ...arrangement.dormant,
     arrangement.other,

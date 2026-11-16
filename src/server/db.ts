@@ -677,6 +677,55 @@ const MIGRATIONS = [
      WHEN 'external' THEN 'outside'
      ELSE 'workstreams' END`,
   "UPDATE ws_journal SET status = 'declined' WHERE status = 'dismissed'",
+  // Preference keys named for what they do.
+  moveJson(
+    "ws_meta",
+    "value",
+    "$.organize.tidyModel",
+    "$.organize.suggestionModel",
+    "key = 'prefs'",
+  ),
+  moveJson(
+    "ws_meta",
+    "value",
+    "$.sidebar.showForYou",
+    "$.sidebar.showUpNext",
+    "key = 'prefs'",
+  ),
+  moveJson(
+    "ws_meta",
+    "value",
+    "$.newWork.suggestions",
+    "$.newWork.organizeAsYouWrite",
+    "key = 'prefs'",
+  ),
+  moveJson(
+    "ws_meta",
+    "value",
+    "$.newWork.homeProjectId",
+    "$.advanced.workerProjectId",
+    "key = 'prefs'",
+  ),
+  // A recap reminder asks for a missing recap ("Reminder 1 of 3").
+  "ALTER TABLE ws_agent_recap RENAME COLUMN correction_token TO reminder_token",
+  moveJson(
+    "ws_meta",
+    "value",
+    "$.corrections",
+    "$.reminders",
+    "key = 'recapPrefs'",
+  ),
+  // A dismissed question card is hidden until shown again; the question
+  // stays open.
+  "ALTER TABLE ws_question ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0",
+  // The color of Workstreams' own automatic choices and suggestions.
+  moveJson(
+    "ws_meta",
+    "value",
+    "$.colors.suggestion",
+    "$.colors.automatic",
+    "key = 'prefs'",
+  ),
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

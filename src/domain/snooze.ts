@@ -4,7 +4,7 @@
  * back on its own.
  *
  * A snooze has a wake time, wakes on events (see domain/wake.ts), or both:
- * "Until there's an update" (`until: null`) waits only for an event, and a timed
+ * "On update" (`until: null`) waits only for an event, and a timed
  * snooze set to wake early on events ends at whichever comes first. A
  * time-only snooze ignores agent activity, so a long run finishing overnight
  * doesn't undo "tomorrow morning". Every snooze ends when the user sends the
@@ -91,7 +91,7 @@ export type SnoozeDay = (typeof SNOOZE_DAYS)[number];
 
 /**
  * How a preset picks a wake time: a span from now, a clock time on a chosen
- * day, or none, waiting for a wake event ("Until there's an update").
+ * day, or none, waiting for a wake event ("On update").
  */
 export const snoozeRuleSchema = z
   .discriminatedUnion("kind", [
@@ -433,10 +433,10 @@ const UNIT_NAMES: Readonly<Record<SnoozeUnit, [string, string]>> = {
 
 /**
  * What a rule does, in words: "30 minutes", "Tomorrow at 9 AM", "Monday at
- * 1 PM", "Until there's an update". A preset without its own label shows this.
+ * 1 PM", "On update". A preset without its own label shows this.
  */
 export function ruleLabel(rule: SnoozeRule): string {
-  if (rule.kind === "activity") return "Until there's an update";
+  if (rule.kind === "activity") return "On update";
   if (rule.kind === "duration")
     return `${rule.amount} ${UNIT_NAMES[rule.unit][rule.amount === 1 ? 0 : 1]}`;
   return `${dayLabel(rule.day)} at ${clockLabel(rule.hour, rule.minute)}`;
@@ -520,7 +520,7 @@ function wakeHint(until: number | null, now: number): string {
 
 /**
  * A compact wake label for a sidebar row: "3:30 PM" today, a weekday within
- * the week, else a date; "On update" for an "Until there's an update" snooze.
+ * the week, else a date; "On update" for an "On update" snooze.
  */
 export function shortWake(until: number | null, now: number): string {
   if (until === null) return "On update";

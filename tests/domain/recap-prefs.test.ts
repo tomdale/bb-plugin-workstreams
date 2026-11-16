@@ -4,7 +4,7 @@ import { parseRecapPrefs } from "../../src/domain/recapPrefs.ts";
 it("fills defaults for missing or invalid preferences", () => {
   expect(parseRecapPrefs(null)).toEqual({
     required: true,
-    corrections: 3,
+    reminders: 3,
     layout: "full",
     replies: false,
     hashDigits: null,
@@ -22,8 +22,8 @@ it("keeps a stored minimal layout and reads other stored layouts as full", () =>
 });
 
 it("clamps reminders to their range", () => {
-  expect(parseRecapPrefs({ corrections: 99 }).corrections).toBe(10);
-  expect(parseRecapPrefs({ corrections: -1 }).corrections).toBe(0);
+  expect(parseRecapPrefs({ reminders: 99 }).reminders).toBe(10);
+  expect(parseRecapPrefs({ reminders: -1 }).reminders).toBe(0);
 });
 
 it("keeps valid hash colors and drops invalid ones", () => {

@@ -336,7 +336,7 @@ describe("arrangeGroups with topics", () => {
       },
     );
     const arranged = arrangeGroups(projection, "alphabetical", bindings);
-    expect(outline(arranged.pinned)).toEqual([
+    expect(outline(arranged.focused)).toEqual([
       "Beacon › Automations (2)",
       "  Alert Investigations (1)",
     ]);
@@ -593,7 +593,10 @@ describe("small groups", () => {
     );
     expect(
       shape(arrangeGroups(projection, "alphabetical", nested).populated),
-    ).toEqual(["Beacon › Automations (1)", "  Alert Investigations (1) inline"]);
+    ).toEqual([
+      "Beacon › Automations (1)",
+      "  Alert Investigations (1) inline",
+    ]);
   });
 
   it("flattens every subgroup when the parent also holds threads", () => {
@@ -668,7 +671,7 @@ describe("small groups", () => {
         undefined as never,
         ["sec_big"],
       );
-      expect(arranged.pinned.map((node) => node.label)).toEqual(["Big"]);
+      expect(arranged.focused.map((node) => node.label)).toEqual(["Big"]);
       expect(shape(arranged.populated)).toEqual([
         "Xylophone (1)",
         "Yak (1)",
@@ -720,7 +723,7 @@ describe("a workstream with no visible thread", () => {
       );
       const arranged = arrangeGroups(projection, "manual", chain);
       expect(arranged.populated).toEqual([]);
-      expect(arranged.pinned).toEqual([]);
+      expect(arranged.focused).toEqual([]);
       expect(arranged.dormant).toEqual([]);
       expect(projection.snoozed).toHaveLength(last === "snoozed" ? 1 : 0);
     },

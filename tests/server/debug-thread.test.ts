@@ -42,16 +42,17 @@ describe("debug threads", () => {
     expect(w.threads.get("spawn1")).toBeTruthy();
   });
 
-  it("falls back to the home project when none was chosen for debug threads", async () => {
-    const { w, rpc } = await setup({ newWork: { homeProjectId: "proj_home" } });
+  it("falls back to the worker project when none was chosen for debug threads", async () => {
+    const { w, rpc } = await setup({
+      advanced: { workerProjectId: "proj_home" },
+    });
     await rpc("debugThread", brief);
     expect(w.spawned[0]).toMatchObject({ projectId: "proj_home" });
   });
 
-  it("prefers the chosen project over the home project", async () => {
+  it("prefers the chosen project over the worker project", async () => {
     const { w, rpc } = await setup({
-      newWork: { homeProjectId: "proj_home" },
-      advanced: { debugProjectId: "proj_1" },
+      advanced: { workerProjectId: "proj_home", debugProjectId: "proj_1" },
     });
     await rpc("debugThread", brief);
     expect(w.spawned[0]).toMatchObject({ projectId: "proj_1" });

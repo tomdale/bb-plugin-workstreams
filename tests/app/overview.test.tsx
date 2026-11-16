@@ -290,7 +290,7 @@ it("goes back to the queue", async () => {
 it("opens from a workstream's name and menu in the sidebar", async () => {
   const slot = await mountSidebar(
     [sidebarThread("a1", { sectionId: "sec_a", title: "Alpha task" })],
-    { settings: { showRecent: false, showForYou: false } },
+    { settings: { showRecent: false, showUpNext: false } },
   );
   const name = await slot.findByRole("button", { name: "Overview of Alpha" });
   fireEvent.click(name);

@@ -144,11 +144,11 @@ const ActivityEntryRow = memo(function ActivityEntryRow({
               </summary>
               {entry.traceIds?.length ? (
                 <div className="mt-2 flex items-center gap-1">
-                  <span>Inspect supporting model calls</span>
+                  <span>Inspect supporting model traces</span>
                   <InspectButton
                     target={{ link: { kind: "entry", ref: entry.id } }}
-                    title={`Model calls behind: ${entry.rationale}`}
-                    label="Inspect the model calls behind this change"
+                    title={`Model traces behind: ${entry.rationale}`}
+                    label="Inspect the model traces behind this change"
                   />
                 </div>
               ) : null}
@@ -424,7 +424,7 @@ export function Activity({
               value,
               label,
             })),
-            ...(debug ? [{ value: MODEL_CALLS, label: "Model calls" }] : []),
+            ...(debug ? [{ value: MODEL_CALLS, label: "Model traces" }] : []),
           ]}
           onChange={(next) => {
             setAction(next);
@@ -456,15 +456,15 @@ export function Activity({
                 }
               }}
             />
-            Model calls
+            Show model traces
           </label>
         ) : null}
       </div>
       {debug && showCalls ? (
         <div className="mt-3 rounded-md border border-border bg-state-hover/30 p-3 text-xs text-muted-foreground">
           <ActivityTerm
-            label="Debug events"
-            description="AI assessments appear alongside applied changes. An assessment may suggest a change without applying it. Expand Technical details for measurements and the full prompt. Traces are kept for 7 days, up to 1,000 records."
+            label="Model traces"
+            description="Each model call Workstreams made appears beside the changes it led to. A call may propose a change without applying it. Expand Technical details for measurements and the full prompt. Model traces are kept for 7 days, up to 1,000 of them."
           />
           <div className="mt-2 grid grid-cols-1 items-center gap-3 sm:flex sm:flex-wrap">
             <SelectField<TraceKind | "">
@@ -502,18 +502,18 @@ export function Activity({
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
             <span className="tabular-nums">
-              {shownCalls.length} model calls shown · ${callCost.toFixed(4)}
+              {shownCalls.length} model traces shown · ${callCost.toFixed(4)}
             </span>
             {confirmClear ? (
               <span className="flex items-center gap-1.5">
-                Delete all model-call traces? Activity changes are kept.
+                Delete all model traces? Activity changes are kept.
                 <button
                   type="button"
                   className={secondaryButton}
                   disabled={clearing}
                   onClick={() => void clearTraces()}
                 >
-                  Delete traces
+                  Delete model traces
                 </button>
                 <button
                   type="button"
@@ -530,7 +530,7 @@ export function Activity({
                 className={ghostButton}
                 onClick={() => setConfirmClear(true)}
               >
-                Clear traces…
+                Delete model traces…
               </button>
             )}
           </div>
@@ -576,7 +576,7 @@ export function Activity({
           className={cn(secondaryButton, "mt-3")}
           onClick={() => setTraceLimit((limit) => limit + TRACE_PAGE)}
         >
-          Load older model calls
+          Load older model traces
         </button>
       ) : null}
     </div>

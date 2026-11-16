@@ -77,7 +77,7 @@ export function planFeed<T extends UpNextThread>(
   // Each section's place, from the nested groups the sidebar draws.
   const sectionPlace = new Map<string, FeedPlace>();
   const tops: WorkstreamNode<T>[] = [
-    ...arranged.pinned,
+    ...arranged.focused,
     ...arranged.populated,
     ...arranged.dormant,
   ];

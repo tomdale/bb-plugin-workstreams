@@ -14,6 +14,8 @@ type PendingQuestion = {
   threadId: string;
   id: string;
   recoverable: boolean;
+  /** The card is dismissed; the question is still open. */
+  hidden: boolean;
   payload: InteractionPayload;
 };
 
@@ -118,13 +120,15 @@ class PendingQuestionStore {
 
   private publish(value: PendingQuestion | null): void {
     // Durable question payloads are immutable. Keep the snapshot while identity
-    // and recoverability are unchanged so polls do not rerender every consumer.
+    // recoverability, and dismissal are unchanged so polls do not rerender
+    // every consumer.
     if (
       this.value === value ||
       (this.value &&
         value &&
         this.value.id === value.id &&
-        this.value.recoverable === value.recoverable)
+        this.value.recoverable === value.recoverable &&
+        this.value.hidden === value.hidden)
     )
       return;
     this.value = value;

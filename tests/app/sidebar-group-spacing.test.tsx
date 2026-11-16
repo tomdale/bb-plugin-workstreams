@@ -29,7 +29,7 @@ describe("dormant workstream spacing", () => {
         quietThread("a1", "sec_a", "Alpha task"),
         quietThread("b1", "sec_b", "Beta task"),
       ],
-      { settings: { showRecent: false, showForYou: false } },
+      { settings: { showRecent: false, showUpNext: false } },
     );
     fireEvent.click(
       await waitFor(() => slot.getByRole("button", { name: /^Dormant/ })),

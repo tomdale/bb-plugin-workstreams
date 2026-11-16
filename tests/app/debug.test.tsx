@@ -37,15 +37,14 @@ it("opens Activity for debug links and shows debug controls only in Debug mode",
         rpc: {
           prefs: () => ({
             prefs: {
-              sidebar: { showForYou: true, showRecent: true, recentLimit: 5 },
+              sidebar: { showUpNext: true, showRecent: true, recentLimit: 5 },
               threads: {
                 autoTitle: true,
                 analysisModel: { kind: "gateway", model: "m" },
                 showParentLink: false,
               },
               newWork: {
-                homeProjectId: "",
-                suggestions: true,
+                organizeAsYouWrite: true,
                 suggestionsModel: { kind: "gateway", model: "m" },
               },
               organize: { model: { kind: "gateway", model: "m" } },
@@ -67,7 +66,9 @@ it("opens Activity for debug links and shows debug controls only in Debug mode",
   expect(off.queryByRole("tab", { name: "Debug" })).toBeNull();
   expect(off.getByRole("heading", { name: "Activity" })).toBeTruthy();
   expect(off.queryByRole("checkbox", { name: "Failures only" })).toBeNull();
-  expect(off.queryByRole("button", { name: "Clear traces…" })).toBeNull();
+  expect(
+    off.queryByRole("button", { name: "Delete model traces…" }),
+  ).toBeNull();
   await off.findByText("No activity yet.");
   expect(off.inspection.rpcCalls.some((call) => call.method === "traces")).toBe(
     false,
@@ -90,9 +91,9 @@ it("keeps recorded calls out of Activity when their own switch is off", async ()
       rpc: {
         prefs: () => ({
           prefs: {
-            sidebar: { showForYou: true, showRecent: true, recentLimit: 5 },
+            sidebar: { showUpNext: true, showRecent: true, recentLimit: 5 },
             threads: { autoTitle: true },
-            newWork: { homeProjectId: "", suggestions: true },
+            newWork: { organizeAsYouWrite: true },
             advanced: { hostId: "", debugUi: true, debugActivity: false },
           },
         }),
@@ -105,7 +106,9 @@ it("keeps recorded calls out of Activity when their own switch is off", async ()
   await slot.findByText("No activity yet.");
   // Debug mode is on, but nothing here lists or fetches recorded calls.
   expect(slot.queryByRole("checkbox", { name: "Failures only" })).toBeNull();
-  expect(slot.queryByRole("button", { name: "Clear traces…" })).toBeNull();
+  expect(
+    slot.queryByRole("button", { name: "Delete model traces…" }),
+  ).toBeNull();
   expect(
     slot.inspection.rpcCalls.some((call) => call.method === "traces"),
   ).toBe(false);
@@ -135,15 +138,14 @@ it("lists model calls in the Activity log in Debug mode", async () => {
         rpc: {
           prefs: () => ({
             prefs: {
-              sidebar: { showForYou: true, showRecent: true, recentLimit: 5 },
+              sidebar: { showUpNext: true, showRecent: true, recentLimit: 5 },
               threads: {
                 autoTitle: true,
                 analysisModel: { kind: "gateway", model: "m" },
                 showParentLink: false,
               },
               newWork: {
-                homeProjectId: "",
-                suggestions: true,
+                organizeAsYouWrite: true,
                 suggestionsModel: { kind: "gateway", model: "m" },
               },
               organize: { model: { kind: "gateway", model: "m" } },
@@ -193,10 +195,10 @@ it("lists model calls in the Activity log in Debug mode", async () => {
     }),
   ).toBeTruthy();
 
-  // "Model calls" in the action filter shows only calls.
+  // "Model traces" in the action filter shows only calls.
   chooseOption(
     on.getByRole("combobox", { name: "Filter by action" }),
-    "Model calls",
+    "Model traces",
   );
   await waitFor(() =>
     expect(on.queryByText("Moved from Other to Beta")).toBeNull(),

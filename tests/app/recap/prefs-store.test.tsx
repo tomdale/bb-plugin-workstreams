@@ -57,7 +57,7 @@ it("shares one snapshot and ignores semantically identical broadcasts", async ()
     prefs: { layout: "full", required: true },
   });
   await slot.behavior.emitRealtime("recapPrefs", {
-    prefs: { layout: "full", corrections: 3 },
+    prefs: { layout: "full", reminders: 3 },
   });
   expect(renders).toEqual([0, 0]);
 

@@ -26,7 +26,7 @@ const thread = (overrides: Partial<WakeThread> = {}): WakeThread => ({
 const snooze = { until: null, attentionAt: AT - 1, at: AT };
 
 describe("wakesOnEvents", () => {
-  it("is always on for Until there's an update, and opt-in for a timed snooze", () => {
+  it("is always on for On update, and opt-in for a timed snooze", () => {
     expect(wakesOnEvents({ ...snooze, until: null })).toBe(true);
     expect(wakesOnEvents({ ...snooze, until: AT + 1 })).toBe(false);
     expect(wakesOnEvents({ ...snooze, until: AT + 1, events: true })).toBe(
@@ -109,9 +109,7 @@ describe("isStalled", () => {
       { queued: true },
       { hasPendingInteraction: true },
     ] as const) {
-      expect(isStalled({ ...root, ...change }, [failedChild], AT)).toBe(
-        false,
-      );
+      expect(isStalled({ ...root, ...change }, [failedChild], AT)).toBe(false);
       expect(
         isStalled(root, [failedChild, thread({ id: "e", ...change })], AT),
       ).toBe(false);
@@ -172,10 +170,7 @@ describe("wakeEvent", () => {
       ),
     ).toBe("child-needs-input");
     expect(
-      wakeEvent(
-        { ...facts, children: [child("review")] },
-        DEFAULT_WAKE_EVENTS,
-      ),
+      wakeEvent({ ...facts, children: [child("review")] }, DEFAULT_WAKE_EVENTS),
     ).toBe("child-needs-input");
     expect(
       wakeEvent(

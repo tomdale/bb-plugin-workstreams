@@ -77,7 +77,7 @@ export const DEFAULT_MODELS = {
     reasoningLevel: "medium",
   },
   /** Reviewed changes to the workstreams and groups. */
-  tidy: {
+  suggestion: {
     kind: "gateway",
     model: "anthropic/claude-sonnet-5.5",
     reasoningLevel: "medium",
@@ -120,7 +120,7 @@ const countVisibility = z.enum(["always", "collapsed", "never"]);
 const GROUPS = {
   sidebar: {
     /** The Up Next section: threads awaiting the user. */
-    showForYou: [z.boolean(), true],
+    showUpNext: [z.boolean(), true],
     /** The Recent band: the most recently active threads. */
     showRecent: [z.boolean(), true],
     /** The Snoozed fold: threads temporarily put aside. */
@@ -172,10 +172,8 @@ const GROUPS = {
     showArchiveButton: [z.boolean(), true],
   },
   newWork: {
-    /** Where work with no code target starts; "" is a personal workspace. */
-    homeProjectId: [z.string(), ""],
     /** Preview a draft's workstream and title in the composer while you type. */
-    suggestions: [z.boolean(), true],
+    organizeAsYouWrite: [z.boolean(), true],
   },
   analysis: {
     /**
@@ -188,10 +186,10 @@ const GROUPS = {
     turnEndModel: [modelChoiceSchema, DEFAULT_MODELS.turnEnd],
   },
   organize: {
-    /** Suggest splits and tidy edits to the workstreams and groups for review. */
+    /** Suggest splits and other changes to the workstreams and groups for review. */
     suggestions: [z.boolean(), true],
     /** The model that writes those suggestions. */
-    tidyModel: [modelChoiceSchema, DEFAULT_MODELS.tidy],
+    suggestionModel: [modelChoiceSchema, DEFAULT_MODELS.suggestion],
     /** The model that arranges a collection's threads into categories. */
     categoryModel: [modelChoiceSchema, DEFAULT_MODELS.category],
   },
@@ -203,11 +201,16 @@ const GROUPS = {
     waiting: [colorChoiceSchema, DEFAULT_COLORS.waiting],
     needsInput: [colorChoiceSchema, DEFAULT_COLORS.needsInput],
     failed: [colorChoiceSchema, DEFAULT_COLORS.failed],
-    suggestion: [colorChoiceSchema, DEFAULT_COLORS.suggestion],
+    automatic: [colorChoiceSchema, DEFAULT_COLORS.automatic],
   },
   advanced: {
     /** The machine whose Pi key runs gateway calls; "" picks the only one. */
     hostId: [z.string(), ""],
+    /**
+     * The project Workstreams' own worker threads run in, for model calls
+     * that need one; "" uses the first project.
+     */
+    workerProjectId: [z.string(), ""],
     /**
      * Record each model call's prompt, reasoning, and response as a trace.
      * Independent of the debug UI, so toggling what the app shows keeps the
@@ -224,7 +227,7 @@ const GROUPS = {
     debugComposer: [z.boolean(), true],
     /** Raw agent output and syntax diagnosis on assistant replies. */
     debugReplies: [z.boolean(), true],
-    /** The Workstreams Debug section in a thread's Info tab and context card. */
+    /** The Workstreams debug section in a thread's Info tab and context card. */
     debugThreadInfo: [z.boolean(), true],
     /**
      * The button beside an AI-generated result that starts a thread about it,
@@ -284,8 +287,11 @@ export function parsePrefs(raw: unknown): Prefs {
   const organize = groups.organize;
   if (organize && typeof organize === "object") {
     const saved = organize as Record<string, unknown>;
-    if (saved.categoryModel === undefined && saved.tidyModel !== undefined)
-      groups.organize = { ...saved, categoryModel: saved.tidyModel };
+    if (
+      saved.categoryModel === undefined &&
+      saved.suggestionModel !== undefined
+    )
+      groups.organize = { ...saved, categoryModel: saved.suggestionModel };
   }
   // Debug mode used to be one switch, which also recorded. Recording now has
   // its own switch, and the old value carried the debug UI.

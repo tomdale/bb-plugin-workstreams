@@ -1,10 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import {
-  arrangeGroups,
-  type WorkstreamTree,
-} from "../../src/domain/groups.ts";
+import { arrangeGroups, type WorkstreamTree } from "../../src/domain/groups.ts";
 import * as groups from "../../src/domain/groups.ts";
 import * as project from "../../src/domain/project.ts";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
@@ -187,11 +184,13 @@ it("keeps unchanged workstream nodes across an arrangement update", () => {
     ),
   );
 
-  expect(second.pinned).toBe(first.pinned);
+  expect(second.focused).toBe(first.focused);
   expect(second.populated).toBe(first.populated);
   expect(second.dormant).toBe(first.dormant);
   expect(second.other).toBe(first.other);
-  expect(second.populated[0]!.workstreams).toBe(first.populated[0]!.workstreams);
+  expect(second.populated[0]!.workstreams).toBe(
+    first.populated[0]!.workstreams,
+  );
 
   // A thread in one nested workstream replaces that node and the one heading
   // it, and leaves its sibling alone.
@@ -250,7 +249,7 @@ it("shares rows in the sidebar's own projection update", async () => {
 
   const slot = await mount(snapshot(), {
     settings: {
-      showForYou: false,
+      showUpNext: false,
       showRecent: false,
       showSnoozed: false,
       showArchived: false,

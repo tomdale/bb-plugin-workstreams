@@ -21,7 +21,7 @@ export const homeSections = [
 ];
 
 export type SidebarPrefs = Partial<{
-  showForYou: boolean;
+  showUpNext: boolean;
   showRecent: boolean;
   showSnoozed: boolean;
   showArchived: boolean;
@@ -59,7 +59,7 @@ function prefsResponse(prefs: SidebarPrefs = {}) {
   return {
     prefs: {
       sidebar: {
-        showForYou: true,
+        showUpNext: true,
         showRecent: true,
         showSnoozed: true,
         showArchived: true,

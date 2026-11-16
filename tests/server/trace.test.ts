@@ -100,7 +100,7 @@ describe("debug mode off", () => {
     const w = await setup(false);
     const result = await w.harness.behavior.runCli(["trace"]);
     expect(result.stdout).toBe(
-      "No model calls recorded. Turn on Record model calls in Workstreams settings to record them.",
+      "No model traces recorded. Turn on Record model traces in Workstreams settings to record them.",
     );
   });
 });
@@ -112,7 +112,7 @@ describe("debug mode on without recording", () => {
     expect(await traces(w)).toEqual([]);
     const result = await w.harness.behavior.runCli(["trace"]);
     expect(result.stdout).toBe(
-      "No model calls recorded. Turn on Record model calls in Workstreams settings to record them.",
+      "No model traces recorded. Turn on Record model traces in Workstreams settings to record them.",
     );
   });
 });
@@ -372,7 +372,7 @@ describe("debug mode on", () => {
   it("distinguishes no traces yet from debug mode being off", async () => {
     const w = await setup(true);
     const result = await w.harness.behavior.runCli(["trace"]);
-    expect(result.stdout).toBe("No model calls recorded yet.");
+    expect(result.stdout).toBe("No model traces recorded yet.");
   });
 });
 

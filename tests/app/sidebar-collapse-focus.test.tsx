@@ -26,7 +26,7 @@ describe("collapsing a workstream", () => {
       JSON.stringify({ sec_a: true }),
     );
     const slot = await mount(threads(), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
     });
     const alpha = within(await slot.findByRole("region", { name: "Alpha" }));
     expect(alpha.getByRole("button", { name: "Expand Alpha" })).toBeTruthy();
@@ -37,7 +37,7 @@ describe("collapsing a workstream", () => {
 
   it("recovers focus to the header when a group closes with focus inside", async () => {
     const slot = await mount(threads(), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
     });
     const alpha = within(await slot.findByRole("region", { name: "Alpha" }));
     const row = alpha.getByRole("link", { name: "Alpha task" });

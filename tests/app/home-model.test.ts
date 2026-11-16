@@ -74,7 +74,7 @@ describe("planHome", () => {
       { now },
     );
     const plan = planHome(projection, baseOptions);
-    expect(plan.pinned).toEqual([]);
+    expect(plan.focused).toEqual([]);
     expect(plan.populated.map((group) => group.name)).toEqual(["Alpha"]);
     expect(plan.other?.name).toBe("Other");
     expect(plan.dormant.map((group) => group.name)).toEqual(["Beta"]);
@@ -122,9 +122,9 @@ describe("planHome", () => {
       focused: new Set(["sec_b"]),
     });
     expect(plan.tiered).toBe(true);
-    expect(plan.pinned.map((group) => group.name)).toEqual(["Beta"]);
+    expect(plan.focused.map((group) => group.name)).toEqual(["Beta"]);
     expect(plan.populated.map((group) => group.name)).toEqual(["Alpha"]);
-    expect(startsOpen(plan, plan.pinned[0]!)).toBe(true);
+    expect(startsOpen(plan, plan.focused[0]!)).toBe(true);
     expect(startsOpen(plan, plan.populated[0]!)).toBe(false);
   });
 
@@ -220,7 +220,7 @@ describe("planHome", () => {
       ...baseOptions,
       focused: new Set(["sec_a"]),
     });
-    expect(plan.pinned).toEqual([]);
+    expect(plan.focused).toEqual([]);
     expect(plan.tiered).toBe(false);
     expect(plan.populated.map((group) => group.name)).toEqual(["Beta"]);
   });
@@ -520,8 +520,8 @@ describe("planHome with topics", () => {
         ],
       },
     });
-    expect(plan.pinned.map((group) => group.name)).toEqual(["Product"]);
-    expect(plan.pinned[0]!.workstreams.map((group) => group.label)).toEqual([
+    expect(plan.focused.map((group) => group.name)).toEqual(["Product"]);
+    expect(plan.focused[0]!.workstreams.map((group) => group.label)).toEqual([
       "Feature",
     ]);
     // The subgroup's thread counts as focused; the other workstream's doesn't.

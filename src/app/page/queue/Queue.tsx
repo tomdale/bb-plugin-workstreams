@@ -74,6 +74,7 @@ import { useQueueMotion, type Direction } from "./motion.ts";
 import { STACK_WINDOW } from "./stackEngine.ts";
 import { useQueueActions, type Receipt } from "./useQueueActions.ts";
 import { PATH_SEPARATOR } from "../../../domain/topic-path.ts";
+import { counted } from "../../../domain/plural.ts";
 
 type Workstreams = ReturnType<typeof useWorkstreams>;
 type Suggestion = SuggestionsStateWire["suggestions"][number];
@@ -344,7 +345,10 @@ export function Queue({
   const threadAnswers =
     card && !pendingQuestion ? nextActionsOf(card).map(actionMessage) : [];
   const answers = suggestion
-    ? [`Accept and move ${movingCount(suggestion)} threads`, "Decline"]
+    ? [
+        `Accept and move ${counted(movingCount(suggestion), "thread")}`,
+        "Decline",
+      ]
     : threadAnswers;
 
   /** Shows another item: the next after acting or skipping, or one back. */

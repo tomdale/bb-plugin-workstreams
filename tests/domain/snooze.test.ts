@@ -90,7 +90,7 @@ describe("isSnoozed", () => {
     expect(isSnoozed(snooze, 5_000)).toBe(false);
   });
 
-  it("holds an Until there's an update snooze until the server ends it", () => {
+  it("holds an On update snooze until the server ends it", () => {
     const snooze = { until: null, attentionAt: 1_000, at: 1_000 };
     expect(isSnoozed(snooze, 9_999_999)).toBe(true);
   });
@@ -123,7 +123,7 @@ describe("rules", () => {
     expect(ruleLabel(time("tomorrow", 9))).toMatch(/^Tomorrow at 9/);
     expect(ruleLabel(time("workday", 9))).toMatch(/^Next workday at 9/);
     expect(ruleLabel(time("monday", 13, 30))).toMatch(/^Monday at 1:30/);
-    expect(ruleLabel({ kind: "activity" })).toBe("Until there's an update");
+    expect(ruleLabel({ kind: "activity" })).toBe("On update");
   });
 
   it("prefers a preset's own label", () => {
@@ -261,7 +261,7 @@ describe("preferences", () => {
     expect(prefs.presets.map((p) => [p.id, presetLabel(p)])).toEqual([
       ["3h", "3 hours"],
       ["weekend", "This weekend"],
-      ["activity", "Until there's an update"],
+      ["activity", "On update"],
     ]);
     expect(prefs.presets[1]!.rule).toEqual(time("saturday", 7));
     expect(prefs.default).toBe("3h");
@@ -295,7 +295,7 @@ describe("preferences", () => {
       ["1 hour", at(2026, 9, 30, 15, 15), true],
       ["Tomorrow morning", at(2026, 10, 1, 9), false],
       ["Next week", at(2026, 10, 5, 9), false],
-      ["Until there's an update", null, true],
+      ["On update", null, true],
     ]);
     expect(choices.at(-1)!.hint).toBe("");
   });

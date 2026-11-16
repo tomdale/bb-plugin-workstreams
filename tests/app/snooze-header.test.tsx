@@ -88,7 +88,7 @@ it("offers every preset and Custom… from the arrow", async () => {
     expect.stringMatching(/^1 hour/),
     expect.stringMatching(/^Tomorrow morning/),
     expect.stringMatching(/^Next week\(default\)/),
-    "Until there's an update",
+    "On update",
     "Custom…",
   ]);
   fireEvent.click(within(menu).getByRole("menuitem", { name: "Custom…" }));

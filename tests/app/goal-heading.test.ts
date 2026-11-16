@@ -13,9 +13,9 @@ import {
   headingScroll,
   headingScrollLimit,
   MIN_TITLE_BAR_WIDTH,
-  pinnedHeight,
-  pinnedStep,
-  pinnedTitleScale,
+  anchoredHeight,
+  anchoredStep,
+  anchoredTitleScale,
   titleBarSlot,
   titleExitDistance,
 } from "../../src/app/goalHeading.ts";
@@ -57,10 +57,10 @@ it("gives the compact line the room its own box needs", () => {
   );
 });
 
-it("keeps every wrapped title line in the pinned plate", () => {
-  const one = pinnedHeight(BASE, null, 1);
+it("keeps every wrapped title line in the anchored plate", () => {
+  const one = anchoredHeight(BASE, null, 1);
   expect(
-    Math.abs(pinnedHeight(BASE, null, 2) - one - BASE * 0.95 * (4 / 3)),
+    Math.abs(anchoredHeight(BASE, null, 2) - one - BASE * 0.95 * (4 / 3)),
   ).toBeLessThan(1);
 });
 
@@ -152,10 +152,10 @@ it("eases a small retreat and rise through the fade", () => {
   expect(headingFade(0.75).compact.opacity).toBeGreaterThan(0.75);
 });
 
-it("scales one pinned title directly to its compact size", () => {
-  expect(pinnedTitleScale(0)).toBe(1);
-  expect(pinnedTitleScale(1)).toBeCloseTo(0.95 / 1.5);
-  expect(pinnedTitleScale(0.5)).toBeCloseTo((1 + 0.95 / 1.5) / 2);
+it("scales one anchored title directly to its compact size", () => {
+  expect(anchoredTitleScale(0)).toBe(1);
+  expect(anchoredTitleScale(1)).toBeCloseTo(0.95 / 1.5);
+  expect(anchoredTitleScale(0.5)).toBeCloseTo((1 + 0.95 / 1.5) / 2);
 });
 
 it("keeps the eased fade but removes spatial motion when asked", () => {
@@ -188,17 +188,17 @@ it("accounts for a two-line phone title before finishing the reveal", () => {
   ).toBeCloseTo((BASE * 1.5 * 4) / 3);
 });
 
-it("holds a pinned heading whole until the title has scrolled out, then steps", () => {
+it("holds a anchored heading whole until the title has scrolled out, then steps", () => {
   const distance = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 1);
-  expect(pinnedStep(0, distance)).toBe(0);
-  expect(pinnedStep(distance - 1, distance)).toBe(0);
+  expect(anchoredStep(0, distance)).toBe(0);
+  expect(anchoredStep(distance - 1, distance)).toBe(0);
   // One state either side of the threshold: the scroll position picks the
   // state rather than driving the scale with it.
-  expect(pinnedStep(distance, distance)).toBe(1);
-  expect(pinnedStep(distance * 4, distance)).toBe(1);
+  expect(anchoredStep(distance, distance)).toBe(1);
+  expect(anchoredStep(distance * 4, distance)).toBe(1);
   // A wrapped title moves the threshold with the space it takes.
   const wrapped = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 2);
-  expect(pinnedStep(distance, wrapped)).toBe(0);
+  expect(anchoredStep(distance, wrapped)).toBe(0);
 });
 
 it("uses BB's own phone condition", () => {

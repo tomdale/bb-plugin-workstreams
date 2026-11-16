@@ -705,7 +705,7 @@ export function registerCli(
           },
         }),
         trace: cliCommand({
-          summary: "Show recorded model calls: one in full, or the latest",
+          summary: "Show model traces: one in full, or the latest",
           positionals: [
             {
               name: "id",
@@ -766,8 +766,8 @@ export function registerCli(
             });
             const noCalls =
               currentPrefs?.().advanced.debugRecord === false
-                ? "No model calls recorded. Turn on Record model calls in Workstreams settings to record them."
-                : "No model calls recorded yet.";
+                ? "No model traces recorded. Turn on Record model traces in Workstreams settings to record them."
+                : "No model traces recorded yet.";
             return {
               exitCode: 0,
               stdout: options.json
@@ -1497,7 +1497,7 @@ export function registerCli(
         }),
         "thread automatic": cliCommand({
           summary:
-            "Let Workstreams choose a thread's workstream again, now and from then on",
+            "Workstreams chooses from your requests a thread's workstream again, now and from then on",
           positionals: [
             {
               name: "thread",

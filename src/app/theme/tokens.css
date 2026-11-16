@@ -10,8 +10,8 @@
   [data-bb-plugin="workstreams"],
   [data-bb-plugin-root]:not([data-bb-plugin])
 ) {
-  --ws-suggestions-accent: var(--ws-suggestion);
-  --ws-suggestions-text: var(--ws-suggestion-text);
+  --ws-automatic-accent: var(--ws-automatic);
+  --ws-automatic-text: var(--ws-automatic-text);
   --ws-text-min-l: 0;
   --ws-text-max-l: 0.55;
   --ws-hash-digits: color-mix(
@@ -138,31 +138,31 @@
   --ws-failed-surface: color-mix(in oklab, var(--ws-failed) 6%, transparent);
   --ws-failed-footer: color-mix(in oklab, var(--ws-failed) 4%, transparent);
   --ws-failed-rule: color-mix(in oklab, var(--ws-failed-text) 16%, transparent);
-  --ws-suggestion: var(--pr-merged);
-  --ws-suggestion-text: var(--pr-merged);
-  --ws-suggestion-strong: var(--ws-suggestion-text);
-  --ws-suggestion-on-strong: var(--canvas);
-  --ws-suggestion-soft: var(--ws-suggestion-text);
-  --ws-suggestion-mark: var(--ws-suggestion-text);
-  --ws-suggestion-band: var(--ws-suggestion);
-  --ws-suggestion-border: color-mix(
+  --ws-automatic: var(--pr-merged);
+  --ws-automatic-text: var(--pr-merged);
+  --ws-automatic-strong: var(--ws-automatic-text);
+  --ws-automatic-on-strong: var(--canvas);
+  --ws-automatic-soft: var(--ws-automatic-text);
+  --ws-automatic-mark: var(--ws-automatic-text);
+  --ws-automatic-band: var(--ws-automatic);
+  --ws-automatic-border: color-mix(
     in oklab,
-    var(--ws-suggestion) 75%,
+    var(--ws-automatic) 75%,
     transparent
   );
-  --ws-suggestion-surface: color-mix(
+  --ws-automatic-surface: color-mix(
     in oklab,
-    var(--ws-suggestion) 6%,
+    var(--ws-automatic) 6%,
     transparent
   );
-  --ws-suggestion-footer: color-mix(
+  --ws-automatic-footer: color-mix(
     in oklab,
-    var(--ws-suggestion) 4%,
+    var(--ws-automatic) 4%,
     transparent
   );
-  --ws-suggestion-rule: color-mix(
+  --ws-automatic-rule: color-mix(
     in oklab,
-    var(--ws-suggestion-text) 16%,
+    var(--ws-automatic-text) 16%,
     transparent
   );
 }

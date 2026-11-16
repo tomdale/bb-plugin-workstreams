@@ -544,7 +544,7 @@ it("shows the edit hint only on hover, focus, or while ⇧ is held, without movi
   // Always laid out (so its space is reserved); hidden and revealed by
   // opacity alone, on hover of the replies or keyboard focus within them.
   expect(first.closest(".group\\/replies")).toBe(
-    slot.getByRole("list", { name: "Replies" }).parentElement,
+    slot.getByRole("list", { name: "Next actions" }).parentElement,
   );
   expect(classes()).toContain("opacity-0");
   expect(classes()).toContain("group-hover/replies:opacity-100");
@@ -693,33 +693,37 @@ it.each([false, true])(
 it("keeps a failed answer editable and retries dismissal", async () => {
   sessionStorage.clear();
   const { payload } = await import("./question/submission-fixture.ts");
-  const answer = vi
+  const hide = vi
     .fn()
     .mockRejectedValueOnce(new Error("offline"))
     .mockResolvedValue({ ok: true });
+  const answer = vi.fn(async () => ({ ok: true }));
   const slot = await mount(undefined, [], {
     question_pending: () => ({
       id: "stack-retry",
       recoverable: false,
+      hidden: false,
       payload,
     }),
+    question_hide: hide,
     question_answer: answer,
   });
   await slot.findByRole("region", { name: "Question needs your answer" });
-  fireEvent.click(slot.getByRole("button", { name: "Cancel" }));
+  fireEvent.click(slot.getByRole("button", { name: "Dismiss" }));
   expect(await slot.findByRole("alert")).toHaveProperty(
     "textContent",
-    "Could not dismiss the question. Please try again.",
+    "Couldn't dismiss the question.",
   );
   expect(heading(slot)).toBe("Beta question");
-  fireEvent.click(slot.getByRole("button", { name: "Cancel" }));
-  await waitFor(() => expect(answer).toHaveBeenCalledTimes(2));
-  expect(answer.mock.calls[1]?.[0]).toMatchObject({
+  fireEvent.click(slot.getByRole("button", { name: "Dismiss" }));
+  await waitFor(() => expect(hide).toHaveBeenCalledTimes(2));
+  // Dismissing hides the card and leaves the question open.
+  expect(hide.mock.calls[1]?.[0]).toMatchObject({
     threadId: "b1",
     id: "stack-retry",
-    dismiss: true,
-    value: null,
+    hidden: true,
   });
+  expect(answer).not.toHaveBeenCalled();
   slot.lifecycle.unmount();
   sessionStorage.clear();
 });

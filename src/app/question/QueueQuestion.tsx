@@ -26,18 +26,27 @@ export function QueueQuestion({
     setBusy(true);
     setError(null);
     try {
-      await rpc.call("question_answer", {
-        threadId: pending.threadId,
-        id: pending.id,
-        value,
-        dismiss,
-      });
+      // Dismissing hides the card and leaves the question open, as the
+      // thread's own card does.
+      if (dismiss)
+        await rpc.call("question_hide", {
+          threadId: pending.threadId,
+          id: pending.id,
+          hidden: true,
+        });
+      else
+        await rpc.call("question_answer", {
+          threadId: pending.threadId,
+          id: pending.id,
+          value,
+          dismiss,
+        });
       onAnswered(dismiss);
     } catch {
       setError(
         dismiss
-          ? "Could not dismiss the question. Please try again."
-          : "Could not send your answer. Please try again.",
+          ? "Couldn't dismiss the question."
+          : "Couldn't send your answer.",
       );
       setBusy(false);
     }

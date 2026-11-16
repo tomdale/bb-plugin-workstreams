@@ -52,7 +52,7 @@ const trace = (id: string) => ({
 
 const prefs = (advanced: Record<string, unknown>) => ({
   prefs: {
-    sidebar: { showForYou: true, showRecent: true, recentLimit: 5 },
+    sidebar: { showUpNext: true, showRecent: true, recentLimit: 5 },
     threads: { autoTitle: true },
     newWork: { homeProjectId: "", suggestions: true },
     advanced: { hostId: "", ...advanced },

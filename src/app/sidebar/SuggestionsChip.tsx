@@ -66,7 +66,7 @@ export function SuggestionsChip({
             // negative margin keeps the layout box on the heading's line,
             // so the row never moves and the rest-state text stays on the
             // label's baseline.
-            className="ws-suggestions-action -mx-2 -mb-[2px] -mt-[3px] flex shrink-0 cursor-pointer items-center whitespace-nowrap rounded-md border-transparent border-x-8 border-b-2 border-t-[3px] text-[12px] leading-4 font-medium tabular-nums transition-colors"
+            className="ws-automatic-action -mx-2 -mb-[2px] -mt-[3px] flex shrink-0 cursor-pointer items-center whitespace-nowrap rounded-md border-transparent border-x-8 border-b-2 border-t-[3px] text-[12px] leading-4 font-medium tabular-nums transition-colors"
           >
             <Icon
               name={SPARKLES_ICON}

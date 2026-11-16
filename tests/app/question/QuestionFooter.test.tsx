@@ -88,7 +88,7 @@ browserTest.skipIf(browserUnavailable)(
                 ...card.querySelectorAll<HTMLButtonElement>("button"),
               ];
               const cancel = buttons.find(
-                (button) => button.textContent === "Cancel",
+                (button) => button.textContent === "Dismiss",
               )!;
               const submit = buttons.find((button) =>
                 ["Submit", "Next"].includes(button.textContent!),

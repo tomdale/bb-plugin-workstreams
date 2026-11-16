@@ -5,9 +5,9 @@ import { afterEach, expect, it, vi } from "vitest";
 import { Profiler, type ProfilerOnRenderCallback } from "react";
 import {
   PAD_TOP,
-  PINNED_EDGE,
-  PINNED_FEATHER,
-  PINNED_PAD,
+  ANCHORED_EDGE,
+  ANCHORED_FEATHER,
+  ANCHORED_PAD,
   SUBTITLE_LINE,
   SUBTITLE_SIZE,
   BAR_FADE_RATIO,
@@ -15,8 +15,8 @@ import {
   headingHeight,
   headingOpacity,
   headingScroll,
-  pinnedHeight,
-  pinnedTitleScale,
+  anchoredHeight,
+  anchoredTitleScale,
   titleExitDistance,
 } from "../../src/app/goalHeading.ts";
 import {
@@ -731,11 +731,11 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
     );
   const initial = groups().map(y);
   expect(groups().map((group) => Number(group.style.opacity))).toEqual([1, 0]);
-  // Only a pinned heading steps, so only it takes the animation.
+  // Only a anchored heading steps, so only it takes the animation.
   expect(
     overlay()!
       .querySelector<HTMLElement>(".ws-goal-background")!
-      .hasAttribute("data-ws-pinned"),
+      .hasAttribute("data-ws-anchored"),
   ).toBe(false);
   const fadeScale = () =>
     Number(
@@ -932,7 +932,7 @@ it("eases fixed headings through a gentle handoff and switches modes", async () 
 });
 
 it.each(["fade", "scroll"] as const)(
-  "steps one pinned title in place in %s mode",
+  "steps one anchored title in place in %s mode",
   async (mode) => {
     paneFixture({ recap: false });
     const scroller = document.querySelector<HTMLElement>(
@@ -954,7 +954,7 @@ it.each(["fade", "scroll"] as const)(
       overlay()!.querySelector<HTMLElement>(
         '[data-ws-heading="expanded"] .ws-sticky-goal__title',
       )!;
-    // A pinned band hands over to its feather through a mask the stylesheet
+    // A anchored band hands over to its feather through a mask the stylesheet
     // builds from these two lengths.
     const band = () =>
       overlay()!.querySelector<HTMLElement>(".ws-sticky-goal")!;
@@ -980,14 +980,14 @@ it.each(["fade", "scroll"] as const)(
     expect(
       overlay()!
         .querySelector<HTMLElement>('[data-ws-heading="expanded"]')!
-        .hasAttribute("data-ws-pinned"),
+        .hasAttribute("data-ws-anchored"),
     ).toBe(true);
     expect(groups().map((group) => Number(group.style.opacity))).toEqual([
       1, 0,
     ]);
     expect(band().hasAttribute("data-ws-edge")).toBe(true);
     expect(drawnPlate()).toBe(headingHeight(14, false, 1, 0));
-    expect(fadeScale()).toBe(PINNED_FEATHER);
+    expect(fadeScale()).toBe(ANCHORED_FEATHER);
 
     // Just inside the threshold the heading is still whole: the scroll
     // position picks the state rather than driving the scale.
@@ -996,21 +996,21 @@ it.each(["fade", "scroll"] as const)(
     await nextFrame();
     await nextFrame();
     expect(title().style.transform).toBe("translateY(0px) scale(1)");
-    expect(fadeScale()).toBe(PINNED_FEATHER);
+    expect(fadeScale()).toBe(ANCHORED_FEATHER);
 
     // Past it, the whole move happens at once.
     scroller.scrollTop = 100 - exitDistance;
     scroller.dispatchEvent(new Event("scroll"));
-    const finalY = 14 * (PINNED_PAD - PAD_TOP);
+    const finalY = 14 * (ANCHORED_PAD - PAD_TOP);
     await waitFor(() => {
       const match = title().style.transform.match(
         /translateY\(([-\d.]+)px\) scale\(([-\d.]+)\)/,
       )!;
       expect(Number(match[1])).toBeCloseTo(finalY);
-      expect(Number(match[2])).toBeCloseTo(pinnedTitleScale(1));
+      expect(Number(match[2])).toBeCloseTo(anchoredTitleScale(1));
     });
     // The dissolve ends where the compact plate does in both states.
-    expect(drawnPlate()).toBe(pinnedHeight(14, null));
+    expect(drawnPlate()).toBe(anchoredHeight(14, null));
     expect(groups().map((group) => Number(group.style.opacity))).toEqual([
       1, 0,
     ]);
@@ -1024,7 +1024,7 @@ it.each(["fade", "scroll"] as const)(
   },
 );
 
-it("left aligns a pinned title and its goal when title alignment is centered", async () => {
+it("left aligns a anchored title and its goal when title alignment is centered", async () => {
   paneFixture({ recap: false });
   const scroller = document.querySelector<HTMLElement>(
     '[data-test="messages"]',
@@ -1067,7 +1067,7 @@ it("left aligns a pinned title and its goal when title alignment is centered", a
 });
 
 it.each([false, true])(
-  "keeps a two-line pinned title through the step with reduced motion %s",
+  "keeps a two-line anchored title through the step with reduced motion %s",
   async (reduced) => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: reduced && query === REDUCED_MOTION_QUERY,
@@ -1121,13 +1121,13 @@ it.each([false, true])(
       );
       // Reduced motion removes the animation, not the stepped endpoints.
       const stepped = title().style.transform.match(/scale\(([-\d.]+)\)/)!;
-      expect(Number(stepped[1])).toBeCloseTo(pinnedTitleScale(1));
+      expect(Number(stepped[1])).toBeCloseTo(anchoredTitleScale(1));
       expect(title().style.webkitLineClamp).toBe("2");
       const height = headingHeight(14, false, 2, 0);
       expect(
         overlay()!.querySelector<HTMLElement>(".ws-sticky-goal__plate")!.style
           .transform,
-      ).toBe(`scaleY(${pinnedHeight(14, null, 2) / height})`);
+      ).toBe(`scaleY(${anchoredHeight(14, null, 2) / height})`);
     } finally {
       probeHeight.mockRestore();
       slot.lifecycle.unmount();
@@ -1205,7 +1205,7 @@ it.each(["fade", "scroll"] as const)(
 );
 
 it.each([false, true])(
-  "steps a pinned backdrop at the scroll threshold (reduced motion %s)",
+  "steps a anchored backdrop at the scroll threshold (reduced motion %s)",
   async (reduced) => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: reduced && query === REDUCED_MOTION_QUERY,
@@ -1271,23 +1271,23 @@ it.each([false, true])(
     expect(scroller.style.scrollPaddingTop).toBe(`${expandedHeight}px`);
     expect(band().hasAttribute("data-ws-edge")).toBe(true);
     expect(drawnPlate()).toBe(expandedHeight);
-    expect(fadeScale()).toBe(PINNED_FEATHER);
+    expect(fadeScale()).toBe(ANCHORED_FEATHER);
 
     scroller.scrollTop = 600 - exit - 1;
     scroller.dispatchEvent(new Event("scroll"));
     await waitFor(() =>
       expect(root()!.getAttribute("data-collapsed")).toBe("true"),
     );
-    const finalY = 14 * (PINNED_PAD - PAD_TOP);
+    const finalY = 14 * (ANCHORED_PAD - PAD_TOP);
     const finalTransform = title().style.transform.match(
       /translateY\(([-\d.]+)px\) scale\(([-\d.]+)\)/,
     )!;
     expect(Number(finalTransform[1])).toBeCloseTo(finalY);
-    expect(Number(finalTransform[2])).toBeCloseTo(pinnedTitleScale(1));
+    expect(Number(finalTransform[2])).toBeCloseTo(anchoredTitleScale(1));
     expect(groups().map((group) => Number(group.style.opacity))).toEqual([
       1, 0,
     ]);
-    const compactHeight = pinnedHeight(14, null);
+    const compactHeight = anchoredHeight(14, null);
     expect(plate().style.transform).toBe(
       `scaleY(${compactHeight / expandedHeight})`,
     );
@@ -1635,7 +1635,7 @@ it.each([
       expect(
         overlay()!
           .querySelector('[data-ws-heading="expanded"]')!
-          .hasAttribute("data-ws-pinned"),
+          .hasAttribute("data-ws-anchored"),
       ).toBe(place === "the timeline");
       await act(() => vi.advanceTimersByTimeAsync(550));
       await move({});
@@ -1653,7 +1653,7 @@ it.each([
   },
 );
 
-it("commits a pinned heading only when scrolling crosses its step", async () => {
+it("commits a anchored heading only when scrolling crosses its step", async () => {
   paneFixture({ recap: false });
   const { scroller, move } = movableScroller();
   vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
@@ -1665,11 +1665,11 @@ it("commits a pinned heading only when scrolling crosses its step", async () => 
     await waitFor(() =>
       expect(overlay()?.textContent).toContain("Ship the mobile polish"),
     );
-    // The title bar has no room for it, so the heading is pinned.
+    // The title bar has no room for it, so the heading is anchored.
     expect(
       overlay()!
         .querySelector('[data-ws-heading="expanded"]')!
-        .hasAttribute("data-ws-pinned"),
+        .hasAttribute("data-ws-anchored"),
     ).toBe(true);
     await act(() => vi.advanceTimersByTimeAsync(550));
     await move({});

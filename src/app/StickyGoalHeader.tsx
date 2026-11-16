@@ -12,9 +12,9 @@ import {
   FADE_COMPACT_RISE,
   PAD_TOP,
   PHONE_QUERY,
-  pinnedEdge,
-  PINNED_FEATHER,
-  PINNED_PAD,
+  anchoredEdge,
+  ANCHORED_FEATHER,
+  ANCHORED_PAD,
   SUBTITLE_SIZE,
   SUBTITLE_LINE,
   TITLE_BAR_TITLE_SIZE,
@@ -28,9 +28,9 @@ import {
   headingOpacity,
   headingScroll,
   headingScrollLimit,
-  pinnedHeight,
-  pinnedStep,
-  pinnedTitleScale,
+  anchoredHeight,
+  anchoredStep,
+  anchoredTitleScale,
   plateFadeScale,
   titleBarSlot,
   titleExitDistance,
@@ -745,38 +745,38 @@ export function StickyGoalHeader(): React.ReactElement | null {
     goal ? goalLines : 0,
   );
   const exitDistance = titleExitDistance(base, eyebrow, titleLines);
-  const pinned = !!placement && placement.bar === null;
+  const anchored = !!placement && placement.bar === null;
   // Before the heading settles, while it floats, and in a short pane, the
-  // scroll position moves nothing; pinned, it moves only at one threshold.
+  // scroll position moves nothing; anchored, it moves only at one threshold.
   const step =
     !settled || floating || placement?.short
       ? Infinity
-      : pinned
+      : anchored
         ? exitDistance
         : null;
   const { fromBottom, limit, fade, measured } = useScrollState(
     filled ? mount!.scroller : null,
-    headingScrollLimit(exitDistance, pinned || fadeOnly ? "fade" : "scroll"),
+    headingScrollLimit(exitDistance, anchored || fadeOnly ? "fade" : "scroll"),
     step,
   );
   const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
   // A floating heading never makes the move to the compact copy: it stays at
   // rest over the timeline, which scrolls beneath its shadow. A pane too short
   // to spare the room still compacts, so a phone with the keyboard up keeps a
-  // readable timeline. A heading pinned in the timeline steps between its two
+  // readable timeline. A heading anchored in the timeline steps between its two
   // states at a threshold instead of tracking the scroll, and styles.css
   // animates that one move.
   const scrolled = settled ? fromBottom : 0;
-  const pinnedAt = pinned ? pinnedStep(scrolled, exitDistance) : 0;
+  const anchoredAt = anchored ? anchoredStep(scrolled, exitDistance) : 0;
   const { moved, remaining, progress } = floating
     ? { moved: 0, remaining: exitDistance, progress: 0 }
     : placement?.short
       ? { moved: exitDistance, remaining: 0, progress: 1 }
-      : pinned
+      : anchored
         ? {
-            moved: exitDistance * pinnedAt,
-            remaining: exitDistance * (1 - pinnedAt),
-            progress: pinnedAt,
+            moved: exitDistance * anchoredAt,
+            remaining: exitDistance * (1 - anchoredAt),
+            progress: anchoredAt,
           }
         : headingScroll(
             scrolled,
@@ -785,7 +785,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
             limit,
           );
   const collapsed = progress === 1;
-  const scalePinned = pinned && !floating;
+  const scaleAnchored = anchored && !floating;
   const fadeMotion = headingFade(progress, !reduceMotion);
   const opacity = fadeOnly
     ? {
@@ -793,30 +793,30 @@ export function StickyGoalHeader(): React.ReactElement | null {
         compact: fadeMotion.compact.opacity,
       }
     : headingOpacity(progress);
-  // A pinned title scales in place instead of handing off between two copies.
-  const expandedOpacity = scalePinned ? 1 : opacity.expanded;
-  const compactOpacity = scalePinned
+  // A anchored title scales in place instead of handing off between two copies.
+  const expandedOpacity = scaleAnchored ? 1 : opacity.expanded;
+  const compactOpacity = scaleAnchored
     ? 0
-    : fadeOnly && pinned
+    : fadeOnly && anchored
       ? Math.max(0, opacity.compact * 2 - 1)
       : opacity.compact;
-  const platePinnedHeight = pinnedHeight(
+  const plateAnchoredHeight = anchoredHeight(
     base,
     eyebrow,
-    scalePinned ? titleLines : 1,
+    scaleAnchored ? titleLines : 1,
   );
-  // A pinned compact heading needs a solid plate; in the bar the full-size
+  // A anchored compact heading needs a solid plate; in the bar the full-size
   // plate can instead fade away without moving under the large heading. The
-  // pinned plate changes in one step, which styles.css animates.
+  // anchored plate changes in one step, which styles.css animates.
   const plateAt = (at: number) =>
-    fadeOnly || scalePinned
-      ? pinned
-        ? height * (1 - at) + platePinnedHeight * at
+    fadeOnly || scaleAnchored
+      ? anchored
+        ? height * (1 - at) + plateAnchoredHeight * at
         : height
-      : Math.max(height * (1 - at), pinned ? platePinnedHeight * at : 0);
+      : Math.max(height * (1 - at), anchored ? plateAnchoredHeight * at : 0);
   const plateHeight = plateAt(progress);
   const plateOpacity =
-    fadeOnly && !pinned ? headingBackdropOpacity(progress) : 1;
+    fadeOnly && !anchored ? headingBackdropOpacity(progress) : 1;
   // The padding that scrolling to an element keeps clear of the heading. It
   // follows the heading's resting states, never its in-between frames: the
   // scroller is a container, and a style write to it restyles and lays out the
@@ -824,18 +824,18 @@ export function StickyGoalHeader(): React.ReactElement | null {
   // drops the heading's frames while the timeline scrolls smoothly.
   const restingProgress = Number(collapsed);
   const scrollPadding =
-    fadeOnly && !pinned
+    fadeOnly && !anchored
       ? height * (1 - restingProgress)
       : plateAt(restingProgress);
   // Fade holds the expanded heading in place. Start the shadow under the goal
   // instead of leaving a separate solid band below it, without changing the
   // reserved heading height, scroll padding, or the other transition modes.
   const plateOverlap =
-    fadeOnly && !pinned && !floating ? Math.min(base * 1.5, plateHeight) : 0;
+    fadeOnly && !anchored && !floating ? Math.min(base * 1.5, plateHeight) : 0;
   const solidPlateHeight = plateHeight - plateOverlap;
   const fadeAnchor = solidPlateHeight;
   // Room the plate's own edge fades out over, kept inside the block's padding.
-  const plateEdge = Math.min(pinnedEdge(base, collapsed), solidPlateHeight);
+  const plateEdge = Math.min(anchoredEdge(base, collapsed), solidPlateHeight);
   useLayoutEffect(() => {
     if (!mount) return;
     if (mount.root.dataset.collapsed !== String(collapsed))
@@ -885,18 +885,20 @@ export function StickyGoalHeader(): React.ReactElement | null {
       }
     : {
         x: placement.pane.x,
-        y: paneTop + base * PINNED_PAD,
+        y: paneTop + base * ANCHORED_PAD,
         width: placement.pane.width,
       };
   const workstream = (compact: boolean, width: number) => {
     if (!context.workstream || !eyebrow) return null;
     const scale = compact
       ? eyebrow.compactScale
-      : scalePinned
+      : scaleAnchored
         ? 1 + (eyebrow.compactScale - 1) * progress
         : 1;
     const y =
-      !compact && scalePinned ? base * (PINNED_PAD - PAD_TOP) * progress : 0;
+      !compact && scaleAnchored
+        ? base * (ANCHORED_PAD - PAD_TOP) * progress
+        : 0;
     return (
       <div
         className="ws-sticky-goal__workstream"
@@ -922,7 +924,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
       <div
         className="ws-goal-overlay__clip"
         data-ws-heading="expanded"
-        data-ws-pinned={pinned ? "" : undefined}
+        data-ws-anchored={anchored ? "" : undefined}
         style={{
           transform: `translate(${placement.pane.x}px, ${paneTop}px)`,
           width: placement.pane.width,
@@ -932,7 +934,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
         <div
           className="ws-goal-overlay__group"
           style={{
-            transform: scalePinned
+            transform: scaleAnchored
               ? `translateY(${base * PAD_TOP}px)`
               : fadeOnly
                 ? `translateY(${base * PAD_TOP + fadeMotion.expanded.y}px) scale(${fadeMotion.expanded.scale})`
@@ -946,10 +948,10 @@ export function StickyGoalHeader(): React.ReactElement | null {
             className="ws-sticky-goal__title"
             style={{
               fontSize: base * TITLE_SIZE,
-              transform: scalePinned
-                ? `translateY(${eyebrowBlock + (base * PINNED_PAD + barEyebrowBlock - base * PAD_TOP - eyebrowBlock) * progress}px) scale(${pinnedTitleScale(progress)})`
+              transform: scaleAnchored
+                ? `translateY(${eyebrowBlock + (base * ANCHORED_PAD + barEyebrowBlock - base * PAD_TOP - eyebrowBlock) * progress}px) scale(${anchoredTitleScale(progress)})`
                 : `translateY(${eyebrowBlock}px)`,
-              transformOrigin: scalePinned ? "0 0" : undefined,
+              transformOrigin: scaleAnchored ? "0 0" : undefined,
               ...(narrow && titleLines > 1
                 ? {
                     display: "-webkit-box",
@@ -982,7 +984,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
               style={{
                 fontSize: base * SUBTITLE_SIZE,
                 transform: `translateY(${eyebrowBlock + titleBlock}px)`,
-                opacity: scalePinned ? 1 - progress : 1,
+                opacity: scaleAnchored ? 1 - progress : 1,
               }}
             >
               {context.goal}
@@ -1032,7 +1034,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
     <>
       <div
         className="ws-goal-background"
-        data-ws-pinned={pinned ? "" : undefined}
+        data-ws-anchored={anchored ? "" : undefined}
         style={
           {
             transform: `translate(${placement.background.x}px, ${placement.background.y}px)`,
@@ -1040,8 +1042,8 @@ export function StickyGoalHeader(): React.ReactElement | null {
             "--ws-plate-height": `${fadeAnchor}px`,
             // In scroll mode, the plate's shadow shrinks to the bar fade's
             // length, never shorter than that much of its own.
-            "--ws-plate-fade-scale": pinned
-              ? PINNED_FEATHER
+            "--ws-plate-fade-scale": anchored
+              ? ANCHORED_FEATHER
               : fadeOnly
                 ? 1
                 : plateFadeScale(progress),
@@ -1057,16 +1059,16 @@ export function StickyGoalHeader(): React.ReactElement | null {
       >
         <div
           className="ws-sticky-goal"
-          // A pinned band dissolves into the timeline over its own last em
+          // A anchored band dissolves into the timeline over its own last em
           // instead of ending on a line across the row it covers; the stylesheet
           // builds that mask from these two lengths.
-          data-ws-edge={pinned ? "" : undefined}
+          data-ws-edge={anchored ? "" : undefined}
           style={
             {
               height,
-              // Only the pinned mask reads these; elsewhere they would
+              // Only the anchored mask reads these; elsewhere they would
               // restyle the subtree on every scrolled frame for nothing.
-              ...(pinned
+              ...(anchored
                 ? {
                     "--ws-plate-draw": `${solidPlateHeight}px`,
                     "--ws-plate-edge": `${plateEdge}px`,

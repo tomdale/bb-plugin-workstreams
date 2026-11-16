@@ -57,7 +57,7 @@
             var(--ws-plate-draw, 0px)
         );
       }
-      [data-ws-pinned].ws-goal-background::after {
+      [data-ws-anchored].ws-goal-background::after {
         background: linear-gradient(
           to bottom in oklab,
           color-mix(in oklab, var(--background) 50%, transparent) 0%,
@@ -68,21 +68,21 @@
           transparent 100%
         );
       }
-      [data-ws-pinned] .ws-sticky-goal__plate,
-      [data-ws-pinned] .ws-sticky-goal__workstream,
-      [data-ws-pinned] .ws-sticky-goal__title,
-      [data-ws-pinned] .ws-sticky-goal__subtitle,
-      [data-ws-pinned].ws-goal-background::after {
+      [data-ws-anchored] .ws-sticky-goal__plate,
+      [data-ws-anchored] .ws-sticky-goal__workstream,
+      [data-ws-anchored] .ws-sticky-goal__title,
+      [data-ws-anchored] .ws-sticky-goal__subtitle,
+      [data-ws-anchored].ws-goal-background::after {
         transition:
           transform 180ms ease,
           opacity 180ms ease;
       }
       @media (prefers-reduced-motion: reduce) {
-        [data-ws-pinned] .ws-sticky-goal__plate,
-        [data-ws-pinned] .ws-sticky-goal__workstream,
-        [data-ws-pinned] .ws-sticky-goal__title,
-        [data-ws-pinned] .ws-sticky-goal__subtitle,
-        [data-ws-pinned].ws-goal-background::after {
+        [data-ws-anchored] .ws-sticky-goal__plate,
+        [data-ws-anchored] .ws-sticky-goal__workstream,
+        [data-ws-anchored] .ws-sticky-goal__title,
+        [data-ws-anchored] .ws-sticky-goal__subtitle,
+        [data-ws-anchored].ws-goal-background::after {
           transition: none;
         }
       }
@@ -406,7 +406,7 @@
       <div class="pane" id="pane">
         <div class="bar" id="bar">
           <div class="cluster">
-            <span class="bb-thread-title">Fixing pinned heading overlay</span>
+            <span class="bb-thread-title">Fixing anchored heading overlay</span>
           </div>
           <div class="actions"><span></span><span></span><span></span></div>
         </div>
@@ -422,7 +422,7 @@
                 </p>
                 <p>
                   <b>Roll the content</b> under the band with the arrow keys,
-                  the wheel, or the buttons above. Past the threshold a pinned
+                  the wheel, or the buttons above. Past the threshold a anchored
                   heading steps down to its compact block in one move.
                 </p>
                 <div class="row">
@@ -561,11 +561,11 @@
       const PAD_BOTTOM = 0.65;
       const EYEBROW_BLOCK = 1.25;
       const TITLE_BAR_TITLE_SIZE = 0.95;
-      const PINNED_PAD = 0.5;
-      const PINNED_EDGE = 0.9;
+      const ANCHORED_PAD = 0.5;
+      const ANCHORED_EDGE = 0.9;
       const PLATE_FADE_REM = 12;
       const BAR_FADE_RATIO = 3 / PLATE_FADE_REM;
-      const PINNED_FEATHER = 1.875 / PLATE_FADE_REM;
+      const ANCHORED_FEATHER = 1.875 / PLATE_FADE_REM;
       const DESKTOP_EYEBROW_SIZE = 0.8;
       const DESKTOP_COMPACT_SCALE = 0.82;
       const PHONE_EYEBROW_SIZE = 0.875;
@@ -657,7 +657,7 @@
         };
       }
 
-      const pinnedTitleScale = (progress) =>
+      const anchoredTitleScale = (progress) =>
         1 + (TITLE_BAR_TITLE_SIZE / TITLE_SIZE - 1) * progress;
 
       const headingOpacity = (progress) => ({
@@ -673,17 +673,17 @@
         (eyebrow ? eyebrow.compactBlock : 0) +
         base * TITLE_BAR_TITLE_SIZE * TITLE_LINE;
 
-      const pinnedHeight = (base, eyebrow, titleLines = 1) =>
+      const anchoredHeight = (base, eyebrow, titleLines = 1) =>
         Math.round(
           compactBlock(base, eyebrow) +
             base * TITLE_BAR_TITLE_SIZE * TITLE_LINE * (titleLines - 1) +
-            base * (PINNED_PAD + PINNED_EDGE),
+            base * (ANCHORED_PAD + ANCHORED_EDGE),
         );
 
-      const pinnedEdge = (base, compact) =>
-        base * (compact ? PINNED_EDGE : PAD_BOTTOM);
+      const anchoredEdge = (base, compact) =>
+        base * (compact ? ANCHORED_EDGE : PAD_BOTTOM);
 
-      const pinnedStep = (fromBottom, exitDistance) =>
+      const anchoredStep = (fromBottom, exitDistance) =>
         fromBottom >= exitDistance ? 1 : 0;
 
       function titleBarSlot(bar, clusterRight, actionsLeft, centered) {
@@ -705,13 +705,13 @@
          Playground state and controls.
          ================================================================== */
       const TITLES = {
-        short: "Fixing pinned overlay",
-        medium: "Fixing pinned heading overlay",
-        long: "Scaling the pinned heading overlay across every narrow pane",
+        short: "Fixing anchored overlay",
+        medium: "Fixing anchored heading overlay",
+        long: "Scaling the anchored heading overlay across every narrow pane",
       };
 
       const state = {
-        layout: "pinned",
+        layout: "anchored",
         transition: "fade",
         float: false,
         reducedMotion: false,
@@ -784,13 +784,13 @@
       }
 
       const GOAL =
-        "Smooth the pinned title overlay fade and tighten spacing so text transitions seamlessly under the heading.";
+        "Smooth the anchored title overlay fade and tighten spacing so text transitions seamlessly under the heading.";
 
       const CONTROLS = [
         {
           name: "Layout",
           options: [
-            ["pinned", "Pinned in timeline"],
+            ["anchored", "Anchored in timeline"],
             ["bar", "Title bar"],
           ],
           key: "layout",
@@ -968,7 +968,7 @@
         bar.setAttribute("data-ws-hide-title", "");
       }
 
-      /** Scroll so that the pinned threshold sits `offset` px away. */
+      /** Scroll so that the anchored threshold sits `offset` px away. */
       function step(offset, direction) {
         const { base, eyebrow, lines } = headingMetrics();
         const exit = titleExitDistance(base, eyebrow, lines);
@@ -1103,7 +1103,7 @@
                 state.align === "center",
               )
             : null;
-        const pinned = state.layout === "pinned" || slot === null;
+        const anchored = state.layout === "anchored" || slot === null;
 
         // --- scroll state ---------------------------------------------------
         const height = headingHeight(base, hasEyebrow, lines, goalLines);
@@ -1112,7 +1112,7 @@
         const floating = state.float;
         const scrollLimit = headingScrollLimit(
           exitDistance,
-          pinned || fadeOnly ? "fade" : "scroll",
+          anchored || fadeOnly ? "fade" : "scroll",
         );
         const range = Math.max(
           0,
@@ -1126,7 +1126,7 @@
         // BB's own overflow fades exist once content has scrolled out of view.
         const fade = scroller.scrollTop > 1;
         const fromBottom = Math.min(fromBottomRaw, limit);
-        const stepped = pinned ? pinnedStep(fromBottom, exitDistance) : 0;
+        const stepped = anchored ? anchoredStep(fromBottom, exitDistance) : 0;
         const scroll = headingScroll(
           fromBottom,
           exitDistance,
@@ -1137,7 +1137,7 @@
           ? { moved: 0, remaining: exitDistance, progress: 0 }
           : short
             ? { moved: exitDistance, remaining: 0, progress: 1 }
-            : pinned
+            : anchored
               ? {
                   moved: exitDistance * stepped,
                   remaining: exitDistance * (1 - stepped),
@@ -1146,7 +1146,7 @@
               : scroll;
 
         const collapsed = progress === 1;
-        const scalePinned = pinned && !floating;
+        const scaleAnchored = anchored && !floating;
         const fadeMotion = headingFade(progress, !state.reducedMotion);
         const opacity = fadeOnly
           ? {
@@ -1154,48 +1154,48 @@
               compact: fadeMotion.compact.opacity,
             }
           : headingOpacity(progress);
-        const expandedOpacity = scalePinned ? 1 : opacity.expanded;
-        const compactOpacity = scalePinned
+        const expandedOpacity = scaleAnchored ? 1 : opacity.expanded;
+        const compactOpacity = scaleAnchored
           ? 0
-          : fadeOnly && pinned
+          : fadeOnly && anchored
             ? Math.max(0, opacity.compact * 2 - 1)
             : opacity.compact;
-        const platePinnedHeight = pinnedHeight(
+        const plateAnchoredHeight = anchoredHeight(
           base,
           eyebrow,
-          scalePinned ? lines : 1,
+          scaleAnchored ? lines : 1,
         );
         const plateHeight =
-          pinned && (fadeOnly || scalePinned)
-            ? height * (1 - progress) + platePinnedHeight * progress
+          anchored && (fadeOnly || scaleAnchored)
+            ? height * (1 - progress) + plateAnchoredHeight * progress
             : Math.max(
                 height * (1 - progress),
-                pinned ? platePinnedHeight * progress : 0,
+                anchored ? plateAnchoredHeight * progress : 0,
               );
         // In the title bar the plate and its shadow rise out of the way as the
         // heading leaves. Fade dissolves both with the expanded title. Scroll
         // keeps the plate opaque while it slides away, so the shadow stays at
         // the plate's own strength (dimming it would show the plate's edge as
         // a step) and shrinks to nothing instead of fading.
-        const plateOpacity = fadeOnly && !pinned ? opacity.expanded : 1;
+        const plateOpacity = fadeOnly && !anchored ? opacity.expanded : 1;
         const shadowOpacity = plateOpacity;
-        const shadowScale = pinned
-          ? PINNED_FEATHER
+        const shadowScale = anchored
+          ? ANCHORED_FEATHER
           : fadeOnly
             ? plateFadeScale(progress)
             : 1 - progress;
         const scrollPadding =
-          fadeOnly && !pinned ? height * (1 - progress) : plateHeight;
+          fadeOnly && !anchored ? height * (1 - progress) : plateHeight;
         // The shadow starts under the goal, not below the plate, in both
         // transitions, so the expanded state looks the same in each.
         const plateOverlap =
-          !pinned && !floating ? Math.min(base * 1.5, plateHeight) : 0;
+          !anchored && !floating ? Math.min(base * 1.5, plateHeight) : 0;
         // A whole pixel, so the plate and the shadow that starts where it ends
         // meet on a pixel boundary. On a fractional edge each covers part of
         // the same row, and the two partial coverages leave a light seam.
         const solidPlateHeight = Math.round(plateHeight - plateOverlap);
         const plateEdge = Math.min(
-          pinnedEdge(base, collapsed),
+          anchoredEdge(base, collapsed),
           solidPlateHeight,
         );
         const titleBlock = base * TITLE_SIZE * TITLE_LINE * lines;
@@ -1220,8 +1220,8 @@
           "--ws-fade-below-plate",
           String(fade && plateHeight > 0 ? shadowOpacity : 0),
         );
-        background.toggleAttribute("data-ws-pinned", pinned);
-        if (pinned) band.setAttribute("data-ws-edge", "");
+        background.toggleAttribute("data-ws-anchored", anchored);
+        if (anchored) band.setAttribute("data-ws-edge", "");
         else band.removeAttribute("data-ws-edge");
         band.style.height = `${height}px`;
         band.style.setProperty("--ws-plate-draw", `${solidPlateHeight}px`);
@@ -1230,11 +1230,11 @@
         plate.style.opacity = String(plateOpacity);
 
         // --- the expanded copy ---------------------------------------------
-        clipExpanded.toggleAttribute("data-ws-pinned", pinned);
+        clipExpanded.toggleAttribute("data-ws-anchored", anchored);
         clipExpanded.style.transform = `translate(${paneSpot.x}px, ${paneSpot.y - base * PAD_TOP}px)`;
         clipExpanded.style.width = `${paneSpot.width}px`;
         clipExpanded.style.height = `${height}px`;
-        groupExpanded.style.transform = scalePinned
+        groupExpanded.style.transform = scaleAnchored
           ? `translateY(${base * PAD_TOP}px)`
           : fadeOnly
             ? `translateY(${base * PAD_TOP + fadeMotion.expanded.y}px) scale(${fadeMotion.expanded.scale})`
@@ -1244,11 +1244,11 @@
 
         const eyebrowBlock = eyebrow ? eyebrow.expandedBlock : 0;
         const barEyebrowBlock = eyebrow ? eyebrow.compactBlock : 0;
-        const eyebrowScale = scalePinned
+        const eyebrowScale = scaleAnchored
           ? 1 + ((eyebrow ? eyebrow.compactScale : 1) - 1) * progress
           : 1;
-        const eyebrowY = scalePinned
-          ? base * (PINNED_PAD - PAD_TOP) * progress
+        const eyebrowY = scaleAnchored
+          ? base * (ANCHORED_PAD - PAD_TOP) * progress
           : 0;
         if (eyebrow) {
           for (const el of [eyebrowExpanded, eyebrowCompact])
@@ -1261,10 +1261,10 @@
             el.style.display = "none";
         }
         titleExpanded.style.fontSize = `${base * TITLE_SIZE}px`;
-        titleExpanded.style.transform = scalePinned
-          ? `translateY(${eyebrowBlock + (base * PINNED_PAD + barEyebrowBlock - base * PAD_TOP - eyebrowBlock) * progress}px) scale(${pinnedTitleScale(progress)})`
+        titleExpanded.style.transform = scaleAnchored
+          ? `translateY(${eyebrowBlock + (base * ANCHORED_PAD + barEyebrowBlock - base * PAD_TOP - eyebrowBlock) * progress}px) scale(${anchoredTitleScale(progress)})`
           : `translateY(${eyebrowBlock}px)`;
-        titleExpanded.style.transformOrigin = scalePinned ? "0 0" : "";
+        titleExpanded.style.transformOrigin = scaleAnchored ? "0 0" : "";
         titleExpanded.style.webkitLineClamp = narrow && lines > 1 ? "2" : "";
         titleExpanded.style.webkitBoxOrient =
           narrow && lines > 1 ? "vertical" : "";
@@ -1273,7 +1273,7 @@
         titleExpanded.style.paddingBottom = "0";
         goalExpanded.style.fontSize = `${base * SUBTITLE_SIZE}px`;
         goalExpanded.style.transform = `translateY(${eyebrowBlock + titleBlock}px)`;
-        goalExpanded.style.opacity = String(scalePinned ? 1 - progress : 1);
+        goalExpanded.style.opacity = String(scaleAnchored ? 1 - progress : 1);
         goalExpanded.style.display = state.goal ? "" : "none";
 
         // --- the compact copy ----------------------------------------------
@@ -1290,7 +1290,7 @@
             }
           : {
               x: paneSpot.x,
-              y: paneSpot.y - base * PAD_TOP + base * PINNED_PAD,
+              y: paneSpot.y - base * PAD_TOP + base * ANCHORED_PAD,
               width: paneSpot.width,
             };
         clipCompact.style.transform = `translate(${compactSpot.x}px, ${compactSpot.y}px)`;
@@ -1316,17 +1316,17 @@
 
         // --- readout --------------------------------------------------------
         readout.innerHTML = `
-          <span>layout</span><b>${pinned ? "pinned" : "title bar"}${state.width < 560 ? " · narrow" : ""}</b>
+          <span>layout</span><b>${anchored ? "anchored" : "title bar"}${state.width < 560 ? " · narrow" : ""}</b>
           <span>band / timeline</span><b>${state.band} band over ${state.content} timeline</b>
           <span>base / eyebrow</span><b>${base}px / ${eyebrow ? eyebrow.size.toFixed(1) + "px" : "none"}</b>
           <span>heading height</span><b>${height}px · ${lines} title line${lines === 1 ? "" : "s"}</b>
           <span>exit distance</span><b>${exitDistance.toFixed(1)}px</b>
           <span>from bottom</span><b>${fromBottomRaw.toFixed(1)}px of ${range}px</b>
-          <span>progress</span><b>${progress.toFixed(2)}${pinned ? " (stepped)" : ""}</b>
-          <span>plate</span><b>${solidPlateHeight}px${pinned ? ` · edge ${plateEdge.toFixed(1)}px` : ""}</b>
+          <span>progress</span><b>${progress.toFixed(2)}${anchored ? " (stepped)" : ""}</b>
+          <span>plate</span><b>${solidPlateHeight}px${anchored ? ` · edge ${plateEdge.toFixed(1)}px` : ""}</b>
           <span>feather</span><b>${
-            pinned
-              ? `${(PINNED_FEATHER * 192).toFixed(0)}px from half cover`
+            anchored
+              ? `${(ANCHORED_FEATHER * 192).toFixed(0)}px from half cover`
               : `${(shadowScale * 192).toFixed(0)}px at ${shadowOpacity.toFixed(2)}`
           }</b>
           <span>scroll padding</span><b>${scrollPadding}px</b>

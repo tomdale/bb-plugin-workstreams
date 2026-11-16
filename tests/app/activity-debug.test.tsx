@@ -28,7 +28,7 @@ async function page(rpc: Record<string, unknown>) {
       rpc: {
         prefs: () => ({
           prefs: {
-            sidebar: { showForYou: true, showRecent: true, recentLimit: 5 },
+            sidebar: { showUpNext: true, showRecent: true, recentLimit: 5 },
             threads: {
               autoTitle: true,
               analysisModel: { kind: "gateway", model: "m" },
@@ -99,7 +99,7 @@ it("filters internal calls, exposes metadata and event internals, and opens the 
       },
     }),
   });
-  expect(await slot.findByText("3 model calls shown · $0.0300")).toBeTruthy();
+  expect(await slot.findByText("3 model traces shown · $0.0300")).toBeTruthy();
   expect(
     slot.getByRole("link", { name: "Parser thread" }).getAttribute("href"),
   ).toBe("/threads/missing-thread");
@@ -136,7 +136,7 @@ it("filters internal calls, exposes metadata and event internals, and opens the 
   expect(slot.queryByText("Moved a thread")).toBeNull();
   expect(slot.queryByText("ok")).toBeNull();
   expect(slot.getByText("bad")).toBeTruthy();
-  expect(slot.getByText("1 model calls shown · $0.0100")).toBeTruthy();
+  expect(slot.getByText("1 model traces shown · $0.0100")).toBeTruthy();
   chooseOption(
     slot.getByRole("combobox", { name: "Filter by model call kind" }),
     "New thread",
@@ -150,7 +150,7 @@ it("filters internal calls, exposes metadata and event internals, and opens the 
   expect(slot.queryByText("bad")).toBeNull();
   chooseOption(
     slot.getByRole("combobox", { name: "Filter by action" }),
-    "Model calls",
+    "Model traces",
   );
   expect(slot.getByText("bad")).toBeTruthy();
 });
@@ -179,7 +179,9 @@ it("connects pagination, realtime, filter changes, and unmount to the loader", a
     publish.entries([entry]);
     publish.calls([trace("first")], true);
   });
-  fireEvent.click(slot.getByRole("button", { name: "Load older model calls" }));
+  fireEvent.click(
+    slot.getByRole("button", { name: "Load older model traces" }),
+  );
   await waitFor(() =>
     expect(load).toHaveBeenLastCalledWith(
       expect.objectContaining({ traceLimit: 200 }),
@@ -187,9 +189,9 @@ it("connects pagination, realtime, filter changes, and unmount to the loader", a
   );
   act(() => publish.calls([trace("first"), trace("older")], false));
   expect(slot.getByText("older")).toBeTruthy();
-  expect(slot.getByText("2 model calls shown · $0.0200")).toBeTruthy();
+  expect(slot.getByText("2 model traces shown · $0.0200")).toBeTruthy();
   expect(
-    slot.queryByRole("button", { name: "Load older model calls" }),
+    slot.queryByRole("button", { name: "Load older model traces" }),
   ).toBeNull();
   load.mockClear();
   refresh.mockClear();
@@ -251,15 +253,14 @@ it("keeps traces and reports a failed clear without losing journal entries", asy
     },
   });
   await slot.findByText("kept");
-  fireEvent.click(slot.getByRole("button", { name: "Clear traces…" }));
-  fireEvent.click(slot.getByRole("button", { name: "Delete traces" }));
+  fireEvent.click(slot.getByRole("button", { name: "Delete model traces…" }));
+  fireEvent.click(slot.getByRole("button", { name: "Delete model traces" }));
   expect((await slot.findByRole("alert")).textContent).toBe("Clear failed");
   expect(slot.getByText("kept")).toBeTruthy();
   expect(slot.getByText("Moved a thread")).toBeTruthy();
-  expect(slot.getByRole("button", { name: "Delete traces" })).toHaveProperty(
-    "disabled",
-    false,
-  );
+  expect(
+    slot.getByRole("button", { name: "Delete model traces" }),
+  ).toHaveProperty("disabled", false);
 });
 
 it("confirms clearing all traces without deleting Activity changes", async () => {
@@ -270,14 +271,14 @@ it("confirms clearing all traces without deleting Activity changes", async () =>
   });
   const slot = await page({ traces: () => ({ traces: stored }), traceClear });
   await slot.findByText("ok");
-  fireEvent.click(slot.getByRole("button", { name: "Clear traces…" }));
+  fireEvent.click(slot.getByRole("button", { name: "Delete model traces…" }));
   expect(traceClear).not.toHaveBeenCalled();
   fireEvent.click(slot.getByRole("button", { name: "Cancel" }));
   expect(slot.getByText("ok")).toBeTruthy();
-  fireEvent.click(slot.getByRole("button", { name: "Clear traces…" }));
-  fireEvent.click(slot.getByRole("button", { name: "Delete traces" }));
+  fireEvent.click(slot.getByRole("button", { name: "Delete model traces…" }));
+  fireEvent.click(slot.getByRole("button", { name: "Delete model traces" }));
   await waitFor(() => expect(slot.queryByText("ok")).toBeNull());
   expect(traceClear).toHaveBeenCalledWith(null);
   expect(slot.getByText("Moved a thread")).toBeTruthy();
-  expect(slot.getByText("0 model calls shown · $0.0000")).toBeTruthy();
+  expect(slot.getByText("0 model traces shown · $0.0000")).toBeTruthy();
 });

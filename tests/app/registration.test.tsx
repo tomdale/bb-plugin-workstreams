@@ -79,7 +79,6 @@ it("binds UI surfaces to the components exercised by the SDK harness", async () 
     ["recap", RecapSettings],
     ["snooze", SnoozeSettings],
     ["new-work", features.NewWorkSettings],
-    ["organize", features.OrganizeSettings],
     ["models", features.ModelsSettings],
     ["advanced", features.AdvancedSettings],
   ] as const) {
@@ -157,7 +156,6 @@ it("registers settings in feature order", async () => {
     ["recap", "Recap"],
     ["snooze", "Snooze"],
     ["new-work", "New threads"],
-    ["organize", "Organization"],
     ["models", "Models"],
     ["advanced", "Advanced"],
   ]);

@@ -3,7 +3,7 @@ import {
   type ExperimentalProviderModelPickerValue,
 } from "@get-bb/plugin-sdk/app";
 import { gatewayModel, type ModelChoice } from "../../domain/prefs.ts";
-import { SettingRow } from "./ui.tsx";
+import { SettingRow, SettingSwitch } from "./ui.tsx";
 
 const pickerValue = (
   choice: ModelChoice,
@@ -34,12 +34,15 @@ export function ModelField({
   choice,
   onChange,
   disabled = false,
+  enabled,
 }: {
   label: string;
   description: string;
   choice: ModelChoice;
   onChange(choice: ModelChoice): void;
   disabled?: boolean;
+  /** A task that can be turned off: its switch sits beside the picker. */
+  enabled?: { checked: boolean; onChange(checked: boolean): void };
 }) {
   const directModel = gatewayModel(choice);
   const selected = pickerValue(choice);
@@ -52,15 +55,24 @@ export function ModelField({
           : description
       }
       control={
-        <div className="min-w-0 max-w-full rounded-md border border-border bg-background px-2 py-1 shadow-sm">
-          <ProviderModelPicker
-            value={selected}
-            onChange={(next) => onChange({ kind: "provider", ...next })}
-            align="end"
-            disabled={disabled}
-            className="max-w-[22rem]"
-            allowProviderChange
-          />
+        <div className="flex min-w-0 max-w-full items-center gap-3">
+          {enabled ? (
+            <SettingSwitch
+              label={label}
+              checked={enabled.checked}
+              onChange={enabled.onChange}
+            />
+          ) : null}
+          <div className="min-w-0 max-w-full rounded-md border border-border bg-background px-2 py-1 shadow-sm">
+            <ProviderModelPicker
+              value={selected}
+              onChange={(next) => onChange({ kind: "provider", ...next })}
+              align="end"
+              disabled={disabled || enabled?.checked === false}
+              className="max-w-[22rem]"
+              allowProviderChange
+            />
+          </div>
         </div>
       }
     />

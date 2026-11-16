@@ -44,7 +44,7 @@ function withoutAtRules(css: string): string {
 
 /**
  * Declarations from a stylesheet's text, keyed by each single selector. A
- * selector can appear in more than one rule (the pinned transitions join the
+ * selector can appear in more than one rule (the anchored transitions join the
  * feather's), so its declarations accumulate.
  */
 function declarations(css: string): Map<string, string[]> {
@@ -75,11 +75,11 @@ const DRAWN = [
   ".ws-goal-background",
   ".ws-goal-background::after",
   "[data-ws-edge]",
-  "[data-ws-pinned].ws-goal-background::after",
-  "[data-ws-pinned] .ws-sticky-goal__plate",
-  "[data-ws-pinned] .ws-sticky-goal__workstream",
-  "[data-ws-pinned] .ws-sticky-goal__title",
-  "[data-ws-pinned] .ws-sticky-goal__subtitle",
+  "[data-ws-anchored].ws-goal-background::after",
+  "[data-ws-anchored] .ws-sticky-goal__plate",
+  "[data-ws-anchored] .ws-sticky-goal__workstream",
+  "[data-ws-anchored] .ws-sticky-goal__title",
+  "[data-ws-anchored] .ws-sticky-goal__subtitle",
   ".ws-sticky-goal",
   ".ws-sticky-goal__plate",
   ".ws-goal-overlay",
@@ -111,19 +111,19 @@ it("draws the heading rules styles.css ships", () => {
 it("keeps the reduced-motion override the stylesheet ships", () => {
   for (const css of [styles, pageStyles()]) {
     expect(css).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\[data-ws-pinned\] \.ws-sticky-goal__title[\s\S]*?transition:\s*none/,
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\[data-ws-anchored\] \.ws-sticky-goal__title[\s\S]*?transition:\s*none/,
     );
   }
 });
 
-it("steps the pinned heading rather than tracking the scroll", () => {
-  // The page's port of pinnedStep is what the controls rely on; if the product
+it("steps the anchored heading rather than tracking the scroll", () => {
+  // The page's port of anchoredStep is what the controls rely on; if the product
   // ever moves the threshold, the lab has to move with it.
   const product = read("src/app/goalHeading.ts");
   const threshold = product.match(
-    /export function pinnedStep\([^)]*\)[^{]*\{([^}]*)\}/,
+    /export function anchoredStep\([^)]*\)[^{]*\{([^}]*)\}/,
   )![1]!;
-  expect(page).toContain("const pinnedStep = (fromBottom, exitDistance) =>");
+  expect(page).toContain("const anchoredStep = (fromBottom, exitDistance) =>");
   expect(threshold).toContain("fromBottom >= exitDistance");
 });
 
@@ -142,8 +142,8 @@ it("starts the band where the timeline does", () => {
 /** The scroll limit and the goal's height are read the way the component reads them. */
 it("limits and measures the way the component does", () => {
   const component = read("src/app/StickyGoalHeader.tsx");
-  expect(component).toContain('pinned || fadeOnly ? "fade" : "scroll"');
-  expect(page).toContain('pinned || fadeOnly ? "fade" : "scroll"');
+  expect(component).toContain('anchored || fadeOnly ? "fade" : "scroll"');
+  expect(page).toContain('anchored || fadeOnly ? "fade" : "scroll"');
   expect(component).toContain("scroller.scrollTop > 1");
   expect(page).toContain("scroller.scrollTop > 1");
   expect(page).toContain("goalExpanded.clientHeight");

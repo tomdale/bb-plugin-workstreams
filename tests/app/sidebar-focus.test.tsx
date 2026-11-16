@@ -33,7 +33,7 @@ describe("focused workstreams", () => {
       ],
       {
         activeThreadId: null,
-        settings: { showRecent: false, showForYou: false },
+        settings: { showRecent: false, showUpNext: false },
       },
     );
     await waitFor(() => expect(regions(slot)).toEqual(["Alpha", "Beta"]));
@@ -228,7 +228,7 @@ describe("focused workstreams", () => {
       ],
       {
         activeThreadId: null,
-        settings: { showRecent: false, showForYou: false },
+        settings: { showRecent: false, showUpNext: false },
         order: { workstreams: [], threads: {}, focused: ["sec_z"] },
       },
     );

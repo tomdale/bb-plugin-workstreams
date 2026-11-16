@@ -14,10 +14,10 @@ heading over a real scrolling column of messages, with the band and the timeline
 colored independently so either one can carry the contrast, and with controls
 for the states that change it:
 
-- **Layout** — pinned in the timeline, or minimized into a title bar.
+- **Layout** — anchored in the timeline, or minimized into a title bar.
 - **Transition** — `Fade` and `Scroll`, the same two the settings offer.
 - **Title** — a short title, one that fills a line, and one that wraps, since
-  wrapping changes the heading's height and the pinned block's threshold.
+  wrapping changes the heading's height and the anchored block's threshold.
 - **Align** — the compact heading left-aligned or centered in the title bar.
 - **Pane** — 380, 560, and 760 pixels wide. Only a pane under 560 measures its
   title for a second line, as the plugin does.
@@ -31,7 +31,7 @@ for the states that change it:
   isolated to one of them. A short pane (under 400px tall) keeps the heading
   compact, and the goal's height is measured from the clamped line count.
 - **Scroll** — jump to the top of the thread, to two pixels either side of the
-  pinned threshold, or to the newest message.
+  anchored threshold, or to the newest message.
 
 The readout beside the pane reports what the geometry works out to: the body
 font size the heading scales with, the heading's height and title line count,
@@ -53,8 +53,9 @@ changes:
 
 - `eyebrowMetrics`, `headingHeight`, `titleExitDistance`
 - `headingScrollLimit`, `headingScroll`, `headingFade`, `headingOpacity`,
-  `headingBackdropOpacity`, `plateFadeScale`, `pinnedTitleScale`
-- `compactBlock`, `pinnedHeight`, `pinnedEdge`, `pinnedStep`, `titleBarSlot`
+  `headingBackdropOpacity`, `plateFadeScale`, `anchoredTitleScale`
+- `compactBlock`, `anchoredHeight`, `anchoredEdge`, `anchoredStep`,
+  `titleBarSlot`
 
 The page leaves out what has no geometry to inspect: the 500 ms settle before
 the heading follows scrolling in a freshly opened thread, the choice of which BB

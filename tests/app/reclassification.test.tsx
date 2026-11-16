@@ -24,18 +24,12 @@ it("shows a read-only preview before an explicit apply and reports skipped corre
       : { changed: 0, skipped: 1 },
   );
   render(
-    <Repair
-      rpc={{ call } as never}
-      threadIds={["t"]}
-      onApplied={applied}
-    />,
+    <Repair rpc={{ call } as never} threadIds={["t"]} onApplied={applied} />,
   );
-  fireEvent.click(
-    screen.getByRole("button", { name: "Preview moves" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Preview moves" }));
   await screen.findByText("Pipeline audit: Alpha → Beta");
   expect(screen.getByRole("status").textContent).toContain(
-    "1 moves ready for review",
+    "1 move ready for review",
   );
   expect(call).toHaveBeenCalledTimes(1);
   expect(applied).not.toHaveBeenCalled();

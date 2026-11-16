@@ -40,7 +40,7 @@ it("profiles Home parent updates and preserves group folding", async () => {
   const slot = await mountHome({
     threads,
     sections: [section("sec_a", "Alpha")],
-    prefs: { showForYou: false, showSnoozed: false },
+    prefs: { showUpNext: false, showSnoozed: false },
     onRender: (_id, phase, actualDuration) => {
       if (phase === "update") durations.push(actualDuration);
     },
@@ -165,7 +165,7 @@ it("skips row presentation on minute ticks when ages are hidden", async () => {
   );
   const slot = await mountHome({
     threads,
-    prefs: { timestamps: "hide", showForYou: false, showSnoozed: false },
+    prefs: { timestamps: "hide", showUpNext: false, showSnoozed: false },
   });
   await act(async () => vi.advanceTimersByTimeAsync(0));
   expect(slot.getAllByRole("link")).toHaveLength(12);
@@ -193,7 +193,7 @@ it("defers Snoozed row derivations until its fold opens", async () => {
   );
   const slot = await mountHome({
     threads,
-    prefs: { showForYou: false },
+    prefs: { showUpNext: false },
     snoozes: Object.fromEntries(
       threads.map((thread) => [
         thread.id,
@@ -226,7 +226,7 @@ it("skips unchanged Up Next rows with generated workstream colors", async () => 
   );
   const slot = await mountHome({
     threads,
-    prefs: { showForYou: true, showSnoozed: false },
+    prefs: { showUpNext: true, showSnoozed: false },
   });
   await waitFor(() => expect(slot.getAllByRole("link")).toHaveLength(5));
   fireEvent.click(slot.getByRole("button", { name: "Show 115 more" }));

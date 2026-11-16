@@ -17,7 +17,7 @@ export type DebugSurface =
   | "composer"
   /** Raw agent output and syntax diagnosis on assistant replies. */
   | "replies"
-  /** The Workstreams Debug section in a thread's Info tab and context card. */
+  /** The Workstreams debug section in a thread's Info tab and context card. */
   | "threadInfo"
   /** The button that starts a thread about an AI-generated result. */
   | "discuss";

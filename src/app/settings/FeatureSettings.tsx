@@ -87,8 +87,8 @@ export function SidebarSettings() {
       <SettingsSaveError error={error} />
       <SettingsGroup title="Sections">
         <SectionRows compact>
-          {row("Up Next", prefs.sidebar.showForYou, (showForYou) =>
-            update({ sidebar: { showForYou } }),
+          {row("Up Next", prefs.sidebar.showUpNext, (showUpNext) =>
+            update({ sidebar: { showUpNext } }),
           )}
           {row(
             "Recent",
@@ -97,7 +97,7 @@ export function SidebarSettings() {
             prefs.sidebar.showRecent ? (
               <Stepper
                 size="sm"
-                label="threads shown"
+                label="recent threads shown"
                 value={prefs.sidebar.recentLimit}
                 min={RECENT_LIMIT.min}
                 max={RECENT_LIMIT.max}
@@ -379,68 +379,21 @@ export function ThreadsSettings() {
 
 export function NewWorkSettings() {
   const { prefs, update, error } = useFeaturePrefs();
-  const { status, projects } = experimental_useSidebarThreads();
-  if (!prefs) return <Loading />;
-  const projectOptions = [
-    { value: "", label: "Don't work in a project" },
-    ...projects
-      .filter((project) => !project.isPersonal)
-      .map((project) => ({ value: project.id, label: project.name })),
-  ];
-  return (
-    <div className="space-y-3">
-      <SettingsSaveError error={error} />
-      <SectionRows>
-        <SettingRow
-          label="Home project"
-          description="Where new work starts when it has no project target."
-          control={
-            <SettingsPicker
-              label="Home project"
-              value={prefs.newWork.homeProjectId}
-              options={projectOptions}
-              placeholder={
-                status === "loading" ? "Loading projects…" : "Choose a project"
-              }
-              onChange={(homeProjectId) =>
-                update({ newWork: { homeProjectId } })
-              }
-              disabled={status !== "ready"}
-              className="w-56"
-            />
-          }
-        />
-        <SettingRow
-          label="Suggestions while typing"
-          description="Show a new thread's title and workstream in the composer as you write. Sending the text it answered for files the thread there."
-          control={
-            <SettingSwitch
-              label="Suggestions while typing"
-              checked={prefs.newWork.suggestions}
-              onChange={(suggestions) => update({ newWork: { suggestions } })}
-            />
-          }
-        />
-      </SectionRows>
-    </div>
-  );
-}
-
-export function OrganizeSettings() {
-  const { prefs, update, error } = useFeaturePrefs();
   if (!prefs) return <Loading />;
   return (
     <div className="space-y-3">
       <SettingsSaveError error={error} />
       <SectionRows>
         <SettingRow
-          label="Organizing suggestions"
-          description="Suggest lasting topic divisions and tidy edits. Topic changes wait for your acceptance; categories update automatically."
+          label="Name and organize as you write"
+          description="Show a new thread's title and workstream in the composer as you write. Sending the text they answer for starts the thread with both."
           control={
             <SettingSwitch
-              label="Organizing suggestions"
-              checked={prefs.organize.suggestions}
-              onChange={(suggestions) => update({ organize: { suggestions } })}
+              label="Name and organize as you write"
+              checked={prefs.newWork.organizeAsYouWrite}
+              onChange={(organizeAsYouWrite) =>
+                update({ newWork: { organizeAsYouWrite } })
+              }
             />
           }
         />
@@ -487,8 +440,8 @@ export function ModelsSettings() {
       <SettingsSaveError error={error} />
       <SectionRows>
         <ModelField
-          label="Name and file new threads"
-          description="Titles a new thread and chooses its workstream, in the composer as you write and when its first request is sent. Also files a thread you move into a group of workstreams, and checks whether threads fit their workstream's categories."
+          label="Name and organize new threads"
+          description="Titles a new thread and chooses its workstream, in the composer as you write and when its first request is sent. Also chooses the workstream for a thread you move into a group, and checks whether threads fit their workstream's categories."
           choice={prefs.analysis.newThreadModel}
           onChange={(newThreadModel) =>
             update({ analysis: { newThreadModel } })
@@ -508,9 +461,15 @@ export function ModelsSettings() {
         />
         <ModelField
           label="Suggest changes"
-          description="Writes the workstream splits and tidy edits you review."
-          choice={prefs.organize.tidyModel}
-          onChange={(tidyModel) => update({ organize: { tidyModel } })}
+          description="Suggests splits and other changes to your workstreams and groups, for you to accept or decline. Categories update on their own either way."
+          choice={prefs.organize.suggestionModel}
+          onChange={(suggestionModel) =>
+            update({ organize: { suggestionModel } })
+          }
+          enabled={{
+            checked: prefs.organize.suggestions,
+            onChange: (suggestions) => update({ organize: { suggestions } }),
+          }}
         />
         {machines && machines.length > 1 ? (
           <SettingRow
@@ -545,19 +504,29 @@ export function AdvancedSettings() {
   const surfaces: {
     key: keyof Omit<
       Prefs["advanced"],
-      "hostId" | "debugRecord" | "debugUi" | "debugProjectId"
+      | "hostId"
+      | "workerProjectId"
+      | "debugRecord"
+      | "debugUi"
+      | "debugProjectId"
     >;
     label: string;
   }[] = [
     { key: "debugInspect", label: "Inspect buttons" },
     { key: "debugDiscuss", label: "Debug thread buttons" },
-    { key: "debugActivity", label: "Activity model calls" },
+    { key: "debugActivity", label: "Show model traces" },
     { key: "debugComposer", label: "Composer routing diagnostics" },
     { key: "debugReplies", label: "Reply diagnostics" },
     { key: "debugThreadInfo", label: "Thread Info and context card" },
   ];
+  const workerProjectOptions = [
+    { value: "", label: "First project" },
+    ...projects
+      .filter((project) => !project.isPersonal)
+      .map((project) => ({ value: project.id, label: project.name })),
+  ];
   const debugProjectOptions = [
-    { value: "", label: "Home project" },
+    { value: "", label: "Worker project" },
     ...projects
       .filter((project) => !project.isPersonal)
       .map((project) => ({ value: project.id, label: project.name })),
@@ -569,11 +538,32 @@ export function AdvancedSettings() {
           frames its own settings the same way */}
       <SectionRows>
         <SettingRow
-          label="Record model calls"
+          label="Worker project"
+          description="Where Workstreams' own background threads run when a model call runs as a BB thread. First project uses the first project BB lists."
+          control={
+            <SettingsPicker
+              label="Worker project"
+              value={prefs.advanced.workerProjectId}
+              options={workerProjectOptions}
+              placeholder={
+                projectStatus === "loading"
+                  ? "Loading projects…"
+                  : "Choose a project"
+              }
+              onChange={(workerProjectId) =>
+                update({ advanced: { workerProjectId } })
+              }
+              disabled={projectStatus !== "ready"}
+              className="w-56"
+            />
+          }
+        />
+        <SettingRow
+          label="Record model traces"
           description="Saves each model call's prompt, reasoning, and response, redacting common secrets, for 7 days."
           control={
             <SettingSwitch
-              label="Record model calls"
+              label="Record model traces"
               checked={prefs.advanced.debugRecord}
               onChange={(debugRecord) => update({ advanced: { debugRecord } })}
             />

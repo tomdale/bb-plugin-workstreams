@@ -13,7 +13,6 @@ import {
   AdvancedSettings,
   ModelsSettings,
   NewWorkSettings,
-  OrganizeSettings,
   SidebarSettings,
   ThreadsSettings,
   UpNextSettings,
@@ -25,7 +24,7 @@ import { mergePrefs, parsePrefs } from "../../src/domain/prefs.ts";
 /** What the debug UI shows, each with its own switch. */
 const SURFACES = [
   "Inspect buttons",
-  "Activity model calls",
+  "Show model traces",
   "Composer routing diagnostics",
   "Reply diagnostics",
   "Thread Info and context card",
@@ -33,7 +32,7 @@ const SURFACES = [
 
 /** The model pickers the Models section holds, in order, with their defaults. */
 const MODELS = [
-  ["Name and file new threads", "vercel-ai-gateway/openai/gpt-6.1-sol"],
+  ["Name and organize new threads", "vercel-ai-gateway/openai/gpt-6.1-sol"],
   ["Update threads after each turn", "vercel-ai-gateway/openai/gpt-6.1-sol"],
   ["Arrange categories", "vercel-ai-gateway/anthropic/claude-sonnet-5.5"],
   ["Suggest changes", "vercel-ai-gateway/anthropic/claude-sonnet-5.5"],
@@ -64,7 +63,6 @@ async function mount(
     colors: ColorSettings,
     threads: ThreadsSettings,
     "new-work": NewWorkSettings,
-    organize: OrganizeSettings,
     models: ModelsSettings,
     advanced: AdvancedSettings,
   };
@@ -224,23 +222,26 @@ it.each([
 it("clamps the Recent stepper to 1–20 and hides it when Recent is off", async () => {
   const slot = await mount("sidebar");
   const recent = await slot.findByRole("switch", { name: "Recent" });
-  const plus = slot.getByRole("button", { name: "Increase threads shown" });
+  const plus = slot.getByRole("button", {
+    name: "Increase recent threads shown",
+  });
   for (let index = 0; index < 30; index++) fireEvent.click(plus);
   await waitFor(() =>
     expect(
-      slot.getByLabelText("threads shown", { selector: "output" }).textContent,
+      slot.getByLabelText("recent threads shown", { selector: "output" })
+        .textContent,
     ).toBe("20"),
   );
   expect(
     slot
-      .getByLabelText("threads shown", { selector: "output" })
+      .getByLabelText("recent threads shown", { selector: "output" })
       .getAttribute("aria-live"),
   ).toBe("polite");
   expect(plus).toHaveProperty("disabled", true);
   fireEvent.click(recent);
   await waitFor(() =>
     expect(
-      slot.queryByRole("button", { name: "Increase threads shown" }),
+      slot.queryByRole("button", { name: "Increase recent threads shown" }),
     ).toBeNull(),
   );
   expect(
@@ -529,39 +530,56 @@ it("saves the Show archive button switch, on by default", async () => {
 
 it("saves New threads preferences", async () => {
   const slot = await mount("new-work");
-  await slot.findByRole("switch", { name: "Suggestions while typing" });
+  await slot.findByRole("switch", { name: "Name and organize as you write" });
   expect(
     slot.getByText(
-      "Show a new thread's title and workstream in the composer as you write. Sending the text it answered for files the thread there.",
+      "Show a new thread's title and workstream in the composer as you write. Sending the text they answer for starts the thread with both.",
     ),
   ).toBeTruthy();
-  fireEvent.click(await slot.findByRole("button", { name: "Home project" }));
   fireEvent.click(
-    await slot.findByRole("option", { name: "Don't work in a project" }),
-  );
-  fireEvent.click(
-    slot.getByRole("switch", { name: "Suggestions while typing" }),
+    slot.getByRole("switch", { name: "Name and organize as you write" }),
   );
   await waitFor(() =>
     expect(
       slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
-    ).toHaveLength(2),
+    ).toHaveLength(1),
   );
   expect(
     slot.inspection.rpcCalls
       .filter((call) => call.method === "setPrefs")
       .map((call) => call.input),
-  ).toEqual([
-    { patch: { newWork: { homeProjectId: "" } } },
-    { patch: { newWork: { suggestions: false } } },
-  ]);
+  ).toEqual([{ patch: { newWork: { organizeAsYouWrite: false } } }]);
+});
+
+it("saves the worker project in Advanced", async () => {
+  const slot = await mount("advanced");
+  fireEvent.click(await slot.findByRole("button", { name: "Worker project" }));
+  fireEvent.click(await slot.findByRole("option", { name: "First project" }));
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls
+        .filter((call) => call.method === "setPrefs")
+        .map((call) => call.input),
+    ).toEqual([{ patch: { advanced: { workerProjectId: "" } } }]),
+  );
+});
+
+it("turns Suggest changes off and on from its model row", async () => {
+  const slot = await mount("models");
+  fireEvent.click(await slot.findByRole("switch", { name: "Suggest changes" }));
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls
+        .filter((call) => call.method === "setPrefs")
+        .map((call) => call.input),
+    ).toEqual([{ patch: { organize: { suggestions: false } } }]),
+  );
 });
 
 it("keeps every model picker in Models, none in the feature sections", async () => {
   for (const [id, toggle] of [
     ["threads", "Keep titles current"],
-    ["new-work", "Suggestions while typing"],
-    ["organize", "Organizing suggestions"],
+    ["new-work", "Name and organize as you write"],
   ] as const) {
     const section = await mount(id);
     await section.findByRole("switch", { name: toggle });
@@ -590,7 +608,7 @@ it("saves each model to its own preference", async () => {
     { analysis: "newThreadModel" },
     { analysis: "turnEndModel" },
     { organize: "categoryModel" },
-    { organize: "tidyModel" },
+    { organize: "suggestionModel" },
   ];
   for (const [label] of MODELS) {
     const row = within(settingRow(slot, label));
@@ -678,7 +696,7 @@ it("records on its own, and shows the debug UI only while its switch is on", asy
   const slot = await mount("advanced");
   // Recording is separate from the UI, and on by default.
   const recording = await slot.findByRole("switch", {
-    name: "Record model calls",
+    name: "Record model traces",
   });
   expect(recording.getAttribute("aria-checked")).toBe("true");
   const master = slot.getByRole("switch", { name: "Debug UI" });
@@ -735,7 +753,7 @@ it("lists every color token with what it draws with now", async () => {
     "Waiting",
     "Needs input",
     "Failed",
-    "Suggestions",
+    "Automatic",
   ])
     expect(
       await slot.findByRole("button", { name: `${name} color` }),

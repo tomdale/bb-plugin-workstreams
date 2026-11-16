@@ -76,7 +76,7 @@ describe("workstream headers", () => {
       const slot = await mount(threads(), {
         settings: {
           showRecent: false,
-          showForYou: false,
+          showUpNext: false,
           groupSort: "manual",
         },
       });
@@ -101,7 +101,7 @@ describe("workstream headers", () => {
     const restore = layoutGroups();
     try {
       const slot = await mount(threads(), {
-        settings: { showRecent: false, showForYou: false },
+        settings: { showRecent: false, showUpNext: false },
       });
       await slot.findByRole("region", { name: "Alpha" });
       dragHeader(slot, "Alpha", 14, 42);
@@ -120,7 +120,7 @@ describe("workstream headers", () => {
 
   it("folds a workstream only from the chevron beside its name", async () => {
     const slot = await mount(threads(), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
     });
     const alpha = within(await slot.findByRole("region", { name: "Alpha" }));
     // The row is the workstream's drag handle, so a press on the name is

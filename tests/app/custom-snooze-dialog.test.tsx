@@ -45,12 +45,12 @@ describe("CustomSnoozeDialog", () => {
         onSubmit={() => undefined}
       />,
     );
-    const kinds = screen.getByRole("radiogroup", { name: "Snooze kind" });
+    const kinds = screen.getByRole("radiogroup", { name: "Wake" });
     expect(
       within(kinds)
         .getAllByRole("radio")
         .map((radio) => radio.parentElement!.textContent),
-    ).toEqual(["Duration", "Time", "Date", "Until there's an update"]);
+    ).toEqual(["Duration", "Time", "Date", "On update"]);
     // Each radio sits in a row with its label; its fields follow the row.
     const fieldsUnder = (kind: string) =>
       screen.getByRole("radio", { name: kind }).parentElement!
@@ -71,10 +71,8 @@ describe("CustomSnoozeDialog", () => {
     // The new fields leave focus on the radio, for arrow keys.
     expect(document.activeElement).toBe(duration);
 
-    fireEvent.click(
-      screen.getByRole("radio", { name: "Until there's an update" }),
-    );
-    expect(fieldsUnder("Until there's an update")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "On update" }));
+    expect(fieldsUnder("On update")).toBeNull();
     expect(screen.queryByLabelText("Amount")).toBeNull();
     // It always wakes on events, so it has no switch for it.
     expect(

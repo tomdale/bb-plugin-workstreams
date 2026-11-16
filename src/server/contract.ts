@@ -419,9 +419,20 @@ export const rpcContract = defineRpcContract({
       .object({
         id: z.string(),
         recoverable: z.boolean(),
+        /** The card is dismissed; the question is still open. */
+        hidden: z.boolean(),
         payload: interactionPayloadSchema,
       })
       .nullable(),
+  },
+  /** Dismisses a question's card, or shows it again, leaving it open. */
+  question_hide: {
+    input: z.object({
+      threadId: z.string().min(1),
+      id: z.string().min(1),
+      hidden: z.boolean(),
+    }),
+    output: z.object({ ok: z.literal(true) }),
   },
   question_answer: {
     input: z.object({
@@ -491,7 +502,7 @@ export const rpcContract = defineRpcContract({
       dismissed: z.boolean(),
       waitingCancelled: z.boolean(),
       capped: z.boolean(),
-      corrections: z.number(),
+      reminders: z.number(),
       /** The thread's workstream, for threads outside the `state` snapshot. */
       assignment: workstreamAssignmentSchema,
       /** Where the thread's files live, to resolve the recap's file links. */

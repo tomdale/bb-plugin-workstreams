@@ -132,7 +132,7 @@ function WorkstreamPicker({
         ? displayWorkstreamPath(currentWorkstream.id, workstreams)
         : automatic
           ? UNCLASSIFIED
-          : "Let Workstreams choose";
+          : "Workstreams chooses from your requests";
 
   const options = useMemo(() => {
     const needle = search.trim().toLowerCase();

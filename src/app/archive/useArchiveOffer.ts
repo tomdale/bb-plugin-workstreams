@@ -13,7 +13,7 @@ const declined = new Set<string>();
  * Archive on the recap card: offered once the server confirms the thread has
  * no outstanding work, and hidden while the user continues the thread.
  */
-export function useArchiveSuggestion(
+export function useArchiveOffer(
   threadId: string | null,
   recap: Recap | null,
   continuing = false,

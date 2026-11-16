@@ -367,7 +367,7 @@ export function groupRoots<T extends WorkstreamThread>(
  */
 export type GroupArrangement<T extends WorkstreamThread> = {
   /** Focused workstreams, which pin below Up Next. */
-  readonly pinned: readonly WorkstreamNode<T>[];
+  readonly focused: readonly WorkstreamNode<T>[];
   /** Every other workstream shown: the ones holding a visible thread. */
   readonly populated: readonly WorkstreamNode<T>[];
   /** Workstreams with no recent activity, in the projection's order. */
@@ -392,7 +392,7 @@ export function focusedSections<T extends WorkstreamThread>(
   focused: ReadonlySet<string>,
 ): Set<string> {
   return new Set(
-    [...arrangement.pinned, ...arrangement.populated, ...arrangement.dormant]
+    [...arrangement.focused, ...arrangement.populated, ...arrangement.dormant]
       .filter((node) => node.sectionIds.some((id) => focused.has(id)))
       .flatMap((node) => node.sectionIds),
   );
@@ -416,16 +416,16 @@ export function arrangeGroups<T extends WorkstreamThread>(
     .filter((node) => node.total > 0)
     .map(prune)
     .map(foldSmall);
-  const pinnedNodes: WorkstreamNode<T>[] = [];
+  const focusedNodes: WorkstreamNode<T>[] = [];
   const otherNodes: WorkstreamNode<T>[] = [];
   const dormant: WorkstreamNode<T>[] = [];
   for (const node of nodes) {
-    if (node.focused) pinnedNodes.push(node);
+    if (node.focused) focusedNodes.push(node);
     else if (!node.sectionIds.some((sectionId) => active.has(sectionId)))
       dormant.push(node);
     else otherNodes.push(node);
   }
-  const pinned = sortTree(pinnedNodes, sort);
+  const focused = sortTree(focusedNodes, sort);
   const other = sortTree(otherNodes, sort);
   const lowerCounts = [...other, ...dormant, projection.other].reduce(
     (counts, group) => ({
@@ -435,11 +435,11 @@ export function arrangeGroups<T extends WorkstreamThread>(
     { needsYou: 0, total: 0 },
   );
   return {
-    pinned,
+    focused,
     populated: other,
     dormant: sortTree(dormant, "manual"),
     other: otherNode(projection.other),
-    tiered: pinned.length > 0,
+    tiered: focused.length > 0,
     lowerCounts,
     hasLower:
       other.length > 0 || projection.other.total > 0 || dormant.length > 0,

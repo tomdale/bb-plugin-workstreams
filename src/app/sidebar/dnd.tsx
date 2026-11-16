@@ -37,7 +37,7 @@ import { CSS } from "@dnd-kit/utilities";
 /** What each draggable or droppable is. `groupId` is a section id or "unsorted". */
 type DragData =
   /** `pinned`: a focused workstream, which reorders only among its tier. */
-  | { type: "group"; groupId: string; pinned?: boolean }
+  | { type: "group"; groupId: string; focused?: boolean }
   | { type: "thread"; threadId: string; groupId: string }
   /** A group that takes thread drops but does not itself reorder. */
   | { type: "target"; groupId: string };
@@ -73,7 +73,7 @@ const collision =
     const accepts = (data: DragData | undefined) =>
       activeType === "group"
         ? data?.type === "group" &&
-          !!data.pinned === (active?.type === "group" && !!active.pinned)
+          !!data.focused === (active?.type === "group" && !!active.focused)
         : active?.type === "thread" &&
           data !== undefined &&
           acceptsThread(active.groupId, data.groupId);

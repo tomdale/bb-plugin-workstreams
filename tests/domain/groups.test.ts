@@ -65,14 +65,14 @@ describe("arrangeGroups", () => {
 
   it("draws nothing for a focused workstream that holds no visible thread", () => {
     const arranged = arrangeGroups(project(["sec_empty"]), "alphabetical");
-    expect(arranged.pinned).toEqual([]);
+    expect(arranged.focused).toEqual([]);
     expect(names(arranged.populated)).toEqual(["Alpha", "Beta", "Charlie"]);
     expect(arranged.tiered).toBe(false);
   });
 
   it("tiers the groups once any workstream is prioritized", () => {
     const arranged = arrangeGroups(project(["sec_b"]), "alphabetical");
-    expect(names(arranged.pinned)).toEqual(["Beta"]);
+    expect(names(arranged.focused)).toEqual(["Beta"]);
     expect(names(arranged.populated)).toEqual(["Alpha", "Charlie"]);
     expect(arranged.tiered).toBe(true);
   });

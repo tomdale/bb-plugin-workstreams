@@ -377,7 +377,7 @@ export function Answers({
 }) {
   return (
     <div className="group/replies">
-      <ol aria-label="Replies" className="m-0 mt-3 grid list-none p-0">
+      <ol aria-label="Next actions" className="m-0 mt-3 grid list-none p-0">
         {answers.map((text, index) => (
           <li key={index}>
             <button

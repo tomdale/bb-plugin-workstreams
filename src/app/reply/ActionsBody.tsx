@@ -45,7 +45,7 @@ function ActionComposerControls({
               composer.focus();
               setError(null);
             } catch {
-              setError("Could not add the request to your message");
+              setError("Couldn't add it to your message");
             }
           }}
         >
@@ -65,11 +65,11 @@ function ActionComposerControls({
               setCopied(message);
               setError(null);
             } catch {
-              setError("Could not copy the request");
+              setError("Couldn't copy it");
             }
           }}
         >
-          {copied === message ? "Copied" : "Copy request"}
+          {copied === message ? "Copied" : "Copy"}
         </Button>
       </div>
       {error ? (

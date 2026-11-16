@@ -1,5 +1,5 @@
 /**
- * The thread Info tab and thread context card's "Workstreams Debug"
+ * The thread Info tab and thread context card's "Workstreams debug"
  * section: the metadata Workstreams generated and accumulated for the
  * thread — the settled goal, the context digest, the workstream assignment and
  * its provenance, and the latest analysis run's status, model, and age.
@@ -154,7 +154,7 @@ export function ThreadInfoDebugSection({
   const debug = useDebugMode("threadInfo");
   if (!debug) return null;
   return (
-    <InfoSection label="Workstreams Debug">
+    <InfoSection label="Workstreams debug">
       <DebugEntries threadId={threadId} surface="info" />
       <ThreadActivity key={threadId} threadId={threadId} surface="info" />
     </InfoSection>

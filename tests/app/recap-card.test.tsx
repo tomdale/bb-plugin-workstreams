@@ -196,7 +196,7 @@ async function mount(
         recapPrefs: () => ({
           prefs: {
             required: true,
-            corrections: 3,
+            reminders: 3,
             layout: options.layout ?? "full",
             hashDigits: options.hashDigits ?? null,
             hashLetters: options.hashLetters ?? null,
@@ -212,7 +212,7 @@ async function mount(
           dismissed,
           waitingCancelled,
           capped: options.capped ?? false,
-          corrections: 3,
+          reminders: 3,
           files:
             options.files === undefined
               ? { environmentId: "env_1", root: "/work", hostId: "host_1" }

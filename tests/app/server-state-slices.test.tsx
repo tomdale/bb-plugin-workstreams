@@ -260,7 +260,7 @@ describe("records of threads outside the snapshot", () => {
       dismissed: false,
       waitingCancelled: false,
       capped: false,
-      corrections: 0,
+      reminders: 0,
       assignment: assignment((input as { threadId: string }).threadId),
       files: null,
     }));
@@ -317,7 +317,7 @@ describe("records of threads outside the snapshot", () => {
       dismissed: true,
       waitingCancelled: false,
       capped: false,
-      corrections: 0,
+      reminders: 0,
       assignment: assignment((input as { threadId: string }).threadId),
       files: null,
     }));
@@ -349,7 +349,7 @@ describe("records of threads outside the snapshot", () => {
               dismissed: false,
               waitingCancelled: false,
               capped: false,
-              corrections: 0,
+              reminders: 0,
               assignment: assignment("live"),
               files: null,
             });

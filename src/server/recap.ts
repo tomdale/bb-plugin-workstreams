@@ -1,6 +1,6 @@
 /*
  * Agent recaps: the recap tool, its per-thread store, and the
- * bounded corrections that ask an agent for a recap when a turn ends without
+ * bounded reminders that ask an agent for a recap when a turn ends without
  * one.
  *
  * A recap belongs to the turn that reported it. Any fresh input clears it, so
@@ -15,15 +15,15 @@
  * its fork chain.
  *
  * BB reports turn completion as an observation, not a veto: the turn's final
- * reply is already visible when a correction asks for the recap. Corrections
+ * reply is already visible when a reminder asks for the recap. Reminders
  * carry an epoch and a token that `message.dispatch` checks, so input that
- * arrives first cancels a stale correction.
+ * arrives first cancels a stale reminder.
  */
 import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import {
-  RECAP_CORRECTION,
+  RECAP_REMINDER,
   RECAP_INSTRUCTIONS,
   RECAP_TOOL,
   RECAP_TOOL_DESCRIPTION,
@@ -53,7 +53,7 @@ type Row = {
   dismissed: number;
   enrolled: number;
   capped: number;
-  correction_token: string | null;
+  reminder_token: string | null;
   input_key: string | null;
   /** The thread's agent has called the recap tool. */
   proven: number;
@@ -65,9 +65,9 @@ type DispatchContext = Parameters<
   Parameters<BbPluginApi["experimental_hooks"]["on"]>[1]
 >[0];
 
-const CORRECTION_MARKER = /^\[Workstreams recap ([a-f0-9-]+) (\d+) (\d+)\]/;
-const correctionSchema = z.object({
-  recapCorrection: z.object({
+const REMINDER_MARKER = /^\[Workstreams recap ([a-f0-9-]+) (\d+) (\d+)\]/;
+const reminderSchema = z.object({
+  recapReminder: z.object({
     epoch: z.number().int(),
     completedSeq: z.number().int(),
     token: z.string().uuid(),
@@ -240,7 +240,7 @@ export class AgentRecaps {
   }
 
   /**
-   * The `message.dispatch` decision for a correction this class sent, or null
+   * The `message.dispatch` decision for a reminder this class sent, or null
    * for any other input, which clears the thread's recap.
    */
   async onDispatch(ctx: DispatchContext) {
@@ -283,11 +283,11 @@ export class AgentRecaps {
     }
     const queued =
       ctx.queuedMessages.length > 0
-        ? CORRECTION_MARKER.exec(ctx.input.text)
+        ? REMINDER_MARKER.exec(ctx.input.text)
         : null;
     const submitted =
       ctx.experimental_submission?.pluginId === this.deps.bb.pluginId
-        ? correctionSchema.safeParse(ctx.experimental_submission.data)
+        ? reminderSchema.safeParse(ctx.experimental_submission.data)
         : null;
     if (queued || submitted?.success) {
       // Submission metadata is transient; a queued retry keeps the marker in
@@ -298,7 +298,7 @@ export class AgentRecaps {
             epoch: Number(queued[2]),
             completedSeq: Number(queued[3]),
           }
-        : submitted!.data!.recapCorrection;
+        : submitted!.data!.recapReminder;
       const row = this.row(ctx.thread.id);
       const current =
         this.deps.prefs().required &&
@@ -308,7 +308,7 @@ export class AgentRecaps {
         ctx.thread.archivedAt === null &&
         ctx.thread.visibility === "visible" &&
         ctx.thread.queuedMessageCount <= ctx.queuedMessages.length &&
-        row.correction_token === marker.token &&
+        row.reminder_token === marker.token &&
         row.epoch === marker.epoch &&
         row.checked_seq === marker.completedSeq;
       return current
@@ -316,7 +316,7 @@ export class AgentRecaps {
         : ({
             action: "reject",
             message:
-              "Recap correction cancelled because the conversation changed.",
+              "Recap reminder cancelled because the conversation changed.",
           } as const);
     }
     this.reset(
@@ -370,7 +370,7 @@ export class AgentRecaps {
       .catch((error: unknown) => {
         if (!this.controller.signal.aborted)
           this.deps.bb.log.warn(
-            `Recap correction failed for ${threadId}: ${String(error)}`,
+            `Recap reminder failed for ${threadId}: ${String(error)}`,
           );
       })
       .finally(() => {
@@ -466,13 +466,13 @@ export class AgentRecaps {
     return out;
   }
 
-  /** Whether corrections ran out for this thread's latest turn. */
-  capped(threadId: string): { capped: boolean; corrections: number } {
+  /** Whether reminders ran out for this thread's latest turn. */
+  capped(threadId: string): { capped: boolean; reminders: number } {
     const row = this.row(threadId);
     const { required } = this.deps.prefs();
     return {
       capped: required && row.capped === 1,
-      corrections: row.intercepts,
+      reminders: row.intercepts,
     };
   }
 
@@ -518,7 +518,7 @@ export class AgentRecaps {
           : suggestion.message === action,
       )
     )
-      throw new UserError("This suggestion is no longer offered.");
+      throw new UserError("This action is no longer offered.");
     await this.deps.bb.sdk.threads.send({
       threadId,
       mode: "queue-if-active",
@@ -628,7 +628,7 @@ export class AgentRecaps {
     );
   }
 
-  /** Fresh input: a new epoch, a fresh correction budget, and no recap. */
+  /** Fresh input: a new epoch, a fresh reminder budget, and no recap. */
   private reset(threadId: string, inputKey: string | null) {
     const row = this.row(threadId);
     // A queued group dispatches more than once; only its first attempt is new.
@@ -638,7 +638,7 @@ export class AgentRecaps {
     this.deps.db
       .prepare(
         `UPDATE ws_agent_recap SET epoch = epoch + 1, intercepts = 0, capped = 0,
-           accepted_turn = NULL, recap = NULL, dismissed = 0, waiting_nudged = 0, waiting_cancelled = 0, correction_token = NULL, input_key = ?
+           accepted_turn = NULL, recap = NULL, dismissed = 0, waiting_nudged = 0, waiting_cancelled = 0, reminder_token = NULL, input_key = ?
          WHERE thread_id = ?`,
       )
       .run(inputKey, threadId);
@@ -725,7 +725,7 @@ export class AgentRecaps {
   }
 
   private async enforce(threadId: string) {
-    const { required, corrections } = this.deps.prefs();
+    const { required, reminders } = this.deps.prefs();
     // A durable question remains a valid turn ending after BB loses its waiter.
     if (
       this.deps.db
@@ -736,7 +736,7 @@ export class AgentRecaps {
     )
       return;
     const row = this.row(threadId);
-    if (!required || corrections === 0 || !row.enrolled || row.capped) return;
+    if (!required || reminders === 0 || !row.enrolled || row.capped) return;
     const signal = this.controller.signal;
     const sdk = this.deps.bb.sdk;
     const [completed] = await sdk.threads.events.list({
@@ -777,11 +777,11 @@ export class AgentRecaps {
     if (!row.proven && (await this.sessionPredatesTool(thread, signal))) return;
     const token = randomUUID();
     // Reserved before sending, so a reload or a repeated idle event can't
-    // refund a correction.
+    // refund a reminder.
     const reserved =
       this.deps.db
         .prepare(
-          `UPDATE ws_agent_recap SET intercepts = intercepts + 1, checked_seq = ?, correction_token = ?
+          `UPDATE ws_agent_recap SET intercepts = intercepts + 1, checked_seq = ?, reminder_token = ?
            WHERE thread_id = ? AND epoch = ? AND checked_seq < ? AND intercepts < ? AND enrolled = 1`,
         )
         .run(
@@ -790,14 +790,14 @@ export class AgentRecaps {
           threadId,
           row.epoch,
           completed.seq,
-          corrections,
+          reminders,
         ).changes === 1;
     if (!reserved) {
       this.deps.db
         .prepare(
           "UPDATE ws_agent_recap SET capped = 1, checked_seq = ? WHERE thread_id = ? AND epoch = ? AND intercepts >= ?",
         )
-        .run(completed.seq, threadId, row.epoch, corrections);
+        .run(completed.seq, threadId, row.epoch, reminders);
       this.deps.onChange(threadId);
       return;
     }
@@ -808,7 +808,7 @@ export class AgentRecaps {
       pluginSubmission: {
         pluginId: this.deps.bb.pluginId,
         data: {
-          recapCorrection: {
+          recapReminder: {
             epoch: row.epoch,
             completedSeq: completed.seq,
             token,
@@ -819,7 +819,7 @@ export class AgentRecaps {
         {
           type: "text",
           visibility: "agent-only",
-          text: `[Workstreams recap ${token} ${row.epoch} ${completed.seq}]\n${RECAP_CORRECTION} Correction ${row.intercepts + 1} of ${corrections}.`,
+          text: `[Workstreams recap ${token} ${row.epoch} ${completed.seq}]\n${RECAP_REMINDER} Reminder ${row.intercepts + 1} of ${reminders}.`,
           mentions: [],
         },
       ],

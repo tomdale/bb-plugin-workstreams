@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
-  CORRECTIONS,
+  REMINDERS,
   RECAP_LAYOUT_OPTIONS,
   type RecapLayout,
   type RecapPrefs,
@@ -108,15 +108,15 @@ export function RecapSettings() {
       <div className={cn(!prefs.required && "opacity-50")}>
         <SettingRow
           label="Reminders"
-          description={`How many times to remind an agent that ends a turn without a recap (${CORRECTIONS.min}–${CORRECTIONS.max}; 0 never reminds).`}
+          description={`How many times to remind an agent that ends a turn without a recap (${REMINDERS.min}–${REMINDERS.max}; 0 never reminds).`}
           control={
             <Stepper
               label="Reminders per turn"
-              value={prefs.corrections}
-              min={CORRECTIONS.min}
-              max={CORRECTIONS.max}
+              value={prefs.reminders}
+              min={REMINDERS.min}
+              max={REMINDERS.max}
               disabled={!prefs.required}
-              onChange={(corrections) => change({ corrections })}
+              onChange={(reminders) => change({ reminders })}
             />
           }
         />

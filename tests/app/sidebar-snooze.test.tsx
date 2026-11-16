@@ -194,7 +194,7 @@ describe("snoozing a workstream row", () => {
 
   it("snoozes every thread the row lists with the default choice", async () => {
     const slot = await mount(threads(), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       sections: [section("sec_a", "Alpha"), section("sec_b", "Beta")],
       snoozePrefs: snoozeSettings(threeHours, untilUpdate),
     });
@@ -230,7 +230,7 @@ describe("snoozing a workstream row", () => {
 
   it("closes a row's open snooze menu when its workstream folds", async () => {
     const slot = await mount(threads().slice(0, 2), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       sections: [section("sec_a", "Alpha")],
       snoozePrefs: snoozeSettings(thirtyMinutes, untilUpdate),
     });
@@ -251,7 +251,7 @@ describe("snoozing a workstream row", () => {
 
   it("offers the presets under a heading naming the batch", async () => {
     const slot = await mount(threads().slice(0, 3), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       sections: [section("sec_a", "Alpha")],
       snoozePrefs: snoozeSettings(thirtyMinutes, untilUpdate),
     });
@@ -270,12 +270,10 @@ describe("snoozing a workstream row", () => {
         .map((item) => item.textContent),
     ).toEqual([
       expect.stringMatching(/^30 minutes\(default\)/),
-      "Until there's an update",
+      "On update",
       "Custom…",
     ]);
-    fireEvent.click(
-      within(menu).getByRole("menuitem", { name: "Until there's an update" }),
-    );
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "On update" }));
     await waitFor(() => expect(snoozeCalls(slot)).toHaveLength(1));
     expect(snoozeCalls(slot)[0]).toMatchObject({ until: null });
     expect([...snoozeCalls(slot)[0]!.threadIds].sort()).toEqual(["ask", "nap"]);
@@ -290,7 +288,7 @@ describe("snoozing a workstream row", () => {
         sidebarThread("loose", { title: "Loose task" }),
       ],
       {
-        settings: { showRecent: false, showForYou: false },
+        settings: { showRecent: false, showUpNext: false },
         sections: [
           section("sec_a", "Alpha"),
           section("sec_b", "Beta"),
@@ -303,10 +301,9 @@ describe("snoozing a workstream row", () => {
     );
     expect(slot.queryByRole("region", { name: "Zeta" })).toBeNull();
     fireEvent.click(
-      within(slot.getByRole("region", { name: "Other" })).getByRole(
-        "button",
-        { name: /^Snooze 1 thread in Other until/ },
-      ),
+      within(slot.getByRole("region", { name: "Other" })).getByRole("button", {
+        name: /^Snooze 1 thread in Other until/,
+      }),
     );
     await waitFor(() =>
       expect(snoozeCalls(slot)).toEqual([
@@ -335,7 +332,7 @@ describe("snoozing a workstream row", () => {
 
   it("offers a header's hover actions in its right-click menu, in their order", async () => {
     const slot = await mount(threads().slice(0, 3), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       sections: [section("sec_a", "Alpha")],
       snoozePrefs: snoozeSettings(threeHours, untilUpdate),
     });
@@ -362,7 +359,7 @@ describe("snoozing a workstream row", () => {
 
   it("snoozes a header's threads from its right-click Snooze menu", async () => {
     const slot = await mount(threads().slice(0, 3), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       sections: [section("sec_a", "Alpha")],
       snoozePrefs: snoozeSettings(threeHours, untilUpdate),
     });
@@ -378,12 +375,12 @@ describe("snoozing a workstream row", () => {
     });
     expect(items(submenu)).toEqual([
       expect.stringMatching(/^3 hours\(default\)/),
-      expect.stringMatching(/^Until there's an update/),
+      expect.stringMatching(/^On update/),
       "Custom…",
     ]);
     fireEvent.click(
       within(submenu).getByRole("menuitem", {
-        name: /^Until there's an update/,
+        name: /^On update/,
       }),
     );
     await waitFor(() => expect(snoozeCalls(slot)).toHaveLength(1));
@@ -399,7 +396,7 @@ describe("snoozing a workstream row", () => {
         sidebarThread("loose", { title: "Loose task" }),
       ],
       {
-        settings: { showRecent: false, showForYou: false },
+        settings: { showRecent: false, showUpNext: false },
         sections: [section("sec_a", "Alpha")],
       },
     );

@@ -72,14 +72,14 @@ async function world(
       dismissed: boolean;
       waitingCancelled: boolean;
       capped: boolean;
-      corrections: number;
+      reminders: number;
       files: RecapFiles | null;
     }>;
-  const corrections = () =>
+  const reminders = () =>
     w.sent.filter(
       (send) =>
-        (send.pluginSubmission as { data?: { recapCorrection?: unknown } })
-          ?.data?.recapCorrection,
+        (send.pluginSubmission as { data?: { recapReminder?: unknown } })?.data
+          ?.recapReminder,
     );
   return {
     w,
@@ -89,7 +89,7 @@ async function world(
     idle,
     report,
     card,
-    corrections,
+    reminders,
     configure,
   };
 }
@@ -399,7 +399,7 @@ describe("agent recaps", () => {
       .run("question", "t1", "{}");
     s.w.turn("t1");
     await s.idle();
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
   });
   it("rejects incomplete state-specific input before recording a recap", async () => {
     const s = await world();
@@ -425,7 +425,7 @@ describe("agent recaps", () => {
         links: [],
       });
       await s.idle();
-      expect(s.corrections()).toHaveLength(0);
+      expect(s.reminders()).toHaveLength(0);
       expect((await s.card()).recap).toMatchObject({
         state: "complete",
         review: [],
@@ -442,7 +442,7 @@ describe("agent recaps", () => {
   );
 
   it("stops a live failing-tool loop and suppresses mandatory recap corrections", async () => {
-    const s = await world({ corrections: 0 });
+    const s = await world({ reminders: 0 });
     s.w.turn("t1");
     s.w.threads.set("t1", { ...s.thread(), status: "active" });
     let completed = false;
@@ -499,7 +499,7 @@ describe("agent recaps", () => {
     expect((await s.card()).capped).toBe(true);
     await s.configure();
     await s.idle();
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
     expect((await s.card()).capped).toBe(true);
     await s.dispatch();
     await s.configure();
@@ -513,7 +513,7 @@ describe("agent recaps", () => {
       latest: ["Moved the recap tool into Workstreams."],
     });
     await s.idle();
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
     expect(await s.card()).toMatchObject({
       recap: {
         state: "complete",
@@ -540,7 +540,7 @@ describe("agent recaps", () => {
       timeout: 60,
     });
     await s.idle();
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
     expect((await s.card()).recap).toMatchObject({
       state: "waiting",
       headline: "Workers are running",
@@ -650,33 +650,33 @@ describe("agent recaps", () => {
       });
       s.w.turn("t1");
       await s.idle();
-      expect(s.corrections()).toHaveLength(1);
+      expect(s.reminders()).toHaveLength(1);
     } finally {
       clock.mockRestore();
     }
   });
 
   it("asks for a missing recap, caps the reminders, and resets on fresh input", async () => {
-    const s = await world({ corrections: 2 });
+    const s = await world({ reminders: 2 });
     s.w.turn("t1");
     await s.idle();
     await s.idle();
-    expect(s.corrections()).toHaveLength(1);
-    expect(s.corrections()[0]).toMatchObject({
+    expect(s.reminders()).toHaveLength(1);
+    expect(s.reminders()[0]).toMatchObject({
       input: [{ visibility: "agent-only" }],
     });
     s.w.turn("t1");
     await s.idle();
-    expect(s.corrections()).toHaveLength(2);
+    expect(s.reminders()).toHaveLength(2);
     expect((await s.card()).capped).toBe(false);
     s.w.turn("t1");
     await s.idle();
-    expect(s.corrections()).toHaveLength(2);
-    expect(await s.card()).toMatchObject({ capped: true, corrections: 2 });
+    expect(s.reminders()).toHaveLength(2);
+    expect(await s.card()).toMatchObject({ capped: true, reminders: 2 });
     await s.dispatch();
     s.w.turn("t1");
     await s.idle();
-    expect(s.corrections()).toHaveLength(3);
+    expect(s.reminders()).toHaveLength(3);
   });
 
   it("reminds an older thread only once its agent has used the tool", async () => {
@@ -684,14 +684,14 @@ describe("agent recaps", () => {
     const s = await world({}, 1);
     s.w.turn("t1");
     await s.idle();
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
     // A recap call proves this session has the tool.
     s.w.turn("t1");
     await s.report();
     await s.dispatch();
     s.w.turn("t1");
     await s.idle();
-    expect(s.corrections()).toHaveLength(1);
+    expect(s.reminders()).toHaveLength(1);
   });
 
   it("dates a fork's session from the thread its fork chain started from", async () => {
@@ -710,7 +710,7 @@ describe("agent recaps", () => {
     });
     s.w.turn("t1");
     await s.idle();
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
 
     // A fork whose chain starts after the tool existed has it.
     s.w.threads.set("old", {
@@ -719,7 +719,7 @@ describe("agent recaps", () => {
     });
     s.w.turn("t1");
     await s.idle();
-    expect(s.corrections()).toHaveLength(1);
+    expect(s.reminders()).toHaveLength(1);
   });
 
   it("doesn't remind a fork whose source can't be read", async () => {
@@ -731,7 +731,7 @@ describe("agent recaps", () => {
     });
     s.w.turn("t1");
     await s.idle();
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
   });
 
   it("restarts the clock when recaps are turned back on", async () => {
@@ -750,7 +750,7 @@ describe("agent recaps", () => {
     await s.configure();
     s.w.turn("t1");
     await s.idle();
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
   });
 
   it("counts an open question card, even one without a turn of its own", async () => {
@@ -772,7 +772,7 @@ describe("agent recaps", () => {
       } as never,
     });
     await s.idle();
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
     expect((await s.card()).recap).toBeNull();
   });
 
@@ -780,7 +780,7 @@ describe("agent recaps", () => {
     const s = await world();
     s.w.turn("t1");
     await s.idle();
-    const sent = s.corrections()[0]!;
+    const sent = s.reminders()[0]!;
     const reminder = () =>
       s.hook()(
         makeMessageDispatchHookContext({
@@ -794,10 +794,10 @@ describe("agent recaps", () => {
   });
 
   it("recognizes a queued reminder by its marker after its metadata is lost", async () => {
-    const s = await world({ corrections: 1 });
+    const s = await world({ reminders: 1 });
     s.w.turn("t1");
     await s.idle();
-    const text = (s.corrections()[0]!.input as { text: string }[])[0]!.text;
+    const text = (s.reminders()[0]!.input as { text: string }[])[0]!.text;
     const queued = makeMessageDispatchHookContext({
       thread: { ...s.thread(), queuedMessageCount: 1 },
       input: { text },
@@ -807,7 +807,7 @@ describe("agent recaps", () => {
     expect(await s.hook()(queued)).toEqual({ action: "proceed" });
     s.w.turn("t1");
     await s.idle();
-    expect(await s.card()).toMatchObject({ capped: true, corrections: 1 });
+    expect(await s.card()).toMatchObject({ capped: true, reminders: 1 });
   });
 
   it("clears the recap on fresh input; dismissing hides only the card", async () => {
@@ -855,7 +855,7 @@ describe("agent recaps", () => {
       const s = await world();
       s.w.turn("t1", status);
       await s.idle();
-      expect(s.corrections()).toHaveLength(0);
+      expect(s.reminders()).toHaveLength(0);
     },
   );
 
@@ -868,7 +868,7 @@ describe("agent recaps", () => {
     s.w.threads.set("t1", { ...s.thread(), ...patch } as never);
     s.w.turn("t1");
     await s.idle();
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
   });
 
   it("leaves side chats, and every thread when recaps are off, without the tool or reminders", async () => {
@@ -879,13 +879,13 @@ describe("agent recaps", () => {
     expect(recapTools(side)).toEqual([]);
     s.w.turn("t1");
     await s.idle();
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
 
     const off = await world({ required: false });
     expect(recapTools(await off.configure())).toEqual([]);
     off.w.turn("t1");
     await off.idle();
-    expect(off.corrections()).toHaveLength(0);
+    expect(off.reminders()).toHaveLength(0);
   });
 });
 
@@ -1048,8 +1048,8 @@ describe("turn endings with reply blocks", () => {
       ':::reply{state="complete"}\n# Added the count_items helper\n- [x] `count_items()` counts nested carts\n:::\n',
     );
     expect((await s.card()).recap).toBeNull();
-    const [correction] = s.corrections();
-    const message = (correction!.input as { text: string }[])[0]!.text;
+    const [reminder] = s.reminders();
+    const message = (reminder!.input as { text: string }[])[0]!.text;
     expect(message).toContain("Your turn ended without a recap.");
     expect(message).toContain(
       "Any answer you already gave is visible to the user",
@@ -1074,7 +1074,7 @@ describe("turn endings with reply blocks", () => {
     await s.report();
     await idleWith(s, "Done.");
     expect((await s.card()).recap).toMatchObject({ state: "complete", turnId });
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
   });
 
   it("stores nothing and sends no correction while a question card waits", async () => {
@@ -1093,7 +1093,7 @@ describe("turn endings with reply blocks", () => {
     });
     await idleWith(s, ":::reply\nPick a coupon rule.\n:::\n");
     expect((await s.card()).recap).toBeNull();
-    expect(s.corrections()).toHaveLength(0);
+    expect(s.reminders()).toHaveLength(0);
   });
 });
 

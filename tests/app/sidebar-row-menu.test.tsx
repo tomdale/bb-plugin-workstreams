@@ -81,7 +81,7 @@ const workstreamChoices = async (
 describe("the row menu's Topic submenu", () => {
   it("does no catalog indexing while the menu is closed", async () => {
     const slot = await mount(threads(), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       tree,
     });
     await slot.findByRole("link", { name: "Root task" });
@@ -94,7 +94,7 @@ describe("the row menu's Topic submenu", () => {
 
   it("offers only topics that can hold threads", async () => {
     const slot = await mount(threads(), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       tree,
     });
     const choices = await workstreamChoices(slot, "Root task");
@@ -110,7 +110,7 @@ describe("the row menu's Topic submenu", () => {
 
   it("shows a failed topic change in the sidebar", async () => {
     const slot = await mount(threads(), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       tree,
       assignmentError: "Topic assignment failed",
     });
@@ -123,7 +123,7 @@ describe("the row menu's Topic submenu", () => {
 
   it("assigns a chosen topic without reporting an error", async () => {
     const slot = await mount(threads(), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
       tree,
     });
     const choices = await workstreamChoices(slot, "Root task");

@@ -48,7 +48,7 @@ describe("Workstreams prefs", () => {
   });
   it("defaults the new sidebar visibility preferences on", () => {
     expect(parsePrefs({}).sidebar).toMatchObject({
-      showForYou: true,
+      showUpNext: true,
       showRecent: true,
       showSnoozed: true,
       showArchived: true,
@@ -260,12 +260,13 @@ describe("Workstreams prefs", () => {
   it("arranges categories with a saved suggestions model until one is chosen for them", () => {
     const tidy = { kind: "gateway" as const, model: "openai/custom" };
     expect(
-      parsePrefs({ organize: { tidyModel: tidy } }).organize,
-    ).toMatchObject({ tidyModel: tidy, categoryModel: tidy });
+      parsePrefs({ organize: { suggestionModel: tidy } }).organize,
+    ).toMatchObject({ suggestionModel: tidy, categoryModel: tidy });
     const category = { kind: "gateway" as const, model: "openai/other" };
     expect(
-      parsePrefs({ organize: { tidyModel: tidy, categoryModel: category } })
-        .organize.categoryModel,
+      parsePrefs({
+        organize: { suggestionModel: tidy, categoryModel: category },
+      }).organize.categoryModel,
     ).toEqual(category);
     expect(parsePrefs({}).organize.categoryModel).toEqual(
       DEFAULT_MODELS.category,

@@ -23,7 +23,7 @@ it("reorders roots by dragging a row", async () => {
         sidebarThread("l2", { title: "Loose two", latestAttentionAt: 2 }),
         sidebarThread("l3", { title: "Loose three", latestAttentionAt: 1 }),
       ],
-      { settings: { showRecent: false, showForYou: false } },
+      { settings: { showRecent: false, showUpNext: false } },
     );
     expect(groupRows(slot, "Other")).toEqual([
       "Loose one",
@@ -84,7 +84,7 @@ it("does not rerender row content for drag transforms", async () => {
         sidebarThread("l1", { title: "Loose one" }),
         sidebarThread("l2", { title: "Loose two" }),
       ],
-      { settings: { showRecent: false, showForYou: false } },
+      { settings: { showRecent: false, showUpNext: false } },
     );
     await waitFor(() => expect(groupRows(slot, "Other")).toHaveLength(2));
     rowRenders.mockClear();
@@ -158,7 +158,7 @@ it("moves a root onto a collapsed workstream header", async () => {
         sidebarThread("beta", { sectionId: "sec_b", title: "Beta task" }),
       ],
       {
-        settings: { showRecent: false, showForYou: false },
+        settings: { showRecent: false, showUpNext: false },
         tree: {
           workstreams: [
             {
@@ -254,7 +254,7 @@ it.each([false, true])(
           }),
         ],
         {
-          settings: { showRecent: false, showForYou: false },
+          settings: { showRecent: false, showUpNext: false },
           tree: {
             workstreams: [
               {
@@ -302,7 +302,8 @@ it.each([false, true])(
       fireEvent.mouseUp(document, { clientX: 10, clientY: 70 });
       await waitFor(() =>
         expect(
-          slot.inspection.rpcCalls.find((c) => c.method === "threadMoveToGroup")?.input,
+          slot.inspection.rpcCalls.find((c) => c.method === "threadMoveToGroup")
+            ?.input,
         ).toEqual({ threadId: "alpha", workstreamId: "b" }),
       );
       expect(

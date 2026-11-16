@@ -172,7 +172,7 @@ export default async function plugin(bb: BbPluginApi) {
         : undefined;
     if (!host)
       throw new Error(
-        "No analysis machine: set Workstreams' Analysis machine ID to a connected machine with Pi and AI Gateway.",
+        "No analysis machine: set Workstreams' Analysis machine to a connected machine with Pi and AI Gateway.",
       );
     return host.id;
   };
@@ -193,12 +193,12 @@ export default async function plugin(bb: BbPluginApi) {
       environmentId = subject.environmentId ?? undefined;
     }
     if (!projectId) {
-      const homeProjectId = currentPrefs().newWork.homeProjectId;
+      const workerProjectId = currentPrefs().advanced.workerProjectId;
       const projects = await bb.sdk.projects.list();
       projectId =
-        (homeProjectId &&
-        projects.some((project) => project.id === homeProjectId)
-          ? homeProjectId
+        (workerProjectId &&
+        projects.some((project) => project.id === workerProjectId)
+          ? workerProjectId
           : undefined) ?? projects[0]?.id;
     }
     if (!projectId)
@@ -313,7 +313,7 @@ export default async function plugin(bb: BbPluginApi) {
     null;
   /**
    * The project a debug thread starts in: the one chosen for debug threads,
-   * else the home project new work starts in, else the only project there is.
+   * else the worker project, else the only project there is.
    * The thread's agent reads the prompts and code the brief asks about, so a
    * project holding that source is the point of the setting.
    */
@@ -321,7 +321,7 @@ export default async function plugin(bb: BbPluginApi) {
     const projects = await bb.sdk.projects.list();
     const prefs = currentPrefs();
     const debugProjectId = prefs.advanced.debugProjectId.trim();
-    for (const id of [debugProjectId, prefs.newWork.homeProjectId.trim()])
+    for (const id of [debugProjectId, prefs.advanced.workerProjectId.trim()])
       if (id && projects.some((project) => project.id === id)) return id;
     if (projects.length === 1 && projects[0]) return projects[0].id;
     throw new UserError(
@@ -654,7 +654,7 @@ export default async function plugin(bb: BbPluginApi) {
     inference,
     workstreamStore,
     journal,
-    model: async () => currentPrefs().organize.tidyModel,
+    model: async () => currentPrefs().organize.suggestionModel,
     enabled: () => currentPrefs().organize.suggestions,
     roots: () =>
       buildForest(service.threads())
@@ -821,8 +821,8 @@ export default async function plugin(bb: BbPluginApi) {
   // or workstream it was started from, the one its composer showed, or Quick
   // analysis's from its first request. The hook itself always proceeds.
   bb.experimental_hooks.on("message.dispatch", async (ctx) => {
-    const correction = await recaps.onDispatch(ctx);
-    if (correction) return correction;
+    const reminder = await recaps.onDispatch(ctx);
+    if (reminder) return reminder;
     // Sending a snoozed thread a message means you're back on it.
     if (
       ctx.initiator === "user" &&
@@ -1158,11 +1158,11 @@ export default async function plugin(bb: BbPluginApi) {
       userFacing(async () => {
         const routed = async (signal?: AbortSignal): Promise<Preview> => {
           const prefs = currentPrefs();
-          if (!prefs.newWork.suggestions)
+          if (!prefs.newWork.organizeAsYouWrite)
             return {
               id: randomUUID(),
               confidence: "low",
-              reason: "Suggestions are turned off.",
+              reason: "Name and organize as you write is off.",
               subject: null,
               traceId: null,
             };
@@ -1219,7 +1219,7 @@ export default async function plugin(bb: BbPluginApi) {
     recap_get: async ({ threadId }) => {
       const thread = await bb.sdk.threads.get({ threadId });
       const stored = recaps.get(threadId);
-      const { capped, corrections } = recaps.capped(threadId);
+      const { capped, reminders } = recaps.capped(threadId);
       const recap = stored?.recap ?? null;
       // Inline Markdown can contain file links even without artifact links.
       // Visible recaps need the workspace root to resolve those destinations.
@@ -1234,7 +1234,7 @@ export default async function plugin(bb: BbPluginApi) {
         dismissed: stored?.dismissed ?? false,
         waitingCancelled: stored?.waitingCancelled ?? false,
         capped: capped && thread.status === "idle",
-        corrections,
+        reminders,
         assignment: workstreamStore.assignment(threadId),
         files: thread.environmentId
           ? {
@@ -1252,6 +1252,11 @@ export default async function plugin(bb: BbPluginApi) {
       await questions.answer(threadId, id, value, dismiss);
       return { ok: true as const };
     },
+    question_hide: ({ threadId, id, hidden }) =>
+      userFacing(async () => {
+        questions.setHidden(threadId, id, hidden);
+        return { ok: true as const };
+      }),
     question_recover: async ({ threadId, id, value, dismiss }) => {
       await questions.recover(threadId, id, value, dismiss);
       return { ok: true as const };

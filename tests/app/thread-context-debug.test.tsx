@@ -142,7 +142,7 @@ it("uses bb's section and detail-row primitives in the Info tab", async () => {
     ThreadInfoDebugSection,
   );
   const section = await slot.findByRole("region", {
-    name: "Workstreams Debug",
+    name: "Workstreams debug",
   });
   expect(section.getAttribute("data-count")).toBeNull();
   expect(

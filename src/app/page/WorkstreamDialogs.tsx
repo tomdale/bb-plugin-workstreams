@@ -83,9 +83,7 @@ export function CreateWorkstreamDialog({
       <DialogContent className="max-w-md">
         <form onSubmit={handleSubmit} className="space-y-3">
           <DialogHeader>
-            <DialogTitle>
-              New workstream
-            </DialogTitle>
+            <DialogTitle>New workstream</DialogTitle>
             <DialogDescription>
               Workstreams can move threads into it right away.
             </DialogDescription>
@@ -117,9 +115,7 @@ export function CreateWorkstreamDialog({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-foreground">
-              Group
-            </label>
+            <label className="text-xs font-medium text-foreground">Group</label>
             <SelectField
               label="Group"
               value={parentId ?? ""}
@@ -151,7 +147,7 @@ export function CreateWorkstreamDialog({
             <Input
               value={aliasesText}
               onChange={(e) => setAliasesText(e.target.value)}
-              placeholder="Alternative names, separated by commas"
+              placeholder="Other names, separated by commas"
               className="mt-1 h-8 text-xs"
               aria-label="Aliases"
             />

@@ -874,7 +874,7 @@ export function QuestionForm({
       </div>
       {/* An edge-to-edge footer strip like the recap card's, offset by the
           card's px-4 py-3 padding; its controls sit on the content's 16px
-          insets (the ghost Cancel's padding is pulled back to match). */}
+          insets (the ghost Dismiss's padding is pulled back to match). */}
       <div className="-mx-4 -mb-3 mt-1.5 flex shrink-0 items-center justify-between gap-2 rounded-b-[calc(var(--radius-lg,0.5rem)-1px)] border-t border-(--ws-needs-input-rule) bg-(--ws-needs-input-footer) px-4 py-1.5">
         <Button
           type="button"
@@ -884,7 +884,7 @@ export function QuestionForm({
           disabled={cancelDisabled}
           onClick={onCancel}
         >
-          Cancel
+          Dismiss
         </Button>
         {error ? (
           <p

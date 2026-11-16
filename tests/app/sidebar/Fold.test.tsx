@@ -179,7 +179,7 @@ describe("a nested row's menu when its outer workstream closes", () => {
         section("sec_cli", "Beacon › Automations: CLI"),
       ],
       tree,
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
     });
     const outer = await waitFor(() =>
       slot.getByRole("region", { name: "Beacon › Automations" }),

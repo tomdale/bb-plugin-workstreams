@@ -50,7 +50,9 @@ export function suggestionSubject(
       {
         label: "Kind",
         value:
-          suggestion.kind === "split" ? "Split of a workstream" : "Tidy edit",
+          suggestion.kind === "split"
+            ? "Split of a workstream"
+            : "Suggested change",
       },
       { label: "Status", value: STATUS[suggestion.status] },
       { label: "Reason the model gave", value: suggestion.reason },

@@ -30,15 +30,14 @@ async function mount({
       rpc: {
         prefs: () => ({
           prefs: {
-            sidebar: { showForYou: true, showRecent: true, recentLimit: 5 },
+            sidebar: { showUpNext: true, showRecent: true, recentLimit: 5 },
             threads: {
               autoTitle: true,
               analysisModel: { kind: "gateway", model: "m" },
               showParentLink: enabled,
             },
             newWork: {
-              homeProjectId: "",
-              suggestions: true,
+              organizeAsYouWrite: true,
               suggestionsModel: { kind: "gateway", model: "m" },
             },
             organize: { model: { kind: "gateway", model: "m" } },

@@ -39,7 +39,7 @@ const stepTime = async (ms: number) => {
 describe("workstream fold motion", () => {
   it("keeps a closing group's rows mounted while it closes", async () => {
     const slot = await mount(threads(), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
     });
     const alpha = within(await slot.findByRole("region", { name: "Alpha" }));
     const collapse = alpha.getByRole("button", { name: "Collapse Alpha" });
@@ -60,7 +60,7 @@ describe("workstream fold motion", () => {
 
   it("enters a group's rows when it opens", async () => {
     const slot = await mount(threads(), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
     });
     const alpha = within(await slot.findByRole("region", { name: "Alpha" }));
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -81,7 +81,7 @@ describe("workstream fold motion", () => {
 
   it("starts closed groups unmounted, with nothing to animate", async () => {
     const slot = await mount(threads(), {
-      settings: { showRecent: false, showForYou: false },
+      settings: { showRecent: false, showUpNext: false },
     });
     await slot.findByRole("region", { name: "Alpha" });
     // Every group starts open here, so a mounted fold is idle rather than

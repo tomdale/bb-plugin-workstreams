@@ -16,7 +16,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const PREFS = { required: true, corrections: 3, layout: "full" };
+const PREFS = { required: true, reminders: 3, layout: "full" };
 
 /**
  * The published SDK's test host has no message-block slot, like upstream

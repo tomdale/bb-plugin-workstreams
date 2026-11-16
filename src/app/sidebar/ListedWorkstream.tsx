@@ -15,7 +15,7 @@ import type { ThreadNode } from "./types.ts";
 import { WorkstreamGroup, type GroupProps } from "./WorkstreamGroup.tsx";
 
 /** Which list of the arrangement a group sits in (see `arrangeGroups`). */
-export type GroupList = "pinned" | "populated" | "dormant" | "other";
+export type GroupList = "focused" | "populated" | "dormant" | "other";
 
 /** How a list's groups fold: Dormant's start closed, the lower tier's per reveal. */
 export const collapseScopeOf = (list: GroupList): CollapseScope => ({
@@ -182,7 +182,7 @@ export const ListedWorkstream = memo(function ListedWorkstream({
   return (
     <Sortable
       id={groupKey(group.id)}
-      data={{ type: "group", groupId: group.id, pinned: group.focused }}
+      data={{ type: "group", groupId: group.id, focused: group.focused }}
       disabled={!headersDrag}
       surface={surface}
     >

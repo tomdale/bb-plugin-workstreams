@@ -144,7 +144,7 @@ export function useWorkstreams() {
       return isSnoozed(snooze, now) ? snooze : undefined;
     },
     snoozePrefs: server.snoozePrefs,
-    showForYou: prefs?.sidebar.showForYou ?? true,
+    showForYou: prefs?.sidebar.showUpNext ?? true,
     showRecent: prefs?.sidebar.showRecent ?? true,
     recentLimit: prefs?.sidebar.recentLimit ?? RECENT_LIMIT.fallback,
     showSnoozed: prefs?.sidebar.showSnoozed ?? true,

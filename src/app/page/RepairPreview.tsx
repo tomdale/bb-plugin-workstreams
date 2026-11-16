@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { useRpc } from "@get-bb/plugin-sdk/app";
 import type { RpcContract, RepairPreview } from "../../server/contract.ts";
 import { secondaryButton, primaryButton } from "./controls.ts";
+import { counted } from "../../domain/plural.ts";
 
 /** Explicit preview/apply keeps workstream tree repairs separate from editing workstreams. */
 export function Repair({
@@ -27,7 +28,7 @@ export function Repair({
           planId: plan.id,
         });
         setMessage(
-          `Moved ${result.changed} threads; skipped ${result.skipped}. Threads you moved, and newer requests, are left as they are.`,
+          `Moved ${counted(result.changed, "thread")}; skipped ${result.skipped}. Threads you moved, and newer requests, are left as they are.`,
         );
         setPlan(null);
         onApplied();
@@ -35,7 +36,7 @@ export function Repair({
         const next = await rpc.call("repairPreview", { threadIds });
         setPlan(next);
         setMessage(
-          `${next.rows.filter((row) => !row.error).length} moves ready for review; ${next.excludedManual} threads you moved left out.`,
+          `${counted(next.rows.filter((row) => !row.error).length, "move")} ready for review; ${counted(next.excludedManual, "thread")} you moved left out.`,
         );
       }
     } catch (cause) {
@@ -74,7 +75,7 @@ export function Repair({
         <div className="mt-3">
           {plan.excludedManual ? (
             <p className="mb-2 text-xs">
-              {plan.excludedManual} threads you moved left out
+              {counted(plan.excludedManual, "thread")} you moved left out
             </p>
           ) : null}
           <ul className="space-y-1 text-xs">

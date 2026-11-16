@@ -162,7 +162,7 @@ export async function mount(
       prefs: () => ({
         prefs: {
           sidebar: {
-            showForYou: options.settings?.showForYou === true,
+            showUpNext: options.settings?.showUpNext === true,
             showRecent: options.settings?.showRecent === true,
             showSnoozed: options.settings?.showSnoozed !== false,
             showArchived: options.settings?.showArchived !== false,
@@ -321,7 +321,7 @@ export async function mount(
         return {
           prefs: {
             sidebar: {
-              showForYou: options.settings?.showForYou === true,
+              showUpNext: options.settings?.showUpNext === true,
               showRecent: options.settings?.showRecent === true,
               showSnoozed: true,
               showArchived: true,
@@ -413,5 +413,5 @@ export const groupRows = (
 export const mountWithBands: typeof mount = (threads, options = {}) =>
   mount(threads, {
     ...options,
-    settings: { showForYou: true, showRecent: true, ...options.settings },
+    settings: { showUpNext: true, showRecent: true, ...options.settings },
   });

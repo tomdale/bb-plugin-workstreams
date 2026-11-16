@@ -6,7 +6,7 @@
  * scales with the text around it. Expanded, the heading is the most prominent
  * text on the page: the workstream line, a large title, and the thread's
  * desired outcome. Scrolled away from the newest message it collapses into a compact
- * workstream-over-goal block, in the title bar when there is room and pinned
+ * workstream-over-goal block, in the title bar when there is room and anchored
  * at the top of the timeline when there is not.
  */
 
@@ -23,33 +23,33 @@ const PAD_BOTTOM = 0.65;
 const EYEBROW_BLOCK = 1.25;
 /** In the title bar the title is set at this multiple of body size. */
 export const TITLE_BAR_TITLE_SIZE = 0.95;
-/** Padding above a heading that stays pinned in the timeline. */
-export const PINNED_PAD = 0.5;
+/** Padding above a heading that stays anchored in the timeline. */
+export const ANCHORED_PAD = 0.5;
 /**
- * The plate's own feathered bottom edge, in em of body size. A pinned heading
+ * The plate's own feathered bottom edge, in em of body size. A anchored heading
  * is a solid band the timeline scrolls under, so the band dissolves into the
  * messages over this distance instead of ending on a line across the first row
  * it covers. It doubles as the compact block's padding below its title, since
  * the fade needs somewhere to happen that is not over text.
  */
-export const PINNED_EDGE = 0.9;
+export const ANCHORED_EDGE = 0.9;
 
 /**
- * Distance a pinned band's own edge fades over: the padding below its last
+ * Distance a anchored band's own edge fades over: the padding below its last
  * line, so the dissolve never runs under a glyph. The compact block keeps that
  * padding for the fade, which is why its padding and this distance are one
  * constant.
  */
-export function pinnedEdge(base: number, compact: boolean): number {
-  return base * (compact ? PINNED_EDGE : PAD_BOTTOM);
+export function anchoredEdge(base: number, compact: boolean): number {
+  return base * (compact ? ANCHORED_EDGE : PAD_BOTTOM);
 }
 
 /**
- * Feather below a pinned plate, as a fraction of the shadow styles.css draws
+ * Feather below a anchored plate, as a fraction of the shadow styles.css draws
  * under the expanded plate: 1.875rem, long enough to finish the dissolve the
  * plate's edge starts rather than reading as a band of its own.
  */
-export const PINNED_FEATHER = 1.875 / PLATE_FADE_REM;
+export const ANCHORED_FEATHER = 1.875 / PLATE_FADE_REM;
 
 /**
  * BB's own phone condition: a viewport under its `md` breakpoint driven by a
@@ -190,8 +190,8 @@ export function headingFade(progress: number, motion = true) {
   };
 }
 
-/** The pinned title scales directly between its expanded and compact sizes. */
-export function pinnedTitleScale(progress: number): number {
+/** The anchored title scales directly between its expanded and compact sizes. */
+export function anchoredTitleScale(progress: number): number {
   return 1 + (TITLE_BAR_TITLE_SIZE / TITLE_SIZE - 1) * progress;
 }
 
@@ -213,7 +213,7 @@ export function headingBackdropOpacity(progress: number): number {
  * shadow under the expanded plate. styles.css draws both from one gradient
  * (12rem below the plate, 3rem below the minimized heading), and while the
  * heading collapses the plate's shadow shrinks to this same fraction, so the
- * feather that follows the plate never outlasts the bar's. A heading pinned in
+ * feather that follows the plate never outlasts the bar's. A heading anchored in
  * the timeline sits on this short feather at both heights, since the timeline
  * scrolls beneath a solid plate rather than meeting a title bar's hairline.
  */
@@ -228,12 +228,12 @@ export function plateFadeScale(progress: number): number {
 }
 
 /**
- * A heading pinned in the timeline steps between its two states instead of
+ * A heading anchored in the timeline steps between its two states instead of
  * following the scroll frame by frame: it compacts in one move once the reader
  * has scrolled back far enough for the title to have left its expanded place.
  * The scroll position picks the state; the change itself is animated in time.
  */
-export function pinnedStep(fromBottom: number, exitDistance: number): 0 | 1 {
+export function anchoredStep(fromBottom: number, exitDistance: number): 0 | 1 {
   return fromBottom >= exitDistance ? 1 : 0;
 }
 
@@ -277,8 +277,8 @@ export function compactBlock(base: number, eyebrow: Eyebrow | null): number {
   );
 }
 
-/** Plate height when the collapsed heading stays pinned in the timeline. */
-export function pinnedHeight(
+/** Plate height when the collapsed heading stays anchored in the timeline. */
+export function anchoredHeight(
   base: number,
   eyebrow: Eyebrow | null,
   titleLines = 1,
@@ -286,6 +286,6 @@ export function pinnedHeight(
   return Math.round(
     compactBlock(base, eyebrow) +
       base * TITLE_BAR_TITLE_SIZE * TITLE_LINE * (titleLines - 1) +
-      base * (PINNED_PAD + PINNED_EDGE),
+      base * (ANCHORED_PAD + ANCHORED_EDGE),
   );
 }

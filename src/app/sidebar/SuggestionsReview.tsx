@@ -887,7 +887,7 @@ function DecidedRow({
           type="button"
           data-undo={id}
           onClick={onUndo}
-          className="flex h-[18px] shrink-0 cursor-pointer items-center gap-1.5 rounded px-1 text-xs text-(--ws-suggestions-text) hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+          className="flex h-[18px] shrink-0 cursor-pointer items-center gap-1.5 rounded px-1 text-xs text-(--ws-automatic-text) hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
         >
           Undo
           {latest ? <Key>U</Key> : null}

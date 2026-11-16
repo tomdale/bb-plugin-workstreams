@@ -72,16 +72,33 @@ export class QuestionStore {
   pending(threadId: string) {
     const row = this.db
       .prepare(
-        "SELECT id, payload FROM ws_question WHERE thread_id = ? AND status IN ('pending', 'sending') ORDER BY rowid DESC LIMIT 1",
+        "SELECT id, payload, hidden FROM ws_question WHERE thread_id = ? AND status IN ('pending', 'sending') ORDER BY rowid DESC LIMIT 1",
       )
-      .get(threadId) as { id: string; payload: string } | undefined;
+      .get(threadId) as
+      { id: string; payload: string; hidden: number } | undefined;
     return row
       ? {
           id: row.id,
           recoverable: !this.live.has(row.id),
+          hidden: row.hidden === 1,
           payload: interactionPayloadSchema.parse(JSON.parse(row.payload)),
         }
       : null;
+  }
+
+  /**
+   * Dismisses the card, or shows it again, on every client. The question
+   * stays open: the agent keeps waiting until the user answers it or sends a
+   * message instead.
+   */
+  setHidden(threadId: string, id: string, hidden: boolean) {
+    const changed = this.db
+      .prepare(
+        "UPDATE ws_question SET hidden = ? WHERE id = ? AND thread_id = ? AND status = 'pending'",
+      )
+      .run(hidden ? 1 : 0, id, threadId);
+    if (!changed.changes) throw new Error("This question is no longer pending");
+    this.changed(threadId);
   }
 
   attach(threadId: string, interactionId: string) {

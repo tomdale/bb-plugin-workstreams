@@ -46,7 +46,7 @@ import {
 } from "../../domain/recap.ts";
 import type { RecapLayout } from "../../domain/recapPrefs.ts";
 import { useRecapPrefs } from "../recap/prefs.ts";
-import { useArchiveSuggestion } from "../archive/useArchiveSuggestion.ts";
+import { useArchiveOffer } from "../archive/useArchiveOffer.ts";
 import {
   animateCardIn,
   animateCardOut,
@@ -971,7 +971,7 @@ type RecapResponse = {
   dismissed: boolean;
   waitingCancelled: boolean;
   capped: boolean;
-  corrections: number;
+  reminders: number;
   files: RecapFiles | null;
 };
 const EMPTY: RecapResponse = {
@@ -979,7 +979,7 @@ const EMPTY: RecapResponse = {
   dismissed: false,
   waitingCancelled: false,
   capped: false,
-  corrections: 0,
+  reminders: 0,
   files: null,
 };
 
@@ -1645,7 +1645,7 @@ export function RecapCard() {
   const nativeInteraction =
     useSidebarThread(threadId)?.hasPendingInteraction === true;
   const hasPendingInteraction = Boolean(durableQuestion) || nativeInteraction;
-  // Archive is no suggestion for a thread the user is writing into, but the
+  // Archive is not offered for a thread the user is writing into, but the
   // recap stays readable until the message goes out.
   const continuing = useContinuing({
     drafting: !isEmpty || attachmentCount > 0,
@@ -1668,7 +1668,7 @@ export function RecapCard() {
   const isPhone = useIsCompactViewport();
   const layout: RecapLayout = isPhone ? "minimal" : (prefs?.layout ?? "full");
   const visibleRecap = dismissed ? null : recap;
-  const archive = useArchiveSuggestion(threadId, visibleRecap, continuing);
+  const archive = useArchiveOffer(threadId, visibleRecap, continuing);
   const archiveAction = useRef(archive.archive);
   archiveAction.current = archive.archive;
   const onArchive = useCallback(() => {

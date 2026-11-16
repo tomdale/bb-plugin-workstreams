@@ -165,8 +165,8 @@ function InspectorBody({
           </DialogPrimitive.Title>
           <p className="text-xs text-muted-foreground">
             {list === null
-              ? "Loading model calls…"
-              : `${list.length} model call${list.length === 1 ? "" : "s"} shown${truncated ? " · history truncated; browse Activity for more" : ""}`}
+              ? "Loading model traces…"
+              : `${list.length} model trace${list.length === 1 ? "" : "s"} shown${truncated ? " · history truncated; browse Activity for more" : ""}`}
           </p>
         </div>
         <DialogPrimitive.Close className="-mr-1.5 inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
@@ -181,7 +181,7 @@ function InspectorBody({
       ) : null}
       {list && list.length === 0 ? (
         <p className="px-4 py-6 text-sm text-muted-foreground">
-          No model calls were recorded for this. Record model calls in
+          No model traces were recorded for this. Record model traces in
           Workstreams settings keeps them for 7 days.
         </p>
       ) : null}
@@ -224,7 +224,7 @@ function TraceList({
   const now = Date.now();
   return (
     <nav
-      aria-label="Model calls"
+      aria-label="Model traces"
       className="max-h-[32vh] shrink-0 overflow-y-auto border-b border-border p-1.5"
     >
       <ul>
@@ -382,7 +382,7 @@ function TraceDetail({
           type="button"
           onClick={() => void replay()}
           disabled={replaying}
-          title="Makes a paid model call using the recorded prompt. Stores a comparison trace without changing memory or placements."
+          title="Makes a paid model call with the recorded prompt and stores the result beside the original. Nothing in your threads or workstreams changes."
           className={smallButton}
         >
           <Icon
@@ -393,7 +393,7 @@ function TraceDetail({
               replaying && "animate-spin motion-reduce:animate-none",
             )}
           />
-          {replaying ? "Running…" : "Run again"}
+          {replaying ? "Replaying…" : "Replay"}
         </button>
       </div>
       <p className="mt-1 text-sm">{trace.label}</p>

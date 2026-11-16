@@ -322,22 +322,22 @@
 /* The Workstreams heading's suggestion count: muted purple text; a rounded,
    tinted chip under the pointer, under keyboard focus, and while the
    suggestions are open, deeper while pressed. */
-.ws-suggestions-action {
-  color: var(--ws-suggestions-text);
+.ws-automatic-action {
+  color: var(--ws-automatic-text);
 }
-.ws-suggestions-action:hover,
-.ws-suggestions-action:focus-visible,
-.ws-suggestions-action[data-state="open"] {
+.ws-automatic-action:hover,
+.ws-automatic-action:focus-visible,
+.ws-automatic-action[data-state="open"] {
   background-color: color-mix(
     in oklab,
-    var(--ws-suggestions-accent) 9%,
+    var(--ws-automatic-accent) 9%,
     transparent
   );
 }
-.ws-suggestions-action:active {
+.ws-automatic-action:active {
   background-color: color-mix(
     in oklab,
-    var(--ws-suggestions-accent) 14%,
+    var(--ws-automatic-accent) 14%,
     transparent
   );
 }
@@ -847,7 +847,7 @@ body:has([data-ws-suggestions])
   inherits: true;
   initial-value: 0px;
 }
-/* A pinned band dissolves into the timeline over its own last em. The mask
+/* An anchored band dissolves into the timeline over its own last em. The mask
    leaves the plate at half cover, and the gradient below starts there, so the
    messages come up through the band's edge instead of being sliced by it. */
 [data-ws-edge] {
@@ -861,7 +861,7 @@ body:has([data-ws-suggestions])
   );
 }
 /* The feather that picks up where the mask leaves off. */
-[data-ws-pinned].ws-goal-background::after {
+[data-ws-anchored].ws-goal-background::after {
   background: linear-gradient(
     to bottom in oklab,
     color-mix(in oklab, var(--background) 50%, transparent) 0%,
@@ -872,30 +872,30 @@ body:has([data-ws-suggestions])
     transparent 100%
   );
 }
-/* A heading pinned in the timeline steps between its expanded and compact
+/* A heading anchored in the timeline steps between its expanded and compact
    states once the reader has scrolled past it, so the change is animated in
    time rather than tracked to the scroll position. */
-[data-ws-pinned] .ws-sticky-goal__plate,
-[data-ws-pinned] .ws-sticky-goal__workstream,
-[data-ws-pinned] .ws-sticky-goal__title,
-[data-ws-pinned] .ws-sticky-goal__subtitle,
-[data-ws-pinned].ws-goal-background::after {
+[data-ws-anchored] .ws-sticky-goal__plate,
+[data-ws-anchored] .ws-sticky-goal__workstream,
+[data-ws-anchored] .ws-sticky-goal__title,
+[data-ws-anchored] .ws-sticky-goal__subtitle,
+[data-ws-anchored].ws-goal-background::after {
   transition:
     transform 180ms ease,
     opacity 180ms ease;
 }
-[data-ws-pinned] .ws-sticky-goal {
+[data-ws-anchored] .ws-sticky-goal {
   transition:
     --ws-plate-draw 180ms ease,
     --ws-plate-edge 180ms ease;
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-ws-pinned] .ws-sticky-goal,
-  [data-ws-pinned] .ws-sticky-goal__plate,
-  [data-ws-pinned] .ws-sticky-goal__workstream,
-  [data-ws-pinned] .ws-sticky-goal__title,
-  [data-ws-pinned] .ws-sticky-goal__subtitle,
-  [data-ws-pinned].ws-goal-background::after {
+  [data-ws-anchored] .ws-sticky-goal,
+  [data-ws-anchored] .ws-sticky-goal__plate,
+  [data-ws-anchored] .ws-sticky-goal__workstream,
+  [data-ws-anchored] .ws-sticky-goal__title,
+  [data-ws-anchored] .ws-sticky-goal__subtitle,
+  [data-ws-anchored].ws-goal-background::after {
     transition: none;
   }
 }
@@ -1203,16 +1203,16 @@ body:has([data-ws-suggestions])
   white-space: nowrap;
 }
 
-/* The identity field shows classifier-owned values in the Suggestions color. */
+/* The identity field shows automatic values in the Automatic color. */
 [data-ws-identity-control][data-ws-auto] {
-  color: var(--ws-suggestion-text);
+  color: var(--ws-automatic-text);
   font-weight: 500;
 }
 [data-ws-identity-control][data-ws-auto] .ws-spark {
-  color: var(--ws-suggestion-text);
+  color: var(--ws-automatic-text);
 }
 
-.ws-suggestion-error {
+.ws-composer-error {
   margin-top: 8px;
   padding: 0 14px;
   font-size: 12px;

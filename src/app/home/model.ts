@@ -48,7 +48,7 @@ export type HomePlan<T extends WorkstreamThread> = {
     readonly active: boolean;
   };
   /** Focused workstreams with threads, in the chosen order. */
-  readonly pinned: readonly WorkstreamNode<T>[];
+  readonly focused: readonly WorkstreamNode<T>[];
   /** The other workstreams with threads, in the chosen order. */
   readonly populated: readonly WorkstreamNode<T>[];
   /** Threads in no workstream; null while there are none. */
@@ -114,21 +114,21 @@ export function planHome<T extends UpNextThread>(
       : null;
   const populated = (groups: readonly WorkstreamNode<T>[]) =>
     groups.filter((group) => group.total > 0);
-  const pinned = populated(arranged.pinned);
+  const focused = populated(arranged.focused);
   const others = populated(arranged.populated);
   const other = arranged.other.total > 0 ? arranged.other : null;
   const dormant = populated(arranged.dormant);
   const snoozed = options.showSnoozed ? projection.snoozed : [];
-  const populatedCount = pinned.length + others.length + (other ? 1 : 0);
+  const populatedCount = focused.length + others.length + (other ? 1 : 0);
   return {
     upNext,
     pinnedThreads: projection.pinnedThreads,
     focus: { active: selection.focused },
-    pinned,
+    focused,
     populated: others,
     other,
     dormant,
-    tiered: pinned.length > 0,
+    tiered: focused.length > 0,
     hasLower: others.length > 0 || other !== null || dormant.length > 0,
     lowerCounts: arranged.lowerCounts,
     snoozed,

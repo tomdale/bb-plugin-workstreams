@@ -12,7 +12,7 @@ type Rpc = ReturnType<typeof useRpc<RpcContract>>;
 
 const PREF_KEYS = [
   "required",
-  "corrections",
+  "reminders",
   "layout",
   "replies",
   "hashDigits",

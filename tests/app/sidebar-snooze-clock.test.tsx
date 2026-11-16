@@ -51,7 +51,7 @@ async function mountAlpha() {
       }),
     ],
     {
-      settings: { showForYou: false, showRecent: false },
+      settings: { showUpNext: false, showRecent: false },
       sections: [section("sec_a", "Alpha")],
       snoozePrefs: snoozeSettings(thirtyMinutes, untilUpdate),
     },

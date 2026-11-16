@@ -179,6 +179,72 @@ describe("question interaction adapter", () => {
     sessionStorage.clear();
   });
 
+  it("dismisses a card without closing its question, and shows it again", async () => {
+    sessionStorage.clear();
+    let hidden = false;
+    const hide = vi.fn(async (input: unknown) => {
+      hidden = (input as { hidden: boolean }).hidden;
+      return { ok: true } as const;
+    });
+    const recover = vi.fn(async () => ({ ok: true }) as const);
+    const slot = renderSlot(
+      { component: QuestionAnchor },
+      {},
+      {
+        composer: { scope: { kind: "thread", threadId: "thr_test" } },
+        rpc: {
+          question_pending: () => ({
+            id: "durable-hide",
+            recoverable: true,
+            hidden,
+            payload: singleSelect,
+          }),
+          question_hide: hide,
+          question_recover: recover,
+        },
+      },
+    );
+    await slot.findByRole("region", { name: "Question needs your answer" });
+    fireEvent.click(getButtonByText(slot, "Dismiss"));
+    await vi.waitFor(() =>
+      expect(hide).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "durable-hide", hidden: true }),
+      ),
+    );
+    // The question stays open: nothing answers or closes it.
+    expect(recover).not.toHaveBeenCalled();
+    slot.lifecycle.unmount();
+    const reopened = renderSlot(
+      { component: QuestionAnchor },
+      {},
+      {
+        composer: { scope: { kind: "thread", threadId: "thr_test" } },
+        rpc: {
+          question_pending: () => ({
+            id: "durable-hide",
+            recoverable: true,
+            hidden: true,
+            payload: singleSelect,
+          }),
+          question_hide: hide,
+          question_recover: recover,
+        },
+      },
+    );
+    fireEvent.click(
+      await reopened.findByRole("button", { name: "Show question" }),
+    );
+    await vi.waitFor(() =>
+      expect(hide).toHaveBeenLastCalledWith(
+        expect.objectContaining({ id: "durable-hide", hidden: false }),
+      ),
+    );
+    expect(
+      reopened.queryByRole("region", { name: "Question needs your answer" }),
+    ).toBeNull();
+    sessionStorage.clear();
+  });
+
   it("closes a recovered question when the user sends their own message instead", async () => {
     sessionStorage.clear();
     let open: {
@@ -609,7 +675,7 @@ describe("question interaction adapter", () => {
     fireEvent.click(getButtonByText(slot, "SQLite"));
     fireEvent.click(getButtonByText(slot, "Submit"));
     expect((await slot.findByRole("alert")).textContent).toContain(
-      "Could not send your answer",
+      "Couldn't send your answer",
     );
     expect(getButtonByText(slot, "SQLite").getAttribute("aria-checked")).toBe(
       "true",
@@ -618,15 +684,15 @@ describe("question interaction adapter", () => {
     expect(submit).toHaveBeenCalledTimes(2);
   });
 
-  it("cancels the request instead of submitting", () => {
+  it("dismisses with no open question by cancelling the request", () => {
     const cancel = vi.fn(async () => undefined);
     const slot = render(singleSelect, { cancel });
 
-    fireEvent.click(getButtonByText(slot, "Cancel"));
+    fireEvent.click(getButtonByText(slot, "Dismiss"));
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
-  it("offers a cancel escape rather than blocking the composer", () => {
+  it("offers a Dismiss escape rather than blocking the composer", () => {
     const cancel = vi.fn(async () => undefined);
     const slot = renderSlot(
       { component: QuestionInteraction },
@@ -647,7 +713,7 @@ describe("question interaction adapter", () => {
     expect(
       slot.getByText("This question could not be displayed."),
     ).toBeTruthy();
-    fireEvent.click(getButtonByText(slot, "Cancel"));
+    fireEvent.click(getButtonByText(slot, "Dismiss"));
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
@@ -766,9 +832,9 @@ describe("question interaction adapter", () => {
     fireEvent.click(getButtonByText(slot, "SQLite"));
     fireEvent.click(getButtonByText(slot, "Submit"));
     const alert = await slot.findByRole("alert");
-    expect(alert.parentElement?.contains(getButtonByText(slot, "Cancel"))).toBe(
-      true,
-    );
+    expect(
+      alert.parentElement?.contains(getButtonByText(slot, "Dismiss")),
+    ).toBe(true);
     expect(alert.parentElement?.contains(getButtonByText(slot, "Submit"))).toBe(
       true,
     );

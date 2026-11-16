@@ -39,7 +39,7 @@ it("discloses truncated thread history without reporting the slice as a total", 
   const body = within(document.body);
   expect(
     await body.findByText(
-      "200 model calls shown · history truncated; browse Activity for more",
+      "200 model traces shown · history truncated; browse Activity for more",
     ),
   ).toBeTruthy();
   expect(body.queryByRole("button", { name: /Call 200/ })).toBeNull();

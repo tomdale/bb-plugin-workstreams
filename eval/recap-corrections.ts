@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { gatewayKey } from "../src/server/inference/gateway.ts";
 import {
-  RECAP_CORRECTION,
+  RECAP_REMINDER,
   RECAP_INSTRUCTIONS,
   RECAP_TOOL,
   RECAP_TOOL_DESCRIPTION,
@@ -86,9 +86,9 @@ const results: {
 }[] = [];
 for (const scenario of cases) {
   for (let run = 1; run <= repetitions; run++) {
-    for (const [variant, correction] of [
+    for (const [variant, reminder] of [
       ["baseline", baseline],
-      ["candidate", RECAP_CORRECTION],
+      ["candidate", RECAP_REMINDER],
     ] as const) {
       const messages = [
         {
@@ -102,7 +102,7 @@ for (const scenario of cases) {
       for (let attempt = 1; attempt <= 3; attempt++) {
         messages.push({
           role: "user",
-          content: `[Workstreams recap synthetic 1 ${attempt}]\n${correction} Correction ${attempt} of 3.`,
+          content: `[Workstreams recap synthetic 1 ${attempt}]\n${reminder} Correction ${attempt} of 3.`,
         });
         const response = await fetch(
           "https://ai-gateway.vercel.sh/v1/chat/completions",
