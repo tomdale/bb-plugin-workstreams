@@ -1008,6 +1008,22 @@ body:has([data-ws-suggestions])
 .ws-workstream-name {
   color: var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)));
 }
+/* Hovering a workstream header brightens its name toward the foreground, as a
+   thread's title does, keeping a trace of the identity color. */
+.ws-row:hover .ws-workstream-name {
+  color: color-mix(
+    in oklab,
+    var(--foreground) 40%,
+    var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)))
+  );
+}
+.dark .ws-row:hover .ws-workstream-name {
+  color: color-mix(
+    in oklab,
+    var(--foreground) 40%,
+    var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)))
+  );
+}
 .ws-category-label {
   color: color-mix(
     in oklab,
