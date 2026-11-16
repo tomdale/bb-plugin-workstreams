@@ -32,6 +32,11 @@
 .ws-row.ws-row-active::before {
   background-color: var(--ws-row-active, var(--sidebar-accent));
 }
+/* A header's fold chevron is its own control: while it is hovered, pressed, or
+   focused, the row's fill steps aside for the chevron's. */
+.ws-row:has([data-fold-control]:is(:hover, :active, :focus-visible))::before {
+  background-color: transparent;
+}
 
 .ws-row [data-timestamp="hover"] {
   display: none;

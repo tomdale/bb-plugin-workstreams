@@ -94,7 +94,8 @@ export function WorkstreamGroup({
     refSection.current?.(element);
   }, []);
   useFoldGap(section, fold.phase);
-  const headingClass = "flex min-w-0 flex-1 items-center gap-1";
+  // Positioned so the row's fill (a positioned pseudo-element) paints beneath it.
+  const headingClass = "relative flex min-w-0 flex-1 items-center gap-1";
   const heading = (
     <WorkstreamName
       name={label}
@@ -196,6 +197,7 @@ export function WorkstreamGroup({
                     collapsed ? `Expand ${label}` : `Collapse ${label}`
                   }
                   onClick={toggle}
+                  data-fold-control=""
                   className={cn(rowActionClass, "size-5")}
                 >
                   <FoldChevron open={!collapsed} />
