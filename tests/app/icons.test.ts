@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  OVERVIEW_ICON,
   SPARKLES_ICON,
   TAG_ICON,
   WORKSTREAM_ICON,
@@ -22,6 +23,7 @@ describe("the plugin's declared icons", () => {
     ["workstream", WORKSTREAM_ICON],
     ["tag", TAG_ICON],
     ["sparkles", SPARKLES_ICON],
+    ["overview", OVERVIEW_ICON],
   ])("declares %s under the name the UI uses", (key, name) => {
     expect(name).toBe(`workstreams/${key}`);
     expect(declared[key]).toBeTruthy();

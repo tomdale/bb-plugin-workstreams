@@ -14,7 +14,8 @@
       "experimental_icons": {
         "workstream": "./assets/workstream.svg",
         "tag": "./assets/tag.svg",
-        "sparkles": "./assets/sparkles.svg"
+        "sparkles": "./assets/sparkles.svg",
+        "overview": "./assets/overview.svg"
       }
     },
     "server": "./src/server/index.ts",

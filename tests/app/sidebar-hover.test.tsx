@@ -229,8 +229,7 @@ describe("row hover buttons", () => {
         .querySelector(".group\\/row")!;
       const actions = within(header as HTMLElement)
         .getAllByRole("button")
-        // After the name, which opens the Overview, and the fold chevron.
-        .slice(2);
+        .slice(1);
       expect(
         actions.map((button) => button.getAttribute("aria-label")),
       ).toEqual([
