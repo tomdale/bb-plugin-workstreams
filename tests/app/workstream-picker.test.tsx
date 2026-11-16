@@ -75,7 +75,9 @@ it("skips native parent and draft-text renders without blocking view updates or 
     <SourceBanner nativeText="Native draft" newWork={newWork} />,
   );
   expect(chipRenders).toHaveBeenCalledTimes(1);
-  expect(view.getByRole("button", { name: "Workstream: Automatic" })).toBeTruthy();
+  expect(
+    view.getByRole("button", { name: "Workstream: Automatic" }),
+  ).toBeTruthy();
 
   view.rerender(
     <SourceBanner nativeText="Native parent update" newWork={newWork} />,
@@ -89,7 +91,9 @@ it("skips native parent and draft-text renders without blocking view updates or 
     newWork.selectIdentity({ workstreamId: "ent_billing", label: "Billing" }),
   );
   expect(chipRenders).toHaveBeenCalledTimes(2);
-  expect(view.getByRole("button", { name: "Workstream: Billing" })).toBeTruthy();
+  expect(
+    view.getByRole("button", { name: "Workstream: Billing" }),
+  ).toBeTruthy();
 
   fireEvent.click(view.getByRole("button", { name: "Workstream: Billing" }));
   fireEvent.click(view.getByRole("button", { name: "Use no topic" }));
@@ -99,6 +103,8 @@ it("skips native parent and draft-text renders without blocking view updates or 
     provenance: "manual",
   });
   expect(view.queryByRole("button", { name: "Use no topic" })).toBeNull();
-  expect(view.getByRole("button", { name: "Workstream: No workstream" })).toBeTruthy();
+  expect(
+    view.getByRole("button", { name: "Workstream: No workstream" }),
+  ).toBeTruthy();
   newWork.dispose();
 });

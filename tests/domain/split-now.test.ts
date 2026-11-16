@@ -64,7 +64,8 @@ describe("splitNow", () => {
       "None of its threads are in Automations anymore.",
     );
     expect(
-      splitNow({ ...split, workstreamId: "gone" }, tree({ a1: "auto" })).problem,
+      splitNow({ ...split, workstreamId: "gone" }, tree({ a1: "auto" }))
+        .problem,
     ).toBe("Its group is gone.");
   });
 

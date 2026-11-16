@@ -699,7 +699,9 @@ it("draws a change to a workstream whose threads are snoozed, as dashed ticks wi
       removed: [],
       assignments: [],
       // A root the sidebar does not list: the server names it.
-      held: [{ threadId: "snoozed", workstreamId: "gamma", title: "Snoozed work" }],
+      held: [
+        { threadId: "snoozed", workstreamId: "gamma", title: "Snoozed work" },
+      ],
       archived: 0,
       touched: [],
     },

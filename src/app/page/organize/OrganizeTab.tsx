@@ -408,7 +408,9 @@ export function OrganizeTab({ ws, query }: { ws: Workstreams; query: string }) {
         onOpenChange={setRepairs}
         ws={ws}
         threadIds={[
-          ...(organizer?.groups ?? []).flatMap((g) => g.threads.map((r) => r.id)),
+          ...(organizer?.groups ?? []).flatMap((g) =>
+            g.threads.map((r) => r.id),
+          ),
           ...unresolved.map((r) => r.id),
         ]}
         onApplied={() => void read()}
@@ -692,15 +694,11 @@ function RepairsDialog({
         <DialogHeader>
           <DialogTitle>Preview automatic moves</DialogTitle>
           <DialogDescription>
-            See where Workstreams would move the threads it placed itself,
-            then apply the preview.
+            See where Workstreams would move the threads it placed itself, then
+            apply the preview.
           </DialogDescription>
         </DialogHeader>
-        <Repair
-          rpc={ws.rpc}
-          threadIds={threadIds}
-          onApplied={onApplied}
-        />
+        <Repair rpc={ws.rpc} threadIds={threadIds} onApplied={onApplied} />
       </DialogContent>
     </Dialog>
   );

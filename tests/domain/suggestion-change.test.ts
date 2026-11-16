@@ -49,7 +49,10 @@ const listed = (...ids: string[]) =>
 describe("suggestionChange", () => {
   it("refiles a thread from where it is, or from Unfiled", () => {
     expect(
-      suggestionChange({ op: "move-thread", thread: "t1", workstream: "todo" }, context()),
+      suggestionChange(
+        { op: "move-thread", thread: "t1", workstream: "todo" },
+        context(),
+      ),
     ).toEqual({
       op: "move-thread",
       moves: [
@@ -62,8 +65,10 @@ describe("suggestionChange", () => {
       ],
     });
     expect(
-      suggestionChange({ op: "move-thread", thread: "t5", workstream: "todo" }, context())
-        ?.moves[0],
+      suggestionChange(
+        { op: "move-thread", thread: "t5", workstream: "todo" },
+        context(),
+      )?.moves[0],
     ).toMatchObject({ from: null, threads: listed("t5") });
   });
 
@@ -194,8 +199,10 @@ describe("suggestionChange", () => {
   it("counts only visible threads moving with a topic", () => {
     const hidden = context({ visible: (id) => id !== "t4" && id !== "t1" });
     expect(
-      suggestionChange({ op: "move-workstream", workstream: "agent", parent: "bb" }, hidden)
-        ?.moves[0],
+      suggestionChange(
+        { op: "move-workstream", workstream: "agent", parent: "bb" },
+        hidden,
+      )?.moves[0],
     ).toMatchObject({ carried: 1 });
     expect(
       suggestionChange({ op: "merge", from: "toolbelt", into: "bb" }, hidden)
@@ -299,9 +306,9 @@ describe("changeHeadline", () => {
     changeHeadline(suggestionChange(body, context())!);
 
   it("names what moves and where", () => {
-    expect(headline({ op: "move-thread", thread: "t1", workstream: "todo" })).toBe(
-      "Move “Thread t1” to Todo Plugin",
-    );
+    expect(
+      headline({ op: "move-thread", thread: "t1", workstream: "todo" }),
+    ).toBe("Move “Thread t1” to Todo Plugin");
     expect(
       headline({
         workstreamId: "toolbelt",
@@ -372,12 +379,12 @@ describe("changeHeadline", () => {
     expect(headline({ op: "merge", from: "auto", into: "todo" })).toBe(
       "Merge Automations into Todo Plugin",
     );
-    expect(headline({ op: "move-workstream", workstream: "agent", parent: "bb" })).toBe(
-      "Move Agent into bb",
-    );
-    expect(headline({ op: "move-workstream", workstream: "todo", parent: null })).toBe(
-      "Move Todo Plugin out of its group",
-    );
+    expect(
+      headline({ op: "move-workstream", workstream: "agent", parent: "bb" }),
+    ).toBe("Move Agent into bb");
+    expect(
+      headline({ op: "move-workstream", workstream: "todo", parent: null }),
+    ).toBe("Move Todo Plugin out of its group");
     expect(
       headline({
         op: "move-workstream",
@@ -444,7 +451,10 @@ describe("changeDelta", () => {
 
   it("refiles a thread, and files an unfiled one", () => {
     expect(
-      changeDelta({ op: "move-thread", thread: "d1", workstream: "infra" }, world()),
+      changeDelta(
+        { op: "move-thread", thread: "d1", workstream: "infra" },
+        world(),
+      ),
     ).toMatchObject({
       workstreams: [],
       removed: [],
@@ -457,8 +467,10 @@ describe("changeDelta", () => {
       ],
     });
     expect(
-      changeDelta({ op: "move-thread", thread: "u1", workstream: "docs" }, world())
-        ?.assignments,
+      changeDelta(
+        { op: "move-thread", thread: "u1", workstream: "docs" },
+        world(),
+      )?.assignments,
     ).toEqual([{ threadId: "u1", workstreamId: "docs" }]);
   });
 
@@ -481,8 +493,10 @@ describe("changeDelta", () => {
 
   it("reparents a topic, with or without a new name", () => {
     expect(
-      changeDelta({ op: "move-workstream", workstream: "docs", parent: "billing" }, world())
-        ?.workstreams,
+      changeDelta(
+        { op: "move-workstream", workstream: "docs", parent: "billing" },
+        world(),
+      )?.workstreams,
     ).toEqual([{ id: "docs", name: "Docs", parentId: "billing" }]);
     expect(
       changeDelta(
@@ -570,7 +584,11 @@ describe("changeDelta", () => {
       expect.arrayContaining([
         { id: newWorkstreamId(null, "Money"), name: "Money", parentId: null },
         { id: "docs", name: "Docs", parentId: newWorkstreamId(null, "Money") },
-        { id: "infra", name: "Infra", parentId: newWorkstreamId(null, "Money") },
+        {
+          id: "infra",
+          name: "Infra",
+          parentId: newWorkstreamId(null, "Money"),
+        },
       ]),
     );
     expect(
@@ -585,7 +603,9 @@ describe("changeDelta", () => {
         world(),
       ),
     ).toMatchObject({
-      workstreams: [{ id: newWorkstreamId(null, "Ops"), name: "Ops", parentId: null }],
+      workstreams: [
+        { id: newWorkstreamId(null, "Ops"), name: "Ops", parentId: null },
+      ],
       removed: [],
       assignments: [],
       held: [],
@@ -605,7 +625,11 @@ describe("changeDelta", () => {
       world(),
     )!;
     expect(split.workstreams).toEqual([
-      { id: newWorkstreamId("docs", "Guides"), name: "Guides", parentId: "docs" },
+      {
+        id: newWorkstreamId("docs", "Guides"),
+        name: "Guides",
+        parentId: "docs",
+      },
       {
         id: newWorkstreamId("docs", "Reference"),
         name: "Reference",
@@ -655,17 +679,25 @@ describe("changeDelta", () => {
     expect(delta.assignments).toHaveLength(3);
     expect(delta.held.some((h) => h.threadId === "t9")).toBe(false);
     expect(
-      changeDelta({ op: "move-thread", thread: "d1", workstream: "infra" }, world())!
-        .archived,
+      changeDelta(
+        { op: "move-thread", thread: "d1", workstream: "infra" },
+        world(),
+      )!.archived,
     ).toBe(0);
   });
 
   it("is null when a topic or thread it names is gone", () => {
     expect(
-      changeDelta({ op: "move-thread", thread: "gone", workstream: "docs" }, world()),
+      changeDelta(
+        { op: "move-thread", thread: "gone", workstream: "docs" },
+        world(),
+      ),
     ).toBeNull();
     expect(
-      changeDelta({ op: "move-thread", thread: "d1", workstream: "gone" }, world()),
+      changeDelta(
+        { op: "move-thread", thread: "d1", workstream: "gone" },
+        world(),
+      ),
     ).toBeNull();
     expect(
       changeDelta({ op: "rename", workstream: "gone", name: "X" }, world()),
@@ -683,7 +715,10 @@ describe("changeDelta", () => {
 
   it("is null while it needs a topic another suggestion creates", () => {
     expect(
-      changeDelta({ op: "move-thread", thread: "d1", workstream: "new:Money" }, world()),
+      changeDelta(
+        { op: "move-thread", thread: "d1", workstream: "new:Money" },
+        world(),
+      ),
     ).toBeNull();
   });
 

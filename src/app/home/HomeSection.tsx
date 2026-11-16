@@ -80,7 +80,11 @@ class HomeBoundary extends Component<
   }
 }
 
-function HomeScreen({ placement }: { placement: Exclude<RowLocation, "wide"> }) {
+function HomeScreen({
+  placement,
+}: {
+  placement: Exclude<RowLocation, "wide">;
+}) {
   const ws = useWorkstreams();
   const displayNow = useNow();
   const { prefs } = usePrefs();

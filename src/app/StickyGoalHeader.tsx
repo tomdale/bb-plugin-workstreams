@@ -556,7 +556,10 @@ function measurePlacement(
   };
 }
 
-const samePlacement = (a: HeadingPlacement | null, b: HeadingPlacement): boolean =>
+const samePlacement = (
+  a: HeadingPlacement | null,
+  b: HeadingPlacement,
+): boolean =>
   !!a &&
   Math.abs(a.pane.x - b.pane.x) < 0.5 &&
   Math.abs(a.pane.y - b.pane.y) < 0.5 &&

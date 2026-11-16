@@ -129,9 +129,7 @@ describe("Full analysis", () => {
       ).goal,
     ).toBe("Keep builds fresh.");
     const statusOnly = { ...base, mode: "status" } as const;
-    expect(descriptionSchema(statusOnly)).not.toHaveProperty(
-      "properties.goal",
-    );
+    expect(descriptionSchema(statusOnly)).not.toHaveProperty("properties.goal");
     expect(
       parseDescription(
         JSON.stringify({ recap: "Done", goal: "Unexpected change" }),

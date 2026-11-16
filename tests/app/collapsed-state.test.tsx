@@ -19,7 +19,9 @@ it("shares toggle state between mounted surfaces and retains topic identity acro
   const oldKey = groupCollapseKey("section-old", "workstream");
   act(() => first.result.current.toggle(oldKey));
   expect(
-    second.result.current.isCollapsed(groupCollapseKey("section-new", "workstream")),
+    second.result.current.isCollapsed(
+      groupCollapseKey("section-new", "workstream"),
+    ),
   ).toBe(true);
   act(() =>
     second.result.current.toggle(groupCollapseKey("section-new", "workstream")),

@@ -46,7 +46,11 @@ describe("ledgerRows", () => {
         { from: null, to: at("Sync"), threads: [thread("u")], carried: 0 },
       ],
     });
-    expect(row).toMatchObject({ now: "No workstream", other: true, after: "Sync" });
+    expect(row).toMatchObject({
+      now: "No workstream",
+      other: true,
+      after: "Sync",
+    });
   });
 
   it("names group changes by group: a move under a parent, a rename, a merge", () => {
@@ -58,9 +62,9 @@ describe("ledgerRows", () => {
       ledgerRows({ op, moves: [{ from, to, threads: [], carried: 2 }] }).map(
         (r) => [r.subject, r.now, r.verb, r.after],
       );
-    expect(rows("move-workstream", at("Workforest"), at("bb", "Workforest"))).toEqual([
-      ["Workforest", "Top level", null, "bb"],
-    ]);
+    expect(
+      rows("move-workstream", at("Workforest"), at("bb", "Workforest")),
+    ).toEqual([["Workforest", "Top level", null, "bb"]]);
     expect(
       rows(
         "move-workstream",

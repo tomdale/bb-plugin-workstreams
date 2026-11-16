@@ -72,10 +72,18 @@ it("gives a split the call that named its topic", () => {
     },
   ]);
   const mine = traces.add(
-    trace({ kind: "split", at: NOW - 3_000, input: { workstreamId: WORKSTREAM } }),
+    trace({
+      kind: "split",
+      at: NOW - 3_000,
+      input: { workstreamId: WORKSTREAM },
+    }),
   );
   traces.add(
-    trace({ kind: "split", at: NOW - 2_000, input: { workstreamId: OTHER_WORKSTREAM } }),
+    trace({
+      kind: "split",
+      at: NOW - 2_000,
+      input: { workstreamId: OTHER_WORKSTREAM },
+    }),
   );
   expect(linkSuggestionTraces(db, traces)).toBe(1);
   expect(linked("s1")).toBe(mine);
@@ -109,7 +117,12 @@ it("leaves a suggestion alone when no call still explains it", () => {
       body: { op: "rename", workstream: WORKSTREAM },
     },
     // Only a call about a different topic is stored, and it is hours old.
-    { id: "s1", kind: "split", at: NOW - 2_000, body: { workstreamId: WORKSTREAM } },
+    {
+      id: "s1",
+      kind: "split",
+      at: NOW - 2_000,
+      body: { workstreamId: WORKSTREAM },
+    },
   ]);
   traces.add(
     // An answer that names neither the topic the rename is about nor anything

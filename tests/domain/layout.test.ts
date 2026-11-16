@@ -29,8 +29,14 @@ describe("durable topic layout", () => {
     ).toBe(true);
   });
   it("does not change section identity or topic shape with volume", () => {
-    const small = layoutGroups({ workstreams, counts: { vertex: 1, review: 1 } });
-    const busy = layoutGroups({ workstreams, counts: { vertex: 100, review: 100 } });
+    const small = layoutGroups({
+      workstreams,
+      counts: { vertex: 1, review: 1 },
+    });
+    const busy = layoutGroups({
+      workstreams,
+      counts: { vertex: 100, review: 100 },
+    });
     expect(small.listed).toEqual(busy.listed);
     expect(small.nodes.map(({ total, ...identity }) => identity)).toEqual(
       busy.nodes.map(({ total, ...identity }) => identity),

@@ -344,7 +344,9 @@ it("places the workstream picker in the host picker row", async () => {
   });
   expect(picker).toBeTruthy();
   expect(picker.getAttribute("data-ws-identity-control")).toBe("");
-  expect(screen.getAllByRole("button", { name: /Workstream:/ })).toHaveLength(1);
+  expect(screen.getAllByRole("button", { name: /Workstream:/ })).toHaveLength(
+    1,
+  );
 });
 
 it("leaves a preview with no topic out of the host submit metadata", async () => {
@@ -359,7 +361,9 @@ it("leaves a preview with no topic out of the host submit metadata", async () =>
   const { slot, route } = mount(unsure);
   await typePrompt(slot, "Something vague");
   await waitFor(() => expect(route).toHaveBeenCalledTimes(1));
-  expect(screen.getByRole("button", { name: "Workstream: Automatic" })).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Workstream: Automatic" }),
+  ).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]).toEqual({
@@ -373,7 +377,9 @@ it("leaves a preview with no topic out of the host submit metadata", async () =>
 it("submits a picked No topic when selecting it", async () => {
   const { slot } = mount(identityDecision);
   await typePrompt(slot, "Some unresolvable request");
-  fireEvent.click(await screen.findByRole("button", { name: "Workstream: Alpha" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Workstream: Alpha" }),
+  );
   fireEvent.click(await screen.findByRole("option", { name: "No workstream" }));
   await screen.findByRole("button", { name: "Workstream: No workstream" });
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
@@ -453,7 +459,9 @@ it("reports the draft's identity so a plain Enter can be filed", async () => {
       },
     }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Workstream: Alpha" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Workstream: Alpha" }),
+  );
   fireEvent.click(await screen.findByRole("option", { name: "No workstream" }));
   await waitFor(() =>
     expect(draftIdentity).toHaveBeenLastCalledWith(
@@ -624,7 +632,11 @@ it("keeps a picked topic in a project you choose for this thread only", async ()
     experimental_data: {
       draftKey: expect.any(String),
       projectChoice: { projectId: "project-beta", source: "independent" },
-      identity: { workstreamId: "ent_alpha", proposal: null, provenance: "manual" },
+      identity: {
+        workstreamId: "ent_alpha",
+        proposal: null,
+        provenance: "manual",
+      },
     },
   });
   expect(metadataUpdates).not.toHaveBeenCalled();
@@ -644,7 +656,9 @@ it("keeps a picked topic when you choose another project and BB remounts the com
       projectId: "project-beta",
     });
   });
-  expect(screen.getByRole("button", { name: "Workstream: Alpha" })).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Workstream: Alpha" }),
+  ).toBeTruthy();
   expect(slot.inspection.composer.selections).toEqual([]);
 });
 

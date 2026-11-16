@@ -201,7 +201,10 @@ const sidebar: SidebarView = (() => {
     tree: {
       workstreams,
       groups: Object.fromEntries(
-        Object.keys(titles).map((workstream) => [`sec_${workstream}`, workstream]),
+        Object.keys(titles).map((workstream) => [
+          `sec_${workstream}`,
+          workstream,
+        ]),
       ),
       assignments: Object.fromEntries(
         threadList.map((t) => [t.id, { workstreamId: t.workstream }]),

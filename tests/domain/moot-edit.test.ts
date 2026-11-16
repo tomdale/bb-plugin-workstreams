@@ -18,18 +18,21 @@ const state: TreeState = {
 
 describe("mootEdit", () => {
   it("names edits that would change nothing: gone or already done", () => {
-    expect(mootEdit({ op: "move-thread", thread: "gone", workstream: "cli" }, state)).toBe(
-      "That thread is gone.",
-    );
-    expect(mootEdit({ op: "move-thread", thread: "t1", workstream: "todo" }, state)).toBe(
-      "The thread is already there.",
-    );
     expect(
-      mootEdit({ op: "move-workstream", workstream: "todo", parent: "bb" }, state),
+      mootEdit({ op: "move-thread", thread: "gone", workstream: "cli" }, state),
+    ).toBe("That thread is gone.");
+    expect(
+      mootEdit({ op: "move-thread", thread: "t1", workstream: "todo" }, state),
+    ).toBe("The thread is already there.");
+    expect(
+      mootEdit(
+        { op: "move-workstream", workstream: "todo", parent: "bb" },
+        state,
+      ),
     ).toBe("The workstream is already there.");
-    expect(mootEdit({ op: "rename", workstream: "cli", name: "Cli" }, state)).toBe(
-      "It already has that name.",
-    );
+    expect(
+      mootEdit({ op: "rename", workstream: "cli", name: "Cli" }, state),
+    ).toBe("It already has that name.");
     expect(mootEdit({ op: "merge", from: "gone", into: "cli" }, state)).toBe(
       "A workstream it names is gone.",
     );
@@ -47,9 +50,15 @@ describe("mootEdit", () => {
   });
 
   it("leaves rule breaks, which may pass later, to refusal", () => {
-    const edit = { op: "move-workstream" as const, workstream: "cli", parent: "todo" };
+    const edit = {
+      op: "move-workstream" as const,
+      workstream: "cli",
+      parent: "todo",
+    };
     expect(mootEdit(edit, state)).toBeNull();
-    expect(refusal(edit, state)).toBe("Workstreams go at most two levels deep.");
+    expect(refusal(edit, state)).toBe(
+      "Workstreams go at most two levels deep.",
+    );
   });
 });
 
@@ -94,7 +103,12 @@ describe("prefixMoves", () => {
       ]),
     );
     expect(moves.map((m) => m.edit)).toEqual([
-      { op: "move-workstream", workstream: "cr", parent: "va", name: "Code Review" },
+      {
+        op: "move-workstream",
+        workstream: "cr",
+        parent: "va",
+        name: "Code Review",
+      },
     ]);
   });
 

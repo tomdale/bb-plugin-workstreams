@@ -47,9 +47,7 @@ function traceDetail(trace: TraceSummary): string {
   const summary = trace.summary?.split(" · ")[0];
   if (!summary) return trace.label;
   const outcome =
-    trace.kind === "turn-end"
-      ? TURN_END_OUTCOMES[summary]
-      : undefined;
+    trace.kind === "turn-end" ? TURN_END_OUTCOMES[summary] : undefined;
   return outcome ? `Work status: ${outcome}` : summary;
 }
 

@@ -7,7 +7,11 @@ import {
   type TidyInput,
 } from "../../src/domain/tidy.ts";
 
-const workstream = (id: string, name: string, parentId: string | null = null) => ({
+const workstream = (
+  id: string,
+  name: string,
+  parentId: string | null = null,
+) => ({
   id,
   name,
   parentId,
@@ -48,7 +52,8 @@ const parse = (...edits: Record<string, unknown>[]) =>
 describe("parseTidy", () => {
   it("resolves bracketed topic IDs only when they are in the supplied tree", () => {
     expect(
-      parse({ op: "rename", workstream: "[automations]", name: "Runs" })[0]?.edit,
+      parse({ op: "rename", workstream: "[automations]", name: "Runs" })[0]
+        ?.edit,
     ).toEqual({ op: "rename", workstream: "auto", name: "Runs" });
     expect(
       parse({
@@ -160,11 +165,13 @@ describe("parseTidy", () => {
   });
 
   it("reads a move to where the topic already is as a rename", () => {
-    expect(parse({ workstream: "automations", name: "Runs" })[0]!.edit).toEqual({
-      op: "rename",
-      workstream: "auto",
-      name: "Runs",
-    });
+    expect(parse({ workstream: "automations", name: "Runs" })[0]!.edit).toEqual(
+      {
+        op: "rename",
+        workstream: "auto",
+        name: "Runs",
+      },
+    );
   });
 
   it("drops a rename to the name the topic has, or an invalid one", () => {

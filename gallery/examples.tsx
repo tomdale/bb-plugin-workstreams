@@ -110,7 +110,10 @@ function TypographyExample() {
 }
 
 const firstWorkstreamColor = allocateFamilyColor([]);
-const workstreamColors = [firstWorkstreamColor, allocateFamilyColor([firstWorkstreamColor])];
+const workstreamColors = [
+  firstWorkstreamColor,
+  allocateFamilyColor([firstWorkstreamColor]),
+];
 const identityNames = ["Release tools", "Workstreams: Recaps"] as const;
 
 const identitySamples = [
@@ -130,7 +133,9 @@ function IdentityExample() {
           <Variant key={label} label={label}>
             <div
               className="min-w-0 space-y-3 py-2"
-              style={workstreamColorStyle(workstreamColors[hue]!) as CSSProperties}
+              style={
+                workstreamColorStyle(workstreamColors[hue]!) as CSSProperties
+              }
             >
               {identityNames.map((name) => (
                 <div key={name} className="flex min-w-0 items-center gap-2">

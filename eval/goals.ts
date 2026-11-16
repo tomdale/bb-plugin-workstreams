@@ -172,13 +172,9 @@ await Promise.all(
           model,
           reasoningLevel,
           prompt:
-            kind === "full"
-              ? descriptionPrompt(input)
-              : turnEndPrompt(turnEnd),
+            kind === "full" ? descriptionPrompt(input) : turnEndPrompt(turnEnd),
           outputSchema:
-            kind === "full"
-              ? descriptionSchema(input)
-              : turnEndSchema(turnEnd),
+            kind === "full" ? descriptionSchema(input) : turnEndSchema(turnEnd),
         });
         response = completion.text;
         usage = completion.usage;

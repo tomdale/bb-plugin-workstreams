@@ -249,7 +249,13 @@ describe("planDrop", () => {
     { toGroupId: "missing", overThreadId: null },
   ])("ignores stale or non-root drops: %s", (change) => {
     expect(
-      planDrop(threadDrop(change), projection, sections, EMPTY_ORDER, workstreams),
+      planDrop(
+        threadDrop(change),
+        projection,
+        sections,
+        EMPTY_ORDER,
+        workstreams,
+      ),
     ).toEqual({ reorder: null });
   });
 });

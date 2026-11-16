@@ -167,10 +167,9 @@ describe("upNextFocus", () => {
   );
 
   it("covers every section of the focused top-level workstream", () => {
-    expect([...upNextFocus(focusing, ["sec_alerts"], workstreams)].sort()).toEqual([
-      "sec_alerts",
-      "sec_cli",
-    ]);
+    expect(
+      [...upNextFocus(focusing, ["sec_alerts"], workstreams)].sort(),
+    ).toEqual(["sec_alerts", "sec_cli"]);
     expect(upNextFocus(focusing, [], workstreams).size).toBe(0);
   });
 

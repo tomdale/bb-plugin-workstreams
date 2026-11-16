@@ -49,10 +49,15 @@ const input = (extra: Partial<MiniatureInput> = {}): MiniatureInput => ({
     activeAt: NOW - ago * DAY,
   })),
   workstreams,
-  filing: Object.fromEntries(threads.map(([id, workstream]) => [id, workstream])),
+  filing: Object.fromEntries(
+    threads.map(([id, workstream]) => [id, workstream]),
+  ),
   colors: {
     groups: Object.fromEntries(
-      Object.entries(sectionOf).map(([workstream, section]) => [section, workstream]),
+      Object.entries(sectionOf).map(([workstream, section]) => [
+        section,
+        workstream,
+      ]),
     ),
     colors: {
       billing: { hue: 200, level: 0 },
@@ -79,7 +84,9 @@ const input = (extra: Partial<MiniatureInput> = {}): MiniatureInput => ({
 
 const context = (): ChangeContext => ({
   workstreams,
-  threadWorkstream: Object.fromEntries(threads.map(([id, workstream]) => [id, workstream])),
+  threadWorkstream: Object.fromEntries(
+    threads.map(([id, workstream]) => [id, workstream]),
+  ),
   title: (id) => id,
 });
 const delta = (body: TidyEdit | Split) => changeDelta(body, context())!;
@@ -204,7 +211,11 @@ describe("miniature", () => {
   it("draws a move under a new parent as the prefix of its name", () => {
     const m = miniature(
       input({
-        delta: delta({ op: "move-workstream", workstream: "docs", parent: "billing" }),
+        delta: delta({
+          op: "move-workstream",
+          workstream: "docs",
+          parent: "billing",
+        }),
       }),
     )!;
     expect(find(m.after, "Billing › Docs").prefix).toBe("Billing");
@@ -361,7 +372,11 @@ describe("miniature", () => {
         input({
           delta: {
             workstreams: [
-              { id: newWorkstreamId("docs", "Sub"), name: "Sub", parentId: "docs" },
+              {
+                id: newWorkstreamId("docs", "Sub"),
+                name: "Sub",
+                parentId: "docs",
+              },
             ],
             removed: [],
             assignments: [],
@@ -489,9 +504,7 @@ describe("miniatureBase", () => {
     depth,
     thread: { id, title, latestAttentionAt: 5 },
   });
-  const sidebar = (
-    tree: Parameters<typeof miniatureBase>[0]["tree"],
-  ) => ({
+  const sidebar = (tree: Parameters<typeof miniatureBase>[0]["tree"]) => ({
     projection: {
       all: [
         { id: "sec_docs", rows: [row("d1", 0, "Quick start"), row("d2", 1)] },
