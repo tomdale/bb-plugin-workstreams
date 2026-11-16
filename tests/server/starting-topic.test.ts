@@ -177,7 +177,7 @@ describe("a new root's first topic", () => {
     expect(w.threads.get("t1")?.title).toBe("Parser tab handling");
   });
 
-  it("never files a thread under a workstream with a different project", async () => {
+  it("is the topic you picked even in a project other than its workstream's", async () => {
     const { w, corpus, docs, dispatch, settle } = await setup();
     corpus.edit(docs.id, {
       projectId: "proj_elsewhere",
@@ -187,6 +187,25 @@ describe("a new root's first topic", () => {
       draftKey: "d1",
       text: "Make the parser handle tabs",
       identity: { entityId: docs.id, proposal: null, provenance: "manual" },
+    });
+    await dispatch("t1", "Make the parser handle tabs");
+    await settle();
+    expect(corpus.assignment("t1")).toMatchObject({
+      entityId: docs.id,
+      provenance: "manual",
+    });
+  });
+
+  it("never files Quick analysis's topic under a workstream with a different project", async () => {
+    const { w, corpus, docs, dispatch, settle } = await setup();
+    corpus.edit(docs.id, {
+      projectId: "proj_elsewhere",
+      projectSource: "manual",
+    });
+    await w.harness.behavior.callRpc("draftIdentity", {
+      draftKey: "d1",
+      text: "Make the parser handle tabs",
+      identity: { entityId: docs.id, proposal: null, provenance: "automatic" },
     });
     await dispatch("t1", "Make the parser handle tabs");
     await settle();

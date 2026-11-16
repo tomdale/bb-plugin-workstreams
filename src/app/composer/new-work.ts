@@ -43,6 +43,12 @@ export type NewWorkState = {
   identity: IdentityChoice;
   selection: ComposerSelection | null;
   suppliedProjectId?: string | null;
+  /**
+   * You chose the thread's project after picking its topic. That project is
+   * for this thread only: Workstreams leaves it alone until the topic changes,
+   * and offers to make it the workstream's project.
+   */
+  projectOverride?: boolean;
   /** Quick analysis's latest preview of the draft. */
   decision: Preview | null;
   classifying: boolean;
@@ -53,8 +59,20 @@ export type NewWorkState = {
 
 export type NewWorkViewState = Pick<
   NewWorkState,
-  "identity" | "decision" | "classifying" | "error" | "errors"
+  | "identity"
+  | "decision"
+  | "projectOverride"
+  | "classifying"
+  | "error"
+  | "errors"
 >;
+
+/** A topic you picked, or the one the workstream's ＋ started with. */
+export function isPicked(identity: IdentityChoice): boolean {
+  return (
+    identity?.provenance === "manual" || identity?.provenance === "inherited"
+  );
+}
 
 /** What the server files the thread with: the topic the field shows. */
 export function submittedIdentity(
@@ -198,14 +216,15 @@ export function acquireRoutingModel(key: string, create: () => NewWork) {
   return model;
 }
 
-export function releaseRoutingModel(key: string, model: NewWork) {
+/** Releases one view's hold on the draft's model; true when that disposed it. */
+export function releaseRoutingModel(key: string, model: NewWork): boolean {
   const entry = routingModels.get(key);
-  if (!entry || entry.model !== model) return;
+  if (!entry || entry.model !== model) return false;
   entry.refs--;
-  if (entry.refs === 0) {
-    routingModels.delete(key);
-    model.dispose();
-  }
+  if (entry.refs > 0) return false;
+  routingModels.delete(key);
+  model.dispose();
+  return true;
 }
 
 export class NewWork {
@@ -224,7 +243,10 @@ export class NewWork {
 
   constructor(
     private deps: NewWorkDeps,
-    choice?: Pick<NewWorkState, "identity" | "decision" | "suppliedProjectId">,
+    choice?: Pick<
+      NewWorkState,
+      "identity" | "decision" | "suppliedProjectId" | "projectOverride"
+    >,
   ) {
     this.state = {
       text: "",
@@ -261,6 +283,7 @@ export class NewWork {
     return {
       identity: this.state.identity,
       decision: this.state.decision,
+      projectOverride: this.state.projectOverride,
       classifying: this.state.classifying,
       error: this.state.error,
       errors: this.state.errors,
@@ -272,6 +295,7 @@ export class NewWork {
     const viewChanged =
       this.viewState.identity !== this.state.identity ||
       this.viewState.decision !== this.state.decision ||
+      this.viewState.projectOverride !== this.state.projectOverride ||
       this.viewState.classifying !== this.state.classifying ||
       this.viewState.error !== this.state.error ||
       this.viewState.errors !== this.state.errors;
@@ -343,13 +367,22 @@ export class NewWork {
 
   observeSelection(selection: ComposerSelection | null) {
     if (selection === this.state.selection) return;
+    const previous = this.state.selection?.projectId;
+    const projectId = selection?.projectId;
+    // A project change Workstreams didn't make, after you picked the topic.
+    const overridden =
+      !!previous &&
+      previous !== projectId &&
+      projectId !== this.state.suppliedProjectId &&
+      isPicked(this.state.identity);
     this.set({
       selection,
       ...(this.state.suppliedProjectId &&
-      this.state.selection?.projectId === this.state.suppliedProjectId &&
-      selection?.projectId !== this.state.suppliedProjectId
+      previous === this.state.suppliedProjectId &&
+      projectId !== this.state.suppliedProjectId
         ? { suppliedProjectId: null }
         : {}),
+      ...(overridden ? { projectOverride: true } : {}),
     });
   }
 
@@ -386,6 +419,7 @@ export class NewWork {
     })("ok");
     this.set({
       identity: nextChoice,
+      projectOverride: false,
       error: null,
     });
   }
@@ -409,6 +443,7 @@ export class NewWork {
         provenance: "inherited",
         ...(target.sectionId ? { sectionId: target.sectionId } : {}),
       },
+      projectOverride: false,
       error: null,
     });
   }
@@ -436,6 +471,7 @@ export class NewWork {
     }
     this.set({
       identity,
+      projectOverride: false,
       error: null,
     });
   }

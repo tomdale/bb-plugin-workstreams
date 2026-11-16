@@ -70,3 +70,12 @@
   font-size: var(--text-sm, 0.8125rem);
   line-height: var(--text-sm--line-height, 1.25rem);
 }
+
+/* The banner's note when this thread's project isn't its workstream's. */
+.ws-project-offer {
+  margin-top: 8px;
+  padding: 0 14px;
+  font-size: 12px;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+}

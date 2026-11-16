@@ -147,17 +147,23 @@ Selecting a topic manually, through Quick analysis, or with the workstream's
 when it has none. Subtopics use their nearest ancestor's project unless
 overridden or disabled. Quick analysis never moves a thread to No project: when
 its topic has no project and you are in one, the topic shows **No topic** and
-the thread stays unfiled. A thread never starts in a project unrelated to its
-workstream. If you change the composer's project after choosing a topic, sending
-shows what differs and sends nothing until the project or topic changes. The
-server also declines to file a thread under a workstream whose project differs
-from the thread's. Unavailable projects are not applied. Changing the project
-does not replace the draft or refile existing threads. Workstreams records when
-it supplied the composer's project, including across reloads, so those threads
-cannot reinforce its own inference. Unknown project choices on new threads do
-not count. Historical work with no association can bootstrap learning;
-historical work that already had an association is excluded when its
-project-choice provenance is unknown.
+the thread stays unfiled.
+
+If you pick a topic, or start from a workstream's **＋**, and then choose a
+different project, the composer keeps the topic and starts the thread in your
+project. Workstreams leaves that project alone until you pick another topic. The
+composer names the workstream's project beside **Change it to <project>**, which
+makes your project the topic's explicit choice; without it the topic keeps its
+project. Quick analysis's topic must match its workstream's project: when they
+differ, sending shows what differs and sends nothing until the project or topic
+changes, and the server never files a thread under Quick analysis's topic when
+the thread's project differs from it. Unavailable projects are not applied.
+Changing the project does not replace the draft or refile existing threads.
+Workstreams records when it supplied the composer's project, including across
+reloads, so those threads cannot reinforce its own inference. Unknown project
+choices on new threads do not count. Historical work with no association can
+bootstrap learning; historical work that already had an association is excluded
+when its project-choice provenance is unknown.
 
 Quick analysis defaults to schema-constrained `openai/gpt-6-luna-fast` with
 reasoning disabled (`15 s` timeout, up to `4` in-flight calls). A draft

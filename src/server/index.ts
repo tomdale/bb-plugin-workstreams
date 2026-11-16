@@ -692,21 +692,19 @@ export default async function plugin(bb: BbPluginApi) {
   ) => {
     if (!identity) return;
     const threadId = thread.id;
-    // A thread never joins a workstream whose project differs from its own,
-    // whatever the composer sent; placement files it from its request instead.
+    // A topic you picked files the thread in whatever project you chose for
+    // it. Quick analysis's guess never files a thread under a workstream whose
+    // project differs from its own; placement files it from its request.
     const destination = identity.sectionId
       ? topics.groups().get(identity.sectionId)
       : (identity.entityId ?? identity.proposal?.parentId);
-    const conflicting = !!workstreamProjectConflict(
-      destination,
-      topics.list(),
-      thread.projectId,
-    );
+    const conflicting =
+      identity.provenance === "automatic" &&
+      !!workstreamProjectConflict(destination, topics.list(), thread.projectId);
     if (conflicting)
       bb.log.warn(
         `Composed thread ${threadId} not filed: its project differs from its workstream's.`,
       );
-    if (conflicting && identity.provenance !== "automatic") return;
     if (identity.provenance === "inherited") {
       const topicId = identity.sectionId
         ? topics.groups().get(identity.sectionId)

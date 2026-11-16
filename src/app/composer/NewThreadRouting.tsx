@@ -22,7 +22,12 @@ import {
   workstreamProject,
   workstreamProjectConflict,
 } from "../../domain/topicProject.ts";
-import { preserveProjectChoice, takeProjectChoice } from "./project-choice.ts";
+import {
+  carryPickedTopic,
+  preserveProjectChoice,
+  takeProjectChoice,
+} from "./project-choice.ts";
+import { ProjectDefaultOffer } from "./ProjectDefaultOffer.tsx";
 
 export function NewThreadRouting() {
   const rpc = useRpc<RpcContract>();
@@ -69,7 +74,7 @@ export function NewThreadRouting() {
           reportIdentity: (report) =>
             rpc.call("draftIdentity", { draftKey, ...report }),
         },
-        takeProjectChoice(scope.projectId),
+        takeProjectChoice(scope.projectId, draftKey),
       );
       // Opened from a workstream's ＋: the thread starts with its topic.
       const preset = takeComposerPreset();
@@ -80,7 +85,8 @@ export function NewThreadRouting() {
     });
     setModel(nativeModel);
     return () => {
-      releaseRoutingModel(draftKey, nativeModel);
+      if (releaseRoutingModel(draftKey, nativeModel))
+        carryPickedTopic(draftKey, scope.projectId, nativeModel.snapshot());
       setModel((current) => (current === nativeModel ? null : current));
       setComposerRoot(null);
     };
@@ -100,7 +106,8 @@ export function NewThreadRouting() {
     state.identity?.entityId ?? state.identity?.proposal?.parentId;
   const sectionId = state.identity?.sectionId;
   useEffect(() => {
-    if (!model || (!topicId && !sectionId)) return;
+    // A project you chose after the topic stays for this thread.
+    if (!model || (!topicId && !sectionId) || state.projectOverride) return;
     let live = true;
     void (async () => {
       const catalog = await rpc.call("catalog", null);
@@ -142,7 +149,16 @@ export function NewThreadRouting() {
     return () => {
       live = false;
     };
-  }, [composer, model, rpc, sdk, topicId, sectionId, state.identity]);
+  }, [
+    composer,
+    model,
+    rpc,
+    sdk,
+    topicId,
+    sectionId,
+    state.identity,
+    state.projectOverride,
+  ]);
 
   useEffect(() => {
     // The host composer submits through BB's own thread creation; the
@@ -157,14 +173,17 @@ export function NewThreadRouting() {
       "form[data-promptbox]",
     );
     if (!form || primary?.closest('[role="dialog"]')) return;
-    // The thread starts in the project the composer shows. If that differs
-    // from its workstream's project, nothing is sent until one of them
-    // changes.
+    // The thread starts in the project the composer shows. A topic you
+    // picked may start in any project; Quick analysis's topic must match its
+    // workstream's project, so nothing is sent until one of them changes.
     const projectConflict = async (): Promise<string | null> => {
       const { identity } = model.snapshot();
       const topicId = identity?.sectionId ? null : identity?.entityId;
       const proposed = identity?.proposal?.parentId;
-      if (!identity || !(topicId || proposed || identity.sectionId))
+      if (
+        identity?.provenance !== "automatic" ||
+        !(topicId || proposed || identity.sectionId)
+      )
         return null;
       const catalog = await rpc.call("catalog", null);
       const destination = identity.sectionId
@@ -253,6 +272,15 @@ export function NewThreadRouting() {
               {picker}
             </div>
           )}
+          <ProjectDefaultOffer
+            newWork={model}
+            projectId={
+              composer.selection?.projectId ??
+              (composer.scope.kind === "new-thread"
+                ? composer.scope.projectId
+                : null)
+            }
+          />
           {state.error ? (
             <p key={state.errors} role="alert" className="ws-suggestion-error">
               {state.error}
@@ -278,6 +306,7 @@ const emptySnapshot = () => EMPTY_STATE;
 const EMPTY_STATE: NewWorkViewState = {
   identity: null,
   decision: null,
+  projectOverride: false,
   classifying: false,
   error: null,
   errors: 0,

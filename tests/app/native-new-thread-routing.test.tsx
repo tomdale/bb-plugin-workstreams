@@ -15,6 +15,33 @@ import { routeDelay } from "../../src/app/composer/timing.ts";
 import type { Preview } from "../../src/server/preview.ts";
 import { emptyState } from "./fixtures.ts";
 
+// BB keeps one root new-thread draft across projects; the harness keys its
+// draft by scope. A test that changes the project can pin BB's key.
+const draftKey = vi.hoisted(() => ({ fixed: null as string | null }));
+vi.mock("@get-bb/plugin-sdk/app", async (original) => {
+  const sdk = await original<typeof import("@get-bb/plugin-sdk/app")>();
+  // The handle is stable, so its stand-in must be too.
+  const pinned = new WeakMap<object, object>();
+  return {
+    ...sdk,
+    useComposer: () => {
+      const composer = sdk.useComposer();
+      if (!draftKey.fixed) return composer;
+      let proxy = pinned.get(composer);
+      if (!proxy) {
+        proxy = new Proxy(composer, {
+          get: (target, property) =>
+            property === "key"
+              ? draftKey.fixed
+              : Reflect.get(target, property, target),
+        });
+        pinned.set(composer, proxy);
+      }
+      return proxy as typeof composer;
+    },
+  };
+});
+
 beforeAll(() => {
   globalThis.ResizeObserver ??= class {
     observe() {}
@@ -23,7 +50,10 @@ beforeAll(() => {
   } as unknown as typeof ResizeObserver;
   Element.prototype.scrollIntoView ??= () => {};
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  draftKey.fixed = null;
+});
 
 const identityDecision: Preview = {
   id: "route-alpha",
@@ -75,6 +105,20 @@ function ComposerWithProjectPick() {
       >
         <button type="submit">Host submit</button>
       </form>
+    </main>
+  );
+}
+
+/** BB remounts composer banners when the project changes. */
+function RemountingComposer() {
+  const composer = useComposer();
+  const scope = composer.scope;
+  return (
+    <main data-app-composer-role="primary">
+      <NewThreadRouting
+        key={scope.kind === "new-thread" ? (scope.projectId ?? "") : ""}
+      />
+      <form data-promptbox="" />
     </main>
   );
 }
@@ -135,6 +179,15 @@ function mount(
   const route = vi.fn(async () => decision);
   const routeCancel = vi.fn(async () => ({ canceled: true }));
   const draftIdentity = vi.fn(async () => ({ filed: false }));
+  const metadataUpdates = vi.fn(async (input: unknown) => ({
+    entity: {
+      id: (input as { entityId: string }).entityId,
+      name: "Alpha",
+      description: "",
+      parentId: null,
+      aliases: [],
+    },
+  }));
   const projectList = vi.fn(async () => [
     { id: "project-alpha", name: "Alpha", kind: "directory" },
     { id: "project-beta", name: "Beta", kind: "directory" },
@@ -209,11 +262,12 @@ function mount(
         preview: route,
         previewCancel: routeCancel,
         draftIdentity,
+        catalogUpdateMetadata: metadataUpdates,
       },
     },
   );
 
-  return { slot, route, draftIdentity, projectList };
+  return { slot, route, draftIdentity, projectList, metadataUpdates };
 }
 
 async function typePrompt(
@@ -508,10 +562,11 @@ it("ignores an associated project that is no longer available", async () => {
   expect(slot.inspection.composer.selections).toEqual([]);
 });
 
-it("sends nothing while the project differs from the picked workstream's", async () => {
-  const { slot } = mount(identityDecision, {
+it("keeps a picked topic in a project you choose for this thread only", async () => {
+  const { slot, metadataUpdates } = mount(identityDecision, {
     component: ComposerWithProjectPick,
   });
+  await act(() => slot.behavior.setComposerText("Port the parser to Beta"));
   fireEvent.click(
     await screen.findByRole("button", { name: "Topic: Automatic" }),
   );
@@ -521,11 +576,87 @@ it("sends nothing while the project differs from the picked workstream's", async
   await waitFor(() =>
     expect(slot.inspection.composer.selection?.projectId).toBe("project-beta"),
   );
+  const offer = await screen.findByText(/Alpha’s project is Alpha\./);
+  expect(
+    screen.getByRole("button", { name: "Change it to Beta" }),
+  ).toBeTruthy();
+  expect(offer).toBeTruthy();
+  // Workstreams doesn't move the thread back to Alpha's project.
+  expect(slot.inspection.composer.selections).toEqual([
+    { projectId: "project-beta" },
+  ]);
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
-  const alert = await screen.findByRole("alert");
-  expect(alert.textContent).toContain("Alpha belongs to Alpha");
-  expect(alert.textContent).toContain("would start in Beta");
-  expect(slot.inspection.composer.submits).toHaveLength(0);
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(slot.inspection.composer.submits[0]).toEqual({
+    experimental_data: {
+      draftKey: expect.any(String),
+      projectChoice: { projectId: "project-beta", source: "independent" },
+      identity: { entityId: "ent_alpha", proposal: null, provenance: "manual" },
+    },
+  });
+  expect(metadataUpdates).not.toHaveBeenCalled();
+});
+
+it("keeps a picked topic when you choose another project and BB remounts the composer", async () => {
+  draftKey.fixed = "root-draft";
+  const { slot } = mount(identityDecision, { component: RemountingComposer });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Topic: Automatic" }),
+  );
+  fireEvent.click(await screen.findByText("Alpha"));
+  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await act(async () => {
+    await slot.behavior.setComposerScope({
+      kind: "new-thread",
+      projectId: "project-beta",
+    });
+  });
+  expect(screen.getByRole("button", { name: "Topic: Alpha" })).toBeTruthy();
+  expect(slot.inspection.composer.selections).toEqual([]);
+});
+
+it("changes the workstream's project to the one you chose when asked", async () => {
+  const { metadataUpdates } = mount(identityDecision, {
+    component: ComposerWithProjectPick,
+  });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Topic: Automatic" }),
+  );
+  fireEvent.click(await screen.findByText("Alpha"));
+  await screen.findByRole("button", { name: "Topic: Alpha" });
+  fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Change it to Beta" }),
+  );
+  await screen.findByText("Alpha’s project is now Beta.");
+  expect(metadataUpdates).toHaveBeenCalledWith({
+    entityId: "ent_alpha",
+    projectId: "project-beta",
+  });
+});
+
+it("moves to a newly picked topic's project after a project you chose", async () => {
+  const { slot } = mount(identityDecision, {
+    component: ComposerWithProjectPick,
+    entities: [
+      { ...projectTopics[0]!, projectId: "project-alpha" },
+      { ...projectTopics[1]!, projectId: "project-alpha" },
+    ],
+  });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Topic: Automatic" }),
+  );
+  fireEvent.click(await screen.findByText("Alpha"));
+  await screen.findByRole("button", { name: "Topic: Alpha" });
+  fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
+  await screen.findByRole("button", { name: "Change it to Beta" });
+  fireEvent.click(screen.getByRole("button", { name: "Topic: Alpha" }));
+  fireEvent.click(await screen.findByText("Beta"));
+  await waitFor(() =>
+    expect(slot.inspection.composer.selection?.projectId).toBe("project-alpha"),
+  );
+  expect(screen.queryByRole("button", { name: /Change it to/ })).toBeNull();
 });
 
 it("leaves an automatic topic unfiled rather than moving a thread out of its project", async () => {
