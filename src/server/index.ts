@@ -710,8 +710,8 @@ export default async function plugin(bb: BbPluginApi) {
     if (!identity) return;
     const threadId = thread.id;
     // A topic you picked files the thread in whatever project you chose for
-    // it. Quick analysis's guess never files a thread under a workstream whose
-    // project differs from its own; placement files it from its request.
+    // it. An automatic topic never files a thread under a workstream whose
+    // project differs from its own; the start call files it instead.
     const destination = identity.sectionId
       ? topics.groups().get(identity.sectionId)
       : (identity.entityId ?? identity.proposal?.parentId);

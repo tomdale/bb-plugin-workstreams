@@ -16,9 +16,10 @@ export type Topic = {
 /**
  * Where a thread's topic came from, in priority order: a topic you set, one
  * inherited from the thread or workstream the thread was started from, one
- * Full analysis settled at a turn's end, and Quick analysis's guess from the
- * first request. A later source never replaces an earlier one, except that
- * Full analysis replaces an inherited topic when the scope shifts.
+ * chosen automatically from its requests (a thread's start or a turn's end),
+ * and one a composer preview showed for earlier text of the draft. A later
+ * source never replaces an earlier one, except that an automatic choice
+ * replaces an inherited topic when the scope shifts.
  */
 export type AssignmentProvenance = "manual" | "inherited" | "full" | "quick";
 

@@ -10,7 +10,7 @@
  *   not report a supplied project as an independent choice.
  * - When you choose another project yourself, a topic you picked travels to
  *   the next model for the same draft in another project, marked as a
- *   project for this thread only. Quick analysis's topic does not: the new
+ *   project for this thread only. An automatic topic does not: the new
  *   project gets a fresh preview. The old model's release and the new one's
  *   creation happen in one render, so the transfer expires shortly after.
  */

@@ -447,9 +447,9 @@ export const rpcContract = defineRpcContract({
     output: z.object({ ok: z.literal(true) }),
   },
   /**
-   * The New thread composer's preview of a draft: Quick analysis's
-   * goal and topic for the new thread, or the topic of a mentioned
-   * workstream. Changes nothing.
+   * The New thread composer's preview of a draft: the start call's title
+   * and topic for the new thread, or the topic of a mentioned workstream.
+   * Changes nothing.
    */
   preview: {
     input: z.object({

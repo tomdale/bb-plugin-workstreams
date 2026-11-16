@@ -1,7 +1,7 @@
 /**
  * Thread title history and the retitle policy. While automatic titling is
- * enabled, Quick analysis fills an empty title from the opening request and
- * Full analysis settles it after turns with new requests. Outside edits
+ * enabled, a thread's start fills an empty title from the opening request and
+ * a turn's end settles it after turns with new requests. Outside edits
  * retain title ownership until cleared.
  */
 

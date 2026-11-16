@@ -174,7 +174,7 @@ export function NewThreadRouting() {
     );
     if (!form || primary?.closest('[role="dialog"]')) return;
     // The thread starts in the project the composer shows. A topic you
-    // picked may start in any project; Quick analysis's topic must match its
+    // picked may start in any project; an automatic topic must match its
     // workstream's project, so nothing is sent until one of them changes.
     const projectConflict = async (): Promise<string | null> => {
       const { identity } = model.snapshot();

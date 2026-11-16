@@ -776,9 +776,10 @@ export class TopicStore {
   /**
    * Applies an analysis's topic under the source priority (see
    * `AssignmentProvenance`): your topic is never replaced, an inherited one
-   * only by Full analysis on a scope shift or with a more specific topic
-   * beneath it, and Quick analysis only fills a thread that has no topic yet
-   * or replaces its own earlier guess. Returns whether the assignment
+   * only by an automatic choice (`full`) on a scope shift or with a more
+   * specific topic beneath it, and a composer preview of earlier text
+   * (`quick`) only fills a thread that has no topic yet or replaces its own
+   * earlier one. Returns whether the assignment
    * changed.
    */
   applyAnalysis(
@@ -919,8 +920,8 @@ export class TopicStore {
   }
 
   /**
-   * Gives a thread that has no topic of its own, or only Quick analysis's
-   * guess, the topic `entityId` as inherited.
+   * Gives a thread that has no topic of its own, or only a composer
+   * preview's (`quick`), the topic `entityId` as inherited.
    */
   inheritTopic(threadId: string, entityId: string): boolean {
     // A topic with subtopics holds no threads; placement settles the thread
