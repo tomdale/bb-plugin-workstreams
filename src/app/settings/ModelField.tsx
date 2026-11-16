@@ -35,6 +35,7 @@ export function ModelField({
   onChange,
   disabled = false,
   enabled,
+  gatewayOnly,
 }: {
   label: string;
   description: string;
@@ -43,6 +44,11 @@ export function ModelField({
   disabled?: boolean;
   /** A task that can be turned off: its switch sits beside the picker. */
   enabled?: { checked: boolean; onChange(checked: boolean): void };
+  /**
+   * What to say when the pick can't run as a direct AI Gateway call, for a
+   * task that has no worker-thread path.
+   */
+  gatewayOnly?: string;
 }) {
   const directModel = gatewayModel(choice);
   const selected = pickerValue(choice);
@@ -51,7 +57,7 @@ export function ModelField({
       label={label}
       description={
         directModel === null
-          ? `${description} This model runs in a hidden worker thread and takes several seconds longer per call.`
+          ? `${description} ${gatewayOnly ?? "This model runs in a hidden worker thread and takes several seconds longer per call."}`
           : description
       }
       control={

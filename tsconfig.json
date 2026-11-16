@@ -15,5 +15,14 @@
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": false
   },
-  "include": ["src", "components", "lib", "hooks", "tests", "eval", "gallery"]
+  "include": [
+    "src",
+    "components",
+    "lib",
+    "hooks",
+    "tests",
+    "eval",
+    "gallery",
+    "preview"
+  ]
 }

@@ -148,6 +148,8 @@ export async function fakeWorld(
     prefs?: PrefsPatch;
     send?: (args: Record<string, unknown>) => Promise<void>;
     spawn?: (args: Record<string, unknown>) => Promise<Thread>;
+    /** The host's enhanced-response composition; absent: it fails. */
+    present?: (input: Record<string, unknown>) => unknown | Promise<unknown>;
   } = {},
 ) {
   const threads = new Map<string, Thread>();
@@ -162,6 +164,8 @@ export async function fakeWorld(
     outputSchema?: Record<string, unknown>;
   }[] = [];
   const spawned: Record<string, unknown>[] = [];
+  /** Inputs of the host's `present` calls. */
+  const presents: Record<string, unknown>[] = [];
   const sent: Record<string, unknown>[] = [];
   const projects = ["proj_1", "proj_home", "proj_other", "proj_personal"].map(
     (id) => ({ id, name: "Zebracorn", sources: [] }),
@@ -208,6 +212,18 @@ export async function fakeWorld(
   const host = await createInitializedTestPluginHost({
     pluginId: "workstreams",
     experimental_callHostRpc: async (call) => {
+      if (call.method === "present") {
+        presents.push(call.input as Record<string, unknown>);
+        return (
+          (await options.present?.(call.input as Record<string, unknown>)) ?? {
+            kind: "failed",
+            reason: "No fake composition.",
+            previews: 0,
+            modelCalls: 0,
+            usage: { input: 0, output: 0, cost: 0 },
+          }
+        );
+      }
       const input = call.input as {
         prompt: string;
         model: string;
@@ -580,6 +596,7 @@ export async function fakeWorld(
     addSection,
     converse,
     completions,
+    presents,
     spawned,
     workerCalls,
     sent,

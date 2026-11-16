@@ -15,6 +15,8 @@ import { z } from "zod";
 import { WORK_STATES } from "../domain/analysis.ts";
 import { prefsPatchSchema, prefsSchema } from "../domain/prefs.ts";
 import { recapPrefsSchema } from "../domain/recapPrefs.ts";
+import { presentationPrefsSchema } from "../domain/postTurn/prefs.ts";
+import { documentTopicSchema } from "../domain/postTurn/message.ts";
 import { recapSchema } from "../domain/recap.ts";
 import { snoozePrefsPatchSchema, snoozePrefsSchema } from "../domain/snooze.ts";
 import {
@@ -597,6 +599,33 @@ export const rpcContract = defineRpcContract({
   setRecapPrefs: {
     input: z.object({ patch: recapPrefsSchema.partial() }),
     output: z.object({ prefs: recapPrefsSchema }),
+  },
+  presentationPrefs: {
+    input: z.null(),
+    output: z.object({ prefs: presentationPrefsSchema }),
+  },
+  setPresentationPrefs: {
+    input: z.object({ patch: presentationPrefsSchema.partial() }),
+    output: z.object({ prefs: presentationPrefsSchema }),
+  },
+  /**
+   * A thread's enhanced response documents, each keyed by the assistant
+   * message it follows. Empty while the experiment is off. Documents are
+   * validated by the server before they are returned; the app renders them
+   * as data.
+   */
+  presentations: {
+    input: z.object({ threadId: z.string().min(1).max(200) }),
+    output: z.object({
+      enabled: z.boolean(),
+      items: z.array(
+        z.object({
+          messageId: z.string(),
+          topic: documentTopicSchema.nullable(),
+          document: z.unknown(),
+        }),
+      ),
+    }),
   },
   workstreamMigrationPreview: {
     input: workstreamMigrationInput.nullable(),

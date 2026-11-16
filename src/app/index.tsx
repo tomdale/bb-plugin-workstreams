@@ -1,6 +1,6 @@
 // Workstreams frontend entry: the sidebar thread list, the Workstreams page,
 // thread header actions (parent link, snooze, archive), the recap and question
-// cards, the reply block, and the settings sections.
+// cards, the reply block, enhanced responses, and the settings sections.
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
 import { ServerStateRealtime } from "./serverState.ts";
 import { StickyGoalHeader } from "./StickyGoalHeader.tsx";
@@ -11,6 +11,7 @@ import { registerReplyBlock } from "./reply/register.ts";
 import { ClientReport } from "./reply/ClientReport.tsx";
 import { AssistantReplyDebug } from "./reply/ReplyDebug.tsx";
 import { SubagentDeliveries } from "./reply/SubagentDeliveries.tsx";
+import { PostTurnDocuments } from "./postTurn/PostTurnDocuments.tsx";
 import {
   QuestionAnchor,
   QuestionInteraction,
@@ -67,6 +68,10 @@ export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({
     id: "subagent-deliveries",
     component: SubagentDeliveries,
+  });
+  app.slots.experimental_appOverlay({
+    id: "post-turn-documents",
+    component: PostTurnDocuments,
   });
   app.slots.experimental_appOverlay({
     id: "assistant-reply-debug",

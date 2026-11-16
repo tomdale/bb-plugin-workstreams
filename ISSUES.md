@@ -22,6 +22,29 @@ The requested completion API is recorded in the BB SDK wishlist,
 `docs/bb-sdk-wishlist.md` in tomdale/bb-plugins. Do not infer total spend from
 the sum of reported costs when worker calls exist.
 
+### Enhanced responses have not run with a real model
+
+**Evidence:** `src/server/postTurn/`, `src/server/inference/presentation/`, and
+`src/app/postTurn/`; tests in `tests/server/postTurn/` and
+`tests/app/post-turn-documents.test.tsx`.
+
+The composition loop has run only against scripted models. No presentation model
+has composed a document, so image delivery through AI Gateway's Messages
+endpoint, the model's use of the screenshots, latency, cost, and whether the
+document preserves the response's meaning are all unmeasured. Structural
+validation and screenshots cannot establish meaning.
+
+The appended view finds its row by BB's internal assistant message id
+(`<thread>:assistant:kind:assistant|turn:…|parent:root|item:…`), which BB does
+not publish; if the format changes, documents stop appearing and the original
+responses are unaffected. BB has no slot below a message, so the view appends
+its own element to the timeline row. Previews always use the dark theme, and the
+document header shows the workstream captured when the document was composed. A
+recap reminder's one-line reply is composed like any other final response.
+
+**Workaround:** Keep the setting off outside trials. Check a thread's documents
+with `bb plugin rpc call workstreams presentations`.
+
 ### Snooze in BB's thread menus
 
 **Evidence:** `src/app/snooze/threadAction.ts` and the SDK's

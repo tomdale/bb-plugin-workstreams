@@ -869,6 +869,52 @@ every card and reminders ask for that call; disabling that setting removes the
 reporting requirement and automatic reminders. Outside Subagents deliveries,
 reply blocks without a renderer show as plain Markdown.
 
+### Enhanced responses (experiment)
+
+**Enhanced responses** is off by default (Settings → Workstreams → Recap). While
+it is on:
+
+- Agents in top-level threads write each final response as plain Markdown: the
+  answer first, qualifications beside the claims they limit, exact source names,
+  what was checked and where, and who acts next. They get no `:::reply`
+  contract, and the recap tool, recap card, waiting checks, and question cards
+  work as before. Child threads and side chats keep their usual contract.
+- When a turn in a visible top-level thread finishes, Workstreams reads the
+  thread's events to find that turn's final assistant message by its turn and
+  item ids, then composes an enhanced document for it on the analysis machine.
+  An interrupted or failed turn, a turn with no final text, a reply block, and a
+  response over 24,000 characters get nothing.
+- Workstreams draws the document below the original response, which stays as the
+  agent wrote it. BB's stored messages, the CLI, exports, notifications, forks,
+  and the agent's own context keep the original. **Copy** copies the document's
+  complete text form, folded check rows included.
+- Composition is a bounded loop with one tool, `preview_document`. The model
+  receives the response, the thread's title, and its workstream; each preview
+  validates the candidate and, when it is valid, returns screenshots at 720px
+  and 360px, layout diagnostics, which blocks are folded, and the text form. At
+  most 3 previews, 5 model calls, and 150 seconds per composition. The final
+  answer is `null` or exactly the last document that previewed successfully, and
+  the server validates it again before storing it.
+- Previews render the same component and stylesheet as the appended view, as
+  static markup in a private headless Chrome on the analysis machine. The page
+  has no script, a Content-Security-Policy that blocks every fetch, and no host
+  name resolution; the model's data can only become text.
+- One document is stored per assistant message, so a repeated turn end, a second
+  pane, a scroll, or a reload reads it without another model call. A document
+  composed after a newer turn started still appears under the response it was
+  composed for. Deleting a thread deletes its documents; turning the setting off
+  hides every document until it is turned on again.
+- When any step fails, Workstreams stores nothing and writes the reason to the
+  plugin log (`bb plugin logs workstreams`); the original response stays as it
+  was.
+
+The document format is typed JSON: paragraphs, lists, sections, checks with
+reported test totals, tables, notes, and callouts, with code spans inside text.
+The validator rejects unknown fields, HTML in text, and documents over 24,000
+characters or 40 blocks, naming the field at fault. The composing model must be
+an AI Gateway model (a Pi `vercel-ai-gateway/…` pick) that accepts tools and
+images, and the analysis machine needs Chrome (or `CHROME_PATH`).
+
 ### Structured question card (`AskUserQuestion`)
 
 When an agent needs a structured decision (and the active provider does not
@@ -1202,6 +1248,7 @@ Open **Settings → Workstreams** to configure:
 | **Recap**             | **End turns with a recap**                                                                                       | `On`                                           | Gives agents `WorkstreamsRecap` and displays the recap card above the composer.                                                                                                                                                                                                                                                                                    |
 | **Recap**             | **Reminders**                                                                                                    | `3` (`0–10`)                                   | Maximum turn-end reminders sent when an enrolled agent omits a recap (`0` disables reminders).                                                                                                                                                                                                                                                                     |
 | **Recap**             | **Structured replies**                                                                                           | `Off`                                          | Agents report each turn with the recap tool, then write the reply as one `:::reply` block that ends the turn. Shown only with the tomdale/bb fork.                                                                                                                                                                                                                 |
+| **Recap**             | **Enhanced responses**                                                                                           | `Off`, `anthropic/claude-sonnet-5.5`           | Experimental. After each turn in a top-level thread, the chosen AI Gateway model composes a document below the final response, and agents write plain Markdown instead of reply blocks. The model reasons at its provider's default; the picker's reasoning level is not sent. See [Enhanced responses](#enhanced-responses-experiment).                           |
 | **Recap**             | **Layout**                                                                                                       | `Full` (`Full` / `Compact`)                    | Card layout on desktop (`Compact` is always used on phones), with a live preview carousel.                                                                                                                                                                                                                                                                         |
 | **Recap**             | **Commit hash colors**                                                                                           | Theme default                                  | Custom `#rrggbb` colors for commit-hash digits and letters, with **Reset**.                                                                                                                                                                                                                                                                                        |
 | **Snooze**            | **Presets**                                                                                                      | `4` presets, **Tomorrow morning** default      | `1–6` presets every snooze menu lists before **Custom…**: add, edit, delete, drag to reorder, and choose the **Default** a click uses.                                                                                                                                                                                                                             |
@@ -1280,6 +1327,10 @@ bb workstreams suggestions decline <id...|all> [--json]
 
 # Show recorded model traces (kinds: start, turn-end, workstream-choice, categories, category-fit, split, tidy)
 bb workstreams trace [<trace-id>] [--thread <id>] [--entry <id>] [--kind <kind>] [--limit 1..500] [--json]
+
+# Compose an enhanced response for a thread's latest finished response, or validate and store a given document (Enhanced responses must be on)
+bb workstreams present <thread-id> [--turn <turn-id>] [--document <json>] [--json]
+# --document needs the BB server started with WORKSTREAMS_PRESENT_DOCUMENTS=1, for testing the drawn view
 
 # Inspect an assistant reply's raw output and diagnose :::reply / component syntax issues
 bb workstreams reply <thread-id|@thread:id[#msg=seq]|url> [--message <seq>] [--json]

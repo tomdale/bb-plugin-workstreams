@@ -1,0 +1,11 @@
+/*
+ * Styles for the enhanced-response preview host: the gallery's mirror of BB's
+ * theme tokens and the plugin's own styles, compiled with the same Tailwind
+ * sources as the app, so a preview screenshot uses the classes and tokens the
+ * appended document uses in BB.
+ */
+@import "../gallery/base.css";
+
+body {
+  background: var(--background);
+}

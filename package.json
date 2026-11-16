@@ -75,10 +75,12 @@
     "vitest": "^4.1.11"
   },
   "scripts": {
+    "prebuild": "npm run preview:styles",
     "build": "bb plugin build",
     "postbuild": "npm run gallery:build",
     "gallery": "vite --config gallery/vite.config.ts",
     "gallery:build": "GALLERY_PAGE=gallery vite build --config gallery/vite.config.ts && GALLERY_PAGE=sidebar vite build --config gallery/vite.config.ts",
+    "preview:styles": "vite build --config preview/vite.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:benchmark": "node scripts/benchmark-tests.mjs",

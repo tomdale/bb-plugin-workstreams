@@ -13,6 +13,7 @@ import {
   componentFence,
 } from "../../src/domain/replyExamples.ts";
 import { QUESTION_INSTRUCTIONS } from "../../src/server/questions/tool-definition.ts";
+import { RESPONSE_INSTRUCTIONS } from "../../src/domain/postTurn/instructions.ts";
 
 /**
  * bb's cap on each instruction contribution, in characters: it cuts longer
@@ -202,6 +203,47 @@ describe("configure", () => {
     expect(delivered(copy)).toEqual(delivered(fresh));
     expect(copy.tools.map((tool) => tool.name)).toEqual(
       fresh.tools.map((tool) => tool.name),
+    );
+  });
+
+  it("gives root threads the plain response contract in place of reply blocks while Enhanced responses is on", async () => {
+    const w = await setup();
+    await w.harness.behavior.callRpc("setRecapPrefs", {
+      patch: { replies: true },
+    });
+    await w.harness.behavior.callRpc("reportClient", { messageBlocks: true });
+    const before = await resolve(w, { id: "task" });
+    expect(before.instructions).toContain(":::reply");
+    await w.harness.behavior.callRpc("setPresentationPrefs", {
+      patch: { enabled: true },
+    });
+    const root = await resolve(w, { id: "task" });
+    expect(root.instructions).toContain(RESPONSE_INSTRUCTIONS);
+    expect(root.instructions).not.toContain("Write the reply as one");
+    expect(root.tools.map((tool) => tool.name)).toEqual([
+      "WorkstreamsRecap",
+      "AskUserQuestion",
+    ]);
+    // Recap and question guidance are unchanged.
+    expect(delivered(root)).toContain(RECAP_INSTRUCTIONS);
+    expect(delivered(root)).toContain(QUESTION_INSTRUCTIONS);
+    expect(root.instructions!.length).toBeLessThanOrEqual(
+      BB_INSTRUCTIONS_MAX_CHARS,
+    );
+    // Child threads and side chats keep the contract they had.
+    const kid = await resolve(w, { id: "kid", parentThreadId: "task" });
+    expect(kid.instructions).toEqual(before.instructions);
+    const side = await resolve(
+      w,
+      { id: "task" },
+      { origin: { kind: "fork", pluginId: "side-chat" } },
+    );
+    expect(side.instructions).not.toContain(RESPONSE_INSTRUCTIONS);
+    await w.harness.behavior.callRpc("setPresentationPrefs", {
+      patch: { enabled: false },
+    });
+    expect((await resolve(w, { id: "task" })).instructions).toEqual(
+      before.instructions,
     );
   });
 

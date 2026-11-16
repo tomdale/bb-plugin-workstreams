@@ -726,6 +726,16 @@ const MIGRATIONS = [
     "$.colors.automatic",
     "key = 'prefs'",
   ),
+  // One enhanced response document per assistant message (src/server/postTurn).
+  `CREATE TABLE ws_post_turn_document (
+    message_id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    topic TEXT,
+    document TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  "CREATE INDEX ws_post_turn_document_thread ON ws_post_turn_document (thread_id)",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

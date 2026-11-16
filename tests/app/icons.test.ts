@@ -58,6 +58,7 @@ const VERIFIED_BB_ICONS = new Set([
   "ChevronLeft",
   "ChevronRight",
   "Close",
+  "Copy",
   "Edit",
   "ExternalLink",
   "Loading",

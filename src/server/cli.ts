@@ -4,6 +4,7 @@
  */
 import type { Suggestions, SuggestionsState } from "./suggestions.ts";
 import type { AgentRecaps } from "./recap.ts";
+import type { PostTurnPresenter } from "./postTurn/presenter.ts";
 import {
   PluginCliError,
   cliCommand,
@@ -267,6 +268,7 @@ export function registerCli(
     repair,
     suggestions,
     workstreamMigration,
+    presenter,
   }: {
     /** The sidebar's stored order and focused workstreams. */
     arrangement: {
@@ -289,6 +291,8 @@ export function registerCli(
       threadId: string;
     }) => Promise<{ assignment: WorkstreamAssignment }>;
     suggestions?: Suggestions;
+    /** Enhanced responses; `present` composes or stores one on demand. */
+    presenter?: PostTurnPresenter;
     /** Renames the threads Workstreams titled in an earlier title form. */
   },
 ): void {
@@ -702,6 +706,81 @@ export function registerCli(
           options: { json: { type: "boolean", description: "Print JSON" } },
           async run({ positionals, options }) {
             return decideSuggestions(positionals.ids, "decline", options);
+          },
+        }),
+        present: cliCommand({
+          summary:
+            "Compose an enhanced response for a thread's latest finished response, or store a given document",
+          positionals: [
+            { name: "thread", description: "Thread id", required: true },
+          ],
+          options: {
+            document: {
+              type: "string",
+              description:
+                "A document as JSON to validate and store instead of composing one (needs WORKSTREAMS_PRESENT_DOCUMENTS=1 on the BB server)",
+            },
+            turn: {
+              type: "string",
+              description:
+                "The turn whose final response to use; default: the latest finished turn",
+            },
+            json: { type: "boolean", description: "Print JSON" },
+          },
+          async run({ positionals, options }) {
+            if (!presenter?.enabled())
+              throw new PluginCliError("Enhanced responses are off.", {
+                code: "presentation_off",
+                hint: "Turn on Enhanced responses in Workstreams' Recap settings.",
+              });
+            const thread = await bb.sdk.threads.get({
+              threadId: positionals.thread,
+            });
+            if (
+              thread.visibility !== "visible" ||
+              thread.parentThreadId ||
+              thread.archivedAt !== null
+            )
+              throw new PluginCliError(
+                "Enhanced responses apply only to open top-level threads.",
+                { code: "presentation_thread" },
+              );
+            let injected: unknown;
+            if (
+              options.document !== undefined &&
+              process.env.WORKSTREAMS_PRESENT_DOCUMENTS !== "1"
+            )
+              throw new PluginCliError(
+                "--document stores a document without composing it, so it is off unless the BB server runs with WORKSTREAMS_PRESENT_DOCUMENTS=1.",
+                { code: "presentation_document_off" },
+              );
+            if (options.document !== undefined)
+              try {
+                injected = JSON.parse(options.document);
+              } catch {
+                throw new PluginCliError("--document is not JSON.", {
+                  code: "invalid_document",
+                });
+              }
+            const { output } = await bb.sdk.threads.output({
+              threadId: positionals.thread,
+            });
+            const outcome = await presenter.present(
+              positionals.thread,
+              output,
+              {
+                ...(injected !== undefined ? { document: injected } : {}),
+                ...(options.turn ? { turnId: options.turn } : {}),
+              },
+            );
+            return {
+              exitCode: outcome.kind === "stored" ? 0 : 1,
+              stdout: options.json
+                ? json(outcome)
+                : outcome.kind === "stored"
+                  ? `Stored an enhanced response for ${outcome.messageId}.`
+                  : `Nothing stored: ${outcome.reason}`,
+            };
           },
         }),
         trace: cliCommand({

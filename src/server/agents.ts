@@ -5,14 +5,21 @@ import type { AgentRecaps } from "./recap.ts";
 import { questionConfig } from "./questions/tool.ts";
 import { registerReplyExamples } from "./replyExamples.ts";
 import { REPLY_EXAMPLES_TOOL } from "../domain/replyInstructions.ts";
+import { RESPONSE_INSTRUCTIONS } from "../domain/postTurn/instructions.ts";
 
 /**
  * Internal inference workers receive no tools or instructions. Side chats
  * receive question support; other threads also receive recap configuration.
+ * A root thread in the Enhanced responses experiment gets the plain response
+ * contract in place of the reply-block one, so its agent never writes a reply
+ * block that would be drawn beside the enhanced document.
  */
 export function registerAgentInstructions(
   bb: BbPluginApi,
   recaps: AgentRecaps,
+  presentation: {
+    appliesTo(thread: { parentThreadId: string | null }): boolean;
+  },
 ): void {
   registerReplyExamples(bb);
   bb.agents.configure((context) => {
@@ -21,6 +28,7 @@ export function registerAgentInstructions(
     const sideChat =
       context.origin.kind === "fork" && context.origin.pluginId === "side-chat";
     const mode = recaps.configure(context.thread.id, !sideChat);
+    const presenting = !sideChat && presentation.appliesTo(context.thread);
     const questions = questionConfig(
       context.provider.capabilities.supportsNativeUserQuestion,
     );
@@ -32,10 +40,13 @@ export function registerAgentInstructions(
       tools: [
         ...questions.tools,
         ...mode.tools,
-        ...(mode.structuredReplies ? [REPLY_EXAMPLES_TOOL] : []),
+        ...(mode.structuredReplies && !presenting ? [REPLY_EXAMPLES_TOOL] : []),
       ],
       skills: [],
-      instructions: [questions.instructions, mode.replyInstructions]
+      instructions: [
+        questions.instructions,
+        presenting ? RESPONSE_INSTRUCTIONS : mode.replyInstructions,
+      ]
         .filter((text): text is string => text !== null)
         .join("\n\n"),
     };

@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
 import type { ReplyPart, TestTotals } from "../../domain/replyComponents.ts";
 import { Evidence, type ReplyDocument } from "./Evidence.tsx";
-import { PANEL_ROW_CLASS, StatusMark, StatusWord } from "./Panel.tsx";
+import {
+  PANEL_ROW_CLASS,
+  STATUS_ROW_CLASS,
+  StatusMark,
+  StatusWord,
+} from "./Panel.tsx";
 import { CHECK_STATUS, reportsFailure, type CheckStatus } from "./status.ts";
 import { ROW_NAME_CLASS, SECONDARY_CLASS } from "./type.ts";
-
-/* The mark, the row's own content, and its status word at the edge, where one
-   scan down a single column finds every failure. */
-export const STATUS_ROW_CLASS =
-  "grid grid-cols-[14px_minmax(0,1fr)_auto] items-start gap-x-2.5 max-md:pointer-coarse:grid-cols-[1.125rem_minmax(0,1fr)_auto]";
 
 /** A row that reports something to act on takes its tone's tint. */
 const ROW_TINT: Partial<Record<CheckStatus, string>> = {

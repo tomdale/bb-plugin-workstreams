@@ -36,6 +36,11 @@ const FAILURE = {
   title: "text-(--ws-failed-text)",
 };
 
+/* The mark, the row's own content, and its status word at the edge, where one
+   scan down a single column finds every failure. */
+export const STATUS_ROW_CLASS =
+  "grid grid-cols-[14px_minmax(0,1fr)_auto] items-start gap-x-2.5 max-md:pointer-coarse:grid-cols-[1.125rem_minmax(0,1fr)_auto]";
+
 /** A row's padding inside a panel, on the design's 14px gutter. */
 export const PANEL_ROW_CLASS = "px-3.5 py-2";
 

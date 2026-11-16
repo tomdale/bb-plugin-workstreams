@@ -9,6 +9,8 @@ import {
 import { useRecapPrefs } from "./prefs.ts";
 import { RecapPreview } from "./RecapPreview.tsx";
 import { replyBlocksDrawn } from "../reply/register.ts";
+import { usePresentationPrefs } from "../postTurn/prefs.ts";
+import { ModelField } from "../settings/ModelField.tsx";
 import {
   SectionRows,
   SettingRow,
@@ -70,6 +72,44 @@ function HashColorInput({
         </button>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The Enhanced responses experiment: its switch beside the model that
+ * composes each document. Hidden until its stored value has loaded.
+ */
+function EnhancedResponsesRow({
+  onError,
+}: {
+  onError: (message: string | null) => void;
+}) {
+  const { prefs, save } = usePresentationPrefs();
+  if (!prefs) return null;
+  const change = (patch: Parameters<typeof save>[0]) => {
+    onError(null);
+    save(patch).catch((cause) =>
+      onError(
+        cause instanceof Error ? cause.message : "Couldn't save the change.",
+      ),
+    );
+  };
+  return (
+    <ModelField
+      label="Enhanced responses"
+      description={
+        prefs.enabled
+          ? "Experimental. After each turn in a top-level thread, this model rebuilds the final response as a document below it, and agents write plain Markdown instead of reply blocks. The model reasons at its default level. Applies to each thread's next session."
+          : "Experimental. Off: responses appear as the agent wrote them."
+      }
+      gatewayOnly="Choose a Pi AI Gateway model; this one can't compose documents."
+      choice={prefs.model}
+      onChange={(model) => change({ model })}
+      enabled={{
+        checked: prefs.enabled,
+        onChange: (enabled) => change({ enabled }),
+      }}
+    />
   );
 }
 
@@ -140,6 +180,7 @@ export function RecapSettings() {
           }
         />
       ) : null}
+      <EnhancedResponsesRow onError={setError} />
       <div className="space-y-3">
         <p id="ws-recap-layout" className="text-sm font-medium text-foreground">
           Layout

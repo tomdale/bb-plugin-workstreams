@@ -75,6 +75,13 @@ import { gatewayModel, type ModelChoice } from "../domain/prefs.ts";
 import { runWorker as completeWithWorker } from "./inference/worker.ts";
 import { registerQueueLab } from "./queueLab.ts";
 import { registerStreamDeck, type StreamDeck } from "./streamDeck.ts";
+import { PresentationStore } from "./postTurn/store.ts";
+import { PostTurnPresenter, type Compose } from "./postTurn/presenter.ts";
+import {
+  loadPresentationPrefs,
+  savePresentationPrefs,
+} from "./postTurn/prefs.ts";
+import { PRESENTATION_HOST_TIMEOUT_MS } from "../domain/postTurn/limits.ts";
 
 export { rpcContract } from "./contract.ts";
 
@@ -517,7 +524,65 @@ export default async function plugin(bb: BbPluginApi) {
   });
   const questions = new QuestionStore(db, bb);
   registerQuestionTool(bb, questions);
-  registerAgentInstructions(bb, recaps);
+  const presentations = new PresentationStore(db);
+  /** Runs the bounded presentation loop on the analysis machine. */
+  const composePresentation: Compose = async ({
+    response,
+    title,
+    topic,
+    prefs,
+    signal,
+  }) => {
+    const model = gatewayModel(prefs.model);
+    if (model === null)
+      return {
+        kind: "failed",
+        reason: "Enhanced responses need an AI Gateway model.",
+      };
+    const result = await hostRpc.call(
+      "present",
+      { model, response, title, topic, theme: "dark" },
+      {
+        hostId: await analysisHost(),
+        timeoutMs: PRESENTATION_HOST_TIMEOUT_MS,
+        signal,
+      },
+    );
+    bb.log.info(
+      `Enhanced response composition: ${result.kind}, ${result.previews} previews, ${result.modelCalls} model calls, $${result.usage.cost.toFixed(4)}`,
+    );
+    return result.kind === "document"
+      ? { kind: "document", document: result.document }
+      : { kind: result.kind, reason: result.reason ?? "No reason given." };
+  };
+  const presenter = new PostTurnPresenter({
+    sdk: () => bb.sdk,
+    store: presentations,
+    prefs: () => loadPresentationPrefs(db),
+    compose: composePresentation,
+    title: (threadId) => {
+      const thread = service.threads().find((t) => t.id === threadId);
+      return thread ? displayTitle(thread) : "";
+    },
+    topic: (threadId) => {
+      const { workstreamId } = workstreamStore.assignment(threadId);
+      if (!workstreamId) return null;
+      const workstreams = workstreamStore.list();
+      if (!workstreams.some((w) => w.id === workstreamId)) return null;
+      const colors = workstreamColors.snapshot(
+        workstreams,
+        Object.fromEntries(workstreamStore.groups()),
+      );
+      return {
+        name: workstreamPath(workstreamId, workstreams),
+        color: colors[workstreamId] ?? null,
+      };
+    },
+    changed: (threadId) => bb.realtime.publish("presentations", { threadId }),
+    log: bb.log,
+  });
+  bb.onDispose(() => presenter.dispose());
+  registerAgentInstructions(bb, recaps, presenter);
   const categories: Categories = new Categories({
     db,
     collections: () => {
@@ -1043,6 +1108,7 @@ export default async function plugin(bb: BbPluginApi) {
     service.forget(thread.id);
     workstreamStore.forget(thread.id);
     projectAssociations.forget(thread.id);
+    presenter.forget(thread.id);
   });
   bb.events.on("thread.failed", ({ thread }) => {
     waker?.onFailed(thread.id);
@@ -1063,6 +1129,7 @@ export default async function plugin(bb: BbPluginApi) {
     if (awaitingEvents()) reconcileSoon();
     if (thread.visibility === "hidden") return;
     analyzer.onIdle(thread, lastAssistantText);
+    presenter.onIdle(thread, lastAssistantText);
     if (organizedThread(thread)) triggerOrganizer(200);
     return recaps.onIdle(thread.id);
   });
@@ -1538,6 +1605,26 @@ export default async function plugin(bb: BbPluginApi) {
         .filter((host) => host.status === "connected")
         .map(({ id, name }) => ({ id, name })),
     }),
+    presentationPrefs: async () => ({ prefs: loadPresentationPrefs(db) }),
+    setPresentationPrefs: async ({ patch }) => {
+      const prefs = savePresentationPrefs(db, patch);
+      bb.realtime.publish("presentationPrefs", { prefs });
+      return { prefs };
+    },
+    presentations: async ({ threadId }) => {
+      if (!loadPresentationPrefs(db).enabled)
+        return { enabled: false, items: [] };
+      return {
+        enabled: true,
+        items: presentations
+          .list(threadId)
+          .map(({ messageId, topic, document }) => ({
+            messageId,
+            topic,
+            document,
+          })),
+      };
+    },
     recapPrefs: async () => ({ prefs: loadRecapPrefs(db) }),
     setRecapPrefs: async ({ patch }) => {
       const prefs = saveRecapPrefs(db, patch);
@@ -1734,5 +1821,6 @@ export default async function plugin(bb: BbPluginApi) {
     notify,
     chooseAutomatically,
     suggestions,
+    presenter,
   });
 }

@@ -153,3 +153,42 @@ it("previews the recap card in each state and the chosen layout", async () => {
   expect(visible()[0]).toMatch(/Waiting.*theme toggle.*2:00/);
   expect(visible()[0]).not.toContain("Adding dark mode");
 });
+
+it("turns Enhanced responses on once its stored setting has loaded", async () => {
+  const { RecapSettings } =
+    await import("../../src/app/recap/RecapSettings.tsx");
+  const presentation = {
+    enabled: false,
+    model: {
+      kind: "gateway",
+      model: "anthropic/claude-sonnet-5.5",
+      reasoningLevel: "medium",
+    },
+  };
+  const slot = renderSlot(
+    { component: RecapSettings },
+    {},
+    {
+      rpc: {
+        recapPrefs: () => ({ prefs: PREFS }),
+        presentationPrefs: () => ({ prefs: presentation }),
+        setPresentationPrefs: (input: unknown) => ({
+          prefs: { ...presentation, ...(input as { patch: object }).patch },
+        }),
+      } as never,
+    },
+  );
+  expect(
+    await slot.findByText(
+      "Experimental. Off: responses appear as the agent wrote them.",
+    ),
+  ).toBeTruthy();
+  fireEvent.click(slot.getByRole("switch", { name: "Enhanced responses" }));
+  await waitFor(() =>
+    expect(
+      slot.inspection.rpcCalls.find((c) => c.method === "setPresentationPrefs")
+        ?.input,
+    ).toEqual({ patch: { enabled: true } }),
+  );
+  expect(await slot.findByText(/agents write plain Markdown/)).toBeTruthy();
+});
