@@ -110,6 +110,15 @@ function detach(mount: Mount | null): void {
  * until BB saves its reading position and replaces the column.
  */
 export function useMessageScroller(threadId: string | null): Mount | null {
+  const attached = useAttachedScroller(threadId);
+  return attached?.threadId === threadId ? attached : null;
+}
+
+/**
+ * The message column the heading is attached to, which during a thread switch
+ * still belongs to the outgoing thread until BB replaces the column.
+ */
+function useAttachedScroller(threadId: string | null): Mount | null {
   const [mount, setMount] = useState<Mount | null>(null);
   const activeThread = useRef(threadId);
   const refresh = useRef<(() => void) | null>(null);
@@ -246,7 +255,57 @@ export function useMessageScroller(threadId: string | null): Mount | null {
     };
   }, []);
 
-  return mount?.threadId === threadId ? mount : null;
+  return mount;
+}
+
+/**
+ * How long an attached column may stay empty before the heading is drawn
+ * anyway, so a thread whose transcript never fills still shows its title.
+ */
+const EMPTY_COLUMN_MS = 1500;
+
+function hasText(element: HTMLElement): boolean {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.nodeValue?.trim()) return true;
+  }
+  return false;
+}
+
+/**
+ * BB mounts a thread's message column before its transcript, and that empty
+ * column has no scroll range yet. Measured then, a long thread would read as
+ * one too short to scroll and draw its minimized heading until the transcript
+ * arrives, so the heading waits for the column's first text.
+ */
+function useColumnFilled(mount: Mount | null): boolean {
+  const [filled, setFilled] = useState<Mount | null>(null);
+  useLayoutEffect(() => {
+    if (!mount) return;
+    if (hasText(mount.column)) {
+      setFilled(mount);
+      return;
+    }
+    const fill = () => {
+      observer.disconnect();
+      clearTimeout(timer);
+      setFilled(mount);
+    };
+    const observer = new MutationObserver(() => {
+      if (hasText(mount.column)) fill();
+    });
+    observer.observe(mount.column, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    const timer = setTimeout(fill, EMPTY_COLUMN_MS);
+    return () => {
+      observer.disconnect();
+      clearTimeout(timer);
+    };
+  }, [mount]);
+  return mount !== null && filled === mount;
 }
 
 type ScrollMeasurement = {
@@ -266,6 +325,7 @@ function scrollKey(
 ): string {
   const limit = range === null ? scrollLimit : Math.min(scrollLimit, range);
   const shown = Math.min(fromBottom, limit);
+  if (range === null) return "unmeasured";
   return step === null
     ? `${shown}:${limit}:${fade}`
     : `${shown >= step}:${fade}`;
@@ -289,6 +349,8 @@ function useScrollState(
   // so the fade beneath the heading is on exactly when the timeline is
   // detached from its top.
   fade: boolean;
+  /** The scroller has been read since it was last replaced. */
+  measured: boolean;
 } {
   // The raw position lets a preference change apply its new limit in the same
   // render. Only changes visible under the current limit and step commit a
@@ -356,6 +418,7 @@ function useScrollState(
     fromBottom: Math.min(shown.fromBottom, limit),
     limit,
     fade: shown.fade,
+    measured: range !== null,
   };
 }
 
@@ -589,7 +652,9 @@ export function StickyGoalHeader(): React.ReactElement | null {
   // Floating keeps the large heading over the thread instead of minimizing it.
   const floating = (prefs?.threads.headingScroll ?? "minimize") === "float";
   const centered = (prefs?.threads.headingAlign ?? "left") === "center";
-  const mount = useMessageScroller(threadId);
+  const attached = useAttachedScroller(threadId);
+  const mount = attached?.threadId === threadId ? attached : null;
+  const filled = useColumnFilled(mount);
   const settled = useSettled(mount);
   const base = mount?.baseFontSize ?? 14;
   const placement = usePlacement(mount, base, centered);
@@ -655,8 +720,8 @@ export function StickyGoalHeader(): React.ReactElement | null {
       : pinned
         ? exitDistance
         : null;
-  const { fromBottom, limit, fade } = useScrollState(
-    mount?.scroller ?? null,
+  const { fromBottom, limit, fade, measured } = useScrollState(
+    filled ? mount!.scroller : null,
     headingScrollLimit(exitDistance, pinned || fadeOnly ? "fade" : "scroll"),
     step,
   );
@@ -757,19 +822,21 @@ export function StickyGoalHeader(): React.ReactElement | null {
       mount.scroller.style.scrollPaddingTop = `${scrollPadding}px`;
   }, [mount, collapsed, height, scrollPadding]);
 
-  // The heading replaces BB's own thread title in the title bar, but only
-  // while it is actually drawn, so the title never shows twice.
-  const showing = !!(mount && context && placement);
+  // The heading replaces BB's own thread title in the title bar. The title
+  // stays hidden while the heading waits for the incoming thread's column and
+  // transcript, so a switch draws the destination's title once, in its final
+  // treatment, instead of BB's title and then the heading.
+  const replacesTitle = !!(attached && context);
   useLayoutEffect(() => {
-    if (!mount || !showing) return;
-    const header = mount.scroller
+    if (!attached || !replacesTitle) return;
+    const header = attached.scroller
       .closest("[data-split-pane-id]")
       ?.querySelector<HTMLElement>(":scope > header");
     header?.setAttribute("data-ws-hide-title", "");
     return () => header?.removeAttribute("data-ws-hide-title");
-  }, [mount, showing]);
+  }, [attached, replacesTitle]);
 
-  if (!mount || !context || !placement) return null;
+  if (!mount || !context || !placement || !measured) return null;
 
   const inBar = placement.bar !== null;
   const eyebrowBlock = eyebrow?.expandedBlock ?? 0;

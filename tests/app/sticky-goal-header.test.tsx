@@ -62,7 +62,7 @@ function paneFixture({ recap }: { recap: boolean }) {
           <div class="thread-scrollbar" data-test="messages">
             <div>
               <div data-test="sentinel" aria-hidden="true" class="invisible w-px"></div>
-              <div data-test="column" data-scroll-attached></div>
+              <div data-test="column" data-scroll-attached><div>First message</div></div>
             </div>
           </div>
           <div data-app-composer>
