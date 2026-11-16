@@ -1,8 +1,8 @@
 # Drawing reply parts instead of flattening them to paragraphs
 
-A proposal, decided. Part of it is already in the product and part of it is not.
-The prototype is [`reply-block-prototype.html`](./reply-block-prototype.html),
-the screenshots are in [`reply-block-shots/`](./reply-block-shots/) (eight key
+A proposal, decided and largely built; the first section lists what shipped. The
+prototype is [`reply-block-prototype.html`](./reply-block-prototype.html), the
+screenshots are in [`reply-block-shots/`](./reply-block-shots/) (eight key
 captures, both regenerable from the prototype), and an outside review that
 shaped this version is in [`reply-block-review.md`](./reply-block-review.md).
 
@@ -12,37 +12,51 @@ tone, the tighter gaps; (2) the panels, behind the same block; (3) old replies
 drawn plainly, with `next` restored; (4) the one new status value, before
 statuses are drawn loudly enough to punish an agent for using the wrong one.
 
-Main already carries more of this than the list implies: the per-part bodies,
-the card's label and mark primitives, `details` unboxed and open, and the group
-relationships. What follows is the part it has not taken.
-
 ## Read this first: the code has moved
 
-This document describes the reply renderer as it stood on 1 November 2026. Main
-has changed under it since: most of what that section describes no longer
-exists, and the product has settled the decisions differently:
+The sections after this one describe the reply renderer as it stood on 1
+November 2026, and "today" in them means that renderer. `src/app/reply/` is the
+authority on current behavior. As built:
 
 - **`4dc40ca feat(replies): retire finding component` deleted the `finding`
   component**, and with it `certainty`, `consequence` and its evidence list. The
   schema has no such type, and the renderer draws none.
-- **The renderer now has a body per part** (`AdviceBody`, `ContextBody`,
-  `DetailsBody`, `GroupBody`, `SequenceBody`), and those bodies take the recap
-  card's primitives from `src/app/recap/marks.tsx`: the label gutter, the mark
-  column, accent labels. A `change` draws as labelled rows with rules; a
-  `checks` row carries a mark and its status word rather than a "Status:" line;
-  a `group` puts peers in equal columns and indents supporting children under a
-  rule, which is further than this proposal asked for.
+- **The sizing fix shipped.** `ReplyBlock` sets the 13/21 body size on its
+  container (`BODY_CLASS`), and `src/app/reply/type.ts` holds Appendix B's type
+  scale. Parts sit 16px apart.
+- **Each part has its own body** (`ActionsBody`, `AdviceBody`, `ChangeBody`,
+  `ChecksBody`, `ContextBody`, `DeliveryBody`, `DetailsBody`, `GroupBody`,
+  `SequenceBody`, `TableBody`), and `PlainBody` picks one per part; there is no
+  separate `RichBody`. The bodies take the recap card's primitives from
+  `src/app/recap/marks.tsx`: the label gutter, the mark column, accent labels.
+- **The panels shipped.** `src/app/reply/Panel.tsx` draws the subagent
+  delivery's recessed frame around checks, delivery, sequence, comparison,
+  change, table, references, review, actions, and a supporting group. A panel
+  holding a failed or blocked row takes the failure tone on its border, header
+  strip and title (decision 2). Context, a recommendation and `details` draw a
+  label and no frame. `src/app/reply/status.ts` holds Appendix C's vocabulary,
+  and delivery accepts `not-started`.
 - **`details` draws unboxed and always open**, on the ground that "essential
   caveats can land here too". That overturns decision 3, and its reasoning is
   better than mine was.
-- **The panels shipped afterwards.** A part whose data is a list of parallel
-  rows draws in the subagent delivery's recessed frame, with the failure tone on
-  its border, header and title; a part with one subject draws a label and no
-  frame. `src/app/reply/Panel.tsx` holds the frame and `src/app/reply/status.ts`
-  the vocabulary, and delivery accepts `not-started`.
-
-A re-baseline means dropping the finding section and restating what the renderer
-does now. Until then the tenses are the 1 November renderer's.
+- **Old replies draw plainly** (`LegacyCard.tsx`): a muted state line, then
+  Done, Not done, Review, Waiting on, Links and Next as labelled rows with no
+  box, tint or buttons (decision 4).
+- **Some parts settled differently from "What changes" below.** Comparison
+  options sit in columns when every option fits at about 13rem and stack
+  otherwise. A change's labels take the reply accent and have no signs. A
+  recommendation is a semibold choice followed by Reason and Qualification rows,
+  with no tinted callout. An attention step shows an "Attention" label beside
+  its title. The delivery rail is one thin line whatever the stage's state.
+  Evidence draws as a bulleted list of file, web and thread links. Group peers
+  share a row in equal columns, and a supporting group indents its other
+  children under a rule. The reply accent in all of these is the thread's
+  workstream color, muted when the thread has no workstream.
+- **Three items are still open.** Nobody has built the no-outer-border variant,
+  so a reply inside a subagent delivery draws its panels inside the delivery's
+  frame. The headline is an `h1` and part titles are `h3`. A component that
+  fails to validate shows its error, such as "Component not displayed (line 2,
+  col 5): …", above its source.
 
 ## The four decisions, taken
 
@@ -275,8 +289,8 @@ own colour lint passes by construction.
 | Body and secondary text    | `--foreground`, `--muted-foreground`; qualifications at 80% |
 | Success                    | `--ws-complete-text`, `-surface`, `-border`                 |
 | Failure                    | `--ws-failed-text`, `-surface`, `-border`                   |
-| Needs a person             | `--ws-needs-input-text`, `-surface`, `-border`              |
-| Waiting on someone         | `--ws-waiting-text`, `-border`                              |
+| Needs input or blocked     | `--ws-needs-input-text`, `-surface`, `-border`              |
+| Waiting on a task          | `--ws-waiting-text`, `-border`                              |
 | A decision                 | `--ws-review`, `-text`, `-surface`, `-border`               |
 
 Sizes, all already in use by the recap card or the message surface:
@@ -302,18 +316,18 @@ same box). Below a 26rem container the labels stack above their values.
 Shape and word carry the meaning; colour only reinforces it. Every status prints
 its word, and no two states share a word with different meanings.
 
-| Value                 | Where    | Mark           | Word        | Tone           |
-| --------------------- | -------- | -------------- | ----------- | -------------- |
-| `passed`              | checks   | tick           | Passed      | success        |
-| `failed`              | checks   | cross          | Failed      | failure        |
-| `skipped`             | checks   | dash           | Skipped     | muted          |
-| `blocked`             | checks   | circled slash  | Blocked     | needs a person |
-| `untested`            | checks   | dashed ring    | Untested    | muted          |
-| `done`                | delivery | tick in a ring | Done        | success        |
-| `pending`             | delivery | ring           | Pending     | waiting        |
-| `blocked`             | delivery | circled slash  | Blocked     | needs a person |
-| `not-started` **new** | delivery | dashed ring    | Not started | muted          |
-| `unknown`             | delivery | dashed ring    | Unknown     | muted          |
+| Value                 | Where    | Mark           | Word        | Tone        |
+| --------------------- | -------- | -------------- | ----------- | ----------- |
+| `passed`              | checks   | tick           | Passed      | success     |
+| `failed`              | checks   | cross          | Failed      | failure     |
+| `skipped`             | checks   | dash           | Skipped     | muted       |
+| `blocked`             | checks   | circled slash  | Blocked     | needs input |
+| `untested`            | checks   | dashed ring    | Untested    | muted       |
+| `done`                | delivery | tick in a ring | Done        | success     |
+| `pending`             | delivery | ring           | Pending     | waiting     |
+| `blocked`             | delivery | circled slash  | Blocked     | needs input |
+| `not-started` **new** | delivery | dashed ring    | Not started | muted       |
+| `unknown`             | delivery | dashed ring    | Unknown     | muted       |
 
 The design mutes `unknown` wherever it appears. The same word in two colours in
 one reply reads as two different states.

@@ -40,6 +40,6 @@ read (first load and reconnect) and for the `stateSlices`, `recap_get`, and
 `question_at` reads one action or server event causes, alongside the `changed`
 signals it publishes and their scope: slice, thread, or whole snapshot.
 
-Costs grow with history, so state roots, topics, and row counts of the tables
-the pass reads. Delete the snapshots when done; they copy real thread, topic,
-and recap data and run to gigabytes.
+Costs grow with history, so state threads, workstreams, and row counts of the
+tables the pass reads. Delete the snapshots when done; they copy real thread,
+workstream, and recap data and run to gigabytes.

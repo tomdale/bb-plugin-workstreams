@@ -1,6 +1,7 @@
 {
   "name": "bb-plugin-workstreams",
   "version": "2.0.0",
+  "description": "Organizes BB threads into workstreams and keeps each one's title, goal, and status current.",
   "type": "module",
   "engines": {
     "bb": ">=0.44",
@@ -8,7 +9,7 @@
   },
   "bb": {
     "name": "Workstreams",
-    "description": "Organize open BB threads in one reviewed pass, then route new work into stable homes.",
+    "description": "Organizes BB threads into workstreams and keeps each one's title, goal, and status current.",
     "branding": {
       "icon": "./assets/workstream.svg",
       "experimental_icons": {

@@ -7,18 +7,18 @@ semantic cues appear.
 
 This guide records the design contract for new and revised UI.
 `src/app/theme/tokens.css`, the vendored BB components, and current component
-code remain the source for exact values and behavior. The reply-component
-section defines the intended presentation language for the reply vocabulary; it
-does not describe the current plain-Markdown renderer as if it already followed
-that language.
+code are the source for exact values and behavior. The reply-component section
+describes how `src/app/reply/` draws each component of a structured reply, which
+BB shows only with the tomdale/bb fork and the **Structured replies** setting
+on.
 
 ## Three layers
 
 1. **BB foundation:** inherit BB's theme, typeface, theme variables, Markdown
    renderer, interaction conventions, and registry controls.
-2. **Workstreams semantics:** use Workstreams tokens for work state and topic
-   identity, with compact layouts that fit BB's sidebar, timeline, composer, and
-   plugin page.
+2. **Workstreams semantics:** use Workstreams tokens for work state and
+   workstream identity, with compact layouts that fit BB's sidebar, timeline,
+   composer, and plugin page.
 3. **Component composition:** choose a layout that makes each field's
    relationship clear without wrapping every piece of text in a card.
 
@@ -64,27 +64,32 @@ width matters more than the window width.
 
 ### Keep identity and state separate
 
-A topic color identifies _which workstream_ a thread belongs to. A semantic
+A workstream color identifies _which workstream_ a thread belongs to. A semantic
 status color says _what is happening_ or _what needs attention_. A workstream
-hue must not stand in for a completion, review, waiting, failure, or
-user-attention state.
+hue must not stand in for a completion, review, waiting, failure, or needs-input
+state.
 
-Topic colors come from the catalog's allocated hues
-(`src/domain/workstreamColor.ts`). The sidebar, Home, queue, and thread header
-use the same topic identity. Keep category labels subordinate to the workstream
-identity; categories do not get their own hue or become another workstream.
+Each workstream keeps the hue and lightness step that
+`src/domain/workstreamColor.ts` allocates for it. The sidebar, Home, queue, and
+thread header use the same workstream color. Keep category labels subordinate to
+the workstream identity; categories do not get their own hue or become another
+workstream.
 
 State colors use the six configurable tokens in `src/domain/colors.ts` and
 `src/app/theme/tokens.css`:
 
-| Token        | Meaning                                       | Typical use                           |
-| ------------ | --------------------------------------------- | ------------------------------------- |
-| `complete`   | Work reported complete                        | Completion marks and recap state      |
-| `review`     | Work ready for review                         | Review marks and recap state          |
-| `waiting`    | Work is still in progress or waiting          | Working indicators and waiting recaps |
-| `needsYou`   | The person has a decision or response to make | Up Next and question cards            |
-| `failure`    | A failed or invalid operation                 | Errors and failure marks              |
-| `suggestion` | A model-suggested value                       | Suggested topic identity and previews |
+| Token        | Setting label | Meaning                                       | Typical use                                                                 |
+| ------------ | ------------- | --------------------------------------------- | --------------------------------------------------------------------------- |
+| `complete`   | Complete      | Work reported complete                        | Complete dots, complete recaps, passed checks, done stages                  |
+| `review`     | Review        | Work ready for review                         | Ready for review dots and review recaps                                     |
+| `waiting`    | Waiting       | The agent waits on an external task           | Waiting recaps, running subagents, pending stages                           |
+| `needsInput` | Needs input   | The person has a decision or response to make | Needs input dots, Blocked marks and recaps, Up Next, question cards, counts |
+| `failed`     | Failed        | A failed or invalid operation                 | Failed marks, errors, failing reply panels                                  |
+| `automatic`  | Automatic     | Something Workstreams did or proposed         | The organizing suggestions count and their Undo control                     |
+
+Each token's CSS variable is `--ws-` plus its kebab-case name
+(`--ws-needs-input`). Blocked has no token of its own: it uses the `needsInput`
+color with its own mark and label.
 
 Each token has mode-aware steps for solid marks, readable text, strong fills,
 text on fills, quiet marks, bands, borders, surfaces, footers, and rules. Use
@@ -132,8 +137,8 @@ and internal rules; its explanation stays neutral. The card is centered and
 constrained to the available thread width. Its compact layout steps its type and
 spacing down together.
 
-A question card uses the `needsYou` token to identify a choice that requires the
-person's input. The question is the largest text in the card; option labels,
+A question card uses the `needsInput` token to identify a choice that requires
+the person's input. The question is the largest text in the card; option labels,
 details, and descriptions step down in that order. Options expose radio or
 checkbox roles, keyboard navigation, a clear selected state, and visible
 keyboard focus. Phone controls and text meet the coarse-pointer and iOS
@@ -141,40 +146,66 @@ input-size constraints in `question/question-presentation.tsx`.
 
 ### Navigation and work identity
 
-Sidebar rows keep BB's thread title and native status primary. Workstreams adds
-topic identity, category context, work-state marks, and actions without
-displacing native working, unread, waiting, or error indicators. Hover actions
-take no resting layout space and appear on row hover, keyboard focus, or while a
-menu is open. The thread's topic hue appears as an identity cue, not a row fill.
+Sidebar rows keep BB's thread title primary. Each row draws at most one status
+mark in its leading slot (`src/app/sidebar/StatusMark.tsx`), for the status
+`threadStatus` resolves in `src/domain/presentation.ts`:
+
+| Status           | Mark                                                          |
+| ---------------- | ------------------------------------------------------------- |
+| Working          | The spinner chosen under **Working indicator**                |
+| Failed           | An exclamation circle in the `failed` color                   |
+| Needs input      | A dot in the `needsInput` color                               |
+| Blocked          | A struck-through circle (no-symbol) in the `needsInput` color |
+| Ready for review | A dot in the `review` color                                   |
+| Waiting          | The spinner in grey                                           |
+| Complete         | A dot in the `complete` color, shown only while unread        |
+
+A dot is solid while the thread is unread and a ring once read. Workstreams also
+adds the workstream color, category context, and actions. Hover actions take no
+resting layout space and appear on row hover, keyboard focus, or while a menu is
+open. The thread's workstream hue marks identity and never fills the row.
 
 ### Plugin pages and settings
 
-The queue is the primary Workstreams page. Activity, Topics, and Gallery are
-secondary views with a clear Back affordance, a constrained reading width, and
-compact typography. Settings use BB registry controls and group related rows in
-neutral bordered surfaces. A preview shows the result of a choice in context.
-Keep its controls in the same vocabulary as the rest of BB.
+The queue is the primary Workstreams page. Activity, Organize, and Overview are
+secondary views, and with the debug UI on the ⋯ menu adds Model traces and
+Gallery. Each secondary view has a clear Back affordance, a constrained reading
+width, and compact typography. Settings use BB registry controls and group
+related rows in neutral bordered surfaces. A preview shows the result of a
+choice in context. Keep its controls in the same vocabulary as the rest of BB.
 
 ## Reply component vocabulary
 
 Reply components express different kinds of information. Their presentation
-should make those differences visible while keeping the reply part of BB's
-message timeline. The reply body is not a stack of generic cards. Use shared
-Markdown and text behavior, then add structure where the component's data calls
-for it.
+makes those differences visible while keeping the reply part of BB's message
+timeline. `PlainBody` draws each component with its own body and shared Markdown
+and text behavior, and adds structure where the component's data calls for it.
 
-- **Context:** A compact orientation line: the topic as a small medium-weight
+A component whose data is a list of parallel rows draws in the shared reply
+panel (`src/app/reply/Panel.tsx`): checks, delivery, sequence, comparison,
+change, table, references, review, actions, and a supporting group. The panel is
+the recessed, bordered frame subagent deliveries use, with a header for the
+title, scope, and any totals. When a panel holds a failed or blocked row, its
+border, header strip, and title take the `failed` tone; other panels stay
+neutral. A component with one subject (context, recommendation, details) draws
+its label and no frame, and prose is never framed. Inside a supporting group,
+children draw their rows flush, with no panel of their own.
+
+The reply accent is the thread's workstream color (`ws-reply-accent`), muted
+when the thread has no workstream. It marks reply labels as part of the thread's
+workstream, never as a work state.
+
+- **Context:** A compact orientation line: the `topic` field as a small semibold
   label in the reply accent, the way the sticky goal header shows its workstream
   above the goal, with the reported location muted beneath it. Any background
   follows as ordinary prose.
 - **Text:** Ordinary Markdown prose, unboxed. Preserve the author's paragraphs,
   lists, and inline formatting.
-- **Sequence:** Recap card steps in order: each step number sits in the mark
-  column as a small muted tabular figure, sized and placed like a stroked mark,
-  with a thin rail joining the numbers so the steps read as one path. The step
-  title comes first, with any detail muted beneath it. An attention step shows
-  the word Attention beside its title in the reply accent, the thread's
-  workstream identity color (muted when unfiled), never a state color.
+- **Sequence:** Recap card steps in order, in the panel: each step number sits
+  in the mark column as a small muted tabular figure, sized and placed like a
+  stroked mark, with a thin rail joining the numbers in order. The step title
+  comes first, with any detail muted beneath it. An attention step shows the
+  word Attention beside its title in the reply accent, never a state color.
 - **Comparison:** Each option reads in one order: its name, the summary, any
   qualification, then any detail, muted and smaller. Options sit in columns only
   when all of them fit in one row at about 13rem each (two, three, or four
@@ -184,24 +215,25 @@ for it.
   recommended option's rule is heavier and in the reply accent, and a small
   accent "Recommended" label sits beside its name, so the recommendation never
   rests on color alone.
-- **Change:** Recap card rows: Before, After, Unchanged, and Limitation each
-  take a small label in the card's label gutter beside the value, stacked above
-  it when narrow. The gutter is at least the card's 3.25rem and widens to fit
-  the longest label so every value starts at the same edge. Labels take the
-  reply block's accent, the thread's workstream identity color, so a reply reads
-  as part of its workstream rather than as a work state; an unfiled thread's
-  labels stay muted.
-- **Checks:** Scope, then the actual totals on one compact line, then the checks
-  as recap card results: a stroked status mark before each name, with any detail
-  muted beneath it. Each status has its own mark shape; every status but passed
-  also shows its label beside the name, so skipped, failed, blocked, and
-  untested stay explicit.
-- **Delivery:** Scope muted under the title, then the stages in order as recap
-  card results: a stroked status mark before each name, with any detail and
-  evidence beneath it, and a thin rail joining the marks so the order reads as
-  one path. Done is a check, pending a clock, blocked a struck circle, and
-  unknown a question mark; every status but done also shows its label beside the
-  name. Do not imply that a reported stage was independently verified.
+- **Change:** Recap card rows in the panel: Before, After, Unchanged, and
+  Limitation each take a small label in the card's label gutter beside the
+  value, stacked above it when narrow. The gutter is at least the card's 3.25rem
+  and widens to fit the longest label so every value starts at the same edge.
+  Labels take the reply accent.
+- **Checks:** The panel header shows the title, the scope, and the reported
+  totals at its right edge; a zero total is muted. Each check is a row with a
+  stroked status mark, the name, any detail muted beneath it, any evidence, and
+  the status word at the right edge, so one scan down that column finds every
+  failure. Passed is a check, failed a cross, skipped a dash, blocked a struck
+  circle, and untested a dashed ring. A failed row takes the `failed` surface
+  tint, a blocked row the `needsInput` tint, and both set the name in medium
+  weight.
+- **Delivery:** The stages in order in the panel, each with a stroked status
+  mark, the name, any detail and evidence beneath it, and the status word at the
+  right edge, with a thin rail joining the marks in order. Done is a check,
+  pending a ring, blocked a struck circle, and not started and unknown a dashed
+  ring. A blocked stage takes the `needsInput` tint. Do not imply that a
+  reported stage was independently verified.
 - **Recommendation:** The choice leads in semibold text. The reason and any
   qualification follow as recap card rows, labeled "Reason" and "Qualification"
   in the card's label gutter beside each value and stacked above it when narrow.
@@ -209,37 +241,39 @@ for it.
   `complete` color to make advice appear like a work state.
 - **Details:** The title as a component heading, then the body as ordinary
   Markdown at full contrast, unboxed and never collapsed, because the answer or
-  essential caveats may land there. A `### Details` heading in prose renders the
+  essential caveats may land there. A `Details` heading in prose renders the
   same way.
-- **Table:** Column headers and Markdown cells in the shared reply panel, with
-  fine row rules. Scope states units or conditions above it. A wide table
-  scrolls within its own keyboard-focusable region; its cells and long
-  references wrap. An empty table keeps its headers and states that it has no
-  rows.
-- **References:** A complete list in the shared reply panel, with native file
-  previews, line ranges, web links, and supporting Markdown as check evidence.
-  Keep the supplied revision and each reference's purpose; do not replace a
-  pinned link with current main. Long lists remain complete in the reply body.
-- **Review:** The sequence's shared panel, ordered marks and rail, with explicit
+- **Table:** Column headers and Markdown cells in the panel, with fine row
+  rules. Scope states units or conditions above it. A wide table scrolls within
+  its own keyboard-focusable region; its cells and long references wrap. An
+  empty table keeps its headers and says "No rows".
+- **References:** A complete list in the panel, with native file previews, line
+  ranges, web links, thread links, and supporting Markdown, drawn the same way
+  as the links under a check. Keep the supplied revision and each reference's
+  purpose; do not replace a pinned link with current main. Long lists remain
+  complete in the reply body.
+- **Review:** The sequence's ordered marks and rail in the panel, with explicit
   Requires and Expected rows beneath each instruction. Scope gives the review
   environment or version. All steps remain visible; these instructions have no
   pass/fail toggles.
-- **Actions:** Rows in the shared reply panel, separated by fine rules. The
-  title leads, followed by detail, owner, condition, and permission when
-  supplied. A recommendation uses the reply accent, not a completion color. Show
-  the exact request text before its controls so the user can inspect it. Copy
-  request copies the supplied message; Add to message appends it to the matching
-  thread's draft and never submits. Both controls identify their action through
-  its title. Without a matching thread composer, adding is disabled and copying
-  remains available. A row without a message has no request controls. All
-  supplied options remain visible; the recap's three-action limit does not apply
-  to the reply body.
+- **Actions:** Rows in the panel, separated by fine rules. The title leads, with
+  a "Recommended" label in the reply accent when the action is recommended,
+  followed by the detail and labeled Owner, When, Permission, and Request rows
+  when supplied. The Request row shows the exact message before its controls so
+  the user can inspect it. **Add to message** appends the message to the end of
+  the matching thread's draft and focuses the composer, and never submits;
+  **Copy** copies the message and then reads Copied. Both controls describe
+  themselves through the action's title. Without a matching thread composer, Add
+  to message is disabled and Copy is still available. A failure prints "Couldn't
+  add it to your message" or "Couldn't copy it" in the `failed` text color. A
+  row without a message has no controls. All supplied actions remain visible;
+  the recap card's limit of three Next actions does not apply to the reply body.
 - **Group:** Peers share one row in equal columns when the message column fits
   every peer at its minimum width, and otherwise each takes the full width; they
-  never wrap into a ragged second row. Supporting children sit beneath the first
-  child, the point they qualify, indented under one thin rule in the reply
-  accent. A child that is a list of components stays together in one cell. No
-  child gets a card.
+  never wrap into a ragged second row. Peers get no frame. A supporting group
+  draws one panel: the first child, the point the rest qualify, and beneath it
+  the other children, indented under one thin rule in the reply accent. A child
+  that is a list of components stays together in one cell.
 
 A reply headline is the answer's first reading stop. Keep component headings
 below it. Make evidence, status, qualifications, and recommendation easy to
@@ -266,8 +300,10 @@ same way, and each has a page in the gallery's Primitives group:
 
 - `StatusDot`: a small circle that carries color only. Pair it with a word. It
   takes a state tone, the workstream hue, or a hollow ring.
-- `CountPill`: the Needs you count on group headers, compact in the sidebar and
-  roomy on Home.
+- `CountPill`: the count of threads that need you (Needs input plus Blocked) on
+  group headers, in the `needsInput` color, compact in the sidebar and roomy on
+  Home. Its label reads "3 need you" or "1 needs you", and the **Threads that
+  need you** setting controls when it shows.
 - `KeyChip`: an outlined key for a shortcut, hidden under a coarse pointer
   except in its inline form.
 - `SectionHeading`: the small uppercase heading over a page section.

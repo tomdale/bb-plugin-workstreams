@@ -1,40 +1,42 @@
-Workstreams is Tom's BB plugin that keeps each open root thread's goal, topic,
-status, and activity current and derives BB sidebar workstreams from root
-topics. The package is the repository root: `src/{app,domain,server}` (React UI,
-pure rules shared by both sides, plugin server), `tests/` mirroring `src/`,
-`eval/` (paid model evals), `components/ui/` (vendored BB registry components),
-`stream-deck/` (optional Stream Deck plugin, its own npm package). The Stream
-Deck plugin bundles `src/domain/streamDeck.ts`, the Up Next wire format that
-`src/server/streamDeck.ts` serves, so that file imports nothing.
+Workstreams is Tom's BB plugin that keeps each open thread's title, goal,
+status, workstream, and activity current and derives BB's sidebar sections from
+workstreams. The package is the repository root: `src/{app,domain,server}`
+(React UI, pure rules shared by both sides, plugin server), `tests/` mirroring
+`src/`, `eval/` (paid model evals), `components/ui/` (vendored BB registry
+components), `stream-deck/` (optional Stream Deck plugin, its own npm package).
+The Stream Deck plugin bundles `src/domain/streamDeck.ts`, the Up Next wire
+format that `src/server/streamDeck.ts` serves, so that file imports nothing.
 
 The code and its doc comments are the authority on current behavior; read them
 rather than relying on summaries. These product rules are Tom's decisions:
-change one only when he asks, never route around it. A root's topic determines
-its workstream: a sidebar move is recorded and reverted, and a thread changes
-group only through the user's action, an accepted suggestion, or placement after
-a new request. Topic identity has at most two levels total. A topic holds
-assignments or child topics, never both; stored assignments, including archived
-work, require a reviewed complete filing plan before children can be added.
-Categories organize a leaf topic's current roots at either depth, separately
-from topic assignments and native sections: create at six roots and discard at
-three or fewer. A departure only prunes the arrangement. Every arrival or
-substantive work change is checked against the current categories, with no
-throttle, and the whole collection is rearranged only when a changed thread fits
-none, most categories hold one thread, or the check fails. Automatic changes and
-observed outside changes are recorded in Activity, with undo where supported.
-Invalid model output never files a thread or clears a valid assignment. Up Next
-is the short ranked list of roots most worth the user's attention, shared by the
-sidebar, phone Home, and the next-Up-Next command (`src/domain/upNext.ts`).
-`docs/organization.md` details the organizer. `README.md` is the user-facing
-reference; update it with any user-visible change. In UI copy, questions, and
-reports, use the terms `README.md` and the app already use; do not coin new
-ones. `ISSUES.md` records known limits. When a feature is retired, delete its
-code, settings, and tests rather than leaving compatibility shims. Measure
-before optimizing analysis: check live traces and costs, and evaluate prompt or
-model changes with `eval/` (see `eval/README.md`). For profiling, benchmarking,
-or a speedup claim, follow `.agents/skills/measuring-performance/SKILL.md`; it
-holds the recipes for Chrome CDP counters and traces, frame capture, the
-real-scale fixture, and server pass and payload benchmarks.
+change one only when he asks, never route around it. A thread's workstream
+determines its sidebar section: a move in BB's sidebar is recorded and reverted,
+and a thread changes workstream only through the user's action, an accepted
+suggestion, or the workstream choice after a new request. A group holds
+workstreams and never nests; a workstream holds threads, never workstreams, and
+a group holds no threads. A workstream with stored threads, archived ones
+included, becomes a group only through a reviewed preview that moves every one
+of them. Categories organize the current threads of a workstream, in a group or
+not, separately from workstream membership and BB's native sections: create at
+six threads and discard at three or fewer. A departure only prunes the
+arrangement. Every arrival or substantive work change is checked against the
+current categories, with no throttle, and the whole collection is rearranged
+only when a changed thread fits none, most categories hold one thread, or the
+check fails. Automatic changes and observed outside changes are recorded in
+Activity, with undo where supported. Invalid model output never moves a thread
+or clears a valid workstream. Up Next is the short ranked list of threads most
+worth the user's attention, shared by the sidebar, phone Home, and the
+next-Up-Next command (`src/domain/upNext.ts`). `docs/organization.md` details
+the organizer. `README.md` is the user-facing reference; update it with any
+user-visible change. In UI copy, questions, and reports, use the terms
+`README.md` and the app already use; do not coin new ones. `ISSUES.md` records
+known limits. When a feature is retired, delete its code, settings, and tests
+rather than leaving compatibility shims. Measure before optimizing analysis:
+check live traces and costs, and evaluate prompt or model changes with `eval/`
+(see `eval/README.md`). For profiling, benchmarking, or a speedup claim, follow
+`.agents/skills/measuring-performance/SKILL.md`; it holds the recipes for Chrome
+CDP counters and traces, frame capture, the real-scale fixture, and server pass
+and payload benchmarks.
 
 Before changing UI, agent tools or instructions, or the SDK dependency, read
 `.agents/skills/bb-plugin-guidelines/SKILL.md`, installed from

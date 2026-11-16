@@ -206,7 +206,7 @@ await writeFile(
       repetitions,
       accepted,
       acceptance: cold
-        ? "root ownership; hierarchy is advisory for single-topic proposals"
+        ? "top-level ownership; hierarchy is advisory for single-workstream proposals"
         : "the expected topic",
       hierarchyMatches: results.filter((r) => r.hierarchy).length,
       exactMatches: results.filter((r) => r.exact).length,

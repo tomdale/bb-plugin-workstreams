@@ -1,239 +1,264 @@
 # Organization
 
-Workstreams separates durable **topics**, sidebar **workstreams**, and
-contextual **categories**. A root's topic assignment is authoritative. Native
-sidebar moves are logged and reverted; a topic change changes its workstream.
-Delegates follow their root.
+Workstreams separates lasting **workstreams** and **groups**, the native BB
+sections that list them in the sidebar, and automatic **categories**. A thread's
+workstream is authoritative. Workstreams logs and reverts native sidebar moves;
+changing a thread's workstream changes where the sidebar lists it. Child threads
+go wherever their parent goes.
 
-## Topics and workstreams
+## Workstreams and groups
 
-A topic path has at most two levels total: `Vertex`,
-`Vercel Agent: Code Review`, `bb: Workstreams Plugin`, or `Toolbelt: Skills`.
-Those levels can represent a product and feature or a category and product. A
-topic holds threads or child topics, never both. Stored assignments, including
-archived work, prevent adding children without a reviewed complete filing plan.
+A workstream holds threads and a group holds workstreams. Groups don't nest, so
+a path has at most two levels: `Vertex`, `Vercel Agent › Code Review`,
+`bb › Workstreams Plugin`, or `Toolbelt › Skills`. The two levels can represent
+a product and feature or a category and product. A workstream that holds
+threads, including archived ones, becomes a group only through a reviewed split
+that says where each of its threads goes.
 
 The organizer makes no model calls itself. After relevant facts change, it:
 
-1. Reconciles visible, non-archived roots and their topic assignments.
-2. Derives one workstream for each populated leaf topic. A container appears as
-   the dimmed prefix of its child's header. Repeated prefix words are omitted.
-3. Creates, renames, or removes topic-bound native sections and files roots to
-   match. Every populated leaf keeps its section regardless of volume.
-4. Logs outside membership changes and restores topic-derived membership.
-5. Prunes discovered topics with no assignments, workstream, or child topics.
-6. Notifies the category coordinator and checks whether topic suggestions or
-   project learning are due.
+1. Reconciles visible, non-archived threads and their workstreams.
+2. Lists each workstream that holds threads. A group appears as the dimmed
+   prefix of its workstreams' headers, left out when the workstream's name
+   already starts with it.
+3. Creates, renames, or removes the native sections Workstreams owns, and moves
+   threads into them to match. Every workstream with threads keeps its section
+   regardless of how many it holds.
+4. Logs outside membership changes and restores each thread to its workstream's
+   section.
+5. Removes workstreams Workstreams discovered that have no threads, section, or
+   workstreams inside them.
+6. Notifies the category coordinator and checks whether organizing suggestions
+   or project learning are due.
 
-The plan is fingerprinted. Topics, assignments, and analysis can change only
-while a pass awaits BB, so after each awaited call the plan is checked against
-them again before its next mutation. Section writes run in one serial queue with
-reconciliation; superseded plans schedule a fresh pass. Invalid depth or threads
-beside child topics stops the plan before section mutations, preserving the
-applied layout until a reviewed repair is available. Completed roots remain
-filed and count in organization statistics.
+The organizer fingerprints each pass. Workstreams, groups, thread workstreams,
+and analysis can change only while a pass awaits BB, so after each awaited call
+the pass checks them again before its next mutation. Section writes run in one
+serial queue with reconciliation; a superseded pass schedules a fresh one. A
+path deeper than two levels, or a group that holds threads, stops the pass
+before any section changes, keeping the applied layout until a reviewed repair
+is available. Completed threads stay in their workstream and count in the
+organizer's thread counts.
 
 BB sections are flat. The sidebar and phone Home use the applied layout, native
 section rows, and category state to draw the same organization. Workstream
-collapse preferences use topic IDs across windows and section recreation. Focus,
-manual order, Dormant, and Up Next retain workstream identity; categories create
-no additional section or workstream hue.
+collapse preferences use workstream IDs, so they hold across windows and when a
+section is recreated. Focus, manual order, Dormant, and Up Next keep workstream
+identity; categories create no additional section or workstream hue.
 
 A workstream stays on the list only while it holds a visible, non-archived,
-unsnoozed thread. An emptied one leaves at once, at any depth, and cleanup
-deletes its section on the next pass; the topic and its threads remain, so a
-later thread on that topic gets a workstream again. While any workstream is
-focused, revealing other workstreams is temporary per-view state; hiding and
-revealing that block starts it collapsed.
+unsnoozed thread. An emptied one leaves at once, inside a group or not, and
+cleanup deletes its section on the next pass; the workstream and its threads
+remain, so a later thread in that workstream brings it back. While any
+workstream is focused, revealing the other workstreams is temporary per-view
+state; hiding and revealing that block starts it collapsed.
 
 ## Categories
 
-Any topic without children can have categories, at either identity depth. The
-eligible collection is its directly assigned visible, non-archived, unsnoozed
-roots, including completed roots. Delegates follow their root without counting
-separately. Header collapse, focus, scrolling, and which view is open do not
-change eligibility. Sibling topics' counts are never combined.
+Any workstream can have categories, whether or not it is in a group. The
+eligible collection is the visible, non-archived, unsnoozed threads in that
+workstream, including completed ones. Child threads go with their parent and are
+not counted separately. Header collapse, focus, scrolling, and which view is
+open do not change eligibility. Counts from different workstreams in one group
+are never combined.
 
-| Existing category state | Eligible roots | Action                                               |
-| ----------------------- | -------------- | ---------------------------------------------------- |
-| None                    | 0–5            | Show one thread list                                 |
-| None                    | 6 or more      | Classify the whole collection                        |
-| Active                  | 4 or more      | Keep the generation; check arrivals and work changes |
-| Active                  | 0–3            | Discard the generation without a model call          |
+| Existing category state | Eligible threads | Action                                                |
+| ----------------------- | ---------------- | ----------------------------------------------------- |
+| None                    | 0–5              | Show one thread list                                  |
+| None                    | 6 or more        | Arrange the whole collection                          |
+| Active                  | 4 or more        | Keep the arrangement; check arrivals and work changes |
+| Active                  | 0–3              | Discard the arrangement without a model call          |
 
-A departing root leaves its category with no model call. When a root arrives or
-changes work after a substantive request, a fit check first asks whether each
-such root fits an existing category as it stands; the check sees the current
-categories, their other members' titles, and the changed roots' requests. When
-every changed root fits, it is filed there and nothing else moves. When one fits
-none, the check fails, or most categories hold one thread, the classifier
-receives the whole current collection and its current categories. A generation
-that records no per-root work (`arranged`) goes to the classifier on its next
-change. Substantive requests are assessed during dispatch, before the turn-end
-call finishes. The active collection retains request-version hashes for
-stale-result checks; incoming request text is held temporarily until analyzed
-context catches up. Each assessment fetches bounded first, second, and latest
-requests, excluding verified subagent deliveries. It can recategorize all names
-and memberships, but should preserve the arrangement unless a change offers a
-meaningful organizational benefit. Cosmetic differences and marginal tidiness
-are not reasons to regroup. Threads missing from the current categories join the
+A departing thread leaves its category with no model call. When a thread arrives
+or its work changes after a substantive request, a fit check first asks whether
+each such thread fits an existing category as it stands; the check sees the
+current categories, their other members' titles, and the changed threads'
+requests. When every changed thread fits, it joins that category and nothing
+else moves. When one fits none, the check fails, or most categories hold one
+thread, the classifier receives the whole current collection and its current
+categories. An arrangement that records no per-thread work (`arranged`) goes to
+the classifier on its next change. The coordinator assesses a substantive
+request when it is sent, before the turn-end call finishes. The stored record
+keeps request-version hashes for stale-result checks; the coordinator holds
+incoming request text in memory until analysis catches up. Each assessment
+fetches the first, second, and latest substantive requests, excerpted, leaving
+out verified child-thread deliveries. It can rename and regroup every category,
+but should keep the arrangement unless a change makes the collection
+meaningfully easier to scan. Cosmetic differences and marginal tidiness are not
+reasons to regroup. Threads missing from the current categories join the
 existing category whose theme they share. There is no throttle, periodic
 assessment, or recommendation queue.
 
 The classifier chooses useful distinctions among these threads, with plain names
-and coherent membership. A category groups threads that share one theme;
-singletons are for work sharing a theme with no other thread, and an arrangement
-that is mostly singletons is regrouped. A name states its members' shared theme
-and joins scopes with "&"; names that no longer cover their members are renamed.
-It does not force equal sizes or a General/Other catch-all. Fresh generations
-need at least two categories; an active generation can contract as its
-collection changes. Every eligible root must appear exactly once. Unsupported
-IDs, omissions, duplicate memberships, empty categories, and duplicate names
-invalidate a replacement.
+and coherent membership. A category groups threads that share one theme; a
+category of one is for work sharing a theme with no other thread, and an
+arrangement that is mostly categories of one is regrouped. A name states its
+members' shared theme and joins scopes with "&"; names that no longer cover
+their members are renamed. It does not force equal sizes or a General/Other
+catch-all. A new arrangement needs at least two categories; an active one can
+shrink as its collection changes. Every eligible thread must appear exactly
+once. Unknown IDs, omissions, duplicate memberships, empty categories, and
+duplicate names make a replacement invalid. The classifier uses the **Arrange
+categories** model; the fit check uses the **Name and organize new threads**
+model.
 
-Category state is stored in plugin database metadata, separately from topic
-assignments: generation ID, category IDs and names, member root IDs, and the
-collection evidence last assessed, including in-flight request-version hashes.
-Settled state survives restarts without a new call; interrupted assessments
-resume. Falling to three roots discards the set. Recrossing six starts fresh,
-without resurrecting its names or memberships.
+Workstreams stores category state in plugin database metadata, separately from
+thread workstreams: the arrangement's ID, category IDs and names, member thread
+IDs, and the collection evidence last assessed, including in-flight
+request-version hashes. Settled state survives restarts without a new call;
+interrupted assessments resume. Falling to three threads discards the
+categories. Reaching six again starts fresh, without bringing back the old names
+or memberships.
 
-Departures are pruned immediately, even during a model call. Arrivals stay
-visible directly in their workstream until classified. Invalid or superseded
-responses cannot replace a valid set. A failed assessment is not retried for
-unrelated updates or restarts; a changed collection/work key or explicit
-organization rebuild can retry it. Title-only and status-only changes do not
-alter that key. Category creation, removal, and recategorization are recorded in
-Activity.
+The coordinator prunes departures immediately, even during a model call.
+Arrivals stay visible directly in their workstream until they are placed in a
+category. Invalid or superseded responses cannot replace a valid arrangement.
+The coordinator doesn't retry a failed assessment for unrelated updates or
+restarts; a changed collection or work key, or
+`bb workstreams organize --rebuild`, retries it. Title-only and status-only
+changes do not alter that key. Activity records each change to a workstream's
+categories as **Categories updated**.
 
-## Starting topics and placement
+## Choosing a thread's workstream
 
-A root spawned from another thread inherits its topic. New work from a
-workstream inherits its bound topic. A topic with children supplies a placement
-hint rather than an inherited assignment. An automatic composer preview of
-exactly the text sent is the thread's start, settled with `full` provenance; a
-preview of earlier text supplies its topic with `quick` provenance. Explicit
-composer choices have manual priority.
+A thread started from another thread inherits its workstream. A thread started
+from a workstream's ＋ inherits that workstream. A group supplies a hint for
+choosing among its workstreams rather than an inherited workstream. A composer
+preview of exactly the text sent is the thread's start, settled with `automatic`
+provenance; a preview of earlier text supplies its workstream with `composer`
+provenance. Choosing a workstream in the composer yourself is manual.
 
-A root's topic is a closed-set choice made in two calls that also do other work:
-a thread's start (`src/domain/start.ts`), which titles it from its first
-request, and a turn's end after a new substantive request
+A thread's workstream is a closed-set choice made in two calls that also do
+other work: a thread's start (`src/domain/start.ts`), which titles it from its
+first request, and a turn's end after a new substantive request
 (`src/domain/turnEnd.ts`), which also settles title, goal, digest, and fallback
-status. Both read placement's evidence and rules (`src/domain/placement.ts`):
-the requests, project, checkout, and continuation/start hints, and at a turn's
-end the title and the context digest that call settled last time. The digest is
-two or three sentences naming what the work is, what it has established, and its
-owner, revised in place as turns settle. A standalone placement call serves only
-group drops, topic previews and repair, and a root that lacks a topic. A
-checkout's usual topic is a hint unless at least two of its threads point at
-other repositories. Title edits, model changes, topic-definition changes, and
-control-only requests do not re-place a thread.
+status. Both read the same evidence and rules
+(`src/domain/workstreamChoice.ts`): the requests, project, checkout, and
+continuation and start hints, and at a turn's end the title and the context
+digest that call settled last time. The digest is two or three sentences naming
+what the work is, what it has established, and its owner, revised in place as
+turns settle. A separate workstream-choice call serves only a move into a group,
+previews and repairs, and a thread that only lacks a workstream. A checkout's
+usual workstream is a hint unless at least two of its threads point at other
+repositories. Title edits, model changes, workstream description changes, and
+control-only requests do not move a thread.
 
-Only leaf topics within the two-level limit can be chosen. A new first-level
-proposal uses the owner's recognizable product name. With a known first-level
-parent, placement may propose a supported lasting child. A new child beneath a
-populated topic records a division request and keeps the current filing rather
-than creating children around it.
+Only workstreams within the two-level limit can be chosen, never a group. A new
+top-level proposal uses the owner's recognizable product name. Inside a known
+top-level workstream or group, the call may propose a supported lasting
+workstream. A proposed workstream inside a top-level workstream that already
+holds threads records a split request and leaves the threads where they are,
+rather than adding a workstream beside them.
 
-Sources follow `manual > inherited > full > quick`. Manual choices survive
-automatic analysis. Full can replace an inherited choice only for a scope shift
-or a supported narrowing beneath it. Accepted repairs and suggestions have Full
-provenance unless they preserve an explicit manual choice. Invalid output never
-files a thread or clears a valid assignment.
+Sources follow `manual > inherited > automatic > composer`. Manual choices
+survive automatic analysis. An automatic choice can replace an inherited one
+only for a scope shift or a supported narrower workstream inside it. Accepted
+repairs and suggestions have `automatic` provenance unless they preserve a
+manual choice. Invalid model output never moves a thread or clears a valid
+workstream.
 
-## Reviewed topic changes
+## Reviewed changes to workstreams and groups
 
-Topic divisions depend on lasting scope, not thread count or recurring category
-names. A useful division has:
+Splits depend on lasting scope, not thread count or recurring category names. A
+useful split has:
 
-- Supported products, capabilities, or maintained areas rather than
-  tasks/stages.
-- Definitions that classify a future thread independently of its neighbors.
-- Useful specificity within a broad parent; a single-purpose tool already covers
-  its fixes, refactors, and reviews.
-- A complete supported filing plan, with meaningful names rather than
-  catch-alls.
+- Supported products, capabilities, or maintained areas rather than tasks or
+  stages.
+- Descriptions that place a future thread without reference to its neighbors.
+- Useful specificity within a broad workstream; a single-purpose tool already
+  covers its fixes, refactors, and reviews.
+- A complete, supported answer for where each thread goes, with meaningful names
+  rather than catch-alls.
 
-Placement's division request asks for that plan. Asking for suggestions
-explicitly also considers first-level divisions. Evidence includes the stored
-assignments' requests, titles, and checkouts, including archived work. The
-classifier can return no division. Acceptance rechecks the current collection,
-excludes threads that changed topic, and classifies arrivals before applying. A
-second-level topic cannot gain children. Topic changes wait for acceptance;
-categories update independently even when automatic organizing suggestions are
-off.
+A split request asks for that answer. **Suggest now** (or
+`bb workstreams suggestions run`) also considers splitting any top-level
+workstream with threads. Evidence includes the requests, titles, and checkouts
+of every thread in the workstream, including archived ones. The model can
+decline to split. Acceptance rechecks the current collection, leaves out threads
+that moved to another workstream, and asks where threads that arrived since go
+before applying. A workstream inside a group cannot be split. Changes to
+workstreams and groups wait for acceptance; categories update independently even
+when **Suggest changes** is off.
 
-Tidy proposes at most eight edits: merge, reparent, rename, create a parent, or
-refile a thread. Automatic checks debounce changes for two seconds. A changed
-topic definition or visible root membership and filing starts a pass, unless an
+Tidy proposes at most eight edits: merge a workstream into another, move a
+workstream into or out of a group, rename, group workstreams, or move a thread.
+Automatic checks debounce changes for two seconds. A change to the workstreams
+and groups or to which visible threads are in them starts a pass, unless an
 applicable tidy edit awaits review. Titles and statuses alone do not trigger a
-pass. Once pending edits are decided, a changed tree or filing starts a pass.
-Asking for suggestions runs a pass explicitly and replaces pending tidy edits.
-Tidy sees at most twelve current threads per topic and twelve Unfiled threads,
-plus accepted and declined decisions. Tidy favors concise, meaningful names in
-context without losing recognizable identities or distinctions between topics.
-Matching top-level prefix names can also produce deterministic reparent
-suggestions.
+pass. Once pending edits are decided, a changed tree or thread move starts a
+pass. **Suggest now** runs a pass explicitly and replaces pending tidy edits.
+Tidy sees at most twelve current threads per workstream and twelve threads in No
+workstream, plus accepted and declined decisions. Tidy favors concise,
+meaningful names in context without losing recognizable identities or
+distinctions between workstreams. A top-level workstream whose name starts with
+a group's name also gets a deterministic suggestion to move it into that group.
 
 Each waiting suggestion reaches the app with its `change` (what moves, as the
-sentence and the CLI state it) and a `delta`: the topics the change creates,
-renames, moves or removes and the filing it changes, by id, plus the roots in
-the sidebar's population filed in the topics it touches (`held`, with titles),
-the topics it touches (`touched`), and how many archived threads it moves
-(`archived`). The app reads the filing of the threads its sidebar lists, so
-`held` is how it learns of the snoozed ones a change acts on, which it draws as
-dashed ticks. Archived threads are only counted, since a topic can hold
-thousands. The sidebar's review applies the delta to the topics and filing it
-holds and lays both states out with the sidebar's own code (`layoutGroups`,
-`arrangeGroups`, the user's sort), so the server never sends a finished sidebar.
-A test accepts every kind of change and compares the topic tree and filing with
-the delta applied to the tree before it. A change that needs a topic another
-suggestion creates, or files threads that joined its split since, has no delta;
-the review says it can't be drawn and still offers the decision.
+sentence and the CLI state it) and a `delta`: the workstreams the change
+creates, renames, moves, or removes and the thread moves it makes, by ID, plus
+the threads in the sidebar's population that are in the workstreams it touches
+(`held`, with titles), the workstreams it touches (`touched`), and how many
+archived threads it moves (`archived`). The app reads the workstreams of the
+threads its sidebar lists, so `held` is how it learns of the snoozed ones a
+change acts on, which it draws as dashed ticks. Archived threads are only
+counted, since a workstream can hold thousands. The sidebar's review applies the
+delta to the workstreams and thread moves it holds and lays out both states with
+the sidebar's own code (`layoutGroups`, `arrangeGroups`, the user's sort), so
+the server never sends a finished sidebar. A test accepts every kind of change
+and compares the resulting workstreams and thread moves with the delta applied
+to the state before it. A change that needs a workstream another suggestion
+creates, or that moves threads that joined its split since, has no delta; the
+review says it can't be drawn and still offers the decision.
 
-Every proposed and accepted edit passes leaf-only and depth guards. Accepted
-suggestions are recorded in Activity with a guarded snapshot for Undo. Undo
-requires the tree and assignments to still match and cannot reinstate an invalid
-topic depth. Discovered topics are pruned only when unused and childless; user
-configured topics are retained.
+Every proposed and accepted edit passes the two-level and threads-or-workstreams
+guards. Activity records each accepted suggestion as **Suggestion accepted**,
+with a guarded snapshot for Undo. Undo requires the workstreams and thread
+workstreams to still match and cannot bring back a path deeper than two levels.
+Workstreams Workstreams discovered are removed only when they have no threads
+and no workstreams inside them; workstreams you created stay.
 
-## Reviewed two-level migration
+## Two-level migration
 
-`bb workstreams topics migration preview --json` prepares a plan without
-changing topics or assignments. Deeper topics map to their existing second-level
-ancestor. Assignments in first-level topics with children are blockers until
-explicit meaningful destinations are supplied. `--mapping` accepts `choices` and
-`newTopics`; choices may refer to a new topic's key. Explicit `resetThreadIds`
-remove selected nonmanual classification records with recovery data. They cannot
-reset manual filing or overlap refile choices, and never delete threads or
-transcripts. A reset thread can be Unfiled when reopened until placement or a
-user files it again. Preview lists destination definitions, assignment
-provenance, removed paths, project associations, and blockers.
+`bb workstreams migration preview --json` prepares a preview without changing
+any workstreams or threads. Deeper workstreams fold into their second-level
+ancestor. Threads in a top-level workstream that also has workstreams inside it
+are blockers until explicit meaningful destinations are supplied. `--mapping`
+accepts `choices`, `newWorkstreams`, and `resetThreadIds`; a choice may refer to
+a new workstream's `key`. `resetThreadIds` removes selected automatic workstream
+choices, saving them in the backup. A reset can't undo a move you made or
+overlap a choice for the same thread, and never deletes threads or transcripts.
+A reset thread can be in No workstream when reopened until Workstreams or you
+move it again. The preview lists the resulting workstreams, each thread's move
+and provenance, removed paths, project associations, and blockers.
 
-Apply requires the reviewed plan ID and identical topic definitions and stored
-assignments. The transaction preserves provenance and classification basis for
-refiled threads, retains destination IDs, records recovery data, and adds
-removed full paths as destination aliases. Explicit project associations on
-removed topics block apply; learned narrower associations are not copied onto
-broader destinations. Native section reconciliation follows the committed topic
-changes. Unaffected category generations are retained.
+`bb workstreams migration apply <preview-id>` requires the reviewed preview's ID
+and unchanged workstreams, groups, and thread workstreams. The transaction keeps
+each moved thread's provenance and the evidence it was chosen from, keeps
+destination IDs, saves a backup, and adds each removed full path as an alias of
+its destination. Explicit project associations on removed workstreams block
+apply; learned associations of narrower workstreams are not copied onto broader
+destinations. Native section reconciliation follows the committed changes.
+Categories of workstreams the migration doesn't touch are kept.
 
-Recovery snapshots retain original definitions, assignments, bindings, and
-layout and can be exported with `topics migration backup`. They are deliberate
-recovery data rather than an ordinary Undo that would restore unsupported depth.
-Schema upgrades do not perform this filing migration.
+A backup keeps the original workstreams, thread workstreams, section bindings,
+and layout, and `bb workstreams migration backup <backup-id>` prints it. It is
+recovery data rather than an ordinary Undo, which would bring back unsupported
+depth. Schema upgrades do not perform this migration.
 
-## Topic repairs and observability
+## Repairs and observability
 
-`topics preview [thread]` and `topics apply <plan>` review automatic topic
-repairs for up to 100 roots. Manual topics are excluded; plans expire after 30
-minutes, reject changed definitions, and consume each applied row once. SDK read
-failures retain unprocessed rows for retry. A new preview replaces the previous
-one.
+`bb workstreams preview [thread]` and `bb workstreams apply <preview-id>` review
+automatic workstream repairs for up to 100 threads; **Preview automatic moves…**
+on the Organize page does the same. Threads you moved are left out. A preview
+expires after 30 minutes, is rejected when the workstreams changed, and applies
+each row once. Rows not yet processed after an SDK read failure can be retried.
+A new preview replaces the previous one.
 
-The Organization page and `bb workstreams organization` report native filing,
-active/completed counts, unresolved roots, and report coverage. `--rebuild` runs
-a fresh pass and retries failed category assessments. Debug traces include
-`categories` calls with redacted input, validated output, usage, and latency.
-Activity records automatic and observed changes. The composer preview is a
-thread's start, not an organization preview.
+`bb workstreams organize` reports the organizer's status, active, complete, and
+No workstream thread counts, and how many analyzed turns had an agent report.
+`--rebuild` runs a fresh pass and retries failed category assessments. The
+Organize page lists organizing suggestions, the threads in No workstream, and
+every workstream and group. With **Record model traces** on, `categories` and
+`category-fit` traces keep the redacted input, validated output, usage, and
+latency. Activity records automatic and observed changes. The composer preview
+is a thread's start, not a repair preview.

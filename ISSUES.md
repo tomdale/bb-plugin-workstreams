@@ -37,33 +37,35 @@ to light it. Custom… needs this plugin's dialog, so those menus leave it out.
 choice-level detail and default flag are recorded in the BB SDK wishlist,
 `docs/bb-sdk-wishlist.md` in tomdale/bb-plugins.
 
-### Topic discovery without a matching known area
+### Workstream discovery without a matching known area
 
 **Evidence:** `eval/classification-cases.ts`, `src/domain/classify.ts`, and
-`src/domain/placement.ts`.
+`src/domain/workstreamChoice.ts`.
 
-A topic choice can pick a similarly described topic under the wrong owner when
-the correct area is absent; in the synthetic eval, faster models such as
+A workstream choice can pick a similarly described workstream in the wrong group
+when the correct area is absent; in the synthetic eval, faster models such as
 `openai/gpt-6-luna` do this far more often than `openai/gpt-6.1-sol`. Cold
-discovery can also establish a product without its supported capability, or
-qualify a new root with a capability name. Structural validation enforces
-leaf-only filing and the two-level limit, not semantic accuracy. A small
-synthetic evaluation is not a production accuracy estimate.
+discovery can also establish a product without its supported capability, or name
+a new thread's workstream for a capability alone. Structural validation keeps
+threads out of groups and paths within two levels; it does not check that the
+choice is right. A small synthetic evaluation is not a production accuracy
+estimate.
 
-**Workaround:** Review topic previews and lasting divisions. A turn's end
-reconsiders the topic after each new request; manual filing remains
-authoritative.
+**Workaround:** Review previews of automatic moves and split suggestions. A
+turn's end reconsiders the workstream after each new request; a workstream you
+choose stays.
 
-### Placement and suggestion evidence
+### Workstream choice and suggestion evidence
 
-**Evidence:** `src/server/placement.ts`, `src/domain/tidy.ts`.
+**Evidence:** `src/server/workstreamChoice.ts`, `src/domain/tidy.ts`.
 
-Placement reads requests, title, project, and checkout; it doesn't read the
-titles or changed files of pull requests a thread names, since the plugin has no
-GitHub client. Checkout hints and the coordination check know only the checkouts
-placement has recorded, so threads placed before checkouts were recorded
-contribute nothing until they're placed again. Tidy sees threads by title and
-checkout, at most 12 per topic.
+Choosing a workstream reads requests, title, project, and checkout; it doesn't
+read the titles or changed files of pull requests a thread names, since the
+plugin has no GitHub client. Checkout hints and the coordination check know only
+the checkouts Workstreams has recorded, so a thread whose workstream was chosen
+before its checkout was recorded contributes nothing until its workstream is
+chosen again. Tidy sees threads by title and checkout, at most 12 per
+workstream.
 
 ### User-selected colors
 
@@ -95,16 +97,16 @@ end a little short or run slightly long. The plugin supports only macOS.
 `src/app/sidebar/suggestionMiniatures.ts`.
 
 The review draws the sidebar after a suggestion from its `delta`. Two kinds of
-suggestion have none: a change that needs a topic another suggestion of the same
-pass creates, and a split whose group gained threads since it was made, since a
-model call files those threads only when you accept it. Neither shows a drawing,
-and **Accept** still works. The drawing counts root threads, as suggestions do,
-and leaves out categories. Snoozed threads are dashed ticks, only in the
-workstreams a change touches. Archived threads are only counted, never drawn,
-since a topic can hold thousands.
+suggestion have none: a change that needs a workstream another suggestion of the
+same pass creates, and a split whose workstream gained threads since it was
+made, since a model call places those threads only when you accept it. Neither
+shows a drawing, and **Accept** still works. The drawing counts threads without
+their child threads, as suggestions do, and leaves out categories. Snoozed
+threads are dashed ticks, only in the workstreams a change touches. Archived
+threads are only counted, never drawn, since a workstream can hold thousands.
 
-**Workaround:** Accept the suggestion that creates the topic first; a split's
-newcomers land where the model files them, which Activity records.
+**Workaround:** Accept the suggestion that creates the workstream first; a
+split's newcomers land where the model places them, which Activity records.
 
 ### An old reply's unfinished results
 
@@ -137,52 +139,55 @@ policies apply to conversation excerpts sent for analysis.
 
 ## Audit findings that are not defects
 
-- **Completed roots in grouping:** Completed roots count toward the split and
-  merge-back thresholds just like other visible roots, so finishing work never
-  regroups a topic; see `tests/server/grouping-regressions.test.ts`.
-- **Nested Up Next / archive destinations:** Up Next contains only roots, so
-  delegates cannot become separate archive destinations in that band. See
-  `tests/domain/upNext.test.ts` and `tests/domain/upNextNavigation.test.ts`.
-- **Projection defaults:** The pure forest projection has no stored analysis
-  input, so its default attention predicate can only inspect native pending
-  interactions. App and CLI callers supply the shared `needsAttention` rule.
-- **Archive suggestion withdrawal:** `useArchiveSuggestion` deliberately treats
-  drafting a continuation as declining Archive for that recap. Clearing the
-  draft does not restore it; a new recap can offer Archive again. This behavior
-  is explicitly covered in `tests/app/recap-card.test.tsx`. The thread header
-  and context menu remain available for deliberate archive actions.
-- **Human labels versus JSON states:** “Working” / “needs you” are prose;
-  `in_progress` / `needs_decision` are serialized work states. Runtime `error`
-  is a BB thread status, not an inferred `WorkState` value.
-- **Short labels:** “On update” is the sidebar row's compact version of “Until
-  there's an update”; “New threads” names a settings section while “New work…”
-  is an action. These are not separate features or state values.
+- **Completed threads in workstreams:** A completed thread stays in its
+  workstream and counts toward category eligibility like any other visible
+  thread, so finishing work never empties a workstream or discards its
+  categories; see `tests/server/grouping-regressions.test.ts`.
+- **Nested Up Next / archive destinations:** Up Next contains only threads
+  without a parent, so child threads cannot become separate archive destinations
+  in that band. See `tests/domain/upNext.test.ts` and
+  `tests/domain/upNextNavigation.test.ts`.
+- **Projection defaults:** The pure projection (`src/domain/project.ts`) has no
+  stored analysis input, so its default `needsYou` predicate can only inspect
+  native pending interactions. App and CLI callers supply the shared `needsYou`
+  rule from `src/domain/status.ts`.
+- **Archive offer withdrawal:** `useArchiveOffer` deliberately treats drafting a
+  continuation as declining Archive for that recap. Clearing the draft does not
+  restore it; a new recap can offer Archive again. This behavior is explicitly
+  covered in `tests/app/recap-card.test.tsx`. The thread header and context menu
+  remain available for deliberate archive actions.
+- **Status labels versus JSON states:** CLI text prints status labels (Needs
+  input, Blocked, Ready for review, Waiting, Complete); `--json` prints the
+  stored work states `needs-input`, `blocked`, `review`, `waiting`, and
+  `complete`. Working and Failed come from BB's runtime state: `error` is a BB
+  thread status, not an inferred `WorkState` value.
+- **Similar labels:** “New threads” names a settings section while “New work” is
+  a sidebar menu action. They are not separate features or state values.
 - **Snooze dates:** A weekday rule is always a future day: Saturday at 9 AM
   chosen on a Saturday means next Saturday. Use a Today rule or Custom… for the
   current day.
 - **Wake event timing:** Turn-end events are checked when BB reports the turn
-  idle, when its recap or Full analysis lands, and on the minute-long reconcile.
-  Lasting conditions (a pending question, failed send, machine wait) are dated
-  by the inventory read before the one that showed them, so one that began
-  within a minute before or after a snooze may be taken as older and not wake
-  it; a question card's own event still wakes it at once. Pull request state is
-  polled every 5 minutes. A delegate cut off without failing (an interrupted
-  turn that ends idle) is not seen as failed. A server restart forgets failure
-  times (a failed turn then counts when its attention moved after the snooze)
-  and how each turn first read, so a turn re-analyzed after a restart counts by
-  its new reading.
-- **Activity compatibility values:** The retired proposal action stays in the
-  journal's action list because retained Activity rows still use it.
+  idle, when its recap or turn-end analysis lands, and on the minute-long
+  reconcile. Lasting conditions (a pending question, failed send, machine wait)
+  are dated by the inventory read before the one that showed them, so one that
+  began within a minute before or after a snooze may be taken as older and not
+  wake it; a question card's own event still wakes it at once. Pull request
+  state is polled every 5 minutes. A child thread cut off without failing (an
+  interrupted turn that ends idle) is not seen as failed. A server restart
+  forgets failure times (a failed turn then counts when its attention moved
+  after the snooze) and how each turn first read, so a turn re-analyzed after a
+  restart counts by its new reading.
 - **Retitle enablement checks:** Re-checking title settings after awaited SDK
   work protects against a setting change during the request, not redundant
   validation.
 
 ## Regression coverage for confirmed defects
 
-- Topic dialog name, description, and alias limits:
-  `tests/app/topic-dialog-limits.test.tsx`.
+- Workstream dialog name, description, and alias limits:
+  `tests/app/workstream-dialog-limits.test.tsx`.
 - Activity debug filters and empty states: `tests/app/activity-debug.test.tsx`.
-- Overview search counts: `tests/app/page.test.tsx`.
+- Overview's thread list, follow-ups, and missing-workstream states:
+  `tests/app/overview.test.tsx`.
 - Setting-save errors and title-lock copy: `tests/app/settings.test.tsx`.
 - Snooze rules, preset repair, and valid custom snoozes:
   `tests/domain/snooze.test.ts`, `tests/app/custom-snooze-dialog.test.tsx`,
@@ -190,9 +195,10 @@ policies apply to conversation excerpts sent for analysis.
 - Wake events: `tests/domain/wake.test.ts`, `tests/server/snooze-wake.test.ts`.
 - Question answer limits and attachment availability: `tests/app/question/`.
 - Sidebar ordering/drop affordances and shared band preferences:
-  `tests/app/drop.test.ts`, `tests/app/sidebar.test.tsx`.
-- CLI JSON, bounded output, diagnostics, and topic-repair titles:
-  `tests/server/cli-topics.test.ts`, `tests/server/service.test.ts`,
+  `tests/app/drop.test.ts`, `tests/app/sidebar-drag.test.tsx`,
+  `tests/app/sidebar-render.test.tsx`.
+- CLI JSON, bounded output, diagnostics, and repair preview titles:
+  `tests/server/cli-workstreams.test.ts`, `tests/server/service.test.ts`,
   `tests/server/trace.test.ts`, `tests/server/reclassification.test.ts`.
 - Shared attention rules and response validation: `tests/domain/status.test.ts`,
   `tests/domain/analysis.test.ts`, `tests/domain/recap.test.ts`.

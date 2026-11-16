@@ -37,9 +37,10 @@ Then drag actions from the **BB Workstreams** category onto the deck.
   new keys lists Up Next in order; change it under **Position** in the key's
   settings.
 - **Next Up Next thread** (key): shows how many Up Next threads are unread or
-  blocked on you, in amber while one is blocked on you. Pressing it runs
-  **Workstreams: next Up Next thread** in each connected BB app, which opens the
-  Up Next thread after the one that app has open, wrapping to the top.
+  wait on you (Needs input, Blocked, or Ready for review), in amber while one
+  waits on you. Pressing it runs **Workstreams: next Up Next thread** in each
+  connected BB app, which opens the Up Next thread after the one that app has
+  open, wrapping to the top.
 - **Up Next** (Stream Deck + dial): the touch strip shows one thread and a dot
   for each thread in Up Next. Turn the dial to move through the list, and press
   it or tap the strip to open the thread. Left alone for 20 seconds, the dial
