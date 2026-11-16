@@ -226,6 +226,52 @@ it("draws a warm switch's heading in the frame its column attaches", async () =>
   slot.lifecycle.unmount();
 });
 
+it("draws a cold switch's heading at its transcript's text inset", async () => {
+  const pane = paneFixture("Earlier transcript");
+  const slot = mountHeading();
+  await waitFor(() => expect(opacity("expanded")).toBe(1));
+  selection.threadId = "t2";
+  slot.lifecycle.rerender(<StickyGoalHeader />);
+  await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+  const column = pane.replaceColumn();
+  vi.spyOn(column, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 800, 1000),
+  );
+  for (const wait of [50, 100])
+    await act(() => new Promise((resolve) => setTimeout(resolve, wait)));
+
+  // Watch the overlay for the heading's first draw, since a later frame may
+  // correct where it sits.
+  const draws: string[] = [];
+  const observer = new MutationObserver(() => {
+    const transform = document.querySelector<HTMLElement>(
+      '[data-ws-heading="expanded"]',
+    )?.style.transform;
+    if (transform && draws.at(-1) !== transform) draws.push(transform);
+  });
+  observer.observe(document.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+  });
+  const message = document.createElement("div");
+  message.dataset.messageColumn = "";
+  message.style.padding = "0 24px";
+  message.textContent = "Destination transcript";
+  vi.spyOn(message, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(10, 0, 780, 50),
+  );
+  await act(async () => {
+    column.append(message);
+  });
+  await waitFor(() => expect(draws.length).toBeGreaterThan(0));
+  await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+  observer.disconnect();
+  expect(draws[0]).toMatch(/^translate\(34px,/);
+  expect(new Set(draws).size).toBe(1);
+  slot.lifecycle.unmount();
+});
+
 it("draws the heading for a column that stays empty", async () => {
   paneFixture(null);
   const slot = mountHeading();

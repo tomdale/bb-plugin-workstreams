@@ -573,17 +573,22 @@ const samePlacement = (a: Placement | null, b: Placement): boolean =>
       Math.abs(a.bar.centerY - b.bar.centerY) < 0.5 &&
       Math.abs(a.bar.width - b.bar.width) < 0.5));
 
-/** Keeps the heading's two resting places current as the layout moves. */
+/**
+ * Keeps the heading's two resting places current as the layout moves.
+ * `filled` reports that the column holds its transcript, whose messages give
+ * the text inset the heading lines up with.
+ */
 function usePlacement(
   mount: Mount | null,
   base: number,
   centered: boolean,
+  filled: boolean,
 ): Placement | null {
   const [placement, setPlacement] = useState<Placement | null>(null);
-  const placedMount = useRef<Mount | null>(null);
+  const placed = useRef<{ mount: Mount; filled: boolean } | null>(null);
   useLayoutEffect(() => {
     if (!mount) {
-      placedMount.current = null;
+      placed.current = null;
       setPlacement(null);
       return;
     }
@@ -599,11 +604,12 @@ function usePlacement(
         setPlacement((prev) => (samePlacement(prev, next) ? prev : next));
       });
     };
-    if (placedMount.current === mount) {
+    if (placed.current?.mount === mount && placed.current.filled === filled) {
       measure();
     } else {
-      // A new column is placed before paint, like its first scroll reading.
-      placedMount.current = mount;
+      // A new or newly filled column is placed before paint, like its first
+      // scroll reading, so the heading never paints at a stale inset.
+      placed.current = { mount, filled };
       const next = measurePlacement(mount, base, centered, inset);
       setPlacement((prev) => (samePlacement(prev, next) ? prev : next));
     }
@@ -644,7 +650,7 @@ function usePlacement(
       mutations.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [mount, base, centered]);
+  }, [mount, base, centered, filled]);
   return placement;
 }
 
@@ -684,7 +690,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const filled = useColumnFilled(mount);
   const settled = useSettled(filled ? mount : null);
   const base = mount?.baseFontSize ?? 14;
-  const placement = usePlacement(mount, base, centered);
+  const placement = usePlacement(mount, base, centered, filled);
   const hasEyebrow = !!context?.workstream;
   const phone = useMediaQuery(PHONE_QUERY);
   const eyebrow = hasEyebrow ? eyebrowMetrics(base, phone) : null;
