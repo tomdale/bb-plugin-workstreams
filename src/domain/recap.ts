@@ -257,8 +257,18 @@ const fullWaitingAgentSchema = waitingAgentSchema.extend({ task: line() });
  * The fields advertised to agents. Keep the root a concrete object: provider
  * bridges can flatten a root union into a tool with no named parameters.
  * State-specific requirements are enforced by recapInputSchema at execution.
+ *
+ * BB checks a call against this schema, which allows no other fields, while a
+ * running session keeps the tool list it started with. A session started when
+ * the headline was called `goal` still sends `goal`, so the advertised schema
+ * accepts either name and `withHeadline` requires one of them at execution.
  */
-export const recapToolSchema = recapFields;
+export const recapToolSchema = recapFields.extend({
+  headline: recapFields.shape.headline.optional(),
+  goal: line(80)
+    .optional()
+    .describe("The same as headline, for sessions that send this field"),
+});
 
 /**
  * Sessions started before the headline had its name still call the tool with

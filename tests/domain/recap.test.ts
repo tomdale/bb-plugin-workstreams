@@ -105,8 +105,9 @@ it("advertises named parameters on a concrete root object", () => {
     "unblock",
     "links",
     "next",
+    "goal",
   ]);
-  expect(schema.required).toEqual(["state", "headline"]);
+  expect(schema.required).toEqual(["state"]);
   expect(schema.additionalProperties).toBe(false);
 });
 
@@ -680,4 +681,18 @@ it("accepts the headline under the name earlier sessions were given", () => {
   });
   const current = { state: "complete", headline: "Fixed it" };
   expect(withHeadline(current)).toBe(current);
+});
+
+it("accepts a headline under either name, from sessions on either tool list", () => {
+  for (const name of ["headline", "goal"]) {
+    const call = { state: "complete", [name]: "Fixed the recap tool" };
+    // BB checks the advertised schema before the tool runs.
+    expect(recapToolSchema.safeParse(call).success).toBe(true);
+    expect(recapInputSchema.parse(withHeadline(call)).headline).toBe(
+      "Fixed the recap tool",
+    );
+  }
+  expect(
+    recapInputSchema.safeParse(withHeadline({ state: "complete" })).success,
+  ).toBe(false);
 });
