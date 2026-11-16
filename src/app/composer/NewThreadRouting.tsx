@@ -14,7 +14,7 @@ import { useDebugMode } from "../debug/debug.ts";
 import { NewWorkDebug } from "./NewWorkDebug.tsx";
 import { createPortal } from "react-dom";
 import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
-import { useHostPickerRow } from "./host-picker-row.ts";
+import { useHostPickerRow, useHostPickerRowNote } from "./host-picker-row.ts";
 import { WorkstreamPicker } from "./WorkstreamPicker.tsx";
 import { takeComposerPreset } from "./preset.ts";
 import {
@@ -241,6 +241,8 @@ export function NewThreadRouting() {
   // announced but not drawn; the chip's ✦ pulses while it classifies.
   const compact = useIsCompactViewport();
   const pickerRow = useHostPickerRow(model && !compact ? composerRoot : null);
+  // The project note sits under BB's picker row, which names the project.
+  const noteSlot = useHostPickerRowNote(model ? composerRoot : null);
   const picker = model ? (
     <>
       <WorkstreamPicker newWork={model} />
@@ -254,6 +256,15 @@ export function NewThreadRouting() {
         {state.classifying ? "Analyzing…" : ""}
       </span>
     </>
+  ) : null;
+  const offer = model ? (
+    <ProjectDefaultOffer
+      newWork={model}
+      projectId={
+        composer.selection?.projectId ??
+        (composer.scope.kind === "new-thread" ? composer.scope.projectId : null)
+      }
+    />
   ) : null;
   return checkedRoot && !model ? null : (
     <div ref={setRoot}>
@@ -272,15 +283,7 @@ export function NewThreadRouting() {
               {picker}
             </div>
           )}
-          <ProjectDefaultOffer
-            newWork={model}
-            projectId={
-              composer.selection?.projectId ??
-              (composer.scope.kind === "new-thread"
-                ? composer.scope.projectId
-                : null)
-            }
-          />
+          {noteSlot ? createPortal(offer, noteSlot) : offer}
           {state.error ? (
             <p key={state.errors} role="alert" className="ws-suggestion-error">
               {state.error}

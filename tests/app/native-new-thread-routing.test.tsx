@@ -141,6 +141,31 @@ function RootComposerWithPickerRow() {
   );
 }
 
+function PickerRowWithProjectPick() {
+  const composer = useComposer();
+  return (
+    <main data-app-composer-role="primary">
+      <div data-promptbox-shell="">
+        <NewThreadRouting />
+        <form data-promptbox="" />
+        <div data-testid="picker-row">
+          <div>
+            <button
+              type="button"
+              data-promptbox-project-control=""
+              onClick={() =>
+                void composer.setSelection({ projectId: "project-beta" })
+              }
+            >
+              Pick Beta
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 function DialogComposer() {
   const composer = useComposer();
   return (
@@ -576,11 +601,11 @@ it("keeps a picked topic in a project you choose for this thread only", async ()
   await waitFor(() =>
     expect(slot.inspection.composer.selection?.projectId).toBe("project-beta"),
   );
-  const offer = await screen.findByText(/Alpha’s project is Alpha\./);
   expect(
-    screen.getByRole("button", { name: "Change it to Beta" }),
+    await screen.findByRole("button", {
+      name: "Set Beta as default for Alpha",
+    }),
   ).toBeTruthy();
-  expect(offer).toBeTruthy();
   // Workstreams doesn't move the thread back to Alpha's project.
   expect(slot.inspection.composer.selections).toEqual([
     { projectId: "project-beta" },
@@ -616,6 +641,22 @@ it("keeps a picked topic when you choose another project and BB remounts the com
   expect(slot.inspection.composer.selections).toEqual([]);
 });
 
+it("offers the workstream default under the picker row", async () => {
+  mount(identityDecision, { component: PickerRowWithProjectPick });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Topic: Automatic" }),
+  );
+  fireEvent.click(await screen.findByText("Alpha"));
+  await screen.findByRole("button", { name: "Topic: Alpha" });
+  fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
+  const offer = await screen.findByRole("button", {
+    name: "Set Beta as default for Alpha",
+  });
+  expect(screen.getByTestId("picker-row").nextElementSibling).toBe(
+    offer.closest("[data-ws-picker-note-slot]"),
+  );
+});
+
 it("changes the workstream's project to the one you chose when asked", async () => {
   const { metadataUpdates } = mount(identityDecision, {
     component: ComposerWithProjectPick,
@@ -627,9 +668,11 @@ it("changes the workstream's project to the one you chose when asked", async () 
   await screen.findByRole("button", { name: "Topic: Alpha" });
   fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
   fireEvent.click(
-    await screen.findByRole("button", { name: "Change it to Beta" }),
+    await screen.findByRole("button", {
+      name: "Set Beta as default for Alpha",
+    }),
   );
-  await screen.findByText("Alpha’s project is now Beta.");
+  await screen.findByText("Beta is now the default for Alpha.");
   expect(metadataUpdates).toHaveBeenCalledWith({
     entityId: "ent_alpha",
     projectId: "project-beta",
@@ -650,13 +693,13 @@ it("moves to a newly picked topic's project after a project you chose", async ()
   fireEvent.click(await screen.findByText("Alpha"));
   await screen.findByRole("button", { name: "Topic: Alpha" });
   fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
-  await screen.findByRole("button", { name: "Change it to Beta" });
+  await screen.findByRole("button", { name: "Set Beta as default for Alpha" });
   fireEvent.click(screen.getByRole("button", { name: "Topic: Alpha" }));
   fireEvent.click(await screen.findByText("Beta"));
   await waitFor(() =>
     expect(slot.inspection.composer.selection?.projectId).toBe("project-alpha"),
   );
-  expect(screen.queryByRole("button", { name: /Change it to/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: /as default for/ })).toBeNull();
 });
 
 it("leaves an automatic topic unfiled rather than moving a thread out of its project", async () => {

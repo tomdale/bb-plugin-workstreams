@@ -1,8 +1,8 @@
 /**
- * The line the New thread composer shows when you picked a topic and then
- * chose a project other than its workstream's. The thread starts in the
- * project you chose; this line names the workstream's project and offers to
- * change it to yours. Ignoring it leaves the workstream as it is.
+ * The line under the New thread composer's picker row when you picked a topic
+ * and then chose a project other than its workstream's. The thread starts in
+ * the project you chose; this line offers to make that project the
+ * workstream's default. Ignoring it leaves the workstream as it is.
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRpc, useSdk } from "@get-bb/plugin-sdk/app";
@@ -21,7 +21,6 @@ type Offer = {
   label: string;
   projectId: string;
   projectName: string;
-  workstreamProjectName: string | null;
 };
 
 export function ProjectDefaultOffer({
@@ -79,11 +78,6 @@ export function ProjectDefaultOffer({
               label: identity.label,
               projectId,
               projectName,
-              workstreamProjectName:
-                conflict.workstreamProjectId === NO_PROJECT
-                  ? null
-                  : (nameOf(conflict.workstreamProjectId) ??
-                    "an unavailable project"),
             }
           : null,
       );
@@ -105,7 +99,7 @@ export function ProjectDefaultOffer({
   if (confirmed)
     return (
       <p role="status" className="ws-project-offer">
-        {confirmed.label}’s project is now {confirmed.projectName}.
+        {confirmed.projectName} is now the default for {confirmed.label}.
       </p>
     );
   if (!offered) return null;
@@ -126,17 +120,14 @@ export function ProjectDefaultOffer({
   };
   return (
     <p className="ws-project-offer">
-      {offered.workstreamProjectName
-        ? `${offered.label}’s project is ${offered.workstreamProjectName}.`
-        : `${offered.label} has no project.`}{" "}
       <Button
         type="button"
         variant="link"
         disabled={busy}
         onClick={() => void save()}
-        className="h-auto p-0 text-xs font-normal text-foreground"
+        className="h-auto whitespace-normal p-0 text-left text-xs font-normal text-muted-foreground hover:text-foreground"
       >
-        Change it to {offered.projectName}
+        Set {offered.projectName} as default for {offered.label}
       </Button>
     </p>
   );
